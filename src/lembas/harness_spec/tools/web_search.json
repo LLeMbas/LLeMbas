@@ -1,0 +1,32 @@
+{
+  "name": "web_search",
+  "scope": "shared",
+  "risk": "read",
+  "exclusive": false,
+  "block": "web",
+  "purpose": "purpose",
+  "aliases": {
+    "cli": [
+      "websearch"
+    ],
+    "llembas": []
+  },
+  "description": "Search the web. Returns titles, links and snippets. Use it for anything current or outside your knowledge — versions, APIs, error messages, documentation — then read the pages that matter with web_fetch. Several focused queries beat one vague one.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "minLength": 1
+      },
+      "max_results": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 20
+      }
+    },
+    "required": [
+      "query"
+    ]
+  }
+}

@@ -1,0 +1,116 @@
+{% extends "library/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% from "library/_group.html" import group_chip, group_field, group_filter with context %}
+{% set section = "skills" %}
+
+{% block title %}{{ skill.name if skill else t("New skill") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ skill.name if skill else t("New skill") }}{% endblock %}
+
+{% block library_content %}
+<div class="btn-row" style="margin-bottom: var(--sp-5)">
+  <a class="btn btn--sm" href="/library/skills">{{ icon("chevron-right", "icon--sm") }} {{ t("All skills") }}</a>
+</div>
+
+<form method="post"
+      action="{{ '/api/library/skills/' ~ skill.id if skill else '/api/library/skills' }}">
+  <section class="card">
+    {% if not skill %}
+    <div class="field">
+      <label class="field__label" for="name">{{ t("Name") }}</label>
+      <input class="input mono" id="name" name="name" required maxlength="60"
+             placeholder="{{ t('weekly-report') }}" pattern="[a-zA-Z0-9 _-]+">
+      <p class="field__hint">{{ t("Lowercase letters, numbers and hyphens. This is how a model asks for it, and it cannot be changed later.") }}</p>
+    </div>
+    {% endif %}
+
+    <div class="field">
+      <label class="field__label" for="description">{{ t("When to use it") }}</label>
+      <textarea class="textarea" id="description" name="description" rows="2" required
+                {{ 'disabled' if skill and not is_owner }}
+                placeholder="{{ t('When the user asks for the weekly report.') }}">{{ skill.description if skill else '' }}</textarea>
+      <p class="field__hint">
+        <strong>{{ t("The load-bearing field.") }}</strong> {{ t("This one line is all a model sees until it opens the skill, so it has to say when the skill applies — not what it does.") }}
+      </p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="body">{{ t("Instructions") }}</label>
+      <textarea class="textarea" id="body" name="body" rows="18"
+                {{ 'disabled' if skill and not is_owner }}
+                placeholder="{{ t('Markdown. Steps, conventions, things to avoid.') }}">{{ skill.body if skill else '' }}</textarea>
+    </div>
+    {% if not skill or is_owner %}{{ group_field(skill, group|default("")) }}{% endif %}
+
+    {% if skill %}
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="enabled" value="true" {{ 'checked' if skill.enabled }}
+               {{ 'disabled' if not is_owner }}>
+        <span>{{ t("Offer this skill to models") }}</span>
+      </label>
+      <p class="field__hint">{{ t("Turned off, it stays here but disappears from the list the model sees.") }}</p>
+    </div>
+    {% endif %}
+
+    {% if skill and skill.author == "model" %}
+    <div class="alert alert--warning">
+      {{ icon("sparkle", "alert__icon") }}
+      <div>
+        <strong>{{ t("A model wrote this version.") }}</strong>
+        <div class="text-sm" style="margin-top: var(--sp-1)">
+          {{ t("Worth reading before you rely on it. A model that has just read a web page can be talked into things by that page, and a skill persists. Every earlier version is below.") }}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </section>
+
+  {% if skill %}{% include "library/_share.html" %}{% endif %}
+
+  {% if not skill or is_owner %}
+  <div class="form-actions">
+    <button class="btn btn--primary" type="submit">{{ t("Save") if skill else t("Create skill") }}</button>
+    {% if skill %}
+    <span class="spacer"></span>
+    <button class="btn btn--danger" type="submit"
+            formaction="/api/library/skills/{{ skill.id }}/delete"
+            data-confirm-button="{{ t('Delete the skill “%(name)s” and all its history?', name=skill.name) }}"
+            data-confirm-title="{{ t('Delete skill') }}">
+      {{ icon("trash", "icon--sm") }} {{ t("Delete") }}
+    </button>
+    {% endif %}
+  </div>
+  {% endif %}
+</form>
+
+{% if skill and revisions %}
+<section class="card">
+  <h2 class="card__title">{{ t("History") }} <span class="badge">{{ revisions|length }}</span></h2>
+  <p class="card__lede">{{ t("What this skill said before each change. This is the whole safety story for a model editing its own instructions: not a gate, but a record and a way back.") }}</p>
+  <ul class="model-list">
+    {% for revision in revisions %}
+    <li class="model-list__item">
+      <div style="min-width: 0">
+        <strong>{{ revision.created_at.strftime("%Y-%m-%d %H:%M") }}</strong>
+        {% if revision.author == "model" %}
+        <span class="badge badge--leaf">{{ t("model") }}</span>
+        {% else %}
+        <span class="badge">{{ t("you") }}</span>
+        {% endif %}
+        {% if revision.note %}<div class="text-xs faint">{{ revision.note }}</div>{% endif %}
+        <div class="text-xs faint">{{ revision.body[:200] }}{{ "…" if revision.body|length > 200 }}</div>
+      </div>
+      {% if is_owner %}
+      <form method="post"
+            action="/api/library/skills/{{ skill.id }}/revert/{{ revision.id }}"
+            data-confirm="{{ t('Put the skill back to this version? The current one is kept in the history.') }}"
+            data-confirm-label="{{ t('Revert') }}" data-confirm-danger="false">
+        <button class="btn btn--sm" type="submit">{{ icon("refresh", "icon--sm") }} {{ t("Revert") }}</button>
+      </form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

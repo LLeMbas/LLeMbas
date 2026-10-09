@@ -1,0 +1,90 @@
+{#
+  What `/usage` shows.
+
+  Two different numbers, deliberately kept apart. **Used** is how full the
+  window is right now -- one reply's prompt plus its completion, which is what
+  decides when compaction fires. **Spent** is everything this conversation has
+  cost end to end, which is larger and grows forever: a three-round reply pays
+  for its prompt three times but only ever occupies the window once.
+
+  Anything derived from an estimate wears a `~`, because `services/tokens.py`
+  counts four characters to a token when an endpoint reports nothing, and a
+  precise-looking figure that is a guess is worse than an obvious guess.
+#}
+<table class="sheet">
+  <tbody>
+    <tr>
+      <td>{{ t("In the window now") }}</td>
+      <td>
+        {% if metrics.context_tokens %}
+          {% set used = ('~' if metrics.estimated else '') ~ '{:,}'.format(metrics.context_tokens) %}
+          {% if metrics.percent %}
+            {{ t("%(n)s tokens — %(percent)s%% of %(limit)s", n=used, percent=metrics.percent, limit='{:,}'.format(metrics.context_limit)) }}
+          {% else %}
+            {{ t("%(n)s tokens", n=used) }}
+          {% endif %}
+        {% else %}
+          {{ t("Nothing yet.") }}
+        {% endif %}
+      </td>
+    </tr>
+
+    {% if not metrics.context_limit %}
+    {# Unknown is not zero. Nobody has said how big this model's window is, so
+       the percentage is omitted rather than computed, and automatic
+       compaction never fires. #}
+    <tr>
+      <td>{{ t("Window size") }}</td>
+      <td>
+        {% if model %}
+          {{ t("Not recorded for %(model)s, so there is no percentage and this chat will never compact itself.", model=model.label) }}
+        {% else %}
+          {{ t("Not recorded for this model, so there is no percentage and this chat will never compact itself.") }}
+        {% endif %}
+        {% if user.is_admin %}
+          {{ tm('Set it under <a href="/admin/models">Models</a>.') }}
+        {% endif %}
+      </td>
+    </tr>
+    {% endif %}
+
+    <tr>
+      <td>{{ t("Spent in total") }}</td>
+      <td>
+        {% set spent = ('~' if estimated else '') ~ '{:,}'.format(totals.total) %}
+        {{ t("%(n)s tokens across %(replies)s reply", n=spent, replies=replies) if replies == 1 else t("%(n)s tokens across %(replies)s replies", n=spent, replies=replies) }}
+      </td>
+    </tr>
+    <tr>
+      <td>{{ t("Of which sent") }}</td>
+      <td>{{ t("%(n)s tokens", n=('~' if estimated else '') ~ '{:,}'.format(totals.prompt)) }}</td>
+    </tr>
+    <tr>
+      <td>{{ t("Of which written") }}</td>
+      <td>{{ t("%(n)s tokens", n=('~' if estimated else '') ~ '{:,}'.format(totals.completion)) }}</td>
+    </tr>
+
+    {% if cost %}
+    {# What the replies cost, from their ledger entries, where credits
+       are in use. #}
+    <tr>
+      <td>{{ t("Cost") }}</td>
+      <td>{{ t("%(credits)s credits · %(money)s", credits=cost.credits, money=cost.money) }}</td>
+    </tr>
+    {% endif %}
+
+    {% if metrics.tokens_per_second %}
+    <tr>
+      <td>{{ t("Last reply") }}</td>
+      <td>{{ t("%(n)s tokens/second", n='%.1f'|format(metrics.tokens_per_second)) }}</td>
+    </tr>
+    {% endif %}
+
+    {% if chat.compact_summary %}
+    <tr>
+      <td>{{ t("Compacted") }}</td>
+      <td>{{ t("Earlier turns are summarised. They are still in the transcript; they just stop being sent.") }}</td>
+    </tr>
+    {% endif %}
+  </tbody>
+</table>

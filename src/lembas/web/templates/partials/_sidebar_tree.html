@@ -1,0 +1,229 @@
+{% from "_macros.html" import icon, section_toggle %}
+{#
+  The folder tree and the unfiled chats -- on the Agents side, a section per
+  device.
+
+  Its own partial because it is rendered from two places: the sidebar on every
+  page, and `POST /api/preferences/sidebar-kind` when the switch is flicked.
+  Pinned models stay above it in `sidebar.html` -- they start a chat of either
+  kind and are not part of what is being switched.
+
+  The switch itself lives above the scroll area
+  (`_sidebar_actions.html`), outside this fragment: it is two native radios
+  whose checked state the browser keeps, and with "New chat" gone from that row
+  nothing there changes with the side.
+
+  Every section heading is `section_toggle` (`_macros.html`) -- the name
+  and the chevron as one button that folds the section, remembered on the
+  account under `sections` and rendered from it, so neither a reload nor an
+  out-of-band swap of this fragment opens what somebody shut.
+
+  Folders are the Chats side's alone (`sidebar_context` hands the Agents
+  side none), and each root folder is a section of its own -- `[ NAME ]` with
+  its actions beside it, the way `[ CHATS ]` and each device are -- rather than
+  a row under a `[ FOLDERS ]` label. `sidebar_kind` is still passed down to
+  `_folder.html`, which narrows each folder's own chats with it.
+#}
+<div id="sidebar-tree">
+  {#- Which sections somebody folded or opened (`pages.section_states`). -#}
+  {% set states = sections if sections is defined else {} %}
+  {#
+    Only the pinned shortcuts come along out of band now: they link with the
+    side the switch is on. The switch sits above the scroll area and depends
+    on nothing the switch changes (New folder is in the `[ CHATS ]` heading
+    below). Only when this is the
+    fragment response: on a full page load the group is already rendered in
+    its own place, and a second copy marked `hx-swap-oob` would be a stray
+    element sitting in the tree.
+  #}
+  {% if oob %}
+    {% with oob = true %}
+      {% include "partials/_sidebar_pinned.html" %}
+    {% endwith %}
+  {% endif %}
+
+  {% if sidebar_kind == "agent" %}
+  {#
+    The Agents side: a section per device, each headed with its name,
+    holding its chats and its own + -- the new-agent-chat screen with that
+    device chosen; the directory is picked there as before. Linked devices
+    first, then ones that are not linked but still have chats, dimmed and with
+    no +, since nothing can start on them. See `pages._device_sections`.
+
+    With no device linked at all, what to do about it comes first: an agent
+    chat runs on a linked LLeMbas CLI and nowhere else, so an empty list with a
+    + nobody can use would be a dead end.
+  #}
+  {% set live_devices = device_sections|selectattr("linked")|list %}
+  {% if not live_devices %}
+  <div class="nav-setup">
+    <p class="nav-setup__lede">{{ t("Agent chats run on a machine with the LLeMbas CLI, signed in to this instance and linked. None is linked now.") }}</p>
+    <pre class="nav-setup__code"><code>curl -fsSL https://github.com/LLeMbas/LLeMbas-CLI/releases/latest/download/get.sh | bash
+lembas login {{ request.base_url|string|trim("/") }}</code></pre>
+    <a class="nav-setup__link" href="/settings?tab=devices">{{ t("Settings → Devices") }}</a>
+  </div>
+  {% endif %}
+  {% for section in device_sections %}
+  {% set device_key = "device:" ~ (section.token_id or "") %}
+  {% set device_open = states.get(device_key, true) %}
+  {% set device_body = "section-device-" ~ (section.token_id or "none") %}
+  <div class="nav-group {{ '' if section.linked else 'nav-group--offline' }}">
+    <div class="nav-group__head">
+      {{ section_toggle(device_key, section.name, device_open, device_body, title=section.name) }}
+      {% if not section.linked and section.token_id %}
+      <span class="nav-group__state">{{ t("offline") }}</span>
+      {% endif %}
+      {#
+        Which of this device's sessions to list: active (the default),
+        archived, or all of them with the archived ones after, dimmed. The
+        Agents side has no Archived group of its own any more, so this is where
+        an archived agent chat is found again -- which is also why an offline
+        section, and "device missing", carry it too.
+
+        The model picker's menu machinery (`data-picker`, ui.js), as the
+        composer's attach menu uses it: a menu of three buttons, each posting
+        the choice and swapping the tree back, as the Chats/Agents switch does.
+        Accent-coloured while it is not the default, so a section showing fewer
+        or other chats than usual says so before anybody counts.
+      #}
+      {% set filter_label = t("Which sessions to show on %(device)s", device=section.name) %}
+      <div class="picker nav-group__filter" data-picker>
+        <button class="btn btn--icon btn--sm nav-group__add {{ 'is-filtered' if section.filter != 'active' }}"
+                type="button" data-picker-toggle
+                aria-haspopup="menu" aria-expanded="false"
+                aria-label="{{ filter_label }}" title="{{ filter_label }}">
+          {{ icon("filter", "icon--sm") }}
+        </button>
+        <div class="picker__menu picker__menu--compact nav-group__menu" data-picker-menu role="menu"
+             hidden aria-label="{{ filter_label }}">
+          {% for value, label in [("all", t("All sessions")), ("active", t("Active sessions")), ("archived", t("Archived sessions"))] %}
+          <button class="picker__option {{ 'is-selected' if section.filter == value }}"
+                  type="button" role="menuitemradio"
+                  aria-checked="{{ 'true' if section.filter == value else 'false' }}"
+                  hx-post="/api/preferences/agent-filter"
+                  hx-vals='{"device": "{{ section.token_id }}", "show": "{{ value }}"}'
+                  hx-target="#sidebar-tree" hx-swap="outerHTML">
+            <span class="picker__option-body">
+              <span class="picker__option-name">{{ label }}</span>
+            </span>
+            {% if section.filter == value %}{{ icon("check", "icon--sm picker__tick") }}{% endif %}
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+      {% if section.linked and can.get("chat.create") %}
+      <a class="btn btn--icon btn--sm nav-group__add"
+         href="/chat?kind=agent&amp;device={{ section.token_id }}"
+         {% if loop.first %}data-new-chat aria-keyshortcuts="Alt+N"{% endif %}
+         aria-label="{{ t('New agent chat on %(device)s', device=section.name) }}"
+         title="{{ t('New agent chat on %(device)s', device=section.name) }}">
+        {{ icon("plus", "icon--sm") }}
+      </a>
+      {% endif %}
+    </div>
+    <div class="nav-group__body" id="{{ device_body }}"{% if not device_open %} hidden{% endif %}>
+    {% for chat_item in section.chats %}
+      {% include "partials/_chat_link.html" %}
+    {% else %}
+      {% if section.filter == "archived" %}
+      <p class="nav-empty">{{ t("No archived sessions.") }}</p>
+      {% elif section.has_any %}
+      <p class="nav-empty">{{ t("No active sessions.") }}</p>
+      {% else %}
+      <p class="nav-empty">{{ t("No agent chats yet. Nothing is stirring out there.") }}</p>
+      {% endif %}
+    {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+
+  {% else %}
+  <div class="nav-group">
+    {# `[ CHATS ]          +`: the + is New chat. A link, not a button that creates a row -- the chat is
+       written when the first message is sent, so opening one and walking away
+       leaves nothing behind. Alt+N does the same (commands.js).
+
+       New folder sits to its left, the same box -- here and not above the
+       scroll area, where it would stand over the Agents side too, and folders
+       are this side's alone. Asks for the name rather than making "New
+       folder" and leaving somebody to find the rename: `data-prompt` writes the
+       answer into hx-vals before the request goes out; see ui.js for why this
+       is not htmx's own hx-prompt. #}
+    {% set chats_open = states.get("chats", true) %}
+    <div class="nav-group__head">
+      {{ section_toggle("chats", t("Chats"), chats_open, "section-chats") }}
+      {% if can.get("folder.manage") %}
+      <button class="btn btn--icon btn--sm nav-group__add" type="button"
+              hx-post="/api/folders" hx-swap="none"
+              data-prompt="{{ t('What should this folder be called?') }}"
+              data-prompt-title="{{ t('New folder') }}" data-prompt-field="name"
+              data-prompt-label="{{ t('Create') }}"
+              aria-label="{{ t('New folder') }}" title="{{ t('New folder') }}">
+        {{ icon("folder", "icon--sm") }}
+      </button>
+      {% endif %}
+      {% if can.get("chat.create") %}
+      <a class="btn btn--icon btn--sm nav-group__add" href="/chat" data-new-chat
+         aria-keyshortcuts="Alt+N"
+         aria-label="{{ t('New chat') }}" title="{{ t('New chat') }}">
+        {{ icon("plus", "icon--sm") }}
+      </a>
+      {% endif %}
+    </div>
+    <div class="nav-group__body" id="section-chats"{% if not chats_open %} hidden{% endif %}>
+    {% if unfiled_chats %}
+      {% for chat_item in unfiled_chats %}
+        {% include "partials/_chat_link.html" %}
+      {% endfor %}
+    {% else %}
+      <p class="nav-empty">{{ t("No chats yet. The road begins here.") }}</p>
+    {% endif %}
+    </div>
+  </div>
+
+  {# Below `[ CHATS ]`, not above it. The unfiled
+     chats are what somebody is in the middle of; folders are where things are
+     put away, and a list of them in front of the current work would push it down
+     by a folder's height each. `nested` is what tells `_folder.html` to draw
+     a section heading rather than an indented row. #}
+  {% for folder in folders %}
+    {% with nested = false %}
+      {% include "partials/_folder.html" %}
+    {% endwith %}
+  {% endfor %}
+  {% endif %}
+
+  {#
+    Archived chats, closed, and absent entirely when there are none. Only ever
+    on the Chats side, where it holds the ordinary ones: on the
+    Agents side each device section lists its own archived chats through its
+    filter, and `sidebar_context` hands this group nothing there.
+
+    A folding section rather than a page of their own: archiving is for getting
+    a conversation out of the way, not for filing it somewhere, and a second
+    screen to visit would make putting one back a journey. Closed by default
+    because that is the whole point; opened, it stays open (the
+    `archived` key of `sections`, like every other heading).
+  #}
+  {% if archived_chats %}
+  {% set archived_open = states.get("archived", false) %}
+  <div class="nav-group nav-group--archived">
+    {#- A button and a body like every other section, not a `<details>`:
+        the browser's open state does not survive a re-render of this
+        fragment. Its
+        own markup rather than `section_toggle`, for the icon and the count. -#}
+    <button class="nav-group__label nav-group__toggle nav-group__toggle--row" type="button"
+            data-section="archived" aria-expanded="{{ 'true' if archived_open else 'false' }}"
+            aria-controls="section-archived">
+      {{ icon("archive", "icon--sm") }} <span class="nav-group__name">{{ t("Archived") }}</span>
+      <span class="nav-group__chevron">{{ icon("chevron-down", "icon--sm") }}</span>
+      <span class="nav-group__count">{{ archived_chats|length }}</span>
+    </button>
+    <div class="nav-group__body" id="section-archived"{% if not archived_open %} hidden{% endif %}>
+    {% for chat_item in archived_chats %}
+      {% include "partials/_chat_link.html" %}
+    {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>

@@ -1,0 +1,8 @@
+{
+  "about": "The argument a call says what it is for in, added to the parameters of every tool whose `purpose` is \"purpose\" (a tool may instead name a field of its own, as bash does with `description`, or have none). Shown to the user when they are asked to allow the call, and beside it in the transcript; the tool itself never sees it.",
+  "name": "purpose",
+  "schema": {
+    "type": "string",
+    "description": "One short sentence for the user: what this call is for — what you want to find out or get done. Shown when they are asked to allow it."
+  }
+}

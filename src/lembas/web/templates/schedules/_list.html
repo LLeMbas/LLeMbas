@@ -1,0 +1,44 @@
+{% from "_macros.html" import icon %}
+{#
+  The scheduled tasks, as a list (the Scheduled tab of Settings;
+  `/scheduled` redirects to the tab). The forms to make and change one are still pages of their own.
+#}
+<p class="card__lede">{{ t("Work that runs on its own, whether or not you are here. Each one has its own chat, and replies into it every time it comes round.") }}</p>
+
+{% if not schedules %}
+<div class="empty">
+  {{ icon("clock", "empty__mark") }}
+  <h2 class="empty__title">{{ t("Nothing scheduled") }}</h2>
+  <p class="empty__text">{{ t("Set something to run later — a daily summary, a check every Monday morning, a reminder in an hour.") }}</p>
+</div>
+{% else %}
+<ul class="model-list">
+  {% for item in schedules %}
+  <li class="model-list__item">
+    <div style="min-width: 0">
+      <a href="/chat/{{ item.row.chat_id }}"><strong>{{ item.row.title }}</strong></a>
+      <div class="text-xs faint">
+        {{ item.summary }}
+        {%- if item.next and item.row.enabled %}
+          · {{ t("next %(when)s", when=stamp(item.next, "%a %-d %b, %H:%M")) }}
+        {%- endif %}
+        {%- if item.row.fired_count %} · {{ t("run %(n)s times", n=item.row.fired_count) }}{% endif %}
+      </div>
+      {% if item.row.last_error %}
+      <div class="text-xs faint">{{ item.row.last_error }}</div>
+      {% endif %}
+    </div>
+    <div class="btn-row">
+      {% if item.row.target == "report" %}<span class="badge">{{ t("files a report") }}</span>{% endif %}
+      {# Which of these nobody typed. A schedule is invisible until it fires, so
+         the list is where a model's decision is checkable at all -- and the
+         reader needs to be able to tell one apart from their own without
+         opening it. #}
+      {% if item.row.origin == "model" %}<span class="badge">{{ t("set up for you") }}</span>{% endif %}
+      {% if not item.row.enabled %}<span class="badge badge--warning">{{ t("paused") }}</span>{% endif %}
+      <a class="btn btn--sm" href="/scheduled/{{ item.row.id }}/edit">{{ t("Edit") }}</a>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}

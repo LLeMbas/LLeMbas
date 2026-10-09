@@ -1,0 +1,101 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "lembas"
+# Read from lembas.__version__ rather than written here: the app, the service
+# worker cache key and the page footer all read the module, so it is the one
+# copy. See [tool.hatch.version] below.
+dynamic = ["version"]
+description = "LLeMbas - a Middle-earth themed web UI for OpenAI-compatible LLM endpoints"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "Jaroslav Benes", email = "admin@ecoposta.sk" }]
+keywords = ["llm", "webui", "openai", "chat", "self-hosted"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Communications :: Chat",
+]
+
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "jinja2>=3.1",
+    "sqlalchemy>=2.0",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "httpx>=0.27",
+    "python-multipart>=0.0.12",
+    "argon2-cffi>=23.1",
+    "cryptography>=43.0",
+    "markdown-it-py>=3.0",
+    "mdit-py-plugins>=0.4",
+    "linkify-it-py>=2.0",  # bare URLs in model output become links
+    "pygments>=2.18",
+    "nh3>=0.2.18",
+    "pypdf>=5.1",     # PDF text extraction for attachments
+    "pillow>=11.0",   # image validation and downscaling for vision
+    "typer>=0.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.7",
+]
+# DuckDuckGo search. Optional because it brings a compiled HTTP client and an
+# XML parser with it, and the other two search providers need only httpx, which
+# is already a core dependency. Without this the provider is offered in the
+# admin UI with an install hint rather than silently missing.
+search = ["ddgs>=9.0"]
+
+[project.scripts]
+# `lembas-server`, not `lembas`: the bare name is the LLeMbas CLI's command, and
+# two programs installing one name on a machine means whichever came last wins.
+lembas-server = "lembas.cli:app"
+
+[project.urls]
+Homepage = "https://llembas.eu"
+Documentation = "https://llembas.eu/docs/"
+Changelog = "https://llembas.eu/changelog.html"
+Source = "https://github.com/LLeMbas/LLeMbas"
+Issues = "https://github.com/LLeMbas/LLeMbas/issues"
+
+[tool.hatch.version]
+path = "src/lembas/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lembas"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
+ignore = ["B008"]  # FastAPI Depends() in defaults is idiomatic
+
+[tool.ruff.lint.per-file-ignores]
+# A translation catalogue is keyed by the English sentence, and a sentence cannot
+# be rewrapped without becoming a different key. Wrapping them would mean every
+# key spelled as an implicit concatenation, which is both unreadable and one
+# stray space away from a silent miss.
+"src/lembas/web/i18n/*.py" = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Registered so `-m "not slow"` works and an unknown-marker warning does not
+# become an error later. `slow` is for the tests that stand up something real:
+# a uvicorn subprocess on a port, an asyncssh server, a PTY, a git repository
+# built with subprocess. They are the ones worth having and the ones worth
+# being able to skip while iterating.
+markers = [
+    "slow: stands up a real server, shell or repository",
+]
+asyncio_mode = "auto"
+filterwarnings = ["ignore::DeprecationWarning"]

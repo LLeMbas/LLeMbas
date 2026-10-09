@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{#
+  The Scheduled shell: the list and the setup forms.
+
+  A schedule's own *chat* is not rendered here — it is the ordinary chat page
+  with its composer replaced, which is the whole reason a task chat is a `Chat`.
+#}
+
+{% block head %}
+<link rel="stylesheet" href="{{ asset('css/chat.css') }}">
+<link rel="stylesheet" href="{{ asset('css/admin.css') }}">
+{% endblock %}
+
+{% block body_attrs %} data-authenticated="true"{% endblock %}
+
+{% block body %}
+<div class="shell">
+  {% include "partials/sidebar.html" %}
+
+  <main class="main">
+    <header class="topbar">
+      {% include "partials/_sidebar_toggle.html" %}
+      <h1 class="topbar__title">{% block heading %}{{ t("Scheduled") }}{% endblock %}</h1>
+      <div class="topbar__actions">{% block actions %}{% endblock %}</div>
+    </header>
+
+    <div class="admin-scroll">
+      <div class="admin-page">
+        {% if error %}
+        <div class="alert alert--warning">
+          {{ icon("warning", "alert__icon") }} <span>{{ error }}</span>
+        </div>
+        {% endif %}
+        {% block schedules_content %}{% endblock %}
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

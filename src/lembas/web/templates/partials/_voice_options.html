@@ -1,0 +1,25 @@
+{#
+  The contents of a voice <select>.
+
+  A fragment rather than markup inside each settings page because the admin
+  form, a reader's own settings and the endpoint test all need the same list --
+  which is fetched from the speech endpoint rather than stored, since
+  reconfiguring the server changes what is on offer.
+
+  `instance_voice` is only passed by the user-facing page, where the first
+  option means "whatever the administrator chose"; on the admin page there is
+  no such fallback and the empty option means "let the endpoint decide".
+#}
+{% if instance_voice is defined and instance_voice %}
+<option value="">{{ t("Instance default — %(voice)s", voice=instance_voice) }}</option>
+{% else %}
+<option value="">{{ t("Endpoint default") }}</option>
+{% endif %}
+{% for voice in voices %}
+<option value="{{ voice }}" {{ 'selected' if voice == selected }}>{{ voice }}</option>
+{% endfor %}
+{% if selected and selected not in voices %}
+{# The stored choice is no longer offered -- kept so saving the form does not
+   silently reset it to the default. #}
+<option value="{{ selected }}" selected>{{ t("%(voice)s (not currently offered)", voice=selected) }}</option>
+{% endif %}

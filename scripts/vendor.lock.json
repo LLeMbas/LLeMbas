@@ -1,0 +1,47 @@
+{
+  "alpine.min.js": {
+    "sha256": "57b37d7cae9a27d965fdae4adcc844245dfdc407e655aee85dcfff3a08036a3f",
+    "url": "https://unpkg.com/alpinejs@3.15.12/dist/cdn.min.js",
+    "version": "3.15.12"
+  },
+  "htmx-ext-sse.js": {
+    "sha256": "3b5992a541619babefc4c169505af474df5c3039da51e59b96ccf9241ecd61d2",
+    "url": "https://unpkg.com/htmx-ext-sse@2.2.4/sse.js",
+    "version": "2.2.4"
+  },
+  "htmx.min.js": {
+    "sha256": "71ea67185bfa8c98c39d31717c6fce5d852370fcdfd129db4543774d3145c0de",
+    "url": "https://unpkg.com/htmx.org@2.0.10/dist/htmx.min.js",
+    "version": "2.0.10"
+  },
+  "jetbrains-mono-OFL.txt": {
+    "sha256": "403581b69dac5cff4079205e01c6b467e56af449ecbd7247693ddb1baafa005b",
+    "url": "https://unpkg.com/@fontsource-variable/jetbrains-mono@5.3.0/LICENSE",
+    "version": "5.3.0"
+  },
+  "jetbrains-mono-latin-ext.woff2": {
+    "sha256": "79bfdab9ba467e26eea4122e6f2567e188dd8a09a8c730d501fc487c4ab99c6e",
+    "url": "https://unpkg.com/@fontsource-variable/jetbrains-mono@5.3.0/files/jetbrains-mono-latin-ext-wght-normal.woff2",
+    "version": "5.3.0"
+  },
+  "jetbrains-mono-latin.woff2": {
+    "sha256": "18be452724bfdc236c074ca94a249a7f41a86752c7d04ab258ce9ed5651f6a7e",
+    "url": "https://unpkg.com/@fontsource-variable/jetbrains-mono@5.3.0/files/jetbrains-mono-latin-wght-normal.woff2",
+    "version": "5.3.0"
+  },
+  "xterm-addon-fit.js": {
+    "sha256": "bdaefa370b1bfc42ee88d46fe6072400902a4d4b2d45cd93438dda9b23c97089",
+    "url": "https://unpkg.com/@xterm/addon-fit@0.10.0/lib/addon-fit.js",
+    "version": "0.10.0"
+  },
+  "xterm.css": {
+    "sha256": "ba8e6985669488981ccf40c0cefe3aba80722cb6c92de7ad628b0bd717faf2b6",
+    "url": "https://unpkg.com/@xterm/xterm@5.5.0/css/xterm.css",
+    "version": "5.5.0"
+  },
+  "xterm.js": {
+    "sha256": "1f991ac3b4b283ebf96e60ae23a00a52765dd3a2e46fa6fdda9f1aab032f7495",
+    "url": "https://unpkg.com/@xterm/xterm@5.5.0/lib/xterm.js",
+    "version": "5.5.0"
+  }
+}

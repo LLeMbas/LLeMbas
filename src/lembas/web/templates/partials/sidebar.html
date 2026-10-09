@@ -1,0 +1,133 @@
+{% from "_macros.html" import icon, brandlink, model_avatar %}
+{#
+  Sidebar: brand, the Chats/Agents switch, pinned models, the folder tree,
+  then unfiled chats (on the Agents side, a section per device).
+
+  "New chat" is the + beside the Chats heading: a link, not a button that
+  creates a row. The chat is written when the first message is sent, so opening
+  one and walking away leaves nothing behind.
+#}
+<aside class="sidebar" id="sidebar">
+  {#
+    The header is two slots, not a brand with something appended to it.
+
+    `__brand` holds the identity and is the only part allowed to shrink;
+    `__actions` is a fixed-width rail on the trailing edge that anything
+    belonging to the drawer itself hangs off. It is a rail rather than one
+    button because a second one -- pin the sidebar open, a search -- would
+    otherwise be appended to the brand again, and the alignment would be a
+    coincidence for the third time.
+
+    This is the standing rule about rows applied to a row that got it wrong:
+    the two parts have a known width (a rail of `--control-h` boxes) and an
+    unknown one (a name somebody chose), so the unknown one is the one that
+    gives, and the rail is `flex: none`.
+  #}
+  <header class="sidebar__header">
+    <div class="sidebar__brand-slot">
+      {{ brandlink(uid="side") }}
+    </div>
+
+    {#- Search hangs off the rail, at every width; not in API-only
+        mode, where there is nothing of the product's to search. -#}
+    {% with rail_search = not api_only %}
+      {% include "partials/_sidebar_close.html" %}
+    {% endwith %}
+  </header>
+
+  {% include "partials/_sidebar_actions.html" %}
+
+  {# API-only mode: no chats to list or poll. #}
+  {% if not api_only %}
+  {# Every 10s, refresh the unread dots and announce anything that finished
+     while this page was showing something else. Out-of-band spans only, so the
+     folder tree keeps its open/closed state. #}
+  <div hidden hx-get="/api/chats/unread" hx-trigger="every 10s"
+       hx-swap="none"></div>
+
+  <nav class="sidebar__scroll" aria-label="{{ t('Chats') }}">
+    {% include "partials/_sidebar_pinned.html" %}
+    {% include "partials/_sidebar_tree.html" %}
+  </nav>
+  {% endif %}
+
+  <div class="sidebar__footer">
+    {#- Reports are a tab of the Library, so the Library is offered
+        to whoever may read either, and opens on the first they may. The
+        Reports dot rides here now: toggled out of band by the unread poll, as
+        a chat row's is. -#}
+    {% if can.get("library.use") or can.get("reports.use") %}
+    <a class="nav-item {{ 'is-active' if section in ('knowledge', 'notes', 'skills', 'reports') }}"
+       href="{{ '/library/knowledge' if can.get('library.use') else '/library/reports' }}">
+      {{ icon("archive", "icon--sm") }}
+      <span class="nav-item__label">{{ t("Library") }}</span>
+      {% if can.get("reports.use") %}
+      <span id="unread-reports" class="unread-dot"
+            {{ '' if unread_reports else 'hidden' }} title="{{ t('New reports') }}"></span>
+      {% endif %}
+    </a>
+    {% endif %}
+
+    {#- No Devices entry here (the linked LLeMbas CLIs): it would be a second
+        door into one tab of Settings, which is the entry below, and on desktop
+        that opens as a window over the page. Every other link to it --
+        `/settings?tab=devices` from the agents tree and the `/devices`
+        command, `?tab=connections` from an older CLI's login -- still lands on
+        the tab.
+
+        The footer keeps its `--footer-height` of four rows (tokens.css) with
+        three in it: that token is also what the composer is lifted to, and
+        shrinking it would move the composer for a link nobody follows from
+        there. `justify-content: flex-end` keeps the rows at the bottom. -#}
+
+    {#- The reader's own entry. A plain link to /settings: on desktop ui.js
+        opens it as the settings window, on a phone and without
+        JavaScript it is the page. -#}
+    <a class="nav-item" href="/settings">
+      {{ icon("user", "icon--sm") }}
+      <span class="nav-item__label">{{ user.name }}</span>
+      {% if user.is_admin %}<span class="badge badge--leaf">{{ t("admin") }}</span>{% endif %}
+    </a>
+
+    <div class="sidebar__tools">
+      {#
+        Installing.
+
+        The only one of these was in the Appearance tab of /settings, which on
+        a phone is behind a drawer that used to be impossible to close and a tab
+        strip that gave no sign of scrolling -- so the button for installing
+        this on a phone was, on a phone, three taps into a place you could not
+        get to. It stays there as well; this is simply where somebody will meet
+        it.
+
+        Hidden until the browser says the app is installable: `app.js` reveals
+        every `[data-install-app]` when `beforeinstallprompt` fires, and hides
+        them again once it is installed. Firefox and desktop Safari never fire
+        it, and an Install button that does nothing is worse than none.
+      #}
+      <button class="btn btn--icon" type="button" data-install-app hidden
+              onclick="window.lembas.promptInstall()"
+              aria-label="{{ t('Install as an app') }}" title="{{ t('Install as an app') }}">
+        {{ icon("arrow-down") }}
+      </button>
+      {% if user.is_admin %}
+      <a class="btn btn--icon" href="/admin" aria-label="{{ t('Admin settings') }}" title="{{ t('Admin settings') }}">
+        {{ icon("shield") }}
+      </a>
+      {% endif %}
+      <button class="btn btn--icon" type="button" data-theme-toggle
+              aria-label="{{ t('Switch theme') }}" title="{{ t('Switch theme') }}">
+        <span class="theme-icon theme-icon--dark">{{ icon("moon") }}</span>
+        <span class="theme-icon theme-icon--light">{{ icon("sun") }}</span>
+      </button>
+      <span class="spacer"></span>
+      <form method="post" action="/auth/logout">
+        <button class="btn btn--icon" type="submit" aria-label="{{ t('Sign out') }}" title="{{ t('Sign out') }}">
+          {{ icon("logout") }}
+        </button>
+      </form>
+    </div>
+  </div>
+</aside>
+
+{% include "partials/_sidebar_scrim.html" %}

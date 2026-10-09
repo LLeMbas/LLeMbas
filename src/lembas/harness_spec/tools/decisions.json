@@ -1,0 +1,37 @@
+{
+  "name": "decisions",
+  "scope": "cli",
+  "risk": "interact",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": "purpose",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "The project's decision log (.agent/decisions.md). Record a decision that settles something future work must respect — a design choice, a rejected alternative, a convention — with why. list shows them. Do not record routine steps.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "list",
+          "add"
+        ]
+      },
+      "title": {
+        "type": "string"
+      },
+      "decision": {
+        "type": "string"
+      },
+      "why": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "action"
+    ]
+  }
+}

@@ -1,0 +1,157 @@
+{% from "_macros.html" import icon, section_toggle %}
+{#
+  A folder and everything under it. Recursive: a folder includes this same
+  template for each of its children, so nesting has no fixed depth limit.
+
+  Open/closed state is kept on the folder (`folder.collapsed`), written
+  by app.js as the toggle is pressed (`POST /api/preferences/section`, key
+  `folder:<id>`) -- the same mechanism every other section heading uses. Kept
+  only in the browser (Alpine), a folder somebody shut would open again on the
+  next page, and on every out-of-band swap of the tree. The press is applied at once in the
+  browser; the post costs nothing anybody waits for.
+
+  Two shapes. A root folder (`nested` false, from `_sidebar_tree.html`)
+  is a section of the sidebar like `[ CHATS ]` and each device: its name in
+  brackets as the heading, which is what folds it, and its actions beside it in
+  the heading's own icon-button boxes. A child folder (`nested` true) is an
+  indented row under its parent. There is no `[ FOLDERS ]`
+  label above them all: a heading that names the kind of the headings
+  below it is a row that says nothing.
+
+  The + is always shown, as every section's is -- it is the one thing done
+  here most. Rename, settings and delete come up on hover or focus, the way a
+  chat row's actions do, so four boxes do not crowd the name out of a 17.5rem
+  sidebar; on a touchscreen they always show (`hover: none`, app.css).
+#}
+{% macro folder_actions(folder, box) -%}
+  {# Start a chat already filed here, and already carrying whatever the
+     folder seeds. Without this the only way into a folder is to make the
+     chat somewhere else and move it. #}
+  <a class="btn btn--icon btn--sm {{ box }}" href="/chat?folder={{ folder.id }}"
+     aria-label="{{ t('New chat in this folder') }}" title="{{ t('New chat here') }}">
+    {{ icon("plus", "icon--sm") }}
+  </a>
+{%- endmacro %}
+{% macro folder_tools(folder, box) -%}
+  <button class="btn btn--icon btn--sm {{ box }}" type="button"
+          hx-patch="/api/folders/{{ folder.id }}" hx-swap="none"
+          data-prompt="{{ t('What should this folder be called?') }}"
+          data-prompt-title="{{ t('Rename folder') }}" data-prompt-field="name"
+          data-prompt-value="{{ folder.name }}"
+          aria-label="{{ t('Rename folder') }}" title="{{ t('Rename folder') }}">
+    {{ icon("pencil", "icon--sm") }}
+  </button>
+  <a class="btn btn--icon btn--sm {{ box }}" href="/folders/{{ folder.id }}"
+     aria-label="{{ t('Folder settings') }}" title="{{ t('Folder settings') }}">
+    {{ icon("sliders", "icon--sm") }}
+  </a>
+  <button class="btn btn--icon btn--sm {{ box }}" type="button"
+          hx-delete="/api/folders/{{ folder.id }}"
+          hx-confirm="{{ t('Delete the folder “%(name)s”? Chats inside it are kept.', name=folder.name) }}"
+          data-confirm-title="{{ t('Delete folder') }}"
+          hx-swap="none"
+          aria-label="{{ t('Delete folder') }}">
+    {{ icon("trash", "icon--sm") }}
+  </button>
+{%- endmacro %}
+
+{% set body_id = "section-folder-" ~ folder.id %}
+{% set is_open = not folder.collapsed %}
+{% if nested %}
+<div class="folder">
+  <div class="nav-item folder__row">
+    {#- The chevron is inside this button, and the button uses the shared
+        section mechanism rather than a local flag. -#}
+    <button class="folder__toggle" type="button" data-section="folder:{{ folder.id }}"
+            aria-expanded="{{ 'true' if is_open else 'false' }}" aria-controls="{{ body_id }}">
+      <span class="folder__chevron">{{ icon("chevron-right", "icon--sm") }}</span>
+      <span class="folder__icon folder__icon--open">{{ icon("folder-open", "icon--sm") }}</span>
+      <span class="folder__icon folder__icon--shut">{{ icon("folder", "icon--sm") }}</span>
+      <span class="nav-item__label">{{ folder.name }}</span>
+    </button>
+    <span class="nav-item__actions">
+      {{ folder_actions(folder, "") }}
+      {{ folder_tools(folder, "") }}
+    </span>
+  </div>
+{% else %}
+<div class="nav-group folder folder--section">
+  <div class="nav-group__head folder__head">
+    {#- `[ NAME ] ⌄` is one button, chevron included. A chevron beside the
+        button would leave pressing the arrow -- the part that says "this
+        folds" -- landing on a span with no handler. -#}
+    {{ section_toggle("folder:" ~ folder.id, folder.name, is_open, body_id, cls="folder__heading", title=folder.name) }}
+    <span class="nav-group__tools">
+      {{ folder_tools(folder, "nav-group__add") }}
+    </span>
+    {#- On a phone (48rem and below) the three tools above are hidden
+        and this one box stands for them -- a menu of the same three actions,
+        carrying the same attributes, on the model picker's machinery
+        (`data-picker`, ui.js) as a device section's filter is. Three boxes
+        always drawn beside the + left a root folder's name one letter wide in
+        the drawer, and a phone has no hover to keep them out of the way. -#}
+    {% set more_label = t("More for the folder %(name)s", name=folder.name) %}
+    <div class="picker nav-group__more" data-picker>
+      <button class="btn btn--icon btn--sm nav-group__add" type="button" data-picker-toggle
+              aria-haspopup="menu" aria-expanded="false"
+              aria-label="{{ more_label }}" title="{{ more_label }}">
+        {{ icon("dots", "icon--sm") }}
+      </button>
+      <div class="picker__menu picker__menu--compact nav-group__menu" data-picker-menu role="menu"
+           hidden aria-label="{{ more_label }}">
+        <button class="picker__option" type="button" role="menuitem"
+                hx-patch="/api/folders/{{ folder.id }}" hx-swap="none"
+                data-prompt="{{ t('What should this folder be called?') }}"
+                data-prompt-title="{{ t('Rename folder') }}" data-prompt-field="name"
+                data-prompt-value="{{ folder.name }}">
+          {{ icon("pencil", "icon--sm") }}
+          <span class="picker__option-body"><span class="picker__option-name">{{ t("Rename folder") }}</span></span>
+        </button>
+        <a class="picker__option" role="menuitem" href="/folders/{{ folder.id }}">
+          {{ icon("sliders", "icon--sm") }}
+          <span class="picker__option-body"><span class="picker__option-name">{{ t("Folder settings") }}</span></span>
+        </a>
+        <button class="picker__option" type="button" role="menuitem"
+                hx-delete="/api/folders/{{ folder.id }}"
+                hx-confirm="{{ t('Delete the folder “%(name)s”? Chats inside it are kept.', name=folder.name) }}"
+                data-confirm-title="{{ t('Delete folder') }}"
+                hx-swap="none">
+          {{ icon("trash", "icon--sm") }}
+          <span class="picker__option-body"><span class="picker__option-name">{{ t("Delete folder") }}</span></span>
+        </button>
+      </div>
+    </div>
+    {{ folder_actions(folder, "nav-group__add") }}
+  </div>
+{% endif %}
+
+  <div class="folder__contents {{ '' if nested else 'folder__contents--section' }}" id="{{ body_id }}"
+       {%- if not is_open %} hidden{% endif %}>
+    {# Bound once: the loop and the "Empty" check must be looking at the same
+       list, or a folder holding only archived chats claims to be empty while
+       showing them. Narrowed by the sidebar's switch, so a folder shows the
+       Chats side's kind only -- a folder is free to hold both, and its
+       agent chats are listed under their devices.
+
+       Every child folder, not `visible_children`: on the Chats side a child
+       holding only agent chats is still a folder somebody made, and with the
+       Agents side showing no folders it would otherwise be nowhere at all.
+       Without the switch (`sidebar_kind` "") every child showed already. #}
+    {% set listed = folder.visible_chats(sidebar_kind | default("")) %}
+    {% set shown = folder.children %}
+
+    {% for child in shown %}
+      {% with folder = child, nested = true %}
+        {% include "partials/_folder.html" %}
+      {% endwith %}
+    {% endfor %}
+
+    {% for chat_item in listed %}
+      {% include "partials/_chat_link.html" %}
+    {% endfor %}
+
+    {% if not shown and not listed %}
+    <p class="nav-empty">{{ t("Empty") }}</p>
+    {% endif %}
+  </div>
+</div>

@@ -1,0 +1,74 @@
+{% from "_macros.html" import icon %}
+{#
+  The prototype panel: a page a model designed, open beside the conversation.
+
+  Built like the canvas beside it -- a child of .shell, `hidden` until something
+  opens it, its own drag handle, the shared panel head -- and filled by nothing
+  on the server. `prototypes.js` points the frame at the block somebody opened;
+  there is no tab strip and no stored state, because every prototype already
+  has a card in the transcript and that card is how you get back to it.
+
+  The frame's address serves the model's page under a sealing policy (see
+  services/prototypes.py). The `sandbox` attribute below is the second lock on
+  the same door: either one alone keeps the page away from this application.
+
+  Web and phone are two viewports for the same frame, not two renderings: the
+  page is laid out at a desktop's width or a phone's, and the picture is scaled
+  to fit the panel. A page with media queries answers to the viewport, so the
+  phone view is the page's own phone layout and the desktop view its desktop
+  one, however wide the panel happens to be.
+#}
+<aside class="proto-panel" id="prototype" hidden aria-label="{{ t('Prototype') }}"
+       data-proto-panel data-resize-target>
+  <div class="panel-resize" data-resize="--prototype-width" data-resize-min="384"
+       role="separator" aria-orientation="vertical" tabindex="0"
+       aria-label="{{ t('Resize the prototype panel') }}">
+    {{ icon("grip", "icon--sm") }}
+  </div>
+
+  <div class="panel-head">
+    <h2 class="panel-head__title">
+      {{ icon("prototype", "icon--sm") }}
+      <span class="proto-panel__title" data-proto-panel-title>{{ t("Prototype") }}</span>
+    </h2>
+
+    <div class="segmented" role="radiogroup" aria-label="{{ t('View') }}">
+      <label class="segmented__option" title="{{ t('Desktop view') }}">
+        <input type="radio" name="proto-view" value="web" checked data-proto-view>
+        <span>{{ icon("monitor", "icon--sm") }}<span class="visually-hidden">{{ t("Desktop view") }}</span></span>
+      </label>
+      <label class="segmented__option" title="{{ t('Phone view') }}">
+        <input type="radio" name="proto-view" value="phone" data-proto-view>
+        <span>{{ icon("phone", "icon--sm") }}<span class="visually-hidden">{{ t("Phone view") }}</span></span>
+      </label>
+    </div>
+
+    {# Links rather than buttons, so they are what they look like to a browser:
+       middle-click and "copy link" work. Without an href until something is
+       open, and hidden until then too -- an anchor with no href is not
+       focusable, and a control that does nothing should not be on screen. #}
+    <button class="btn btn--icon btn--sm" type="button" data-proto-reload hidden
+            aria-label="{{ t('Run it again') }}" title="{{ t('Run it again') }}">
+      {{ icon("refresh", "icon--sm") }}
+    </button>
+    <a class="btn btn--icon btn--sm" data-proto-tab hidden target="_blank" rel="noopener"
+       aria-label="{{ t('Open in a new tab') }}" title="{{ t('Open in a new tab') }}">
+      {{ icon("external", "icon--sm") }}
+    </a>
+    <a class="btn btn--icon btn--sm" data-proto-download hidden download
+       aria-label="{{ t('Download the HTML') }}" title="{{ t('Download the HTML') }}">
+      {{ icon("download", "icon--sm") }}
+    </a>
+    <button class="btn btn--icon btn--sm" type="button" data-toggle="#prototype"
+            data-toggle-group="side" aria-label="{{ t('Close the prototype') }}">
+      {{ icon("x", "icon--sm") }}
+    </button>
+  </div>
+
+  <div class="proto-panel__stage" data-proto-stage data-view="web">
+    <span class="proto-panel__scale" data-proto-scale hidden></span>
+    <p class="proto-panel__empty" data-proto-empty>
+      {{ t("Nothing open. When a model designs a page, it opens here; a prototype shown in the conversation can be opened here too.") }}
+    </p>
+  </div>
+</aside>

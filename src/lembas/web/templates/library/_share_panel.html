@@ -1,0 +1,88 @@
+{% from "_macros.html" import icon %}
+{#
+  Who can see one thing, and the search that changes it.
+
+  Swapped into itself after every change, so what is on screen is always what is
+  stored -- the old panel was a set of checkboxes that only took effect if the
+  resource happened to be saved afterwards, which is a control that silently
+  does nothing.
+
+  Every fetch in here names its own `hx-target`. This fragment is included on
+  pages whose forms carry an inherited target, and an element that fetches
+  without one aims at whatever an ancestor said -- the bug the jobs chip had, and
+  the reason `tests/test_chat.py` walks the composer for it.
+
+  The switches are `<label>`s carrying no `role="menuitem"`, for the reason the
+  scope menu's are: `ui.js` closes a picker when a menuitem is clicked, which is
+  right for an action and wrong for a list you set several of.
+#}
+<section class="card" id="share-panel">
+  <h2 class="card__title">
+    {{ t("Shared with") }}
+    {% if share_count %}
+    <span class="badge badge--leaf">{{ share_count }}</span>
+    {% else %}
+    <span class="badge">{{ t("nobody") }}</span>
+    {% endif %}
+  </h2>
+  <p class="card__lede">{{ t("They will be able to read this, and their models will find it. They cannot change it, delete it, or share it on — so “who can see this?” stays a question you can answer.") }}</p>
+
+  <div class="field">
+    <label class="field__label" for="share-search">{{ t("Find somebody") }}</label>
+    <input class="input" id="share-search" type="search" name="q" value="{{ q }}"
+           placeholder="{{ t('Name, email or group…') }}"
+           hx-get="/api/library/share/{{ kind }}/{{ resource.id }}"
+           hx-trigger="input changed delay:250ms, search"
+           hx-target="#share-panel"
+           hx-swap="outerHTML">
+    {% if truncated %}
+    <p class="field__hint">{{ t("Showing the first few. Type to narrow it — anything already shared stays listed whatever you search for.") }}</p>
+    {% endif %}
+  </div>
+
+  {% if groups %}
+  <div class="field">
+    <label class="field__label">{{ t("Groups") }}</label>
+    <div class="checkbox-row">
+      {% for group in groups %}
+      {% set on = group.id in shared_groups %}
+      <label class="checkbox">
+        <input type="checkbox" {{ 'checked' if on }}
+               hx-post="/api/library/share/{{ kind }}/{{ resource.id }}"
+               hx-vals='{{ {"principal_type": "group", "principal_id": group.id,
+                           "on": "false" if on else "true", "q": q} | tojson }}'
+               hx-target="#share-panel"
+               hx-swap="outerHTML">
+        <span>{{ group.name }}</span>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if people %}
+  <div class="field">
+    <label class="field__label">{{ t("People") }}</label>
+    <div class="checkbox-row">
+      {% for person in people %}
+      {% set on = person.id in shared_users %}
+      <label class="checkbox">
+        <input type="checkbox" {{ 'checked' if on }}
+               hx-post="/api/library/share/{{ kind }}/{{ resource.id }}"
+               hx-vals='{{ {"principal_type": "user", "principal_id": person.id,
+                           "on": "false" if on else "true", "q": q} | tojson }}'
+               hx-target="#share-panel"
+               hx-swap="outerHTML">
+        <span>{{ person.name }} <span class="faint text-xs">{{ person.email }}</span></span>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if not groups and not people %}
+  <p class="muted text-sm">
+    {% if q %}{{ t("Nobody matches “%(q)s”.", q=q) }}{% else %}{{ t("There is nobody else here yet.") }}{% endif %}
+  </p>
+  {% endif %}
+</section>

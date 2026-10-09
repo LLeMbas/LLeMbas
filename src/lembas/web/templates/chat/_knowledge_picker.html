@@ -1,0 +1,38 @@
+{% from "_macros.html" import icon %}
+{#
+  The list inside the composer's Knowledge dialog.
+
+  Swapped in on its own so typing in the filter re-queries the server: the
+  library is searched with FTS rather than filtered in the browser, which is
+  what makes it work when there are five hundred documents rather than five.
+#}
+<div id="knowledge-results">
+  {% if not documents %}
+  <p class="muted text-sm" style="padding: var(--sp-3)">
+    {% if q %}
+      {{ t("Nothing matches “%(q)s”.", q=q) }}
+    {% else %}
+      {{ tm('Your library is empty. <a href="/library/knowledge">Add something to it</a>.') }}
+    {% endif %}
+  </p>
+  {% else %}
+  <ul class="picker__list">
+    {% for document in documents %}
+    <li>
+      <button class="picker__option" type="button"
+              data-attach-knowledge="{{ document.id }}">
+        {{ icon("archive" if not document.is_image else "image", "icon--sm") }}
+        <span class="picker__option-body">
+          <span class="picker__option-name">{{ document.title }}</span>
+          <span class="picker__option-note">
+            {% if document.base %}{{ document.base.name }} · {% endif %}{{ document.kind }}
+            {%- if document.pages %} · {{ t("%(n)sp", n=document.pages) }}{% endif %}
+            {%- if document.owner_id != user.id %} · {{ t("shared") }}{% endif %}
+          </span>
+        </span>
+      </button>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>

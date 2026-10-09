@@ -1,0 +1,127 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "images" %}
+
+{% block title %}{{ workflow.name or t("New workflow") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ workflow.name or t("New workflow") }}{% endblock %}
+
+{% block admin_content %}
+<nav class="crumbs">
+  <a href="/admin/images">
+    {{ icon("chevron-right", "icon--sm crumbs__icon crumbs__back") }} {{ t("Image generation") }}
+  </a>
+</nav>
+
+{% if error %}
+<div class="alert alert--error">{{ icon("warning", "icon--sm") }} <span>{{ error }}</span></div>
+{% endif %}
+
+<form method="post"
+      action="{{ '/admin/images/workflows' if is_new else '/admin/images/workflows/' ~ workflow.id }}"
+      class="form-grid">
+  <section class="card">
+    <h2 class="card__title">{{ t("What it is") }}</h2>
+
+    <div class="field">
+      <label class="field__label" for="name">{{ t("Name") }}</label>
+      <input class="input" id="name" name="name" required maxlength="120"
+             value="{{ workflow.name }}" placeholder="{{ t('SDXL, photographic') }}">
+      <p class="field__hint">{{ t("Shown to you, in the list.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="slug">{{ t("Name the model uses") }}</label>
+      <input class="input input--mono" id="slug" name="slug" required maxlength="48"
+             value="{{ workflow.slug }}" placeholder="{{ t('sdxl-photo') }}">
+      <p class="field__hint">{{ t("Lowercase letters, digits, hyphens and underscores. This is what the model writes when it picks this workflow.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="description">{{ t("Description") }}</label>
+      <textarea class="textarea" id="description" name="description" rows="3"
+                placeholder="{{ t('Photographic and slow. Best for people, interiors and product shots at 1024px.') }}">{{ workflow.description }}</textarea>
+      <p class="field__hint">
+        {{ tm("The only thing the model has to choose with, so say what this is
+        <em>for</em> rather than what it contains. It never sees the graph.") }}
+      </p>
+    </div>
+
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="enabled" value="true" {{ 'checked' if workflow.enabled }}>
+        <span>{{ t("Offer this workflow") }}</span>
+      </label>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("The workflow") }}</h2>
+    <div class="field">
+      <label class="field__label" for="workflow">{{ t("ComfyUI API format") }}</label>
+      <textarea class="textarea input--mono" id="workflow" name="workflow" rows="20"
+                spellcheck="false">{{ workflow_text }}</textarea>
+      <p class="field__hint">
+        {{ tm("Export this from ComfyUI with <strong>Export (API)</strong>, not Save — the
+        two formats are different and only the API one can be submitted.") }}
+      </p>
+      <p class="field__hint">
+        {{ tm("Then put a placeholder where each value goes. A placeholder that is the
+        <em>whole</em> value keeps its type, so
+        <code>\"steps\": {{steps}}</code> sends the number 20 rather than the
+        text “20”; one inside a longer string is substituted as text, so
+        <code>\"{{prompt}}, masterpiece\"</code> works. Anything you leave out
+        takes its default.") }}
+      </p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("The placeholders") }}</h2>
+    <p class="card__lede">
+      {{ tm("Every hole a template may carry, what it fills, and what it resolves to
+      right now. <code>{{prompt}}</code> is required — without it every
+      image would be the same one, whatever anybody typed.") }}
+    </p>
+    {# The current value beside each name, the way /admin/prompts shows a
+       variable's. A legend that lists names and not values answers "what may I
+       write" and not "what will happen", and the second is the question
+       somebody has while looking at a workflow that came out wrong. #}
+    <div class="ref-list">
+      {% for name, kind, what, current in placeholder_help %}
+      <div class="ref-row">
+        <code>{{ '{{' ~ name ~ '}}' }}</code>
+        <span>
+          {{ what }}
+          {% if name == "prompt" %}<strong>{{ t("Required.") }}</strong>{% endif %}
+        </span>
+        <code class="faint">{{ current }}</code>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="field__hint">
+      {{ tm("Two of these are not spelled the way ComfyUI spells them, which is the
+      mistake that costs an afternoon: <code>{{model}}</code> fills
+      <code>ckpt_name</code> and <code>{{sampler}}</code> fills
+      <code>sampler_name</code>.") }}
+    </p>
+    <p class="field__hint">
+      {{ tm("The right-hand column is what an omitted placeholder resolves to today —
+      the instance defaults from the image settings page, falling back to the
+      built-in floor. A model may override any of them except
+      <code>{{batch}}</code>, which is yours alone.") }}
+    </p>
+  </section>
+
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">
+      {{ t("Add workflow") if is_new else t("Save changes") }}
+    </button>
+    <a class="btn btn--ghost" href="/admin/images">{{ t("Back") }}</a>
+    {% if not is_new %}
+    <button class="btn btn--danger" type="submit" formnovalidate
+            formaction="/admin/images/workflows/{{ workflow.id }}/delete"
+            data-confirm-button="{{ t('Delete the workflow “%(name)s”? Chats that used it fall back to the default.', name=workflow.name) }}">{{ t("Delete") }}</button>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,90 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "audit" %}
+
+{% block title %}{{ t("Audit log") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Audit log") }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">
+  {{ t("Who did what, when and from where: sign-ins and failed ones, tokens and devices, every change an administrator makes, people starting over, updates. It names things and never quotes them — no chat, note or password is ever in it.") }}
+  {% if retention %}{{ t("Kept for %(days)s days.", days=retention) }}{% else %}{{ t("Kept for ever.") }}{% endif %}
+</p>
+
+<form class="audit-filters" method="get" action="/admin/audit">
+  <div class="field">
+    <label class="field__label" for="audit-action">{{ t("Action") }}</label>
+    <input class="input" id="audit-action" name="action" value="{{ action }}" placeholder="auth">
+    <p class="field__hint">{{ t("A prefix: auth finds every sign-in.") }}</p>
+  </div>
+  <div class="field">
+    <label class="field__label" for="audit-actor">{{ t("Who") }}</label>
+    <input class="input" id="audit-actor" name="actor" value="{{ actor }}">
+    <p class="field__hint">{{ t("Part of an email, or an account id.") }}</p>
+  </div>
+  <div class="field">
+    <label class="field__label" for="audit-since">{{ t("From") }}</label>
+    <input class="input" id="audit-since" name="since" type="date" value="{{ since }}">
+    <p class="field__hint"></p>
+  </div>
+  <div class="field">
+    <label class="field__label" for="audit-until">{{ t("Before") }}</label>
+    <input class="input" id="audit-until" name="until" type="date" value="{{ until }}">
+    <p class="field__hint"></p>
+  </div>
+  <div class="btn-row audit-filters__actions">
+    <button class="btn btn--primary" type="submit">{{ icon("search", "icon--sm") }} {{ t("Filter") }}</button>
+    <a class="btn" href="/admin/audit.csv?{{ query }}">{{ t("Download CSV") }}</a>
+  </div>
+</form>
+
+{% if not events %}
+<p class="faint">{{ t("Nothing matches.") }}</p>
+{% else %}
+<div class="table-scroll">
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>{{ t("When") }}</th>
+      <th>{{ t("Who") }}</th>
+      <th>{{ t("Action") }}</th>
+      <th>{{ t("What") }}</th>
+      <th>{{ t("From") }}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for event in events %}
+    <tr>
+      <td class="text-xs mono">{{ event.at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+      <td class="text-xs">{{ event.actor_label or event.actor_kind }}{% if event.actor_kind == "token" %} <span class="badge">{{ t("token") }}</span>{% endif %}</td>
+      <td class="text-xs mono">{{ event.action }}</td>
+      <td class="text-sm">{{ event.summary }}</td>
+      <td class="text-xs mono">{{ event.ip }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+<nav class="pager" aria-label="{{ t('Pages') }}">
+  <span class="pager__count faint text-sm">{{ t("%(total)s events · page %(page)s of %(pages)s", total=total, page=page, pages=pages) }}</span>
+  <div class="pager__pages">
+    {% if page > 1 %}<a class="btn btn--sm" href="/admin/audit?{{ query }}&page={{ page - 1 }}" aria-label="{{ t('Newer') }}">{{ icon("chevron-left", "icon--sm") }}</a>{% endif %}
+    {% for n in window %}
+      {% if n is none %}<span class="pager__gap">…</span>
+      {% elif n == page %}<span class="btn btn--sm btn--primary" aria-current="page">{{ n }}</span>
+      {% else %}<a class="btn btn--sm" href="/admin/audit?{{ query }}&page={{ n }}">{{ n }}</a>{% endif %}
+    {% endfor %}
+    {% if page < pages %}<a class="btn btn--sm" href="/admin/audit?{{ query }}&page={{ page + 1 }}" aria-label="{{ t('Older') }}">{{ icon("chevron-right", "icon--sm") }}</a>{% endif %}
+  </div>
+  <form method="get" action="/admin/audit" class="pager__size">
+    <input type="hidden" name="action" value="{{ action }}"><input type="hidden" name="actor" value="{{ actor }}">
+    <input type="hidden" name="since" value="{{ since }}"><input type="hidden" name="until" value="{{ until }}">
+    <label class="text-sm faint" for="audit-size">{{ t("Per page") }}</label>
+    <select class="input input--sm" id="audit-size" name="size">
+      {% for n in sizes %}<option value="{{ n }}"{{ ' selected' if n == size }}>{{ n }}</option>{% endfor %}
+    </select>
+    <button class="btn btn--sm" type="submit">{{ t("Show") }}</button>
+  </form>
+</nav>
+{% endif %}
+{% endblock %}

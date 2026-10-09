@@ -1,0 +1,366 @@
+{% from "_macros.html" import icon %}
+{% set speaking_model = (models_by_id | default({})).get(message.model_id) %}
+{#
+  One message bubble, in either of two states.
+
+  An incomplete assistant message renders the streaming shell: it carries the
+  sse-connect that opens the reply stream. This is deliberately the ONLY thing
+  that starts a generation, which means a page load showing an unfinished reply
+  picks it up again -- reloading after a dropped connection retries rather than
+  leaving a permanently half-written answer.
+
+  A complete message renders its finished body: Markdown for the assistant,
+  escaped plain text for everyone else.
+#}
+{% set streaming = (message.role == "assistant" and not message.complete) %}
+{#
+  Typed while the previous reply was still being written, and not yet handed to
+  a model. It is in the transcript and it is not in the request. It must never
+  carry `sse-connect` -- a queued turn with a streaming shell on it would be the
+  second concurrent reply the queue exists to prevent.
+#}
+{% set queued = (message.role == "user" and message.queued) %}
+{#
+  Written by the application, in the user role, and not by the person whose
+  bubble this would otherwise be -- a background job reporting that it finished.
+  The wire role is deliberately unchanged (see Message.machine), so this is the
+  only place in the whole request the difference exists. `msg--user` stays on the
+  article as well, so the bubble keeps the layout it already had and
+  `msg--machine` only overrides what should differ.
+#}
+{% set machine = (message.role == "user" and message.machine) %}
+
+<article class="msg msg--{{ message.role }}{{ ' msg--machine' if machine }}{{ ' msg--queued' if queued }}"
+         id="msg-{{ message.id }}"
+         data-chat="{{ chat.id }}" data-message="{{ message.id }}"
+         {#- The frame that ends a live reply, and only that one: prototypes.js
+             opens a page this reply wrote, once, and a page load never does. #}
+         {%- if just_finished | default(false) %} data-just-finished{% endif %}
+  {% if streaming %}
+         hx-ext="sse"
+         sse-connect="/api/chats/{{ chat.id }}/messages/{{ message.id }}/stream"
+         sse-close="close"
+  {% endif %}>
+
+  {#- No avatar and no name. The two kinds of turn already look nothing
+      alike -- a prompt block and a reply -- so a picture and "Frodo" / "Bonsai"
+      beside every one said nothing and took a column off every line. The model
+      that wrote a reply is in its metrics' tooltip. #}
+  <div class="msg__main">
+    {% set badged = machine or (message.role == "user" and message.origin == "terminal") %}
+    {% if badged %}
+    <header class="msg__meta">
+      {% if machine %}<span class="badge">{{ icon("terminal", "icon--sm") }} {{ t("Background job") }}</span>{% endif %}
+      {% if message.role == "user" and message.origin == "terminal" %}
+      {# Typed into the LLeMbas CLI's terminal on the linked device: the
+         same session, shown here as it happens. #}
+      <span class="badge" title="{{ t('Typed in the terminal on the device; this chat shows the same session') }}">{{ icon("terminal", "icon--sm") }} {{ t("in the terminal") }}</span>
+      {% endif %}
+    </header>
+    {% endif %}
+
+    {% if message.attachments %}
+    {# Above the text, matching the order they were added and the order the
+       model receives them. #}
+    <div class="attachments">
+      {% for attachment in message.attachments %}
+        {% if attachment.is_image %}
+        <a class="attachments__image" href="/api/files/{{ attachment.id }}/content"
+           target="_blank" rel="noopener">
+          <img src="/api/files/{{ attachment.id }}/content" alt="{{ attachment.filename }}"
+               loading="lazy" width="{{ attachment.width }}" height="{{ attachment.height }}">
+        </a>
+        {% else %}
+        <div class="attachments__doc">
+          {{ icon("attach", "icon--sm") }}
+          <span class="attachments__doc-body">
+            <a href="/api/files/{{ attachment.id }}/content">{{ attachment.filename }}</a>
+            <span class="attach-chip__meta">
+              {{ attachment.human_size }}
+              {%- if attachment.pages %} · {{ t("%(n)s page", n=attachment.pages) if attachment.pages == 1 else t("%(n)s pages", n=attachment.pages) }}{% endif %}
+              {%- if attachment.truncated %} · {{ t("truncated") }}{% endif %}
+              {%- if attachment.extracted_text %}
+              · <a href="/api/files/{{ attachment.id }}/text" target="_blank"
+                   rel="noopener">{{ t("view extracted text") }}</a>
+              {%- endif %}
+            </span>
+            {% if attachment.extraction_error %}
+            <span class="attach-chip__warning">{{ attachment.extraction_error }}</span>
+            {% endif %}
+          </span>
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if message.terminal_attachments_json %}
+    {# What a turn typed in the device's terminal had attached: names
+       only -- the files are on the device, and nothing here can open them. #}
+    <div class="attachments">
+      {% for chip in message.terminal_attachments_json %}
+      <div class="attachments__doc" title="{{ t('Attached in the terminal; the file is on the device') }}">
+        {{ icon("attach", "icon--sm") }}
+        <span class="attachments__doc-body">
+          <span>{{ chip.name }}</span>
+          <span class="attach-chip__meta">
+            {%- if chip.size %}{{ t("%(kb)s KB", kb=(chip.size / 1024) | round(1)) }} · {% endif -%}
+            {{ t("on the device") }}
+          </span>
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if streaming %}
+      {# The reply as a sequence of steps, in the order they happened. Closed
+         steps only, re-sent when a round ends. See services/steps.py. #}
+      <div class="msg__steps" id="steps-{{ message.id }}" data-steps
+           sse-swap="steps" hx-swap="innerHTML"></div>
+
+      {# The step still being written. SIBLINGS of the container above, never
+         inside it: that one is swapped whole every time a round closes, and an
+         `sse-swap` element nested in another is torn out and rebuilt at each
+         boundary with the frames aimed at it arriving in the same pass. That is
+         what made an agent reply render nothing from its first tool call on.
+
+         Both frames are sent on every version bump *including empty*, which is
+         how the tail clears when a round closes and its contents move into a
+         step above. That is safe here and was not before: these carry the open
+         tail only, so an empty one means the tail is genuinely empty, whereas
+         the version that carried the whole reply would have wiped it. `steps`
+         is the one that must never blank now. #}
+      {# The word animates its own ellipsis in CSS -- `.` `..` `...` -- so there
+         is no timer to start or clean up, and it stops when the element does.
+         The numbers beside it come from the `think` frame.
+
+         That span is a SIBLING of the body, inside a `<details>` that is never
+         itself swapped. Two swap targets in one static container is fine; a
+         swap target inside another is what blanked every agent chat. #}
+      <details class="reasoning reasoning--live" id="reasoning-{{ message.id }}">
+        <summary class="reasoning__summary">
+          {{ icon("sparkle", "icon--sm reasoning__icon") }}
+          <span class="reasoning__label">
+            <span class="reasoning__working">{{ t("Thinking") }}</span>
+            <span class="reasoning__stats" sse-swap="think" hx-swap="innerHTML"></span>
+          </span>
+          {{ icon("chevron-down", "icon--sm reasoning__chevron") }}
+        </summary>
+        <div class="reasoning__body" sse-swap="reasoning" hx-swap="innerHTML"></div>
+      </details>
+
+      <div class="msg__body msg__body--live" id="stream-{{ message.id }}"
+           sse-swap="render" hx-swap="innerHTML"></div>
+
+      {# Where a question from the model, or a command waiting to be allowed,
+         lands. Unlike the blocks above it this frame is sent on every version
+         bump including when it is empty, because the card has to disappear the
+         moment it is answered. The buttons inside are hx-post and they work:
+         the SSE extension processes what it swaps in. #}
+      <div class="interaction-slot" id="ask-{{ message.id }}"
+           sse-swap="ask" hx-swap="innerHTML"></div>
+
+      {# No stop button here: the composer's send button becomes Stop while a
+         reply is being written, which is where the hand already is. #}
+      <div class="msg__waiting">
+        <span class="dots"><i></i><i></i><i></i></span>
+        {# What the reply is doing when it is not producing tokens. A silent
+           multi-second pause before the first token is what a hang looks
+           like. #}
+        <span class="msg__status" sse-swap="status" hx-swap="innerHTML"></span>
+      </div>
+      {# Counts as the reply is written. Everything is an estimate until the
+         usage chunk lands at the very end, and the chips say so. #}
+      <div class="msg__metrics" id="metrics-{{ message.id }}"
+           sse-swap="metrics" hx-swap="innerHTML"></div>
+    {% else %}
+      {# Finished, and rendered from the same partial the live view uses so the
+         bubble cannot rearrange itself the moment the stream ends.
+
+         `message_steps` is a Jinja global rather than something each handler
+         passes, for the reason `tool_label` is: this template is rendered from
+         four different places and a fifth thing to remember is a fifth thing one
+         of them forgets. A reply written before the marks existed has none, and
+         `steps.py` answers that with the old layout exactly -- thinking, then
+         every tool block, then the whole answer.
+
+         Kept with the message rather than discarded with the stream, so the
+         sources behind an answer are still there tomorrow. #}
+      {% if message.role == "assistant" %}
+      {# The same id and the same marker as the live container. That is what
+         carries an opened block across the `done` frame, which replaces the
+         whole bubble: steps.js keys what it remembers on this id, and the ids
+         inside come from the mark index either way. #}
+      <div class="msg__steps" id="steps-{{ message.id }}" data-steps>
+        {% with steps = message_steps(message), live = false %}
+          {% include "chat/_steps.html" %}
+        {% endwith %}
+      </div>
+      {% endif %}
+
+      {% if message.error %}
+      <div class="alert alert--error msg__error" role="alert">
+        {{ icon("warning", "alert__icon") }}
+        <div>
+          <strong>{{ t("The reply could not be completed.") }}</strong>
+          <div class="text-sm" style="margin-top: var(--sp-1)">{{ message.error }}</div>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if message.role == "assistant" %}
+        {% if message.stopped %}
+        <p class="msg__note">{{ icon("x", "icon--sm") }} {{ t("Stopped. This reply is cut short.") }}</p>
+        {% endif %}
+      {% elif message.content == continue_prompt() %}
+        {# Continue: the harness's own sentence, sent as this turn. Shown
+           as what was pressed, not as a paragraph nobody typed -- the LLeMbas
+           CLI's TUI draws the same turn as "↻ continue". #}
+        <p class="msg__continue">↻ {{ t("Continue") }}</p>
+      {% elif machine and message.content %}
+        {# Jinja's own escaping, not `tokens`: that filter marks `@name` as a
+           reference to this reader's files and people, and an `@` inside a
+           command line or a log is neither. Nothing here goes through
+           services/markdown.py either -- the fence in the content stays a fence
+           on screen, which is the rule `_jobs_panel.html` states about the log
+           it shows for the same reason: it came off somebody else's machine. #}
+        <div class="msg__body msg__body--plain">{{ message.content }}</div>
+      {% elif message.content %}
+        {# `tokens` escapes and then marks up: @mentions read as references
+           rather than as punctuation. It must stay `pre-wrap` -- the newlines
+           are still carried by CSS, not by markup. #}
+        <div class="msg__body msg__body--plain">{{ message.content|tokens|safe }}</div>
+      {% endif %}
+      {# An attachment-only turn has no text; rendering the bubble anyway would
+         leave an empty box under the file. #}
+    {% endif %}
+
+    {% if not streaming and message.plan_json %}
+    {# What the model proposed in Plan mode, with the way to carry it out. #}
+    {% include "chat/_plan.html" %}
+    {% endif %}
+
+    {% if not streaming and message.role == "assistant" and (message.usage_json or message.model_id) %}
+    {# Above the buttons, not among them: the actions row is things you press. #}
+    <div class="msg__metrics" id="metrics-{{ message.id }}">
+      {% if message.usage_json %}
+      {% with metrics = message.usage_json | metrics %}
+        {% include "chat/_metrics.html" %}
+      {% endwith %}
+      {% endif %}
+      {#- Which model wrote it: the one place it is said now that a
+          reply carries no name. #}
+      {% if message.model_id %}<span class="metric metric--model" title="{{ t('Written by') }} {{ message.model_id }}">{{ speaking_model.label if speaking_model else message.model_id }}</span>{% endif %}
+    </div>
+    {% endif %}
+
+    {% if queued %}
+    {# Nothing has been sent to any model. Both buttons sit on the bubble they
+       act on rather than in a toast somewhere, and Edit is deliberately absent:
+       editing rewinds and then starts a reply, which on a row you can press
+       while another reply is streaming is a second concurrent generation behind
+       a pencil. Discard and retype is the honest affordance. #}
+    <footer class="msg__actions msg__actions--queued">
+      <span class="msg__note">{{ icon("clock", "icon--sm") }} {{ t("Waiting to be sent") }}</span>
+      {# Copy is here as well as on a delivered turn: a queued machine event
+         holds a job's output, which is the one waiting bubble somebody actually
+         wants to paste somewhere. The hidden source div is already below. #}
+      <button class="btn btn--icon btn--sm" type="button"
+              data-copy="msg-body-{{ message.id }}" aria-label="{{ t('Copy message') }}">
+        {{ icon("copy", "icon--sm") }}
+      </button>
+      <button class="btn btn--sm" type="button"
+              hx-post="/api/chats/{{ chat.id }}/messages/{{ message.id }}/send-now"
+              hx-target="#thread" hx-swap="innerHTML">{{ t("Send now") }}</button>
+      <button class="btn btn--sm" type="button"
+              hx-post="/api/chats/{{ chat.id }}/messages/{{ message.id }}/discard"
+              hx-target="#msg-{{ message.id }}" hx-swap="outerHTML"
+              data-confirm-button="{{ t('Discard this message?') }}">{{ t("Discard") }}</button>
+    </footer>
+    <div hidden id="msg-body-{{ message.id }}">{{ message.content }}</div>
+    {% elif not streaming %}
+    <footer class="msg__actions">
+      <button class="btn btn--icon btn--sm" type="button"
+              data-copy="msg-body-{{ message.id }}" aria-label="{{ t('Copy message') }}">
+        {{ icon("copy", "icon--sm") }}
+      </button>
+      {# Not on a machine event: editing rewinds the transcript and starts a
+         reply from the edited words, so a pencil here offers to rewrite what a
+         machine reported and re-send it under the reader's own authority. The
+         route refuses it too -- this only removes the button. #}
+      {% if message.role == "user" and not machine and not chat.device_token_id %}
+      <button class="btn btn--icon btn--sm" type="button"
+              hx-get="/api/chats/{{ chat.id }}/messages/{{ message.id }}/edit"
+              hx-target="#msg-{{ message.id }}" hx-swap="outerHTML"
+              data-edit-message
+              aria-label="{{ t('Edit and retry from here') }}">
+        {{ icon("pencil", "icon--sm") }}
+      </button>
+      {% endif %}
+      {% if message.role == "assistant" %}
+      {# Continue: carry on after a stop, or after an answer that ended
+         too soon -- the LLeMbas CLI's ctrl+g. Shown on the newest reply only
+         (ui.js marks it); `/continue` does the same. #}
+      <button class="btn btn--icon btn--sm msg__continue-btn" type="button" data-continue
+              hx-post="/api/chats/{{ chat.id }}/continue"
+              hx-target="#thread" hx-swap="beforeend"
+              aria-label="{{ t('Continue') }}" title="{{ t('Continue from where it stopped') }}">
+        {{ icon("chevron-right", "icon--sm") }}
+      </button>
+      {# A device keeps its own history: nothing here can rewind it. #}
+      {% if not chat.device_token_id %}
+      <button class="btn btn--icon btn--sm" type="button"
+              hx-post="/api/chats/{{ chat.id }}/messages/{{ message.id }}/regenerate"
+              hx-target="#msg-{{ message.id }}" hx-swap="outerHTML"
+              aria-label="{{ t('Regenerate reply') }}">
+        {{ icon("refresh", "icon--sm") }}
+      </button>
+      {% endif %}
+      {% if can_listen | default(false) and message.content and not message.error %}
+      {# Speech is synthesised on demand rather than stored: the voice can
+         change under the reader between plays, and a reply can be regenerated
+         at the same address. #}
+      {# data-speak-auto is set only on the frame that ends a live stream, never
+         on a page load: reopening a chat must not start reading its last reply
+         out loud again. #}
+      <button class="btn btn--icon btn--sm" type="button"
+              data-speak="/api/audio/speech/{{ chat.id }}/{{ message.id }}"
+              {% if audio_autoplay | default(false) and just_finished | default(false) %}data-speak-auto{% endif %}
+              aria-label="{{ t('Read this reply aloud') }}">
+        <span class="speak__icon speak__icon--play">{{ icon("speaker", "icon--sm") }}</span>
+        <span class="speak__icon speak__icon--stop">{{ icon("stop-circle", "icon--sm") }}</span>
+      </button>
+      {% endif %}
+      {% endif %}
+    </footer>
+    {# The raw source, so the copy button yields Markdown rather than rendered
+       text. A hidden div and not a <script>: script content is raw text, so
+       the escaping Jinja applies would be copied out literally as entities. #}
+    <div hidden id="msg-body-{{ message.id }}">{{ message.content }}</div>
+    {% endif %}
+  </div>
+
+  {% if streaming %}
+  {# Receives the finished bubble and replaces this whole article with it. #}
+  <div hidden sse-swap="done" hx-target="#msg-{{ message.id }}" hx-swap="outerHTML"></div>
+
+  {#
+    A file the model has opened. The frame carries the canvas tab strip marked
+    `hx-swap-oob`, so it lands in the panel rather than here -- this element is
+    only somewhere for it to arrive. `hx-swap="none"` because the payload has no
+    business in the bubble; htmx extracts out-of-band fragments before it
+    considers the main swap, so "none" does not stop them.
+
+    Only the strip is ever pushed. The file's contents would be a lot of bytes
+    on every version bump and would overwrite a textarea somebody is typing in.
+  #}
+  <div hidden sse-swap="canvas" hx-swap="none"></div>
+  {# The todo list: the frame carries the panel marked `hx-swap-oob`,
+     which lands above the composer; this is only where it arrives. #}
+  <div hidden sse-swap="todos" hx-swap="none"></div>
+  {# A message taken into the reply: the frame deletes its queued
+     bubble out of band; the reply's own steps show it where it went in. #}
+  <div hidden sse-swap="steered" hx-swap="none"></div>
+  {% endif %}
+</article>

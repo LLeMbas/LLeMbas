@@ -1,0 +1,32 @@
+{
+  "name": "apply_patch",
+  "scope": "cli",
+  "risk": "write",
+  "exclusive": false,
+  "block": "edit",
+  "purpose": "purpose",
+  "aliases": {
+    "cli": [],
+    "llembas": [
+      "file_edit"
+    ]
+  },
+  "description": "Change files with a patch, in either of two formats.\n\nThe envelope:\n\n*** Begin Patch\n*** Add File: path/new.py\n+every line of the new file, each prefixed with +\n*** Update File: path/app.py\n*** Move to: path/main.py        (optional rename)\n@@ def greet():                  (optional: a line to find first)\n unchanged line\n-removed line\n+added line\n*** Delete File: path/old.txt\n*** End Patch\n\nOr a unified diff (as `git diff` writes it): `--- a/<file>` and `+++ b/<file>` lines, then hunks starting `@@ -old,count +new,count @@`. Without those two lines, name the file with `path`. The line numbers are only a hint; the context lines must match the file exactly.\n\n- Every changed hunk needs a few unchanged context lines (prefixed with a space) so it can be found.\n- New files: every line starts with + (a unified diff starts with --- /dev/null).\n- All files in one patch are applied, or none are.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "patch": {
+        "type": "string",
+        "minLength": 1,
+        "description": "The whole patch: from *** Begin Patch to *** End Patch, or a unified diff"
+      },
+      "path": {
+        "type": "string",
+        "description": "A unified diff without ---/+++ lines: the file it changes"
+      }
+    },
+    "required": [
+      "patch"
+    ]
+  }
+}

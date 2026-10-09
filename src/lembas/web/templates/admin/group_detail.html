@@ -1,0 +1,126 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon, model_avatar %}
+{% set section = "groups" %}
+
+{% block title %}{{ group.name }} - {{ t("Groups") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ group.name }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">
+  <a href="/admin/groups">{{ icon("chevron-left", "icon--sm") }} {{ t("All groups") }}</a>
+  · {{ tm("A group only ever <em>adds</em>. Anything already in the baseline is shown below as such, so a tick here that changes nothing looks like one.") }}
+</p>
+
+{% if saved %}
+<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
+{% endif %}
+
+<form method="post" action="/admin/groups/{{ group.id }}" class="form-grid">
+  <section class="card">
+    <h2 class="card__title">{{ t("Name") }}</h2>
+    <div class="field">
+      <label class="field__label" for="name">{{ t("Name") }}</label>
+      <input class="input" id="name" name="name" value="{{ group.name }}" required>
+    </div>
+    <div class="field">
+      <label class="field__label" for="description">{{ t("What it is for") }}</label>
+      <input class="input" id="description" name="description"
+             value="{{ group.description }}" maxlength="1000">
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Permissions this group adds") }}</h2>
+    {% for section_name, defs in permission_groups.items() %}
+    <div class="field">
+      <span class="field__label">{{ t(section_name) }}</span>
+      {% for definition in defs %}
+      <label class="checkbox perm-row">
+        <input type="checkbox" name="permission" value="{{ definition.key }}"
+               {{ 'checked' if (group.permissions_json or {}).get(definition.key) }}>
+        <span>
+          <strong>{{ t(definition.label) }}</strong>
+          {% if baseline[definition.key] %}
+          <span class="badge">{{ t("already in the baseline") }}</span>
+          {% endif %}
+          <span class="perm-row__desc">{{ t(definition.description) }}</span>
+        </span>
+      </label>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </section>
+
+  {#
+    Quotas. Every one is zero-for-no-limit, and an *empty* box is different from
+    a zero: empty is "this group has no opinion" and contributes nothing to the
+    resolution, zero is "unlimited" and wins outright. Saying that here is the
+    only place somebody will read it.
+  #}
+  <section class="card">
+    <h2 class="card__title">{{ t("Quotas") }}</h2>
+    <p class="card__lede">
+      {{ tm("Resolved across a person's groups by <strong>maximum</strong> — the union rule applied to numbers, so a second group can only grant more.") }}
+      {{ tm("<strong>Leave a box empty</strong> for “no opinion”, and use <strong>0</strong> for “no limit”, which beats any number another group sets. Administrators are unlimited whatever is here.") }}
+    </p>
+    <div class="field-row">
+      {% for key, label, description in limit_defs %}
+      <div class="field">
+        <label class="field__label" for="limit-{{ key }}">{{ label }}</label>
+        <input class="input" id="limit-{{ key }}" name="limit_{{ key }}"
+               type="number" min="0" step="1"
+               value="{{ limits.get(key, '') }}" placeholder="{{ t('no opinion') }}">
+        <p class="field__hint">{{ description }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {#
+    Membership lives here and only here. It used to be on the user page as well,
+    and a full-form POST from either side overwrote what the other had shown.
+  #}
+  <section class="card">
+    <h2 class="card__title">{{ t("Members") }}</h2>
+    <p class="card__lede">{{ t("The one place membership is edited. A user's own page links here rather than offering a second control for the same value.") }}</p>
+    <div class="checkbox-row">
+      {% for person in users %}
+      <label class="checkbox">
+        <input type="checkbox" name="user_ids" value="{{ person.id }}"
+               {{ 'checked' if person in group.users }}>
+        <span>{{ person.name }} <span class="faint text-xs">{{ person.email }}</span></span>
+      </label>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Models this group unlocks") }}</h2>
+    <p class="card__lede">{{ t("A model marked public is available to everyone; one that is not is available to the groups named here. Model access is separate from permissions — one says what somebody may do, the other what with.") }}</p>
+    <div class="checkbox-row">
+      {% for model in models %}
+      <label class="checkbox">
+        <input type="checkbox" name="model_ids" value="{{ model.id }}"
+               {{ 'checked' if model in group.models }}>
+        <span>{{ model_avatar(model, "model-avatar model-avatar--sm") }} {{ model.label }}</span>
+      </label>
+      {% endfor %}
+    </div>
+  </section>
+
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">{{ t("Save group") }}</button>
+  </div>
+</form>
+
+<section class="card">
+  <h2 class="card__title">{{ t("Remove") }}</h2>
+  <form method="post" action="/admin/groups/{{ group.id }}/delete"
+        data-confirm="{{ t('Delete %(name)s? Its members keep their accounts.', name=group.name) }}">
+    <button class="btn btn--danger btn--sm" type="submit">
+      {{ icon("trash", "icon--sm") }} {{ t("Delete this group") }}
+    </button>
+  </form>
+  <p class="field__hint">{{ t("Members keep their accounts and lose whatever this group granted them. Every share naming this group goes too — nothing cascades to those, so they are deleted explicitly.") }}</p>
+</section>
+{% endblock %}

@@ -1,0 +1,52 @@
+{
+  "name": "note_manage",
+  "scope": "shared",
+  "risk": "interact",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": false,
+  "aliases": {
+    "cli": [
+      "notes"
+    ],
+    "llembas": [
+      "notes_create",
+      "notes_edit",
+      "notes_delete"
+    ]
+  },
+  "description": "Write your notes: things worth keeping that are longer than a memory entry and not a skill — findings, a design worked out with the user, a list to come back to.\n\n- create (title, body, scope); edit (id, title and/or body — body replaces the whole text); delete (id).\n- scope: \"project\" (default, when there is a project) or \"global\".\n- Not for facts that hold in every session (memory), procedures (skills), or the project's own records (tasks, decisions).",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "create",
+          "edit",
+          "delete"
+        ]
+      },
+      "id": {
+        "type": "integer"
+      },
+      "title": {
+        "type": "string",
+        "maxLength": 200
+      },
+      "body": {
+        "type": "string"
+      },
+      "scope": {
+        "type": "string",
+        "enum": [
+          "project",
+          "global"
+        ]
+      }
+    },
+    "required": [
+      "action"
+    ]
+  }
+}

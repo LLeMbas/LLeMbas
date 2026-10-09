@@ -1,0 +1,38 @@
+{% from "_macros.html" import icon %}
+{#
+  One row, always, and it scrolls sideways rather than wrapping -- the same rule
+  the composer's toolbar is built around. A strip that wraps to three lines on a
+  narrow panel takes the file with it.
+
+  A tab is a button posting to a route that serves POST. Not a link: `GET` never
+  moves the active tab, because there is no CSRF token here and the cookie is
+  SameSite Lax, so a state-changing GET is a link somebody can be made to follow.
+#}
+{# `oob` is set only when this arrives on the reply's SSE stream, where it has
+   to find its own way to the panel rather than being swapped into the bubble
+   the stream is writing. Out of band, exactly as the `done` frame's title is. #}
+<div class="canvas__tabs" role="tablist" data-canvas-tabs id="canvas-tabs"
+     {% if oob %}hx-swap-oob="true"{% endif %}>
+  {% for tab in tabs %}
+  <div class="canvas__tab {{ 'is-active' if tab.key == active }}"
+       data-canvas-tab="{{ tab.key }}">
+    <button class="canvas__tab-open" type="button" role="tab"
+            aria-selected="{{ 'true' if tab.key == active else 'false' }}"
+            hx-post="/api/chats/{{ chat.id }}/canvas/tabs"
+            hx-vals='{"key": {{ tab.key | tojson }}}'
+            hx-target="#canvas-inner" hx-swap="innerHTML"
+            title="{{ tab.key }}">
+      {{ icon("file-text", "icon--sm") }}
+      <span class="canvas__tab-label">{{ tab.title }}</span>
+      <span class="canvas__tab-dot" data-canvas-dirty hidden aria-hidden="true"></span>
+    </button>
+    <button class="canvas__tab-close" type="button"
+            hx-post="/api/chats/{{ chat.id }}/canvas/tabs/close"
+            hx-vals='{"key": {{ tab.key | tojson }}}'
+            hx-target="#canvas-inner" hx-swap="innerHTML"
+            aria-label="{{ t('Close %(name)s', name=tab.title) }}">
+      {{ icon("x", "icon--sm") }}
+    </button>
+  </div>
+  {% endfor %}
+</div>

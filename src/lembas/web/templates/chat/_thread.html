@@ -1,0 +1,41 @@
+{% from "_macros.html" import icon %}
+{#
+  The whole thread. Returned after a rewind or a compaction, either of which
+  changes an arbitrary number of messages at once -- replacing the lot is
+  simpler and less error-prone than working out which individual bubbles to
+  remove. Also included by chat/index.html, so the conversation is described in
+  exactly one place.
+
+  Deliberately has no root element: it is swapped with innerHTML into #thread,
+  and an outerHTML swap would take the container with it.
+#}
+{#- Shown inside the reply that took them in, not as bubbles of their own. -#}
+{% set inline = inline_steers((compacted or []) + (messages or [])) %}
+{% if compacted %}
+{# Summarised turns are kept and still readable -- they have only stopped being
+   sent. A compaction that summarised badly is then a bad turn rather than a
+   lost conversation. #}
+<details class="compacted">
+  <summary class="compacted__summary">
+    {{ icon("archive", "icon--sm") }}
+    <span>{{ t("%(n)s earlier messages, summarised", n=compacted | length) }}</span>
+    {{ icon("chevron-down", "icon--sm reasoning__chevron") }}
+  </summary>
+  <p class="compacted__note">{{ t("These are no longer sent to the model; a summary of them goes instead. They are kept here so nothing is lost.") }}</p>
+  <div class="compacted__body">
+    {% for message in compacted if message.id not in inline %}
+      {% include "chat/_message.html" %}
+    {% endfor %}
+  </div>
+</details>
+{% endif %}
+
+{% for message in messages if message.id not in inline %}
+  {% if message.role == "user" and message.origin == "resume" %}
+  {# The turn that carried a reply on after a restart: the model reads
+     it; the person needs only to know it happened. #}
+  <div class="msg-note" id="msg-{{ message.id }}">{{ icon("refresh", "icon--sm") }} {{ t("Carried on after the instance restarted") }}</div>
+  {% else %}
+  {% include "chat/_message.html" %}
+  {% endif %}
+{% endfor %}

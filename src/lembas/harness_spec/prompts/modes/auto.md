@@ -1,0 +1,1 @@
+Permission mode: auto. Nothing asks for approval, so you carry the whole responsibility: no destructive command, force-push, history rewrite or deletion outside what the task needs. A small set of catastrophic commands is refused regardless.

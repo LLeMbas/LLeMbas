@@ -1,0 +1,248 @@
+<!doctype html>
+{#
+  `data-base` is what makes a custom theme inherit: tokens.css matches
+  `[data-base="shire"]` as well as `[data-theme="shire"]`, so a custom light
+  theme gets the whole parchment palette underneath its own handful of colours.
+  Without it, four light colours would sit on Moria's near-black surfaces.
+
+  `data-themes` is the list of `id:base` pairs, which is what the browser needs
+  in order to set both attributes when somebody switches -- one attribute to
+  split rather than a JSON island to parse.
+#}
+<html lang="{{ language() }}" dir="{{ text_direction() }}" data-theme="{{ theme }}" data-base="{{ brand.theme(theme).base }}"
+      data-themes="{{ brand.theme_list }}"{% if layout %} style="{{ layout }}"{% endif %}>
+<head>
+<meta charset="utf-8">
+{#
+  `viewport-fit=cover` is what lets `env(safe-area-inset-*)` resolve to
+  anything but zero, and without it the `black-translucent` status bar style
+  below is a promise with nothing behind it: iOS puts the page under the clock
+  and the notch and the tokens that would have paid for it stay at 0.
+  No `maximum-scale` and no `user-scalable=no` -- pinch-zoom is somebody's
+  accessibility setting, not a layout problem to be suppressed.
+#}
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{% block title %}{{ brand.name }}{% endblock %}</title>
+<meta name="description" content="{{ t('%(name)s — a web UI for your language models.', name=brand.name) }}">
+<meta name="color-scheme" content="dark light">
+
+<link rel="icon" href="{{ asset('img/favicon.svg') }}" type="image/svg+xml">
+
+{#
+  Installing as an app. The manifest is a route, not a file, because it carries
+  the instance name; the icons are PNG because a launcher will not take an SVG.
+  theme-color is rewritten by app.js when the theme changes -- the value here is
+  only what the browser paints with before the stylesheet has resolved.
+#}
+<link rel="manifest" href="/manifest.webmanifest">
+{#
+  Two, scoped by preference, so the browser has an answer before any of our CSS
+  or JavaScript has run. There used to be one and it was Moria's near-black, so
+  every reader of the light theme got a dark browser chrome on every page load
+  until `app.js` -- which is deferred -- corrected it. `applyTheme` still has
+  the last word, and still reads the value from `--bg` rather than repeating a
+  hex here; these two are only what is painted before it can.
+#}
+<meta name="theme-color" content="#0B0D10" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F1EAD6" media="(prefers-color-scheme: light)">
+<link rel="apple-touch-icon" href="{{ asset('img/apple-touch-icon-180.png') }}">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="{{ brand.name }}">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+<link rel="stylesheet" href="{{ asset('css/tokens.css') }}">
+<link rel="stylesheet" href="{{ asset('css/app.css') }}">
+{% block head %}{% endblock %}
+
+{#
+  The scripts' words. `js_strings()` is the part of the catalogue the
+  files under static/js ask for with `t("…")`, in this reader's language, and
+  empty in English -- a missing key is its own English, as on the server.
+  `lembasT` is defined here, inline and not deferred, so it exists before any
+  of the deferred scripts below runs, whichever order they load in. Same
+  `%(name)s` fields as `t()`, so one catalogue entry serves both halves.
+  `tojson` escapes `<`, `>` and `&`, so a translation cannot close the island.
+#}
+<script type="application/json" id="lembas-strings">{{ js_strings() | tojson }}</script>
+<script>
+  window.lembasT = (function () {
+    var table = {};
+    try { table = JSON.parse(document.getElementById("lembas-strings").textContent) || {}; }
+    catch (e) { table = {}; }
+    return function (text, fields) {
+      var out = table[String(text).replace(/\s+/g, " ").trim()] || text;
+      if (!fields) return out;
+      return out.replace(/%\((\w+)\)s/g, function (all, name) {
+        return Object.prototype.hasOwnProperty.call(fields, name) ? String(fields[name]) : all;
+      });
+    };
+  })();
+</script>
+
+{#
+  Applied before first paint so a reload never flashes the wrong theme. The
+  server already rendered data-theme from the signed-in user's preference; this
+  only corrects it for a visitor whose local choice differs (or who is signed
+  out, where the server has nothing to go on).
+#}
+<script>
+  (function () {
+    try {
+      var root = document.documentElement;
+      var stored = localStorage.getItem("lembas-theme");
+      if (stored && stored !== root.dataset.theme) {
+        /* The base as well as the theme, from the same `id:base` list app.js
+           reads. Setting only data-theme painted a custom *light* theme on
+           Moria's dark surfaces until app.js ran -- tokens.css gives a light
+           custom theme its parchment through data-base="shire". A stored id
+           this instance no longer has is ignored, as app.js ignores it. */
+        var pairs = (root.dataset.themes || "").split(" ");
+        for (var i = 0; i < pairs.length; i++) {
+          var pair = pairs[i].split(":");
+          if (pair[0] === stored) {
+            root.dataset.theme = stored;
+            root.dataset.base = pair[1] || "moria";
+            break;
+          }
+        }
+      }
+    } catch (e) { /* private mode: the server-rendered theme stands */ }
+
+    /* Panel widths, for the same reason and in the same breath. app.js also
+       applies these, but it is deferred -- so without this a panel dragged
+       wider opens at its default and jumps once the script runs. */
+    try {
+      var widths = JSON.parse(localStorage.getItem("lembas-panel-widths") || "{}");
+      Object.keys(widths).forEach(function (name) {
+        if (name.indexOf("--") === 0) {
+          document.documentElement.style.setProperty(name, widths[name] + "px");
+        }
+      });
+    } catch (e) { /* the stylesheet's defaults stand */ }
+  })();
+</script>
+</head>
+<body{% block body_attrs %}{% endblock %}>
+{% include "partials/icons.html" %}
+
+{#
+  The copy button every code block in a reply gets. A template rather
+  than markup in the reply itself: model output goes through a sanitiser that
+  does not allow <button>, and must not start to. app.js:addCodeCopy clones
+  this into each block's label bar -- including blocks that arrive later, in a
+  streamed reply -- so it is translated here once and needs no JavaScript
+  strings.
+#}
+<template id="code-copy">
+  <button class="btn btn--icon btn--sm code-block__copy" type="button"
+          aria-label="{{ t('Copy code') }}" title="{{ t('Copy code') }}">
+    <svg class="icon icon--sm" aria-hidden="true"><use href="#i-copy"/></svg>
+  </button>
+</template>
+
+{#
+  Everything a prototype card shows that the server's placeholder does not:
+  the tools and the words. Here for the reason the copy button is -- the
+  placeholder is model output, which cannot carry a <button> -- and because the
+  placeholder is also rendered inside a reply's stream, where there is no
+  reader's language to hand. prototypes.js clones the tools and reads the words
+  out by `data-text`.
+#}
+<template id="proto-ui">
+  <svg class="icon icon--sm" aria-hidden="true" data-proto-icon><use href="#i-prototype"/></svg>
+  <div class="proto__tools">
+    <button class="btn btn--sm" type="button" data-proto-open>{{ t("Open") }}</button>
+    <button class="btn btn--icon btn--sm" type="button" data-proto-expand
+            aria-label="{{ t('Open beside the conversation') }}"
+            title="{{ t('Open beside the conversation') }}">
+      <svg class="icon icon--sm" aria-hidden="true"><use href="#i-expand"/></svg>
+    </button>
+    <a class="btn btn--icon btn--sm" data-proto-tab target="_blank" rel="noopener"
+       aria-label="{{ t('Open in a new tab') }}" title="{{ t('Open in a new tab') }}">
+      <svg class="icon icon--sm" aria-hidden="true"><use href="#i-external"/></svg>
+    </a>
+  </div>
+  <span data-text="untitled">{{ t("Prototype") }}</span>
+  <span data-text="writing">{{ t("Writing it… line {lines}") }}</span>
+  <span data-text="waiting">{{ t("Shown as soon as this part of the reply is finished.") }}</span>
+  <span data-text="page">{{ t("A page design. Open it to see it full size, as a desktop or a phone.") }}</span>
+</template>
+
+{#
+  Every fetch this application makes, said out loud.
+
+  htmx has had `htmx-request` on the triggering element since the beginning and
+  nothing here has ever used it, so a click that saved a setting, opened a
+  panel or loaded a page of a list looked exactly like a click that did nothing
+  until the answer arrived. On a local endpoint that is a few milliseconds and
+  on anything else it is long enough to click again.
+
+  One bar for the whole page rather than a spinner per control: the interesting
+  question is "is the application busy", and an indicator on the control would
+  need adding to every control ever written, which is how the last one came to
+  be used nowhere. `aria-hidden` because the answer arriving is the thing worth
+  announcing, and htmx already moves focus for that.
+#}
+<div class="progress" data-progress aria-hidden="true"><span></span></div>
+
+{% block body %}{% endblock %}
+
+<script src="{{ asset('vendor/htmx.min.js') }}" defer></script>
+<script src="{{ asset('vendor/htmx-ext-sse.js') }}" defer></script>
+<script src="{{ asset('vendor/alpine.min.js') }}" defer></script>
+<script src="{{ asset('js/app.js') }}" defer></script>
+<script src="{{ asset('js/ui.js') }}" defer></script>
+{# commands.js before composer.js: the second reads the first's table to draw
+   the `/` menu, and both are deferred so the order here is the run order. #}
+<script src="{{ asset('js/commands.js') }}" defer></script>
+<script src="{{ asset('js/composer.js') }}" defer></script>
+<script src="{{ asset('js/audio.js') }}" defer></script>
+<script src="{{ asset('js/prototypes.js') }}" defer></script>
+
+{#
+  The version in the query string is what versions the worker's cache, so a
+  release invalidates it without anyone remembering to bump a constant.
+
+  🚨 The outcome is *recorded*, not swallowed. serviceWorker is absent over plain
+  http and registration is refused on a page with a certificate error, and in
+  both cases the only symptom was that the Install button never appeared -- with
+  a hint beside it saying installing needs HTTPS, which is true and is not an
+  answer. A self-signed or private-CA certificate the phone does not trust looks
+  exactly like a browser that cannot install at all. `window.lembasWorker` is
+  what `app.js` turns into a sentence on the settings page.
+#}
+<script>
+  /* The release this page was rendered by, for `app.js` to hold a waiting
+     worker up against -- see "A release that arrived while you were reading". */
+  window.lembasRelease = {{ version | tojson }};
+  window.lembasWorker = { state: "unsupported" };
+  if (!window.isSecureContext) {
+    /* Reported separately from an outright failure: the fix is different. */
+    window.lembasWorker = { state: "insecure" };
+  } else if ("serviceWorker" in navigator) {
+    window.lembasWorker = { state: "registering" };
+    window.addEventListener("load", function () {
+      /* Two callbacks rather than .then().catch(): a throw inside the success
+         path must not be reported as a registration failure. */
+      navigator.serviceWorker.register("/sw.js?v={{ version }}").then(
+        function () {
+          window.lembasWorker = { state: "ready" };
+          document.dispatchEvent(new CustomEvent("lembas:worker"));
+        },
+        function (error) {
+          window.lembasWorker = {
+            state: "failed",
+            reason: (error && error.name) || "Error",
+            detail: (error && error.message) || ""
+          };
+          document.dispatchEvent(new CustomEvent("lembas:worker"));
+          /* An install failure must never break the page it was loaded from. */
+        }
+      );
+    });
+  }
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

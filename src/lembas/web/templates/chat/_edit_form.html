@@ -1,0 +1,41 @@
+{% from "_macros.html" import icon %}
+{#
+  A user turn switched into edit mode, replacing its bubble in place.
+
+  Saving rewinds: the message is rewritten and everything after it is deleted,
+  then the conversation runs again from that point. That is destructive, so the
+  button says so and asks first.
+#}
+<article class="msg msg--user msg--editing" id="msg-{{ message.id }}">
+  <div class="msg__main">
+    <header class="msg__meta">
+      <span class="badge">{{ icon("pencil", "icon--sm") }} {{ t("editing") }}</span>
+    </header>
+
+    <form class="edit-form"
+          hx-post="/api/chats/{{ chat.id }}/messages/{{ message.id }}/edit"
+          hx-target="#thread" hx-swap="innerHTML"
+          hx-confirm="{{ t('Rewind here? The %(n)s message after this one will be deleted.', n=following) if following == 1 else t('Rewind here? The %(n)s messages after this one will be deleted.', n=following) }}"
+          data-confirm-title="{{ t('Rewind the conversation') }}"
+          data-confirm-label="{{ t('Rewind and send') }}">
+      <textarea class="textarea" name="content" rows="3" data-autosize
+                data-max-height="320" aria-label="{{ t('Edit message') }}"
+                autofocus>{{ message.content }}</textarea>
+
+      <div class="btn-row">
+        <button class="btn btn--primary" type="submit">
+          {{ icon("refresh", "icon--sm") }}
+          {% if following %}{{ t("Rewind and send") }}{% else %}{{ t("Send again") }}{% endif %}
+        </button>
+        <button class="btn" type="button"
+                hx-get="/api/chats/{{ chat.id }}/messages/{{ message.id }}/cancel-edit"
+                hx-target="#msg-{{ message.id }}" hx-swap="outerHTML">{{ t("Cancel") }}</button>
+        {% if following %}
+        <span class="text-xs faint">
+          {{ t("%(n)s later message will be discarded.", n=following) if following == 1 else t("%(n)s later messages will be discarded.", n=following) }}
+        </span>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</article>

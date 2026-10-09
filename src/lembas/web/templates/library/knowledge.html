@@ -1,0 +1,69 @@
+{% extends "library/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% from "library/_group.html" import group_chip, group_field, group_filter with context %}
+{% set section = "knowledge" %}
+
+{% block title %}{{ t("Knowledge") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Knowledge") }}{% endblock %}
+
+{% block library_content %}
+<p class="admin-lede">{{ t("Knowledge bases are collections of documents, images and saved web pages. Keep them separate — one per subject, project or client — and a chat can be pointed at just the ones it should draw on. Sharing happens here too: share a base and everything in it comes with it.") }}</p>
+
+{# Links rather than a form, so a filtered view is a URL you can keep. #}
+<div class="filter-tabs" style="margin-bottom: var(--sp-4)">
+  <a class="filter-tab {{ 'is-active' if not shared }}" href="/library/knowledge">{{ t("All bases") }}</a>
+  <a class="filter-tab {{ 'is-active' if shared }}"
+     href="/library/knowledge?shared=1">{{ t("Shared with me") }}</a>
+</div>
+{{ group_filter("/library/knowledge", group, {"shared": "1" if shared else ""}) }}
+
+{% if error %}
+<div class="alert alert--error">{{ icon("warning", "alert__icon") }} <span>{{ error }}</span></div>
+{% endif %}
+
+{% if bases %}
+<ul class="model-list">
+  {% for base in bases %}
+  <li class="model-list__item">
+    <div style="min-width: 0">
+      <a href="/library/knowledge/{{ base.id }}"><strong>{{ base.name }}</strong></a>
+      <div class="text-xs faint">
+        {{ t("%(n)s document", n=counts.get(base.id, 0)) if counts.get(base.id, 0) == 1 else t("%(n)s documents", n=counts.get(base.id, 0)) }}
+        {%- if base.description %} · {{ base.description }}{% endif %}
+      </div>
+    </div>
+    <div class="btn-row">
+      {{ group_chip(base) }}
+      {% if base.owner_id != user.id %}<span class="badge">{{ t("shared with you") }}</span>{% endif %}
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="empty">
+  {{ icon("archive", "empty__mark") }}
+  <h2 class="empty__title">{{ t("No knowledge bases yet") }}</h2>
+  <p class="empty__text">{{ t("Make one below, then put documents in it. A chat with no base attached searches everything you have; a chat pointed at one searches only that.") }}</p>
+</div>
+{% endif %}
+
+<section class="card" style="margin-top: var(--sp-6)">
+  <h2 class="card__title">{{ t("New knowledge base") }}</h2>
+  <form method="post" action="/api/library/bases">
+    <div class="grid grid--2">
+      <div class="field">
+        <label class="field__label" for="base-name">{{ t("Name") }}</label>
+        <input class="input" id="base-name" name="name" required maxlength="200"
+               placeholder="{{ t('Contracts') }}">
+      </div>
+      <div class="field">
+        <label class="field__label" for="base-description">{{ t("Description") }}</label>
+        <input class="input" id="base-description" name="description" maxlength="2000"
+               placeholder="{{ t('What belongs in here.') }}">
+      </div>
+    </div>
+    {{ group_field(None, group) }}
+    <button class="btn btn--primary" type="submit">{{ icon("plus", "icon--sm") }} {{ t("Create") }}</button>
+  </form>
+</section>
+{% endblock %}

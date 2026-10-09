@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% from "_macros.html" import mark %}
+
+{% block title %}{{ status_code }} - {{ brand.name }}{% endblock %}
+
+{% block body %}
+<main class="auth">
+  <div class="auth__card" style="text-align: center">
+    {{ mark(cls="empty__mark", uid="err") }}
+    <h1 class="auth__title" style="margin-top: var(--sp-4)">{{ status_code }}</h1>
+    <p class="empty__text" style="margin: var(--sp-3) auto var(--sp-5)">{{ flavour }}</p>
+    {% if detail and detail != flavour %}
+    <p class="text-sm muted" style="margin-bottom: var(--sp-5)">{{ detail }}</p>
+    {% endif %}
+    <a class="btn btn--primary" href="/">{{ t("Back to your chats") }}</a>
+  </div>
+</main>
+{% endblock %}

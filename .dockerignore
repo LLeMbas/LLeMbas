@@ -1,0 +1,32 @@
+# What must never reach the image.
+#
+# The first two blocks are the ones that matter: a `data/` directory copied in
+# would bake somebody's database, their uploads and their encrypted API keys
+# into an image, and a `.env` would bake the key that decrypts them.
+data/
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
+lembas.env
+
+# `.git` is excluded and that has a consequence worth knowing: /admin/updates
+# reads it to say what is running, so inside a container that page says "not
+# installed from a checkout" and offers nothing. That is correct -- a container
+# is updated by rebuilding it from an updated checkout on the host
+# (`git pull && docker compose up -d --build`), not by resetting one inside it.
+.git/
+.github/
+
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+dist/
+build/
+*.egg-info/

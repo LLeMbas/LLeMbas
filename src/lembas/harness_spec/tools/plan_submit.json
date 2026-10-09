@@ -1,0 +1,27 @@
+{
+  "name": "plan_submit",
+  "scope": "cli",
+  "risk": "interact",
+  "exclusive": true,
+  "block": "tool",
+  "purpose": false,
+  "aliases": {
+    "cli": [
+      "plan_exit"
+    ],
+    "llembas": []
+  },
+  "description": "Present your finished plan for approval — only in plan mode, and only once the plan file is written.\n\n- `path`: the plan file you wrote under the plans directory.\n- The user approves it (and you continue, now allowed to make the changes), asks for a revision (change the file, then call plan_submit again), or asks you a question (answer it, then call plan_submit again).",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "The plan file"
+      }
+    },
+    "required": [
+      "path"
+    ]
+  }
+}

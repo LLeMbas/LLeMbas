@@ -1,0 +1,23 @@
+# Watches for an update request written by the web interface.
+#
+# install.sh substitutes __PREFIX__ and writes the result to
+# /etc/systemd/system/lembas-update.path. Installed only when the installer is
+# run with INSTALL_UPDATE_HELPER=1 — see deploy/README.md for what that decision
+# means.
+#
+# `PathExists` rather than `PathChanged`: the service deletes the file as its
+# first act, so the unit re-arms itself and a second request fires again. With
+# `PathChanged` a request written while the service was running would be missed.
+
+[Unit]
+Description=Watch for a LLeMbas update request
+# Only while the thing being updated is meant to be running. Stopping lembas on
+# purpose should not leave a watcher that restarts it.
+PartOf=lembas.service
+
+[Path]
+PathExists=__PREFIX__/data/update-requested
+Unit=lembas-update.service
+
+[Install]
+WantedBy=multi-user.target

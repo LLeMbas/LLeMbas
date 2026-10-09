@@ -1,0 +1,62 @@
+{% extends "library/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% from "library/_group.html" import group_chip, group_field, group_filter with context %}
+{% set section = "skills" %}
+
+{% block title %}{{ t("Skills") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Skills") }}{% endblock %}
+{% block actions %}
+<a class="btn btn--primary btn--sm" href="/library/skills/new">{{ icon("plus", "icon--sm") }} {{ t("New skill") }}</a>
+{% endblock %}
+
+{% block library_content %}
+<p class="admin-lede">{{ t("Saved procedures. Every enabled skill's name and description are shown to the model on each turn; it reads the instructions only when it decides one applies. A model may write and revise its own — every version is kept, so any change can be read and undone.") }}</p>
+
+{#
+  Two views, as links, so a filtered list is a real URL you can keep -- the same
+  shape the admin lists use. Same as the notes list.
+#}
+<div class="filter-tabs" style="margin-bottom: var(--sp-4)">
+  <a class="filter-tab {{ 'is-active' if not shared }}" href="/library/skills">{{ t("All skills") }}</a>
+  <a class="filter-tab {{ 'is-active' if shared }}" href="/library/skills?shared=1">{{ t("Shared with me") }}</a>
+</div>
+{{ group_filter("/library/skills", group, {"shared": "1" if shared else "", "q": q}) }}
+<form method="get" action="/library/skills" class="btn-row" style="margin-bottom: var(--sp-5)">
+  <input class="input" type="search" name="q" value="{{ q }}" style="flex: 1"
+         placeholder="{{ t('Search skills…') }}">
+  <button class="btn" type="submit">{{ icon("search", "icon--sm") }} {{ t("Search") }}</button>
+  {% if q %}<a class="btn btn--sm" href="/library/skills">{{ t("Clear") }}</a>{% endif %}
+</form>
+
+{% if not skills %}
+<div class="empty">
+  {{ icon("sparkle", "empty__mark") }}
+  <h2 class="empty__title">{{ t("Nothing found") if q else t("No skills yet") }}</h2>
+  <p class="empty__text">
+    {% if q %}
+      {{ t("No skill matches “%(q)s”.", q=q) }}
+    {% else %}
+      {{ t("Write one for a task you explain often, or let a model save one after it has worked the task out.") }}
+    {% endif %}
+  </p>
+</div>
+{% else %}
+<ul class="model-list">
+  {% for skill in skills %}
+  <li class="model-list__item">
+    <div style="min-width: 0">
+      <a href="/library/skills/{{ skill.id }}"><strong class="mono">{{ skill.name }}</strong></a>
+      <div class="text-xs faint">{{ skill.description }}</div>
+    </div>
+    <div class="btn-row">
+      {{ group_chip(skill) }}
+      {% if not skill.enabled %}<span class="badge">{{ t("off") }}</span>{% endif %}
+      {% if skill.author == "model" %}<span class="badge badge--leaf">{{ t("written by a model") }}</span>{% endif %}
+      {% if skill.owner_id != user.id %}<span class="badge">{{ t("shared") }}</span>{% endif %}
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% include "library/_pager.html" %}
+{% endif %}
+{% endblock %}

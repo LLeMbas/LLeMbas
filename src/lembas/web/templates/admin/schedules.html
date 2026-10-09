@@ -1,0 +1,100 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "schedules" %}
+
+{% block title %}{{ t("Scheduling") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Scheduling") }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">
+  {{ tm("A <strong>schedule</strong> runs a piece of work because time has passed
+  rather than because somebody asked just now — a daily summary, a check every
+  Monday, a reminder in an hour. Each one has its own chat and replies into it,
+  or files a report. People make their own under <strong>%(scheduled)s</strong>;
+  what you decide here is whether the feature exists and what it may spend.", scheduled=t("Scheduled")) }}
+</p>
+
+<div class="alert">
+  {{ icon("shield", "icon--sm") }}
+  <span>
+    {{ tm("This is the one thing here that spends model time with nobody watching. A
+    schedule pointed at a chat that can run commands would run them unattended,
+    so a scheduled task is never an agent chat — but everything else a model can
+    reach, it can reach on a timer. Give <strong>%(permission)s</strong> under
+    %(groups)s to the people who should have it; it is off for
+    everybody by default.", permission=t("Schedule work"), groups=t("Groups & permissions")) }}
+  </span>
+</div>
+
+{% if saved %}
+<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ t("Saved.") }}</span></div>
+{% endif %}
+
+<form method="post" action="/admin/schedules" class="form-grid">
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Switch") }}</h2>
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="enabled" value="true" {{ 'checked' if values.enabled }}>
+        <span>{{ t("Let scheduled work run") }}</span>
+      </label>
+      <p class="field__hint">
+        {{ t("Off by default. Turning this off stops everything firing and deletes
+        nothing — schedules keep their place and resume when it is turned back
+        on.") }}
+        {% if total == 1 %}
+          {{ t("There is 1 schedule on this instance, %(active)s of them not paused.", active=active) }}
+        {% elif total %}
+          {{ t("There are %(total)s schedules on this instance, %(active)s of them not paused.", total=total, active=active) }}
+        {% endif %}
+      </p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("How often it looks") }}</h2>
+    <div class="field">
+      <label class="field__label" for="tick">{{ t("Check for due work every") }}</label>
+      <input class="input" type="number" id="tick" name="tick_seconds" min="5" max="300"
+             value="{{ values.tick_seconds }}">
+      <p class="field__hint">{{ t("Seconds. This is how late a run can be, not how often anything happens: the finest a schedule can be set to is one minute, so anything under that buys nothing. One indexed query per tick.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="min-interval">{{ t("Nothing may repeat faster than") }}</label>
+      <input class="input" type="number" id="min-interval" name="min_interval_seconds"
+             min="60" max="86400" value="{{ values.min_interval_seconds }}">
+      <p class="field__hint">{{ t("Seconds. A floor on how often one schedule may come round. Raise it if people are setting things to run more often than the work takes.") }}</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("What it may spend") }}</h2>
+    <div class="field">
+      <label class="field__label" for="per-user">{{ t("Schedules per person") }}</label>
+      <input class="input" type="number" id="per-user" name="max_per_user" min="1" max="200"
+             value="{{ values.max_per_user }}">
+      <p class="field__hint">{{ t("Refused at the point of creation, with the reason. Existing schedules over a lowered limit keep running; only new ones are refused.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="concurrent">{{ t("Runs at once") }}</label>
+      <input class="input" type="number" id="concurrent" name="max_concurrent" min="1" max="20"
+             value="{{ values.max_concurrent }}">
+      <p class="field__hint">{{ t("Fifty schedules due at nine o'clock must not open fifty replies against one endpoint. The rest wait their turn rather than being dropped.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="queued">{{ t("Turns that may pile up in one chat") }}</label>
+      <input class="input" type="number" id="queued" name="max_queued" min="1" max="50"
+             value="{{ values.max_queued }}">
+      <p class="field__hint">{{ t("A schedule that comes round faster than its chat can answer would build a backlog for ever. Past this, a run is skipped and says so on the schedule rather than joining the queue.") }}</p>
+    </div>
+  </section>
+
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">{{ t("Save") }}</button>
+  </div>
+</form>
+{% endblock %}

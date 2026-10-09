@@ -1,0 +1,54 @@
+# LLeMbas system service template.
+#
+# install.sh substitutes __PREFIX__ and __SERVICE_USER__ and writes the result
+# to /etc/systemd/system/lembas.service. Edit this file, not the installed copy.
+#
+# A system unit, not a user unit, so it survives logout and comes up at boot
+# without anyone signing in.
+
+[Unit]
+Description=LLeMbas - web UI for language models
+After=network-online.target
+Wants=network-online.target
+# The prefix is usually a bind mount; the venv and database live there, so
+# starting before it is mounted would create an empty database in its place.
+RequiresMountsFor=__PREFIX__
+
+[Service]
+Type=simple
+User=__SERVICE_USER__
+Group=__SERVICE_USER__
+WorkingDirectory=__PREFIX__/app
+EnvironmentFile=__PREFIX__/lembas.env
+ExecStart=__PREFIX__/venv/bin/lembas-server serve
+Restart=on-failure
+RestartSec=5
+
+# The bind address comes from LEMBAS_HOST in the environment file, which the
+# installer sets to 127.0.0.1: reachable through nginx, never directly.
+
+# --- Hardening -------------------------------------------------------------
+# Agent chats run their commands on a linked device -- a machine running the
+# LLeMbas CLI that somebody signed in and chose. Nothing an agent does executes
+# here, which is what lets this stay locked down rather than being opened up to
+# make room for a sandbox.
+#
+# ProtectSystem stays `full` rather than `strict` only because the data
+# directory has to be writable and `strict` would need every path spelled out.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+ReadWritePaths=__PREFIX__
+LimitNOFILE=65535
+
+# Bounds on the service as a whole. Not aimed at anything in particular; a web
+# application that has grown a habit of holding network connections open is
+# worth a ceiling.
+TasksMax=2048
+MemoryMax=8G
+
+[Install]
+WantedBy=multi-user.target

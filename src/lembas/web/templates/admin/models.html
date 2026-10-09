@@ -1,0 +1,151 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon, model_avatar %}
+{% set section = "models" %}
+
+{% block title %}{{ t("Models") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Models") }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">
+  {{ tm("Every model discovered across your connections. The order here is the order
+  users see in the picker. <strong>Pinning</strong> does not reorder anything —
+  it puts a shortcut in the chat sidebar. The <strong>default</strong> is what a
+  new chat starts with.") }}
+</p>
+
+{% if saved %}
+<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
+{% endif %}
+
+{% if not total %}
+<div class="empty" style="padding: var(--sp-10) 0">
+  {{ icon("server", "empty__mark") }}
+  <p class="empty__text">
+    {{ tm("No models yet. <a href=\"/admin/connections\">Add a connection</a> and run
+    “%(button)s”.", button=t("Test & refresh")) }}
+  </p>
+</div>
+{% else %}
+
+{# Filters are links, so a filtered view is a real URL you can keep or share. #}
+<div class="filter-bar">
+  <div class="filter-tabs">
+    {% for key, label in filters.items() %}
+    <a class="filter-tab {{ 'is-active' if key == active_filter }}"
+       href="/admin/models?filter={{ key }}{% if q %}&q={{ q|urlencode }}{% endif %}{% if connection_id %}&connection={{ connection_id }}{% endif %}">
+      {{ label }} <span class="filter-tab__count">{{ counts[key] }}</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  <form class="filter-form" method="get" action="/admin/models">
+    <input type="hidden" name="filter" value="{{ active_filter }}">
+    <input class="input" type="search" name="q" value="{{ q }}"
+           placeholder="{{ t('Search models…') }}" aria-label="{{ t('Search models') }}">
+    <select class="select" name="connection" aria-label="{{ t('Connection') }}">
+      <option value="">{{ t("All connections") }}</option>
+      {% for conn in connections %}
+      <option value="{{ conn.id }}" {{ 'selected' if conn.id == connection_id }}>
+        {{ conn.name }}
+      </option>
+      {% endfor %}
+    </select>
+    <button class="btn" type="submit">{{ icon("search", "icon--sm") }} {{ t("Filter") }}</button>
+    {% if q or connection_id or active_filter != "all" %}
+    <a class="btn btn--ghost" href="/admin/models">{{ t("Clear") }}</a>
+    {% endif %}
+  </form>
+</div>
+
+{% if not models %}
+<div class="empty" style="padding: var(--sp-8) 0">
+  <p class="empty__text">{{ t("Nothing matches that filter.") }}</p>
+</div>
+{% else %}
+
+<form method="post" action="/admin/models/bulk">
+  <div class="bulk-bar">
+    <label class="checkbox">
+      <input type="checkbox" data-select-all="#model-rows"
+             aria-label="{{ t('Select every model on this page') }}">
+      <span class="bulk-bar__label">{{ t("Select all") }}</span>
+    </label>
+    <span class="spacer"></span>
+    <span class="bulk-bar__label">{{ t("With selected:") }}</span>
+    <button class="btn btn--sm" name="action" value="enable" type="submit">{{ t("Enable") }}</button>
+    <button class="btn btn--sm" name="action" value="disable" type="submit">{{ t("Disable") }}</button>
+    <button class="btn btn--sm" name="action" value="public" type="submit">{{ t("Make public") }}</button>
+    <button class="btn btn--sm" name="action" value="private" type="submit">{{ t("Restrict") }}</button>
+  </div>
+
+  <div class="model-rows" id="model-rows">
+    {% for model in models %}
+    <div class="model-row {{ 'is-off' if not model.enabled }}">
+      <input class="model-row__check" type="checkbox" name="model_ids" value="{{ model.id }}"
+             aria-label="{{ t('Select %(name)s', name=model.label) }}">
+
+      <span class="model-row__pos">{{ page_start + loop.index }}</span>
+
+      {{ model_avatar(model, cls="model-row__avatar") }}
+
+      <div class="model-row__main">
+        <div class="model-row__title">
+          <a class="model-row__name" href="/admin/models/{{ model.id }}/edit">{{ model.label }}</a>
+          {% if model.model_id == default_model %}
+          <span class="badge badge--leaf">{{ t("default") }}</span>
+          {% endif %}
+          {% if model.pinned %}<span class="badge">{{ t("pinned") }}</span>{% endif %}
+          {% if not model.enabled %}<span class="badge badge--danger">{{ t("disabled") }}</span>{% endif %}
+          {% if not model.public %}<span class="badge">{{ t("restricted") }}</span>{% endif %}
+          {% for name, on in (model.capabilities_json or {}).items() %}
+            {% if on %}<span class="badge badge--leaf">{{ name }}</span>{% endif %}
+          {% endfor %}
+        </div>
+        <code class="model-row__id">{{ model.model_id }} · {{ model.connection.name }}</code>
+      </div>
+
+      <div class="model-row__actions">
+        {# formaction lets these post elsewhere without nesting a second form. #}
+        <button class="btn btn--icon btn--sm" type="submit" aria-label="{{ t('Move up') }}"
+                formaction="/admin/models/{{ model.id }}/move" name="direction" value="up"
+                {{ 'disabled' if page == 1 and loop.first }}>
+          {{ icon("arrow-up", "icon--sm") }}
+        </button>
+        <button class="btn btn--icon btn--sm" type="submit" aria-label="{{ t('Move down') }}"
+                formaction="/admin/models/{{ model.id }}/move" name="direction" value="down"
+                {{ 'disabled' if page == pages and loop.last }}>
+          {{ icon("arrow-down", "icon--sm") }}
+        </button>
+        <a class="btn btn--sm" href="/admin/models/{{ model.id }}/edit">{{ t("Edit") }}</a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</form>
+
+<div class="list-footer">
+  <span class="text-xs faint">
+    {{ t("Showing %(first)s–%(last)s of %(matched)s", first=page_start + 1, last=page_start + models|length, matched=matched) }}
+    {%- if matched != total %} {{ t("(filtered from %(total)s)", total=total) }}{% endif %}
+  </span>
+
+  {% if pages > 1 %}
+  {% set base = "/admin/models?filter=" ~ active_filter ~ ("&q=" ~ q|urlencode if q else "") ~ ("&connection=" ~ connection_id if connection_id else "") %}
+  <div class="btn-row">
+    {% if page > 1 %}
+    <a class="btn btn--sm" href="{{ base }}&page={{ page - 1 }}">{{ t("Previous") }}</a>
+    {% else %}
+    <span class="btn btn--sm" aria-disabled="true" style="opacity: .45">{{ t("Previous") }}</span>
+    {% endif %}
+    <span class="text-xs faint">{{ t("Page %(page)s of %(pages)s", page=page, pages=pages) }}</span>
+    {% if page < pages %}
+    <a class="btn btn--sm" href="{{ base }}&page={{ page + 1 }}">{{ t("Next") }}</a>
+    {% else %}
+    <span class="btn btn--sm" aria-disabled="true" style="opacity: .45">{{ t("Next") }}</span>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,168 @@
+{
+  "about": "Every prompt text of the harness, by path under prompts/. scope: shared — both projects send this text (LLeMbas as the default of the fragments named, which an administrator may still override); cli — LLeMbas CLI's own. `llembas` names the LLeMbas fragment keys (services/prompts.py) the text is, or replaces. A shared text with no fragment named is not yet one of LLeMbas's. HTML comments are provenance and are stripped before sending; {{name}} is a variable. `llembas_text`: whether LLeMbas's default for that fragment is this text word for word (`identical`), or still its own (`differs`, with why) — a shared text that differs is an open item on the Harness-parity page. personality/*.md are the presets both offer: one is appended last, under \"## Personality\".",
+  "prompts": {
+    "system/default.md": {
+      "scope": "shared",
+      "llembas": [
+        "core.engineering",
+        "core.objective",
+        "core.tools_preamble",
+        "core.tool_list",
+        "core.keep_working",
+        "core.commit",
+        "core.untrusted"
+      ],
+      "llembas_text": "differs",
+      "why": "LLeMbas's core.* fragments are separate, editable pieces; this is one text"
+    },
+    "system/identity.md": {
+      "scope": "cli",
+      "llembas": []
+    },
+    "family/anthropic.md": {
+      "scope": "shared",
+      "llembas": [],
+      "llembas_text": "differs",
+      "why": "not adopted yet"
+    },
+    "family/gpt.md": {
+      "scope": "shared",
+      "llembas": [],
+      "llembas_text": "differs",
+      "why": "not adopted yet"
+    },
+    "family/gemini.md": {
+      "scope": "shared",
+      "llembas": [],
+      "llembas_text": "differs",
+      "why": "not adopted yet"
+    },
+    "family/local.md": {
+      "scope": "shared",
+      "llembas": [],
+      "llembas_text": "differs",
+      "why": "not adopted yet"
+    },
+    "modes/manual.md": {
+      "scope": "shared",
+      "llembas": [],
+      "llembas_text": "differs",
+      "why": "not adopted yet"
+    },
+    "modes/edit.md": {
+      "scope": "shared",
+      "llembas": [],
+      "llembas_text": "differs",
+      "why": "not adopted yet"
+    },
+    "modes/auto.md": {
+      "scope": "shared",
+      "llembas": [],
+      "llembas_text": "differs",
+      "why": "not adopted yet"
+    },
+    "modes/plan.md": {
+      "scope": "shared",
+      "llembas": [],
+      "llembas_text": "differs",
+      "why": "not adopted yet"
+    },
+    "modes/unattended.md": {
+      "scope": "shared",
+      "llembas": [
+        "core.unattended"
+      ],
+      "llembas_text": "differs",
+      "why": "the CLI: a headless run with modes; LLeMbas: a scheduled chat with nobody reading"
+    },
+    "blocks/memory.md": {
+      "scope": "shared",
+      "llembas": [
+        "tool.memory"
+      ],
+      "llembas_text": "differs",
+      "why": "LLeMbas's memory is per person and per data group"
+    },
+    "blocks/skills.md": {
+      "scope": "shared",
+      "llembas": [
+        "tool.skills",
+        "context.skills"
+      ],
+      "llembas_text": "differs",
+      "why": "LLeMbas's skills index differs in shape"
+    },
+    "blocks/skills-empty.md": {
+      "scope": "cli",
+      "llembas": []
+    },
+    "blocks/agents-missing.md": {
+      "scope": "cli",
+      "llembas": []
+    },
+    "blocks/agents-git.md": {
+      "scope": "cli",
+      "llembas": []
+    },
+    "blocks/agents-keep.md": {
+      "scope": "cli",
+      "llembas": []
+    },
+    "tasks/compact.md": {
+      "scope": "shared",
+      "llembas": [
+        "task.compact"
+      ],
+      "llembas_text": "differs",
+      "why": "the CLI's keeps commands and a 'Files touched' section, for coding work"
+    },
+    "tasks/review.md": {
+      "scope": "cli",
+      "llembas": []
+    },
+    "tasks/changelog.md": {
+      "scope": "cli",
+      "llembas": []
+    },
+    "tasks/continue.md": {
+      "scope": "shared",
+      "llembas": [],
+      "llembas_text": "identical",
+      "why": "LLeMbas reads it from the vendored spec (harness_spec.prompt), not from a fragment"
+    },
+    "tasks/init.md": {
+      "scope": "cli",
+      "llembas": []
+    },
+    "personality/concise.md": {
+      "scope": "shared",
+      "llembas": [],
+      "llembas_text": "identical"
+    },
+    "personality/pragmatic.md": {
+      "scope": "shared",
+      "llembas": [],
+      "llembas_text": "identical"
+    },
+    "personality/optimistic.md": {
+      "scope": "shared",
+      "llembas": [],
+      "llembas_text": "identical"
+    },
+    "personality/funny.md": {
+      "scope": "shared",
+      "llembas": [],
+      "llembas_text": "identical"
+    },
+    "personality/formal.md": {
+      "scope": "shared",
+      "llembas": [],
+      "llembas_text": "identical"
+    },
+    "personality/socratic.md": {
+      "scope": "shared",
+      "llembas": [],
+      "llembas_text": "identical"
+    }
+  }
+}

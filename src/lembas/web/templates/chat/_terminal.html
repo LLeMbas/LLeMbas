@@ -1,0 +1,97 @@
+{% from "_macros.html" import icon %}
+{#
+  The terminal panel: a fourth child of .shell, to the left of the inspector and
+  never open beside it. Empty on a page load -- xterm is created the first time
+  the panel is opened, so the 280KB it costs is paid by somebody who asked for a
+  shell rather than by everyone who opened a chat.
+
+  What is typed here is not run past the chat's mode or its allow and deny
+  lists. Those govern the model, which reads pages and files it did not write;
+  the person at the keyboard holds the credential and could open the same shell
+  with an ssh client.
+#}
+<aside class="terminal" id="terminal" hidden aria-label="{{ t('Terminal') }}"
+       data-terminal
+       {# Empty before a chat exists: `draft.js` writes a draft id in as soon as
+          the composer has a connection selected. Explicit rather than relying on
+          Jinja rendering `None.id` as nothing. #}
+       data-url="{{ "/api/chats/" ~ chat.id ~ "/terminal/ws" if chat else "" }}"
+       data-label="{{ agent_device_name or t('the device') }}"
+       data-dir="{{ chat.project_dir if chat else "" }}"
+       data-say-nothing-yet="{{ t('Nothing has been run in this shell yet.') }}"
+       data-resize-target>
+  {#
+    The left edge, dragged. A separator rather than a decoration: it takes
+    focus and answers the arrow keys, or the panel is only resizable with a
+    mouse and the grip is a focus trap that does nothing.
+  #}
+  <div class="panel-resize" data-resize="--terminal-width" data-resize-min="384"
+       role="separator" aria-orientation="vertical" tabindex="0"
+       aria-label="{{ t('Resize the terminal') }}">
+    {{ icon("grip", "icon--sm") }}
+  </div>
+
+  <div class="panel-head">
+    <h2 class="panel-head__title">
+      {{ icon("terminal", "icon--sm") }}
+      <span>{{ agent_device_name or t("Terminal") }}</span>
+      <span class="terminal__where" data-terminal-where>{{ chat.project_dir }}</span>
+    </h2>
+    {#
+      Copy, Send and Auto. All three need to know where one command ends and
+      the next begins, which is what the shell integration provides; without it
+      the first two fall back to scraping the screen and say so, and Auto is
+      disabled rather than degraded. Forty arbitrary lines attached to every
+      message is worse than nothing attached at all.
+    #}
+    {# The previous and the next command: only where the shell marks
+       its commands itself -- a linked device's, with its integration on. #}
+    <button class="btn btn--icon btn--sm" type="button" data-terminal-prev hidden
+            title="{{ t('The previous command (Ctrl+Shift+↑)') }}"
+            aria-label="{{ t('The previous command') }}">
+      {{ icon("chevron-up", "icon--sm") }}
+    </button>
+    <button class="btn btn--icon btn--sm" type="button" data-terminal-next hidden
+            title="{{ t('The next command (Ctrl+Shift+↓)') }}"
+            aria-label="{{ t('The next command') }}">
+      {{ icon("chevron-down", "icon--sm") }}
+    </button>
+    <button class="btn btn--icon btn--sm" type="button" data-terminal-copy
+            title="{{ t('Copy the last command and its output') }}"
+            aria-label="{{ t('Copy the last command and its output') }}">
+      {{ icon("copy", "icon--sm") }}
+    </button>
+    <button class="btn btn--icon btn--sm" type="button" data-terminal-send
+            title="{{ t('Put the last command and its output into the message box') }}"
+            aria-label="{{ t('Send to chat') }}">
+      {{ icon("arrow-up", "icon--sm") }}
+    </button>
+    {#
+      Three states, not two. A cycling icon button cannot say which of three it
+      is in, and this one decides whether things are sent to a model without
+      being asked again -- so it says so in words.
+
+      Not remembered between page loads on purpose: a switch that forwards every
+      command you run to a model is not something to inherit from last week.
+    #}
+    <select class="select select--sm" data-terminal-auto
+            aria-label="{{ t('What to do when a command finishes') }}"
+            title="{{ t('What to do with each command you run') }}">
+      <option value="off" selected>{{ t("Auto: off") }}</option>
+      <option value="copy">{{ t("Auto: copy") }}</option>
+      <option value="send">{{ t("Auto: send") }}</option>
+    </select>
+    <button class="btn btn--icon btn--sm" type="button" data-toggle="#terminal"
+            aria-label="{{ t('Close terminal') }}">
+      {{ icon("x", "icon--sm") }}
+    </button>
+  </div>
+
+  <div class="terminal__screen" data-terminal-screen></div>
+
+  <div class="terminal__status">
+    <span class="terminal__message" data-terminal-message>{{ t("Connecting…") }}</span>
+    <span class="terminal__last" data-terminal-last></span>
+    <span>Ctrl+Shift+C / V</span>
+  </div>
+</aside>

@@ -1,0 +1,10 @@
+{#
+  The scrim behind an open drawer. It carries the same `data-toggle` as every
+  other control that closes it, so tapping beside the drawer goes through one
+  code path rather than a second written for touch.
+
+  Rendered always and shown by CSS: it exists only below the breakpoint and only
+  while the drawer is open, which is a question about width and state that the
+  server cannot answer and the stylesheet can.
+#}
+<div class="sidebar-scrim" data-toggle="#sidebar" aria-hidden="true"></div>

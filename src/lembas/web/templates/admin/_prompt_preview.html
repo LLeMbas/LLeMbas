@@ -1,0 +1,34 @@
+{#
+  The assembled system message.
+
+  Rendered with ordinary escaping and never `|safe`: it carries memory text a
+  model wrote and skill descriptions from items other people shared. Hard rule 6
+  applies here as much as anywhere.
+#}
+{% if harness_chars > limit %}
+<div class="alert alert--warning">
+  <span>
+    {{ t("The preamble is %(chars)s characters and the cap is %(limit)s. Everything past the cap is cut off before it reaches the model.", chars=harness_chars, limit=limit) }}
+  </span>
+</div>
+{% endif %}
+
+<pre class="prompt-preview"><code>{{ system }}</code></pre>
+
+<p class="field__hint">
+  {{ t("%(chars)s of %(limit)s characters before the authored prompt.", chars=harness_chars, limit=limit) }}
+  {% if authored %}
+  {{ t("The instance prompt is shown below the line; a model or chat prompt would replace it, never stack with it.") }}
+  {% else %}
+  {{ t("No instance prompt is set, so nothing follows the preamble.") }}
+  {% endif %}
+</p>
+
+{% if title_prompt %}
+<h3 class="admin-section-title">{{ t("Chat title request") }}</h3>
+<p class="card__lede">{{ t("Sent on its own after the first reply, not as part of any conversation.") }}</p>
+<pre class="prompt-preview"><code>{{ title_prompt }}</code></pre>
+{% else %}
+<h3 class="admin-section-title">{{ t("Chat title request") }}</h3>
+<p class="card__lede">{{ t("Empty, so no model is asked to name a chat. Chats are named from the first thing said in them.") }}</p>
+{% endif %}

@@ -1,0 +1,178 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "general" %}
+
+{% block title %}{{ t("General") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("General") }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">{{ t("Instance-wide settings. These are stored in the database and take effect immediately — no restart, and they survive one.") }}</p>
+
+{% if saved %}
+<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ t("Settings saved.") }}</span></div>
+{% endif %}
+
+<form method="post" action="/admin/general">
+
+  {#- The one piece of instance customization: the name, because device logins and the discovery document show it. -#}
+  <section class="card">
+    <h2 class="card__title">{{ t("Instance name") }}</h2>
+    <div class="field">
+      <label class="field__label" for="instance-name">{{ t("Name") }}</label>
+      <input class="input" id="instance-name" name="instance_name" maxlength="60"
+             value="{{ values.instance_name }}" placeholder="LLeMbas">
+      <p class="field__hint">{{ t("What a device asked to sign in here is told it is signing in to, and what the LLeMbas CLI names this connection after. Empty is LLeMbas.") }}</p>
+    </div>
+  </section>
+
+  {#- An instance that is only an API front. The gate is
+      services/instance_mode.py. -#}
+  <section class="card">
+    <h2 class="card__title">{{ t("Instance mode") }}</h2>
+    <div class="field">
+      <label class="field__label" for="instance-mode">{{ t("What this instance is") }}</label>
+      <select class="select" id="instance-mode" name="instance_mode">
+        <option value="full" {{ 'selected' if values.instance_mode != "api" }}>{{ t("Full") }}</option>
+        <option value="api" {{ 'selected' if values.instance_mode == "api" }}>{{ t("API only") }}</option>
+      </select>
+      <p class="field__hint">{{ t("API only switches off chats, agent chats, the library, reports, scheduled tasks and the MCP server; the API, device sign-in, Settings and Admin keep working.") }}</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Personalization") }}</h2>
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="personalization_enabled" value="true" {{ 'checked' if values.personalization_enabled }}>
+        <span>{{ t("Let people set custom instructions and a personality") }}</span>
+      </label>
+      <p class="field__hint">{{ t("Each person then chooses for themselves, under Settings → Account: how they want to be helped, and a personality (concise, pragmatic, optimistic, funny, formal, Socratic, or their own words). It applies to every model, after the system prompt. Nothing is sent for anybody who has not chosen.") }}</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Language") }}</h2>
+    <p class="card__lede">{{ t("What the interface is in for anybody who has not chosen for themselves. Everyone can pick their own under Appearance in their settings, and that choice wins here.") }}</p>
+    <div class="field">
+      <label class="field__label" for="language">{{ t("Interface language") }}</label>
+      <select class="select" id="language" name="language">
+        {% for code, name in languages %}
+        <option value="{{ code }}" {{ 'selected' if values.language == code
+          or (not values.language and code == "en") }}>{{ name }}</option>
+        {% endfor %}
+      </select>
+      <p class="field__hint">
+        {{ tm("This is the interface only. Models answer in whatever language you write to them in, which is a line you can edit under <a href=\"/admin/prompts\">Prompts</a>.") }}
+      </p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Default system prompt") }}</h2>
+    <p class="card__lede">{{ t("Applied to every chat that does not have a prompt of its own. A model's prompt overrides this, and a chat's prompt overrides both — most specific wins outright rather than the three being stacked together.") }}</p>
+    <div class="field">
+      <label class="field__label visually-hidden" for="system-prompt">{{ t("System prompt") }}</label>
+      <textarea class="textarea" id="system-prompt" name="system_prompt" rows="5"
+                placeholder="{{ t('You are a helpful assistant.') }}">{{ values.system_prompt }}</textarea>
+      <p class="field__hint">{{ t("Leave empty to send no system prompt at all.") }}</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Compaction") }}</h2>
+    <p class="card__lede">{{ t("A long conversation eventually fills the model's context. When it gets close, the earlier turns are summarised and the summary is sent in their place. The messages themselves are kept and stay readable in the transcript — they simply stop being sent.") }}</p>
+    <div class="field">
+      <label class="field__label" for="compact-threshold">{{ t("Compact at") }}</label>
+      <input class="input" id="compact-threshold" name="compact_threshold" type="number"
+             min="0" max="99" value="{{ values.compact_threshold }}">
+      <p class="field__hint">
+        {{ tm('Percent of the model\'s context length. <code>0</code> turns automatic compaction off; the button in each chat still works. Nothing happens for a model whose context length is unset under <a href="/admin/models">Models</a> — that is "unknown", not "small", and this will not act on a number nobody supplied. The wording of the summary is under <a href="/admin/prompts">Prompts</a>.') }}
+      </p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Tool calls in an ordinary chat") }}</h2>
+    <p class="card__lede">{{ t("A model ends its own turn the moment it stops asking for tools — that is it saying it has what it needs, and nothing here overrides it. This is a ceiling for the case where it never says so.") }}</p>
+    <div class="field">
+      <label class="field__label" for="max-chat-rounds">{{ t("Most rounds of tool calls") }}</label>
+      <input class="input" id="max-chat-rounds" name="max_chat_rounds" type="number"
+             min="0" max="100" value="{{ values.max_chat_rounds }}">
+      <p class="field__hint">
+        {{ tm("Several tools can be called in one round, so this is not a count of tools. Leave room for at least two: <code>knowledge_get</code> and <code>notes_get</code> read a document by an id a <em>search</em> returned, so a ceiling of one leaves the library searchable and not readable. <code>0</code> means no ceiling, which is how an agent chat already works — those are bounded under <a href=\"/admin/agents\">Agents</a> by time and tokens instead.") }}
+      </p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Prototypes") }}</h2>
+    <p class="card__lede">{{ t("A model can answer with a live HTML page — a chart, a web design, a small app — shown in the conversation or in a panel beside it. It runs in the reader's browser, sealed off from this application: it cannot see the conversation around it, the reader's account or anything on this server, and nothing it contains runs here.") }}</p>
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="prototypes_enabled" value="true"
+               {{ 'checked' if values.prototypes_enabled }}>
+        <span>{{ t("Models may answer with prototypes") }}</span>
+      </label>
+      <p class="field__hint">{{ t("Who may see them is the “See prototypes” permission, and every chat can switch them off in its Toggle menu.") }}</p>
+    </div>
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="prototypes_network" value="true"
+               {{ 'checked' if values.prototypes_network }}>
+        <span>{{ t("Prototypes may load from the internet") }}</span>
+      </label>
+      <p class="field__hint">{{ t("Off, a prototype is entirely self-contained: charts are drawn by its own code and nothing leaves the reader's browser. On, it may load libraries, fonts and pictures over HTTPS — which tells whoever serves them that somebody opened it, and stops it working offline. It can never reach this application either way.") }}</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Temporary chats") }}</h2>
+    <p class="card__lede">{{ t("A temporary chat is not listed in the sidebar, may read the library but cannot write to it — no notes, memories, skills, reports or schedules — and is deleted when its time is up. Keep this chat turns one into an ordinary chat.") }}</p>
+    <div class="field">
+      <label class="field__label" for="temporary-lifetime">{{ t("Delete a temporary chat after") }}</label>
+      <input class="input" id="temporary-lifetime" name="temporary_lifetime_minutes" type="number"
+             min="0" max="1440" value="{{ values.temporary_lifetime_minutes }}">
+      <p class="field__hint">{{ t("Minutes after its last message, up to 1440 (a day). 0 deletes it a minute after the person leaves it; one left open in a tab that was closed without saying so goes ten minutes after its last message.") }}</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">
+      {{ t("Registration") }}
+      {% if values.allow_signup %}
+      <span class="badge badge--success">{{ t("open") }}</span>
+      {% else %}
+      <span class="badge badge--danger">{{ t("closed") }}</span>
+      {% endif %}
+    </h2>
+
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="allow_signup" value="true"
+               {{ 'checked' if values.allow_signup }}>
+        <span>{{ t("Anyone who can reach this instance may create an account") }}</span>
+      </label>
+      <p class="field__hint">{{ t('Turn this off once your users exist. Sign-in is unaffected — existing accounts keep working, and the "Create one" link disappears from the sign-in page.') }}</p>
+    </div>
+
+    {% if values.allow_signup and user_count > 0 %}
+    <div class="alert alert--warning">
+      {{ icon("warning", "alert__icon") }}
+      <div>
+        <strong>{{ t("Registration is open.") }}</strong>
+        <div class="text-sm" style="margin-top: var(--sp-1)">
+          {{ t("This instance has 1 account.") if user_count == 1 else t("This instance has %(n)s accounts.", n=user_count) }}
+          {{ t("Anyone who can reach it can add another, and every account can use your configured models and API keys.") }}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <p class="field__hint">
+      {{ tm("<code>LEMBAS_ALLOW_SIGNUP</code> in the environment sets only the starting value. Once saved here, this setting wins.") }}
+    </p>
+  </section>
+
+  <div class="form-actions"><button class="btn btn--primary" type="submit">{{ t("Save settings") }}</button></div>
+</form>
+{% endblock %}

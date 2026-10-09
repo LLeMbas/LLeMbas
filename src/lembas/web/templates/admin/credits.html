@@ -1,0 +1,182 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "credits" %}
+
+{% block title %}{{ t("Credits") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Credits") }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">{{ t("You set what each model costs in money (on its page under Models), what a credit is worth, and how many credits each person gets; nothing is bought or billed here. A model with no price is free, and administrators are never charged — what they use is only recorded. Off, nothing is checked or charged.") }}</p>
+
+{% if saved %}<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>{% endif %}
+{% if error %}<div class="alert alert--error">{{ icon("warning", "icon--sm") }} <span>{{ error }}</span></div>{% endif %}
+
+{% if is_admin %}
+<section class="card">
+  <h2 class="card__title">{{ t("Settings") }}</h2>
+  <form method="post" action="/admin/credits/settings" class="stack">
+    <label class="checkbox">
+      <input type="checkbox" name="enabled" value="true" {{ 'checked' if values.enabled }}>
+      <span>{{ t("Use credits on this instance") }}</span>
+    </label>
+    <div class="credit-fields">
+      <div class="field">
+        <label class="field__label" for="starting-grant">{{ t("Starting credits") }}</label>
+        <input class="input" id="starting-grant" name="starting_grant" type="number" min="0" step="any" value="{{ values.starting_grant }}">
+        <p class="field__hint">{{ t("What an account gets the first time credits touch it.") }}</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="default-plan">{{ t("Plan for new accounts") }}</label>
+        <select class="select" id="default-plan" name="default_plan_id">
+          <option value="">{{ t("None") }}</option>
+          {% for plan in plans %}<option value="{{ plan.id }}" {{ 'selected' if values.default_plan_id == plan.id }}>{{ plan.name }}</option>{% endfor %}
+        </select>
+        <p class="field__hint">{{ t("Given with the starting credits.") }}</p>
+      </div>
+      {# What a credit is worth. Prices are money, so this is the
+         exchange rate every price goes through on its way to credits. #}
+      <div class="field">
+        <label class="field__label" for="currency">{{ t("Currency") }}</label>
+        <select class="select" id="currency" name="currency">
+          {% for code in currencies %}<option value="{{ code }}" {{ 'selected' if values.currency == code }}>{{ code }}</option>{% endfor %}
+        </select>
+        <p class="field__hint">{{ t("What prices are typed in, and what balances are shown in beside credits.") }}</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="credit-value">{{ t("One credit is worth") }}</label>
+        <input class="input" id="credit-value" name="credit_value" type="number" min="0" step="any" required value="{{ values.credit_value }}">
+        <p class="field__hint">{{ t("In the currency above. Prices are set in money, so changing this changes what every model, minute of speech and picture costs in credits — balances stay as they are.") }}</p>
+      </div>
+    </div>
+    <label class="checkbox">
+      <input type="checkbox" name="show_balance" value="true" {{ 'checked' if values.show_balance }}>
+      <span>{{ t("People see their own balance and limits in their settings") }}</span>
+    </label>
+    <div class="btn-row"><button class="btn btn--primary" type="submit">{{ t("Save") }}</button></div>
+  </form>
+</section>
+
+<section class="card">
+  <h2 class="card__title">{{ t("Plans") }}</h2>
+  <p class="card__lede">{{ t("A plan gives credits every month and can limit how fast they are spent, over the last 5 hours, day, week and 30 days. Reset: unused credits expire at renewal. Add: the monthly amount is added, up to the cap.") }}</p>
+  {% for plan in plans + [None] %}
+  <details class="plan-edit" {{ 'open' if plan is none and not plans }}>
+    <summary>
+      {% if plan %}<strong>{{ plan.name }}</strong> <span class="faint text-xs">{{ show(plan.monthly) }} {{ t("a month") }} · {{ plan.renewal }}</span>
+      {% else %}{{ icon("plus", "icon--sm") }} {{ t("A new plan") }}{% endif %}
+    </summary>
+    <form method="post" action="/admin/credits/plans" class="stack">
+      <input type="hidden" name="plan_id" value="{{ plan.id if plan else '' }}">
+      <div class="credit-fields">
+        <div class="field">
+          <label class="field__label">{{ t("Name") }}</label>
+          <input class="input" name="name" required maxlength="120" value="{{ plan.name if plan else '' }}">
+          <p class="field__hint"></p>
+        </div>
+        <div class="field">
+          <label class="field__label">{{ t("Credits a month") }}</label>
+          <input class="input" name="monthly" type="number" min="0" step="any" value="{{ (plan.monthly / micro) if plan else 0 }}">
+          <p class="field__hint"></p>
+        </div>
+        <div class="field">
+          <label class="field__label">{{ t("At renewal") }}</label>
+          <select class="select" name="renewal">
+            <option value="reset" {{ 'selected' if plan and plan.renewal == 'reset' }}>{{ t("Reset: unused credits expire") }}</option>
+            <option value="add" {{ 'selected' if plan and plan.renewal == 'add' }}>{{ t("Add, up to the cap") }}</option>
+          </select>
+          <p class="field__hint"></p>
+        </div>
+        <div class="field">
+          <label class="field__label">{{ t("Cap") }}</label>
+          <input class="input" name="cap" type="number" min="0" step="any" value="{{ (plan.cap / micro) if plan else 0 }}">
+          <p class="field__hint">{{ t("For Add. 0 = no cap.") }}</p>
+        </div>
+        {% for key, label in [("limit_5h", t("Limit per 5 hours")), ("limit_day", t("Limit per day")), ("limit_week", t("Limit per week")), ("limit_month", t("Limit per 30 days"))] %}
+        <div class="field">
+          <label class="field__label">{{ label }}</label>
+          <input class="input" name="{{ key }}" type="number" min="0" step="any" value="{{ (plan[key] / micro) if plan else 0 }}">
+          <p class="field__hint">{{ t("0 = no limit.") }}</p>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="field">
+        <label class="field__label">{{ t("Only these models") }}</label>
+        <input class="input" name="allowed_models" value="{{ plan.allowed_models | join(', ') if plan else '' }}" placeholder="{{ t('Any model') }}">
+        <p class="field__hint">{{ t("Model ids, separated by commas. Empty: any priced model.") }}</p>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn--primary" type="submit">{{ t("Save plan") }}</button>
+      </div>
+    </form>
+    {% if plan %}
+    <form method="post" action="/admin/credits/plans/{{ plan.id }}/delete">
+      <button class="btn btn--sm btn--danger" type="submit"
+              data-confirm-title="{{ t('Delete this plan?') }}"
+              data-confirm-button="{{ t('Everybody on %(name)s is taken off it. Their credits stay.', name=plan.name) }}"
+              data-confirm-label="{{ t('Delete') }}">{{ t("Delete plan") }}</button>
+    </form>
+    {% endif %}
+  </details>
+  {% endfor %}
+</section>
+{% endif %}
+
+<section class="card">
+  <h2 class="card__title">{{ t("People") }}</h2>
+  <div class="table-scroll">
+  <table class="data-table">
+    <thead><tr><th>{{ t("Account") }}</th><th>{{ t("Balance") }}</th><th>{{ t("Plan") }}</th><th>{{ t("Renews") }}</th><th>{{ t("Change") }}</th></tr></thead>
+    <tbody>
+      {% for person in people %}
+      <tr>
+        <td>{{ person.name }}<br><span class="text-xs faint">{{ person.email }}</span></td>
+        <td class="mono">{% if person.is_admin %}{{ t("Unlimited") }}{% else %}{{ show(balances.get(person.id, 0)) }}<br><span class="text-xs faint">{{ money(balances.get(person.id, 0)) }}</span>{% endif %}</td>
+        <td>
+          <form method="post" action="/admin/credits/users/{{ person.id }}" class="credit-inline">
+            <input type="hidden" name="action" value="plan">
+            <select class="select select--sm" name="plan_id" aria-label="{{ t('Plan') }}">
+              <option value="">{{ t("None") }}</option>
+              {% for plan in plans %}<option value="{{ plan.id }}" {{ 'selected' if person.plan_id == plan.id }}>{{ plan.name }}</option>{% endfor %}
+            </select>
+            <button class="btn btn--sm" type="submit">{{ t("Set") }}</button>
+          </form>
+        </td>
+        {# When the plan next renews, set by hand, and a renewal now --
+           once per month, so a second press is refused rather than doubled.
+           Renewals happen here, through the admin API, or when due: never
+           from anything a person does for themselves. #}
+        <td>
+          {% if person.plan_id %}
+          <form method="post" action="/admin/credits/users/{{ person.id }}" class="credit-inline">
+            <input type="hidden" name="action" value="renews_at">
+            <input class="input input--sm" type="date" name="renews_at" required
+                   aria-label="{{ t('Renews on') }}"
+                   value="{{ person.plan_renews_at.strftime('%Y-%m-%d') if person.plan_renews_at else '' }}">
+            <button class="btn btn--sm" type="submit">{{ t("Set") }}</button>
+          </form>
+          <form method="post" action="/admin/credits/users/{{ person.id }}" class="credit-inline">
+            <input type="hidden" name="action" value="renew">
+            <button class="btn btn--sm" type="submit">{{ t("Renew now") }}</button>
+          </form>
+          {% else %}
+          <span class="faint">—</span>
+          {% endif %}
+        </td>
+        <td>
+          <form method="post" action="/admin/credits/users/{{ person.id }}" class="credit-inline">
+            <select class="select select--sm" name="action" aria-label="{{ t('Change') }}">
+              <option value="topup">{{ t("Top up") }}</option>
+              <option value="adjust">{{ t("Adjust") }}</option>
+            </select>
+            <input class="input input--sm" name="amount" type="number" step="any" aria-label="{{ t('Credits') }}" placeholder="0">
+            <input class="input input--sm" name="note" aria-label="{{ t('Note') }}" placeholder="{{ t('Note') }}">
+            <button class="btn btn--sm" type="submit">{{ t("Apply") }}</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endblock %}

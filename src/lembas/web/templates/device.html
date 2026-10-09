@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, mark, wordmark %}
+{#
+  Approving a device login (RFC 8628). The card layout of the sign-in page, on
+  purpose: this is a sign-in, for somebody else's program, and it should look as
+  serious as one. Everything the device said about itself is shown before the
+  button, together with the address the request came from -- a code typed in
+  from somebody else's message is the attack this page exists to make visible.
+#}
+
+{% block title %}{{ t("Sign in a device") }} - {{ brand.name }}{% endblock %}
+
+{% block body %}
+<main class="auth">
+  <div class="auth__card">
+    <div class="auth__brand">
+      {{ mark(cls="brand-mark", uid="device") }}
+      <h1 class="auth__title">{{ t("Sign in a device") }}</h1>
+      <p class="auth__subtitle">{{ t("A program on another machine is asking to use this instance as you.") }}</p>
+    </div>
+
+    {% if not allowed %}
+    <div class="alert alert--error" role="alert">
+      {{ icon("warning", "alert__icon") }}
+      <span>{{ t("Your account may not sign devices in. Ask an administrator for the “Use the API” permission.") }}</span>
+    </div>
+    {% elif row %}
+    <dl class="mode-list device-facts">
+      <div class="mode-list__row"><dt>{{ t("Device") }}</dt><dd><strong>{{ row.device_name }}</strong></dd></div>
+      {% if row.device_host %}<div class="mode-list__row"><dt>{{ t("Machine") }}</dt><dd><code>{{ row.device_host }}</code>{% if row.device_platform %} · {{ row.device_platform }}{% endif %}</dd></div>{% endif %}
+      {% if row.client %}<div class="mode-list__row"><dt>{{ t("Program") }}</dt><dd>{{ row.client }}</dd></div>{% endif %}
+      <div class="mode-list__row"><dt>{{ t("Asked from") }}</dt><dd><code>{{ row.ip or "?" }}</code></dd></div>
+      <div class="mode-list__row"><dt>{{ t("It may") }}</dt>
+        <dd><ul class="device-scopes">{% for scope in row.scopes_json %}<li>{{ scope_label(scope) }}</li>{% endfor %}</ul></dd>
+      </div>
+    </dl>
+    <p class="field__hint">{{ t("Approve only a device you are signing in yourself, right now. It keeps access until you revoke it under Settings → Devices.") }}</p>
+    <form method="post" action="/device" class="btn-row">
+      <input type="hidden" name="code" value="{{ code }}">
+      <button class="btn btn--primary" type="submit" name="decision" value="approve">{{ t("Approve") }}</button>
+      <button class="btn" type="submit" name="decision" value="deny">{{ t("Deny") }}</button>
+    </form>
+    {% else %}
+    {% if looked %}
+    <div class="alert alert--error" role="alert">
+      {{ icon("warning", "alert__icon") }}
+      <span>{{ t("That code is not waiting for anybody. It may have expired — codes last ten minutes — or been used already.") }}</span>
+    </div>
+    {% endif %}
+    <form method="get" action="/device" class="stack">
+      <div class="field">
+        <label class="field__label" for="device-code">{{ t("The code the device shows") }}</label>
+        <input class="input device-code" id="device-code" name="code" required autofocus
+               autocomplete="off" spellcheck="false" autocapitalize="characters"
+               placeholder="ABCD-EFGH" value="{{ code }}">
+      </div>
+      <button class="btn btn--primary btn--block" type="submit">{{ t("Continue") }}</button>
+    </form>
+    {% endif %}
+
+    <p class="auth__footer"><a href="/settings?tab=devices#devices" data-settings-page>{{ t("Back to your settings") }}</a></p>
+  </div>
+</main>
+{% endblock %}

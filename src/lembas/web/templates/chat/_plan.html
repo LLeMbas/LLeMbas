@@ -1,0 +1,89 @@
+{% from "_macros.html" import icon %}
+{#
+  A plan: what was found, what it is for, and the work as phases of tasks.
+
+  Rendered from `message.plan` -- the property, which normalises -- rather than
+  from `plan_json`, so a row written before version 2 comes through as one phase
+  and this template never sees two shapes. The Execute button still posts the
+  message id and the server still reads the flattened `steps`, so it sends
+  exactly what was proposed.
+
+  Every line is model output and is escaped; a task is shown as text, never as
+  Markdown, because a plan is the last thing that should be able to emit a link.
+
+  A status is a CLASS, never a character in the text: a tick written into the
+  string would be indistinguishable from a tick the model wrote itself.
+
+  It does not re-render in place as work goes on. The newest bubble carries the
+  current plan and older ones carry the plan as it was then -- that is what a
+  transcript is, and it makes "what did it think at step three" answerable.
+
+  Execute switches the chat to Edit, never Auto -- the plan was written under a
+  mode where every command stopped for approval, and a button that also removed
+  the asking is not the button anybody pressed. The confirm dialog says so.
+#}
+{% set plan = message.plan %}
+<section class="plan">
+  <h3 class="plan__title">
+    {{ icon("check", "icon--sm") }}
+    {{ plan.title or "A plan" }}
+  </h3>
+
+  {% if plan.summary %}
+  <p class="plan__summary">{{ plan.summary }}</p>
+  {% endif %}
+
+  {% if plan.findings %}
+  <div class="plan__section">
+    <h4 class="plan__heading">{{ t("What was found") }}</h4>
+    <ul class="plan__findings">
+      {% for finding in plan.findings %}
+      <li>{{ finding.text }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if plan.objectives %}
+  <div class="plan__section">
+    <h4 class="plan__heading">{{ t("What it is for") }}</h4>
+    <ul class="plan__objectives">
+      {% for objective in plan.objectives %}
+      <li class="plan__item plan__item--{{ objective.status }}">{{ objective.text }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% for phase in plan.phases %}
+  <div class="plan__phase plan__phase--{{ phase.status }}">
+    {# A single unnamed phase is what a version-1 row becomes, and heading it
+       "Plan" above a plan headed "Plan" reads as a mistake. #}
+    {% if plan.phases | length > 1 or phase.title != "Plan" %}
+    <h4 class="plan__heading">{{ phase.title }}</h4>
+    {% endif %}
+    <ol class="plan__steps">
+      {% for task in phase.tasks %}
+      <li class="plan__item plan__item--{{ task.status }}" data-status="{{ task.status }}">
+        {{ task.text }}
+        {% if task.note %}<span class="plan__note-inline">{{ task.note }}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+  </div>
+  {% endfor %}
+
+  {% if chat.kind == "agent" %}
+  <div class="btn-row">
+    <button class="btn btn--primary btn--sm" type="button"
+            hx-post="/api/chats/{{ chat.id }}/messages/{{ message.id }}/execute-plan"
+            hx-target="#thread" hx-swap="beforeend"
+            hx-confirm="{{ t('Switch this chat to Edit mode and carry out this plan? Every command will still be shown to you before it runs.') }}"
+            data-confirm-label="{{ t('Carry it out') }}"
+            data-confirm-danger="false">
+      {{ icon("send", "icon--sm") }} {{ t("Carry out this plan") }}
+    </button>
+    <span class="plan__note">{{ t("Switches to Edit — commands still ask.") }}</span>
+  </div>
+  {% endif %}
+</section>

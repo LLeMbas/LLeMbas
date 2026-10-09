@@ -1,0 +1,77 @@
+{% extends "schedules/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "scheduled" %}
+
+{% block title %}{{ t("New scheduled task") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("What do you want to schedule?") }}{% endblock %}
+{% block actions %}
+<a class="btn btn--sm" href="/settings?tab=scheduled" data-settings-page>{{ t("Cancel") }}</a>
+{% endblock %}
+
+{% block schedules_content %}
+{#
+  One question first, and the detail worked out from the answer. The manual
+  fields are on the same page rather than behind a second screen: somebody who
+  already knows exactly when it should run should not have to describe it in
+  prose and hope, and the fields are also where a compile that did not work out
+  lands — so they cannot be a fallback that only appears when something breaks.
+#}
+<form method="post" action="/api/schedules/describe" class="card">
+  <div class="field">
+    <label class="field__label" for="describe">{{ t("Say it in your own words") }}</label>
+    <textarea class="input" id="describe" name="request" rows="3" required
+              placeholder="{{ t('Every Monday morning, check whether the build is passing and write me a report.') }}"
+              >{{ described }}</textarea>
+    <p class="field__hint">
+      {{ t("Times are read as %(timezone)s. Say how often, and what should happen.", timezone=timezone) }}
+    </p>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">
+      {{ icon("sparkle", "icon--sm") }} {{ t("Work it out") }}
+    </button>
+  </div>
+</form>
+
+{% if compiled %}
+  {% if compiled.reason %}
+  <div class="alert alert--warning">
+    {{ icon("warning", "alert__icon") }} <span>{{ compiled.reason }}</span>
+  </div>
+  {% elif summary %}
+  <div class="alert alert--success">
+    {{ icon("check", "alert__icon") }}
+    <span>
+      {{ tm("This will run <strong>%(summary)s</strong>. Check it below and change anything that is not what you meant.", summary=summary) }}
+    </span>
+  </div>
+  {% endif %}
+{% endif %}
+
+<form method="post" action="/api/schedules" class="card">
+  {#
+    Pre-filled from the compile when there was one. `schedule` is None here, so
+    the shared fields fall back to their empty state — which is why the two
+    compiled text values are written in explicitly rather than left to it.
+  #}
+  {% include "schedules/_form.html" %}
+
+  {% if models %}
+  <div class="field">
+    <label class="field__label" for="schedule-model">{{ t("Model") }}</label>
+    <select class="select" id="schedule-model" name="model_id">
+      <option value="">{{ t("Whatever is default at the time") }}</option>
+      {% for model in models %}
+      <option value="{{ model.model_id }}">{{ model.display_name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% endif %}
+
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">
+      {{ icon("clock", "icon--sm") }} {{ t("Schedule it") }}
+    </button>
+  </div>
+</form>
+{% endblock %}

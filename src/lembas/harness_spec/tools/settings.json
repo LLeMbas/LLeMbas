@@ -1,0 +1,46 @@
+{
+  "name": "settings",
+  "scope": "cli",
+  "risk": "interact",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": "purpose",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "See and change LLeMbas CLI's own settings when the user asks you to: the model, the reasoning effort, the permission mode, the small model, theme, compaction, search, step limit and others. The personality and the user's custom instructions are the user's to change, not yours.\n\n- list: every setting, its value, and where it comes from (default, global, project, session); also the configured models.\n- get: one setting.\n- set: change one. scope: session (default — this session only, nothing written), global (the user's config.yaml) or project (this project's .agent/config.yaml). Use global or project only when the user says to keep it.\n\nChange a setting only because the user asked for it, never on your own initiative. Each change is shown to the user for approval. A model or effort change applies from your next step; the conversation carries over.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "list",
+          "get",
+          "set"
+        ]
+      },
+      "key": {
+        "description": "The setting, e.g. effort, model, mode, compaction.auto_at.",
+        "type": "string"
+      },
+      "value": {
+        "description": "set: the new value, as text — high, connection/model, 0.7, true, a list as ddg,searxng.",
+        "type": "string"
+      },
+      "scope": {
+        "description": "set: session (default), global or project.",
+        "type": "string",
+        "enum": [
+          "session",
+          "global",
+          "project"
+        ]
+      }
+    },
+    "required": [
+      "action"
+    ]
+  }
+}

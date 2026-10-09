@@ -1,0 +1,20 @@
+{% from "_macros.html" import icon %}
+{#
+  The outcome of one endpoint test, swapped into the card that asked for it.
+
+  A tts test also brings back a fresh voice list, because "did it work" and
+  "what can it say it in" are the same question asked twice otherwise.
+#}
+<div class="alert alert--{{ 'error' if message_kind == 'error' else 'success' }}"
+     id="audio-test-{{ side }}">
+  {{ icon("warning" if message_kind == "error" else "check", "alert__icon") }}
+  <span>{{ message }}</span>
+</div>
+
+{% if side == "tts" %}
+<select class="select" id="tts-voice" name="tts_voice" hx-swap-oob="true">
+  {% with selected = values.tts_voice %}
+    {% include "partials/_voice_options.html" %}
+  {% endwith %}
+</select>
+{% endif %}

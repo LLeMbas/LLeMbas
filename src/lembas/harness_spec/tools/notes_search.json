@@ -1,0 +1,23 @@
+{
+  "name": "notes_search",
+  "scope": "shared",
+  "risk": "read",
+  "exclusive": false,
+  "block": "search",
+  "purpose": false,
+  "aliases": {
+    "cli": [
+      "notes"
+    ],
+    "llembas": []
+  },
+  "description": "Search your notes: things worth keeping that are longer than a memory entry and not a skill — findings, a design worked out with the user, a list to come back to. Kept across sessions, global or this project's; both are searched. An empty query lists the newest. Read one with note_view; write with note_manage.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string"
+      }
+    }
+  }
+}

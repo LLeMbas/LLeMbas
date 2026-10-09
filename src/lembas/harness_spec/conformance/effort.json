@@ -1,0 +1,54 @@
+{
+  "about": "An error message from a server → whether it is a chat template refusing the reasoning effort, and which efforts it says it supports.",
+  "cases": [
+    {
+      "message": "Unexpected reasoning effort high",
+      "expect": {
+        "refused": true,
+        "advertised": []
+      }
+    },
+    {
+      "message": "reasoning effort 'high' is not supported. Supported types are xhigh (default), medium, and low",
+      "expect": {
+        "refused": true,
+        "advertised": [
+          "low",
+          "medium",
+          "xhigh"
+        ]
+      }
+    },
+    {
+      "message": "Model not found",
+      "expect": {
+        "refused": false,
+        "advertised": []
+      }
+    },
+    {
+      "message": "context length exceeded",
+      "expect": {
+        "refused": false,
+        "advertised": []
+      }
+    },
+    {
+      "message": "effort must be one of: low, medium, high",
+      "expect": {
+        "refused": false,
+        "advertised": []
+      }
+    },
+    {
+      "message": "unsupported value for effort; supported: minimal, low",
+      "expect": {
+        "refused": true,
+        "advertised": [
+          "minimal",
+          "low"
+        ]
+      }
+    }
+  ]
+}

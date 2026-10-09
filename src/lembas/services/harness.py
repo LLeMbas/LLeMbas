@@ -1,0 +1,441 @@
+"""Telling the model how to use what it has been given.
+
+A model handed a `tools` array will often ignore it. It answers from recall
+because that is what it was trained to do, and nothing in the request suggests
+otherwise. The harness is the part of the prompt that says otherwise: what day it
+is, one line per tool about *when* to reach for it, the memories, and the list of
+skills available.
+
+The text itself is not here. Every piece of it is a fragment in
+``services/prompts.py``, defaulted there and overridable by an administrator on
+``/admin/prompts``; this module decides which fragments apply to a given request
+and what their variables resolve to. That split is what lets a custom tool
+contribute its own guidance later by registering a fragment source and nothing
+else.
+
+**On the "system prompts are precedence, not concatenation" rule.** That rule
+governs the three authored layers -- instance, model, chat -- and it is untouched
+here: exactly one of them still wins, and ``chat.effective_system_prompt`` still
+decides which. This is a different axis. It describes the machinery rather than
+the behaviour, nobody authored it, and there is nothing for it to disagree with.
+So it is prepended to whichever authored prompt won, inside one system message,
+under a heading that makes the seam obvious.
+
+One system message rather than two because several endpoints reject a second one.
+The authored prompt goes last, where it is closest to the conversation.
+
+A model with no tools still gets the core fragments -- the date above all, since
+it has no clock and is being asked about a present it cannot see. That is a
+change from the original behaviour, where no tools meant no harness at all;
+clearing those fragments in the admin page restores it exactly.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session as DBSession
+
+from lembas.db.models import KIND_TASK, User
+from lembas.services import branding, prompts, settings_store
+from lembas.services import prototypes as prototypes_service
+from lembas.services.library import memories as memories_service
+from lembas.services.library import skills as skills_service
+from lembas.services.schedule import clock
+
+log = logging.getLogger(__name__)
+
+# A ceiling on the whole block, so that a large library cannot quietly eat the
+# context window. An administrator can lower it; `max_harness_chars` of 0 means
+# "use this".
+#
+# It has to be larger than everything the shipped defaults are already allowed
+# to put in, and at 8000 it was not. The fragments alone are about 7,900
+# characters for an agent chat, and on top of that `index_chars` grants a 2,000
+# character project listing and `instructions_chars` a 4,000 character
+# AGENTS.md -- both defaults, both on by default. The block was therefore cut at
+# 8,000 on an ordinary agent chat, and `prompts.assemble` cuts the *tail*, which
+# by fragment order is exactly the context worth having: the listing was severed
+# mid-tree and `context.agent_instructions` was dropped in its entirety. The one
+# path by which a project's own instructions reach a model did not reach it.
+#
+# The two big blocks already carry their own budgets, applied before assembly,
+# so they are bounded whatever this is. What this bounds is the *fragments*
+# growing without anybody noticing -- so it is set above the sum of what those
+# budgets grant, with room for the plan and the memories beside them.
+#
+# 20,000 rather than 16,000, which the shipped set had grown to within 1,300
+# characters of. A ceiling this close to the content is one the next fragment
+# crosses, and crossing it is silent: `assemble` cuts the tail, and the tail is
+# the project's own AGENTS.md. `tests/test_harness.py` pins a margin now as well
+# as a fit, so the room is a fact rather than a hope.
+#
+# 24,000 now, because that margin did its job: adding `core.commit` and
+# `tool.agent_edits` took the headroom under 20% and the test said so rather
+# than the AGENTS.md quietly losing its last paragraph on somebody's install.
+# Raising the ceiling costs nothing by itself -- it is a limit, not a size, and
+# the assembled block is the same length either way. What it buys is that the
+# margin keeps meaning what it says.
+MAX_HARNESS_CHARS = 24000
+
+# How much of the ceiling the shipped fragments may occupy at full budget. The
+# rest is headroom for an administrator's own wording, which is the thing this
+# limit exists to leave room for -- an override is usually longer than the
+# default it replaces, not shorter.
+HARNESS_MARGIN = 0.2
+
+# How many attached filenames to name in the prompt. Enough to show what the
+# tags will look like, few enough that a chat with thirty files does not spend
+# the window listing them -- this is an explanation, not a manifest.
+MAX_NAMED_DOCUMENTS = 5
+
+
+def _families(db: DBSession, tools: list[dict[str, Any]]) -> list[str]:
+    """Which families are represented in an offered tool list, in a fixed order.
+
+    Resolved against the database rather than the import-time registry, because
+    an administrator-defined tool is a row and would otherwise contribute no
+    family at all -- which is to say its guidance would never be admitted.
+    """
+    from lembas.services import tools as tools_service
+
+    book = tools_service.registry(db)
+    offered = {
+        book[name].family
+        for tool in tools
+        if (name := (tool.get("function") or {}).get("name")) in book
+    }
+    return [family for family in tools_service.families(db) if family in offered]
+
+
+def _tool_names(tools: list[dict[str, Any]]) -> str:
+    return ", ".join(
+        name for tool in tools if (name := (tool.get("function") or {}).get("name"))
+    )
+
+
+def _image_templates(db: DBSession) -> str:
+    """One line per workflow, name and description.
+
+    The description is the load-bearing half, the same way it is for a skill:
+    it is the only thing the model has to choose with, and "workflow-2" is not
+    a choice. Capped, because a list of thirty costs the window on every
+    request forever.
+    """
+    from lembas.db.models import ImageWorkflow
+
+    rows = list(
+        db.scalars(
+            select(ImageWorkflow)
+            .where(ImageWorkflow.enabled.is_(True))
+            .order_by(ImageWorkflow.position, ImageWorkflow.slug)
+            .limit(12)
+        )
+    )
+    return "\n".join(f"- {row.slug}: {row.description or row.name}" for row in rows)
+
+
+def _image_models(db: DBSession) -> str:
+    """The checkpoints an administrator has listed, comma separated."""
+    return ", ".join(settings_store.images(db).get("checkpoints") or [])
+
+
+def _document_names(db: DBSession, chat) -> str:
+    """The names of the non-image files attached anywhere in this chat."""
+    from lembas.db.models import Attachment
+
+    rows = list(
+        db.scalars(
+            select(Attachment.filename)
+            .where(Attachment.chat_id == chat.id, Attachment.kind != "image")
+            .order_by(Attachment.created_at)
+            .limit(MAX_NAMED_DOCUMENTS + 1)
+        ).all()
+    )
+    if not rows:
+        return ""
+    if len(rows) > MAX_NAMED_DOCUMENTS:
+        return ", ".join(rows[:MAX_NAMED_DOCUMENTS]) + " and others"
+    return ", ".join(rows)
+
+
+def context_variables(
+    db: DBSession,
+    user: User | None,
+    tools: list[dict[str, Any]] | None,
+    chat=None,
+    speaker=None,
+) -> dict[str, str]:
+    """What every ``{{name}}`` in a fragment resolves to for this request.
+
+    The expensive ones are guarded by family, exactly as the memory block always
+    was: a model with no skills tool must not cause a skills query, and has no
+    business being told the memories either.
+    """
+    from lembas.services import tools as tools_service
+
+    offered = tools or []
+    families = _families(db, offered)
+    # The reader's zone, not the server's. Telling somebody in another country
+    # that it is Tuesday when it is Wednesday where they are was survivable
+    # while the answer was only ever prose; it stops being survivable the moment
+    # they can say "every Monday at 3" and something has to work out when that
+    # is. `zone_for` falls back to the server's, so an instance where nobody has
+    # set one behaves exactly as it always did.
+    stamp = clock.now_for(user)
+
+    # Whose data this request may carry. The data group of the *answering*
+    # model -- the chat's own for the chat's model, the member's own for a crowd
+    # member -- so a model is handed exactly one group's memories, skills and
+    # personality and never the chat's merely for being in it. No chat is the
+    # admin preview, which has no speaker and shows every group.
+    group: str | None = None
+    if chat is not None:
+        from lembas.services import chat as chat_service
+        from lembas.services import data_groups
+
+        group = data_groups.for_speaker(
+            db, user, chat, speaker or chat_service.speaker_for(db, chat)
+        )
+
+    values: dict[str, str] = {
+        "today": stamp.strftime("%A %-d %B %Y"),
+        "now": stamp.strftime("%A %-d %B %Y, %H:%M (UTC%z)"),
+        # Named so a model working out a schedule can say which zone it meant,
+        # and so `core.today` can carry it without a second fragment.
+        #
+        # The fallback is load-bearing and used to be absent. `name_for` returns
+        # "" for anybody who has never chosen a zone -- the default state of
+        # every account -- and the comment here claimed that dropped the line
+        # rather than announcing the server's zone as a decision. It did not:
+        # `substitute` drops a line only when it is *blank* after expansion, and
+        # this variable sits inside a sentence, so every such request shipped
+        # "- Times the person gives you are in  unless they say otherwise."
+        #
+        # Naming the server's zone was never the thing being avoided anyway.
+        # `stamp` is `clock.now_for(user)`, which already falls back to it, so
+        # `{{today}}` and `{{now}}` are *already* in that zone and `{{now}}`
+        # already prints its offset. Withholding the label from a value the
+        # model has been given is not restraint, it is a hole. This is the
+        # fallback `schedule/compile.py` has always had, for the same reason.
+        "timezone": clock.name_for(user) or str(clock.server_zone()),
+        "instance_name": branding.for_db(db).name,
+        "user_name": (user.name or "") if user is not None else "",
+        "model_name": "",
+        # What this request will actually allow, so the model is not told a
+        # number that is not its own. `tools_service.MAX_ROUNDS` is only the
+        # fallback for callers with no session.
+        "max_rounds": str(settings_store.chat_rounds(db) or 0),
+        # Not rendered anywhere. It is the gate on `core.rounds`: an ordinary
+        # chat has a ceiling worth planning within, an agent chat is told to
+        # keep going instead, and those are different sentences rather than the
+        # same sentence with a different number in it. Blank when there is no
+        # ceiling at all, so the fragment vanishes rather than promising zero.
+        "round_budget": str(settings_store.chat_rounds(db) or ""),
+        # The complement, and the gate on `core.keep_working`. Exactly one of
+        # the two is ever set: a model told it has a budget rations it and stops
+        # early to report progress, and one told to keep going does the work.
+        # Not rendered anywhere either.
+        "unbounded": "" if settings_store.chat_rounds(db) else "yes",
+        "memory_limit": str(memories_service.MAX_MEMORY_CHARS),
+        "tool_names": _tool_names(offered),
+        "memories": memories_service.block(db, user, group) if "memory" in families else "",
+        "skills": (
+            skills_service.index_block(
+                db, user, exclude=tools_service.scoped_skills_off(chat), group=group
+            )
+            if "skills" in families
+            else ""
+        ),
+        # What can be drawn, and with what. Guarded by family for the reason the
+        # memory block is: an instance with no ComfyUI must not pay a settings
+        # read and a table scan to tell a model about a tool it was not offered.
+        # Database reads only -- `context_variables` is synchronous and on the
+        # request path, so asking ComfyUI itself what it has would hold the
+        # request open while somebody's box thought about it. The admin page
+        # discovers; this reads what it stored.
+        "image_templates": _image_templates(db) if "image" in families else "",
+        "image_models": _image_models(db) if "image" in families else "",
+        # A flag, and the gate on `core.prototypes`. Not a tool family: a
+        # prototype is a fenced block in the reply, so a model with no tools at
+        # all can write one -- which is the instance this exists for.
+        "prototypes": "yes" if prototypes_service.offered(db, user, chat) else "",
+        # The one sentence that differs with the network setting, as a variable
+        # rather than two fragments: what may be loaded is a fact about this
+        # instance, and the rest of the guidance is the same either way.
+        "prototype_sources": _prototype_sources(db),
+        # The gate on `core.temporary`, and its one variable: how long the chat
+        # has. A person's temporary chat only, never a helper's, which is also
+        # `temporary` but is told what it may do by `core.subagent`.
+        "temporary": "",
+        "temporary_lifetime": "",
+        "image_instructions": (
+            str(settings_store.images(db).get("instructions") or "") if "image" in families else ""
+        ),
+        "knowledge_bases": "",
+        "document_names": "",
+        "agent_target": "",
+        "agent_dir": "",
+        "agent_mode": "",
+        "agent_rewound": "",
+        "background": "",
+        "background_notify": "",
+        "project_files": "",
+        "agent_instructions": "",
+        "agent_instructions_file": "",
+        "plan": "",
+        "plan_editable": "",
+        # Empty everywhere but a scheduled task's own chat, which is what makes
+        # it the gate on `core.unattended` as well as the content of
+        # `context.schedule`. Two fragments, one variable, and no way for the
+        # warning to appear without the thing it warns about.
+        "schedule_instruction": "",
+        "schedule_summary": "",
+        # Set only in a helper's own chat, and the gate on `core.subagent`.
+        # Deliberately not the same variable as `schedule_instruction` even
+        # though both mean "nobody is reading": the two say different things to
+        # a model, and one fragment covering both would have to say neither.
+        "subagent": "",
+    }
+
+    if chat is not None:
+        # Imported here rather than at the top: `services/tools.py` imports
+        # this module, and a top-level import back is a cycle.
+        from lembas.services import chat as chat_service
+
+        speaking = speaker or chat_service.speaker_for(db, chat)
+        model = chat_service.model_row(db, speaking)
+        values["model_name"] = model.label if model is not None else speaking.model_id
+        if chat_service.read_only_temporary(chat):
+            values["temporary"] = "yes"
+            values["temporary_lifetime"] = chat_service.lifetime_words(
+                chat_service.temporary_lifetime(db), translate=False
+            )
+        # Naming the bases a chat is scoped to matters: without it the model
+        # cannot tell "there is nothing about this" from "I am only allowed to
+        # see the contracts folder", and phrases a miss as the former.
+        # Only the attached bases in this speaker's group: a base from another
+        # group is not searchable here, and naming it would leak its name.
+        in_group = [
+            base
+            for base in chat.knowledge_bases
+            if (base.data_group_id or data_groups.DEFAULT_GROUP) == group
+        ]
+        if "knowledge" in families and in_group:
+            values["knowledge_bases"] = ", ".join(base.name for base in in_group)
+        values["document_names"] = _document_names(db, chat)
+
+        # Not gated on a family: a scheduled task has no tools of its own, and
+        # the thing that must reach the model is precisely that nobody is
+        # reading. One primary-key lookup, the same deal `plan` gets.
+        if chat.kind == KIND_TASK:
+            values.update(_schedule_values(db, chat, user))
+
+        # Not gated on a family either, and for the same reason: what has to
+        # reach a helper is that it is one. A column read, no query.
+        if chat.parent_chat_id:
+            values["subagent"] = "yes"
+
+    return values
+
+
+def _prototype_sources(db: DBSession) -> str:
+    if prototypes_service.network(db):
+        return (
+            "It may load libraries, fonts and pictures over https, but prefer inline code "
+            "where that is easy: the reader may be offline."
+        )
+    return (
+        "Nothing can be loaded from the internet, so make it self-contained: inline the "
+        "CSS and JavaScript, draw charts yourself with SVG or <canvas>, and use system fonts."
+    )
+
+
+def _schedule_values(db: DBSession, chat, user) -> dict[str, str]:
+    """What a scheduled task's chat is for, and how often it comes round.
+
+    A task chat accumulates every run, so by the tenth the original instruction
+    is far out of sight up the transcript. Put back in front of the model each
+    turn rather than left to be inferred -- exactly what `Chat.plan_message_id`
+    exists to do for a plan.
+    """
+    from lembas.services import schedules as schedules_service
+
+    schedule = schedules_service.for_chat(db, chat)
+    if schedule is None:
+        # The schedule was removed and its chat kept. There is nothing standing
+        # to say, so the fragments vanish rather than describing a timer that no
+        # longer exists.
+        return {}
+    return {
+        "schedule_instruction": schedule.instruction or schedule.request or "",
+        "schedule_summary": schedules_service.describe(schedule, owner=user),
+    }
+
+
+def limit_for(db: DBSession) -> int:
+    """The ceiling on the assembled block."""
+    stored = settings_store.get(db, "max_harness_chars", key=settings_store.PROMPTS)
+    return int(stored or 0) or MAX_HARNESS_CHARS
+
+
+def compose_from(
+    db: DBSession,
+    *,
+    variables: dict[str, str],
+    families: list[str],
+    has_tools: bool,
+    overrides: dict[str, str] | None = None,
+) -> str:
+    """Assemble the preamble from already-resolved variables.
+
+    Separate from `compose` because the admin preview has no chat and must not
+    invent one: a transient Chat whose `knowledge_bases` collection cannot be
+    populated without real rows is a trap, and taking a plain dict of variables
+    instead sidesteps it entirely.
+    """
+    return prompts.assemble(
+        db,
+        groups=prompts.HARNESS_GROUPS,
+        variables=variables,
+        families=families,
+        has_tools=has_tools,
+        overrides=overrides,
+        limit=limit_for(db),
+    )
+
+
+def compose(
+    db: DBSession,
+    user: User | None,
+    tools: list[dict[str, Any]] | None,
+    chat=None,
+    speaker=None,
+) -> str:
+    """The operational preamble for this request, or "" when there is nothing to say."""
+    offered = tools or []
+    return compose_from(
+        db,
+        variables=context_variables(db, user, offered, chat, speaker),
+        families=_families(db, offered),
+        has_tools=bool(offered),
+    )
+
+
+def join(harness: str, authored: str, *, lead: str = "") -> str:
+    """Put the harness in front of whichever authored prompt won.
+
+    Separated from `compose` so the precedence between instance, model and chat
+    stays testable on its own -- this function is the only place the two axes
+    meet. `lead` is the sentence that sits on the seam and says which side wins
+    when they disagree; it is a fragment like everything else, and an empty one
+    leaves the bare rule that was there before.
+    """
+    if not harness:
+        return authored
+    if not authored:
+        return harness
+    seam = f"{lead}\n\n---" if lead else "---"
+    return f"{harness}\n\n{seam}\n\n{authored}"

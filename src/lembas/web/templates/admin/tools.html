@@ -1,0 +1,110 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "tools" %}
+
+{% block title %}{{ t("Tools") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Tools") }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">
+  {{ tm("HTTP calls a model can make while it answers. Each one is offered to models
+  marked <strong>%(custom)s</strong>, to people who have the permission, and —
+  if it is restricted — only to the groups you choose. The model decides
+  <em>when</em> to call it from the description you write, so write that as if
+  explaining to a colleague what the tool is for.", custom=t("Custom tools")) }}
+</p>
+
+{% if saved %}
+<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
+{% endif %}
+
+{% if not total %}
+<div class="empty" style="padding: var(--sp-10) 0">
+  {{ icon("link", "empty__mark") }}
+  <p class="empty__text">
+    {{ tm("No tools yet. <a href=\"/admin/tools/new\">Define one</a> — a name, a
+    description, and a URL with <code>{{placeholders}}</code> in it.") }}
+  </p>
+</div>
+{% else %}
+
+{# Filters are links, so a filtered view is a real URL you can keep or share. #}
+<div class="filter-bar">
+  <div class="filter-tabs">
+    {% for key, label in filters.items() %}
+    <a class="filter-tab {{ 'is-active' if key == active_filter }}"
+       href="/admin/tools?filter={{ key }}{% if q %}&q={{ q|urlencode }}{% endif %}">
+      {{ label }} <span class="filter-tab__count">{{ counts[key] }}</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  <form class="filter-form" method="get" action="/admin/tools">
+    <input type="hidden" name="filter" value="{{ active_filter }}">
+    <input class="input" type="search" name="q" value="{{ q }}"
+           placeholder="{{ t('Search tools…') }}" aria-label="{{ t('Search tools') }}">
+    <button class="btn" type="submit">{{ icon("search", "icon--sm") }} {{ t("Filter") }}</button>
+    {% if q or active_filter != "all" %}
+    <a class="btn btn--ghost" href="/admin/tools">{{ t("Clear") }}</a>
+    {% endif %}
+    <a class="btn btn--primary" href="/admin/tools/new">{{ icon("plus", "icon--sm") }} {{ t("New tool") }}</a>
+  </form>
+</div>
+
+{% if not tools %}
+<div class="empty" style="padding: var(--sp-8) 0">
+  <p class="empty__text">{{ t("Nothing matches that filter.") }}</p>
+</div>
+{% else %}
+
+<div class="model-rows">
+  {% for tool in tools %}
+  <div class="model-row {{ 'is-off' if not tool.enabled }}">
+    <span class="model-row__pos">{{ page_start + loop.index }}</span>
+
+    <div class="model-row__main">
+      <div class="model-row__title">
+        <a class="model-row__name" href="/admin/tools/{{ tool.id }}/edit">{{ tool.name }}</a>
+        {% if not tool.enabled %}<span class="badge badge--danger">{{ t("disabled") }}</span>{% endif %}
+        {% if not tool.public %}<span class="badge">{{ t("restricted") }}</span>{% endif %}
+        {% if tool.allow_private %}<span class="badge">{{ t("private network") }}</span>{% endif %}
+        {% if tool.last_error %}<span class="badge badge--danger">{{ t("last call failed") }}</span>{% endif %}
+      </div>
+      <code class="model-row__id">
+        {{ tool.slug }} · {{ tool.method }} {{ tool.url_template }}
+      </code>
+    </div>
+
+    <div class="model-row__actions">
+      <a class="btn btn--sm" href="/admin/tools/{{ tool.id }}/edit">{{ t("Edit") }}</a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="list-footer">
+  <span class="text-xs faint">
+    {{ t("Showing %(first)s–%(last)s of %(matched)s", first=page_start + 1, last=page_start + tools|length, matched=matched) }}
+    {%- if matched != total %} {{ t("(filtered from %(total)s)", total=total) }}{% endif %}
+  </span>
+
+  {% if pages > 1 %}
+  {% set base = "/admin/tools?filter=" ~ active_filter ~ ("&q=" ~ q|urlencode if q else "") %}
+  <div class="btn-row">
+    {% if page > 1 %}
+    <a class="btn btn--sm" href="{{ base }}&page={{ page - 1 }}">{{ t("Previous") }}</a>
+    {% else %}
+    <span class="btn btn--sm" aria-disabled="true" style="opacity: .45">{{ t("Previous") }}</span>
+    {% endif %}
+    <span class="text-xs faint">{{ t("Page %(page)s of %(pages)s", page=page, pages=pages) }}</span>
+    {% if page < pages %}
+    <a class="btn btn--sm" href="{{ base }}&page={{ page + 1 }}">{{ t("Next") }}</a>
+    {% else %}
+    <span class="btn btn--sm" aria-disabled="true" style="opacity: .45">{{ t("Next") }}</span>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

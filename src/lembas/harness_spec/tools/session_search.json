@@ -1,0 +1,47 @@
+{
+  "name": "session_search",
+  "scope": "cli",
+  "risk": "read",
+  "exclusive": false,
+  "block": "search",
+  "purpose": false,
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Recall past sessions: search them, or read one. Four shapes, by the arguments you give:\n- query: find sessions (all terms must match; \"quoted phrase\", deploy* for a prefix, OR, NOT). The best match comes with the messages around it; the others with the matching line.\n- session_id + around_message_id: read the messages around one (scroll with the first or last id you got).\n- session_id alone: read a whole session (long ones: beginning and end).\n- nothing: the most recent sessions.\n\nUse it when the user refers to earlier work (\"what did we decide about X\", \"where did we leave Y\") or when past context would help — before asking them to repeat themselves. It searches conversation history only: when the user points you at a file, a URL or a live system, look there first, and never conclude something does not exist from history alone.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string"
+      },
+      "session_id": {
+        "type": "string"
+      },
+      "around_message_id": {
+        "type": "integer"
+      },
+      "window": {
+        "description": "scroll: messages on each side (default 5, up to 20)",
+        "type": "integer"
+      },
+      "limit": {
+        "description": "query/browse: how many sessions (default 3 for a query, 10 to browse; up to 10)",
+        "type": "integer"
+      },
+      "sort": {
+        "description": "query: prefer recent (\"where did we leave X\") or early (\"how did X start\") matches",
+        "type": "string",
+        "enum": [
+          "newest",
+          "oldest"
+        ]
+      },
+      "this_project": {
+        "description": "only sessions in this project",
+        "type": "boolean"
+      }
+    }
+  }
+}

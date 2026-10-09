@@ -1,0 +1,374 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "images" %}
+
+{% block title %}{{ t("Image generation") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Image generation") }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">{{ t("Lets a model draw a picture and show it in the conversation, on a ComfyUI you are running. It is offered as a tool the model chooses to call, so nothing changes for a conversation that never asks for one — and it is only offered once there is a ComfyUI, a workflow and at least one checkpoint, because a tool that fails on its first call is worse than a tool nobody was given.") }}</p>
+
+{% if saved %}
+<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
+{% endif %}
+
+<form method="post" action="/admin/images">
+  <section class="card">
+    <h2 class="card__title">
+      {{ t("Image generation") }}
+      {% if values.enabled %}<span class="badge badge--success">{{ t("on") }}</span>
+      {% else %}<span class="badge">{{ t("off") }}</span>{% endif %}
+    </h2>
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="enabled" value="true" {{ 'checked' if values.enabled }}>
+        <span>{{ t("Offer image generation to models that support tools") }}</span>
+      </label>
+      <p class="field__hint">
+        {{ tm("Who may use it is a permission — <code>tools.image</code> under Groups &amp; permissions. Which models may is a checkbox on each model.") }}
+      </p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("ComfyUI") }}</h2>
+    <div class="field">
+      <label class="field__label" for="base_url">{{ t("Base URL") }}</label>
+      <input class="input input--mono" id="base_url" name="base_url" type="url"
+             placeholder="{{ t('http://127.0.0.1:8188') }}" value="{{ values.base_url }}">
+      <p class="field__hint">{{ t("Where ComfyUI is listening. An address on this machine or this network is fine here and is not checked against the request-forgery rules — you typed it, unlike an address a model asks for.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="api_key">{{ t("API key") }}</label>
+      <input class="input input--mono" id="api_key" name="api_key" type="password"
+             autocomplete="off" placeholder="{{ t('No key set') }}"
+             value="{{ unchanged if values.api_key_encrypted else '' }}">
+      <p class="field__hint">
+        {% if values.api_key_encrypted %}
+          {{ tm("Currently <code>%(masked)s</code>. Leave the dots alone to keep it, or clear the field to remove it.", masked=masked) }}
+        {% else %}
+          {{ t("Only needed if something sits in front of ComfyUI. Encrypted at rest.") }}
+        {% endif %}
+      </p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="timeout">{{ t("Timeout (seconds)") }}</label>
+      <input class="input" id="timeout" name="timeout" type="number"
+             min="10" max="3600" step="10" value="{{ values.timeout | int }}">
+      <p class="field__hint">{{ t("How long to wait for one image, queue included. Far longer than any other timeout here, because the thing being waited for genuinely takes that long.") }}</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Checkpoints") }}</h2>
+    <div class="field">
+      <label class="field__label" for="checkpoints">{{ t("Available checkpoints") }}</label>
+      <textarea class="textarea input--mono" id="checkpoints" name="checkpoints" rows="4"
+                spellcheck="false"
+                placeholder="{{ t('sd_xl_base_1.0.safetensors') }}">{{ checkpoints_text }}</textarea>
+      <p class="field__hint">{{ t("One filename per line, exactly as ComfyUI spells it. This is the list the model chooses from, so leaving out a checkpoint is how you stop it being used. Press Test below to read them off ComfyUI — that fills this in the first time and never overwrites it afterwards.") }}</p>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn" type="button"
+              hx-post="/admin/images/test" hx-target="#images-test-result">
+        {{ icon("refresh", "icon--sm") }} {{ t("Test & read what it has") }}
+      </button>
+    </div>
+    <div id="images-test-result"></div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("What a generation uses by default") }}</h2>
+    <p class="card__lede">{{ t("What every picture is drawn with unless the model names otherwise. Leave a box empty to use the built-in value shown beside it — the built-ins are SD1.5-era, and 512×512 on an SDXL checkpoint is what produces the duplicated limbs.") }}</p>
+
+    <div class="field">
+      <label class="field__label" for="default_checkpoint">{{ t("Checkpoint") }}</label>
+      {# A select rather than a box, from the list above. Typing a name that is
+         not there produced a picture drawn with whatever happened to be first,
+         with nothing anywhere saying so. #}
+      <select class="select" id="default_checkpoint" name="default_checkpoint">
+        <option value="">{{ t("The first in the list above") }}</option>
+        {% for name in values.checkpoints or [] %}
+        <option value="{{ name }}" {{ 'selected' if values.default_checkpoint == name }}>
+          {{ name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label class="field__label" for="default_width">{{ t("Width") }}</label>
+        <input class="input" type="number" id="default_width" name="default_width"
+               min="64" max="2048" step="64" placeholder="512"
+               value="{{ values.default_width }}">
+      </div>
+      <div class="field">
+        <label class="field__label" for="default_height">{{ t("Height") }}</label>
+        <input class="input" type="number" id="default_height" name="default_height"
+               min="64" max="2048" step="64" placeholder="512"
+               value="{{ values.default_height }}">
+      </div>
+    </div>
+    {# The five sizes anybody actually picks. Buttons rather than a select
+       because they set two fields at once, and a select of pairs would have to
+       name every combination somebody might want. #}
+    <div class="btn-row" data-size-presets>
+      {% for label, w, h in [
+        ("512²", 512, 512), ("768²", 768, 768), ("1024²", 1024, 1024),
+        ("1024×1536", 1024, 1536), ("1536×1024", 1536, 1024)
+      ] %}
+      <button class="btn btn--sm" type="button"
+              data-width="{{ w }}" data-height="{{ h }}">{{ label }}</button>
+      {% endfor %}
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label class="field__label" for="default_steps">{{ t("Steps") }}</label>
+        <input class="input" type="number" id="default_steps" name="default_steps"
+               min="1" max="150" step="1" placeholder="20"
+               value="{{ values.default_steps }}">
+      </div>
+      <div class="field">
+        <label class="field__label" for="default_cfg">{{ t("Guidance (cfg)") }}</label>
+        <input class="input" type="number" id="default_cfg" name="default_cfg"
+               min="0" max="30" step="0.5" placeholder="8"
+               value="{{ values.default_cfg }}">
+      </div>
+      <div class="field">
+        <label class="field__label" for="default_denoise">{{ t("Denoise") }}</label>
+        <input class="input" type="number" id="default_denoise" name="default_denoise"
+               min="0" max="1" step="0.05" placeholder="1"
+               value="{{ values.default_denoise }}">
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label class="field__label" for="default_sampler">{{ t("Sampler") }}</label>
+        {# From what the Test button read off ComfyUI. There are forty-odd and
+           spelling one wrong is a refused workflow, so it is picked rather than
+           typed — and the current value is kept as an option even when the list
+           has not been read, or saving this page would quietly clear it. #}
+        <select class="select" id="default_sampler" name="default_sampler">
+          <option value="">{{ t("euler (built-in)") }}</option>
+          {% for name in values.samplers or [] %}
+          <option value="{{ name }}" {{ 'selected' if values.default_sampler == name }}>
+            {{ name }}
+          </option>
+          {% endfor %}
+          {% if values.default_sampler and values.default_sampler not in (values.samplers or []) %}
+          <option value="{{ values.default_sampler }}" selected>
+            {{ t("%(name)s (not in this ComfyUI's list)", name=values.default_sampler) }}
+          </option>
+          {% endif %}
+        </select>
+      </div>
+      <div class="field">
+        <label class="field__label" for="default_scheduler">{{ t("Scheduler") }}</label>
+        <select class="select" id="default_scheduler" name="default_scheduler">
+          <option value="">{{ t("normal (built-in)") }}</option>
+          {% for name in values.schedulers or [] %}
+          <option value="{{ name }}" {{ 'selected' if values.default_scheduler == name }}>
+            {{ name }}
+          </option>
+          {% endfor %}
+          {% if values.default_scheduler
+                and values.default_scheduler not in (values.schedulers or []) %}
+          <option value="{{ values.default_scheduler }}" selected>
+            {{ t("%(name)s (not in this ComfyUI's list)", name=values.default_scheduler) }}
+          </option>
+          {% endif %}
+        </select>
+      </div>
+      <div class="field">
+        <label class="field__label" for="default_batch">{{ t("Images per run") }}</label>
+        <input class="input" type="number" id="default_batch" name="default_batch"
+               min="1" max="8" step="1" placeholder="1"
+               value="{{ values.default_batch }}">
+      </div>
+    </div>
+    {% if not values.samplers %}
+    <p class="field__hint">
+      {{ tm("Press <strong>%(button)s</strong> above to fill the sampler and scheduler lists from your ComfyUI.", button=t("Test & read what it has")) }}
+    </p>
+    {% endif %}
+
+    <div class="field">
+      <label class="field__label" for="default_negative">{{ t("Negative prompt") }}</label>
+      <input class="input" type="text" id="default_negative" name="default_negative"
+             placeholder="{{ t('text, watermark') }}" value="{{ values.default_negative }}">
+      <p class="field__hint">{{ t("Used when the model does not write one of its own. It writes one often, so this is a floor rather than something always applied — “always add these words” belongs in the instructions below, where the model is told to include them.") }}</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Checking the result") }}</h2>
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="review_enabled" value="true"
+               {{ 'checked' if values.review_enabled }}>
+        <span>{{ t("Look at each image before showing it, and try again if it is wrong") }}</span>
+      </label>
+      <p class="field__hint">{{ t("A vision model is shown the picture and the request it came from, and says keep or retry. Only clearly wrong images are retried — a missing subject, a mangled picture — because taste is not a fault and the next attempt is not promised to be better. The reader sees only the image that was kept.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="review_model_id">{{ t("Model that reviews") }}</label>
+      <select class="select" id="review_model_id" name="review_model_id">
+        <option value="">{{ t("The chat's own model, when it has vision") }}</option>
+        {% for model in vision_models %}
+          {% if model.capabilities_json.get("vision") %}
+          {# The model's own id, not the row's primary key: "Test & refresh"
+             deletes a model the endpoint has stopped listing and gives it a new
+             primary key when it comes back, which silently unset this. The same
+             reasoning Chat.model_id carries. #}
+          <option value="{{ model.model_id }}"
+                  {{ 'selected' if values.review_model_id == model.model_id }}>
+            {{ model.label }}
+          </option>
+          {% endif %}
+        {% endfor %}
+      </select>
+      <p class="field__hint">{{ t("Only models marked as having vision are listed. If there is nothing to ask, the first image is kept and nothing fails.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="max_tries">{{ t("Attempts per image") }}</label>
+      <input class="input" id="max_tries" name="max_tries" type="number"
+             min="1" max="10" value="{{ values.max_tries }}">
+      <p class="field__hint">{{ t("Including the first. The last attempt is kept whatever the review says, so a request always produces a picture.") }}</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Memory") }}</h2>
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="preserve_vram" value="true"
+               {{ 'checked' if values.preserve_vram }}>
+        <span>{{ t("Preserve VRAM: unload the language model while ComfyUI works") }}</span>
+      </label>
+      <p class="field__hint">{{ t("For a machine that cannot hold both at once. Before generating, the chat's own connection is asked to unload — set an unload URL on it under Connections, or nothing happens. Afterwards ComfyUI is asked to free its own models, and the language model loads again by itself on the next request.") }}</p>
+    </div>
+
+    {% if values.preserve_vram and values.review_enabled %}
+    <div class="alert">
+      {{ icon("warning", "icon--sm") }}
+      <span>
+        {{ t("Both are on, so every retry costs two model loads — one to review, one to generate again. That is the slow combination; consider two attempts rather than %(n)s.", n=values.max_tries) }}
+      </span>
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Extra instructions") }}</h2>
+    <div class="field">
+      <label class="field__label visually-hidden" for="instructions">{{ t("Extra instructions") }}</label>
+      <textarea class="textarea" id="instructions" name="instructions" rows="4"
+                placeholder="{{ t('Prefer the SDXL template for anything photographic.') }}">{{ values.instructions }}</textarea>
+      <p class="field__hint">
+        {{ tm("Added to what every model is told about image generation, on this instance. Where “always put <em>%(example)s</em> in the negative prompt” lives. Leave it empty and nothing is added at all.", example=t("text, watermark")) }}
+      </p>
+    </div>
+  </section>
+
+  {# The picture's price, and how many one API request may ask for. #}
+  <section class="card">
+    <h2 class="card__title">{{ t("Price and the API") }}</h2>
+    <div class="grid grid--2">
+      <div class="field">
+        <label class="field__label" for="per-image">{{ t("Per picture") }} ({{ currency_sign }})</label>
+        <input class="input" id="per-image" name="per_image" type="number" min="0" step="any"
+               value="{{ values.per_image or '' }}" placeholder="0">
+        <p class="field__hint">{{ t("What one picture costs when credits are on, in a chat or through the API. 0 is free.") }}</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="api-max-images">{{ t("Most pictures per API request") }}</label>
+        <input class="input" id="api-max-images" name="api_max_images" type="number" min="1" max="10"
+               value="{{ values.api_max_images }}">
+        <p class="field__hint">{{ t("The largest n a program may ask /v1/images/generations for. Each is a full generation.") }}</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">{{ t("Save changes") }}</button>
+  </div>
+</form>
+
+<section class="card">
+  <h2 class="card__title">{{ t("Workflows") }}</h2>
+  <p class="field__hint">
+    {{ tm("A workflow is a ComfyUI graph exported with <strong>%(menu)s</strong>, with <code>&lbrace;&lbrace;prompt&rbrace;&rbrace;</code> and the other placeholders where the values go. The model picks between them by their descriptions, so write the description for a reader who cannot see the graph.", menu=t("Export (API)")) }}
+  </p>
+
+  <div class="btn-row">
+    <a class="btn btn--primary" href="/admin/images/workflows/new">
+      {{ icon("plus", "icon--sm") }} {{ t("Add a workflow") }}
+    </a>
+  </div>
+
+  {% if not workflows %}
+  <div class="empty" style="padding: var(--sp-8) 0">
+    {{ icon("image", "empty__mark") }}
+    <p class="empty__text">{{ t("No workflows yet. One is needed before anything can be drawn; the default one is filled in for you when you add the first.") }}</p>
+  </div>
+  {% else %}
+  <div class="model-rows">
+    {% for item in workflows %}
+    <div class="model-row {{ 'is-off' if not item.enabled }}">
+      <div class="model-row__main">
+        <span class="model-row__name">
+          {{ item.name }}
+          {% if not item.enabled %}<span class="badge badge--danger">{{ t("disabled") }}</span>{% endif %}
+          {% if values.default_workflow_id == item.id %}
+          <span class="badge">{{ t("default") }}</span>
+          {% endif %}
+        </span>
+        <code class="model-row__id">{{ item.slug }}</code>
+        {% if item.description %}
+        <p class="text-xs faint">{{ item.description }}</p>
+        {% endif %}
+      </div>
+      <div class="model-row__actions">
+        <a class="btn btn--sm" href="/admin/images/workflows/{{ item.id }}/edit">{{ t("Edit") }}</a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <form method="post" action="/admin/images" class="field" style="margin-top: var(--sp-4)">
+    {# Every other value is resubmitted with it, because this posts to the same
+       handler as the form above and an absent field reads as cleared. #}
+    <input type="hidden" name="enabled" value="{{ 'true' if values.enabled }}">
+    <input type="hidden" name="base_url" value="{{ values.base_url }}">
+    <input type="hidden" name="api_key" value="{{ unchanged if values.api_key_encrypted }}">
+    <input type="hidden" name="timeout" value="{{ values.timeout }}">
+    <input type="hidden" name="checkpoints" value="{{ checkpoints_text }}">
+    <input type="hidden" name="review_enabled" value="{{ 'true' if values.review_enabled }}">
+    <input type="hidden" name="review_model_id" value="{{ values.review_model_id }}">
+    <input type="hidden" name="max_tries" value="{{ values.max_tries }}">
+    <input type="hidden" name="preserve_vram" value="{{ 'true' if values.preserve_vram }}">
+    <input type="hidden" name="instructions" value="{{ values.instructions }}">
+    <label class="field__label" for="default_workflow_id">{{ t("Default workflow") }}</label>
+    <div class="btn-row">
+      <select class="select" id="default_workflow_id" name="default_workflow_id">
+        <option value="">{{ t("The first one") }}</option>
+        {% for item in workflows %}
+        <option value="{{ item.id }}"
+                {{ 'selected' if values.default_workflow_id == item.id }}>{{ item.name }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn" type="submit">{{ t("Set default") }}</button>
+    </div>
+    <p class="field__hint">{{ t("Used when the model names no template and the chat has no preference.") }}</p>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

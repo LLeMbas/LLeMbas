@@ -1,0 +1,124 @@
+{% extends "library/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% from "library/_group.html" import group_chip, group_field, group_filter with context %}
+{% set section = "knowledge" %}
+
+{% block title %}{{ base.name }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ base.name }}{% endblock %}
+
+{% block library_content %}
+<div class="btn-row" style="margin-bottom: var(--sp-5)">
+  <a class="btn btn--sm" href="/library/knowledge">
+    {{ icon("chevron-right", "icon--sm") }} {{ t("All knowledge bases") }}
+  </a>
+</div>
+
+{% if is_owner %}
+<section class="card">
+  <h2 class="card__title">{{ t("Add to this base") }}</h2>
+  <div class="grid grid--2">
+    <form method="post" action="/api/library/documents" enctype="multipart/form-data">
+      <input type="hidden" name="base_id" value="{{ base.id }}">
+      <div class="field">
+        <label class="field__label" for="doc-file">{{ t("A file") }}</label>
+        <input class="input" id="doc-file" type="file" name="file" required
+               accept="image/*,.pdf,.txt,.md,.csv,.json,.py,.js,.ts,.rs,.go,.sh,.sql,.yaml,.yml,.toml,.log">
+        <p class="field__hint">{{ t("Images, PDFs and text. A PDF has its text read once, now.") }}</p>
+      </div>
+      <button class="btn btn--primary" type="submit">{{ t("Upload") }}</button>
+    </form>
+
+    <form method="post" action="/api/library/documents/link">
+      <input type="hidden" name="base_id" value="{{ base.id }}">
+      <div class="field">
+        <label class="field__label" for="doc-url">{{ t("A web page") }}</label>
+        <input class="input" id="doc-url" type="url" name="url" required
+               placeholder="https://example.com/article">
+        <p class="field__hint">{{ t("Fetched now and kept as text, so it survives the page changing.") }}</p>
+      </div>
+      <button class="btn" type="submit">{{ t("Save page") }}</button>
+    </form>
+  </div>
+</section>
+{% endif %}
+
+<form method="get" action="/library/knowledge/{{ base.id }}" class="btn-row"
+      style="margin-bottom: var(--sp-5)">
+  <input class="input" type="search" name="q" value="{{ q }}" style="flex: 1"
+         placeholder="{{ t('Search this base…') }}">
+  <button class="btn" type="submit">{{ icon("search", "icon--sm") }} {{ t("Search") }}</button>
+  {% if q %}<a class="btn btn--sm" href="/library/knowledge/{{ base.id }}">{{ t("Clear") }}</a>{% endif %}
+</form>
+
+{% if not documents %}
+<div class="empty">
+  {{ icon("archive", "empty__mark") }}
+  <h2 class="empty__title">{{ t("Nothing found") if q else t("Empty") }}</h2>
+  <p class="empty__text">
+    {% if q %}{{ t("Nothing in this base matches “%(q)s”.", q=q) }}
+    {% else %}{{ t("Add a file or a web page above.") }}{% endif %}
+  </p>
+</div>
+{% else %}
+<ul class="model-list">
+  {% for document in documents %}
+  <li class="model-list__item">
+    <div style="min-width: 0">
+      <a href="/library/knowledge/document/{{ document.id }}">
+        <strong>{{ document.title }}</strong>
+      </a>
+      <div class="text-xs faint">
+        {{ document.kind }}
+        {%- if document.pages %} · {{ t("%(n)s page", n=document.pages) if document.pages == 1 else t("%(n)s pages", n=document.pages) }}{% endif %}
+        {%- if document.size_bytes %} · {{ document.human_size }}{% endif %}
+        {%- if document.source_url %} · {{ document.source_url[:60] }}{% endif %}
+      </div>
+      {% if document.description %}
+      <div class="text-xs faint">{{ document.description }}</div>
+      {% endif %}
+    </div>
+    <div class="btn-row">
+      {% if document.extraction_error %}
+      <span class="badge badge--danger" title="{{ document.extraction_error }}">{{ t("no text") }}</span>
+      {% endif %}
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% include "library/_pager.html" %}
+{% endif %}
+
+<form method="post" action="/api/library/bases/{{ base.id }}" style="margin-top: var(--sp-8)">
+  <section class="card">
+    <h2 class="card__title">{{ t("This base") }}</h2>
+    <div class="grid grid--2">
+      <div class="field">
+        <label class="field__label" for="name">{{ t("Name") }}</label>
+        <input class="input" id="name" name="name" value="{{ base.name }}" maxlength="200"
+               {{ 'disabled' if not is_owner }}>
+      </div>
+      <div class="field">
+        <label class="field__label" for="description">{{ t("Description") }}</label>
+        <input class="input" id="description" name="description" maxlength="2000"
+               value="{{ base.description }}" {{ 'disabled' if not is_owner }}>
+      </div>
+    </div>
+    {% if is_owner %}{{ group_field(base) }}{% endif %}
+  </section>
+
+  {% include "library/_share.html" %}
+
+  {% if is_owner %}
+  <div class="form-actions">
+    <button class="btn btn--primary" type="submit">{{ t("Save") }}</button>
+    <span class="spacer"></span>
+    <button class="btn btn--danger" type="submit"
+            formaction="/api/library/bases/{{ base.id }}/delete"
+            data-confirm-button="{{ t('Delete “%(name)s” and the %(n)s document(s) in it? Messages they were attached to keep their copies.', name=base.name, n=pager.total) }}"
+            data-confirm-title="{{ t('Delete knowledge base') }}">
+      {{ icon("trash", "icon--sm") }} {{ t("Delete base") }}
+    </button>
+  </div>
+  {% endif %}
+</form>
+{% endblock %}

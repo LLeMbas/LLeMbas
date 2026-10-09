@@ -1,0 +1,31 @@
+{
+  "name": "skill_view",
+  "scope": "shared",
+  "risk": "read",
+  "exclusive": false,
+  "block": "read",
+  "purpose": false,
+  "aliases": {
+    "cli": [],
+    "llembas": [
+      "skill_get"
+    ]
+  },
+  "description": "Load a skill: its full instructions, and the list of its supporting files (references, templates, scripts, assets). To read one of those, call again with file_path.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "The skill's name (the skills list in your instructions, or skills_list)"
+      },
+      "file_path": {
+        "description": "A supporting file, relative to the skill: references/api.md, templates/config.yaml… Omit for SKILL.md.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "name"
+    ]
+  }
+}

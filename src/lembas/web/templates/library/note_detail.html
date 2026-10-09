@@ -1,0 +1,64 @@
+{% extends "library/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% from "library/_group.html" import group_chip, group_field, group_filter with context %}
+{% set section = "notes" %}
+
+{% block title %}{{ note.title if note else t("New note") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ note.title if note else t("New note") }}{% endblock %}
+
+{% block library_content %}
+<div class="btn-row" style="margin-bottom: var(--sp-5)">
+  <a class="btn btn--sm" href="/library/notes">{{ icon("chevron-right", "icon--sm") }} {{ t("All notes") }}</a>
+</div>
+
+<form method="post"
+      action="{{ '/api/library/notes/' ~ note.id if note else '/api/library/notes' }}">
+  <section class="card">
+    <div class="field">
+      <label class="field__label" for="title">{{ t("Title") }}</label>
+      <input class="input" id="title" name="title" maxlength="300" required
+             value="{{ note.title if note else '' }}"
+             {{ 'disabled' if note and not is_owner }}
+             placeholder="{{ t('What this note is about') }}">
+      <p class="field__hint">{{ t("Shown in search results, so it is what decides whether a model opens it.") }}</p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="body">{{ t("Body") }}</label>
+      <textarea class="textarea" id="body" name="body" rows="18"
+                {{ 'disabled' if note and not is_owner }}
+                placeholder="{{ t('Markdown.') }}">{{ note.body if note else '' }}</textarea>
+    </div>
+    {% if not note or is_owner %}{{ group_field(note, group|default("")) }}{% endif %}
+    {% if note and note.author == "model" %}
+    <p class="field__hint">
+      {{ icon("sparkle", "icon--sm") }}
+      {{ t("Written by a model. Edit it freely — it is yours.") }}
+    </p>
+    {% endif %}
+  </section>
+
+  {% if note %}{% include "library/_share.html" %}{% endif %}
+
+  {% if not note or is_owner %}
+  <div class="form-actions">
+    <button class="btn btn--primary" type="submit">{{ t("Save") if note else t("Create note") }}</button>
+    {% if note %}
+    <span class="spacer"></span>
+    <button class="btn btn--danger" type="submit"
+            formaction="/api/library/notes/{{ note.id }}/delete"
+            data-confirm-button="{{ t('Delete “%(name)s”?', name=note.title) }}"
+            data-confirm-title="{{ t('Delete note') }}">
+      {{ icon("trash", "icon--sm") }} {{ t("Delete") }}
+    </button>
+    {% endif %}
+  </div>
+  {% endif %}
+</form>
+
+{% if note and body_html %}
+<section class="card">
+  <h2 class="card__title">{{ t("Rendered") }}</h2>
+  <div class="msg__body">{{ body_html|safe }}</div>
+</section>
+{% endif %}
+{% endblock %}

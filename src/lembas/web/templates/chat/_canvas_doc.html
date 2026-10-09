@@ -1,0 +1,72 @@
+{% from "_macros.html" import icon %}
+{#
+  One file, read or edited.
+
+  A read/edit split rather than a highlighting editor, because there is no
+  vendored code editor and adding one would be a build step (hard rule 1) or a
+  payload larger than xterm's on every page in the application -- and xterm is
+  called out as the one heavy dependency precisely because it loads only on a
+  chat that can open a terminal.
+
+  So: pygments server-side for reading, and a plain <textarea> for writing. A
+  textarea's value is text by construction, which is the same argument as
+  "attachments are served, never linked" -- pick the shape where the failure
+  cannot happen rather than the shape where it has to be prevented.
+
+  `rendered` is the ONE `|safe` here. It is either pygments output, which
+  escapes what it is given, or render_markdown, which is the single path in this
+  application allowed to emit HTML.
+#}
+<div class="canvas__doc" x-data="{ editing: false }" data-canvas-doc="{{ doc.key }}">
+
+  {% if doc.binary %}
+  <p class="canvas__note">
+    {{ icon("warning", "icon--sm") }}
+    {{ t("This does not look like text, so there is nothing to show and nothing that could safely be saved back.") }}
+  </p>
+  {% elif doc.truncated %}
+  <p class="canvas__note">
+    {{ icon("warning", "icon--sm") }}
+    {{ t("Showing the beginning only. Saving from here would delete the rest, so this one is read-only.") }}
+  </p>
+  {% endif %}
+
+  {% if doc.editable %}
+  <div class="canvas__actions" x-show="!editing">
+    <button class="btn btn--sm" type="button"
+            @click="editing = true; $nextTick(() => $refs.editor.focus())">
+      {{ icon("pencil", "icon--sm") }} {{ t("Edit") }}
+    </button>
+  </div>
+  {% endif %}
+
+  <div class="canvas__view" {% if doc.editable %}x-show="!editing"{% endif %}>
+    {% if rendered %}
+      {{ rendered | safe }}
+    {% else %}
+      <p class="canvas__empty">{{ t("This file is empty.") }}</p>
+    {% endif %}
+  </div>
+
+  {% if doc.editable %}
+  <form class="canvas__form" x-show="editing" x-cloak
+        hx-post="/api/chats/{{ chat.id }}/canvas/save"
+        hx-target="#canvas-inner" hx-swap="innerHTML">
+    <input type="hidden" name="key" value="{{ doc.key }}">
+    {# What version this was opened at. The save compares it and refuses a file
+       that moved underneath, rather than overwriting somebody else's work. #}
+    <input type="hidden" name="revision" value="{{ doc.revision }}">
+    <label class="visually-hidden" for="canvas-editor">{{ doc.title }}</label>
+    <textarea class="canvas__editor" id="canvas-editor" name="text"
+              spellcheck="false" x-ref="editor"
+              data-canvas-editor>{{ doc.text }}</textarea>
+    <div class="canvas__actions">
+      <button class="btn btn--primary btn--sm" type="submit">
+        {{ icon("check", "icon--sm") }} {{ t("Save") }}
+      </button>
+      <button class="btn btn--sm" type="button" @click="editing = false">{{ t("Cancel") }}</button>
+      <span class="canvas__hint">{{ t("No colour while you type. Tab inserts a tab.") }}</span>
+    </div>
+  </form>
+  {% endif %}
+</div>

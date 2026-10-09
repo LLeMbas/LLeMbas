@@ -1,0 +1,24 @@
+{#
+  A reply as the sequence it was: thinking, prose, a tool call, more prose.
+
+  Used by BOTH branches of `_message.html` -- the streaming shell and the
+  finished bubble -- from the same builder, so a reply cannot rearrange itself
+  the moment the stream ends. That was the point of putting the marks on the row
+  rather than only on the running generation.
+
+  Closed steps ONLY. The step still being written lives in `_message.html`, in
+  two containers that are **siblings of this one, never inside it**.
+
+  That is not tidiness, it is the whole reason this works. This container is
+  itself an `sse-swap` target: every time a round closes, its `innerHTML` is
+  replaced. Anything inside it carrying an `sse-swap` of its own is therefore
+  torn out and rebuilt at every round boundary — and the frames aimed at it in
+  the same pass have nowhere to land. Nesting them here is what made an agent
+  reply show nothing at all from its first tool call onwards, while an ordinary
+  chat was fine: an ordinary chat closes no steps, so the swap never happened.
+
+  One `sse-swap` element must never contain another. There is a test.
+#}
+{% for step in steps %}
+  {% include "chat/_step.html" %}
+{% endfor %}

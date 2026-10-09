@@ -1,0 +1,63 @@
+{% extends "reports/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "reports" %}
+
+{% block title %}{{ t("Reports") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Reports") }}{% endblock %}
+
+{% block reports_content %}
+<p class="admin-lede">{{ t("Finished work, filed to be read later. A model writes one when you ask for it or when it finishes something worth keeping, and anything running on a schedule leaves its result here. Nothing on this page can be replied to.") }}</p>
+
+{# Reports became shareable and this filter arrived with them: a feed that
+   quietly grew somebody else's work with no way to see only theirs would be
+   worse than one that never grew. #}
+<div class="filter-tabs" style="margin-bottom: var(--sp-4)">
+  <a class="filter-tab {{ 'is-active' if not shared }}" href="/library/reports">{{ t("All reports") }}</a>
+  <a class="filter-tab {{ 'is-active' if shared }}" href="/library/reports?shared=1">{{ t("Shared with me") }}</a>
+</div>
+
+<form method="get" action="/library/reports" class="btn-row" style="margin-bottom: var(--sp-5)">
+  <input class="input" type="search" name="q" value="{{ q }}" style="flex: 1"
+         placeholder="{{ t('Search reports…') }}">
+  <button class="btn" type="submit">{{ icon("search", "icon--sm") }} {{ t("Search") }}</button>
+  {% if q %}<a class="btn btn--sm" href="/library/reports">{{ t("Clear") }}</a>{% endif %}
+</form>
+
+{% if not reports %}
+<div class="empty">
+  {{ icon("archive", "empty__mark") }}
+  <h2 class="empty__title">{{ t("Nothing found") if q else t("No reports yet") }}</h2>
+  <p class="empty__text">
+    {% if q %}
+      {{ t("No report matches “%(q)s”.", q=q) }}
+    {% else %}
+      {{ t("Ask a model to write one up when it has finished looking into something, and it will appear here.") }}
+    {% endif %}
+  </p>
+</div>
+{% else %}
+<ul class="model-list">
+  {% for report in reports %}
+  <li class="model-list__item">
+    <div style="min-width: 0">
+      <a href="/library/reports/{{ report.id }}">
+        <strong>{{ report.title }}</strong>
+      </a>
+      <div class="text-xs faint">
+        <time datetime="{{ report.created_at.isoformat() }}">
+          {{ stamp(report.created_at, "%d %b %Y, %H:%M") }}
+        </time>
+        {% if report.summary %} — {{ report.summary }}{% endif %}
+      </div>
+    </div>
+    <div class="btn-row">
+      {% if report.error %}<span class="badge badge--warning">{{ t("failed") }}</span>{% endif %}
+      {% if report.source == "schedule" %}<span class="badge">{{ t("scheduled") }}</span>{% endif %}
+      {% if report.unread %}<span class="badge badge--leaf">{{ t("new") }}</span>{% endif %}
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% include "library/_pager.html" %}
+{% endif %}
+{% endblock %}

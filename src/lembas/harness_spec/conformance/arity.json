@@ -1,0 +1,61 @@
+{
+  "about": "A command → the prefix an \"always allow\" approval covers (../permission/arity.json).",
+  "cases": [
+    {
+      "command": "git commit -m x",
+      "expect": "git commit"
+    },
+    {
+      "command": "git -C dir commit -m x",
+      "expect": "git -C dir commit -m x"
+    },
+    {
+      "command": "npm run dev",
+      "expect": "npm run dev"
+    },
+    {
+      "command": "npm install left-pad",
+      "expect": "npm install"
+    },
+    {
+      "command": "bun run build",
+      "expect": "bun run build"
+    },
+    {
+      "command": "docker compose up -d",
+      "expect": "docker compose up"
+    },
+    {
+      "command": "kubectl get pods -A",
+      "expect": "kubectl get"
+    },
+    {
+      "command": "python script.py",
+      "expect": "python script.py"
+    },
+    {
+      "command": "ls -la",
+      "expect": "ls"
+    },
+    {
+      "command": "cargo build --release",
+      "expect": "cargo build"
+    },
+    {
+      "command": "make test",
+      "expect": "make test"
+    },
+    {
+      "command": "pip install requests",
+      "expect": "pip install"
+    },
+    {
+      "command": "aws s3 ls s3://x",
+      "expect": "aws s3 ls"
+    },
+    {
+      "command": "systemctl status nginx",
+      "expect": "systemctl status"
+    }
+  ]
+}

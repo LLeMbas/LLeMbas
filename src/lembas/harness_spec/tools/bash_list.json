@@ -1,0 +1,19 @@
+{
+  "name": "bash_list",
+  "scope": "cli",
+  "risk": "read",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": false,
+  "aliases": {
+    "cli": [],
+    "llembas": [
+      "job_list"
+    ]
+  },
+  "description": "The background jobs of this session: id, state, how long each has run, and its command.",
+  "parameters": {
+    "type": "object",
+    "properties": {}
+  }
+}

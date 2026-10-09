@@ -1,0 +1,52 @@
+{#
+  What a reply cost. Chips only, no wrapper: the same markup is swapped into
+  the live bubble with innerHTML and rendered into the finished one, so the
+  numbers cannot change shape when the stream ends.
+
+  A tilde means the endpoint reported no token counts and these were worked out
+  at about four characters per token. Nothing here is ever shown as exact when
+  it is not.
+#}
+{# The first chip is what the reply COST and the second is what it OCCUPIES.
+   They are different numbers and a multi-round reply makes them very different
+   -- it pays for its prompt once per round and only ever sits in the window
+   once -- so each title says which it is. Without that, two token counts a few
+   centimetres apart just look like one of them is wrong. #}
+{#- The context chip comes first and says both numbers -- "142k / 180k
+    · 79%" -- because how full the window is, is the one people read. The cost
+    chip says "processed": on a reply with forty tool rounds it is the prompt
+    paid for forty times, millions of tokens in a 180k window, and as a bare
+    "tokens" it read as the context. -#}
+{% if metrics.has_anything %}
+{% if metrics.context_tokens %}
+<span class="metric metric--context{{ ' is-' ~ metrics.pressure if metrics.pressure }}"
+      title="{% if metrics.estimated %}{{ t("Estimated.") }} {% endif %}{% if metrics.context_limit %}{{ t("What the conversation now occupies: %(n)s of %(limit)s tokens (%(percent)s%%)", n=metrics.context_tokens, limit=metrics.context_limit, percent=metrics.percent) }}{% else %}{{ t("What the conversation now occupies: %(n)s tokens; the window's size is not known", n=metrics.context_tokens) }}{% endif %}">
+  {% if metrics.context_limit %}
+  <span class="metric__bar">
+    {# A width is data, not a design value: it is the measurement itself. #}
+    <span class="metric__fill" style="width: {{ metrics.percent }}%"></span>
+  </span>
+  {% endif %}
+  {% if metrics.estimated %}~{% endif %}{{ compact_tokens(metrics.context_tokens) }}{% if metrics.context_limit %} / {{ compact_tokens(metrics.context_limit) }} · {{ metrics.percent }}%{% else %} {{ t("in context") }}{% endif %}
+</span>
+{% endif %}
+
+<span class="metric" title="{% if metrics.estimated %}{{ t("Estimated: this endpoint reports no token counts.") }}
+{% endif %}{% if metrics.rounds > 1 %}{{ t("What this reply cost: %(sent)s in, %(received)s out, the prompt paid for once in each of %(n)s rounds of tool calls", sent=metrics.prompt_tokens, received=metrics.completion_tokens, n=metrics.rounds) }}{% else %}{{ t("What this reply cost: %(sent)s in, %(received)s out", sent=metrics.prompt_tokens, received=metrics.completion_tokens) }}{% endif %}">
+  {{ t("%(n)s processed", n=("~" if metrics.estimated else "") ~ compact_tokens(metrics.total_tokens)) }}
+</span>
+
+{#- How long it took, and how much of that was thinking -- shown, not
+    only a tooltip on the speed, so every reply shows its time. -#}
+{% if metrics.elapsed_ms %}
+<span class="metric" title="{% if metrics.thinking_ms %}{{ t('The reply took %(total)s s, %(thinking)s s of it thinking', total='%.1f' | format(metrics.elapsed_ms / 1000), thinking='%.1f' | format(metrics.thinking_ms / 1000)) }}{% else %}{{ t('The reply took %(total)s s', total='%.1f' | format(metrics.elapsed_ms / 1000)) }}{% endif %}">
+  {{ short_duration(metrics.elapsed_ms) }}{% if metrics.thinking_ms %} · {{ t("thought %(time)s", time=short_duration(metrics.thinking_ms)) }}{% endif %}
+</span>
+{% endif %}
+
+{% if metrics.tokens_per_second %}
+<span class="metric" title="{% if metrics.estimated %}{{ t("Estimated.") }} {% endif %}{{ t("%(n)s tokens in %(ms)s ms", n=metrics.completion_tokens, ms=metrics.elapsed_ms) }}">
+  {% if metrics.estimated %}~{% endif %}{{ '%.1f' | format(metrics.tokens_per_second) }} tok/s
+</span>
+{% endif %}
+{% endif %}

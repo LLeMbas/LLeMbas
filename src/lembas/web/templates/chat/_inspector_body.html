@@ -1,0 +1,83 @@
+{% from "_macros.html" import icon %}
+{#
+  Everything is rendered through normal Jinja escaping and never `|safe`. This
+  JSON is full of model output, search results and uploaded documents -- hard
+  rule 6 applies here exactly as it does to a chat bubble.
+#}
+<p class="inspector__note">{{ t("Rebuilt now against the current configuration. This is not a recording of the request that produced the last reply — if a prompt or a setting has changed since, this shows what would be sent today.") }}</p>
+
+<div class="btn-row">
+  <button class="btn btn--sm" type="button"
+          hx-get="/api/chats/{{ chat.id }}/inspect"
+          hx-target="#inspector-body" hx-swap="innerHTML">
+    {{ icon("refresh", "icon--sm") }} {{ t("Refresh") }}
+  </button>
+</div>
+
+<h3 class="inspector__heading">{{ t("This chat") }}</h3>
+<dl class="inspector__facts">
+  <dt>{{ t("Model") }}</dt><dd>{{ chat.model_id or "—" }}</dd>
+  <dt>{{ t("Context") }}</dt>
+  <dd>
+    {% if model and model.context_length %}
+      {{ t("%(n)s tokens", n=model.context_length) }}
+    {% else %}
+      {# Shown here rather than only beside a reply, because "why is there no
+         percentage" is a question people have before the first one. #}
+      {% if model %}{{ tm('not set — <a href="/admin/models/%(id)s/edit">set it</a>', id=model.id) }}{% else %}{{ t("not set") }}{% endif %}
+    {% endif %}
+  </dd>
+  {% if chat.temporary %}<dt>{{ t("Lifetime") }}</dt><dd>{{ t("temporary") }}</dd>{% endif %}
+</dl>
+
+<h3 class="inspector__heading">{{ t("Last reply") }}</h3>
+{% if row %}
+<dl class="inspector__facts">
+  <dt>{{ t("Tokens") }}</dt>
+  <dd>
+    {% if metrics.has_anything %}
+      {% set approx = "~" if metrics.estimated else "" %}
+      {{ t("%(sent)s in, %(received)s out", sent=approx ~ metrics.prompt_tokens, received=approx ~ metrics.completion_tokens) }}
+      {% if metrics.estimated %}<span class="badge">{{ t("estimated") }}</span>{% endif %}
+    {% else %}
+      {{ t("not reported") }}
+    {% endif %}
+  </dd>
+  <dt>{{ t("Elapsed") }}</dt><dd>{{ metrics.elapsed_ms }} ms</dd>
+  <dt>{{ t("Thinking") }}</dt><dd>{{ row.reasoning_ms }} ms</dd>
+  <dt>{{ t("Tool calls") }}</dt><dd>{{ row.tool_calls_json | length }}</dd>
+  <dt>{{ t("Rounds") }}</dt><dd>{{ metrics.rounds }}</dd>
+  <dt>{{ t("State") }}</dt>
+  <dd>
+    {% if row.error %}<span class="badge badge--danger">{{ t("error") }}</span>
+    {% elif row.stopped %}<span class="badge badge--warning">{{ t("stopped") }}</span>
+    {% elif not row.complete %}<span class="badge">{{ t("writing") }}</span>
+    {% else %}<span class="badge badge--success">{{ t("complete") }}</span>{% endif %}
+  </dd>
+</dl>
+{% if row.error %}
+<p class="inspector__note">{{ row.error }}</p>
+{% endif %}
+{% else %}
+<p class="inspector__note">{{ t("Nothing has been answered in this chat yet.") }}</p>
+{% endif %}
+
+<h3 class="inspector__heading">{{ t("System message") }}</h3>
+{% if system %}
+<pre class="inspector__json">{{ system }}</pre>
+{% else %}
+<p class="inspector__note">{{ t("None is being sent.") }}</p>
+{% endif %}
+
+<h3 class="inspector__heading">
+  {{ t("Tools offered") }}
+  <span class="badge">{{ tool_names | length }}</span>
+</h3>
+{% if tool_names %}
+<p class="inspector__note mono">{{ tool_names | join(", ") }}</p>
+{% else %}
+<p class="inspector__note">{{ t("None. A model has to be marked as supporting tools, the user needs the permission, and the tool itself has to be turned on.") }}</p>
+{% endif %}
+
+<h3 class="inspector__heading">{{ t("Request body") }}</h3>
+<pre class="inspector__json">{{ request_json }}</pre>

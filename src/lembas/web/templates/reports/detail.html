@@ -1,0 +1,56 @@
+{% extends "reports/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "reports" %}
+
+{% block title %}{{ report.title }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ report.title }}{% endblock %}
+{% block actions %}
+<a class="btn btn--sm" href="/library/reports">{{ icon("chevron-left", "icon--sm") }} {{ t("All reports") }}</a>
+{% endblock %}
+
+{% block reports_content %}
+<p class="text-sm faint">
+  {% set iso = report.created_at.isoformat() %}
+  {% set when = stamp(report.created_at, "%d %B %Y at %H:%M") %}
+  {%- if report.source == "schedule" %}{{ tm('Filed <time datetime="%(iso)s">%(when)s</time> by a schedule', iso=iso, when=when) }}
+  {%- elif report.source == "chat" %}{{ tm('Filed <time datetime="%(iso)s">%(when)s</time> from a chat', iso=iso, when=when) }}
+  {%- else %}{{ tm('Filed <time datetime="%(iso)s">%(when)s</time>', iso=iso, when=when) }}
+  {%- endif %}
+  {%- if report.model_id %} · {{ report.model_id }}{% endif %}.
+</p>
+
+{% if report.error %}
+<div class="alert alert--warning" style="margin-top: var(--sp-4)">
+  {{ icon("warning", "alert__icon") }}
+  <span><strong>{{ t("This run did not finish cleanly.") }}</strong> {{ report.error }}</span>
+</div>
+{% endif %}
+
+{#
+  `body_html` has been through services/markdown.py, which is the one path
+  allowed to emit HTML here. A report is model output and hard rule 6 applies to
+  it exactly as it does to a reply.
+#}
+<article class="msg__body" style="margin-top: var(--sp-5)">
+  {{ body_html | safe }}
+</article>
+
+{# The same panel every library store uses. A finished piece of work is the
+   thing somebody most wants to hand over. #}
+<div style="margin-top: var(--sp-6)">
+  {% include "library/_share.html" %}
+</div>
+
+{# Only the owner may delete. Sharing grants reading, so somebody a report was
+   shared with sees the panel above saying so and no button here. #}
+{% if report.owner_id == user.id %}
+<div class="btn-row" style="margin-top: var(--sp-6)">
+  <form method="post" action="/api/reports/{{ report.id }}/delete"
+        data-confirm="{{ t('Delete this report? It cannot be brought back.') }}">
+    <button class="btn btn--sm btn--danger" type="submit">
+      {{ icon("trash", "icon--sm") }} {{ t("Delete") }}
+    </button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

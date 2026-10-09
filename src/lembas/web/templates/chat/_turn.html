@@ -1,0 +1,11 @@
+{#
+  One exchange: the user's message plus the empty assistant bubble that will
+  stream into it. Returned by POST /api/chats/{id}/messages and appended to the
+  thread in a single swap, so the pair always arrives together.
+#}
+{% with message = user_message %}
+  {% include "chat/_message.html" %}
+{% endwith %}
+{% with message = assistant_message %}
+  {% include "chat/_message.html" %}
+{% endwith %}

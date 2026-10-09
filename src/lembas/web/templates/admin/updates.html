@@ -1,0 +1,292 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "updates" %}
+
+{% block title %}{{ t("Updates") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Updates") }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">
+  {% if state.channel == "stable" %}
+  {{ tm("This host follows the <strong>stable</strong> channel — the newest release tag.") }}
+  {% else %}
+  {{ tm("This host follows the <strong>edge</strong> channel — the tip of <code>%(branch)s</code>, which is whatever was pushed most
+  recently and may be half finished.", branch=state.branch) }}
+  {% endif %}
+  {{ t("Checking reaches the remote; opening this page does not.") }}
+</p>
+
+{% if saved %}
+<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
+{% endif %}
+{% if state.error %}
+<div class="alert alert--error">{{ icon("warning", "icon--sm") }} <span>{{ state.error }}</span></div>
+{% endif %}
+
+<section class="card">
+  <h2 class="card__title">{{ t("Running") }}</h2>
+  <dl class="mode-list">
+    <div class="mode-list__row">
+      <dt><strong>{{ t("Version") }}</strong></dt>
+      <dd>
+        {#
+          `git describe`, not the version string: "1.0.0" exactly at a tag and
+          "1.0.0-7-gd4f56d" seven commits past one. The second is the honest
+          answer for an edge instance, where the version string alone would claim
+          to be a release it is not.
+        #}
+        <strong>{{ state.running or state.version }}</strong>
+        {% if state.running and state.running != state.version %}
+        <span class="faint text-xs">({{ t("reports %(version)s", version=state.version) }})</span>
+        {% endif %}
+      </dd>
+    </div>
+    {% if state.head %}
+    <div class="mode-list__row">
+      <dt><strong>{{ t("Commit") }}</strong></dt>
+      <dd>
+        <code>{{ state.head.short }}</code> {{ state.head.subject }}
+        {% if state.dirty %}<span class="badge">{{ t("uncommitted changes") }}</span>{% endif %}
+      </dd>
+    </div>
+    {% endif %}
+    {% if state.checkout %}
+    <div class="mode-list__row">
+      <dt><strong>{{ t("Checkout") }}</strong></dt>
+      <dd><code>{{ state.checkout }}</code></dd>
+    </div>
+    {% endif %}
+  </dl>
+
+  {% if state.version_mismatch %}
+  <div class="alert alert--warning">
+    {{ icon("warning", "icon--sm") }}
+    <span>
+      {{ tm("This is tagged <strong>%(tag)s</strong> but reports
+      version <strong>%(version)s</strong>. A tag cut before the version
+      bump names a release nobody can identify afterwards.", tag=state.version_mismatch, version=state.version) }}
+    </span>
+  </div>
+  {% endif %}
+
+  {% if not state.is_git %}
+  <p class="field__hint">{{ t("This was not installed from a git checkout — a container image, or a wheel — so there is nothing here to compare or update. Pull a new image instead.") }}</p>
+  {% else %}
+  <form method="post" action="/admin/updates/check" class="btn-row">
+    <button class="btn" type="submit">
+      {{ icon("globe", "icon--sm") }} {{ t("Check the remote") }}
+    </button>
+  </form>
+  {% endif %}
+</section>
+
+{% if state.is_git %}
+<section class="card">
+  <h2 class="card__title">
+    {{ t("Available") }}
+    {% if state.no_releases %}<span class="badge">{{ t("nothing released yet") }}</span>
+    {% elif state.up_to_date %}<span class="badge badge--leaf">{{ t("up to date") }}</span>
+    {% elif state.behind %}<span class="badge">{% if state.behind|length == 1 %}{{ t("1 commit behind") }}{% else %}{{ t("%(n)s commits behind", n=state.behind|length) }}{% endif %}</span>
+    {% endif %}
+  </h2>
+
+  {% if state.no_releases %}
+  <p class="field__hint">
+    {{ tm("Nothing on <code>%(branch)s</code> has been tagged as a release yet,
+    so the stable channel has nothing to offer. Switch this host to
+    <code>edge</code> in <code>lembas.env</code> to follow the branch instead.", branch=state.branch) }}
+  </p>
+
+  {% elif not state.available %}
+  <p class="field__hint">{{ t("Nothing known about the remote yet. Check it above.") }}</p>
+
+  {% elif state.up_to_date %}
+  <p class="field__hint">
+    {{ tm("<strong>%(label)s</strong> is what is running.", label=state.available.label) }}
+  </p>
+
+  {% else %}
+  <p class="card__lede">
+    <strong>{{ state.available.label }}</strong>
+    <span class="faint">— {{ state.available.subject }}</span>
+  </p>
+
+  {#
+    Release notes, out of the annotated tag itself. Escaped and preformatted,
+    never through services/markdown.py: this comes from a tag object rather than
+    from a template, and markdown is the one path allowed to emit HTML.
+  #}
+  {% if state.between | length > 1 %}
+  {# Every release this update brings, newest first: skipping three releases
+     means reading three sets of notes, not one. #}
+  {% for release in state.between %}
+  <details {{ 'open' if loop.first }}>
+    <summary class="text-sm"><strong>{{ release.label }}</strong></summary>
+    {% if release.notes %}<pre class="tool-result__text">{{ release.notes }}</pre>{% endif %}
+  </details>
+  {% endfor %}
+  {% elif state.available.notes %}
+  <pre class="tool-result__text">{{ state.available.notes }}</pre>
+  {% endif %}
+  <p class="field__hint">{{ t("Harness spec: %(have)s here", have=spec) }}{% if state.target_spec and state.target_spec != spec %} · {{ t("%(want)s in %(label)s", want=state.target_spec, label=state.available.label) }}{% endif %}</p>
+
+  {#
+    The commits between, not just a count. "3 behind" is a number somebody has to
+    go and look up; the subjects are what decides whether this is worth
+    restarting for right now.
+  #}
+  {% if state.behind %}
+  <details>
+    <summary class="text-sm">
+      {% if state.behind|length == 1 %}{{ t("1 commit between") }}{% else %}{{ t("%(n)s commits between", n=state.behind|length) }}{% endif %}
+    </summary>
+    <ul class="model-list">
+      {% for commit in state.behind %}
+      <li class="model-list__item">
+        <div style="min-width: 0">
+          <code class="text-xs">{{ commit.short }}</code> {{ commit.subject }}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+
+  {% if state.dirty %}
+  <div class="alert alert--warning">
+    {{ icon("warning", "icon--sm") }}
+    <span>{{ t("This checkout has uncommitted changes, and updating discards them. Nothing here is meant to be edited in place, so this usually means somebody was debugging on the box.") }}</span>
+  </div>
+  {% endif %}
+  {% endif %}
+</section>
+
+{#
+  Its own card, and rendered whether or not there is anything to apply. It used
+  to live inside the "there is an update" branch, so an administrator could not
+  find out that the helper was missing until the day they needed it -- which is
+  the worst moment to discover a thing has to be installed from a shell.
+#}
+<section class="card">
+  <h2 class="card__title">{{ t("Applying an update") }}</h2>
+
+  {% if state.requested %}
+  <div class="alert">
+    {{ icon("clock", "icon--sm") }}
+    <span>{{ t("An update has been requested and is waiting for the helper to pick it up. The service restarts when it does.") }}</span>
+  </div>
+  <form method="post" action="/admin/updates/cancel" class="btn-row">
+    <button class="btn btn--sm" type="submit">{{ t("Withdraw the request") }}</button>
+  </form>
+
+  {% elif state.helper %}
+  {% if state.channel_mismatch %}
+  {#
+    The two declarations have drifted. Worth its own alert rather than a note:
+    the button would deploy something other than what this page has been naming
+    all the way down, and nothing else anywhere would say so.
+  #}
+  <div class="alert alert--error">
+    {{ icon("warning", "icon--sm") }}
+    <span>
+      {{ tm("This page follows <strong>%(channel)s</strong> but the update
+      helper on this host was installed for
+      <strong>%(helper)s</strong> — so the button would deploy
+      the second, not the first. They are set in two places
+      (<code>lembas.env</code> and the systemd unit); re-run the installer with
+      <code>INSTALL_UPDATE_HELPER=1</code> and the channel you want, which
+      writes both.", channel=state.channel, helper=state.helper_channel) }}
+    </span>
+  </div>
+  {% endif %}
+  <p class="card__lede">
+    {{ tm("This host has the update helper installed, so the button below writes a
+    request that a systemd unit picks up and runs as root. It always deploys the
+    <strong>%(channel)s</strong> channel — the request carries no ref and
+    no channel, so pressing it is never “deploy something else”.", channel=state.channel) }}
+  </p>
+  {% if auto.wanted and not state.requested %}
+  <div class="alert">
+    {{ icon("clock", "icon--sm") }}
+    <span>{{ t("Waiting to install %(label)s.", label=auto.wanted) }}
+      {% if auto.waiting_for %}{{ t("Still: %(what)s.", what=auto.waiting_for | join("; ")) }}{% endif %}
+      {% if auto.draining %}{{ t("New replies are held until it is done.") }}{% endif %}</span>
+  </div>
+  {% endif %}
+  <form method="post" action="/admin/updates/apply" class="btn-row">
+    <button class="btn btn--primary" type="submit" name="when" value="idle"
+            {{ 'disabled' if state.up_to_date or state.no_releases }}>
+      {{ icon("sparkle", "icon--sm") }}
+      {% if state.no_releases %}{{ t("Nothing released") }}
+      {% elif state.up_to_date %}{{ t("Nothing to apply") }}
+      {% else %}{{ t("Update to %(label)s when idle", label=state.available.label) }}{% endif %}
+    </button>
+    <button class="btn" type="submit" name="when" value="now"
+            {{ 'disabled' if state.up_to_date or state.no_releases }}
+            data-confirm-title="{{ t('Update now?') }}"
+            data-confirm-button="{{ t('Replies being written are saved with what they have; open terminals are cut off. A backup is taken first.') }}"
+            data-confirm-label="{{ t('Update now') }}" data-confirm-danger="false">{{ t("Now") }}</button>
+  </form>
+  <p class="field__hint">{{ t("Every restart ends every open terminal session — a command still running on the far side is cut off. A reply being written is saved with whatever it has.") }}</p>
+
+  {% else %}
+  <div class="alert">
+    {{ icon("shield", "icon--sm") }}
+    <span>
+      {{ tm("The update helper is <strong>not installed on this host</strong>, so there
+      is no button. That is the honest default: the service runs as an
+      unprivileged account and cannot restart itself, and a web application that
+      <em>can</em> is one whose worst day is much worse. Run this instead:
+      <code>%(command)s</code>", command=command) }}
+    </span>
+  </div>
+  <p class="field__hint">
+    {{ tm("To install it, re-run the installer with
+    <code>INSTALL_UPDATE_HELPER=1</code>. Doing so means anybody who can
+    administer this web interface can deploy the <code>%(channel)s</code>
+    channel — which is the point, and worth deciding on purpose rather than
+    arriving at.", channel=state.channel) }}
+  </p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2 class="card__title">{{ t("Automatic updates") }}</h2>
+  <p class="card__lede">{{ t("Check for releases on a schedule and install the ones the policy allows — only when nothing is running and nobody has been active for a while, and always after a backup. Off by default.") }}</p>
+  <form method="post" action="/admin/updates/settings" class="update-fields">
+    <div class="field">
+      <label class="field__label" for="auto-apply">{{ t("Install automatically") }}</label>
+      <select class="select" id="auto-apply" name="auto_apply">
+        {% for p in policies %}
+        <option value="{{ p }}" {{ 'selected' if auto_values.auto_apply == p }}>
+          {{ {"off": t("Never"), "patch": t("Fixes only (1.2.x)"), "minor": t("Fixes and features (1.x)"), "all": t("Every release")}[p] }}
+        </option>
+        {% endfor %}
+      </select>
+      <p class="field__hint">{{ t("Judged on the newest release, which is what the helper installs.") }}</p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="check-every">{{ t("Check every (hours)") }}</label>
+      <input class="input" id="check-every" name="check_every_hours" type="number" min="1" max="168" value="{{ auto_values.check_every_hours }}">
+      <p class="field__hint">{{ auto.last_check_at and t("Last checked %(when)s UTC.", when=auto.last_check_at) or "" }}</p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="update-window">{{ t("Only between") }}</label>
+      <input class="input" id="update-window" name="window" placeholder="02:00-05:00" value="{{ auto_values.window }}">
+      <p class="field__hint">{{ t("Server time. Empty: any time.") }}</p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="idle-minutes">{{ t("Idle for (minutes)") }}</label>
+      <input class="input" id="idle-minutes" name="idle_minutes" type="number" min="0" max="1440" value="{{ auto_values.idle_minutes }}">
+      <p class="field__hint">{{ t("Nobody opened a page or sent anything for this long.") }}</p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="drain-after">{{ t("Hold new replies after (minutes)") }}</label>
+      <input class="input" id="drain-after" name="drain_after_minutes" type="number" min="0" max="1440" value="{{ auto_values.drain_after_minutes }}">
+      <p class="field__hint">{{ t("If it is never idle, new replies wait so the running ones can finish. 0: never hold.") }}</p>
+    </div>
+    <div class="btn-row update-fields__save"><button class="btn btn--primary" type="submit">{{ t("Save") }}</button></div>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

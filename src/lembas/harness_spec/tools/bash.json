@@ -1,0 +1,53 @@
+{
+  "name": "bash",
+  "scope": "cli",
+  "risk": "execute",
+  "exclusive": false,
+  "block": "shell",
+  "purpose": "description",
+  "aliases": {
+    "cli": [],
+    "llembas": [
+      "shell_run"
+    ]
+  },
+  "argument_aliases": {
+    "workdir": "cwd"
+  },
+  "description": "Run a shell command (bash) and return its combined output and exit status.\n\n- Each call is a fresh shell: `cd` and variables do not carry over. Use `cwd` instead of `cd`.\n- Use the dedicated tools for files: read, not cat; edit/write, not sed or heredocs; grep and glob, not find.\n- Quote paths that contain spaces.\n- Commands time out (default {{timeout}}, `timeout` up to {{timeout_max}}).{{background}}\n- Git: do not commit, amend, push or change git config unless asked. Before a commit, check `git status` and `git diff`, stage files by name, never commit secrets.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "command": {
+        "type": "string",
+        "description": "The command line"
+      },
+      "description": {
+        "description": "One short sentence for the user: what this command is for — what you want to find out or get done. Shown when they are asked to allow it, and on the tool line.",
+        "type": "string"
+      },
+      "cwd": {
+        "description": "Directory to run in (default: working directory)",
+        "type": "string"
+      },
+      "timeout": {
+        "description": "Milliseconds",
+        "type": "integer",
+        "exclusiveMinimum": 0,
+        "maximum": 600000
+      },
+      "background": {
+        "description": "Run in the background and return a job id at once",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "command"
+    ]
+  },
+  "variables": {
+    "timeout": "how long a command may run when the call names no timeout, in words (\"2 minutes\")",
+    "timeout_max": "the longest timeout a call may ask for, in words (\"10 minutes\")",
+    "background": "where commands may run in the background: \" For a server, a watcher or anything long, set `background: true`: it returns at once with a job id; read its output with bash_output, list jobs with bash_list, stop one with bash_kill.\" — otherwise empty, and the `background` parameter is not sent"
+  }
+}

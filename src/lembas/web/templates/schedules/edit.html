@@ -1,0 +1,34 @@
+{% extends "schedules/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "scheduled" %}
+
+{% block title %}{{ schedule.title }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ schedule.title }}{% endblock %}
+{% block actions %}
+<a class="btn btn--sm" href="/chat/{{ schedule.chat_id }}">{{ t("Open its chat") }}</a>
+{% endblock %}
+
+{% block schedules_content %}
+<form method="post" action="/api/schedules/{{ schedule.id }}" class="card">
+  {% include "schedules/_form.html" %}
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">{{ t("Save") }}</button>
+    <a class="btn" href="/settings?tab=scheduled" data-settings-page>{{ t("Cancel") }}</a>
+  </div>
+</form>
+
+<div class="card">
+  <h2 class="card__title">{{ t("Remove") }}</h2>
+  <p class="card__lede">{{ t("Stops it running. Its chat is kept by default and becomes an ordinary one, so the transcript of everything it has already done stays where it is.") }}</p>
+  <form method="post" action="/api/schedules/{{ schedule.id }}/delete"
+        data-confirm="{{ t('Remove this schedule? It will stop running.') }}">
+    <label class="checkbox">
+      <input type="checkbox" name="keep_chat" value="1" checked>
+      <span>{{ t("Keep its chat") }}</span>
+    </label>
+    <button class="btn btn--danger btn--sm" type="submit">
+      {{ icon("trash", "icon--sm") }} {{ t("Remove schedule") }}
+    </button>
+  </form>
+</div>
+{% endblock %}

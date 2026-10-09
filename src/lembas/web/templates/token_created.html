@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, mark %}
+{#
+  The one time a token's value exists outside the program that will hold it.
+  Rendered by the POST rather than redirected to, so it never travels in a URL
+  or sits in the history; reloading this page re-submits the form and makes a
+  second token, which the browser warns about.
+#}
+
+{% block title %}{{ t("Your new token") }} - {{ brand.name }}{% endblock %}
+
+{% block body %}
+<main class="auth">
+  <div class="auth__card">
+    <div class="auth__brand">
+      {{ mark(cls="brand-mark", uid="token") }}
+      <h1 class="auth__title">{{ t("Your new token") }}</h1>
+      <p class="auth__subtitle">{{ token.name }}</p>
+    </div>
+    <div class="alert alert--warning" role="alert">
+      {{ icon("warning", "alert__icon") }}
+      <span>{{ t("Copy it now. It is shown this once and cannot be shown again; if it is lost, revoke it and make another.") }}</span>
+    </div>
+    <div class="field">
+      <label class="field__label" for="token-value">{{ t("Token") }}</label>
+      <input class="input mono" id="token-value" readonly value="{{ raw }}" data-select-on-focus>
+      <p class="field__hint">{{ t("Send it as Authorization: Bearer … to /v1 on this instance.") }}</p>
+    </div>
+    <ul class="device-scopes">
+      {% for scope in token.scopes_json %}<li>{{ scope_label(scope) }}</li>{% endfor %}
+    </ul>
+    <p class="auth__footer"><a class="btn btn--primary" href="/settings" data-settings-page>{{ t("Done") }}</a></p>
+  </div>
+</main>
+{% endblock %}

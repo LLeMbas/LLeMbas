@@ -1,0 +1,119 @@
+{#
+  Shared template macros.
+
+  Import at the top of any template that needs them:
+    {% from "_macros.html" import icon, brandlink, mark, scene %}
+#}
+
+{# An icon from the inlined sprite. `name` omits the "i-" prefix. #}
+{% macro icon(name, cls="") -%}
+<svg class="icon {{ cls }}" aria-hidden="true"><use href="#i-{{ name }}"/></svg>
+{%- endmacro %}
+
+{% import "_art.html" as art %}
+
+{#
+  The mark: the pixel mallorn leaf of the built-in themes, drawn by
+  `_art.html`, which scripts/build_artwork.py generates from scripts/pixel_art.py.
+  Every cell is classed by role and coloured from the theme's `--art-*` tokens,
+  so the mark follows the theme and no hex lives in a template any more -- the
+  vector mark it replaces carried eleven.
+#}
+{#
+  An uploaded logo replaces it, the same way `model_avatar` branches. The branch
+  is inside the macro rather than at each of the six call sites, so a logo
+  reaches the sidebar, the sign-in page, the offline page and every empty state
+  at once -- and so the one place that has to know the fallback exists is here.
+  `uid` is no longer needed (the pixel mark has no gradient ids to clash) and is
+  kept so the call sites stay as they are.
+#}
+{% macro mark(cls="brand-mark", uid="a") -%}
+{{ art.leaf(cls, brand.name) }}
+{%- endmacro %}
+
+{#
+  The scene on a new chat: the Doors of Durin on Moria, the round door on the
+  Shire. Both are drawn and the theme's base decides which shows (app.css), so
+  switching theme in the browser needs no reload. An uploaded logo wins here
+  too: an instance that has its own identity shows that, not Middle-earth.
+#}
+{% macro scene(cls="empty__mark") -%}
+{{ art.durin("art-scene art-scene--moria") }}{{ art.smial("art-scene art-scene--shire") }}
+{%- endmacro %}
+
+{#
+  The wordmark as live text rather than the outlined SVG: it stays selectable,
+  searchable and readable to a screen reader, and scales with the user's font
+  size.
+
+  The accent on the capitals spelling LLM is only meaningful for the shipped
+  name, so it is applied only when the name *is* the shipped one. Guessing which
+  letters of somebody else's name to highlight would produce "InTernal AI" —
+  worse than plain text, and worse in a way nobody would think to look for.
+#}
+{% macro wordmark() -%}
+{% if brand.name == "LLeMbas" %}
+<span class="brand-llm">LL</span>e<span class="brand-llm">M</span>bas
+{%- else -%}
+{{ brand.name }}
+{%- endif %}
+{%- endmacro %}
+
+{#
+  A model's avatar: the uploaded image, or a generated initial.
+
+  The fallback colour is derived from the model id, so every model gets a
+  stable, distinct-looking badge without an administrator having to upload
+  anything. Hue only -- saturation and lightness are fixed so the result always
+  sits legibly against both themes.
+#}
+{% macro model_avatar(model, cls="model-avatar") -%}
+{% if model.image_path %}
+<img class="{{ cls }}" src="/uploads/models/{{ model.image_path }}"
+     alt="" loading="lazy" width="32" height="32">
+{% else %}
+<span class="{{ cls }} model-avatar--initial"
+      style="--avatar-hue: {{ model.model_id | stable_hue }}"
+      aria-hidden="true">{{ model.initial }}</span>
+{% endif %}
+{%- endmacro %}
+
+{#
+  The brand link in a sidebar. Named `brandlink` and not `brand`, because
+  `brand` is the Jinja global holding this instance's identity -- and a macro
+  imported under that name shadows it for the whole template, which took out
+  every page that imports this one at once.
+#}
+{% macro brandlink(href="/", uid="a") -%}
+<a class="sidebar__brand" href="{{ href }}">
+  {{ mark(uid=uid) }}
+  <span>{{ wordmark() }}</span>
+</a>
+{%- endmacro %}
+
+{#
+  A sidebar section's heading as the one control that folds it:
+  `[ NAME ] ⌄`, the name and the chevron inside the same <button>.
+
+  A chevron drawn beside the button rather than in it is a picture next to
+  the control -- the very thing that says "this folds" -- and pressing it does
+  nothing; only the name works. Here the chevron
+  is part of the button, so every pixel that looks like the toggle is the
+  toggle. A real <button> with `aria-expanded` and `aria-controls`, so the
+  keyboard and a screen reader get it for nothing; app.js flips it and the
+  `hidden` on `body_id`, and remembers it on the account
+  (`POST /api/preferences/section`). Rendered from that stored state, so a
+  section is drawn the way it was left, with no flash.
+
+  The heading's other buttons (+, new folder, filter, rename, settings,
+  delete) are siblings of this one, never inside it, so none of them folds
+  anything.
+#}
+{% macro section_toggle(key, label, is_open, body_id, cls="", title="") -%}
+<button class="nav-group__label nav-group__toggle {{ cls }}" type="button"
+        data-section="{{ key }}" aria-expanded="{{ 'true' if is_open else 'false' }}"
+        aria-controls="{{ body_id }}"{% if title %} title="{{ title }}"{% endif %}>
+  <span class="nav-group__bracketed"><span class="nav-group__name">{{ label }}</span></span>
+  <span class="nav-group__chevron">{{ icon("chevron-down", "icon--sm") }}</span>
+</button>
+{%- endmacro %}

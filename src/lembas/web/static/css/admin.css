@@ -1,0 +1,951 @@
+/* Settings and administration screens. */
+
+/* --- Page scaffolding ------------------------------------------------------
+   One scroll container per screen, and this is the rule that decides which.
+
+   `.admin-scroll` is it on every admin page. `.tabs__body` is it only where the
+   tabs are a *bounded* flex child -- `.main > .tabs` on the settings page --
+   which is why the selector below says so rather than naming the class alone.
+
+   It used to name the class alone, and the result was two scrollers stacked on
+   /admin/prompts, where `.tabs` sits inside `.admin-scroll > .admin-page`, a
+   plain block. `flex: 1` and `min-height: 0` mean nothing there, so
+   `.tabs__body` had `height: auto` and never scrolled while still declaring
+   `overflow-y: auto` -- and everything written to reset "the scroller" reset
+   that one, silently, while the reader was lost in the other. Under
+   `.admin-scroll` the body is now an ordinary block and the page scrolls as one.
+*/
+/* What makes one of these scroll is `.scroll-region` in app.css, which both of
+   these selectors are listed in. Named there so the four declarations exist
+   once; named *here* is the reasoning above, which is about which element is
+   the scroller on which screen rather than about how a scroller behaves. */
+
+.page,
+.admin-page {
+  /* The same measure as the transcript, and the same token: a settings page and
+     a conversation are both prose, and having them differ by a rounding is the
+     kind of thing nobody reports and everybody notices. */
+  max-width: var(--thread-max-width);
+  margin: 0 auto;
+  padding: var(--sp-6) var(--sp-5) var(--sp-12);
+}
+
+/* A directory chosen rather than typed. The path is the only part allowed to
+   shrink, and it truncates -- an absolute path on somebody else's machine is
+   long enough to push the Clear button off the card otherwise. */
+.dir-row { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+.dir-row > .btn { min-width: 0; }
+.dir-row__path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.page-header { margin-bottom: var(--sp-6); }
+.admin-lede,
+.page-header__lede {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  margin: 0 0 var(--sp-6);
+  max-width: 44rem;
+}
+
+.admin-section-title,
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-lg);
+  margin: var(--sp-8) 0 var(--sp-4);
+}
+
+/* --- Tabs ------------------------------------------------------------------
+   Radio inputs plus sibling selectors: no JavaScript, and the browser keeps
+   the chosen tab across a re-render.
+*/
+.tabs { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+.tabs__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 0 var(--sp-5);
+  border-bottom: var(--border-w) solid var(--border);
+  background: var(--bg);
+  flex: none;
+  overflow-x: auto;
+  scrollbar-width: none;
+  /* Sticky where the *page* is the scroller, which is the admin layout. The
+     Tools panel is longer than a screen, so without this the bar scrolls away
+     and changing tab means scrolling back up to find it. Harmless on the
+     settings page, where `.tabs__body` scrolls underneath a bar that never
+     moves anyway.
+
+     It needs the opaque `background` above it already has, or the panel would
+     show through. `z-index` because a panel's own cards establish stacking
+     contexts and would otherwise paint over it. */
+  position: sticky;
+  top: 0;
+  z-index: var(--z-raised);
+}
+
+/*
+  Settings: the tabs start where the cards start.
+
+  The page is a centred column -- `.page` is `--thread-max-width` with
+  `margin: 0 auto`, the measure the transcript reads at -- and the bar was
+  pinned to the left edge of `.main` with a fixed `--sp-5`. Nothing related the
+  two, so they agreed only while the window was narrow enough that the column
+  filled it. On a 2560px screen the cards began 756px to the right of
+  the tabs that switch them, and the screenshot of it -- cropped to the left
+  1480px -- read as content sitting in the right half of an empty page.
+
+  So the bar's leading inset is computed from the same two tokens the column
+  is: half of whatever is left over beside the measure, plus the column's own
+  padding. Whatever the width, the first tab's edge is the cards' edge. Only the
+  leading side: the row of tabs is wider than the column in some languages, and
+  it may run on past the cards' right edge rather than overflow a bar it fits. `both-edges`
+  reserves the scrollbar's gutter on the left as well as the right, so the
+  column is centred on the same line the bar measures from rather than half a
+  scrollbar to its left.
+*/
+/* The Library's tab bar too. Its bar is a direct child of `.main`, above an
+   `.admin-scroll > .admin-page` column with the same measure and padding as
+   Settings' `.page`, and it was pinned to the left edge with nothing relating
+   it to the column -- so Settings' tabs began at the cards and the Library's
+   at the far left, a screen apart in one sidebar click. One rule now, which
+   names both shapes; the gutter rule beside it names the Library's scroller
+   for the same reason it names Settings'. */
+.main > .tabs > .tabs__bar,
+.main > .tabs__bar {
+  --tabs-inset: max(var(--sp-5), calc((100% - var(--thread-max-width)) / 2 + var(--sp-5)));
+  padding-inline: var(--tabs-inset) var(--sp-5);
+  /* The bar snaps a flicked tab to its start edge, and without this the start
+     edge is the scrollport's, not the column's -- so a bar with one tab too
+     many snapped its first tab back out of line on load. */
+  scroll-padding-inline-start: var(--tabs-inset);
+}
+.main > .tabs > .tabs__body,
+.main > .tabs__bar + .admin-scroll { scrollbar-gutter: stable both-edges; }
+
+.tabs__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: var(--control-h-lg);
+  padding: 0 var(--sp-4);
+  border-bottom: var(--border-w-thick) solid transparent;
+  color: var(--ink-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+.tabs__tab:hover { color: var(--ink); }
+/* The library's tabs are links between pages rather than radios, so the active
+   one is marked server-side. Same bar, same look. */
+.tabs__tab.is-active {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+  background: var(--accent-soft);
+}
+a.tabs__tab { text-decoration: none; }
+
+.tabs__panel { display: none; }
+
+/* The active tab's label. Each radio is immediately followed by its own label,
+   so this needs to know nothing about how many tabs there are or what they are
+   called. */
+.tabs__bar input:checked + .tabs__tab {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/*
+  The active panel, matched by position.
+
+  CSS cannot compare a radio's id with a panel's data-tab, so this used to name
+  every tab twice -- and a tab added without also adding its two rules here
+  rendered a label that selected nothing. That is not a failure anyone spots in
+  review; it looks like a blank page.
+
+  Position is derivable, so it is used instead: the Nth radio shows the Nth
+  panel. Both lists are rendered in the same order, and a conditional tab drops
+  out of both at once, so they cannot drift apart. :nth-of-type counts by
+  element name, which is why the panels are <section> and the alerts above them
+  are <div> -- the alerts are not counted.
+
+  Enumerated to ten; /settings has nine. An eleventh
+  tab needs one line.
+*/
+.tabs__bar:has(input:nth-of-type(1):checked) ~ .tabs__body .tabs__panel:nth-of-type(1),
+.tabs__bar:has(input:nth-of-type(2):checked) ~ .tabs__body .tabs__panel:nth-of-type(2),
+.tabs__bar:has(input:nth-of-type(3):checked) ~ .tabs__body .tabs__panel:nth-of-type(3),
+.tabs__bar:has(input:nth-of-type(4):checked) ~ .tabs__body .tabs__panel:nth-of-type(4),
+.tabs__bar:has(input:nth-of-type(5):checked) ~ .tabs__body .tabs__panel:nth-of-type(5),
+.tabs__bar:has(input:nth-of-type(6):checked) ~ .tabs__body .tabs__panel:nth-of-type(6),
+.tabs__bar:has(input:nth-of-type(7):checked) ~ .tabs__body .tabs__panel:nth-of-type(7),
+.tabs__bar:has(input:nth-of-type(8):checked) ~ .tabs__body .tabs__panel:nth-of-type(8),
+.tabs__bar:has(input:nth-of-type(9):checked) ~ .tabs__body .tabs__panel:nth-of-type(9),
+.tabs__bar:has(input:nth-of-type(10):checked) ~ .tabs__body .tabs__panel:nth-of-type(10) {
+  display: block;
+}
+.tabs__tab:has(:focus-visible) { outline: var(--outline-w) solid var(--accent); outline-offset: -2px; }
+
+/*
+  The bar scrolls sideways when the tabs do not fit, and said nothing about it.
+
+  `scrollbar-width: none` is right -- a scrollbar under a row of tabs is ugly
+  and, on a touch device, invisible anyway -- but with nothing in its place the
+  overflow is undetectable. On a 390px phone the six tabs on /settings overflow
+  by about 190px, and the two that fall off the end are Memory and Security,
+  with Appearance only just reachable. Appearance is where both the Install and
+  the Notifications buttons live, so the effect was an install prompt nobody
+  could find on the device it exists for.
+
+  A fade at the edge that is only painted when there is something behind it:
+  `scroll-driven` would be nicer and is not universal, so this is two gradients
+  pinned to the scrollport with `background-attachment: local`, which is the old
+  trick and works everywhere -- the `local` layers scroll with the content and
+  cover the `scroll` ones exactly when there is nothing more to see.
+
+  ⚠ "Cover" has to mean all of it. The covers used to be as wide as the
+  shadows and solid for only 40% of that width, so the other 60% of every
+  shadow always showed through, with nothing to scroll to. On Moria that is
+  near-black on near-black and nobody saw it. On Shire it was a grey sliver at
+  both ends of every tab bar. Each cover is now twice the shadow's width and
+  solid across the first half, which is the whole shadow. It fades only past
+  the shadow's end, so once content is scrolled the shadow shows as before.
+*/
+.tabs__bar {
+  background-image:
+    linear-gradient(to right, var(--bg) 50%, transparent),
+    linear-gradient(to left, var(--bg) 50%, transparent),
+    linear-gradient(to right, var(--scrim), transparent 1.5rem),
+    linear-gradient(to left, var(--scrim), transparent 1.5rem);
+  background-position: left center, right center, left center, right center;
+  background-repeat: no-repeat;
+  background-size: 3rem 100%, 3rem 100%, 1.5rem 100%, 1.5rem 100%;
+  background-attachment: local, local, scroll, scroll;
+  /* A tab is a destination, so a flick should land on one rather than between
+     two. */
+  scroll-snap-type: x proximity;
+}
+.tabs__tab { scroll-snap-align: start; }
+
+/*
+  Settings' tabs down the side.
+
+  The strip across the top is a phone's answer: nine tabs do not fit across
+  390px, so it scrolls sideways under a fade. Where there is room they are a
+  list on the left, as the sidebar's own entries are, and every one is in view
+  at once.
+
+  Decided by the width of `.main--settings` -- a size container -- not by the
+  window's. The full page sits beside a 17.5rem sidebar and the settings
+  window's frame does not, so at one window width the two have different room,
+  and a media query would have to guess which it was in. `40rem` is the nav's
+  track plus a column a card can still be read in; below it, the strip.
+
+  A grid with a known track: the nav is `--settings-nav-width` wide whatever
+  the labels say, the body takes the rest. A label longer than the track -- the
+  German for Appearance is two words -- wraps inside it rather than widening it,
+  so the column beside never moves with the language. The rows are
+  `minmax(0, 1fr)` so the body is bounded and remains the scroller, as
+  `.scroll-region` in app.css expects of it.
+
+  Same markup as the strip: radios and labels in `.tabs__bar`, panels in
+  `.tabs__body`, so the panel-by-position rule above and the tab-switch scroll
+  reset in ui.js apply unchanged.
+*/
+.main--settings {
+  container-type: inline-size;
+  --settings-nav-width: 13rem;
+}
+@container (min-width: 40rem) {
+  .main--settings > .tabs--side {
+    display: grid;
+    grid-template-columns: var(--settings-nav-width) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .main--settings > .tabs--side > .tabs__bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sp-1);
+    padding: var(--sp-4) var(--sp-2);
+    scroll-padding-inline-start: 0;
+    border-bottom: 0;
+    border-inline-end: var(--border-w) solid var(--border);
+    overflow-x: hidden;
+    overflow-y: auto;
+    position: static;
+    /* No edge fade and no snapping: nothing scrolls sideways here. */
+    background-image: none;
+    scroll-snap-type: none;
+  }
+  /* The sidebar's `.nav-item`, not the strip's caps: a list down the side is
+     read as a list of places, and the sidebar is the list of places the reader
+     already knows. `min-height` rather than `height`, so a wrapped label grows
+     its own row and pushes the rest down instead of spilling into the next. */
+  .main--settings > .tabs--side > .tabs__bar > .tabs__tab {
+    height: auto;
+    min-height: var(--control-h);
+    padding: var(--sp-1) var(--sp-2);
+    border-bottom: 0;
+    border-radius: var(--radius);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: normal;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .main--settings > .tabs--side > .tabs__bar > .tabs__tab > .icon { flex: none; }
+  .main--settings > .tabs--side > .tabs__bar > .tabs__tab:hover {
+    background: var(--surface-hover);
+  }
+  /* `.nav-item.is-active`: the soft fill and the accent bar on the leading
+     edge, inset so it takes no room. */
+  .main--settings > .tabs--side > .tabs__bar > input:checked + .tabs__tab {
+    background: var(--accent-soft);
+    font-weight: 600;
+    box-shadow: inset var(--border-w-accent) 0 0 var(--accent);
+  }
+}
+
+/*
+  A form's action row, and the space after the form it closes.
+
+  Not a plain .btn-row: a settings form is a stack of cards, and Save has to
+  read as belonging to the cards above it rather than to whatever comes next.
+  The gap that matters is the one *after* the form -- a card following it (the
+  "Try it" panel on the search page, say) otherwise sits flush against Save and
+  looks like another field of the same form. That margin therefore belongs to
+  the form, not to the action row: the action row is always its form's last
+  child, so a bottom margin there would have nothing to push away from.
+*/
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin-top: var(--sp-5);
+}
+
+.admin-page > form { margin-bottom: var(--sp-8); }
+.admin-page > form:last-child { margin-bottom: 0; }
+
+/* --- Cards ----------------------------------------------------------------- */
+.card {
+  background: var(--surface);
+  border: var(--border-w) solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-5);
+  margin-bottom: var(--sp-4);
+  box-shadow: var(--shadow-block);
+}
+.card:last-child { margin-bottom: 0; }
+.card__title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  margin-bottom: var(--sp-2);
+}
+/* A square bullet before every card's title: a window in a terminal UI. */
+.card__title::before {
+  content: "";
+  flex: none;
+  width: 0.55em;
+  height: 0.55em;
+  background: var(--leaf);
+}
+.card__lede {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  margin-bottom: var(--sp-4);
+  line-height: var(--leading-relaxed);
+}
+.card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-4);
+  border-top: var(--border-w) solid var(--border);
+  flex-wrap: wrap;
+}
+.card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+/*
+  Two or three short fields on one line.
+
+  Numbers with their own units — width and height, steps and cfg and denoise —
+  read as a set and take a fraction of the width each, so stacking them makes a
+  card that is mostly whitespace and a form that is mostly scrolling. Auto-fit
+  rather than a fixed count: the same markup gives three columns on a wide
+  screen and one on a narrow one with no breakpoint, which matters because
+  `chat.css` has a test refusing media queries and this file should not drift
+  from that habit without a reason.
+*/
+.field-row {
+  display: grid;
+  /* Both halves of the pair -- see `.grid--2` in app.css. */
+  min-width: 0;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: var(--sp-3);
+}
+.field-row > .field { margin-bottom: var(--sp-4); }
+
+/* Legacy aliases so existing admin templates keep their spacing. */
+.form-grid { display: block; }
+.connection__head { display: flex; align-items: center; justify-content: space-between;
+  gap: var(--sp-3); margin-bottom: var(--sp-4); flex-wrap: wrap; }
+.connection__footer { display: flex; align-items: center; justify-content: space-between;
+  gap: var(--sp-3); margin-top: var(--sp-5); padding-top: var(--sp-4);
+  border-top: var(--border-w) solid var(--border); flex-wrap: wrap; }
+.field--actions { margin-top: var(--sp-5); margin-bottom: 0; }
+
+/* --- Definition lists ------------------------------------------------------ */
+.detail-list {
+  display: grid;
+  grid-template-columns: minmax(6rem, auto) 1fr;
+  gap: var(--sp-2) var(--sp-4);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.detail-list dt { color: var(--ink-muted); font-weight: 500; }
+.detail-list dd { margin: 0; }
+
+/* --- Status ---------------------------------------------------------------- */
+.status-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: var(--radius-full);
+  flex: none;
+  background: var(--ink-faint);
+}
+.status-dot.is-ok { background: var(--success); }
+.status-dot.is-bad { background: var(--danger); }
+.status-dot.is-off { background: var(--ink-faint); }
+
+/* --- Filter bar ------------------------------------------------------------ */
+.filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+
+.filter-tabs {
+  display: flex;
+  gap: var(--sp-1);
+  flex-wrap: wrap;
+  border-bottom: var(--border-w) solid var(--border);
+}
+.filter-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: var(--control-h);
+  padding: 0 var(--sp-3);
+  border-bottom: var(--border-w-thick) solid transparent;
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.filter-tab:hover { color: var(--ink); }
+.filter-tab.is-active { color: var(--ink); border-bottom-color: var(--accent); }
+.filter-tab__count {
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+  background: var(--surface-active);
+  border-radius: var(--radius-full);
+  padding: 0 0.4rem;
+  min-width: 1.4rem;
+  text-align: center;
+}
+.filter-tab.is-active .filter-tab__count { background: var(--accent-soft); color: var(--accent); }
+
+.filter-form { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.filter-form .input { width: auto; flex: 1; min-width: 12rem; }
+.filter-form .select { width: auto; min-width: 10rem; }
+
+/* --- Model list ------------------------------------------------------------
+   Compact rows only. Editing is a page of its own -- a connection can advertise
+   a hundred models, and a list that renders a form for each is unusable.
+*/
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-bottom: 0;
+  background: var(--bg-sunken);
+}
+.bulk-bar__label { font-size: var(--text-sm); color: var(--ink-muted); }
+
+.model-rows {
+  border: var(--border-w) solid var(--border);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  overflow: hidden;
+  background: var(--surface);
+}
+.model-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: var(--border-w) solid var(--border);
+}
+.model-row:last-child { border-bottom: 0; }
+.model-row:hover { background: var(--surface-hover); }
+.model-row.is-off { opacity: 0.55; }
+.model-row__check { accent-color: var(--accent); width: 1rem; height: 1rem; flex: none; }
+.model-row__pos {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+  min-width: 1.75rem;
+  text-align: right;
+  flex: none;
+}
+.model-row__avatar { flex: none; width: 1.75rem; height: 1.75rem; }
+.model-row__main { flex: 1; min-width: 0; }
+.model-row__title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.model-row__name {
+  color: var(--ink);
+  font-weight: 500;
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+.model-row__name:hover { color: var(--accent); text-decoration: underline; }
+.model-row__id {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+.model-row__actions { display: flex; align-items: center; gap: var(--sp-1); flex: none; }
+
+.list-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+/* --- Model detail ---------------------------------------------------------- */
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+  font-size: var(--text-sm);
+}
+.crumbs > a:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+.crumbs > a:first-child:hover { color: var(--ink); }
+.crumbs__back { transform: rotate(180deg); }
+.model-detail__avatar { width: 3rem; height: 3rem; flex: none; }
+
+.model-list { list-style: none; margin: 0; padding: 0; }
+.model-list__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3) 0;
+  border-bottom: var(--border-w) solid var(--border);
+}
+.model-list__item:first-child { padding-top: 0; }
+.model-list__item:last-child { border-bottom: 0; padding-bottom: 0; }
+
+/* The models card in /settings. Every row shares the list's column tracks, so
+   the context sizes and the eyes line up; the description and the capability
+   tags take the rest of the row underneath, never the space beside the name. */
+.model-list--models {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  column-gap: var(--sp-3);
+}
+.model-list--models .model-list__item {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+  row-gap: var(--sp-1);
+}
+/* Wraps rather than truncates: there is room below, and a name cut to
+   "Gemma 4 E…" on a phone is a different model's name. */
+.model-list__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.model-list__more { grid-column: 2 / -1; min-width: 0; }
+.model-list__tags { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.model-list__tags:empty { display: none; }
+
+/* --- Permission grids ------------------------------------------------------ */
+.checkbox-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-4);
+}
+.checkbox-row .checkbox { flex: 0 0 auto; }
+.checkbox.is-muted { opacity: 0.6; }
+
+.perm-row {
+  align-items: flex-start;
+  padding: var(--sp-3) 0;
+  border-bottom: var(--border-w) solid var(--border);
+}
+.perm-row:last-child { border-bottom: 0; }
+.perm-row input { margin-top: 0.15rem; }
+.perm-row__desc {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+  font-weight: 400;
+  line-height: var(--leading-normal);
+  margin-top: 0.1rem;
+}
+
+.perm-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
+.perm-list__item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-sm);
+}
+/*
+  Settings → Account's "What you can do": a section label bracketed the
+  way the sidebar's are, and per permission a tick and two lines. The tick is a
+  column of a known width -- `3ch` of the mono face -- and the text takes the
+  rest, so every label starts on the same vertical line however long the line
+  under it runs or wraps.
+*/
+.perm-section {
+  margin: var(--sp-5) 0 var(--sp-2);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.perm-section::before { content: "[\00a0"; color: var(--leaf); }
+.perm-section::after { content: "\00a0]"; color: var(--leaf); }
+.perm-list:has(.perm-list__text) .perm-list__item {
+  display: grid;
+  grid-template-columns: 3ch minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--sp-3);
+}
+.perm-list__item .tick { font-size: var(--text-sm); width: 3ch; height: auto; }
+.perm-list__text { display: grid; gap: var(--sp-1); min-width: 0; }
+.perm-list__label { font-weight: 600; color: var(--ink); }
+.perm-list__line { font-size: var(--text-xs); color: var(--ink-muted); line-height: var(--leading-normal); }
+.perm-list__item.is-off .perm-list__label { color: var(--ink-faint); font-weight: 500; }
+.perm-list__item.is-off .perm-list__line { color: var(--ink-faint); }
+.perm-list__state {
+  display: grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: var(--radius-full);
+  background: var(--surface-active);
+  color: var(--ink-faint);
+  flex: none;
+}
+.perm-list__state.is-on { background: var(--success-soft); color: var(--success); }
+
+/* --- Reference lists -------------------------------------------------------
+   The variable legend on the prompts page, and the read-only tool list beneath
+   it. A grid rather than a table because both have to collapse to a stack on a
+   narrow screen, which a table cannot do without abandoning its header.
+*/
+.ref-list { display: flex; flex-direction: column; }
+
+.ref-row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 11rem) 1fr minmax(0, 12rem);
+  gap: var(--sp-3);
+  align-items: baseline;
+  padding: var(--sp-2) 0;
+  border-top: var(--border-w) solid var(--border);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+.ref-row:first-child { border-top: 0; padding-top: 0; }
+.ref-row > code { overflow-wrap: anywhere; }
+.ref-row__value {
+  color: var(--ink-faint);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 44rem) {
+  .ref-row { grid-template-columns: 1fr; gap: var(--sp-1); }
+}
+
+/* The assembled prompt. Wraps rather than scrolls sideways -- it is prose, and
+   a horizontal scrollbar on prose is unreadable. */
+.prompt-preview {
+  margin: 0 0 var(--sp-3);
+  padding: var(--sp-3);
+  max-height: 28rem;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--code-bg);
+  border: var(--border-w) solid var(--code-border);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--ink-muted);
+}
+.prompt-preview code { font-family: inherit; background: none; border: 0; padding: 0; }
+
+/* --- Misc ------------------------------------------------------------------ */
+.input--file {
+  height: auto;
+  padding: 0.35rem;
+  font-size: var(--text-xs);
+  background: var(--surface-raised);
+}
+
+.nav-item.is-disabled { opacity: 0.4; cursor: default; }
+.nav-item.is-disabled:hover { background: none; color: var(--ink-muted); }
+
+.field__hint code,
+.card__lede code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  padding: 0.05em 0.3em;
+  border-radius: var(--radius-sm);
+  background: var(--code-bg);
+  border: var(--border-w) solid var(--code-border);
+}
+
+/* --- The permission modes, explained on the agents page ------------------- */
+.mode-list { margin: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
+/* Whatever follows the list inside a card needs air -- on /admin/updates that is
+   the "Check the remote" button, and it sat flush against the last row as
+   though it were one. Keyed on *not being last* rather than on the sibling's
+   class, because three different things follow it there depending on the
+   host's state (the button, the version-mismatch alert, the not-a-checkout
+   hint) and enumerating them is how the fourth one gets missed. */
+.mode-list:not(:last-child) { margin-bottom: var(--sp-5); }
+.mode-list__row { display: flex; gap: var(--sp-3); align-items: baseline; }
+.mode-list__row dt { flex: 0 0 5rem; color: var(--ink); }
+.mode-list__row dd { margin: 0; color: var(--ink-muted); font-size: var(--text-sm); min-width: 0; overflow-wrap: anywhere; }
+
+/* --- The schedule setup form ------------------------------------------------ */
+/*
+  Which "when" fieldset is showing follows the radio, with no JavaScript. `:has()`
+  is what makes that possible, and it is the same move the "Something else" box
+  on an approval card makes: a control and the thing it reveals cannot fall out
+  of step if the stylesheet is the only thing relating them.
+
+  Hidden with `display: none` on the container rather than `[hidden]`, which
+  would need `!important` here -- see the note in app.css about `.btn` being
+  `inline-flex`. Fields inside a hidden fieldset are still submitted, which is
+  correct: `_rule_from_form` reads only the keys the chosen repeat mode uses.
+*/
+.schedule-repeat {
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--sp-4);
+  margin-bottom: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.schedule-repeat > legend { padding: 0 var(--sp-2); }
+.schedule-repeat [data-repeat] { display: none; }
+.schedule-repeat:has(input[value="every"]:checked) [data-repeat="every"] { display: block; }
+.schedule-repeat:has(input[value="calendar"]:checked) [data-repeat="calendar"] { display: block; }
+
+/*
+  A row of buttons above a list. `.btn-row` carries no bottom margin -- it is
+  used inside forms where `.field` provides the rhythm -- so "Add a workflow"
+  sat flush against the first row of the list it adds to, and the two read as
+  one control. Stated as an adjacency rather than a margin on the button row,
+  because the row is right to have none everywhere else it appears.
+*/
+.btn-row + .model-rows,
+.btn-row + .model-list { margin-top: var(--sp-4); }
+
+/* --- API tokens, devices and the audit log ------------------------
+   A table in its own scroller, never the page: an audit row is wide (time,
+   who, action, what, address) and a phone shows it by scrolling the table. */
+.table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  margin-bottom: var(--sp-4);
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+.data-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--ink-muted);
+  padding: var(--sp-2);
+  border-bottom: var(--border-w) solid var(--border);
+  white-space: nowrap;
+}
+.data-table td {
+  padding: var(--sp-2);
+  vertical-align: top;
+  border-bottom: var(--border-w) dashed var(--border);
+}
+/* Four filters on a shared track: label, control and hint rows line up
+   whatever the hint says (the tree's alignment rule). */
+.audit-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  grid-template-rows: auto auto auto;
+  column-gap: var(--sp-4);
+  margin-bottom: var(--sp-4);
+  min-width: 0;
+}
+.audit-filters > .field {
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: span 3;
+  margin: 0;
+}
+.audit-filters__actions { grid-column: 1 / -1; }
+.token-form { margin-top: var(--sp-5); }
+.token-form__scopes { border: 0; padding: 0; margin: 0 0 var(--sp-4); }
+
+/* Model prices: five fields on a shared track, so labels, boxes and
+   hints line up whatever each hint says. */
+.price-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  grid-template-rows: auto auto auto;
+  column-gap: var(--sp-4);
+  min-width: 0;
+}
+.price-grid > .field {
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: span 3;
+  margin: 0;
+}
+
+/* Admin → Credits. */
+.credit-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  grid-auto-rows: auto;
+  column-gap: var(--sp-4);
+  min-width: 0;
+}
+.credit-fields > .field { display: grid; grid-template-rows: auto auto 1fr; margin: 0 0 var(--sp-3); }
+.credit-inline { display: flex; flex-wrap: wrap; gap: var(--sp-1); align-items: center; }
+.credit-inline .input { width: 7rem; }
+.plan-edit { border-top: var(--border-w) dashed var(--border); padding: var(--sp-3) 0; }
+.plan-edit > summary { cursor: pointer; }
+.plan-edit form { margin-top: var(--sp-3); }
+
+/* Automatic updates: fields on a shared track. */
+.update-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  grid-template-rows: auto auto auto;
+  column-gap: var(--sp-4);
+  min-width: 0;
+}
+.update-fields > .field {
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: span 3;
+  margin: 0 0 var(--sp-3);
+}
+.update-fields__save { grid-column: 1 / -1; }
+.update-note { margin: var(--sp-2) var(--sp-4) 0; }
+
+/*
+  Settings -> Models, your defaults per model: a disclosure per model,
+  its summary one row of known parts -- the avatar (fixed), the name (gives,
+  truncating) and what is set (its own width, at the trailing edge).
+*/
+.model-prefs { display: flex; flex-direction: column; }
+.model-prefs__item { border-bottom: var(--border-w) solid var(--border); }
+.model-prefs__item:last-child { border-bottom: 0; }
+.model-prefs__summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--control-h);
+  padding: var(--sp-2) 0;
+  cursor: pointer;
+  list-style: none;
+}
+.model-prefs__summary::-webkit-details-marker { display: none; }
+.model-prefs__summary::after {
+  content: "▸";
+  flex: none;
+  color: var(--ink-faint);
+}
+.model-prefs__item[open] > .model-prefs__summary::after { content: "▾"; }
+.model-prefs__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.model-prefs__state { flex: none; }
+.model-prefs__form { padding: var(--sp-2) 0 var(--sp-4); }
+.model-prefs__form fieldset { border: 0; padding: 0; margin: 0 0 var(--sp-4); min-width: 0; }

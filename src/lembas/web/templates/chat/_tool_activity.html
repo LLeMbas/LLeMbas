@@ -1,0 +1,257 @@
+{% from "_macros.html" import icon %}
+{#
+  What the model did before answering.
+
+  Rendered both live (streamed as a whole block, like the reasoning and the
+  answer) and from the stored message afterwards, so the sources behind an
+  answer stay in the transcript rather than vanishing when the stream ends.
+
+  EVERYTHING in here is third-party text and is untrusted, exactly as much as
+  model output is -- a search provider's results, an administrator's HTTP tool
+  relaying whatever it was pointed at, an MCP server's reply. Jinja autoescaping
+  covers it. Two things are handled separately: the URL, because `is_linkable`
+  is the only thing standing between a result carrying a javascript: URL and an
+  anchor pointing at it, and `event.text`, which is rendered as preformatted
+  text and deliberately NOT through services/markdown.py -- markdown is the one
+  path allowed to emit HTML, and this is the last content that should be given
+  it.
+
+  `kind` says how to label the event. Rows written before it existed have none,
+  so web_search reads as a search and everything else falls to the generic
+  branch: an old notes_search event used to claim it had searched the web.
+
+  What a tool is *called* is not decided here. `tool_label` and `tool_icon` are
+  Jinja globals over services/tool_labels.py, which is the one table the status
+  line and the approval card read too. It deliberately ignores an `event.label`
+  it recognises the name of: rows already on disk carry the SSH profile's name,
+  so a resolver that preferred the stored value would leave every existing
+  transcript saying "homeserver" where it means "Bash".
+#}
+{#
+  `message_id` and `step_index` place this block in the reply, and an id is
+  emitted only when the caller gave one. That is not defensiveness: an id is
+  what carries an *opened* block across a swap, and a caller with no message to
+  key on would emit the same id in every bubble on the page, which is worse than
+  emitting none. `_step.html` always passes one.
+
+  `steps.js` records which of these are open before a swap and puts them back
+  after. It works because the id is stable -- the step index comes from a mark,
+  the marks are append-only, and the finished bubble emits exactly what the live
+  one did, so a block opened at round three is still open after the `done` frame
+  replaces the whole article.
+#}
+{#
+  Each kind of call drawn the way it is read (services/tool_blocks.py,
+  from the harness spec's `block`): a command with its output behind the click
+  and no host line; an edit with its most-changed lines shown and the whole
+  change one click further; a read as just the file; a search with its hits.
+#}
+{% macro diff_lines(lines) -%}
+  {%- for cls, line in lines -%}<span class="diff__line diff__line--{{ cls }}">{{ line }}</span>{%- endfor -%}
+{%- endmacro %}
+{% macro whole_diff(diff) -%}
+<pre class="diff"><code>
+  {%- for line in diff.split("\n") -%}
+    {%- if line.startswith('@@') or line.startswith('--- a/')
+           or line.startswith('+++ b/') or line.startswith('diff ') -%}
+      {%- set cls = 'meta' -%}
+    {%- elif line.startswith('+') -%}
+      {%- set cls = 'add' -%}
+    {%- elif line.startswith('-') -%}
+      {%- set cls = 'del' -%}
+    {%- else -%}
+      {%- set cls = 'ctx' -%}
+    {%- endif -%}
+    <span class="diff__line diff__line--{{ cls }}">{{ line }}</span>
+  {%- endfor -%}
+</code></pre>
+{%- endmacro %}
+{% for event in tool_events %}
+{% set block = tool_block(event) %}
+{% set block_id = ("tool-" ~ message_id ~ "-" ~ (step_index | default(0)) ~ "-" ~ loop.index0) if message_id | default('') else "" %}
+{% set failed = event.status == "error" %}
+{% if block.kind == "hidden" %}
+{% elif block.kind == "read" %}
+  {# Just the file: what was in it is the model's business, and one click to see
+     a file's contents nobody asked for is clutter. #}
+  <div class="tool-line tool-line--read{{ ' tool-line--error' if failed }}"{% if block_id %} id="{{ block_id }}"{% endif %}>
+    {{ icon(tool_icon(event), "icon--sm tool-activity__icon") }}
+    <span class="tool-line__verb">{{ tool_label(event) }}</span>
+    <code class="tool-line__title">{{ block.title }}</code>
+    {% if failed %}<span class="tool-line__error">{{ event.error or t("failed") }}</span>{% endif %}
+  </div>
+{% elif block.kind == "edit" and event.diff and not failed %}
+  {# The change, shown: its most-changed lines open, the rest one click away. #}
+  <div class="tool-edit"{% if block_id %} id="{{ block_id }}-edit"{% endif %}>
+    <div class="tool-edit__head">
+      {{ icon(tool_icon(event), "icon--sm tool-activity__icon") }}
+      <span class="tool-line__verb">{{ tool_label(event) }}</span>
+      <code class="tool-line__title">{{ block.title }}</code>
+      <span class="tool-edit__count"><span class="diff-add">+{{ block.added }}</span> <span class="diff-del">−{{ block.removed }}</span></span>
+      {% if event.edited %}<span class="badge">{{ t("edited by you") }}</span>{% endif %}
+    </div>
+    {% if block.preview %}<pre class="diff diff--preview"><code>{{ diff_lines(block.preview) }}</code></pre>{% endif %}
+    {% if block.more %}
+    <details class="tool-edit__whole"{% if block_id %} id="{{ block_id }}"{% endif %}>
+      <summary class="tool-edit__toggle">{{ t("Show the whole change") }} {{ icon("chevron-down", "icon--sm reasoning__chevron") }}</summary>
+      {{ whole_diff(event.diff) }}
+    </details>
+    {% endif %}
+  </div>
+{% elif block.kind in ("shell", "search", "task", "edit") %}
+  <details class="tool-activity tool-activity--{{ block.kind }}{{ ' tool-activity--error' if failed }}"{% if block_id %} id="{{ block_id }}"{% endif %}>
+    <summary class="tool-activity__summary">
+      {{ icon(tool_icon(event), "icon--sm tool-activity__icon") }}
+      <span class="tool-activity__label">
+        {% if block.kind == "shell" %}
+          <code class="tool-line__title tool-line__title--command">{{ block.title or tool_label(event) }}</code>
+        {% else %}
+          <span class="tool-line__verb">{{ tool_label(event) }}{% if failed %} {{ t("failed") }}{% endif %}</span>
+          {% if block.title %}<code class="tool-line__title">{{ block.title }}</code>{% endif %}
+        {% endif %}
+        {% for chip in block.chips %}<span class="tool-chip{{ ' tool-chip--bad' if chip.startswith('exit ') and chip != 'exit 0' }}">{{ chip }}</span>{% endfor %}
+        {% if event.edited %}<span class="badge">{{ t("edited by you") }}</span>{% endif %}
+        {% if event.why %}<span class="tool-activity__why">{{ event.why }}</span>{% endif %}
+      </span>
+      {{ icon("chevron-down", "icon--sm reasoning__chevron") }}
+    </summary>
+    <div class="tool-activity__body">
+      {% if event.error %}<p class="tool-activity__error">{{ event.error }}</p>{% endif %}
+      {% if event.text and event.text != event.error %}<pre class="tool-result__text">{{ event.text }}</pre>
+      {% elif not event.error and not event.results %}<p class="tool-activity__empty">{{ t("No output.") }}</p>{% endif %}
+      {% if event.diff %}{{ whole_diff(event.diff) }}{% endif %}
+      {% for result in event.results %}
+      <div class="tool-result">
+        {% set scheme = (result.url or "").split(":")[0] | lower %}
+        {% if scheme in ("http", "https") %}
+        <a class="tool-result__title" href="{{ result.url }}" target="_blank" rel="noopener noreferrer nofollow">{{ result.title }}</a>
+        {% else %}
+        <span class="tool-result__title">{{ result.title }}</span>
+        {% endif %}
+        {% if result.host %}<span class="tool-result__host">{{ result.host }}</span>{% endif %}
+        {% if result.snippet %}<p class="tool-result__snippet">{{ result.snippet }}</p>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </details>
+{% else %}
+
+{% set kind = event.kind or ('search' if event.name == 'web_search' else 'tool') %}
+<details class="tool-activity {{ 'tool-activity--error' if event.status == 'error' }}"
+         {% if block_id %}id="{{ block_id }}"{% endif %}>
+  <summary class="tool-activity__summary">
+    {{ icon(tool_icon(event), "icon--sm tool-activity__icon") }}
+
+    <span class="tool-activity__label">
+      {% if kind == 'search' %}
+        {# Prose, not "Web search · mallorn". A search is the one thing here
+           common enough to be worth a sentence. #}
+        {% if event.status == "error" %}
+          {{ t("Web search failed") }}
+        {% elif event.query %}
+          {{ t("Searched the web for “%(query)s”", query=event.query) }}
+        {% else %}
+          {{ t("Searched the web") }}
+        {% endif %}
+      {% else %}
+        {% set label = tool_label(event) %}
+        {% if event.status == "error" %}
+          {{ t("%(tool)s failed", tool=label) }}
+        {% else %}
+          {{ label }}
+        {% endif %}
+        {% if event.query %}
+          <span class="tool-activity__count">· {{ event.query }}</span>
+        {% endif %}
+      {% endif %}
+
+      {% if event.results %}
+        <span class="tool-activity__count">
+          · {{ t("%(n)s result", n=event.results | length) if event.results | length == 1 else t("%(n)s results", n=event.results | length) }}
+        </span>
+      {% endif %}
+
+      {% if event.edited %}
+      {# Corrected on the approval card before it ran, so what is shown above is
+         the reader's command and not the model's. Said out loud rather than
+         left to be inferred: attributing somebody's own typing to a model is
+         the same misattribution as the other way round, and a transcript read
+         back a week later has nothing else to go on. #}
+      <span class="badge">{{ t("edited by you") }}</span>
+      {% endif %}
+
+      {% if event.why %}
+      {# What the model said this call was for. In the summary rather than the
+         body because the body is collapsed: in Auto mode nothing stops for
+         approval, so without this a reader watches a list of commands with no
+         account of what any of them is for until the reply ends.
+
+         Model text, escaped like everything else here, and styled as a quieter
+         second line so it reads as the model's account rather than ours. #}
+      <span class="tool-activity__why">{{ event.why }}</span>
+      {% endif %}
+    </span>
+    {{ icon("chevron-down", "icon--sm reasoning__chevron") }}
+  </summary>
+
+  <div class="tool-activity__body">
+    {#- Where a custom or MCP tool went (its request); an agent's own host line
+        is gone -- the chat says where it works. -#}
+    {% if event.detail and kind != 'search' and event.kind != 'agent' %}
+    <p class="tool-result__host">{{ event.detail }}</p>
+    {% endif %}
+    {% if event.error %}
+    <p class="tool-activity__error">{{ event.error }}</p>
+    {% elif not event.results and not event.text and not event.image %}
+    <p class="tool-activity__error">{{ t("Nothing was found.") }}</p>
+    {% endif %}
+
+    {% if event.image and event.image.id %}
+    {#
+      What was drawn, in the block that drew it. The picture is also an
+      attachment on this bubble, so the reader sees it without opening
+      anything; this copy is what makes the block make sense on its own once
+      it is expanded, beside the seed and the attempts.
+
+      The address is built here from an id and is never taken from the event.
+      That is the same rule the result links a few lines down follow, and it
+      matters more here: an event is a dict a runner wrote, and a `src` taken
+      from one would be a model-supplied URL fetched by the reader's browser.
+      `/api/files/{id}/content` is owner-checked on the way out.
+    #}
+    <a class="tool-image" href="/api/files/{{ event.image.id }}/content"
+       target="_blank" rel="noopener">
+      <img src="/api/files/{{ event.image.id }}/content" alt="{{ t('The generated image') }}"
+           loading="lazy"
+           {% if event.image.width %}width="{{ event.image.width }}"{% endif %}
+           {% if event.image.height %}height="{{ event.image.height }}"{% endif %}>
+    </a>
+    {% endif %}
+
+    {% if event.text %}
+    <pre class="tool-result__text">{{ event.text }}</pre>
+    {% endif %}
+
+    {% if event.diff %}{{ whole_diff(event.diff) }}{% endif %}
+
+    {% for result in event.results %}
+    <div class="tool-result">
+      {% set scheme = (result.url or "").split(":")[0] | lower %}
+      {% if scheme in ("http", "https") %}
+      <a class="tool-result__title" href="{{ result.url }}"
+         target="_blank" rel="noopener noreferrer nofollow">{{ result.title }}</a>
+      {% else %}
+      {# Not a link. A result is third-party text and its URL is not trusted to
+         be safe to click. #}
+      <span class="tool-result__title">{{ result.title }}</span>
+      {% endif %}
+      <span class="tool-result__host">{{ result.host }}</span>
+      {% if result.snippet %}
+      <p class="tool-result__snippet">{{ result.snippet }}</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</details>
+{% endif %}
+{% endfor %}

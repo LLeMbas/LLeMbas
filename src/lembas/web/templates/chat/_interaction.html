@@ -1,0 +1,273 @@
+{% from "_macros.html" import icon %}
+{#
+  The reply has stopped and is waiting for you.
+
+  Two shapes, one mechanism: questions the model asked, and (later) a command
+  waiting to be allowed. Everything shown here is model output and is escaped
+  accordingly -- the questions, the options on the buttons and the command
+  itself all came from a model that may have been reading somebody else's file
+  a moment ago.
+
+  Deliberately attributed to the model rather than styled as if {{ brand.name }} were
+  asking. A question that looks like it came from the application is a question
+  people answer with things they would not tell a chatbot.
+
+  Several questions go on ONE card and come back in ONE submit. Asking them one
+  at a time would cost a round trip and an interruption each, and answering the
+  third would mean having forgotten the first.
+
+  hx-swap="none" because the SSE stream clears this card the moment the answer
+  lands; swapping a response in here would fight it.
+#}
+<div class="interaction interaction--{{ ask.kind }}">
+  <p class="interaction__from">
+    {{ icon("sparkle", "icon--sm") }}
+    <span>{{ t("The model is asking you") }}</span>
+  </p>
+
+  <form class="interaction__form"
+        hx-post="/api/chats/{{ chat_id }}/interaction/{{ ask.id }}"
+        hx-swap="none">
+
+    {% if ask.why %}
+    {# Why the model asks, in its own words (a device's question). #}
+    <p class="interaction__purpose">{{ t("It says:") }} {{ ask.why }}</p>
+    {% endif %}
+
+    {% if ask.kind == "question" %}
+      {% for item in ask.items %}
+      {# Stacked, one per line, never in a row. An option carries a label and
+         often a description, and a row of chips has nowhere to put the second
+         and no room to read the first.
+
+         Radio or checkbox by what the model said: `multiple` is false for
+         alternatives and true for a set. The name is the same either way, so
+         the endpoint reads one value or several without knowing which it
+         asked for. #}
+      <fieldset class="interaction__question">
+        <legend class="interaction__title">{% if item.header %}{{ item.header }}: {% endif %}{{ item.title }}</legend>
+
+        <div class="interaction__options">
+          {% for option in item.options %}
+          <label class="interaction__option">
+            <input type="{{ 'checkbox' if item.multiple else 'radio' }}"
+                   name="choice.{{ item.key }}" value="{{ option.label }}">
+            <span class="interaction__option-body">
+              <span class="interaction__option-name">{{ option.label }}{% if option.recommended %} · {{ t("recommended") }}{% endif %}</span>
+              {% if option.description %}
+              <span class="interaction__option-note">{{ option.description }}</span>
+              {% endif %}
+            </span>
+          </label>
+          {% endfor %}
+
+          {% if item.allow_free_text %}
+          {# Added here and nowhere else: on every question, by this template,
+             never by the model. That is why the tool tells it not to write an
+             "other" option of its own -- two of them is one that does nothing,
+             and its version would have no box behind it.
+
+             The box is revealed by `:has()` on the row, so this needs no
+             JavaScript and cannot fall out of step with the checkbox. It is
+             always submitted; the endpoint uses it only when this option is
+             actually chosen. #}
+          <label class="interaction__option interaction__option--other">
+            <input type="{{ 'checkbox' if item.multiple else 'radio' }}"
+                   name="choice.{{ item.key }}" value="{{ other_value }}">
+            <span class="interaction__option-body">
+              <span class="interaction__option-name">{{ t("Something else") }}</span>
+              {# Never type="password". A model talked into asking for a
+                 credential must not be handed a field that looks built for one,
+                 and a chat transcript is not a place to keep secrets. #}
+              <input class="input interaction__other-input" type="text"
+                     name="text.{{ item.key }}" autocomplete="off"
+                     placeholder="{{ t('Your own answer…') }}">
+            </span>
+          </label>
+          {% endif %}
+        </div>
+      </fieldset>
+      {% endfor %}
+
+      <div class="interaction__actions">
+        <button class="btn btn--primary" type="submit">
+          {{ icon("send", "icon--sm") }}
+          {{ t("Answer") if ask.items | length == 1 else t("Send answers") }}
+        </button>
+        {% if ask.dismissable %}
+        {# A device's question may be put aside: the model is told
+           nobody answered, and carries on with its own judgement. #}
+        <button class="btn" type="submit" name="verdict" value="deny">
+          {{ icon("x", "icon--sm") }} {{ t("Dismiss") }}
+        </button>
+        {% endif %}
+        <span class="interaction__note">
+          {%- if ask.items | length > 1 %}{{ t("All of them at once. Leave any blank to skip it.") }}{% else %}{{ t("Leave any blank to skip it.") }}{% endif -%}
+        </span>
+      </div>
+
+    {% elif ask.kind == "plan" %}
+      {#
+        A linked device's plan (`_lembas/plan`): what its model means to
+        do before it does anything. Approve it into Edit (it works, asking only
+        for what Edit asks about) or Manual (it asks about every step); send it
+        back with what to change; or dismiss it. The plan is model output: it is
+        shown only as `render_markdown` sanitised it.
+      #}
+      {% for item in ask.items %}
+      <div class="interaction__question" x-data="{ revising: false }">
+        <p class="interaction__title">{{ t("The plan") }}</p>
+        {% if item.detail %}<p class="interaction__reason mono">{{ item.detail }}</p>{% endif %}
+        {% if item.detail_html %}
+        <div class="interaction__plan msg__body">{{ item.detail_html | safe }}</div>
+        {% endif %}
+
+        <div class="interaction__options" role="radiogroup" aria-label="{{ t('How to carry it out') }}">
+          <label class="interaction__option">
+            <input type="radio" name="choice.{{ item.key }}" value="edit" checked>
+            <span class="interaction__option-body">
+              <span class="interaction__option-name">{{ t("Approve, and let it edit") }}</span>
+              <span class="interaction__option-note">{{ t("Edit mode: it asks only before running commands.") }}</span>
+            </span>
+          </label>
+          <label class="interaction__option">
+            <input type="radio" name="choice.{{ item.key }}" value="manual">
+            <span class="interaction__option-body">
+              <span class="interaction__option-name">{{ t("Approve, and ask me each time") }}</span>
+              <span class="interaction__option-note">{{ t("Manual mode: every change waits for you.") }}</span>
+            </span>
+          </label>
+        </div>
+
+        <div class="interaction__actions">
+          <button class="btn btn--primary" type="submit" name="verdict" value="allow"
+                  x-show="!revising">
+            {{ icon("check", "icon--sm") }} {{ t("Approve") }}
+          </button>
+          <button class="btn" type="button" x-show="!revising"
+                  @click="revising = true; $nextTick(() => $refs.revise.focus())">
+            {{ icon("pencil", "icon--sm") }} {{ t("Revise") }}
+          </button>
+          <button class="btn" type="submit" name="verdict" value="deny" x-show="!revising">
+            {{ icon("x", "icon--sm") }} {{ t("Dismiss") }}
+          </button>
+          <div class="interaction__deny" x-show="revising" x-cloak>
+            <label class="visually-hidden" for="revise-{{ ask.id }}">{{ t("What to change") }}</label>
+            <textarea class="textarea interaction__deny-input" id="revise-{{ ask.id }}"
+                      name="reason" rows="3" spellcheck="false" x-ref="revise"
+                      :disabled="!revising"
+                      placeholder="{{ t('What to change in the plan…') }}"></textarea>
+            <div class="interaction__deny-actions">
+              <button class="btn btn--primary" type="submit" name="verdict" value="deny">
+                {{ icon("send", "icon--sm") }} {{ t("Send it back") }}
+              </button>
+              <button class="btn btn--sm" type="button" @click="revising = false">{{ t("Cancel") }}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+
+    {% else %}
+      {% for item in ask.items %}
+      <div class="interaction__question" x-data="{ editing: false }">
+        <p class="interaction__title">{{ item.title }}</p>
+        {% if item.purpose %}
+        {# The model's own account of what this is for, above the thing itself.
+           Deliberately separate from `reason` below, which is *our* reason for
+           stopping — attributed, so nobody reads an explanation the model wrote
+           as the application vouching for the command. #}
+        <p class="interaction__purpose">{{ t("It says: %(purpose)s", purpose=item.purpose) }}</p>
+        {% endif %}
+        {% if item.detail %}
+          {% if item.editable %}
+          {#
+            The command, correctable before it runs. A model proposing the right
+            thing with one flag wrong is the common case, and Allow-or-Don't
+            makes that a round trip to explain in prose.
+
+            Both halves are always in the DOM and one is hidden, rather than the
+            box being created when Edit is pressed: a field that does not exist
+            until a click is a field that submits nothing if the click handler
+            ever fails, and this one decides what runs on somebody's machine.
+            The textarea is disabled while hidden so an untouched card cannot
+            post a `text.` field at all — that field means "this was edited",
+            and an empty one arriving would be indistinguishable from a command
+            somebody cleared.
+          #}
+          <div x-show="!editing">
+            <pre class="interaction__detail">{{ item.detail }}</pre>
+            <button class="btn btn--sm" type="button"
+                    @click="editing = true; $nextTick(() => $refs.edit{{ item.key }}.focus())">
+              {{ icon("pencil", "icon--sm") }} {{ t("Edit") }}
+            </button>
+          </div>
+          <div x-show="editing" x-cloak>
+            <label class="visually-hidden" for="edit-{{ ask.id }}-{{ item.key }}">{{ t("Change this before it runs") }}</label>
+            <textarea class="textarea interaction__edit" id="edit-{{ ask.id }}-{{ item.key }}"
+                      name="text.{{ item.key }}" rows="3" spellcheck="false"
+                      x-ref="edit{{ item.key }}"
+                      :disabled="!editing">{{ item.detail }}</textarea>
+            <p class="interaction__reason">{{ t("Allow runs what is in the box. It is not checked against this chat's rules again — you typed it.") }}</p>
+          </div>
+          {% else %}
+          <pre class="interaction__detail">{{ item.detail }}</pre>
+          {% endif %}
+        {% endif %}
+        {% if item.reason %}
+        <p class="interaction__reason">{{ item.reason }}</p>
+        {% endif %}
+      </div>
+      {% endfor %}
+
+      {#
+        Refusing, with or without saying why.
+
+        A bare "Don't" tells the model it was refused and nothing else, so it
+        does the only sensible thing left and asks what you would rather -- which
+        costs a round to say something you already knew when you pressed the
+        button. The box is how you skip that round: "not in that directory, use
+        /srv" is a refusal and an instruction in one, and `_not_allowed` changes
+        what it tells the model when there is one.
+
+        Both halves are always in the DOM with one hidden, for the reason the
+        edit box above gives: a field created by a click is a field that submits
+        nothing when the click handler fails. And the textarea is disabled while
+        hidden, so a card refused plainly cannot post an empty `reason` that
+        would have to be told apart from one somebody cleared.
+      #}
+      <div class="interaction__actions" x-data="{ explaining: false }">
+        <button class="btn btn--primary" type="submit" name="verdict" value="allow">
+          {{ icon("check", "icon--sm") }} {{ t("Allow") }}
+        </button>
+        <button class="btn" type="submit" name="verdict" value="allow_always">{{ t("Always allow this") }}</button>
+        <button class="btn btn--danger" type="submit" name="verdict" value="deny"
+                x-show="!explaining">
+          {{ icon("x", "icon--sm") }} {{ t("Don't") }}
+        </button>
+        <button class="btn" type="button" x-show="!explaining"
+                @click="explaining = true; $nextTick(() => $refs.reason.focus())">
+          {{ icon("pencil", "icon--sm") }} {{ t("Give reason") }}
+        </button>
+
+        <div class="interaction__deny" x-show="explaining" x-cloak>
+          <label class="visually-hidden" for="deny-reason-{{ ask.id }}">{{ t("Why not, and what to do instead") }}</label>
+          {# Never type="password", for the reason the "Something else" box
+             above states: a chat transcript is not a place to keep secrets. #}
+          {# `--deny-input` and not `--reason`: `.interaction__reason` already
+             means *our* reason for stopping, which is the opposite direction. #}
+          <textarea class="textarea interaction__deny-input" id="deny-reason-{{ ask.id }}"
+                    name="reason" rows="2" spellcheck="false" x-ref="reason"
+                    :disabled="!explaining"
+                    placeholder="{{ t('Why not, and what to do instead…') }}"></textarea>
+          <div class="interaction__deny-actions">
+            <button class="btn btn--danger" type="submit" name="verdict" value="deny">
+              {{ icon("x", "icon--sm") }} {{ t("Don't, and tell it why") }}
+            </button>
+            <button class="btn btn--sm" type="button" @click="explaining = false">{{ t("Cancel") }}</button>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  </form>
+</div>

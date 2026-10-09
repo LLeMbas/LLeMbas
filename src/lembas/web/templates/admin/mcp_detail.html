@@ -1,0 +1,233 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "mcp" %}
+
+{% block title %}{{ t("New server") if is_new else server.name }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("New MCP server") if is_new else server.name }}{% endblock %}
+
+{% block admin_content %}
+<nav class="crumbs">
+  <a href="/admin/mcp">
+    {{ icon("chevron-right", "icon--sm crumbs__icon crumbs__back") }} {{ t("All servers") }}
+  </a>
+</nav>
+
+{% if error %}
+<div class="alert alert--error">{{ icon("warning", "icon--sm") }} <span>{{ error }}</span></div>
+{% endif %}
+
+{% if server.last_error %}
+<div class="alert alert--error">
+  {{ icon("warning", "icon--sm") }}
+  <span>{{ t("Last contacted unsuccessfully: %(error)s", error=server.last_error) }}</span>
+</div>
+{% endif %}
+
+<form method="post" action="{{ '/admin/mcp' if is_new else '/admin/mcp/' ~ server.id }}"
+      class="form-grid">
+
+  <section class="card">
+    <h2 class="card__title">{{ t("The server") }}</h2>
+
+    <div class="field">
+      <label class="field__label" for="name">{{ t("Name") }}</label>
+      <input class="input" id="name" name="name" value="{{ server.name }}" required
+             maxlength="120" placeholder="{{ t('GitHub') }}">
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="slug">{{ t("Identifier") }}</label>
+      <input class="input input--mono" id="slug" name="slug" value="{{ server.slug }}" required
+             maxlength="24" pattern="[a-z0-9][a-z0-9_\-]*" placeholder="{{ t('github') }}">
+      <p class="field__hint">
+        {{ tm("Prefixed onto every tool name this server offers, so that two servers
+        both exposing <code>search</code> do not collide.") }}
+      </p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="url">{{ t("Endpoint URL") }}</label>
+      <input class="input input--mono" id="url" name="url" value="{{ server.url }}" required
+             placeholder="{{ t('https://mcp.example.com/mcp') }}">
+      <p class="field__hint">{{ t("The streamable-HTTP endpoint itself, the one that accepts a POST. A server that answers with a redirect to somewhere else will be refused.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="headers">{{ t("Extra headers") }}</label>
+      <textarea class="textarea input--mono" id="headers" name="headers" rows="3"
+                spellcheck="false">{{ headers_text }}</textarea>
+      <p class="field__hint">{{ tm("One <code>Name: value</code> per line.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="timeout">{{ t("Timeout (seconds)") }}</label>
+      <input class="input" id="timeout" name="timeout" value="{{ server.timeout }}"
+             inputmode="numeric">
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="max_chars">{{ t("Most characters to keep per call") }}</label>
+      <input class="input" id="max_chars" name="max_chars" value="{{ server.max_chars }}"
+             inputmode="numeric">
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Credential") }}</h2>
+
+    <div class="field">
+      <label class="field__label" for="secret_placement">{{ t("How it is sent") }}</label>
+      <select class="select" id="secret_placement" name="secret_placement">
+        {% for value, label in secret_placements %}
+        <option value="{{ value }}" {{ 'selected' if value == server.secret_placement }}>
+          {{ label }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="secret_name">{{ t("Header or parameter name") }}</label>
+      <input class="input input--mono" id="secret_name" name="secret_name"
+             value="{{ server.secret_name }}" maxlength="120">
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="secret">{{ t("Secret") }}</label>
+      <input class="input input--mono" id="secret" name="secret" type="password"
+             autocomplete="off" placeholder="{{ t('No secret set') }}"
+             value="{{ unchanged if server.secret_encrypted else '' }}">
+      <p class="field__hint">
+        {% if server.secret_encrypted %}
+          {{ tm("Currently <code>%(masked)s</code>. Leave the dots alone to keep it,
+          or clear the field to remove it.", masked=masked) }}
+        {% else %}
+          {{ t("Encrypted at rest and never shown again.") }}
+        {% endif %}
+      </p>
+    </div>
+  </section>
+
+  {% if tools %}
+  <section class="card">
+    <h2 class="card__title">{{ t("Tools it offers") }}</h2>
+    <p class="field__hint">{{ t("Discovered at the last refresh. Untick one to withhold it — a tool this server adds later is offered by default.") }}</p>
+
+    <input type="hidden" name="tool_choices" value="1">
+    <div class="checkbox-row checkbox-row--stacked">
+      {% for tool in tools %}
+      <label class="checkbox">
+        <input type="hidden" name="tool_names" value="{{ tool.name }}">
+        <input type="checkbox" name="tool_names_on" value="{{ tool.name }}"
+               {{ 'checked' if tool.on }}>
+        <span>
+          <code>{{ tool.offer_name or tool.name }}</code>
+          {% if tool.offer_name and tool.offer_name != tool.name %}
+          <span class="faint text-xs">({{ t("%(name)s on the server", name=tool.name) }})</span>
+          {% endif %}
+          {% if tool.description %}
+          <br><span class="faint text-xs">{{ tool.description }}</span>
+          {% endif %}
+        </span>
+      </label>
+      {% endfor %}
+    </div>
+  </section>
+  {% elif not is_new %}
+  <section class="card">
+    <h2 class="card__title">{{ t("Tools it offers") }}</h2>
+    <p class="field__hint">
+      {{ tm("Nothing discovered yet. Save, then press <strong>%(button)s</strong>
+      on the <a href=\"/admin/mcp\">list</a>.", button=t("Test & refresh")) }}
+    </p>
+  </section>
+  {% endif %}
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Guidance") }}</h2>
+
+    <div class="field">
+      <textarea class="textarea" name="guidance" rows="4"
+                placeholder="{{ t('- Use the GitHub tools for anything about our repositories.') }}"
+                >{{ server.guidance }}</textarea>
+      <p class="field__hint">
+        {{ t("Added to the system message whenever any tool from this server is
+        offered. One piece of guidance for the server, not one per tool —
+        the tools carry their own descriptions.") }}
+        {% if prompt_overridden %}
+          <br>{{ tm("<strong>Someone has overridden this wording under
+          <a href=\"/admin/prompts\">Prompts</a></strong> — that is what the model
+          sees, not this.") }}
+        {% endif %}
+      </p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Availability") }}</h2>
+
+    <div class="field">
+      <div class="checkbox-row">
+        <label class="checkbox">
+          <input type="checkbox" name="enabled" value="true" {{ 'checked' if server.enabled }}>
+          <span>{{ t("Enabled — offered in chats") }}</span>
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" name="allow_private" value="true"
+                 {{ 'checked' if server.allow_private }}>
+          <span>{{ t("May reach private and loopback addresses") }}</span>
+        </label>
+      </div>
+      <p class="field__hint">
+        {{ t("Tick the second only for a server on your own network. It is what stops
+        this being aimed at %(brand)s itself, a router, or a metadata endpoint.", brand=brand.name) }}
+      </p>
+    </div>
+
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="public" value="true" {{ 'checked' if server.public }}>
+        <span>{{ t("Available to everyone") }}</span>
+      </label>
+    </div>
+
+    <div class="field">
+      <span class="field__label">{{ t("Groups with access") }}</span>
+      {% if groups %}
+      <div class="checkbox-row">
+        {% for group in groups %}
+        <label class="checkbox">
+          <input type="checkbox" name="group_ids" value="{{ group.id }}"
+                 {{ 'checked' if group.id in selected_groups }}>
+          <span>{{ group.name }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      <p class="field__hint">{{ t("Ignored while the server is available to everyone.") }}</p>
+      {% else %}
+      <p class="field__hint">
+        {{ tm("No groups yet — <a href=\"/admin/groups\">create one</a> to restrict access.") }}
+      </p>
+      {% endif %}
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="position">{{ t("Position") }}</label>
+      <input class="input" id="position" name="position" value="{{ server.position }}"
+             inputmode="numeric">
+    </div>
+  </section>
+
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">
+      {{ t("Add server") if is_new else t("Save changes") }}
+    </button>
+    <a class="btn btn--ghost" href="/admin/mcp">{{ t("Back to all servers") }}</a>
+    {% if not is_new %}
+    <button class="btn btn--danger" type="submit" formnovalidate
+            formaction="/admin/mcp/{{ server.id }}/delete"
+            data-confirm-button="{{ t('Delete the server “%(name)s”? Chats that used its tools keep their transcripts.', name=server.name) }}">{{ t("Delete") }}</button>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}

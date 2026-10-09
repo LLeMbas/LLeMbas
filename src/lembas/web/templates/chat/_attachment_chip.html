@@ -1,0 +1,38 @@
+{% from "_macros.html" import icon %}
+{#
+  A pending attachment in the composer, before the message is sent.
+
+  Carries its own id in a hidden input so the composer form submits it with the
+  message; removing the chip removes the input, which is all the bookkeeping
+  the client needs.
+#}
+<div class="attach-chip" id="chip-{{ attachment.id }}">
+  <input type="hidden" name="file_ids" value="{{ attachment.id }}">
+
+  {% if attachment.is_image %}
+  <img class="attach-chip__thumb" src="/api/files/{{ attachment.id }}/content" alt="">
+  {% else %}
+  <span class="attach-chip__icon">
+    {{ icon("attach" if attachment.kind == "document" else "copy", "icon--sm") }}
+  </span>
+  {% endif %}
+
+  <span class="attach-chip__body">
+    <span class="attach-chip__name" title="{{ attachment.filename }}">{{ attachment.filename }}</span>
+    <span class="attach-chip__meta">
+      {{ attachment.human_size }}
+      {%- if attachment.pages %} · {{ t("%(n)s page", n=attachment.pages) if attachment.pages == 1 else t("%(n)s pages", n=attachment.pages) }}{% endif %}
+      {%- if attachment.width %} · {{ attachment.width }}×{{ attachment.height }}{% endif %}
+      {%- if attachment.truncated %} · {{ t("truncated") }}{% endif %}
+    </span>
+    {% if attachment.extraction_error %}
+    <span class="attach-chip__warning">{{ attachment.extraction_error }}</span>
+    {% endif %}
+  </span>
+
+  <button class="btn btn--icon btn--sm" type="button" aria-label="{{ t('Remove %(name)s', name=attachment.filename) }}"
+          hx-delete="/api/files/{{ attachment.id }}"
+          hx-target="#chip-{{ attachment.id }}" hx-swap="outerHTML">
+    {{ icon("x", "icon--sm") }}
+  </button>
+</div>

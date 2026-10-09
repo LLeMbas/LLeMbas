@@ -1,0 +1,26 @@
+{
+  "name": "bash_kill",
+  "scope": "cli",
+  "risk": "execute",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": false,
+  "aliases": {
+    "cli": [],
+    "llembas": [
+      "job_stop"
+    ]
+  },
+  "description": "Stop a background job started with bash background: true.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id"
+    ]
+  }
+}

@@ -1,0 +1,231 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "users" %}
+
+{% block title %}{{ target.name }} - {{ t("Users") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ target.name }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">
+  <a href="/admin/users">{{ icon("chevron-left", "icon--sm") }} {{ t("All users") }}</a>
+  · {{ target.email }}
+</p>
+
+{% if saved %}
+<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
+{% endif %}
+
+<form method="post" action="/admin/users/{{ target.id }}" class="form-grid">
+  <section class="card">
+    <h2 class="card__title">{{ t("Account") }}</h2>
+    <div class="field-row">
+      <div class="field">
+        <label class="field__label" for="name">{{ t("Name") }}</label>
+        <input class="input" id="name" name="name" value="{{ target.name }}" required>
+      </div>
+      <div class="field">
+        <label class="field__label" for="role">{{ t("Role") }}</label>
+        <select class="input" id="role" name="role">
+          {% for role in roles %}
+          <option value="{{ role }}" {{ 'selected' if target.role == role }}>{{ role }}</option>
+          {% endfor %}
+        </select>
+        <p class="field__hint">{{ t("An administrator bypasses every permission and every quota below.") }}</p>
+      </div>
+    </div>
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="active" value="true" {{ 'checked' if target.active }}>
+        <span>{{ t("Active") }}</span>
+      </label>
+      <p class="field__hint">{{ t("Turning this off signs them out everywhere at once, rather than waiting for a cookie to expire.") }}</p>
+    </div>
+  </section>
+
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">{{ t("Save") }}</button>
+  </div>
+</form>
+
+{# --- What they can actually do -------------------------------------------- #}
+<section class="card">
+  <h2 class="card__title">{{ t("What this account can do") }}</h2>
+  <p class="card__lede">
+    {{ tm("Read-only, and deliberately: every switch here is set somewhere else — in the
+    <a href=\"/admin/groups\">baseline</a> or in a named group — and a control on
+    this page would be a third place to change one thing. What it adds is the
+    <em>source</em>, which is the question the grids could not answer without
+    opening every group by eye.") }}
+  </p>
+
+  {% for section_name, defs in permission_groups.items() %}
+  <div class="field">
+    <span class="field__label">{{ t(section_name) }}</span>
+    {% for definition in defs %}
+    {% set state = explained[definition.key] %}
+    <div class="perm-row" style="display: flex; gap: var(--sp-3); align-items: baseline">
+      {{ icon("check" if state.on else "x", "icon--sm") }}
+      <span>
+        <strong title="{{ t(definition.description) }}">{{ t(definition.label) }}</strong>
+        {% if state.on %}
+        <span class="perm-row__desc">
+          {# "admin" and "baseline" are codes from `permissions.explain`; a
+             group's name is the group's own. #}
+          {% set source_names = {"admin": t("being an administrator"), "baseline": t("the baseline")} %}
+          {% set parts = [] %}
+          {% for source in state.source %}{% set _ = parts.append(source_names.get(source, source)) %}{% endfor %}
+          {{ t("from %(sources)s", sources=parts | join(", ")) }}
+        </span>
+        {% else %}
+        <span class="perm-row__desc faint">{{ t("not granted") }}</span>
+        {% endif %}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</section>
+
+{# --- Membership ----------------------------------------------------------- #}
+<section class="card">
+  <h2 class="card__title">{{ t("Groups") }}</h2>
+  <p class="card__lede">{{ t("Edited from the group's own page. One control per value, so a save here cannot undo a save there.") }}</p>
+  {% if target.groups %}
+  <div class="btn-row">
+    {% for group in target.groups %}
+    <a class="btn btn--sm" href="/admin/groups/{{ group.id }}">{{ group.name }}</a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted text-sm">{{ t("In no group. They get the baseline and nothing more.") }}</p>
+  {% endif %}
+</section>
+
+{# --- Quotas and usage ----------------------------------------------------- #}
+<section class="card">
+  <h2 class="card__title">{{ t("This month") }}</h2>
+  <p class="card__lede">{{ t("Counted from the first of the month, UTC. Recorded for every reply including one that was stopped or failed — an endpoint charges for tokens it generated whether or not anybody wanted them.") }}</p>
+  <dl class="mode-list">
+    <div class="mode-list__row">
+      <dt><strong>{{ t("Tokens") }}</strong></dt>
+      <dd>
+        {% if limits.monthly_tokens %}{{ t("%(used)s of %(limit)s", used="{:,}".format(usage.tokens), limit="{:,}".format(limits.monthly_tokens)) }}
+        {% else %}{{ "{:,}".format(usage.tokens) }}{% endif %}
+        <span class="faint text-xs">
+          ({{ t("%(prompt)s prompt, %(written)s written", prompt="{:,}".format(usage.prompt_tokens), written="{:,}".format(usage.completion_tokens)) }})
+        </span>
+      </dd>
+    </div>
+    <div class="mode-list__row">
+      <dt><strong>{{ t("Replies") }}</strong></dt>
+      <dd>{{ usage.replies }}</dd>
+    </div>
+    <div class="mode-list__row">
+      <dt><strong>{{ t("Images") }}</strong></dt>
+      <dd>
+        {{ t("%(month)s this month, %(today)s today", month=usage.images, today=usage.images_today) }}
+        {% if limits.images_per_day %} ({{ t("limit %(n)s a day", n=limits.images_per_day) }}){% endif %}
+      </dd>
+    </div>
+  </dl>
+
+  <h3 class="section-title">{{ t("Limits in force") }}</h3>
+  <p class="field__hint">
+    {{ tm("Resolved across their groups by <strong>maximum</strong> — the union rule
+    applied to numbers, so a second group can only ever grant more. Zero means no
+    limit and wins outright, because a group saying “unlimited” must not count
+    for less than one saying “a million”.") }}
+  </p>
+  <dl class="mode-list">
+    {% for key, label, description in limit_defs %}
+    <div class="mode-list__row">
+      <dt><strong>{{ label }}</strong></dt>
+      <dd>
+        {% if limits[key] %}{{ "{:,}".format(limits[key]) }}{% else %}{{ t("no limit") }}{% endif %}
+        <span class="perm-row__desc">{{ description }}</span>
+      </dd>
+    </div>
+    {% endfor %}
+  </dl>
+</section>
+
+{# --- Models --------------------------------------------------------------- #}
+<section class="card">
+  <h2 class="card__title">{{ t("Models they can use") }}</h2>
+  <p class="card__lede">{{ t("Model access is separate from permissions: a permission says what somebody may do, this says what they may do it with.") }}</p>
+  {% if models %}
+  <div class="btn-row">
+    {% for model in models %}
+    <a class="btn btn--sm" href="/admin/models/{{ model.id }}/edit">{{ model.label }}</a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted text-sm">{{ t("None. They cannot start a chat at all.") }}</p>
+  {% endif %}
+</section>
+
+{# --- Tokens and devices (here, and only theirs) ------------------- #}
+<section class="card">
+  <h2 class="card__title">{{ t("Tokens and devices") }}</h2>
+  <p class="card__lede">{{ t("The API tokens this account made and the LLeMbas CLIs it signed in. Each acts as this account, with only its scopes. Revoking one deletes it and signs out whatever holds it at once.") }}</p>
+  {% if not tokens %}
+  <p class="faint">{{ t("None.") }}</p>
+  {% else %}
+  <div class="table-scroll">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>{{ t("Name") }}</th>
+        <th>{{ t("Kind") }}</th>
+        <th>{{ t("Scopes") }}</th>
+        <th>{{ t("Last used") }}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for token in tokens %}
+      <tr>
+        <td><strong>{{ token.name }}</strong><br><code class="text-xs">{{ token.prefix }}…</code></td>
+        <td>
+          {{ t("device") if token.kind == "device" else t("personal") }}
+          {% if token.device_host %}<br><span class="text-xs faint">{{ token.device_host }}</span>{% endif %}
+          {% if token.id in linked %}<br><span class="badge badge--success">{{ t("linked now") }}</span>{% endif %}
+        </td>
+        <td class="text-xs">{{ token.scopes_json | join(", ") }}</td>
+        <td class="text-xs">{{ token.last_used_at.strftime("%Y-%m-%d %H:%M") if token.last_used_at else t("never") }}</td>
+        <td>
+          <form method="post" action="/admin/tokens/{{ token.id }}/revoke">
+            <button class="btn btn--sm btn--danger" type="submit"
+                    data-confirm-title="{{ t('Revoke this token?') }}"
+                    data-confirm-button="{{ t('Whatever holds %(name)s is signed out at once.', name=token.name) }}"
+                    data-confirm-label="{{ t('Revoke') }}">{{ t("Revoke") }}</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</section>
+
+{# --- Dangerous ------------------------------------------------------------ #}
+<section class="card">
+  <h2 class="card__title">{{ t("Password and removal") }}</h2>
+  <form method="post" action="/admin/users/{{ target.id }}/password" class="btn-row">
+    <input class="input" name="password" type="password" required
+           placeholder="{{ t('New password') }}" aria-label="{{ t('New password') }}" style="flex: 1">
+    <button class="btn" type="submit">{{ t("Reset password") }}</button>
+  </form>
+  <p class="field__hint">{{ t("Signs them out everywhere. An administrator resetting a password usually means the account is compromised or the person has gone.") }}</p>
+
+  <form method="post" action="/admin/users/{{ target.id }}/delete"
+        data-confirm="{{ t('Delete %(email)s? Their chats, folders and library go with them.', email=target.email) }}"
+        style="margin-top: var(--sp-4)">
+    <button class="btn btn--danger btn--sm" type="submit">
+      {{ icon("trash", "icon--sm") }} {{ t("Delete this account") }}
+    </button>
+  </form>
+  <p class="field__hint">{{ t("Their chats, folders and library go too, and every share naming them or naming anything of theirs.") }}</p>
+</section>
+{% endblock %}

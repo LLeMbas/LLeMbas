@@ -1,0 +1,214 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "prompts" %}
+
+{% block title %}{{ t("Prompts") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Prompts") }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">
+  {{ tm("Everything %(brand)s puts in front of a model on its own: what day it is, how to
+  use each tool, what it has been asked to remember. These sit above whichever
+  system prompt was authored for the instance, the model or the chat — that
+  prompt still wins where the two disagree. Clear a box to leave that piece out
+  altogether; press <strong>%(use_default)s</strong> to put the built-in wording back.", brand=brand.name, use_default=t("Use default")) }}
+</p>
+
+{% if saved %}
+<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ t("Prompts saved.") }}</span></div>
+{% endif %}
+
+{#
+  The editor first, the reference after, and that ordering is the fix rather
+  than a preference.
+
+  The Variables legend and the Preview both run to a screen each, and they used
+  to sit *above* the tabs -- so the thing this page exists for started two
+  screens down. Every tab switch then had to move the viewport to be any use,
+  and `ui.js` did: it put the tab bar at the top of the scroller. On a short
+  panel the scroller cannot go that far, so the browser clamped to the maximum
+  and left the panel stranded above a screen of nothing, which reads as a page
+  that failed to load. That is the empty space; the scrolling was the cause and
+  not the cure.
+
+  With the tabs near the top there is nothing to scroll past: switching panels
+  changes what is below the bar and leaves the bar where it is. The reference
+  cards keep their place in the reading order -- after the work, where you go
+  to look something up -- and the preview still watches the form through
+  `hx-include`, which does not care about document order.
+#}
+<form method="post" action="/admin/prompts" id="prompt-form">
+  <div class="tabs">
+    <div class="tabs__bar" role="radiogroup" aria-label="{{ t('Prompt groups') }}">
+      {% for key, label, fragments in groups %}
+      <input class="visually-hidden" type="radio" name="prompts-tab"
+             id="tab-{{ key }}" {{ 'checked' if loop.first }}>
+      <label class="tabs__tab" for="tab-{{ key }}">{{ label }}</label>
+      {% endfor %}
+    </div>
+
+    <div class="tabs__body">
+      {% for key, label, fragments in groups %}
+      <section class="tabs__panel" data-tab="tab-{{ key }}">
+        {% for fragment in fragments %}
+        {% with value = values[fragment.key], overridden = fragment.key in overridden %}
+        {% include "admin/_prompt_field.html" %}
+        {% endwith %}
+        {% endfor %}
+      </section>
+      {% endfor %}
+    </div>
+  </div>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Length") }}</h2>
+    <div class="field">
+      <label class="field__label" for="max-harness-chars">{{ t("Preamble character cap") }}</label>
+      <input class="input" id="max-harness-chars" name="max_harness_chars" type="number"
+             min="0" max="100000" value="{{ max_harness_chars }}">
+      <p class="field__hint">
+        {{ tm("Everything above is cut off past this. <code>0</code> means the built-in
+        %(default)s. It is a backstop against a large skill index
+        or memory list quietly eating the context window, not a budget to tune.", default=default_harness_chars) }}
+      </p>
+    </div>
+  </section>
+
+  <div class="form-actions">
+    <button class="btn btn--primary" type="submit">{{ t("Save settings") }}</button>
+    {#
+      data-confirm-button, not data-confirm: this button acts on its own through
+      formaction, and confirming the whole form would also catch plain Save.
+    #}
+    <button class="btn" type="submit" formaction="/admin/prompts/reset"
+            data-confirm-button="{{ t('Put every prompt back to its built-in wording? Everything you have edited here is lost.') }}"
+            data-confirm-title="{{ t('Restore defaults') }}" data-confirm-label="{{ t('Restore') }}">{{ t("Restore all defaults") }}</button>
+  </div>
+</form>
+
+
+<section class="card">
+  <h2 class="card__title">{{ t("Variables") }}</h2>
+  <p class="card__lede">
+    {{ tm("Write these in double braces. Anything in double braces that is not on this
+    list is left exactly as you typed it — variable names are lowercase letters,
+    digits and underscores, so <code>{\"total\": 1}</code> and <code>${PATH}</code>
+    are never mistaken for one. A variable with nothing in it takes its whole
+    line with it, so a section never appears empty.") }}
+  </p>
+  <div class="ref-list">
+    {% for variable in variables %}
+    <div class="ref-row">
+      <code>&lbrace;&lbrace;{{ variable.name }}&rbrace;&rbrace;</code>
+      <span>{{ variable.description }}</span>
+      <span class="ref-row__value">
+        {% if variable.name not in resolved %}
+        <em>{{ t("only in the title request") }}</em>
+        {% elif resolved[variable.name] %}
+        {{ resolved[variable.name] | truncate(80) }}
+        {% else %}
+        <em>{{ t("empty") }}</em>
+        {% endif %}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+{#
+  The preview posts both the controls and the editing form, so what it shows is
+  the text in the boxes rather than the text last saved. Triggers live on this
+  wrapper and the swap is innerHTML, so the element carrying `load` is never
+  replaced -- an outerHTML swap would re-fire it and loop forever.
+#}
+<section class="card">
+  <h2 class="card__title">{{ t("Preview") }}</h2>
+  <p class="card__lede">{{ t("The whole system message, assembled from what is in the boxes below — including changes you have not saved yet. Your own memories and skills are used, because a preview against invented ones cannot tell you whether it reads well against what is actually there.") }}</p>
+
+  <div class="grid grid--2" id="preview-controls">
+    <div class="field">
+      <label class="field__label" for="preview-model">{{ t("Answering model") }}</label>
+      <select class="select" id="preview-model" name="preview_model">
+        {% for model in models %}
+        <option value="{{ model.label }}">{{ model.label }}</option>
+        {% else %}
+        <option value="">{{ t("No models configured") }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label class="field__label" for="preview-bases">{{ t("Knowledge bases in scope") }}</label>
+      <input class="input" id="preview-bases" name="preview_bases" value="Contracts, Recipes">
+      <p class="field__hint">{{ t("Empty means a chat that can see everything.") }}</p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="preview-documents">{{ t("Attached files") }}</label>
+      <input class="input" id="preview-documents" name="preview_documents"
+             value="{{ sample_documents }}">
+    </div>
+    {#
+      The two axes a tool family cannot reach. Without them every fragment
+      gated on a chat -- the whole agent surface, both scheduling fragments and
+      the helper warning -- was missing from the preview whatever was ticked
+      below, because the preview passes no Chat and those variables are only
+      filled when there is one.
+    #}
+    <div class="field">
+      <label class="field__label" for="preview-situation">{{ t("This chat is") }}</label>
+      <select class="select" id="preview-situation" name="preview_situation">
+        {% for value, label in situations %}
+        <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label class="field__label" for="preview-mode">{{ t("Agent mode") }}</label>
+      <select class="select" id="preview-mode" name="preview_mode">
+        {% for value, label in modes.items() %}
+        <option value="{{ value }}"{{ ' selected' if value == 'edit' }}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <p class="field__hint">
+        {{ tm("Only reaches the prompt with <code>agent</code> ticked below. The
+        machine, directory and plan shown there are samples.") }}
+      </p>
+    </div>
+    <div class="field">
+      <span class="field__label">{{ t("Tools offered") }}</span>
+      {% for family in families %}
+      <label class="checkbox">
+        <input type="checkbox" name="preview_family" value="{{ family }}" checked>
+        <span>{{ family }}</span>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn--sm" type="button" id="preview-refresh">
+      {{ icon("refresh", "icon--sm") }} {{ t("Refresh") }}
+    </button>
+  </div>
+
+  <div id="prompt-preview"
+       hx-post="/admin/prompts/preview"
+       hx-include="#prompt-form, #preview-controls"
+       hx-target="#prompt-preview" hx-swap="innerHTML"
+       hx-trigger="load, change from:#preview-controls, click from:#preview-refresh,
+                   keyup changed delay:700ms from:#prompt-form"></div>
+</section>
+
+<section class="card">
+  <h2 class="card__title">{{ t("Tool descriptions") }}</h2>
+  <p class="card__lede">{{ t("Defined in code — part of the schema sent to the endpoint alongside the prompt, not guidance layered on top of it. They are statements of fact about what each tool does, so they change when the tool does; editing them here would let the text quietly become a lie. A custom tool's description will be editable, because a custom tool is a row rather than a function.") }}</p>
+  <div class="ref-list">
+    {% for tool in registry %}
+    <div class="ref-row">
+      <code>{{ tool.name }}</code>
+      <span>{{ tool.description }}</span>
+      <span class="ref-row__value">{{ tool.family }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

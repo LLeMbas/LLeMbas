@@ -1,0 +1,47 @@
+# Runs deploy/update.sh when the web interface asks for it.
+#
+# install.sh substitutes __PREFIX__, __SERVICE_USER__ and __UPDATE_BRANCH__ and
+# writes the result to /etc/systemd/system/lembas-update.service.
+#
+# **What this grants.** Installing it means anybody who can administer the web
+# interface can deploy whatever is on the configured branch, as root, and
+# restart the service. That is the point of it, and it is why it is opt-in and
+# why the installer says so out loud rather than doing it by default.
+#
+# **What it deliberately does not grant.** The request file carries nothing that
+# reaches this command line: no ref, no branch, no channel, no arguments. Both
+# are baked in below from the installer's environment, so pressing the button is
+# "deploy the channel this host was configured with" and can never be "deploy
+# something else". Nothing reads the file's *contents* either -- `ExecStartPre`
+# deletes it and the `.path` unit only ever tested that it exists.
+#
+# And root runs a script **root owns**. See ExecStart.
+
+[Unit]
+Description=Apply a requested LLeMbas update
+# Not `After=lembas.service`: this restarts it, and an ordering dependency on
+# the thing being restarted is how a one-shot ends up waiting for itself.
+
+[Service]
+Type=oneshot
+# Deleted first, always. The path unit re-arms on the file existing, so leaving
+# it in place would run this again the moment the service came back -- an
+# update loop with no obvious cause. `-` so a failure to delete does not stop
+# the update, and `ExecStartPre` so it happens even if the script itself fails.
+ExecStartPre=-/usr/bin/rm -f __PREFIX__/data/update-requested
+Environment=SERVICE_USER=__SERVICE_USER__
+Environment=PREFIX=__PREFIX__
+Environment=LEMBAS_BRANCH=__UPDATE_BRANCH__
+Environment=LEMBAS_CHANNEL=__UPDATE_CHANNEL__
+# **Not** `__PREFIX__/app/deploy/update.sh`. That path is inside the checkout and
+# owned by the unprivileged service account, so root would have been executing a
+# file that account could rewrite -- and that an update could replace, since a
+# pull runs as that account and root runs whatever it fetched on the next press.
+# `install.sh` puts a root-owned copy here instead. Improving the script means
+# re-running the installer, which is the right cost.
+ExecStart=/bin/bash __UPDATE_HELPER__
+# The script's own failure path prints the journal and exits non-zero, which is
+# what makes `systemctl status lembas-update` say what went wrong.
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=600

@@ -1,0 +1,73 @@
+{
+  "about": "Files and a patch in the *** Begin Patch envelope → the files afterwards (null: deleted), or the error the model is told (apply_patch's first format, OpenCode's). All or nothing.",
+  "cases": [
+    {
+      "files": {
+        "app.py": "def greet():\n    print('hi')\n"
+      },
+      "patch": "*** Begin Patch\n*** Update File: app.py\n@@ def greet():\n-    print('hi')\n+    print('hello')\n*** End Patch",
+      "expect": {
+        "files": {
+          "app.py": "def greet():\n    print('hello')\n"
+        }
+      }
+    },
+    {
+      "files": {},
+      "patch": "*** Begin Patch\n*** Add File: new.txt\n+one\n+two\n*** End Patch",
+      "expect": {
+        "files": {
+          "new.txt": "one\ntwo\n"
+        }
+      }
+    },
+    {
+      "files": {
+        "old.txt": "x\n"
+      },
+      "patch": "*** Begin Patch\n*** Delete File: old.txt\n*** End Patch",
+      "expect": {
+        "files": {
+          "old.txt": null
+        }
+      }
+    },
+    {
+      "files": {
+        "a.txt": "1\n2\n3\n"
+      },
+      "patch": "*** Begin Patch\n*** Update File: a.txt\n*** Move to: b.txt\n 1\n-2\n+two\n 3\n*** End Patch",
+      "expect": {
+        "files": {
+          "a.txt": null,
+          "b.txt": "1\ntwo\n3\n"
+        }
+      }
+    },
+    {
+      "files": {
+        "a.txt": "1\n2\n3\n"
+      },
+      "patch": "*** Begin Patch\n*** Update File: a.txt\n 1\n-9\n+nine\n*** End Patch",
+      "expect": {
+        "error": "Failed to find expected lines in a.txt:\n1\n9"
+      }
+    },
+    {
+      "files": {
+        "a.txt": "x\n"
+      },
+      "patch": "*** Begin Patch\n*** Add File: a.txt\n+y\n*** End Patch",
+      "expect": {
+        "error": "a.txt already exists; use Update File to change it."
+      }
+    },
+    {
+      "files": {},
+      "patch": "no envelope at all",
+      "expect": {
+        "error": "Invalid patch format: missing Begin/End markers"
+      }
+    }
+  ]
+}

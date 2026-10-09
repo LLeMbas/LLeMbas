@@ -1,0 +1,10 @@
+{#
+  Out-of-band updates sent alongside the finished reply.
+
+  A chat is named from its first exchange, which happens on the server while
+  the reply streams. These two fragments push the new title into the page
+  without the client having to poll or reload.
+#}
+<span id="chat-title" hx-swap-oob="true">{{ chat.title }}</span>
+<span id="chat-link-label-{{ chat.id }}" hx-swap-oob="true"
+      class="nav-item__label">{{ chat.title }}</span>

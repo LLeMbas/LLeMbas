@@ -1,0 +1,55 @@
+{% from "_macros.html" import icon, model_avatar, section_toggle %}
+{#
+  Shortcuts to start a chat with a particular model. These link rather than
+  post, so no chat exists until something is actually said.
+
+  Its own partial, and always rendered even when empty, because the Chat/Agent
+  switch changes what they link to and they sit above the tree the switch
+  swaps -- so they arrive out of band, as the New chat button once did. An
+  empty element is what lets that swap find its target: a block that vanished
+  when the last model was unpinned would leave the out-of-band fragment with
+  nowhere to land, and htmx says nothing when a target is missing.
+
+  The group folds away. Open by default; the state is the account's
+  (the `pinned` key of `sections`, `POST /api/preferences/section`,
+  sent by app.js; an older `pinned_open` is read as its fallback) rather than
+  the browser's, because this element is re-rendered by the server -- out of
+  band on every flick of the switch -- and a state only the browser knew would
+  be thrown away by each of those swaps. Rendered with the body `hidden` from
+  the stored value, so there is no flash.
+
+  Not a `<details>`. Its heading is `section_toggle`, the one
+  every section uses, so the pinned group folds, looks and is announced the
+  same way as `[ CHATS ]`, each folder and each device.
+#}
+{#- Truly empty when nothing is pinned -- every tag below trims the
+    whitespace around it. `:empty` (app.css) matches only an element with no
+    text at all, and the newlines Jinja left here were text, so an instance
+    with nothing pinned kept the group's margin as a gap above the switch's
+    side of the list. `hidden` as well, so the empty group is gone even for a
+    stylesheet that has not loaded. -#}
+{%- set showing = pinned_models and can.get("chat.create") -%}
+{%- set is_open = pinned_open if pinned_open is defined else true -%}
+<div class="nav-group nav-group--pinned" id="sidebar-pinned"
+     {%- if oob %} hx-swap-oob="true"{% endif %}
+     {%- if not showing %} hidden{% endif %}>
+  {%- if showing %}
+  <div class="nav-group__head">
+    {{ section_toggle("pinned", t("Pinned models"), is_open, "section-pinned") }}
+  </div>
+  <div class="nav-group__body" id="section-pinned"{% if not is_open %} hidden{% endif %}>
+  {%- for model in pinned_models %}
+  {# Carries the side the switch is on. Picking a pinned model on the Agent
+     side used to open an ordinary chat, which is the fork silently ignoring the
+     one choice already made. `?kind=` is a preselection like `?model=` itself:
+     the new-chat screen still decides, and nothing is fixed until the first
+     message is sent. #}
+  <a class="nav-item nav-item--model"
+     href="/chat?model={{ model.model_id }}{{ '&kind=agent' if sidebar_kind == 'agent' else '' }}">
+    {{ model_avatar(model, cls="nav-item__avatar") }}
+    <span class="nav-item__label">{{ model.label }}</span>
+  </a>
+  {%- endfor %}
+  </div>
+  {%- endif -%}
+</div>

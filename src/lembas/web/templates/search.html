@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{#
+  Search, `GET /search` -- see `api/search.py` for what is searched and
+  who may see what.
+
+  Its own page with the chat sidebar, the shape `library/_layout.html` has, and
+  not a tab of the library: it finds chats too, and a chat is not something the
+  library holds. Not a dialog over the current page either -- a result is a link
+  somebody may want to open in another tab, and a search is a URL worth keeping.
+
+  The filter is a row of links, as the notes list's "All notes / Shared with
+  me" is, so a filtered search is a real address. A type the reader may not
+  open is not offered at all (`offered`). The query box is a plain GET form
+  with the filter riding along hidden, so pressing Enter searches the same
+  filter again rather than falling back to "All".
+#}
+
+{% block title %}{{ t("Search") }} - {{ brand.name }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ asset('css/chat.css') }}">
+<link rel="stylesheet" href="{{ asset('css/admin.css') }}">
+{% endblock %}
+
+{% block body_attrs %} data-authenticated="true"{% endblock %}
+
+{% block body %}
+{#- Each type's name and mark, said once for the tabs and the headings. The
+    tab for chats is short; the heading says what it holds. -#}
+{% set kinds = {
+  "chats": (t("Chats"), t("Chats & agent sessions"), "chat"),
+  "knowledge": (t("Knowledge"), t("Knowledge"), "archive"),
+  "notes": (t("Notes"), t("Notes"), "pencil"),
+  "skills": (t("Skills"), t("Skills"), "sparkle"),
+  "reports": (t("Reports"), t("Reports"), "file-text"),
+  "memories": (t("Memory"), t("Memory"), "user"),
+} %}
+<div class="shell">
+  {% include "partials/sidebar.html" %}
+
+  <main class="main">
+    <header class="topbar">
+      {% include "partials/_sidebar_toggle.html" %}
+      <h1 class="topbar__title">{{ t("Search") }}</h1>
+    </header>
+
+    <div class="admin-scroll">
+      <div class="admin-page search">
+        <form method="get" action="/search" class="search__form" role="search">
+          {% if filter != "all" %}<input type="hidden" name="in" value="{{ filter }}">{% endif %}
+          <input class="input search__input" type="search" name="q" value="{{ q }}" autofocus
+                 placeholder="{{ t('Search…') }}" aria-label="{{ t('Search') }}">
+          <button class="btn search__submit" type="submit"
+                  aria-label="{{ t('Search') }}" title="{{ t('Search') }}">
+            {{ icon("search", "icon--sm") }}
+          </button>
+        </form>
+
+        {#- Its own scroller, never the page's: seven tabs are wider than a
+            phone, and wrapping them into two rows under one rule reads as two
+            rows of tabs that each belong to something. -#}
+        <nav class="filter-tabs search__filters" aria-label="{{ t('What to search') }}">
+          <a class="filter-tab {{ 'is-active' if filter == 'all' }}"
+             href="/search?q={{ q|urlencode }}">{{ t("All") }}</a>
+          {% for kind in offered %}
+          <a class="filter-tab {{ 'is-active' if filter == kind }}"
+             href="/search?in={{ kind }}&amp;q={{ q|urlencode }}">{{ kinds[kind][0] }}</a>
+          {% endfor %}
+        </nav>
+
+        {% if not needle %}
+        <p class="admin-lede search__hint">{{ t("Type a word or a phrase to search everything you have here.") }}</p>
+        {% elif not results %}
+        <div class="empty">
+          {{ icon("search", "empty__mark") }}
+          <h2 class="empty__title">{{ t("Nothing found") }}</h2>
+          <p class="empty__text">{{ t("Nothing matches “%(q)s”.", q=needle) }}</p>
+        </div>
+        {% else %}
+          {% for group in results %}
+          <section class="search-group">
+            {% if filter == "all" %}
+            <div class="search-group__head">
+              <h2 class="search-group__title">
+                {{ icon(kinds[group.kind][2], "icon--sm") }}
+                <span class="search-group__name">{{ kinds[group.kind][1] }}</span>
+              </h2>
+              {% if group.more %}
+              <a class="search-group__more" href="/search?in={{ group.kind }}&amp;q={{ q|urlencode }}">{{ t("Show all") }}</a>
+              {% endif %}
+            </div>
+            {% endif %}
+            <ul class="search-hits">
+              {% for hit in group.hits %}
+              {#- Two tracks of known width: the mark is a fixed 1rem box, the
+                  body takes the rest and its text wraps or truncates inside
+                  it. A title of any length cannot move the mark, and the
+                  snippet starts under the title, never under the mark. -#}
+              <li class="search-hit {{ 'search-hit--archived' if hit.archived }}">
+                <span class="search-hit__mark">{{ icon(hit.icon, "icon--sm") }}</span>
+                <div class="search-hit__body">
+                  <div class="search-hit__line">
+                    <a class="search-hit__title" href="{{ hit.url }}">{{ hit.title }}</a>
+                    {% if hit.archived %}<span class="badge">{{ t("archived") }}</span>{% endif %}
+                  </div>
+                  {% if hit.snippet %}<p class="search-hit__snippet">{{ hit.snippet }}</p>{% endif %}
+                </div>
+              </li>
+              {% endfor %}
+            </ul>
+          </section>
+          {% endfor %}
+        {% endif %}
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

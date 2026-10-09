@@ -1,0 +1,31 @@
+{% from "_macros.html" import icon %}
+{#
+  The outcome of a test search.
+
+  The results are third-party text and are shown here exactly as a chat would
+  show them: escaped, and with the URL as text rather than as a link. Nobody
+  needs to click through from a connectivity test, so this does not offer the
+  chance.
+#}
+<div id="search-test">
+  <div class="alert alert--{{ 'error' if message_kind == 'error' else 'success' }}">
+    {{ icon("warning" if message_kind == "error" else "check", "alert__icon") }}
+    <span>{{ message }}</span>
+  </div>
+
+  {% if results %}
+  <ul class="model-list">
+    {% for result in results %}
+    <li class="model-list__item">
+      <div style="min-width: 0">
+        <strong>{{ result.title }}</strong>
+        <div class="text-xs faint mono">{{ result.url }}</div>
+        {% if result.snippet %}
+        <div class="text-xs faint">{{ result.snippet }}</div>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>

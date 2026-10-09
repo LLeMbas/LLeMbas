@@ -1,0 +1,56 @@
+# LLeMbas, and nothing else.
+#
+# Deliberately no reverse proxy in here. Which one to use, where the certificate
+# comes from and what else the host already serves are all decisions this file
+# cannot make -- and baking one in would mean anybody who already runs Caddy or
+# Traefik has to unpick it first. What this does is publish on loopback, which is
+# what a proxy on the same host proxies to.
+#
+# **TLS is not optional in practice.** The service worker and the microphone both
+# require HTTPS or localhost, so over plain http on a LAN address the app cannot
+# be installed and cannot dictate. See deploy/README.md.
+
+services:
+  lembas:
+    build: .
+    image: lembas:latest
+    restart: unless-stopped
+
+    environment:
+      # Generate once and keep it: rotating this signs every user out *and*
+      # makes stored upstream API keys unreadable, because they are encrypted
+      # with it. `lembas-server secret-key` prints one.
+      #
+      # Required with no default on purpose. A compose file with a key in it is
+      # a key in everybody's git history, and one that quietly generated a
+      # temporary one would lose every stored credential on the next restart.
+      LEMBAS_SECRET_KEY: ${LEMBAS_SECRET_KEY:?set LEMBAS_SECRET_KEY in .env}
+      LEMBAS_DATA_DIR: /data
+      LEMBAS_HOST: 0.0.0.0
+      LEMBAS_PORT: 8080
+      LEMBAS_LOG_LEVEL: ${LEMBAS_LOG_LEVEL:-info}
+      LEMBAS_ALLOW_SIGNUP: ${LEMBAS_ALLOW_SIGNUP:-true}
+
+    # 127.0.0.1 rather than 0.0.0.0: the session cookie is deliberately not
+    # marked `secure` so a localhost install can sign anybody in at all, which
+    # means a network attacker on plain http could steal a session. Publishing
+    # this on a LAN interface without a proxy in front is the one configuration
+    # that turns that from a note into a problem.
+    ports:
+      - "127.0.0.1:8080:8080"
+
+    volumes:
+      # The database, the uploads, the encryption at rest. A named volume rather
+      # than a bind mount so it survives `docker compose down` -- `down -v` is
+      # the command that deletes it, and that asymmetry is the point.
+      - lembas-data:/data
+
+    # One worker, and that is not a shortcut. The generation registry, the stop
+    # mechanism, the terminal sessions and the schedule ticker are all
+    # in-process; two of these would mean two tickers and every schedule firing
+    # twice. Scaling this service is not supported.
+    deploy:
+      replicas: 1
+
+volumes:
+  lembas-data:

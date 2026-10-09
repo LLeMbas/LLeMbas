@@ -1,0 +1,21 @@
+{#
+  What the device's session runs on, when the device switched it
+  (capability `model`): a model of the device's own, not one of this instance's,
+  so the chat sends none and says where the answers come from. Polled while the
+  page is open -- the switch happens on the device, at any time -- and replaced
+  whole. Nothing shows while the chat's own model is the one in use; then the
+  picker's label is brought up to date instead, as the device may have switched
+  to another of this instance's models.
+
+  `ref` is the device's text, escaped like everything else that comes from it.
+#}
+<span id="chat-device-model" class="badge"
+      {% if not chat.device_model %}hidden{% endif %}
+      title="{{ t('Switched on the device; this chat sends no model while it runs on this one') }}"
+      hx-get="/api/chats/{{ chat.id }}/device-model" hx-trigger="every 10s"
+      hx-swap="outerHTML">
+  {{ t("on the device: %(ref)s", ref=chat.device_model) if chat.device_model }}
+</span>
+{% if picker_label %}
+<span hx-swap-oob="innerHTML:[data-picker] .picker__label">{{ picker_label }}</span>
+{% endif %}

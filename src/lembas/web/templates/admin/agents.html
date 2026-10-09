@@ -1,0 +1,195 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "agents" %}
+
+{% block title %}{{ t("Agents") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Agents") }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">{{ t("An agent chat runs on a linked LLeMbas CLI: the CLI on somebody's machine does the work, under its own limits (its remote: roots and modes), and this instance shows it and passes on what is typed here. Nothing runs on this server. What you decide here is whether the feature exists, how long an approval waits, and the terminal panel.") }}</p>
+
+{% if saved %}
+<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ t("Saved.") }}</span></div>
+{% endif %}
+
+<form method="post" action="/admin/agents" class="form-grid">
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Switch") }}</h2>
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="enabled" value="true" {{ 'checked' if values.enabled }}>
+        <span>{{ t("Allow agent chats") }}</span>
+      </label>
+      <p class="field__hint">{{ t("Off, nobody can start one, whatever permissions they hold.") }}</p>
+    </div>
+    <p class="field__hint">{{ t("People also need the permission “%(permission)s” and a linked LLeMbas CLI (Settings → Devices).", permission=t("Run commands")) }}</p>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("The modes") }}</h2>
+    <p class="field__hint">{{ t("Set per chat and switchable at any time. This is what each one means; the two lists below adjust them.") }}</p>
+    <dl class="mode-list">
+      {% for value, label, hint in modes %}
+      <div class="mode-list__row">
+        <dt><strong>{{ label }}</strong></dt>
+        <dd>{{ t(hint) }}</dd>
+      </div>
+      {% endfor %}
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Asking you things") }}</h2>
+
+    <div class="field">
+      <label class="field__label" for="approval_timeout">{{ t("How long a question waits") }}</label>
+      <input class="input" id="approval_timeout" name="approval_timeout"
+             value="{{ values.approval_timeout }}" inputmode="numeric">
+      <p class="field__hint">{{ t("Seconds. After this the reply carries on without an answer and says so. At least a minute, whatever is typed here.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="ask_free_text" value="true"
+               {{ 'checked' if values.ask_free_text }}>
+        <span>{{ t("Let people write their own answer") }}</span>
+      </label>
+      <p class="field__hint">{{ t("When a model asks a question it can offer answers to pick from, and by default a box to write something else. Turn this off if you would rather nobody typed free text into a prompt a model composed.") }}</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("The terminal") }}</h2>
+    <p class="field__hint">{{ t("A panel beside an agent chat holding an interactive shell on the linked device, when the device allows it (remote.terminal: true). What somebody types there is theirs: the modes govern the model, not the person at the keyboard. The model cannot see the panel; sending it something is a button they press.") }}</p>
+
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="terminal_enabled" value="true"
+               {{ 'checked' if values.terminal_enabled }}>
+        <span>{{ t("Allow the terminal panel") }}</span>
+      </label>
+      <p class="field__hint">{{ t("People also need the permission “%(permission)s”.", permission=t("Open a terminal")) }} {{ t("Shells open right now: %(n)s", n=terminal_count) }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="terminal_idle_timeout">{{ t("Close a shell after") }}</label>
+      <input class="input" id="terminal_idle_timeout" name="terminal_idle_timeout"
+             value="{{ values.terminal_idle_timeout }}" inputmode="numeric">
+      <p class="field__hint">
+        {{ tm("Seconds with nobody watching <em>and</em> nothing typed. Closing the panel does not end the session — a build carries on and is still there on the way back — so this is what eventually ends one.") }}
+      </p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="terminal_max_sessions">{{ t("Most shells at once") }}</label>
+      <input class="input" id="terminal_max_sessions" name="terminal_max_sessions"
+             value="{{ values.terminal_max_sessions }}" inputmode="numeric">
+    </div>
+    <div class="field">
+      <label class="field__label" for="terminal_max_per_user">{{ t("Most shells per person") }}</label>
+      <input class="input" id="terminal_max_per_user" name="terminal_max_per_user"
+             value="{{ values.terminal_max_per_user }}" inputmode="numeric">
+      <p class="field__hint">{{ t("One per chat. Each holds an SSH connection open on the far machine.") }}</p>
+    </div>
+
+  </section>
+
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">{{ t("Save changes") }}</button>
+  </div>
+</form>
+
+{#
+  A second form, and a second settings group. Subagents are not an agent-chat
+  feature — an ordinary chat can delegate as well — but this is the page
+  somebody comes to when they want to know what one reply may set going on its
+  own, and a nav entry for a single card would be worse than the near-miss.
+
+  A form cannot nest inside another, so this sits *after* the one above rather
+  than as a card inside it. Two forms means the browser posts only the one whose
+  button was pressed, which is what keeps each group's save handler writing one
+  key.
+#}
+<form method="post" action="/admin/agents/subagents" class="form-grid">
+  <section class="card">
+    <h2 class="card__title">{{ t("Helpers") }}</h2>
+    <p class="field__hint">{{ t("A reply can hand a self-contained piece of work to a second model that runs on its own and reports back — several at once, which is what makes research fan out instead of queueing. This applies to ordinary chats as much as agent ones.") }}</p>
+    <p class="field__hint">
+      {{ tm("<strong>Asking another model a question uses the same switch and the same allowance below</strong>, because it costs the same thing: one reply setting another reply going. Which people may do it is a separate permission — <strong>%(permission)s</strong> — and which models may is a switch on each model's own page.", permission=t("Ask another model")) }}
+    </p>
+
+    <div class="alert">
+      {{ icon("shield", "icon--sm") }}
+      <span>
+        {{ tm("A helper cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads, it searches, and on a machine it runs a short fixed list of read-only commands and nothing else, in every mode including <strong>%(mode)s</strong>. It cannot send helpers of its own.", mode=t("Auto")) }}
+      </span>
+    </div>
+
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="enabled" value="true"
+               {{ 'checked' if subagents.enabled }}>
+        <span>{{ t("Let a model delegate") }}</span>
+      </label>
+      <p class="field__hint">
+        {{ tm("People also need the <strong>%(permission)s</strong> permission, and the model needs the <strong>%(capability)s</strong> capability. Off by default: a reply that spawns helpers spends model time multiplicatively, and on one local endpoint four at once is four times the queue rather than four times the speed.", permission=t("Delegate to a helper"), capability=t("Tools")) }}
+      </p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="sub_max_per_reply">{{ t("Most helpers one reply may send") }}</label>
+      <input class="input" id="sub_max_per_reply" name="max_per_reply"
+             type="number" min="1" max="20" step="1"
+             value="{{ subagents.max_per_reply }}">
+      <p class="field__hint">{{ t("Fanning out across a handful of independent questions is what this is for. A reply that wants twenty has misread the tool. Questions put to other models count against this same number, so one reply cannot spend the allowance twice.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="sub_max_concurrent">{{ t("Running at once, instance-wide") }}</label>
+      <input class="input" id="sub_max_concurrent" name="max_concurrent"
+             type="number" min="1" max="50" step="1"
+             value="{{ subagents.max_concurrent }}">
+      <p class="field__hint">{{ t("Each is a whole generation against the same endpoint the reply that asked for it is waiting on. Past this a model is told to do the work itself rather than made to wait.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="sub_max_completion_tokens">{{ t("Most a helper may write") }}</label>
+      <input class="input" id="sub_max_completion_tokens" name="max_completion_tokens"
+             type="number" min="0" max="5000000" step="1000"
+             value="{{ subagents.max_completion_tokens }}">
+      <p class="field__hint">{{ t("In tokens, across every round. A helper answers one question, so this should run out well before the reply that asked does. Zero means no ceiling.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="sub_wall_seconds">{{ t("Longest a helper may take") }}</label>
+      <input class="input" id="sub_wall_seconds" name="wall_seconds"
+             type="number" min="30" max="7200" step="30"
+             value="{{ subagents.wall_seconds }}">
+      <p class="field__hint">
+        {{ tm("Seconds. Past it the helper is <em>stopped</em>, not abandoned: what it had written is kept and handed back with a note saying it is partial.") }}
+      </p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="sub_max_rounds">{{ t("Most rounds of tool calls") }}</label>
+      <input class="input" id="sub_max_rounds" name="max_rounds"
+             type="number" min="1" max="200" step="1"
+             value="{{ subagents.max_rounds }}">
+      <p class="field__hint">{{ t("A backstop, as it is above. The clock and the token ceiling are what normally end one.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="keep_transcript" value="true"
+               {{ 'checked' if subagents.keep_transcript }}>
+        <span>{{ t("Keep a helper's own chat afterwards") }}</span>
+      </label>
+      <p class="field__hint">{{ t("Off means it is deleted once its answer has been handed over, which is what keeps this cheap to use. Turn it on to work out why one came back with something odd. Kept chats are temporary either way and are swept a day later, and neither appears in anybody's sidebar.") }}</p>
+    </div>
+  </section>
+
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">{{ t("Save changes") }}</button>
+  </div>
+</form>
+{% endblock %}

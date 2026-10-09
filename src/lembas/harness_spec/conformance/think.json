@@ -1,0 +1,81 @@
+{
+  "about": "Streamed text chunks → reasoning and text, with <think>, <thinking> or <reasoning> tags taken out of the reply (also when a tag is split across chunks).",
+  "cases": [
+    {
+      "chunks": [
+        "Hello"
+      ],
+      "expect": {
+        "reasoning": "",
+        "text": "Hello"
+      }
+    },
+    {
+      "chunks": [
+        "<think>plan</think>Answer"
+      ],
+      "expect": {
+        "reasoning": "plan",
+        "text": "Answer"
+      }
+    },
+    {
+      "chunks": [
+        "<thi",
+        "nk>pl",
+        "an</th",
+        "ink>Ans",
+        "wer"
+      ],
+      "expect": {
+        "reasoning": "plan",
+        "text": "Answer"
+      }
+    },
+    {
+      "chunks": [
+        "<thinking>a</thinking>b"
+      ],
+      "expect": {
+        "reasoning": "a",
+        "text": "b"
+      }
+    },
+    {
+      "chunks": [
+        "<reasoning>r</reasoning>t"
+      ],
+      "expect": {
+        "reasoning": "r",
+        "text": "t"
+      }
+    },
+    {
+      "chunks": [
+        "No tags < here > at all"
+      ],
+      "expect": {
+        "reasoning": "",
+        "text": "No tags < here > at all"
+      }
+    },
+    {
+      "chunks": [
+        "<think>never closed"
+      ],
+      "expect": {
+        "reasoning": "never closed",
+        "text": ""
+      }
+    },
+    {
+      "chunks": [
+        "Before<think>mid</think>After"
+      ],
+      "expect": {
+        "reasoning": "mid",
+        "text": "BeforeAfter"
+      }
+    }
+  ]
+}

@@ -1,0 +1,107 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "users" %}
+
+{% block title %}{{ t("Users") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Users") }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">
+  {{ tm("Every account on this instance. Open one to see what it can actually do and
+  where each of those permissions came from. Group membership is edited from the
+  <a href=\"/admin/groups\">group's</a> own page — one control per value, so a save
+  on one screen cannot undo a save on another.") }}
+</p>
+
+{% if saved %}
+<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
+{% endif %}
+
+<div class="filter-bar">
+  <form class="filter-form" method="get" action="/admin/users">
+    <input class="input" type="search" name="q" value="{{ q }}"
+           placeholder="{{ t('Search by name or email…') }}" aria-label="{{ t('Search users') }}">
+    <button class="btn" type="submit">{{ icon("search", "icon--sm") }} {{ t("Filter") }}</button>
+    {% if q %}<a class="btn btn--ghost" href="/admin/users">{{ t("Clear") }}</a>{% endif %}
+  </form>
+</div>
+
+<div class="model-rows">
+  {% for person in users %}
+  <a class="model-row" href="/admin/users/{{ person.id }}">
+    <div class="model-row__main">
+      <span class="model-row__name">
+        {{ person.name }}
+        {% if person.role == "admin" %}<span class="badge badge--leaf">{{ t("admin") }}</span>{% endif %}
+        {% if person.role == "pending" %}<span class="badge">{{ t("pending") }}</span>{% endif %}
+        {% if not person.active %}<span class="badge">{{ t("disabled") }}</span>{% endif %}
+      </span>
+      <span class="model-row__id">{{ person.email }}</span>
+    </div>
+    <div class="model-row__meta">
+      {% if person.groups %}
+      <span class="text-xs faint">
+        {{ person.groups | map(attribute="name") | join(", ") }}
+      </span>
+      {% endif %}
+      {% set spent = usage[person.id] %}
+      {% if spent.tokens %}
+      <span class="badge" title="{{ t('Tokens this month') }}">{{ "{:,}".format(spent.tokens) }}</span>
+      {% endif %}
+    </div>
+  </a>
+  {% else %}
+  <div class="empty" style="padding: var(--sp-8) 0">
+    <p class="empty__text">{{ t("Nobody matches that.") if q else t("No accounts yet.") }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+{% if pager.pages > 1 %}
+<div class="btn-row" style="margin-top: var(--sp-5)">
+  {% if pager.page > 1 %}
+  <a class="btn btn--sm" href="/admin/users?page={{ pager.page - 1 }}{% if q %}&q={{ q|urlencode }}{% endif %}">
+    {{ icon("chevron-left", "icon--sm") }} {{ t("Previous") }}
+  </a>
+  {% endif %}
+  <span class="text-sm faint">{{ t("Page %(page)s of %(pages)s", page=pager.page, pages=pager.pages) }} · {{ t("%(n)s accounts", n=pager.total) }}</span>
+  {% if pager.page < pager.pages %}
+  <a class="btn btn--sm" href="/admin/users?page={{ pager.page + 1 }}{% if q %}&q={{ q|urlencode }}{% endif %}">
+    {{ t("Next") }} {{ icon("chevron-right", "icon--sm") }}
+  </a>
+  {% endif %}
+</div>
+{% endif %}
+
+<section class="card" style="margin-top: var(--sp-8)">
+  <h2 class="card__title">{{ t("Add an account") }}</h2>
+  <p class="card__lede">{{ t("Without going through registration — useful when sign-up is closed.") }}</p>
+  <form method="post" action="/admin/users" class="form-grid">
+    <div class="field-row">
+      <div class="field">
+        <label class="field__label" for="new-name">{{ t("Name") }}</label>
+        <input class="input" id="new-name" name="name" required>
+      </div>
+      <div class="field">
+        <label class="field__label" for="new-email">{{ t("Email") }}</label>
+        <input class="input" id="new-email" name="email" type="email" required>
+      </div>
+      <div class="field">
+        <label class="field__label" for="new-password">{{ t("Password") }}</label>
+        <input class="input" id="new-password" name="password" type="password" required>
+      </div>
+      <div class="field">
+        <label class="field__label" for="new-role">{{ t("Role") }}</label>
+        <select class="input" id="new-role" name="role">
+          {% for role in roles %}<option value="{{ role }}">{{ role }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn--primary" type="submit">
+        {{ icon("plus", "icon--sm") }} {{ t("Create account") }}
+      </button>
+    </div>
+  </form>
+</section>
+{% endblock %}

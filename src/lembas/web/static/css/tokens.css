@@ -1,0 +1,623 @@
+/*
+  Design tokens.
+
+  Every colour, space and radius in the application resolves through a variable
+  declared here. Component CSS must never hard-code a hex value -- that is what
+  makes adding a theme a matter of writing one new block rather than auditing
+  every stylesheet.
+
+  Themes are selected with data-theme on <html>. `moria` is the default and is
+  declared on :root so the page is styled even before the theme script runs.
+*/
+
+/*
+  JetBrains Mono, vendored (scripts/fetch_vendor.py) -- never a CDN, by hard
+  rule. Variable, so one file per subset covers every weight the chrome uses,
+  and the latin-ext half is only fetched for a page that needs a Slovak or
+  Czech letter. The licence travels beside it as jetbrains-mono-OFL.txt.
+*/
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url("../vendor/jetbrains-mono-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url("../vendor/jetbrains-mono-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+:root {
+  /* --- Type ------------------------------------------------------------- */
+  /* The chrome -- buttons, navigation, tabs, labels, headings --
+     is set in `--font-ui`, a monospace face: "Middle-earth on a terminal".
+     What people *read* at length, a reply or a note, stays in `--font-body`,
+     because eighty columns of mono prose is tiring and the look is not worth
+     that. `--font-display` follows the chrome. */
+  --font-ui: "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Code", Menlo,
+    Consolas, monospace;
+  --font-display: var(--font-ui);
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", "Fira Code",
+    "Cascadia Code", Menlo, Consolas, monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.6;
+  --leading-relaxed: 1.75;
+
+  /* --- Space (4px scale) ------------------------------------------------ */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.25rem;
+  --sp-6: 1.5rem;
+  --sp-8: 2rem;
+  --sp-10: 2.5rem;
+  --sp-12: 3rem;
+
+  /* --- Radius & shadow -------------------------------------------------- */
+  /* Blocks, not pills. Small on purpose: a corner of 2px reads as
+     square at reading distance and still stops an edge looking cut. Avatars and
+     dots keep `--radius-full`. */
+  --radius-sm: 2px;
+  --radius: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --radius-xl: 6px;
+  --radius-full: 999px;
+  /* Square, on purpose: the sidebar's Chats/Agents switch, which has
+     to read as one solid control rather than as two buttons. */
+  --radius-none: 0;
+
+  /* How far a block button travels when pressed: into its own shadow, which
+     is drawn exactly this far out. The two are one number on purpose. */
+  --press: 2px;
+
+  /* The load-state dot on a model's avatar in the model menu. Its colours are
+     tokens of their own, defaulting to the theme's success and warning, so
+     an instance whose success colour is not green can still say "loaded" in
+     green -- that is what people read a dot beside a name as. */
+  --model-state-size: 0.625rem;
+  --model-state-loaded: var(--success);
+  --model-state-loading: var(--warning);
+
+  /*
+    --- Controls ----------------------------------------------------------
+    Every button, input and select resolves its height from these. That is the
+    whole reason things line up: a row of mixed controls has one height, not
+    whatever each element's padding and font happened to add up to.
+  */
+  --control-h: 2.25rem;
+  --control-h-sm: 1.75rem;
+  --control-h-lg: 2.75rem;
+  --control-px: 0.75rem;
+  --control-px-sm: 0.5rem;
+
+  /* --- Layout ----------------------------------------------------------- */
+  --sidebar-width: 17.5rem;
+  --inspector-width: 24rem;
+  /* Wider than the inspector because the content is not prose: eighty columns
+     of --font-mono do not fit in 24rem, and a terminal narrower than eighty
+     re-wraps everything a program prints. */
+  --terminal-width: 34rem;
+  --terminal-width-min: 24rem;
+  /* Wider again: a source line is longer than eighty columns once nothing is
+     re-wrapping it, and this one holds prose as well. The minimum is 24rem =
+     384px and must equal both `data-resize-min` in chat/_canvas.html and the
+     lower bound in api/preferences.py:LAYOUT_BOUNDS -- a width outside those
+     bounds is silently dropped, so the three are pinned equal by a test. */
+  --canvas-width: 40rem;
+  --canvas-width-min: 24rem;
+  /* The prototype panel. The canvas's width, not wider: the page inside is not
+     laid out at the panel's width anyway (see --proto-desktop-width), so a wider
+     panel only buys a larger picture at the cost of the conversation beside it
+     -- at 52rem a 1280px window had 180px of chat left. The minimum is pinned to
+     `data-resize-min` and LAYOUT_BOUNDS exactly as the canvas's is. */
+  --prototype-width: 40rem;
+  --prototype-width-min: 24rem;
+  /* The two views are two viewports, each scaled to fit the panel rather than
+     squeezed into it. A desktop design shown at 640px is its tablet layout, and
+     the switch says "desktop". So the page is laid out at a desktop's width and
+     the picture is shrunk, the way a browser zoomed out would show it -- and a
+     phone is an iPhone-sized viewport, the width most designs are checked at.
+     A frame either way, not an emulation: the page's own media queries answer
+     to these numbers, which is the whole point of the switch. */
+  --proto-desktop-width: 80rem;
+  --proto-phone-width: 24.375rem;
+  --proto-phone-height: 52.75rem;
+  /* An inline prototype is as tall as the page it holds, within these. The
+     floor keeps a frame that has not reported yet from collapsing to nothing;
+     the ceiling is what the model is told ("under about 600 pixels"), with a
+     little room, so a page sized in `100vh` cannot grow a frame forever. */
+  --proto-inline-min: 6rem;
+  --proto-inline-start: 16rem;
+  --proto-inline-max: 40rem;
+  --thread-max-width: 48rem;
+  --header-height: 3.5rem;
+
+  /* What `--header-height` does at the top of the shell, this does at the
+     bottom. The sidebar's footer and the composer sit either side of the same
+     vertical line and both are content-sized, so without this they end at
+     different heights -- and neither can be made to match the other by
+     accident: the footer's height depends on which entries the reader's
+     permissions allow, and the composer's on how much they have typed.
+
+     This began as the fix for a broken *line*: both carried a top border, and
+     the two met the sidebar's edge at different heights. The borders are gone
+     now -- an edge that content scrolls under reads better undrawn than drawn
+     and aligned -- and the token stays, because the two ends of the shell
+     sitting at different heights is visible without any border to prove it.
+
+     A calc of the pieces the footer is actually built from -- four rows at
+     `--control-h`, the gaps between them, and its own padding -- so it stays
+     true if those tokens move. Applied as a `min-height` to both: it holds the
+     footer at full height even for somebody who sees fewer entries, and lifts
+     the composer to meet it. A composer that grows past this as somebody types
+     is expected; the input is getting bigger, and nothing is pretending the
+     sidebar should follow it. */
+  --footer-height: calc(4 * var(--control-h) + 3 * var(--sp-1) + 2 * var(--sp-2));
+
+  /* The terminal's own type. xterm holds this as a number rather than reading
+     it from CSS, so terminal.js parses it back out -- it must stay a plain
+     pixel value. */
+  --terminal-font-size: 13px;
+
+  /*
+    --- Stacking ----------------------------------------------------------
+    These were four bare numbers scattered across two stylesheets, which is
+    fine until something new has to sit between two of them and nobody can
+    say what is already there.
+  */
+  --z-raised: 5;
+  --z-handle: 10;
+  --z-dropdown: 30;
+  --z-panel: 40;
+  --z-toast: 60;
+
+  --transition-fast: 120ms ease;
+  --transition: 200ms ease;
+
+  /* --- Borders -----------------------------------------------------------
+     A hairline was a literal `1px` in about ninety places, which made it the
+     largest category of hard-coded value left in the codebase -- and the one
+     thing a theme cannot currently change. */
+  --border-w: 1px;
+  --border-w-thick: 2px;
+  --border-w-accent: 3px;
+
+  /* The focus outline's own width. Not `--border-w-thick`, though they are the
+     same number today: an outline is drawn outside the box and takes no space,
+     a border is part of the box and does. Making one of them follow the other
+     means a theme that wants a heavier border gets a heavier focus ring too,
+     which is two decisions tied together by a coincidence. */
+  --outline-w: 2px;
+
+  /* --- Touch --------------------------------------------------------------
+     A control a thumb has to hit is 44px. `--control-h` is 2.25rem, which is
+     36 -- comfortable with a pointer and under every published minimum for a
+     finger -- so the coarse-pointer block at the foot of this file raises the
+     control tokens to this rather than patching components one at a time.
+     Raising the token is the only version that reaches all of them, and it is
+     what `--control-h` exists for. */
+  --tap-min: 2.75rem;
+  /* A tick box, which does not take its size from `--control-h`: the browser
+     draws it and only `width`/`height` move it. */
+  --check-size: 1rem;
+
+  /* --- Controls as a family -----------------------------------------
+     The dropdown's caret is a solid ▾ drawn with two gradients rather than a
+     glyph -- a <select> takes no pseudo-element -- and it sits behind a rule,
+     `[ value │ ▾ ]`, so a select reads as a field with a handle rather than as a
+     button. `--caret-gutter` is everything to the right of the value: the rule,
+     the caret, and the padding between them, so `padding-right` and the
+     background positions are computed from one number. */
+  --caret-w: 0.6rem;
+  --caret-h: 0.3rem;
+  --caret-gutter: 2.25rem;
+
+  /* --- The window's own edges ---------------------------------------------
+     Installed on a phone, the page runs under the notch and the home
+     indicator: base.html asks iOS for `black-translucent`, which is what puts
+     it there, and `viewport-fit=cover` is what lets these resolve to anything
+     but zero. Declared here so no component spells `env()` out -- and so a
+     desktop browser, where all four are 0, costs nothing. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+
+  /* --- Breakpoints --------------------------------------------------------
+     A media query cannot read a custom property, so these cannot be *used*
+     here. They are declared anyway so the numbers have one home and a grep for
+     one lands somewhere that says what it means -- and
+     `tests/test_layout_bounds.py` refuses a width in any stylesheet that is not
+     declared here, so a fourth breakpoint invented in passing fails the suite
+     rather than joining the set unannounced.
+
+       --bp-admin   44rem  704px  a two-column reference row stacks
+       --bp-narrow  48rem  768px  the sidebar becomes a drawer, and controls
+                                  grow to a thumb's size
+       --bp-wide    64rem 1024px  the right-hand panels become overlays */
+  --bp-admin: 44rem;
+  --bp-narrow: 48rem;
+  --bp-wide: 64rem;
+
+  /* --- Motion -------------------------------------------------------------
+     Durations and curves, so the `prefers-reduced-motion` block at the foot of
+     this file keeps covering everything by construction: a literal `1.6s` in a
+     component is a value that block can still neutralise, but one nobody can
+     tune. `--ease-out` is the one to reach for -- something arriving should
+     decelerate; `--ease-spring` overshoots slightly and belongs on a thing
+     that appears, never on a thing that moves under the pointer. */
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0.05, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 320ms;
+  --dur-slow: 1.6s;
+
+  /* --- Panel minimums -----------------------------------------------------
+     `api/preferences.py:LAYOUT_BOUNDS` allows four panels' widths to be stored
+     against an account and only two of them -- the two with a drag handle --
+     had a `-min` token or a `min-width` to clamp with. The other two are not
+     draggable, so nothing in the interface could produce a bad value; but the
+     endpoint takes one from anybody signed in, `base.html` applies stored
+     widths to <html> before first paint, and with no clamp a stored 800px
+     sidebar is one nothing in the application can drag back. */
+  --sidebar-width-min: 12.5rem;
+  --inspector-width-min: 17.5rem;
+
+  /* The focus treatment, written once. Three components spelled it out. It
+     resolves --accent-soft at the point of use, so it follows the theme even
+     though it is declared above them. */
+  --ring: 0 0 0 3px var(--accent-soft);
+}
+
+/*
+  ---------------------------------------------------------------------------
+  MORIA (default, dark)
+
+  The halls under the mountain on a terminal screen: stone-black surfaces kept
+  near-neutral so the ithildin and mallorn accents carry all the colour, and
+  the doors themselves drawn in moon-letter pixels on the empty screens.
+  ---------------------------------------------------------------------------
+*/
+:root,
+:root[data-theme="moria"] {
+  color-scheme: dark;
+
+  /* "Ithildin phosphor": stone-black, with the moon-letters' silver
+     cyan for focus and the primary action and a phosphor leaf for the brand.
+     Contrast measured, not eyeballed -- ink is 15.7:1 on bg, ink-faint 5.4:1 on
+     a card, border-strong 3.3:1. */
+  --bg: #0B0D10;
+  --bg-sunken: #07090B;
+  --surface: #11151A;
+  --surface-raised: #171C22;
+  --surface-hover: #1D232B;
+  --surface-active: #232B34;
+
+  --border: #26303A;
+  /* Bright enough to be an edge (3:1 on a card): the blocky look is drawn in
+     edges, and a 1.9:1 hairline disappears on a dim screen. */
+  --border-strong: #5C6976;
+
+  --ink: #E2E8EC;
+  --ink-muted: #A6B2BC;
+  --ink-faint: #808D98;
+  --ink-inverse: #07090B;
+
+  /* Ithildin: the cool primary, focus and interactive accents. */
+  --accent: #8FD8E8;
+  --accent-hover: #B4E6F1;
+  --accent-ink: #061418;
+  --accent-soft: rgba(143, 216, 232, 0.12);
+
+  /* Mallorn: the brand, the assistant's mark, the leaf badges -- phosphor
+     green on the dark, the colour of an old terminal's text. */
+  --leaf: #7EE081;
+  --leaf-hover: #A2EAA3;
+  --leaf-soft: rgba(126, 224, 129, 0.12);
+
+  --danger: #F0735F;
+  --danger-hover: #F4907F;
+  --danger-soft: rgba(240, 115, 95, 0.13);
+
+  /* Teal, a hue away from the leaf: a dot beside a brand badge has to be
+     tellable from it at a glance. */
+  --success: #5FD6B0;
+  --success-soft: rgba(95, 214, 176, 0.13);
+  /* Forge amber. */
+  --warning: #F0A840;
+  --warning-soft: rgba(240, 168, 64, 0.13);
+
+  --bubble-user: #161C23;
+  --bubble-assistant: transparent;
+  --code-bg: #07090B;
+  --code-border: #26303A;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 12px 34px rgba(0, 0, 0, 0.6);
+
+  /* Blocks: a hard offset shadow, `--press` out, that a button presses into.
+     On the dark the accent one also glows -- ithildin shows by its light. */
+  --shadow-block: var(--press) var(--press) 0 rgba(0, 0, 0, 0.55);
+  --shadow-block-accent: var(--press) var(--press) 0
+      color-mix(in srgb, var(--accent) 28%, transparent),
+    0 0 22px -6px color-mix(in srgb, var(--accent) 55%, transparent);
+  --shadow-block-lg: 6px 6px 0 rgba(0, 0, 0, 0.6),
+    0 0 40px -12px color-mix(in srgb, var(--accent) 30%, transparent);
+
+  /* The two mostly-empty screens -- a new chat, signing in -- sit on a
+     screen: fine scanlines over a grid that fades out from the middle, lit
+     faintly from the top. Mixed from the accent so a custom theme on this base
+     gets its own colour. Nowhere else: a conversation is read for hours. */
+  --texture-screen:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.22) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse 60% 45% at 50% 18%,
+      color-mix(in srgb, var(--accent) 10%, transparent), transparent 70%),
+    radial-gradient(ellipse 75% 65% at 50% 35%, transparent 45%, var(--bg) 92%),
+    linear-gradient(color-mix(in srgb, var(--accent) 5%, transparent) 1px, transparent 1px)
+      0 0 / 24px 24px,
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 5%, transparent) 1px,
+      transparent 1px) 0 0 / 24px 24px,
+    var(--bg);
+  --glow-title: 0 0 18px color-mix(in srgb, var(--accent) 35%, transparent);
+
+  /* The pixel artwork's colours. Each drawing is a set of named roles
+     (scripts/build_artwork.py); a theme only supplies these. */
+  --art-leaf: #7EE081;
+  --art-leaf-dark: #4FAE5A;
+  --art-leaf-light: #B6F2A6;
+  --art-vein: #D8FFD0;
+  --art-line: #8FD8E8;
+  --art-faint: #4F8794;
+  --art-star: #EAFCFF;
+  --art-glow: rgba(143, 216, 232, 0.55);
+
+  --scrim: rgba(5, 7, 9, 0.7);
+
+  /*
+    The sixteen ANSI colours, for the terminal panel.
+
+    A shell picks its own colours -- `ls --color`, a git diff, htop's meters --
+    and until these existed it got xterm's defaults, which are a different
+    palette from this one and read as a foreign window pasted into the
+    application. Where a slot has an obvious counterpart above it takes it, so
+    an error in the terminal is the same ember as an error anywhere else.
+
+    "black" is not #000: it is what a program picks for a dim background or
+    faint text, and on a near-black surface a true black is invisible.
+  */
+  --ansi-black: #1A1F26;
+  --ansi-red: #F0735F;
+  --ansi-green: #7EE081;
+  --ansi-yellow: #F0A840;
+  --ansi-blue: #7AA7E8;
+  --ansi-magenta: #C79BE0;
+  --ansi-cyan: #8FD8E8;
+  --ansi-white: #C6CDD4;
+  --ansi-bright-black: #5C6976;
+  --ansi-bright-red: #F4907F;
+  --ansi-bright-green: #A2EAA3;
+  --ansi-bright-yellow: #F5C06E;
+  --ansi-bright-blue: #9CC0F0;
+  --ansi-bright-magenta: #DBBBEB;
+  --ansi-bright-cyan: #B4E6F1;
+  --ansi-bright-white: #E2E8EC;
+}
+
+/*
+  ---------------------------------------------------------------------------
+  SHIRE (light)
+
+  Parchment, ink and moss, printed in one bit: warm and easy to read for a
+  long time, with hard ink edges where Moria glows. Backgrounds are
+  deliberately off-white -- pure #FFF next to the leaf accent reads as
+  clinical rather than as paper.
+  ---------------------------------------------------------------------------
+*/
+/*
+  `[data-base="shire"]` as well as `[data-theme="shire"]`, and that second
+  selector is what makes a custom theme possible. A custom theme is a handful of
+  token overrides served from /branding.css; everything it does not set has to
+  come from somewhere, and Moria's block above matches bare `:root` so it always
+  applies. Without this a custom *light* theme would be four light colours on
+  near-black surfaces. `<html>` carries both attributes -- see base.html and
+  app.js:applyTheme.
+*/
+:root[data-theme="shire"],
+:root[data-base="shire"] {
+  color-scheme: light;
+
+  /* "1-bit almanac": parchment and ink, a door-green primary, moss
+     for the brand, brass for warnings -- and ink-black block shadows, which is
+     what makes it read as printed. Ink is 13.9:1 on bg, ink-faint 5.6:1. */
+  --bg: #F1EAD6;
+  --bg-sunken: #E7DEC6;
+  --surface: #F8F3E5;
+  --surface-raised: #FCF9F0;
+  --surface-hover: #ECE4CF;
+  --surface-active: #E2D8BD;
+
+  --border: #CBBF9D;
+  /* Ink, not a darker parchment: the blocks are drawn in it. */
+  --border-strong: #2A2E22;
+
+  --ink: #1F2418;
+  --ink-muted: #474D3B;
+  --ink-faint: #5E6250;
+  --ink-inverse: #F8F3E5;
+
+  /* The round door's green: the primary. */
+  --accent: #285F3C;
+  --accent-hover: #1F4D30;
+  --accent-ink: #F8F3E5;
+  --accent-soft: rgba(40, 95, 60, 0.1);
+
+  /* The same mallorn as moss, dark enough to be text on parchment. */
+  --leaf: #3D6B1C;
+  --leaf-hover: #2F5615;
+  --leaf-soft: rgba(61, 107, 28, 0.1);
+
+  --danger: #A3321F;
+  --danger-hover: #862818;
+  --danger-soft: rgba(163, 50, 31, 0.1);
+
+  --success: #2B6A55;
+  --success-soft: rgba(43, 106, 85, 0.1);
+  /* Brass. */
+  --warning: #7E5200;
+  --warning-soft: rgba(126, 82, 0, 0.1);
+
+  --bubble-user: #ECE4CF;
+  --bubble-assistant: transparent;
+  --code-bg: #F1EAD6;
+  --code-border: #CBBF9D;
+
+  --shadow-sm: 0 1px 2px rgba(42, 46, 34, 0.1);
+  --shadow: 0 4px 14px rgba(42, 46, 34, 0.12);
+  --shadow-lg: 0 12px 34px rgba(42, 46, 34, 0.18);
+
+  /* On paper the block shadow is solid ink: one bit, no blur. */
+  --shadow-block: var(--press) var(--press) 0 var(--border-strong);
+  --shadow-block-accent: var(--press) var(--press) 0 var(--border-strong);
+  --shadow-block-lg: 6px 6px 0 var(--border-strong);
+
+  /* A fine dot dither in place of Moria's scanlines, fading at the edges. */
+  --texture-screen:
+    radial-gradient(ellipse 80% 70% at 50% 30%, transparent 50%, var(--bg) 95%),
+    radial-gradient(color-mix(in srgb, var(--ink) 14%, transparent) 0.8px, transparent 1.1px)
+      0 0 / 6px 6px,
+    var(--bg);
+  --glow-title: none;
+
+  --art-leaf: #4F8A2A;
+  --art-leaf-dark: #2F5E1A;
+  --art-leaf-light: #86B553;
+  --art-vein: #E9F2C8;
+  --art-grass: #5D9A3A;
+  --art-grass-light: #86B553;
+  --art-grass-dark: #3F7428;
+  --art-sky: #CFE3E8;
+  --art-sun: #E8B84A;
+  --art-frame: #5A4425;
+  --art-door: #2F6B3E;
+  --art-door-dark: #24553A;
+  --art-brass: #E8B84A;
+  --art-window: #F3D27A;
+  --art-path: #B89A6A;
+  --art-flower-a: #D9534F;
+  --art-flower-b: #F0C94A;
+
+  --scrim: rgba(31, 36, 24, 0.4);
+
+  /*
+    The same sixteen on parchment, and the reason they are not the Moria set
+    lightened: every one of these has to be readable as *text* on the code
+    background, so the whole palette is darkened rather than brightened.
+    "bright" therefore means more emphatic here, not lighter -- a light
+    terminal theme that made bright yellow actually bright would render it
+    invisible.
+  */
+  --ansi-black: #1F2418;
+  --ansi-red: #A3321F;
+  --ansi-green: #3D6B1C;
+  --ansi-yellow: #7E5200;
+  --ansi-blue: #2F5D86;
+  --ansi-magenta: #74336A;
+  --ansi-cyan: #2B6A55;
+  --ansi-white: #474D3B;
+  --ansi-bright-black: #6F6A55;
+  --ansi-bright-red: #862818;
+  --ansi-bright-green: #2F5615;
+  --ansi-bright-yellow: #634000;
+  --ansi-bright-blue: #244A6C;
+  --ansi-bright-magenta: #5C2853;
+  --ansi-bright-cyan: #1F5443;
+  --ansi-bright-white: #2A2E22;
+}
+
+/*
+  --- Touch -----------------------------------------------------------------
+  A pointer is precise and a finger is about 9mm across, so the same control
+  cannot be the right size for both. `--control-h` is 36px, which is comfortable
+  with a mouse and under every published minimum for a thumb; `--control-h-sm`
+  is 28px, which is a target most people miss.
+
+  Raised here rather than patched per component, because there are upwards of
+  forty of them and the next one added would be 36px again. `--control-h` is
+  what every button, input and select resolves its height from, so one block
+  moves all of them -- which is the reason that token exists.
+
+  Two conditions, either of which is enough.
+
+  `(pointer: coarse)` is the honest one: it is the input device that decides how
+  big a target has to be, and a touchscreen laptop at 1440px has the same thumb
+  as a phone. But a layout below the phone breakpoint is a one-column, drawer-
+  navigated layout whatever is pointing at it -- there is room for bigger
+  controls and every reason to use it -- and that half is also the half a
+  headless browser can be made to prove, which is not nothing: a rule that can
+  only be checked by holding a phone is a rule that quietly rots.
+*/
+@media (pointer: coarse), (max-width: 48rem) {
+  :root {
+    --control-h: var(--tap-min);
+    /* 40px, not the 36 a comfortable pointer gets. A `.btn--sm` is a secondary
+       action, not an unimportant one -- Edit, Enable and Use default are all
+       `.btn--sm`, and on a phone they are the whole interaction. */
+    --control-h-sm: 2.5rem;
+    --control-px: var(--sp-4);
+    --control-px-sm: var(--sp-3);
+    /* A native checkbox is 13-16px whatever the surrounding type is, and no
+       amount of padding on its label changes the box itself. It is the
+       smallest target in the application on a phone by some margin. */
+    --check-size: 1.375rem;
+  }
+}
+
+/* Respect a stated preference for reduced motion everywhere, at once. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* The motion tokens too, for anything that composes a duration rather than
+     declaring one -- a `transition: transform var(--dur-3)` is neutralised by
+     the rule above, but an `animation-delay` built from one is not. */
+  :root {
+    --dur-1: 0.01ms;
+    --dur-2: 0.01ms;
+    --dur-3: 0.01ms;
+    --dur-slow: 0.01ms;
+    --transition-fast: 0.01ms;
+    --transition: 0.01ms;
+    --transition-slow: 0.01ms;
+  }
+}

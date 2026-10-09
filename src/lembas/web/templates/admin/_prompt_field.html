@@ -1,0 +1,41 @@
+{#
+  One editable fragment. Also the swap target for "Use default", which is why
+  the whole card carries the id rather than just the textarea.
+#}
+{% set field_id = "frag-" ~ fragment.key | replace(".", "-") %}
+<section class="card" id="{{ field_id }}">
+  <div class="card__header">
+    <h2 class="card__title">
+      {{ fragment.label }}
+      {% if overridden %}<span class="badge badge--leaf">{{ t("edited") }}</span>{% endif %}
+      {% for family in fragment.families %}<span class="badge">{{ family }}</span>{% endfor %}
+      {% if fragment.when_tools %}<span class="badge">{{ t("with tools") }}</span>{% endif %}
+    </h2>
+    <button class="btn btn--sm" type="button"
+            hx-post="/admin/prompts/default"
+            hx-vals='{"key": "{{ fragment.key }}"}'
+            hx-target="#{{ field_id }}" hx-swap="outerHTML"
+            hx-confirm="{{ t('Put the built-in wording back in this box? Your edit is lost, but nothing is saved until you press Save settings.') }}">{{ t("Use default") }}</button>
+  </div>
+
+  {% if fragment.hint %}<p class="card__lede">{{ fragment.hint }}</p>{% endif %}
+
+  <div class="field">
+    <label class="field__label visually-hidden" for="{{ field_id }}-text">
+      {{ fragment.label }}
+    </label>
+    <textarea class="textarea" id="{{ field_id }}-text" name="prompt.{{ fragment.key }}"
+              rows="4" spellcheck="true">{{ value }}</textarea>
+    <p class="field__hint">
+      <code>{{ fragment.key }}</code>
+      {% for name in fragment.variables %}
+      <code>&lbrace;&lbrace;{{ name }}&rbrace;&rbrace;</code>
+      {% endfor %}
+      {% if fragment.requires %}
+      {% set required_names %}{% for name in fragment.requires %}<code>&lbrace;&lbrace;{{ name }}&rbrace;&rbrace;</code>{% if not loop.last %} {{ t("and") }} {% endif %}{% endfor %}{% endset %}
+      {{ tm("— only appears when %(names)s has something in it.", names=required_names) }}
+      {% endif %}
+      {{ t("Leave the box empty to leave this out of the prompt entirely.") }}
+    </p>
+  </div>
+</section>

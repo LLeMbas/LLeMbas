@@ -1,0 +1,181 @@
+{
+  "about": "A command line → the id of the hardline rule it trips, or null. Checked raw and in its plain spelling (../permission/hardline.json).",
+  "cases": [
+    {
+      "line": "rm -rf /",
+      "expect": "rm-root"
+    },
+    {
+      "line": "rm -rf / && true",
+      "expect": "rm-root"
+    },
+    {
+      "line": "sudo rm -rf /",
+      "expect": "rm-root"
+    },
+    {
+      "line": "sudo -u root rm -rf /etc",
+      "expect": "rm-system"
+    },
+    {
+      "line": "echo hi && rm -rf ~",
+      "expect": "rm-home"
+    },
+    {
+      "line": "rm -rf ~/projects/x",
+      "expect": null
+    },
+    {
+      "line": "rm -rf ./build",
+      "expect": null
+    },
+    {
+      "line": "bash -c \"rm -rf /\"",
+      "expect": "rm-root"
+    },
+    {
+      "line": "sh -c 'mkfs.ext4 /dev/sda1'",
+      "expect": "mkfs"
+    },
+    {
+      "line": "env -i rm -rf /",
+      "expect": "rm-root"
+    },
+    {
+      "line": "timeout 5 rm -rf /",
+      "expect": "rm-root"
+    },
+    {
+      "line": "/bin/rm -rf /",
+      "expect": "rm-root"
+    },
+    {
+      "line": "\"rm\" -rf /",
+      "expect": "rm-root"
+    },
+    {
+      "line": "rm -r -f /usr",
+      "expect": "rm-system"
+    },
+    {
+      "line": "rm -rf /usr/local/share/x",
+      "expect": null
+    },
+    {
+      "line": "echo 'rm -rf /'",
+      "expect": null
+    },
+    {
+      "line": "dd if=/dev/zero of=/dev/sda bs=1M",
+      "expect": "dd-device"
+    },
+    {
+      "line": "dd if=a.img of=b.img",
+      "expect": null
+    },
+    {
+      "line": "echo x > /dev/sda",
+      "expect": "redirect-device"
+    },
+    {
+      "line": "echo x > /dev/null",
+      "expect": null
+    },
+    {
+      "line": ":(){ :|:& };:",
+      "expect": "fork-bomb"
+    },
+    {
+      "line": "kill -9 -1",
+      "expect": "kill-all"
+    },
+    {
+      "line": "kill 1234",
+      "expect": null
+    },
+    {
+      "line": "shutdown -h now",
+      "expect": "shutdown"
+    },
+    {
+      "line": "sudo reboot",
+      "expect": "shutdown"
+    },
+    {
+      "line": "systemctl reboot",
+      "expect": "systemctl-power"
+    },
+    {
+      "line": "systemctl restart nginx",
+      "expect": null
+    },
+    {
+      "line": "init 0",
+      "expect": "init-06"
+    },
+    {
+      "line": "telinit 6",
+      "expect": "init-06"
+    },
+    {
+      "line": "git push --force origin main",
+      "expect": "force-push-main"
+    },
+    {
+      "line": "git push -f origin master",
+      "expect": "force-push-main"
+    },
+    {
+      "line": "git push origin main",
+      "expect": null
+    },
+    {
+      "line": "git push --force origin feature",
+      "expect": null
+    },
+    {
+      "line": "git push origin +main",
+      "expect": "force-push-main"
+    },
+    {
+      "line": "find / -delete",
+      "expect": "find-delete-system"
+    },
+    {
+      "line": "find . -name '*.tmp' -delete",
+      "expect": null
+    },
+    {
+      "line": "find ~ -exec rm {} \\;",
+      "expect": "find-delete-system"
+    },
+    {
+      "line": "find /etc -name x -exec rm -f {} +",
+      "expect": "find-delete-system"
+    },
+    {
+      "line": "mkfs.ext4 /dev/sdb1",
+      "expect": "mkfs"
+    },
+    {
+      "line": "cd /tmp && rm -rf *",
+      "expect": null
+    },
+    {
+      "line": "rm -rf $HOME",
+      "expect": "rm-home"
+    },
+    {
+      "line": "rm -rf ${HOME}/",
+      "expect": "rm-home"
+    },
+    {
+      "line": "nohup rm -rf / &",
+      "expect": "rm-root"
+    },
+    {
+      "line": "xargs rm -rf / < list",
+      "expect": "rm-root"
+    }
+  ]
+}

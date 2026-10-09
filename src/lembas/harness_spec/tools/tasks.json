@@ -1,0 +1,47 @@
+{
+  "name": "tasks",
+  "scope": "cli",
+  "risk": "interact",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": "purpose",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "The project's task board (.agent/tasks.md): work that outlives this session — as opposed to todo, which is your checklist for the task at hand.\n\n- list: show the board. add: a new item (to todo unless you say). move: an item to todo, doing or done. remove: drop an item.\n- Add what the user asks you to remember or what you find that should be done later; move items as you work on them. Refer to items by their number.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "list",
+          "add",
+          "move",
+          "remove"
+        ]
+      },
+      "text": {
+        "description": "add: the task",
+        "type": "string"
+      },
+      "id": {
+        "description": "move/remove: the item's number",
+        "type": "integer"
+      },
+      "to": {
+        "description": "add/move: the column",
+        "type": "string",
+        "enum": [
+          "todo",
+          "doing",
+          "done"
+        ]
+      }
+    },
+    "required": [
+      "action"
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+{% from "_macros.html" import icon %}
+{#
+  A rejected upload. Rendered in place of a chip so the reason is visible in
+  the composer rather than only in the network tab. Dismissed by hand; it
+  carries no hidden input, so it cannot be submitted with the message.
+#}
+<div class="attach-chip attach-chip--error">
+  <span class="attach-chip__icon">{{ icon("warning", "icon--sm") }}</span>
+  <span class="attach-chip__body">
+    <span class="attach-chip__name">{{ filename }}</span>
+    <span class="attach-chip__warning">{{ error }}</span>
+  </span>
+  <button class="btn btn--icon btn--sm" type="button" aria-label="{{ t('Dismiss') }}"
+          onclick="this.closest('.attach-chip').remove()">
+    {{ icon("x", "icon--sm") }}
+  </button>
+</div>

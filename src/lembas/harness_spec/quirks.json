@@ -1,0 +1,17 @@
+{
+  "about": "What OpenAI-compatible servers really do, and how both harnesses cope. Each quirk is detected, handled, and — where marked — learned, so the next request does not trip it again. The CLI keeps what it learned in ~/.local/state/lembas/learned.json; LLeMbas on the model row or in process memory.",
+  "quirks": [
+    { "id": "stream-options-refused", "servers": "older llama.cpp, some proxies", "symptom": "400 or 422 to a request carrying stream_options", "handling": "retry once without it, before anything was streamed", "learned": true },
+    { "id": "effort-refused", "servers": "llama.cpp chat templates (Qwen3.8 refuses high)", "symptom": "an error whose text names the effort and says unexpected or supported (conformance/effort.json)", "handling": "retry once without an effort, before anything was streamed; narrow the model's efforts to those the message advertises", "learned": true },
+    { "id": "effort-placement", "servers": "llama.cpp", "symptom": "a top-level reasoning_effort is silently dropped", "handling": "send it top-level and as chat_template_kwargs.reasoning_effort (effort_style both)", "learned": false },
+    { "id": "prompt-progress", "servers": "llama.cpp with return_progress", "symptom": "prompt_progress {total, cache, processed, time_ms} frames before the reply", "handling": "ask for it, show how far the prompt has been read; a 400 to the field is learned and it is not asked again", "learned": true },
+    { "id": "reasoning-fields", "servers": "llama.cpp, vLLM, DeepSeek, OpenRouter", "symptom": "reasoning arrives as reasoning_content, reasoning, or inline <think>/<thinking>/<reasoning> tags (conformance/think.json)", "handling": "all three read as reasoning; reasoning is never sent back as context", "learned": false },
+    { "id": "error-in-200-stream", "servers": "llama.cpp", "symptom": "an error object inside a 200 event stream, sometimes as an unterminated last line", "handling": "read as the error it is, not as an empty reply", "learned": false },
+    { "id": "tool-call-without-index", "servers": "some llama.cpp builds", "symptom": "tool-call fragments with no index", "handling": "fragments without an index continue the last call", "learned": false },
+    { "id": "swap-banner", "servers": "llama-swap", "symptom": "a loading banner streamed before the reply while the model loads", "handling": "not shown as the reply", "learned": false },
+    { "id": "model-unloaded", "servers": "llama-swap", "symptom": "a 'model unloaded' frame mid-reply, when another client loaded a different model", "handling": "treated as a server error: retried once", "learned": false },
+    { "id": "zero-usage", "servers": "several", "symptom": "a usage block of all zeros", "handling": "ignored; the count is estimated (marked ~) instead", "learned": false },
+    { "id": "no-context-length", "servers": "llama-swap /v1/models, most OpenAI-compatible servers", "symptom": "/models lists ids without a context length", "handling": "ask llama-server's /props (through llama-swap's /upstream/<model>), Ollama's /api/show, else unknown — never assume one", "learned": true },
+    { "id": "max-completion-tokens", "servers": "OpenAI reasoning models", "symptom": "max_tokens refused", "handling": "send max_completion_tokens where configured", "learned": false }
+  ]
+}

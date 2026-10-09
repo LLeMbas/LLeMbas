@@ -1,0 +1,92 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "connections" %}
+
+{% block title %}{{ t("Connections") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Connections") }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">
+  {{ t("Any endpoint that speaks the OpenAI HTTP API: OpenAI itself, or a local runner such as LM Studio, vLLM, llama.cpp or Ollama. %(brand)s asks each one for its model list and offers those models in the chat picker.", brand=brand.name) }}
+  {{ t("Anthropic's own API is the other type a connection can have.") }}
+</p>
+
+{% if message %}
+<div class="alert alert--success">{{ message }}</div>
+{% endif %}
+
+<section class="card">
+  <h2 class="card__title">{{ t("Add a connection") }}</h2>
+  <form method="post" action="/admin/connections"
+        x-data="{ kind: 'openai' }">
+    <div class="field">
+      <label class="field__label" for="new-kind">{{ t("Type") }}</label>
+      <select class="select" id="new-kind" name="kind" x-model="kind"
+              @change="if (kind === 'anthropic') { $refs.url.value = '{{ anthropic_url }}' } else if ($refs.url.value === '{{ anthropic_url }}') { $refs.url.value = '' }">
+        <option value="openai">{{ t("OpenAI dialect") }}</option>
+        <option value="anthropic">{{ t("Anthropic") }}</option>
+      </select>
+      <p class="field__hint">{{ t("Which API the endpoint speaks. Everything except Anthropic's own API speaks the OpenAI dialect.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="new-name">{{ t("Name") }}</label>
+      <input class="input" id="new-name" name="name" required placeholder="{{ t('Local LM Studio') }}">
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="new-provider">{{ t("Provider name") }}</label>
+      <input class="input input--mono" id="new-provider" name="provider" required
+             pattern="[a-z0-9][a-z0-9\-]{0,31}" maxlength="32" autocomplete="off"
+             placeholder="{{ t('llama') }}">
+      <p class="field__hint">{{ tm("How clients such as the LLeMbas CLI name this connection's models: <code>provider/model</code>, for example <code>llama/bonsai</code>. Lowercase letters, digits and hyphens, unique among connections.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="new-url">{{ t("Base URL") }}</label>
+      <input class="input input--mono" id="new-url" name="base_url" required x-ref="url"
+             placeholder="{{ t('http://localhost:1234/v1') }}">
+      <p class="field__hint">
+        {{ tm("With or without the trailing <code>/v1</code> — both are accepted.") }}
+      </p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="new-key">
+        <span x-show="kind !== 'anthropic'">{{ t("API key") }}</span>
+        <span x-show="kind === 'anthropic'" x-cloak>{{ t("Anthropic API key") }}</span>
+      </label>
+      <input class="input input--mono" id="new-key" name="api_key" type="password"
+             autocomplete="off" placeholder="{{ t('sk-…') }}">
+      <p class="field__hint">{{ t("Encrypted before it is stored, and never sent back to the browser. Leave empty for endpoints that need no key.") }}</p>
+    </div>
+
+    <div class="btn-row" style="margin-top: var(--sp-5)">
+      <button class="btn btn--primary" type="submit">
+        {{ icon("plus", "icon--sm") }} {{ t("Add and load models") }}
+      </button>
+    </div>
+  </form>
+</section>
+
+<h2 class="admin-section-title">
+  {{ t("Configured connections") }}
+  <span class="badge">{{ connections|length }}</span>
+</h2>
+
+{% if not connections %}
+<div class="empty" style="padding: var(--sp-10) 0">
+  {{ icon("server", "empty__mark") }}
+  <p class="empty__text">{{ t("Nothing configured yet. Add a connection above and its models appear here.") }}</p>
+</div>
+{% endif %}
+
+<div id="connection-list">
+  {% for connection in connections %}
+    {% with masked = masked[connection.id],
+            model_count = model_counts[connection.id] %}
+      {% include "admin/_connection_row.html" %}
+    {% endwith %}
+  {% endfor %}
+</div>
+{% endblock %}

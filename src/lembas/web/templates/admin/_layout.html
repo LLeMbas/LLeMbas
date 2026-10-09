@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, brandlink %}
+{#
+  Shared chrome for the admin area: its own narrow nav rather than the chat
+  sidebar, so administration is visibly a different place from chatting.
+#}
+
+{% block head %}
+<link rel="stylesheet" href="{{ asset('css/chat.css') }}">
+<link rel="stylesheet" href="{{ asset('css/admin.css') }}">
+{% endblock %}
+
+{% block body_attrs %} data-authenticated="true"{% endblock %}
+
+{% block body %}
+{% if user and user.is_admin and (user.settings_json or {}).get("last_seen_version") not in (none, version) %}
+{# After an update, once per administrator: what changed is on the Updates page,
+   and opening it clears this. #}
+<div class="alert alert--success update-note">{{ icon("sparkle", "icon--sm") }}
+  <span>{{ t("Updated to %(version)s.", version=version) }} <a href="/admin/updates">{{ t("What changed") }}</a></span>
+</div>
+{% endif %}
+<div class="shell">
+  {#
+    `id="sidebar"` and the drawer's furniture, because below the phone
+    breakpoint `.sidebar` is a fixed overlay that starts closed -- and this one
+    had neither an id for `data-toggle="#sidebar"` to find nor any control to
+    open it. The administration area was reachable on a phone and then
+    unnavigable once you arrived.
+  #}
+  <aside class="sidebar" id="sidebar">
+    <header class="sidebar__header">
+      <div class="sidebar__brand-slot">
+        {{ brandlink(uid="admin") }}
+      </div>
+      {% include "partials/_sidebar_close.html" %}
+    </header>
+
+    <nav class="sidebar__scroll" aria-label="{{ t('Administration') }}">
+      <div class="nav-group">
+        <div class="nav-group__label">{{ t("Administration") }}</div>
+        <a class="nav-item {{ 'is-active' if section == 'general' }}" href="/admin/general">
+          {{ icon("gear", "icon--sm") }}
+          <span class="nav-item__label">{{ t("General") }}</span>
+        </a>
+        <a class="nav-item {{ 'is-active' if section == 'connections' }}"
+           href="/admin/connections">
+          {{ icon("server", "icon--sm") }}
+          <span class="nav-item__label">{{ t("Connections") }}</span>
+        </a>
+        <a class="nav-item {{ 'is-active' if section == 'models' }}" href="/admin/models">
+          {{ icon("sliders", "icon--sm") }}
+          <span class="nav-item__label">{{ t("Models") }}</span>
+        </a>
+        {# Beside Connections and Models because it is about them: which
+           provider's models may read which part of the people's data. #}
+        <a class="nav-item {{ 'is-active' if section == 'data-groups' }}" href="/admin/data-groups">
+          {{ icon("shield", "icon--sm") }}
+          <span class="nav-item__label">{{ t("Data groups") }}</span>
+        </a>
+        <a class="nav-item {{ 'is-active' if section == 'audio' }}" href="/admin/audio">
+          {{ icon("speaker", "icon--sm") }}
+          <span class="nav-item__label">{{ t("Audio") }}</span>
+        </a>
+        <a class="nav-item {{ 'is-active' if section == 'search' }}" href="/admin/search">
+          {{ icon("globe", "icon--sm") }}
+          <span class="nav-item__label">{{ t("Web search") }}</span>
+        </a>
+        <a class="nav-item {{ 'is-active' if section == 'images' }}" href="/admin/images">
+          {{ icon("image", "icon--sm") }}
+          <span class="nav-item__label">{{ t("Image generation") }}</span>
+        </a>
+        <a class="nav-item {{ 'is-active' if section == 'extraction' }}"
+           href="/admin/extraction">
+          {{ icon("file-text", "icon--sm") }}
+          <span class="nav-item__label">{{ t("Extraction") }}</span>
+        </a>
+        <a class="nav-item {{ 'is-active' if section == 'tools' }}" href="/admin/tools">
+          {{ icon("link", "icon--sm") }}
+          <span class="nav-item__label">{{ t("Tools") }}</span>
+        </a>
+        <a class="nav-item {{ 'is-active' if section == 'agents' }}" href="/admin/agents">
+          {{ icon("sparkle", "icon--sm") }}
+          <span class="nav-item__label">{{ t("Agents") }}</span>
+        </a>
+        <a class="nav-item {{ 'is-active' if section == 'schedules' }}" href="/admin/schedules">
+          {{ icon("clock", "icon--sm") }}
+          <span class="nav-item__label">{{ t("Scheduling") }}</span>
+        </a>
+        <a class="nav-item {{ 'is-active' if section == 'mcp' }}" href="/admin/mcp">
+          {{ icon("server", "icon--sm") }}
+          <span class="nav-item__label">{{ t("MCP servers") }}</span>
+        </a>
+        <a class="nav-item {{ 'is-active' if section == 'prompts' }}" href="/admin/prompts">
+          {{ icon("sparkle", "icon--sm") }}
+          <span class="nav-item__label">{{ t("Prompts") }}</span>
+        </a>
+        <a class="nav-item {{ 'is-active' if section == 'suggestions' }}"
+           href="/admin/suggestions">
+          {{ icon("star", "icon--sm") }}
+          <span class="nav-item__label">{{ t("Suggestions") }}</span>
+        </a>
+        <a class="nav-item {{ 'is-active' if section == 'users' }}" href="/admin/users">
+          {{ icon("user", "icon--sm") }}
+          <span class="nav-item__label">{{ t("Users") }}</span>
+        </a>
+        <a class="nav-item {{ 'is-active' if section == 'credits' }}" href="/admin/credits">
+          {{ icon("bolt", "icon--sm") }}
+          <span class="nav-item__label">{{ t("Credits") }}</span>
+        </a>
+        <a class="nav-item {{ 'is-active' if section == 'audit' }}" href="/admin/audit">
+          {{ icon("shield", "icon--sm") }}
+          <span class="nav-item__label">{{ t("Audit log") }}</span>
+        </a>
+        <a class="nav-item {{ 'is-active' if section == 'updates' }}" href="/admin/updates">
+          {{ icon("refresh", "icon--sm") }}
+          <span class="nav-item__label">{{ t("Updates") }}</span>
+        </a>
+        <a class="nav-item {{ 'is-active' if section == 'groups' }}" href="/admin/groups">
+          {{ icon("users", "icon--sm") }}
+          <span class="nav-item__label">{{ t("Groups & permissions") }}</span>
+        </a>
+      </div>
+
+    </nav>
+
+    <div class="sidebar__footer">
+      {% if instance_api_only() %}
+      <a class="nav-item" href="/settings">
+        {{ icon("user", "icon--sm") }}
+        <span class="nav-item__label">{{ t("Back to your settings") }}</span>
+      </a>
+      {% else %}
+      <a class="nav-item" href="/chat">
+        {{ icon("chat", "icon--sm") }}
+        <span class="nav-item__label">{{ t("Back to chats") }}</span>
+      </a>
+      {% endif %}
+    </div>
+  </aside>
+
+  {% include "partials/_sidebar_scrim.html" %}
+
+  <main class="main">
+    <header class="topbar">
+      {% include "partials/_sidebar_toggle.html" %}
+      <h1 class="topbar__title">{% block heading %}{{ t("Administration") }}{% endblock %}</h1>
+      <button class="btn btn--icon" type="button" data-theme-toggle aria-label="{{ t('Switch theme') }}">
+        <span class="theme-icon theme-icon--dark">{{ icon("moon") }}</span>
+        <span class="theme-icon theme-icon--light">{{ icon("sun") }}</span>
+      </button>
+    </header>
+
+    <div class="admin-scroll">
+      <div class="admin-page">
+        {% block admin_content %}{% endblock %}
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

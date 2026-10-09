@@ -1,0 +1,1024 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, model_avatar %}
+
+{% block title %}{{ t("Your settings") }} - {{ brand.name }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ asset('css/chat.css') }}">
+<link rel="stylesheet" href="{{ asset('css/admin.css') }}">
+{% endblock %}
+
+{% block body_attrs %} data-authenticated="true"{{ ' data-settings-embed' if settings_embed }}{% endblock %}
+
+{% block body %}
+{#
+  The same page twice. As a page it has the shell -- the sidebar and the
+  topbar -- and in the settings window (ui.js, desktop widths) it is the content
+  of a frame inside a dialog that has its own title and close button, so the
+  shell is left out and nothing else changes: every form, tab and redirect
+  below is the one the page has always had. `settings_embed` is decided in
+  pages.py; `data-settings-embed` on the body is what ui.js reads in the frame.
+#}
+<div class="shell{{ ' shell--embed' if settings_embed }}">
+  {% if not settings_embed %}
+  {% include "partials/sidebar.html" %}
+  {% endif %}
+
+  {# `main--settings` is a size container: whether the tabs run down the
+     side or across the top is decided by how wide *this* is, not the window --
+     the page beside a sidebar and the frame in a dialog are different widths
+     at the same window width. See admin.css. #}
+  <main class="main main--settings">
+    {% if not settings_embed %}
+    <header class="topbar">
+      {% include "partials/_sidebar_toggle.html" %}
+      <h1 class="topbar__title">{{ t("Your settings") }}</h1>
+    </header>
+    {% endif %}
+
+    {#
+      Tabs are radio inputs plus sibling selectors: no JavaScript, and the
+      chosen tab survives a re-render because the browser keeps the checked
+      state. Each panel is a real fragment of the page, not a fetch.
+
+      `tabs--side`: a vertical list on the left wherever there is room
+      for one, the strip across the top where there is not. Same markup both
+      ways, so the radios, the labels and the panel-by-position rule are
+      untouched.
+    #}
+    <div class="tabs tabs--side">
+      {#
+  Deliberately no `role="tablist"`.
+
+  It had one, and the children are `<input type="radio">` and `<label>` -- so a
+  screen reader announced a tablist containing no tabs, and the panels carried
+  neither `role="tabpanel"` nor an `aria-labelledby` to be announced as. What
+  this actually is, is a radio group, and a perfectly good one: arrow keys move
+  between the options, the checked one is announced, and the CSS that reveals
+  the matching panel keys off exactly that. Being an honest radio group beats
+  claiming to be a tab interface and then not behaving as one.
+#}
+<div class="tabs__bar" role="radiogroup" aria-label="{{ t('Settings sections') }}">
+        {# `?tab=devices` opens a tab directly: a device's login names
+           Settings → Devices, and a link there should land on it.
+           `?tab=connections` is the same tab under an older name, kept so a
+           link an older CLI prints still lands.
+           Only the tabs this account has, so a link never opens onto nothing
+           (a page with every panel hidden): Devices exists only with
+           `api.use`, Scheduled only with `schedule.use`. #}
+        {% set tab = "devices" if tab == "connections" else tab %}
+        {% set open_tab = tab if tab in ("models", "appearance", "data", "security") or (tab == "devices" and api_allowed) or (tab == "scheduled" and can.get("schedule.use")) or (tab == "audio" and (audio.stt_enabled or audio.tts_enabled)) or (tab == "memory" and can.get("library.use")) else "account" %}
+        <input class="visually-hidden" type="radio" name="settings-tab" id="tab-account" {{ 'checked' if open_tab == 'account' }}>
+        <label class="tabs__tab" for="tab-account">{{ icon("user", "icon--sm") }} {{ t("Account") }}</label>
+
+        <input class="visually-hidden" type="radio" name="settings-tab" id="tab-models" {{ 'checked' if open_tab == 'models' }}>
+        <label class="tabs__tab" for="tab-models">{{ icon("sliders", "icon--sm") }} {{ t("Models") }}</label>
+
+        <input class="visually-hidden" type="radio" name="settings-tab" id="tab-appearance" {{ 'checked' if open_tab == 'appearance' }}>
+        <label class="tabs__tab" for="tab-appearance">{{ icon("sun", "icon--sm") }} {{ t("Appearance") }}</label>
+
+        {% if audio.stt_enabled or audio.tts_enabled %}
+        <input class="visually-hidden" type="radio" name="settings-tab" id="tab-audio" {{ 'checked' if open_tab == 'audio' }}>
+        <label class="tabs__tab" for="tab-audio">{{ icon("speaker", "icon--sm") }} {{ t("Audio") }}</label>
+        {% endif %}
+
+        {% if can.get("library.use") %}
+        <input class="visually-hidden" type="radio" name="settings-tab" id="tab-memory" {{ 'checked' if open_tab == 'memory' }}>
+        <label class="tabs__tab" for="tab-memory">{{ icon("sparkle", "icon--sm") }} {{ t("Memory") }}</label>
+        {% endif %}
+
+        {% if api_allowed %}
+        <input class="visually-hidden" type="radio" name="settings-tab" id="tab-devices" {{ 'checked' if open_tab == 'devices' }}>
+        <label class="tabs__tab" for="tab-devices">{{ icon("server", "icon--sm") }} {{ t("Devices") }}</label>
+        {% endif %}
+
+        {# Scheduled. #}
+        {% if can.get("schedule.use") %}
+        <input class="visually-hidden" type="radio" name="settings-tab" id="tab-scheduled" {{ 'checked' if open_tab == 'scheduled' }}>
+        <label class="tabs__tab" for="tab-scheduled">{{ icon("clock", "icon--sm") }} {{ t("Scheduled") }}</label>
+        {% endif %}
+
+        {# Always there: Start over lives in it, and anybody may
+           empty their own data. The data-group cards inside stay conditional. #}
+        <input class="visually-hidden" type="radio" name="settings-tab" id="tab-data" {{ 'checked' if open_tab == 'data' }}>
+        <label class="tabs__tab" for="tab-data">{{ icon("shield", "icon--sm") }} {{ t("Data") }}</label>
+
+        <input class="visually-hidden" type="radio" name="settings-tab" id="tab-security" {{ 'checked' if open_tab == 'security' }}>
+        <label class="tabs__tab" for="tab-security">{{ icon("key", "icon--sm") }} {{ t("Security") }}</label>
+      </div>
+
+      <div class="tabs__body">
+        <div class="page">
+          {# Two of these arrive as codes rather than sentences, because the
+             Appearance cards branch on them too; shown as is, saving a language
+             would say "language". The sentence is
+             rendered here, after the redirect, which is also what puts "Language
+             saved." in the language just chosen. Everything else arrives as a
+             sentence already translated where it was raised. #}
+          {% set said = {"language": t("Language saved."), "timezone": t("Timezone saved.")} %}
+          {% set refused = {"language": t("That language is not offered here."),
+                            "timezone": t("That is not a timezone this server knows about.")} %}
+          {% if error %}
+          <div class="alert alert--error" role="alert">
+            {{ icon("warning", "alert__icon") }} <span>{{ refused.get(error, error) }}</span>
+          </div>
+          {% endif %}
+          {% if saved %}
+          <div class="alert alert--success" role="status">
+            {{ icon("check", "icon--sm") }} <span>{{ t("This instance serves the API only; chats, the library, reports and scheduled tasks are switched off.") if saved == "api-only" else said.get(saved, saved) }}</span>
+          </div>
+          {% endif %}
+
+          {# --- Account --- #}
+          <section class="tabs__panel" data-tab="tab-account">
+            {# Custom instructions and a personality: this person's, for
+               every model, once an administrator offers it. #}
+            {% if personalization_enabled %}
+            <div class="card" id="personalization">
+              <h2 class="card__title">{{ t("Personalization") }}</h2>
+              <p class="card__lede">{{ t("How you want to be helped, and in what voice. It goes to every model after the system prompt, here and in the LLeMbas CLI signed in as you. Leave both empty to send nothing.") }}</p>
+              {% if not personalization.on %}
+              {# Switched off from a LLeMbas CLI signed in as you. #}
+              <p class="card__lede">{{ t("Switched off from the LLeMbas CLI: nothing is sent. Saving here switches it on again.") }}</p>
+              {% endif %}
+              <form method="post" action="/api/preferences/personalization" class="form-grid">
+                <div class="field field--wide">
+                  <label class="field__label" for="custom-instructions">{{ t("Custom instructions") }}</label>
+                  <textarea class="textarea" id="custom-instructions" name="instructions" rows="4"
+                            maxlength="4000" placeholder="{{ t('What should a model know about you, and how should it answer?') }}">{{ personalization.instructions }}</textarea>
+                  <p class="field__hint"></p>
+                </div>
+                <div class="field">
+                  <label class="field__label" for="personality">{{ t("Personality") }}</label>
+                  <select class="select" id="personality" name="personality">
+                    <option value="" {{ 'selected' if not personalization.personality }}>{{ t("Default") }}</option>
+                    {% for id, label in personality_presets %}
+                    <option value="{{ id }}" {{ 'selected' if personalization.personality == id }}>{{ t(label) }}</option>
+                    {% endfor %}
+                    <option value="custom" {{ 'selected' if personalization.personality == 'custom' }}>{{ t("In my own words") }}</option>
+                  </select>
+                  <p class="field__hint">{{ t("A register, not a character: how answers sound, never what they say.") }}</p>
+                </div>
+                <div class="field field--wide">
+                  <label class="field__label" for="custom-personality">{{ t("Your own words") }}</label>
+                  <textarea class="textarea" id="custom-personality" name="custom" rows="3" maxlength="1500"
+                            placeholder="{{ t('Used when the personality is “In my own words”.') }}">{{ personalization.custom }}</textarea>
+                  <p class="field__hint"></p>
+                </div>
+                <div class="btn-row">
+                  <button class="btn btn--primary" type="submit">{{ t("Save") }}</button>
+                </div>
+              </form>
+            </div>
+            {% endif %}
+
+            <div class="card">
+              <h2 class="card__title">{{ t("Account") }}</h2>
+              <dl class="detail-list">
+                <dt>{{ t("Name") }}</dt><dd>{{ user.name }}</dd>
+                <dt>{{ t("Email") }}</dt><dd class="mono">{{ user.email }}</dd>
+                <dt>{{ t("Role") }}</dt>
+                <dd><span class="badge {{ 'badge--leaf' if user.is_admin }}">{{ t("Administrator") if user.is_admin else t("Member") }}</span></dd>
+                <dt>{{ t("Groups") }}</dt>
+                <dd>
+                  {% if user.groups %}
+                    {% for group in user.groups %}<span class="badge">{{ group.name }}</span> {% endfor %}
+                  {% else %}
+                    <span class="faint">{{ t("None") }}</span>
+                  {% endif %}
+                </dd>
+              </dl>
+            </div>
+
+            {% if credit and credit.visible %}
+            {# Credits: the balance, the plan, and how much of each of
+               the plan's windows is spent, as a bar of three shades;
+               every figure in credits and in money, the month's spend per
+               model, and what each ledger row cost -- taken or, for an
+               administrator, only recorded. #}
+            <div class="card">
+              <h2 class="card__title">{{ t("Credits") }}</h2>
+              <dl class="detail-list">
+                <dt>{{ t("Balance") }}</dt>
+                <dd class="mono">{% if credit.admin %}{{ t("Unlimited") }}{% else %}{{ credit.show(credit.balance) }} · {{ credit.money(credit.balance) }}{% endif %}</dd>
+                <dt>{{ t("Plan") }}</dt>
+                <dd>{% if credit.plan %}{{ credit.plan.name }}{% if credit.renews_at %} · <span class="faint">{{ t("renews %(when)s", when=credit.renews_at.strftime("%Y-%m-%d")) }}</span>{% endif %}{% else %}<span class="faint">{{ t("None") }}</span>{% endif %}</dd>
+                {% for w in credit.windows %}
+                <dt>{{ t("Last %(span)s", span=w.label) }}</dt>
+                <dd><span class="mono meter" aria-hidden="true">{% set filled = ((w.spent / w.limit * 10) | round(0, 'ceil') | int) if w.limit else 0 %}{{ "▓" * ([filled, 10] | min) }}{{ "░" * (10 - ([filled, 10] | min)) }}</span>
+                  {{ credit.show(w.spent) }} / {{ credit.show(w.limit) }}</dd>
+                {% endfor %}
+                <dt>{{ t("This month") }}</dt>
+                <dd class="mono">{{ credit.show(credit.month_spent) }} · {{ credit.money(credit.month_spent) }}</dd>
+              </dl>
+              {% if credit.month_by_model %}
+              <div class="table-scroll">
+              <table class="data-table">
+                <thead><tr><th>{{ t("Model or service") }}</th><th>{{ t("Credits") }}</th><th>{{ t("Money") }}</th></tr></thead>
+                <tbody>
+                  {% for name, spent in credit.month_by_model %}
+                  <tr><td class="text-xs mono">{{ name or "—" }}</td>
+                      <td class="mono">{{ credit.show(spent) }}</td>
+                      <td class="mono">{{ credit.money(spent) }}</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+              </div>
+              {% endif %}
+              {% if credit.ledger %}
+              <div class="table-scroll">
+              <table class="data-table">
+                <thead><tr><th>{{ t("When") }}</th><th>{{ t("What") }}</th><th>{{ t("Credits") }}</th><th>{{ t("Cost") }}</th></tr></thead>
+                <tbody>
+                  {% for e in credit.ledger %}
+                  <tr><td class="text-xs mono">{{ e.at.strftime("%Y-%m-%d %H:%M") }}</td>
+                      <td class="text-xs">{{ e.kind }}{% if e.model_id %} · {{ e.model_id }}{% endif %}{% if e.note %} · {{ e.note }}{% endif %}</td>
+                      <td class="mono">{{ credit.show(e.delta) }}</td>
+                      <td class="mono">{% if e.cost_micro %}{{ credit.show(e.cost_micro) }}<br><span class="text-xs faint">{{ credit.money(e.cost_micro) }}</span>{% else %}—{% endif %}</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+              </div>
+              {% endif %}
+            </div>
+            {% endif %}
+
+            <div class="card">
+              <h2 class="card__title">{{ t("What you can do") }}</h2>
+              <p class="card__lede">
+                {% if user.is_admin %}
+                  {{ t("You are an administrator, so every permission applies.") }}
+                {% else %}
+                  {{ t("From the instance baseline plus whatever your groups add.") }}
+                {% endif %}
+              </p>
+              {# Said to the person: a label and one line each, grouped as
+                 they would think of the application -- `security/permissions.py:
+                 FOR_PEOPLE`. The keys stay on the admin grids, which are where
+                 a key is the useful name. #}
+              {% for section, rows in permissions_for_people(can) %}
+              <h3 class="perm-section">{{ t(section) }}</h3>
+              <ul class="perm-list">
+                {% for label, line, granted in rows %}
+                <li class="perm-list__item {{ 'is-off' if not granted }}">
+                  <span class="tick {{ 'is-on' if granted }}" aria-hidden="true"></span>
+                  <span class="perm-list__text">
+                    <strong class="perm-list__label">{{ t(label) }}</strong>
+                    <span class="visually-hidden">{{ t("allowed") if granted else t("not allowed") }}</span>
+                    <span class="perm-list__line">{{ t(line) }}</span>
+                  </span>
+                </li>
+                {% endfor %}
+              </ul>
+              {% endfor %}
+            </div>
+          </section>
+
+          {# --- Models --- #}
+          <section class="tabs__panel" data-tab="tab-models">
+            <div class="card">
+              <h2 class="card__title">{{ t("Default model") }}</h2>
+              <p class="card__lede">{{ t("What a new chat starts with. Existing chats keep their model.") }}</p>
+              {% if models %}
+              <form method="post" action="/api/preferences/default-model">
+                <div class="field">
+                  <select class="select" name="model_id" aria-label="{{ t('Default model') }}">
+                    <option value="">{{ t("Use the instance default") }}</option>
+                    {% for model in models %}
+                    <option value="{{ model.model_id }}"
+                            {{ 'selected' if model.model_id == user.settings_json.get('default_model') }}>
+                      {{ model.label }}
+                    </option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <button class="btn btn--primary" type="submit">{{ t("Save") }}</button>
+              </form>
+              {% else %}
+              <p class="muted text-sm">{{ t("No models are available to you yet.") }}</p>
+              {% endif %}
+            </div>
+
+            {% if models %}
+            <div class="card">
+              <h2 class="card__title">{{ t("Available to you") }}</h2>
+              <p class="card__lede">{{ t("In the order an administrator arranged them.") }}</p>
+              {# Name, context window and vision on one line, on the list's
+                 column tracks so they line up down the card; the capability
+                 switches wrap underneath at the full width: beside the name,
+                 twenty tags long, they squeeze it to a word per line and run
+                 over it. #}
+              <ul class="model-list model-list--models">
+                {% for model in models %}
+                <li class="model-list__item">
+                  {{ model_avatar(model, cls="nav-item__avatar") }}
+                  <strong class="model-list__name">
+                    <span>{{ model.label }}</span>
+                    {% if model.pinned %}<span class="badge">{{ t("pinned") }}</span>{% endif %}
+                  </strong>
+                  <span class="model-ctx mono"
+                        {% if model.context_length %}title="{{ t('Context window') }}: {{ model.context_length }}"{% endif %}>
+                    {%- if model.context_length %}CTX {{ model.context_length|context_size }}{% endif -%}
+                  </span>
+                  <span class="model-vision">
+                    {%- if (model.capabilities_json or {}).get("vision") -%}
+                      {{ icon("eye", "icon--sm") }}<span class="visually-hidden">{{ t("Sees images") }}</span>
+                    {%- endif -%}
+                  </span>
+                  {% if model.description %}
+                  <div class="model-list__more text-xs faint">{{ model.description }}</div>
+                  {% endif %}
+                  <div class="model-list__more model-list__tags">
+                    {%- for name, on in (model.capabilities_json or {}).items() -%}
+                      {%- if on %}<span class="tag">{{ name }}</span>{% endif -%}
+                    {%- endfor -%}
+                  </div>
+                </li>
+                {% endfor %}
+              </ul>
+            </div>
+            {% endif %}
+            {#
+              Your own defaults, one section per model. They replaced the
+              composer's tools menu as the place to decide what a model may use
+              with you: set once per model rather than once per chat. A chat can
+              still switch any of them for itself, in its settings panel.
+
+              Only narrowing, which is why every tool here starts ticked: the
+              list is what the model's capabilities, your permissions and the
+              instance offer now, and nothing that is not offered can be turned
+              on. The effort exists only on a model an administrator marked as
+              reasoning, and offers only that model's own levels.
+            #}
+            {% if model_prefs %}
+            <div class="card" id="model-defaults">
+              <h2 class="card__title">{{ t("Your defaults per model") }}</h2>
+              <p class="card__lede">{{ t("Which tools a model may use with you, and how hard a reasoning model thinks when a chat starts. These apply to you only, can only narrow what this instance allows, and a chat's own settings still win.") }}</p>
+              <div class="model-prefs">
+                {% for entry in model_prefs %}
+                {% set model = entry.model %}
+                <details class="model-prefs__item" id="model-{{ model.id }}">
+                  <summary class="model-prefs__summary">
+                    {{ model_avatar(model, cls="nav-item__avatar") }}
+                    <span class="model-prefs__name">{{ model.label }}</span>
+                    <span class="model-prefs__state text-xs faint">
+                      {%- if entry.tools_off %}{{ t("%(n)s tools off", n=entry.tools_off) }}{% endif -%}
+                      {%- if entry.tools_off and entry.effort %} · {% endif -%}
+                      {%- if entry.effort == "off" %}{{ t("effort off") }}{% elif entry.effort %}{{ t("effort %(level)s", level=entry.effort) }}{% endif -%}
+                    </span>
+                  </summary>
+                  <form class="model-prefs__form" method="post" action="/api/preferences/models">
+                    <input type="hidden" name="model_id" value="{{ model.model_id }}">
+                    {% if entry.tools %}
+                    <fieldset class="field">
+                      <legend class="field__label">{{ t("Tools") }}</legend>
+                      <div class="checkbox-row">
+                        {% for tool in entry.tools %}
+                        <label class="checkbox">
+                          <input type="checkbox" name="tools_on" value="{{ tool.gate }}"
+                                 {{ 'checked' if tool.on }}>
+                          <span>{{ tool.label }}</span>
+                        </label>
+                        {% endfor %}
+                      </div>
+                      <p class="field__hint">{{ t("Unticked ones are not offered to this model when you chat with it. Only what this instance already offers you is listed.") }}</p>
+                    </fieldset>
+                    {% else %}
+                    <p class="field__hint">{{ t("This model is offered no tools here.") }}</p>
+                    {% endif %}
+                    {% if entry.efforts %}
+                    <div class="field">
+                      <label class="field__label" for="effort-{{ model.id }}">{{ t("Reasoning effort") }}</label>
+                      <select class="select" id="effort-{{ model.id }}" name="reasoning_effort">
+                        <option value="" {{ 'selected' if not entry.effort }}>
+                          {%- if entry.instance_effort -%}
+                            {{ t("As the instance sets it (%(level)s)", level=entry.instance_effort) }}
+                          {%- else -%}
+                            {{ t("As the instance sets it (off)") }}
+                          {%- endif -%}
+                        </option>
+                        <option value="off" {{ 'selected' if entry.effort == 'off' }}>{{ t("off") }}</option>
+                        {% for value in entry.efforts %}
+                        <option value="{{ value }}" {{ 'selected' if entry.effort == value }}>{{ value }}</option>
+                        {% endfor %}
+                      </select>
+                      <p class="field__hint">{{ t("Where a new chat with this model starts. Change it in the chat for that chat only.") }}</p>
+                    </div>
+                    {% endif %}
+                    {% if entry.tools or entry.efforts %}
+                    <div class="btn-row">
+                      <button class="btn btn--primary" type="submit">{{ t("Save") }}</button>
+                    </div>
+                    {% endif %}
+                  </form>
+                </details>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+          </section>
+
+          {# --- Appearance --- #}
+          <section class="tabs__panel" data-tab="tab-appearance">
+            <div class="card">
+              <h2 class="card__title">{{ t("Language") }}</h2>
+              <p class="card__lede">{{ t("What you see the interface in. Saved to your account rather than to this browser, so it follows you — and it overrides whatever the instance is set to.") }}</p>
+              <form method="post" action="/api/preferences/language">
+                <div class="field">
+                  <label class="field__label visually-hidden" for="language">{{ t("Language") }}</label>
+                  <div class="row" style="gap: var(--sp-2)">
+                    <select class="select" id="language" name="language" style="flex: 1">
+                      <option value="">{{ t("Follow the instance (%(language)s)", language=instance_language) }}</option>
+                      {% for code, name in languages %}
+                      <option value="{{ code }}" {{ 'selected' if chosen_language == code }}>
+                        {{ name }}
+                      </option>
+                      {% endfor %}
+                    </select>
+                    <button class="btn btn--primary" type="submit">{{ t("Save") }}</button>
+                  </div>
+                  <p class="field__hint">{{ t("The interface only. Models answer in the language you write to them in, whatever this says.") }}</p>
+                </div>
+              </form>
+            </div>
+
+            <div class="card">
+              <h2 class="card__title">{{ t("Theme") }}</h2>
+              <p class="card__lede">{{ t("Saved to this browser and to your account, so it follows you.") }}</p>
+              {#
+                A loop rather than two buttons, because an administrator can
+                define more. The names come from the branding snapshot, so a
+                theme renamed on Customization is renamed here without this
+                template knowing there was ever a fixed pair.
+              #}
+              <div class="btn-row">
+                {% for entry in brand.themes %}
+                <button class="btn" type="button"
+                        onclick="window.lembas.applyTheme('{{ entry.id }}')">
+                  {{ icon("moon" if entry.scheme == "dark" else "sun", "icon--sm") }}
+                  {{ entry.label }} — {{ t("dark") if entry.scheme == "dark" else t("light") }}
+                </button>
+                {% endfor %}
+              </div>
+            </div>
+
+            <div class="card">
+              <h2 class="card__title">{{ t("Timezone") }}</h2>
+              <p class="card__lede">{{ t("What time a model is told it is, and the zone anything you schedule runs in. Leave it unset to follow the server.") }}</p>
+              {#
+                A plain form posting to its own route, not the composer's
+                pattern: this page has no htmx target to swap into and a
+                redirect back is what stops a refresh re-submitting it.
+              #}
+              <form method="post" action="/api/preferences/timezone" class="btn-row">
+                <select class="select" name="timezone" style="flex: 1" aria-label="{{ t('Your timezone') }}">
+                  <option value="" {{ 'selected' if not timezone }}>
+                    {{ t("Follow the server (%(zone)s)", zone=server_timezone) }}
+                  </option>
+                  {% for zone in timezones %}
+                  <option value="{{ zone }}" {{ 'selected' if zone == timezone }}>{{ zone }}</option>
+                  {% endfor %}
+                </select>
+                <button class="btn" type="submit">{{ t("Save") }}</button>
+              </form>
+              {% if saved == "timezone" %}
+              <p class="field__hint">{{ t("Saved. It is %(time)s where you are.", time=local_now) }}</p>
+              {% elif error == "timezone" %}
+              <p class="field__hint">{{ t("That is not a timezone this server knows about.") }}</p>
+              {% else %}
+              <p class="field__hint">{{ t("It is currently %(time)s where you are.", time=local_now) }}</p>
+              {% endif %}
+            </div>
+
+            <div class="card">
+              <h2 class="card__title">{{ t("Notifications") }}</h2>
+              <p class="card__lede">{{ t("A reply, a filed report or a scheduled run arriving while you are looking at something else. In the page always; from the browser as well if you allow it here.") }}</p>
+              {# A button rather than a checkbox, and that is not a style choice:
+                 the browser refuses `requestPermission` unless it is called from
+                 something somebody pressed. A checkbox restored on load and
+                 acted upon would be silently declined. ui.js writes the label
+                 and the line below it, because the true state lives in the
+                 browser's own permission and not in anything rendered here. #}
+              <div class="btn-row">
+                <button class="btn" type="button" data-notify-toggle aria-pressed="false">{{ t("Turn on notifications") }}</button>
+              </div>
+              <p class="field__hint" data-notify-state>{{ t("Checking what this browser allows…") }}</p>
+              <p class="field__hint">{{ t("Kept per browser, because the permission is. Nothing is shown while you are looking at the page — the toast is there for that.") }}</p>
+            </div>
+
+            <div class="card">
+              <h2 class="card__title">{{ t("Install as an app") }}</h2>
+              <p class="card__lede">{{ t("Runs in its own window, without browser chrome. Everything still comes from your server — there is no offline mode beyond a page saying so.") }}</p>
+              {# Revealed by app.js only when the browser actually offers an
+                 install. Firefox and desktop Safari never do, and a button that
+                 does nothing is worse than no button. #}
+              <div class="btn-row" data-install-app hidden>
+                <button class="btn btn--primary" type="button"
+                        onclick="window.lembas.promptInstall()">
+                  {{ icon("plus", "icon--sm") }} {{ t("Install") }}
+                </button>
+              </div>
+              {# Filled by app.js from what actually happened, because every
+                 reason the button is absent looks the same from here. The static
+                 line below it used to be the only explanation, and it named the
+                 one cause that is least likely on a home network. #}
+              <p class="field__hint" data-install-status hidden></p>
+              <p class="field__hint">{{ t("Installing needs a secure connection — HTTPS with a certificate this device trusts, or localhost — and some browsers never offer it. On iOS, use Share → Add to Home Screen.") }}</p>
+            </div>
+          </section>
+
+          {# --- Audio --- #}
+          {% if audio.stt_enabled or audio.tts_enabled %}
+          <section class="tabs__panel" data-tab="tab-audio">
+            <form method="post" action="/api/preferences/audio">
+              {% if audio.tts_enabled %}
+              <div class="card">
+                <h2 class="card__title">{{ t("Reading replies aloud") }}</h2>
+                <p class="card__lede">{{ t("Overrides what the administrator chose, for you only.") }}</p>
+
+                <div class="grid grid--2">
+                  <div class="field">
+                    <label class="field__label" for="audio-voice">{{ t("Voice") }}</label>
+                    {# Options are fetched from the speech endpoint rather than
+                       stored, so the list follows the server. #}
+                    <select class="select" id="audio-voice" name="voice">
+                      {% with selected = user_audio.get('voice', ''),
+                              instance_voice = audio.tts_voice %}
+                        {% include "partials/_voice_options.html" %}
+                      {% endwith %}
+                    </select>
+                    <p class="field__hint">
+                      {% if voice_error %}
+                        {{ t("The voice list could not be read: %(error)s", error=voice_error) }}
+                      {% else %}
+                        {{ t("%(n)s available.", n=voices | length) }}
+                      {% endif %}
+                    </p>
+                  </div>
+                  <div class="field">
+                    <label class="field__label" for="audio-speed">{{ t("Speed") }}</label>
+                    <input class="input" id="audio-speed" name="speed" type="number"
+                           min="0.25" max="4" step="0.05"
+                           value="{{ user_audio.get('speed', '') }}"
+                           placeholder="{{ audio.tts_speed }}">
+                    <p class="field__hint">{{ t("Leave empty to use the instance default.") }}</p>
+                  </div>
+                </div>
+
+                <div class="field">
+                  <label class="checkbox">
+                    <input type="checkbox" name="autoplay" value="true"
+                           {{ 'checked' if user_audio.get('autoplay', audio.tts_autoplay) }}>
+                    <span>{{ t("Read each reply aloud as it finishes") }}</span>
+                  </label>
+                  <p class="field__hint">{{ t("Only replies that arrive while you are looking at the chat.") }}</p>
+                </div>
+              </div>
+              {% endif %}
+
+              {% if audio.stt_enabled %}
+              <div class="card">
+                <h2 class="card__title">{{ t("Dictation") }}</h2>
+                <div class="field">
+                  <label class="field__label" for="audio-language">{{ t("Language") }}</label>
+                  <input class="input" id="audio-language" name="language" maxlength="16"
+                         value="{{ user_audio.get('language', '') }}"
+                         placeholder="{{ audio.stt_language or t('detect') }}">
+                  <p class="field__hint">{{ tm("An ISO code such as <code>en</code> or <code>sk</code>. Empty lets the server work it out, which is usually best.") }}</p>
+                </div>
+                <p class="field__hint">{{ t("The microphone needs HTTPS or localhost — browsers do not grant it over plain HTTP.") }}</p>
+              </div>
+              {% endif %}
+
+              <div class="btn-row">
+                <button class="btn btn--primary" type="submit">{{ t("Save audio preferences") }}</button>
+              </div>
+            </form>
+          </section>
+          {% endif %}
+
+          {# --- Memory --- #}
+          {% if can.get("library.use") %}
+          <section class="tabs__panel" data-tab="tab-memory">
+            <div class="card">
+              <h2 class="card__title">
+                {{ t("What models remember about you") }}
+                <span class="badge">{{ memories|length }}</span>
+              </h2>
+              <p class="card__lede">{{ tm("Short facts, shown to every model you talk to on every turn — so they are few and short on purpose. Anything longer belongs in a <a href=\"/library/notes\">note</a>. Nothing here is shared with anyone else, ever.") }}</p>
+
+              {% if memories %}
+              <ul class="model-list">
+                {% for memory in memories %}
+                <li class="model-list__item">
+                  <form method="post" action="/api/library/memories/{{ memory.id }}"
+                        class="row" style="flex: 1; gap: var(--sp-2); min-width: 0">
+                    <input class="input" name="content" value="{{ memory.content }}"
+                           maxlength="{{ memory_limit }}" style="flex: 1"
+                           aria-label="{{ t('What this memory says') }}">
+                    {% if several_groups %}
+                    <span class="badge" title="{{ t('Data group') }}">{{ group_names.get(memory.data_group_id or 'default', '') }}</span>
+                    {% endif %}
+                    <button class="btn btn--sm" type="submit">{{ t("Save") }}</button>
+                    <button class="btn btn--sm btn--danger" type="submit"
+                            formaction="/api/library/memories/{{ memory.id }}/delete"
+                            data-confirm-button="{{ t('Forget this?') }}"
+                            data-confirm-title="{{ t('Forget') }}"
+                            aria-label="{{ t('Forget this') }}" title="{{ t('Forget this') }}">
+                      {{ icon("trash", "icon--sm") }}
+                    </button>
+                  </form>
+                  {% if memory.author == "model" %}
+                  <span class="badge badge--leaf">{{ t("remembered") }}</span>
+                  {% endif %}
+                </li>
+                {% endfor %}
+              </ul>
+              {% else %}
+              <p class="muted text-sm">{{ t("Nothing yet. A model with the memory tool adds to this when you tell it something worth keeping.") }}</p>
+              {% endif %}
+            </div>
+
+            <div class="card">
+              <h2 class="card__title">{{ t("Add one") }}</h2>
+              <form method="post" action="/api/library/memories" class="add-row">
+                <input class="input" name="content" required
+                       maxlength="{{ memory_limit }}"
+                       aria-label="{{ t('Something worth remembering') }}"
+                       placeholder="{{ t('Prefers metric units and a 24-hour clock.') }}">
+                {% if several_groups %}
+                <select class="select" name="data_group_id" aria-label="{{ t('Data group') }}">
+                  {% for group in data_groups %}
+                  <option value="{{ group.id }}">{{ group.name }}</option>
+                  {% endfor %}
+                </select>
+                {% endif %}
+                <button class="btn btn--primary" type="submit">{{ t("Remember") }}</button>
+              </form>
+              <p class="field__hint">{{ t("One fact per record, at most %(n)s characters. Never put a password or a key here — it is sent to the model with every message.", n=memory_limit) }}</p>
+            </div>
+
+          </section>
+          {% endif %}
+
+          {# --- Devices (once "CLI connections"; a desktop app's sign-in is
+               to be listed here too) --- #}
+          {% if api_allowed %}
+          <section class="tabs__panel" data-tab="tab-devices">
+            <div class="card" id="devices">
+              <h2 class="card__title">{{ t("Devices") }}</h2>
+              <p class="card__lede">{{ t("The LLeMbas CLI on your machines, signed in as you. Each uses your models, your knowledge and your usage, and an agent chat here runs on one of them — under its own limits — while it is linked.") }}</p>
+              {# Where a code is typed. /device does the same, but nobody
+                 types an address into an installed app, and this is where a
+                 device's login sends them. #}
+              {# `target="_top"`: this one answers with a page that is not
+                 Settings, and in the settings window that page belongs in the
+                 whole window, not in the frame. On the full page _top is the
+                 page itself, so nothing changes there. #}
+              <form method="get" action="/device" class="device-code-form" target="_top">
+                <div class="field">
+                  <label class="field__label" for="settings-device-code">{{ t("Sign a device in") }}</label>
+                  <div class="device-code-form__row">
+                    <input class="input device-code" id="settings-device-code" name="code" required
+                           autocomplete="off" spellcheck="false" autocapitalize="characters"
+                           placeholder="ABCD-EFGH">
+                    <button class="btn btn--primary" type="submit">{{ t("Continue") }}</button>
+                  </div>
+                  <p class="field__hint">{{ t("The code the device shows. You see what it asks for before anything is approved.") }}</p>
+                </div>
+              </form>
+              {% if api_devices %}
+              <ul class="model-list">
+                {% for device in api_devices %}
+                <li class="model-list__item">
+                  <div style="min-width: 0">
+                    <strong>{{ device.name }}</strong>
+                    {% if device.id in linked_now %}<span class="badge badge--success">{{ t("linked now") }}</span>{% endif %}
+                    <div class="text-xs faint">
+                      {{ device.device_host or "?" }}{% if device.client %} · {{ device.client }}{% endif %} ·
+                      {{ t("last used %(when)s", when=device.last_used_at.strftime("%Y-%m-%d %H:%M")) if device.last_used_at else t("never used") }}
+                    </div>
+                  </div>
+                  {% if api_live(device) %}
+                  <form method="post" action="/api/tokens/{{ device.id }}/revoke">
+                    <button class="btn btn--sm btn--danger" type="submit"
+                            data-confirm-title="{{ t('Sign this device out?') }}"
+                            data-confirm-button="{{ t('%(name)s loses access at once, and has to log in again.', name=device.name) }}"
+                            data-confirm-label="{{ t('Sign out') }}">{{ t("Sign out") }}</button>
+                  </form>
+                  {% endif %}
+                </li>
+                {% endfor %}
+              </ul>
+              {% endif %}
+              {% if not linked_now %}
+              {# How to get one: there is no other way to run an agent chat. #}
+              <div class="setup-steps">
+                <h3 class="setup-steps__title">{{ t("Connect a machine") }}</h3>
+                <ol class="setup-steps__list">
+                  <li>{{ t("Install the LLeMbas CLI on it:") }}
+                    <pre class="setup-steps__code"><code>curl -fsSL https://github.com/LLeMbas/LLeMbas-CLI/releases/latest/download/get.sh | bash</code></pre></li>
+                  <li>{{ t("Sign it in to this instance, and approve the code it shows here:") }}
+                    <pre class="setup-steps__code"><code>lembas login {{ instance_url }}</code></pre></li>
+                  <li>{{ t("To run agent chats on it from here, allow it in its config (~/.config/lembas/config.yaml) and start the service:") }}
+                    <pre class="setup-steps__code"><code>remote:
+  enabled: true
+  roots: [ ~/projects ]
+
+lembas service install</code></pre></li>
+                </ol>
+                <p class="field__hint">{{ t("It dials out to this instance; nothing on your machine listens. It decides which directories and modes remote work may use, whatever is asked here.") }}</p>
+              </div>
+              {% endif %}
+            </div>
+
+          </section>
+          {% endif %}
+
+          {# --- Scheduled --- #}
+          {% if can.get("schedule.use") %}
+          <section class="tabs__panel" data-tab="tab-scheduled">
+            <div class="card" id="scheduled">
+              <div class="card__header">
+                <h2 class="card__title">{{ t("Scheduled") }}</h2>
+                <a class="btn btn--primary btn--sm" href="/scheduled/new">
+                  {{ icon("plus", "icon--sm") }} {{ t("New scheduled task") }}
+                </a>
+              </div>
+              {% include "schedules/_list.html" %}
+            </div>
+          </section>
+          {% endif %}
+
+          {# --- Data groups --- #}
+          {#
+            Which provider may read which of this person's data. Shown to anybody
+            once there is more than one group, because "which provider can read
+            my notes?" is a question anybody may ask; editable only with
+            `data.manage`, because the answer changes what a provider can see.
+          #}
+          <section class="tabs__panel" data-tab="tab-data">
+            {% if several_groups or may_manage_groups %}
+            <div class="card">
+              <h2 class="card__title">{{ t("Your data groups") }}</h2>
+              <p class="card__lede">{{ t("A model reads only the memories, notes, skills, knowledge and reports of the data group its connection is in, and a chat stays in the group it was started in. Two providers in different groups never see each other's.") }}</p>
+              <ul class="model-list">
+                {% for group in data_groups %}
+                <li class="model-list__item">
+                  <div style="min-width: 0">
+                    <strong>{{ group.name }}</strong>
+                    {% if group.personal %}<span class="badge">{{ t("yours") }}</span>{% endif %}
+                    <div class="text-xs faint">
+                      {% for label, n in group_counts[group.id].items() %}{{ n }} {{ group_labels.get(label, label) }}{% if not loop.last %} · {% endif %}{% endfor %}
+                    </div>
+                  </div>
+                  {% if group.personal and may_manage_groups %}
+                  <form method="post" action="/api/preferences/data-groups/{{ group.id }}/delete">
+                    <button class="btn btn--sm btn--danger" type="submit"
+                            data-confirm-button="{{ t('Delete the data group “%(name)s”?', name=group.name) }}"
+                            aria-label="{{ t('Delete this') }}" title="{{ t('Delete this') }}">
+                      {{ icon("trash", "icon--sm") }}
+                    </button>
+                  </form>
+                  {% endif %}
+                </li>
+                {% endfor %}
+              </ul>
+              {% if may_manage_groups %}
+              <form method="post" action="/api/preferences/data-groups/new" class="row"
+                    style="gap: var(--sp-2); margin-top: var(--sp-4)">
+                <input class="input" name="name" required maxlength="120" style="flex: 1"
+                       aria-label="{{ t('New data group name') }}"
+                       placeholder="{{ t('New data group name') }}">
+                <button class="btn" type="submit">{{ icon("plus", "icon--sm") }} {{ t("Create") }}</button>
+              </form>
+              <p class="field__hint">{{ t("A group of your own, for keeping one provider away from the rest of your data. Nobody else can see it.") }}</p>
+              {% endif %}
+            </div>
+
+            <div class="card">
+              <h2 class="card__title">{{ t("Which group each connection reads") }}</h2>
+              {% if may_manage_groups %}
+              <p class="card__lede">{{ t("Your choice applies to you alone. Following the instance keeps up with whatever the administrator sets. Moving a connection moves no data: from then on it reads the other group, and your chats on it that were started in the old group can no longer use it.") }}</p>
+              <form method="post" action="/api/preferences/data-groups" class="form-grid">
+                {% for row in group_connections %}
+                <div class="field">
+                  <label class="field__label" for="dg-{{ row.connection.id }}">{{ row.connection.name }}</label>
+                  <select class="select" id="dg-{{ row.connection.id }}" name="group__{{ row.connection.id }}">
+                    <option value="">{{ t("Follow the instance (%(group)s)", group=group_names.get(row.instance, '')) }}</option>
+                    {% for group in data_groups %}
+                    <option value="{{ group.id }}" {{ 'selected' if row.chosen == group.id }}>{{ group.name }}</option>
+                    {% endfor %}
+                  </select>
+                  <p class="field__hint">{{ t("Reads: %(group)s", group=group_names.get(row.in_force, '')) }}</p>
+                </div>
+                {% endfor %}
+                <div class="btn-row">
+                  <button class="btn btn--primary" type="submit">{{ t("Save") }}</button>
+                </div>
+              </form>
+              {% else %}
+              <p class="card__lede">{{ t("Set by the administrator. Changing it for yourself needs the permission to manage your own data groups.") }}</p>
+              <ul class="model-list">
+                {% for row in group_connections %}
+                <li class="model-list__item">
+                  <strong>{{ row.connection.name }}</strong>
+                  <span class="badge">{{ group_names.get(row.in_force, '') }}</span>
+                </li>
+                {% endfor %}
+              </ul>
+              {% endif %}
+            </div>
+            {% endif %}
+
+            {# --- Start over --- #}
+            {% set reset_labels = {
+              "chats": t("chats"), "messages": t("messages"), "folders": t("folders"),
+              "memories": t("memories"),
+              "notes": t("notes"), "skills": t("skills"),
+              "knowledge bases": t("knowledge bases"), "documents": t("documents"),
+              "reports": t("reports"), "schedules": t("schedules"),
+              "scratch documents": t("scratch documents"),
+            } %}
+            {% macro reset_counts(counts, labels) -%}
+              {%- for name, n in counts.rows.items() %}{{ labels.get(name, name) }}: {{ n }}{% if not loop.last %}, {% endif %}{% endfor -%}
+            {%- endmacro %}
+            <div class="card">
+              <h2 class="card__title">{{ t("Start over") }}</h2>
+              <p class="card__lede">{{ t("Delete your own data and begin again. None of this can be undone, and nothing here touches anybody else's data. Your account, password and settings stay as they are.") }}</p>
+
+              <div class="reset-list">
+                <form method="post" action="/api/preferences/reset/chats" class="reset-row">
+                  <div class="reset-row__text">
+                    <strong>{{ t("Delete all chats") }}</strong>
+                    <p class="field__hint">{{ t("Every chat you own — archived, temporary and scheduled ones too — with its files, and your folders. A schedule that posts into a chat stops, since its chat is gone.") }}</p>
+                    <p class="text-xs faint">{{ reset_counts(reset_preview.chats, reset_labels) or t("Nothing to delete.") }}</p>
+                  </div>
+                  <button class="btn btn--danger" type="submit"
+                          {{ 'disabled' if not reset_preview.chats.total }}
+                          data-confirm-title="{{ t('Delete all chats?') }}"
+                          data-confirm-button="{{ t('This deletes %(what)s. It cannot be undone.', what=reset_counts(reset_preview.chats, reset_labels)) }}"
+                          data-confirm-label="{{ t('Delete all chats') }}">
+                    {{ t("Delete all chats") }}
+                  </button>
+                </form>
+
+                <form method="post" action="/api/preferences/reset/memory" class="reset-row">
+                  <div class="reset-row__text">
+                    <strong>{{ t("Forget everything models remember") }}</strong>
+                    <p class="field__hint">{{ t("Your memories, and what each model has made of you — the two lists on the Memory tab.") }}</p>
+                    <p class="text-xs faint">{{ reset_counts(reset_preview.memory, reset_labels) or t("Nothing to delete.") }}</p>
+                  </div>
+                  <button class="btn btn--danger" type="submit"
+                          {{ 'disabled' if not reset_preview.memory.total }}
+                          data-confirm-title="{{ t('Forget everything?') }}"
+                          data-confirm-button="{{ t('This deletes %(what)s. It cannot be undone.', what=reset_counts(reset_preview.memory, reset_labels)) }}"
+                          data-confirm-label="{{ t('Forget') }}">
+                    {{ t("Forget") }}
+                  </button>
+                </form>
+
+                <form method="post" action="/api/preferences/reset/all" class="reset-row reset-row--full">
+                  <div class="reset-row__text">
+                    <strong>{{ t("Full reset") }}</strong>
+                    <p class="field__hint">{{ t("Both of the above, and your notes, skills, knowledge bases and their files, reports, schedules and scratch documents, with everything you shared. Kept: your account, password, settings, groups and usage.") }}</p>
+                    <p class="text-xs faint">{{ reset_counts(reset_preview.all, reset_labels) or t("Nothing to delete.") }}</p>
+                  </div>
+                  <div class="grid grid--2">
+                    <div class="field">
+                      <label class="field__label" for="reset-password">{{ t("Your password") }}</label>
+                      <input class="input" type="password" id="reset-password" name="current_password"
+                             required autocomplete="current-password">
+                    </div>
+                    <div class="field">
+                      <label class="field__label" for="reset-word">{{ t("Type %(word)s to confirm", word=t("RESET")) }}</label>
+                      <input class="input" id="reset-word" name="confirm_word" required
+                             autocomplete="off" spellcheck="false">
+                    </div>
+                  </div>
+                  <button class="btn btn--danger" type="submit"
+                          data-confirm-title="{{ t('Start over completely?') }}"
+                          data-confirm-button="{{ t('This deletes %(what)s. It cannot be undone.', what=reset_counts(reset_preview.all, reset_labels) or t('nothing')) }}"
+                          data-confirm-label="{{ t('Full reset') }}">
+                    {{ t("Full reset") }}
+                  </button>
+                </form>
+              </div>
+            </div>
+          </section>
+
+          {# --- Security --- #}
+          <section class="tabs__panel" data-tab="tab-security">
+            <div class="card">
+              <h2 class="card__title">{{ t("Change password") }}</h2>
+              <p class="card__lede">{{ t("Every other session is signed out when the password changes. You stay signed in here.") }}</p>
+              <form method="post" action="/api/preferences/password">
+                <div class="grid grid--2">
+                  <div class="field">
+                    <label class="field__label" for="current-password">{{ t("Current password") }}</label>
+                    <input class="input" type="password" id="current-password"
+                           name="current_password" required autocomplete="current-password">
+                  </div>
+                  <div class="field"></div>
+                  <div class="field">
+                    <label class="field__label" for="new-password">{{ t("New password") }}</label>
+                    <input class="input" type="password" id="new-password" name="new_password"
+                           required minlength="8" autocomplete="new-password">
+                    <p class="field__hint">{{ t("At least 8 characters.") }}</p>
+                  </div>
+                  <div class="field">
+                    <label class="field__label" for="confirm-password">{{ t("Confirm new password") }}</label>
+                    <input class="input" type="password" id="confirm-password"
+                           name="confirm_password" required minlength="8"
+                           autocomplete="new-password">
+                  </div>
+                </div>
+                <button class="btn btn--primary" type="submit">{{ t("Change password") }}</button>
+              </form>
+            </div>
+
+            {% if api_allowed %}
+            <div class="card">
+              <h2 class="card__title">{{ t("API tokens") }}</h2>
+              <p class="card__lede">{{ t("For a script or a program of your own: send one as Authorization: Bearer to /v1 on this instance, an OpenAI-compatible API over your models. The value is shown once, when it is made.") }}</p>
+              {% if api_tokens %}
+              <ul class="model-list">
+                {% for token in api_tokens %}
+                <li class="model-list__item">
+                  <div style="min-width: 0">
+                    <strong>{{ token.name }}</strong> <code class="text-xs">{{ token.prefix }}…</code>
+                    {% if not api_live(token) %}<span class="badge">{{ t("revoked") if token.revoked_at else t("expired") }}</span>{% endif %}
+                    <div class="text-xs faint">
+                      {{ token.scopes_json | join(", ") }} ·
+                      {{ t("last used %(when)s", when=token.last_used_at.strftime("%Y-%m-%d %H:%M")) if token.last_used_at else t("never used") }}
+                      {% if token.expires_at %} · {{ t("expires %(when)s", when=token.expires_at.strftime("%Y-%m-%d")) }}{% endif %}
+                    </div>
+                  </div>
+                  {% if api_live(token) %}
+                  <form method="post" action="/api/tokens/{{ token.id }}/revoke">
+                    <button class="btn btn--sm btn--danger" type="submit"
+                            data-confirm-title="{{ t('Revoke this token?') }}"
+                            data-confirm-button="{{ t('Whatever holds %(name)s is signed out at once.', name=token.name) }}"
+                            data-confirm-label="{{ t('Revoke') }}">{{ t("Revoke") }}</button>
+                  </form>
+                  {% endif %}
+                </li>
+                {% endfor %}
+              </ul>
+              {% endif %}
+              {# `target="_top"`: this one answers with a page that is not
+                 Settings, and in the settings window that page belongs in the
+                 whole window, not in the frame. On the full page _top is the
+                 page itself, so nothing changes there. #}
+              <form method="post" action="/api/tokens" class="form-grid token-form" target="_top">
+                <div class="field">
+                  <label class="field__label" for="token-name">{{ t("Name") }}</label>
+                  <input class="input" id="token-name" name="name" required maxlength="120"
+                         placeholder="{{ t('What it is for') }}">
+                  <p class="field__hint"></p>
+                </div>
+                <div class="field">
+                  <label class="field__label" for="token-expires">{{ t("Expires") }}</label>
+                  <select class="select" id="token-expires" name="expires_days">
+                    <option value="0">{{ t("No expiry") }}</option>
+                    <option value="30">{{ t("In 30 days") }}</option>
+                    <option value="90" selected>{{ t("In 90 days") }}</option>
+                    <option value="365">{{ t("In a year") }}</option>
+                  </select>
+                  <p class="field__hint"></p>
+                </div>
+                <fieldset class="field token-form__scopes">
+                  <legend class="field__label">{{ t("It may") }}</legend>
+                  {% for scope, label in api_scopes %}
+                  <label class="checkbox">
+                    <input type="checkbox" name="scopes" value="{{ scope }}" {{ 'checked' if scope == 'models' }}>
+                    <span>{{ label }}</span>
+                  </label>
+                  {% endfor %}
+                </fieldset>
+                <div class="btn-row">
+                  <button class="btn btn--primary" type="submit">{{ icon("plus", "icon--sm") }} {{ t("Make a token") }}</button>
+                </div>
+              </form>
+            </div>
+            {% endif %}
+
+            <div class="card">
+              <h2 class="card__title">{{ t("Session") }}</h2>
+              {# `target="_top"`: this one answers with a page that is not
+                 Settings, and in the settings window that page belongs in the
+                 whole window, not in the frame. On the full page _top is the
+                 page itself, so nothing changes there. #}
+              <form method="post" action="/auth/logout" target="_top">
+                <button class="btn btn--danger" type="submit">
+                  {{ icon("logout", "icon--sm") }} {{ t("Sign out") }}
+                </button>
+              </form>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

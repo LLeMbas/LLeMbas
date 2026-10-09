@@ -1,0 +1,29 @@
+{% from "_macros.html" import icon %}
+{#
+  What `@` offers from the linked device: its own file index, as its
+  terminal's `@` picker ranks it. A file goes into the message as `@path` text
+  and nothing is attached -- the device reads it when the prompt arrives.
+  `data-mention-device` is what tells the composer not to copy anything.
+
+  Every path came off somebody's disk: escaped by autoescaping, never marked safe.
+#}
+{% if files %}
+<p class="picker__group">{{ t("On the device") }}{% if device %} · {{ device }}{% endif %}</p>
+<ul class="picker__list">
+  {% for file in files %}
+  <li>
+    <button class="picker__option" type="button" data-mention-device
+            data-mention-token="{{ file.path }}">
+      {{ icon("folder" if file.kind == "dir" else "file-text", "icon--sm") }}
+      <span class="picker__option-body">
+        <span class="picker__option-name">{{ file.name }}</span>
+        <span class="picker__option-note mono">{{ file.path }}</span>
+      </span>
+    </button>
+  </li>
+  {% endfor %}
+</ul>
+{% elif error %}
+<p class="picker__group">{{ t("On the device") }}</p>
+<p class="muted text-sm" style="padding: var(--sp-3)">{{ error }}</p>
+{% endif %}

@@ -1,0 +1,39 @@
+{
+  "name": "edit",
+  "scope": "cli",
+  "risk": "write",
+  "exclusive": false,
+  "block": "edit",
+  "purpose": "purpose",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Replace exact text in a file.\n\n- Read the file first; the edit fails otherwise.\n- `old` must match the file exactly, with its indentation, and without the `<n>: ` line-number prefix the read tool shows.\n- `old` must be unique in the file. If it is not, include more surrounding lines, or set `all: true` to replace every occurrence (for renames).\n- Keep `old` small: the lines you change plus enough context to be unique.\n- Several changes to one file are several edit calls.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "File to edit"
+      },
+      "old": {
+        "type": "string",
+        "description": "Exact text to replace"
+      },
+      "new": {
+        "type": "string",
+        "description": "Replacement text"
+      },
+      "all": {
+        "description": "Replace every occurrence",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "path",
+      "old",
+      "new"
+    ]
+  }
+}

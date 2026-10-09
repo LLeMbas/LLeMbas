@@ -1,0 +1,206 @@
+{
+  "about": "A command line → its simple commands, and why an allow rule could not be trusted for it (unsafe: empty when the split is clean).",
+  "cases": [
+    {
+      "line": "ls -la",
+      "expect": {
+        "commands": [
+          "ls -la"
+        ],
+        "unsafe": []
+      }
+    },
+    {
+      "line": "git status && git diff",
+      "expect": {
+        "commands": [
+          "git status",
+          "git diff"
+        ],
+        "unsafe": []
+      }
+    },
+    {
+      "line": "ls; pwd",
+      "expect": {
+        "commands": [
+          "ls",
+          "pwd"
+        ],
+        "unsafe": []
+      }
+    },
+    {
+      "line": "cat a | grep b",
+      "expect": {
+        "commands": [
+          "cat a",
+          "grep b"
+        ],
+        "unsafe": []
+      }
+    },
+    {
+      "line": "echo $(whoami)",
+      "expect": {
+        "commands": [
+          "echo $(whoami)"
+        ],
+        "unsafe": [
+          "command substitution"
+        ]
+      }
+    },
+    {
+      "line": "echo `id`",
+      "expect": {
+        "commands": [
+          "echo `id`"
+        ],
+        "unsafe": [
+          "command substitution"
+        ]
+      }
+    },
+    {
+      "line": "eval \"ls\"",
+      "expect": {
+        "commands": [
+          "eval \"ls\""
+        ],
+        "unsafe": [
+          "`eval`"
+        ]
+      }
+    },
+    {
+      "line": "ls > out.txt",
+      "expect": {
+        "commands": [
+          "ls > out.txt"
+        ],
+        "unsafe": [
+          "redirection to a file"
+        ]
+      }
+    },
+    {
+      "line": "ls 2>/dev/null",
+      "expect": {
+        "commands": [
+          "ls 2>/dev/null"
+        ],
+        "unsafe": []
+      }
+    },
+    {
+      "line": "ls >/dev/null 2>&1",
+      "expect": {
+        "commands": [
+          "ls >/dev/null 2>&1"
+        ],
+        "unsafe": []
+      }
+    },
+    {
+      "line": "bash -c 'ls'",
+      "expect": {
+        "commands": [
+          "bash -c 'ls'"
+        ],
+        "unsafe": [
+          "nested shell"
+        ]
+      }
+    },
+    {
+      "line": "cd src && make",
+      "expect": {
+        "commands": [
+          "cd src",
+          "make"
+        ],
+        "unsafe": []
+      }
+    },
+    {
+      "line": "FOO=1 make test",
+      "expect": {
+        "commands": [
+          "FOO=1 make test"
+        ],
+        "unsafe": []
+      }
+    },
+    {
+      "line": "git log --oneline | head -5",
+      "expect": {
+        "commands": [
+          "git log --oneline",
+          "head -5"
+        ],
+        "unsafe": []
+      }
+    },
+    {
+      "line": "echo 'a && b'",
+      "expect": {
+        "commands": [
+          "echo 'a && b'"
+        ],
+        "unsafe": []
+      }
+    },
+    {
+      "line": "ls && (cd x && rm y)",
+      "expect": {
+        "commands": [
+          "ls",
+          "(cd x",
+          "rm y)"
+        ],
+        "unsafe": []
+      }
+    },
+    {
+      "line": "cat < input.txt",
+      "expect": {
+        "commands": [
+          "cat < input.txt"
+        ],
+        "unsafe": []
+      }
+    },
+    {
+      "line": "echo hi >> log",
+      "expect": {
+        "commands": [
+          "echo hi >> log"
+        ],
+        "unsafe": [
+          "redirection to a file"
+        ]
+      }
+    },
+    {
+      "line": "ls &",
+      "expect": {
+        "commands": [
+          "ls"
+        ],
+        "unsafe": []
+      }
+    },
+    {
+      "line": "for f in *; do echo $f; done",
+      "expect": {
+        "commands": [
+          "for f in *",
+          "do echo $f",
+          "done"
+        ],
+        "unsafe": []
+      }
+    }
+  ]
+}

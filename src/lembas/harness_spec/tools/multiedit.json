@@ -1,0 +1,48 @@
+{
+  "name": "multiedit",
+  "scope": "cli",
+  "risk": "write",
+  "exclusive": false,
+  "block": "edit",
+  "purpose": "purpose",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Several exact-text replacements in ONE file, applied in order, all or nothing.\n\n- Same rules as edit for each step: read the file first; `old` exact and unique (or `all: true`); no line-number prefixes.\n- Each step sees the result of the previous ones.\n- If any step fails, the file is left untouched and you are told which step.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "edits": {
+        "minItems": 1,
+        "maxItems": 50,
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "old": {
+              "type": "string"
+            },
+            "new": {
+              "type": "string"
+            },
+            "all": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "old",
+            "new"
+          ]
+        }
+      }
+    },
+    "required": [
+      "path",
+      "edits"
+    ]
+  }
+}

@@ -1,0 +1,159 @@
+{% from "_macros.html" import icon %}
+{#
+  What `@` offers. Two sources, one list, because somebody typing `@readme` is
+  not thinking about which store the answer is in.
+
+  Swapped in whole on every keystroke, like the knowledge picker: the library
+  is searched with FTS rather than filtered in the browser, and the project
+  half is filtered beside it so the client stays one fetch and a list.
+
+  Every name here came off somebody's filesystem or out of their library, so
+  all of it is escaped by autoescaping and none of it is marked safe.
+#}
+<div id="mention-results">
+  {% if not files and not documents and not notes and not skills
+        and not bases and not attachments and not website %}
+  <p class="muted text-sm" style="padding: var(--sp-3)">
+    {% if q %}
+      {{ t("Nothing matches “%(q)s”.", q=q) }}
+    {% else %}
+      {{ t("Nothing to mention yet.") }}
+    {% endif %}
+  </p>
+  {% else %}
+
+  {% if website %}
+  <p class="picker__group">{{ t("A page to read") }}</p>
+  <ul class="picker__list">
+    <li>
+      <button class="picker__option" type="button"
+              data-mention-url="{{ website }}" data-mention-token="{{ website }}">
+        {{ icon("link", "icon--sm") }}
+        <span class="picker__option-body">
+          <span class="picker__option-name">{{ t("Fetch this page") }}</span>
+          <span class="picker__option-note mono">{{ website }}</span>
+        </span>
+      </button>
+    </li>
+  </ul>
+  {% endif %}
+
+  {% if files %}
+  <p class="picker__group">{{ t("In the project") }}</p>
+  <ul class="picker__list">
+    {% for file in files %}
+    <li>
+      <button class="picker__option" type="button"
+              data-mention-file="{{ file.path }}" data-mention-token="{{ file.path }}">
+        {{ icon("folder" if file.path.endswith("/") else "file-text", "icon--sm") }}
+        <span class="picker__option-body">
+          <span class="picker__option-name">{{ file.name }}</span>
+          <span class="picker__option-note mono">{{ file.path }}</span>
+        </span>
+      </button>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if documents %}
+  <p class="picker__group">{{ t("In your library") }}</p>
+  <ul class="picker__list">
+    {% for document in documents %}
+    <li>
+      <button class="picker__option" type="button"
+              data-mention-knowledge="{{ document.id }}"
+              data-mention-token="{{ document.title }}">
+        {{ icon("image" if document.is_image else "archive", "icon--sm") }}
+        <span class="picker__option-body">
+          <span class="picker__option-name">{{ document.title }}</span>
+          <span class="picker__option-note">
+            {% if document.base %}{{ document.base.name }} · {% endif %}{{ document.kind }}
+            {%- if document.owner_id != user.id %} · {{ t("shared") }}{% endif %}
+          </span>
+        </span>
+      </button>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if notes %}
+  <p class="picker__group">{{ t("Notes") }}</p>
+  <ul class="picker__list">
+    {% for note in notes %}
+    <li>
+      <button class="picker__option" type="button"
+              data-mention-note="{{ note.id }}" data-mention-token="{{ note.title }}">
+        {{ icon("file-text", "icon--sm") }}
+        <span class="picker__option-body">
+          <span class="picker__option-name">{{ note.title }}</span>
+          <span class="picker__option-note">
+            {{ note.body | truncate(70) }}{% if note.owner_id != user.id %} · {{ t("shared") }}{% endif %}
+          </span>
+        </span>
+      </button>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if skills %}
+  <p class="picker__group">{{ t("Skills") }}</p>
+  <ul class="picker__list">
+    {% for skill in skills %}
+    <li>
+      <button class="picker__option" type="button"
+              data-mention-skill="{{ skill.id }}" data-mention-token="{{ skill.name }}">
+        {{ icon("sparkle", "icon--sm") }}
+        <span class="picker__option-body">
+          <span class="picker__option-name mono">{{ skill.name }}</span>
+          <span class="picker__option-note">{{ skill.description }}</span>
+        </span>
+      </button>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if bases %}
+  {# A base is a reference and not a copy: choosing one narrows what this chat
+     may search rather than putting anything into the message. #}
+  <p class="picker__group">{{ t("Search only these") }}</p>
+  <ul class="picker__list">
+    {% for base in bases %}
+    <li>
+      <button class="picker__option" type="button"
+              data-mention-base="{{ base.id }}" data-mention-token="{{ base.name }}">
+        {{ icon("archive", "icon--sm") }}
+        <span class="picker__option-body">
+          <span class="picker__option-name">{{ base.name }}</span>
+          <span class="picker__option-note">{{ t("Scope this chat to this knowledge base") }}</span>
+        </span>
+      </button>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if attachments %}
+  <p class="picker__group">{{ t("Already in this chat") }}</p>
+  <ul class="picker__list">
+    {% for attachment in attachments %}
+    <li>
+      <button class="picker__option" type="button"
+              data-mention-attachment="{{ attachment.id }}"
+              data-mention-token="{{ attachment.filename }}">
+        {{ icon("attach", "icon--sm") }}
+        <span class="picker__option-body">
+          <span class="picker__option-name">{{ attachment.filename }}</span>
+          <span class="picker__option-note">{{ attachment.human_size }}</span>
+        </span>
+      </button>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% endif %}
+</div>

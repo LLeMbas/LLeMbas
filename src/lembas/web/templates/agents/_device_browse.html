@@ -1,0 +1,58 @@
+{% from "_macros.html" import icon %}
+{#
+  A directory on a linked device, inside the same dialog as an SSH
+  connection's. The device answers `_lembas/directories` itself: with no path,
+  its places -- its remote roots and the trusted directories in them; with one,
+  the directories in it. Each says whether the device would open a session
+  there, by the rule it applies when one is asked for; that rule, not this
+  listing, is what decides.
+
+  Names come from somebody else's filesystem: autoescaped, never marked safe.
+#}
+<div id="dir-results" data-here="{{ here }}">
+  <p class="dialog__where">
+    {{ icon("folder-open", "icon--sm") }}
+    <span class="mono">{{ here or t("Places on this device") }}</span>
+  </p>
+
+  {% if error %}
+  <div class="alert alert--danger">{{ error }}</div>
+  {% else %}
+  {% if here and not accepted %}
+  <div class="alert">{{ icon("warning", "icon--sm") }} <span>{{ reason or t("The device will not open a session here.") }}</span></div>
+  {% endif %}
+  <ul class="picker__list">
+    {% if here %}
+    <li>
+      <button class="picker__option" type="button" data-dir-open="{{ parent }}">
+        {{ icon("chevron-left", "icon--sm") }}
+        <span class="picker__option-body">
+          <span class="picker__option-name">{{ t("Up a level") if parent else t("All places") }}</span>
+          {% if parent %}<span class="picker__option-note mono">{{ parent }}</span>{% endif %}
+        </span>
+      </button>
+    </li>
+    {% endif %}
+
+    {% for entry in entries %}
+    <li>
+      <button class="picker__option" type="button" data-dir-open="{{ entry.path }}">
+        {{ icon("folder", "icon--sm") }}
+        <span class="picker__option-body">
+          <span class="picker__option-name">{{ entry.name }}</span>
+          {% if not here %}<span class="picker__option-note mono">{{ entry.path }}</span>{% endif %}
+          {% if not entry.accepted %}<span class="picker__option-note">{{ t("Not trusted on the device") }}</span>{% endif %}
+        </span>
+        {{ icon("chevron-right", "icon--sm") }}
+      </button>
+    </li>
+    {% endfor %}
+
+    {% if not entries %}
+    <li>
+      <p class="muted text-sm" style="padding: var(--sp-3)">{{ t("No directories here.") if here else t("This device offers no directories: its remote roots are empty or missing.") }}</p>
+    </li>
+    {% endif %}
+  </ul>
+  {% endif %}
+</div>

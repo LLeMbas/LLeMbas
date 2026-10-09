@@ -1,0 +1,178 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "search" %}
+
+{% block title %}{{ t("Web search") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Web search") }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">{{ t("Lets a model look things up while it answers. It is offered as a tool the model chooses to call, so nothing changes for a question that does not need it — and it is only offered to models marked as supporting tools, because sending a tool list to one that does not fails the whole request.") }}</p>
+
+{% if saved %}
+<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ t("Search settings saved.") }}</span></div>
+{% endif %}
+
+<form method="post" action="/admin/search">
+  <section class="card">
+    <h2 class="card__title">
+      {{ t("Web search") }}
+      {% if values.enabled %}<span class="badge badge--success">{{ t("on") }}</span>
+      {% else %}<span class="badge">{{ t("off") }}</span>{% endif %}
+    </h2>
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="enabled" value="true" {{ 'checked' if values.enabled }}>
+        <span>{{ t("Offer web search to models that support tools") }}</span>
+      </label>
+      <p class="field__hint">
+        {{ tm("Who may use it is a permission — <code>tools.web_search</code> under
+        %(groups)s.", groups=t("Groups & permissions")) }}
+      </p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Provider") }}</h2>
+    <div class="field">
+      {% for provider in providers %}
+      <label class="checkbox" style="align-items: flex-start">
+        <input type="radio" name="provider" value="{{ provider.key }}"
+               {{ 'checked' if values.provider == provider.key }}>
+        <span>
+          <strong>{{ provider.label }}</strong>
+          {% if not provider.needs_setup %}<span class="badge">{{ t("no setup") }}</span>{% endif %}
+          <div class="text-xs faint">{{ provider.description }}</div>
+          {% if problems[provider.key] %}
+          <div class="text-xs" style="color: var(--danger)">{{ problems[provider.key] }}</div>
+          {% endif %}
+        </span>
+      </label>
+      {% endfor %}
+    </div>
+
+    <div class="grid grid--3">
+      <div class="field">
+        <label class="field__label" for="max-results">{{ t("Results per search") }}</label>
+        <input class="input" id="max-results" name="max_results" type="number"
+               min="1" max="20" value="{{ values.max_results }}">
+        <p class="field__hint">{{ t("A ceiling — a model asking for more gets this.") }}</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="safesearch">{{ t("Safe search") }}</label>
+        <select class="select" id="safesearch" name="safesearch">
+          {% for option in safesearch_options %}
+          <option value="{{ option }}" {{ 'selected' if option == values.safesearch }}>
+            {{ option }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label class="field__label" for="timeout">{{ t("Timeout (seconds)") }}</label>
+        <input class="input" id="timeout" name="timeout" type="number"
+               min="5" max="120" step="1" value="{{ values.timeout }}">
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="region">{{ t("DuckDuckGo region") }}</label>
+      <input class="input" id="region" name="region" maxlength="16"
+             value="{{ values.region }}" placeholder="{{ t('wt-wt') }}">
+      <p class="field__hint">
+        {{ tm("<code>wt-wt</code> is no region at all. <code>uk-en</code>,
+        <code>de-de</code> and so on bias results to a country.") }}
+      </p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("SearXNG") }}</h2>
+    <p class="card__lede">{{ t("Only used when SearXNG is the chosen provider. Your own instance, so no third party sees the queries.") }}</p>
+    <div class="field">
+      <label class="field__label" for="searxng-base-url">{{ t("Instance URL") }}</label>
+      <input class="input" id="searxng-base-url" name="searxng_base_url" type="url"
+             value="{{ values.searxng_base_url }}" placeholder="{{ t('http://127.0.0.1:8888') }}">
+      <p class="field__hint">
+        {{ tm("A stock SearXNG refuses JSON. Add <code>- json</code> under
+        <code>search.formats</code> in its <code>settings.yml</code> and restart
+        it, or every search will fail with that message.") }}
+      </p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Saving links") }}</h2>
+    <p class="card__lede">
+      {{ tm("Applies to the composer's <strong>%(link)s</strong> option and to anything the
+      model fetches: %(brand)s retrieves the page and keeps its text.", link=t("Link"), brand=brand.name) }}
+    </p>
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="fetch_enabled" value="true"
+               {{ 'checked' if values.fetch_enabled }}>
+        <span>{{ t("Let a model fetch a page itself") }}</span>
+      </label>
+      <p class="field__hint">
+        {{ tm("Offers the <code>fetch</code> tool, so a model can read an address it
+        found in a search result or was given. Turning this off leaves the
+        composer's Link option working: that one is somebody's instruction,
+        while this is the model choosing an address — possibly one it read in a
+        page it had just fetched.") }}
+      </p>
+    </div>
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="allow_private_fetch" value="true"
+               {{ 'checked' if values.allow_private_fetch }}>
+        <span>{{ t("Allow fetching addresses on this machine and this network") }}</span>
+      </label>
+      <p class="field__hint">
+        {{ t("Off by default, and worth leaving off. This server can reach your
+        router, your other services and %(brand)s itself; the address to fetch can
+        come from a model, which can be talked into things by a web page it just
+        read. Turn this on only if you actually want to archive pages from your
+        own network.", brand=brand.name) }}
+      </p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Firecrawl") }}</h2>
+    <div class="grid grid--2">
+      <div class="field">
+        <label class="field__label" for="firecrawl-base-url">{{ t("API URL") }}</label>
+        <input class="input" id="firecrawl-base-url" name="firecrawl_base_url" type="url"
+               value="{{ values.firecrawl_base_url }}"
+               placeholder="{{ t('https://api.firecrawl.dev') }}">
+        <p class="field__hint">{{ t("Change only for a self-hosted Firecrawl.") }}</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="firecrawl-api-key">{{ t("API key") }}</label>
+        <input class="input" id="firecrawl-api-key" name="firecrawl_api_key" type="password"
+               value="{{ unchanged if masked else '' }}"
+               placeholder="{{ masked or 'fc-...' }}" autocomplete="off">
+        <p class="field__hint">{{ t("Encrypted at rest. Clear the field to remove it.") }}</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="form-actions"><button class="btn btn--primary" type="submit">{{ t("Save settings") }}</button></div>
+</form>
+
+<section class="card">
+  <h2 class="card__title">{{ t("Try it") }}</h2>
+  <p class="card__lede">
+    {{ tm("Runs a real search against the <em>saved</em> settings, which is what a chat
+    would do. Save first if you have just changed something.") }}
+  </p>
+  <div class="row" style="gap: var(--sp-2)">
+    <input class="input" id="test-query" name="query" placeholder="{{ t('mallorn tree') }}"
+           style="flex: 1">
+    <button class="btn" type="button" hx-post="/admin/search/test"
+            hx-include="#test-query" hx-target="#search-test" hx-swap="outerHTML">
+      {{ icon("search", "icon--sm") }} {{ t("Search") }}
+    </button>
+  </div>
+  <div id="search-test"></div>
+</section>
+{% endblock %}

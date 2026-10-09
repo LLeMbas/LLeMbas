@@ -1,0 +1,25 @@
+{
+  "name": "view_image",
+  "scope": "cli",
+  "risk": "read",
+  "exclusive": false,
+  "block": "read",
+  "purpose": "purpose",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Look at an image file (png, jpg, gif, webp): a screenshot, a diagram, a rendered page. The image is shown to you right after this call's result.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "The image file"
+      }
+    },
+    "required": [
+      "path"
+    ]
+  }
+}

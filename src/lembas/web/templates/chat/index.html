@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, mark, model_avatar, scene %}
+
+{% block title %}{{ chat.title if chat else t("New chat") }} - {{ brand.name }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ asset('css/chat.css') }}">
+{% if terminal_enabled %}
+<link rel="stylesheet" href="{{ asset('vendor/xterm.css') }}">
+{% endif %}
+{% endblock %}
+
+{% block body_attrs %} data-authenticated="true"{% endblock %}
+
+{% block body %}
+<div class="shell">
+  {% include "partials/sidebar.html" %}
+
+  <main class="main">
+    <header class="topbar">
+      {% include "partials/_sidebar_toggle.html" %}
+
+      <h1 class="topbar__title">
+        <span id="chat-title">{{ chat.title if chat else t("New chat") }}</span>
+        {#
+          Rename, where the name is. A themed dialog through `data-prompt`
+          rather than an inline field: the heading is in a flex row beside the
+          badges and the connection chip, and swapping it for a text box moves
+          all of them. The response is the same out-of-band pair the `done`
+          frame sends, so the sidebar row follows without a second request.
+        #}
+        {% if chat %}
+        <button class="btn btn--icon btn--sm topbar__rename" type="button"
+                hx-patch="/api/chats/{{ chat.id }}" hx-swap="none"
+                data-prompt="{{ t('What should this chat be called?') }}"
+                data-prompt-title="{{ t('Rename chat') }}" data-prompt-field="title"
+                data-prompt-value="{{ chat.title }}"
+                aria-label="{{ t('Rename chat') }}" title="{{ t('Rename chat') }}">
+          {{ icon("pencil", "icon--sm") }}
+        </button>
+        {% endif %}
+        {# Beside the title because it describes the chat rather than acting on
+           it. The way out of it is Keep, in the overflow menu. #}
+        {% if chat and chat.temporary %}
+        <span class="badge badge--warning"
+              title="{{ t('Not listed in the sidebar. It may read the library but saves nothing, and is deleted %(after)s.', after=temporary_after) }}">{{ t("Temporary · read-only") }}</span>
+        {# Reported on the way out, so a chat that lives "until you leave it"
+           does. A reload reports it too, and the page that comes back clears
+           it again (chat_service.mark_back). #}
+        {% if temporary_leaves %}
+        <span hidden data-temporary-leave="/api/chats/{{ chat.id }}/leave"></span>
+        {% endif %}
+        {% endif %}
+      </h1>
+
+      {# Where this chat runs. Beside the title because it describes the chat
+         and cannot be changed -- update_chat refuses the connection and the
+         directory with a 409 -- so it is of a kind with the Temporary badge
+         rather than with the controls on the right. The mode is the one thing
+         here that moves, and it stays down by the message box. #}
+      {% if chat and chat.kind == "agent" %}
+      <span class="topbar__where" title="{{ chat.project_dir }}">
+        {{ icon("bolt", "icon--sm") }}
+        <span class="topbar__where-name">
+          {{ agent_device_name or t("device missing") }}
+        </span>
+        <span class="topbar__where-dir">{{ chat.project_dir }}</span>
+      </span>
+      {% if chat.device_token_id and device_reports_model %}
+      {% include "chat/_device_model.html" %}
+      {% endif %}
+      {% endif %}
+
+      <div class="topbar__actions">
+        {#
+          A link, not a script: the flag lives in the URL, so it survives a
+          reload and can be bookmarked. The URL is built in `chat_index` so it
+          keeps the chosen model, folder and kind.
+        #}
+        {% if not chat and can.get("chat.create") %}
+        <a class="btn btn--icon {{ 'is-active' if starting_temporary }}"
+           href="{{ temporary_toggle_url }}"
+           aria-label="{{ t('Temporary chat') }}"
+           title="{% if starting_temporary %}{{ t('Starting a temporary chat. Click to go back to a normal one.') }}{% else %}{{ t('Start a temporary chat: not listed, saves nothing, and deleted %(after)s.', after=temporary_after) }}{% endif %}">
+          {{ icon("clock") }}
+        </a>
+        {% endif %}
+
+        {% if credit_chip %}
+        {# What is left to spend, where credits are in use: in
+           credits and in money; "Unlimited" for an administrator. #}
+        <a class="badge mono" href="/settings" title="{{ t('Your credit balance') }}">
+          {% if credit_chip.unlimited %}{{ t("Unlimited") }}{% else %}{{ t("%(credits)s cr · %(money)s", credits=credit_chip.credits, money=credit_chip.money) }}{% endif %}
+        </a>
+        {% endif %}
+
+        {% if models %}
+          {% if can.get("chat.model_select") or not chat %}
+            {% include "chat/_model_picker.html" %}
+          {% elif current_model %}
+          <span class="badge">{{ current_model.label }}</span>
+          {% endif %}
+        {% endif %}
+
+        {# Before a chat exists, both of these depend on a decision being made in
+           the browser -- the kind toggle and the connection select -- which the
+           server cannot see. So they render carrying `data-agent-only` and start
+           `hidden`; `ui.js` shows them when `lembas:agent-target` names a
+           connection and hides them again when it stops. On a chat that exists
+           the server's answer is complete and neither attribute appears. #}
+        {% if canvas_enabled %}
+        {# Nearest the conversation of the three, being the widest and the one
+           most likely to be open beside it. All three share one slot: at
+           1280px the sidebar plus two panels leaves about seventy pixels of
+           chat. #}
+        <button class="btn btn--icon" type="button" aria-label="{{ t('Canvas') }}"
+                title="{{ t('Open a file beside the conversation') }}"
+                {% if not chat %}data-agent-only hidden{% endif %}
+                aria-expanded="false" data-toggle="#canvas" data-toggle-group="side">
+          {{ icon("file-text") }}
+        </button>
+        {% endif %}
+
+        {% if prototypes_enabled %}
+        {# Hidden until the transcript holds a prototype: `prototypes.js` shows
+           it when it mounts the first one. A button for a panel that can only
+           ever be empty is a button somebody presses once and learns to ignore. #}
+        <button class="btn btn--icon" type="button" aria-label="{{ t('Prototype') }}"
+                title="{{ t('Show the prototype beside the conversation') }}"
+                data-proto-toggle hidden
+                aria-expanded="false" data-toggle="#prototype" data-toggle-group="side">
+          {{ icon("prototype") }}
+        </button>
+        {% endif %}
+
+        {% if terminal_enabled %}
+        {# To the left of the inspector, and never open beside it: see the
+           toggle group in app.js. #}
+        <button class="btn btn--icon" type="button" aria-label="{{ t('Terminal') }}"
+                title="{{ t('Open a shell on %(device)s', device=agent_device_name or t('the device')) }}"
+                {% if not chat %}data-agent-only hidden{% endif %}
+                aria-expanded="false" data-toggle="#terminal" data-toggle-group="side">
+          {{ icon("terminal") }}
+        </button>
+        {% endif %}
+
+        {% if chat and user.is_admin %}
+        <button class="btn btn--icon" type="button" aria-label="{{ t('Inspect this chat') }}"
+                title="{{ t('Inspect this chat') }}" aria-expanded="false" data-toggle="#inspector"
+                data-toggle-group="side">
+          {{ icon("search") }}
+        </button>
+        {% endif %}
+
+        {# No overflow menu here: Keep this chat, Chat settings and Compact
+           are all in the chat's settings panel, opened from the composer's
+           settings, and Compact is `/compact` too. #}
+      </div>
+    </header>
+
+    {% if not models %}
+      {# Every fresh install lands here, so it points at the fix. #}
+      <div class="empty">
+        {{ icon("server", "empty__mark") }}
+        <h2 class="empty__title">{{ t("No models available") }}</h2>
+        <p class="empty__text">
+          {% if user.is_admin %}
+            {{ t("Add an OpenAI-compatible connection and %(name)s will load its models.", name=brand.name) }}
+          {% else %}
+            {{ t("No model connections have been set up yet. Ask an administrator.") }}
+          {% endif %}
+        </p>
+        {% if user.is_admin %}
+        <a class="btn btn--primary" href="/admin/connections">
+          {{ icon("server", "icon--sm") }} {{ t("Set up a connection") }}
+        </a>
+        {% endif %}
+      </div>
+
+    {% else %}
+      <div class="thread-scroll" id="thread-scroll">
+        <div class="thread" id="thread">
+          {% if not messages %}
+          <div class="thread__intro">
+            {{ scene() }}
+            <h2 class="empty__title">{{ t("What would you ask?") }}</h2>
+            <p class="empty__text">{{ t(brand.text.chat_empty) }}</p>
+
+            {# Only on a chat that does not exist yet. An empty chat someone
+               opened on purpose already has a model and a prompt chosen. #}
+            {% if not chat and suggestions %}
+            <div class="suggestions">
+              {% for suggestion in suggestions %}
+              <button class="suggestion" type="button"
+                      data-suggestion="{{ suggestion.prompt }}">
+                <span class="suggestion__name">{{ t(suggestion.name) }}</span>
+                {% if suggestion.description %}
+                <span class="suggestion__note">{{ t(suggestion.description) }}</span>
+                {% endif %}
+              </button>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {# The same include the rewind response returns, so the conversation
+             is described in one place. Markdown was rendered server-side in
+             pages.py, keyed by message id. #}
+          {% include "chat/_thread.html" %}
+        </div>
+      </div>
+
+      {% if chat %}
+      {#
+        Where a reply that started outside a request arrives. A background job
+        finishing wakes the chat server-side and there is no channel to say so:
+        the only stream is per-message, opened by a bubble this page has not got.
+        See `GET /api/chats/{id}/tail`, and `app.js` for the cursor -- which is
+        read from the DOM on `htmx:configRequest`, not rendered here, because the
+        DOM is the honest answer to what this page already holds.
+
+        OUTSIDE `#thread`, not in it: a rewind and a compaction both swap
+        `chat/_thread.html` into that container with `innerHTML`, and a poller
+        living inside would be swapped away by the first one and never fire
+        again. OUTSIDE the composer's form as well, and it names its own target
+        regardless -- htmx inherits `hx-target`, the form carries `#thread`, and
+        the jobs chip has already demonstrated once what an unstated target does
+        to a transcript.
+
+        `hx-sync="this:drop"` because a poll fires whether or not the last one
+        has come back, and two answers computed from the same cursor are two
+        copies of one bubble.
+      #}
+      <div hidden id="thread-tail"
+           hx-get="/api/chats/{{ chat.id }}/tail"
+           hx-trigger="every 5s"
+           hx-target="#thread" hx-swap="beforeend"
+           hx-sync="this:drop"></div>
+      {% endif %}
+
+      {#
+        A task chat has no composer, and that is the section rather than a
+        restriction on it: a schedule's chat is written into by the schedule and
+        read by a person, so there is nothing for them to send. The controls
+        that *do* apply — run it now, pause it, edit it — take the row's place.
+
+        Suppressed by not including it, not by hiding it. `chat/_composer.html`
+        is the only thing that posts a message, so its absence is the guarantee;
+        a hidden one would still be a form anybody could post to.
+      #}
+      {% if chat and chat.kind == "task" %}
+        {% include "schedules/_strip.html" %}
+      {% else %}
+        {% with todos = (chat.todos_json if chat else []), oob = false %}
+          {% include "chat/_todos.html" %}
+        {% endwith %}
+        {% include "chat/_composer.html" %}
+      {% endif %}
+    {% endif %}
+  </main>
+
+  {# The panels, mirroring the sidebar opposite, in the order they sit on
+     screen: the canvas nearest the conversation, then the terminal, then the
+     inspector, then the chat's settings. Only ever one of them is open
+     -- see the toggle group. #}
+  {% if canvas_enabled %}
+    {% include "chat/_canvas.html" %}
+  {% endif %}
+  {% if prototypes_enabled %}
+    {% include "chat/_prototype.html" %}
+  {% endif %}
+  {% if terminal_enabled %}
+    {% include "chat/_terminal.html" %}
+  {% endif %}
+  {% if chat and user.is_admin %}
+    {% include "chat/_inspector.html" %}
+  {% endif %}
+  {% if models and (chat or scope_families or scope_skills or scope_allow) and not (chat and chat.kind == "task") %}
+    {% include "chat/_settings_panel.html" %}
+  {% endif %}
+
+  {#
+    The window switch: on a phone, a side panel is the whole screen, and this is
+    how you move between it and the conversation.
+
+    A panel on a phone used to be a sheet over the conversation with a close
+    button, which made the conversation a place you return to by closing
+    things -- and the canvas, the terminal and a prototype each a separate
+    detour. Switching is the honest model at that width: there is room for one
+    window, so say which, and let the others be one tap away.
+
+    Shown only below the phone breakpoint and only while a panel is open (the
+    `:has()` rule in app.css); above it the panels sit beside the conversation
+    and the topbar buttons are the switch. `data-window` rather than
+    `data-toggle`, because pressing the window you are in must not close it.
+  #}
+  <nav class="winswitch" aria-label="{{ t('Windows') }}" data-winswitch>
+    <button class="winswitch__btn" type="button" data-window="" aria-pressed="true">
+      {{ icon("chat", "icon--sm") }}<span class="winswitch__label">{{ t("Chat") }}</span>
+    </button>
+    {% if canvas_enabled %}
+    <button class="winswitch__btn" type="button" data-window="#canvas" aria-pressed="false"
+            {% if not chat %}data-agent-only hidden{% endif %}>
+      {{ icon("file-text", "icon--sm") }}<span class="winswitch__label">{{ t("Canvas") }}</span>
+    </button>
+    {% endif %}
+    {% if prototypes_enabled %}
+    <button class="winswitch__btn" type="button" data-window="#prototype" aria-pressed="false"
+            data-proto-toggle hidden>
+      {{ icon("prototype", "icon--sm") }}<span class="winswitch__label">{{ t("Prototype") }}</span>
+    </button>
+    {% endif %}
+    {% if terminal_enabled %}
+    <button class="winswitch__btn" type="button" data-window="#terminal" aria-pressed="false"
+            {% if not chat %}data-agent-only hidden{% endif %}>
+      {{ icon("terminal", "icon--sm") }}<span class="winswitch__label">{{ t("Terminal") }}</span>
+    </button>
+    {% endif %}
+    {% if models and (chat or scope_families or scope_skills or scope_allow) and not (chat and chat.kind == "task") %}
+    <button class="winswitch__btn" type="button" data-window="#chat-settings" aria-pressed="false"
+            aria-label="{{ t('Chat settings') }}" title="{{ t('Chat settings') }}">
+      {{ icon("sliders", "icon--sm") }}
+    </button>
+    {% endif %}
+    {% if chat and user.is_admin %}
+    <button class="winswitch__btn" type="button" data-window="#inspector" aria-pressed="false"
+            aria-label="{{ t('Inspect this chat') }}" title="{{ t('Inspect this chat') }}">
+      {{ icon("search", "icon--sm") }}
+    </button>
+    {% endif %}
+  </nav>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{# Unconditional: every chat has a transcript, and this is what keeps a block
+   somebody opened open across the swaps that arrive twelve times a second. #}
+<script src="{{ asset('js/steps.js') }}" defer></script>
+{% if not chat and (canvas_enabled or terminal_enabled) %}
+{# Only where there is no chat yet. It points both panels at a draft id for
+   whatever the composer has selected, and does nothing at all once a chat
+   exists -- which is every other page this block renders on. #}
+{% endif %}
+{% if canvas_enabled %}
+<script src="{{ asset('js/canvas.js') }}" defer></script>
+{% endif %}
+{% if terminal_enabled %}
+{# Only where it can be used. xterm is nearly three times everything else
+   vendored, so a plain chat must never load it. #}
+<script src="{{ asset('vendor/xterm.js') }}" defer></script>
+<script src="{{ asset('vendor/xterm-addon-fit.js') }}" defer></script>
+<script src="{{ asset('js/terminal.js') }}" defer></script>
+{% endif %}
+{% endblock %}

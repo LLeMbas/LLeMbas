@@ -1,0 +1,86 @@
+{
+  "about": "edit: a file's content, the text to replace and its replacement (and `all`) → the new content, or the error the model is told. Exact match first; then OpenCode's tolerant matchers (trimmed lines, block anchors, whitespace, indentation, escapes); a match must be unique unless `all`.",
+  "cases": [
+    {
+      "content": "a\nb\nc\n",
+      "old": "b",
+      "new": "B",
+      "expect": {
+        "content": "a\nB\nc\n"
+      }
+    },
+    {
+      "content": "a\nb\nb\n",
+      "old": "b",
+      "new": "B",
+      "expect": {
+        "error": "Found multiple matches for oldString. Provide more surrounding context to make the match unique."
+      }
+    },
+    {
+      "content": "a\nb\nb\n",
+      "old": "b",
+      "new": "B",
+      "all": true,
+      "expect": {
+        "content": "a\nB\nB\n"
+      }
+    },
+    {
+      "content": "a\nb\nc\n",
+      "old": "x",
+      "new": "y",
+      "expect": {
+        "error": "Could not find oldString in the file. It must match exactly, including whitespace, indentation, and line endings."
+      }
+    },
+    {
+      "content": "a\nb\nc\n",
+      "old": "b",
+      "new": "b",
+      "expect": {
+        "error": "No changes to apply: oldString and newString are identical."
+      }
+    },
+    {
+      "content": "def f():\n    return 1\n",
+      "old": "def f():\n  return 1",
+      "new": "def f():\n    return 2",
+      "expect": {
+        "content": "def f():\n    return 2\n"
+      }
+    },
+    {
+      "content": "  x = 1\n",
+      "old": "x = 1",
+      "new": "x = 2",
+      "expect": {
+        "content": "  x = 2\n"
+      }
+    },
+    {
+      "content": "if a:\n    b()\n    c()\nend\n",
+      "old": "if a:\n    b()\n    c()",
+      "new": "if a:\n    d()",
+      "expect": {
+        "content": "if a:\n    d()\nend\n"
+      }
+    },
+    {
+      "content": "text\\nmore\n",
+      "old": "text\\nmore",
+      "new": "t",
+      "expect": {
+        "content": "t\n"
+      }
+    },
+    {
+      "content": "one  two\n",
+      "old": "one two",
+      "new": "three",
+      "expect": {
+        "content": "three\n"
+      }
+    }
+  ]
+}

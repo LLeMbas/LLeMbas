@@ -1,0 +1,222 @@
+{
+  "about": "The floor: commands refused in every mode, auto included. A command line is checked raw, and each simple command again in a plain spelling (see `plain`). Patterns are regular expressions with the flags given, written to read the same in JavaScript and Python re.",
+  "source": "Patterns ported from Hermes Agent tools/approval_detection.py HARDLINE_PATTERNS (MIT, © 2025 Nous Research), plus the CLI's own (force-push-main, find-delete-system).",
+  "flags": "is",
+  "rules": [
+    {
+      "id": "rm-root",
+      "description": "recursive delete of the root filesystem",
+      "pattern": "(?:^|[\\n\\`;&|(]|\\$\\()\\s*(?:sudo\\s+(?:-\\S+\\s+)*)?(?:env\\s+(?:\\w+=\\S*\\s+)*)?(?:(?:exec|nohup|setsid|time|command)\\s+)*\\s*rm\\s+(?:-\\S*\\s+)*(?:[\"'](?:\\/(?:(?:\\.\\.?)?\\/)*(?:\\.\\.?)?\\**|\\/ \\*)[\"']|(?:\\/(?:(?:\\.\\.?)?\\/)*(?:\\.\\.?)?\\**|\\/ \\*)(?:\\s|$|[)\\`;|&]))"
+    },
+    {
+      "id": "rm-system",
+      "description": "recursive delete of a system directory",
+      "pattern": "(?:^|[\\n\\`;&|(]|\\$\\()\\s*(?:sudo\\s+(?:-\\S+\\s+)*)?(?:env\\s+(?:\\w+=\\S*\\s+)*)?(?:(?:exec|nohup|setsid|time|command)\\s+)*\\s*rm\\s+(?:-\\S*\\s+)*(?:[\"'](?:\\/home|\\/home\\/\\*|\\/root|\\/root\\/\\*|\\/etc|\\/etc\\/\\*|\\/usr|\\/usr\\/\\*|\\/var|\\/var\\/\\*|\\/bin|\\/bin\\/\\*|\\/sbin|\\/sbin\\/\\*|\\/boot|\\/boot\\/\\*|\\/lib|\\/lib\\/\\*)[\"']|(?:\\/home|\\/home\\/\\*|\\/root|\\/root\\/\\*|\\/etc|\\/etc\\/\\*|\\/usr|\\/usr\\/\\*|\\/var|\\/var\\/\\*|\\/bin|\\/bin\\/\\*|\\/sbin|\\/sbin\\/\\*|\\/boot|\\/boot\\/\\*|\\/lib|\\/lib\\/\\*)(?:\\s|$|[)\\`;|&]))"
+    },
+    {
+      "id": "rm-home",
+      "description": "recursive delete of the home directory",
+      "pattern": "(?:^|[\\n\\`;&|(]|\\$\\()\\s*(?:sudo\\s+(?:-\\S+\\s+)*)?(?:env\\s+(?:\\w+=\\S*\\s+)*)?(?:(?:exec|nohup|setsid|time|command)\\s+)*\\s*rm\\s+(?:-\\S*\\s+)*(?:[\"'](?:(?:~|\\$\\{?HOME\\}?)(?:\\/?|\\/\\*)?)[\"']|(?:(?:~|\\$\\{?HOME\\}?)(?:\\/?|\\/\\*)?)(?:\\s|$|[)\\`;|&]))"
+    },
+    {
+      "id": "mkfs",
+      "description": "format a filesystem",
+      "pattern": "(?:^|[\\n\\`;&|(]|\\$\\()\\s*(?:sudo\\s+(?:-\\S+\\s+)*)?(?:env\\s+(?:\\w+=\\S*\\s+)*)?(?:(?:exec|nohup|setsid|time|command)\\s+)*\\s*mkfs(?:\\.[a-z0-9]+)?\\b"
+    },
+    {
+      "id": "dd-device",
+      "description": "dd to a raw block device",
+      "pattern": "(?:^|[\\n\\`;&|(]|\\$\\()\\s*(?:sudo\\s+(?:-\\S+\\s+)*)?(?:env\\s+(?:\\w+=\\S*\\s+)*)?(?:(?:exec|nohup|setsid|time|command)\\s+)*\\s*dd\\b[^\\n]*\\bof=\\/dev\\/(?:sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*"
+    },
+    {
+      "id": "redirect-device",
+      "description": "redirect to a raw block device",
+      "pattern": ">\\s*\\/dev\\/(?:sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*\\b"
+    },
+    {
+      "id": "fork-bomb",
+      "description": "fork bomb",
+      "pattern": ":\\(\\)\\s*\\{\\s*:\\s*\\|\\s*:\\s*&\\s*\\}\\s*;\\s*:"
+    },
+    {
+      "id": "kill-all",
+      "description": "kill every process",
+      "pattern": "(?:^|[\\n\\`;&|(]|\\$\\()\\s*(?:sudo\\s+(?:-\\S+\\s+)*)?(?:env\\s+(?:\\w+=\\S*\\s+)*)?(?:(?:exec|nohup|setsid|time|command)\\s+)*\\s*kill\\s+(?:-\\S+\\s+)*-1\\b"
+    },
+    {
+      "id": "shutdown",
+      "description": "shut down or reboot the machine",
+      "pattern": "(?:^|[\\n\\`;&|(]|\\$\\()\\s*(?:sudo\\s+(?:-\\S+\\s+)*)?(?:env\\s+(?:\\w+=\\S*\\s+)*)?(?:(?:exec|nohup|setsid|time|command)\\s+)*\\s*(?:shutdown|reboot|halt|poweroff)\\b"
+    },
+    {
+      "id": "init-06",
+      "description": "init 0/6",
+      "pattern": "(?:^|[\\n\\`;&|(]|\\$\\()\\s*(?:sudo\\s+(?:-\\S+\\s+)*)?(?:env\\s+(?:\\w+=\\S*\\s+)*)?(?:(?:exec|nohup|setsid|time|command)\\s+)*\\s*(?:tel)?init\\s+[06]\\b"
+    },
+    {
+      "id": "systemctl-power",
+      "description": "systemctl poweroff/reboot",
+      "pattern": "(?:^|[\\n\\`;&|(]|\\$\\()\\s*(?:sudo\\s+(?:-\\S+\\s+)*)?(?:env\\s+(?:\\w+=\\S*\\s+)*)?(?:(?:exec|nohup|setsid|time|command)\\s+)*\\s*systemctl\\s+(?:poweroff|reboot|halt|kexec)\\b"
+    },
+    {
+      "id": "force-push-main",
+      "description": "force-push to main/master",
+      "pattern": "(?:^|[\\n\\`;&|(]|\\$\\()\\s*(?:sudo\\s+(?:-\\S+\\s+)*)?(?:env\\s+(?:\\w+=\\S*\\s+)*)?(?:(?:exec|nohup|setsid|time|command)\\s+)*\\s*git\\s+push\\b(?=[^\\n;&|]*(?:\\s--force\\b|\\s-[a-zA-Z]*f[a-zA-Z]*\\b|\\s--force-with-lease\\b|\\s\\+))[^\\n;&|]*\\b(?:main|master)\\b"
+    },
+    {
+      "id": "find-delete-system",
+      "description": "find deleting under the root, the home or a system directory",
+      "pattern": "(?:^|[\\n\\`;&|(]|\\$\\()\\s*(?:sudo\\s+(?:-\\S+\\s+)*)?(?:env\\s+(?:\\w+=\\S*\\s+)*)?(?:(?:exec|nohup|setsid|time|command)\\s+)*\\s*find\\s+(?:-[HLP]\\s+)*[\"']?(?:\\/|~|\\$\\{?HOME\\}?|\\/home|\\/home\\/\\*|\\/root|\\/root\\/\\*|\\/etc|\\/etc\\/\\*|\\/usr|\\/usr\\/\\*|\\/var|\\/var\\/\\*|\\/bin|\\/bin\\/\\*|\\/sbin|\\/sbin\\/\\*|\\/boot|\\/boot\\/\\*|\\/lib|\\/lib\\/\\*)[\"']?\\s[^\\n;&|]*(?:-delete\\b|-exec(?:dir)?\\s+rm\\b)"
+    }
+  ],
+  "protected_paths": [
+    {
+      "path": "~/.ssh",
+      "scope": "shared"
+    },
+    {
+      "path": "~/.gnupg",
+      "scope": "shared"
+    },
+    {
+      "path": "<config>/connections.yaml",
+      "label": "connections.yaml",
+      "scope": "cli"
+    }
+  ],
+  "plain": {
+    "about": "How a simple command is spelled plainly before the rules are checked again: leading keywords and VAR= assignments dropped; wrapper programs and their options taken off (an option listed for a wrapper takes a value); `timeout` also drops its duration; a shell's -c argument read as its own line; git's global options dropped; quotes, escapes and program paths removed; paths normalised (~ for the home directory).",
+    "wrappers": {
+      "sudo": [
+        "-u",
+        "-g",
+        "-h",
+        "-p",
+        "-C",
+        "-D",
+        "-r",
+        "-t",
+        "-U",
+        "-T",
+        "--user",
+        "--group",
+        "--host",
+        "--prompt",
+        "--chdir",
+        "--close-from",
+        "--role",
+        "--type",
+        "--other-user",
+        "--command-timeout"
+      ],
+      "doas": [
+        "-u",
+        "-C"
+      ],
+      "env": [
+        "-u",
+        "-C",
+        "--unset",
+        "--chdir"
+      ],
+      "nice": [
+        "-n",
+        "--adjustment"
+      ],
+      "timeout": [
+        "-s",
+        "-k",
+        "--signal",
+        "--kill-after"
+      ],
+      "stdbuf": [
+        "-i",
+        "-o",
+        "-e",
+        "--input",
+        "--output",
+        "--error"
+      ],
+      "ionice": [
+        "-c",
+        "-n",
+        "-p",
+        "-P",
+        "-u",
+        "--class",
+        "--classdata"
+      ],
+      "xargs": [
+        "-a",
+        "-d",
+        "-E",
+        "-e",
+        "-I",
+        "-i",
+        "-L",
+        "-l",
+        "-n",
+        "-P",
+        "-s",
+        "--arg-file",
+        "--delimiter",
+        "--eof",
+        "--replace",
+        "--max-lines",
+        "--max-args",
+        "--max-procs",
+        "--max-chars"
+      ],
+      "exec": [
+        "-a"
+      ],
+      "nohup": [],
+      "setsid": [],
+      "command": [],
+      "builtin": [],
+      "time": [
+        "-f",
+        "-o",
+        "--format",
+        "--output"
+      ],
+      "chronic": [],
+      "unbuffer": [],
+      "busybox": []
+    },
+    "keywords": [
+      "{",
+      "}",
+      "(",
+      ")",
+      "!",
+      "if",
+      "then",
+      "else",
+      "elif",
+      "do",
+      "while",
+      "until",
+      "time"
+    ],
+    "shells": [
+      "sh",
+      "bash",
+      "zsh",
+      "dash",
+      "ksh",
+      "mksh",
+      "fish",
+      "ash"
+    ],
+    "git_value_options": [
+      "-C",
+      "-c",
+      "--git-dir",
+      "--work-tree",
+      "--namespace",
+      "--exec-path",
+      "--config-env"
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "note_view",
+  "scope": "shared",
+  "risk": "read",
+  "exclusive": false,
+  "block": "read",
+  "purpose": false,
+  "aliases": {
+    "cli": [
+      "notes"
+    ],
+    "llembas": [
+      "notes_get"
+    ]
+  },
+  "description": "Read one of your notes by its [id] (from notes_search).",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "id"
+    ]
+  }
+}

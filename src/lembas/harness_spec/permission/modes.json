@@ -1,0 +1,38 @@
+{
+  "about": "The four permission modes, as what each does with a call of each risk class once the hardline and the rules have spoken. `rules` means the permission rules decide (defaults.json, then the user's, then a trusted project's, then this session's approvals); anything the rules do not allow is asked. A deny from the rules or the hardline is final in every mode.",
+  "order": ["auto", "edit", "manual", "plan"],
+  "order_about": "Loosest first. A project or a subagent may make the mode stricter, never looser; switching to a looser mode is always asked.",
+  "aliases": { "unrestricted": "auto" },
+  "floor": "The hardline (hardline.json) and the protected paths are refused in every mode, auto included.",
+  "modes": {
+    "manual": {
+      "summary": "Everything not already allowed is asked.",
+      "read": "rules",
+      "write": "rules",
+      "execute": "rules",
+      "interact": "rules"
+    },
+    "edit": {
+      "summary": "Reading and changing files inside the project runs without asking; commands, and anything outside the project, follow the rules.",
+      "read": "allow inside the project, unless a rule written for that tool says ask (reading .env still asks); outside the project: rules",
+      "write": "allow inside the project, except git's own files (.git/) and the agent's own configuration in the project (config, agents, commands, skills); outside: rules",
+      "execute": "rules",
+      "interact": "rules"
+    },
+    "auto": {
+      "summary": "Nothing is asked. The hardline still refuses.",
+      "read": "allow",
+      "write": "allow",
+      "execute": "allow",
+      "interact": "allow"
+    },
+    "plan": {
+      "summary": "Investigate and write a plan; change nothing else.",
+      "read": "rules",
+      "write": "allow only for files under the plans directory; anything else is refused",
+      "execute": "only what the rules already allow; anything else is refused",
+      "interact": "rules"
+    }
+  },
+  "unattended": "With nobody to answer, whatever a mode would ask is refused instead, and the model is told so up front (prompts/modes/unattended.md)."
+}

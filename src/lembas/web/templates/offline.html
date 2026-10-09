@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "_macros.html" import mark %}
+{#
+  Shown by the service worker when a navigation cannot reach the server.
+
+  Cached at install time, so it has to stand entirely on its own: no user, no
+  chats, nothing that was rendered from the database. One of the few places
+  flavour belongs -- see the flavour rule in the working notes.
+#}
+
+{% block title %}{{ t("Offline") }} - {{ brand.name }}{% endblock %}
+
+{% block body %}
+<main class="auth">
+  <div class="auth__card" style="text-align: center">
+    {{ mark(cls="empty__mark", uid="offline") }}
+    <h1 class="auth__title" style="margin-top: var(--sp-4)">{{ t(brand.text.offline_title) }}</h1>
+    <p class="empty__text" style="margin: var(--sp-3) auto var(--sp-5)">
+      {{ t(brand.text.offline_line) }}
+    </p>
+    <p class="text-sm muted" style="margin-bottom: var(--sp-5)">
+      {{ t("%(name)s answers from your server, so there is nothing to read until it can be reached again.", name=brand.name) }}
+    </p>
+    <button class="btn btn--primary" type="button" onclick="window.location.reload()">{{ t("Try again") }}</button>
+  </div>
+</main>
+{% endblock %}

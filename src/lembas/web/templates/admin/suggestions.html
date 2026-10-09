@@ -1,0 +1,116 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "suggestions" %}
+
+{% block title %}{{ t("Suggestions") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Suggestions") }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">
+  {{ t("Cards on the new-chat screen. Clicking one sends its prompt straight away, so
+  each has to work on its own — write one that asks for whatever it needs, and
+  the first reply becomes the right question rather than a guess. The first
+  %(n)s enabled ones are shown, in this order.", n=max_shown) }}
+</p>
+
+{% if saved %}
+<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
+{% endif %}
+
+{% for suggestion in suggestions %}
+<form class="card" method="post" action="/admin/suggestions/{{ suggestion.id }}">
+  <div class="card__header">
+    <h2 class="card__title">
+      {{ suggestion.name }}
+      {% if not suggestion.enabled %}<span class="badge">{{ t("hidden") }}</span>{% endif %}
+      {% if loop.index > max_shown and suggestion.enabled %}
+      <span class="badge badge--warning" title="{{ t('Only the first %(n)s are shown', n=max_shown) }}">{{ t("below the cut") }}</span>
+      {% endif %}
+    </h2>
+    <button class="btn btn--sm btn--danger" type="submit"
+            formaction="/admin/suggestions/{{ suggestion.id }}/delete"
+            data-confirm-button="{{ t('Delete the suggestion “%(name)s”?', name=suggestion.name) }}"
+            data-confirm-title="{{ t('Delete suggestion') }}"
+            aria-label="{{ t('Delete suggestion') }}" title="{{ t('Delete suggestion') }}">
+      {{ icon("trash", "icon--sm") }}
+    </button>
+  </div>
+
+  <div class="grid grid--2">
+    <div class="field">
+      <label class="field__label" for="name-{{ suggestion.id }}">{{ t("Name") }}</label>
+      <input class="input" id="name-{{ suggestion.id }}" name="name"
+             value="{{ suggestion.name }}" maxlength="120">
+      <p class="field__hint">{{ t("The heading on the card.") }}</p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="position-{{ suggestion.id }}">{{ t("Position") }}</label>
+      <input class="input" id="position-{{ suggestion.id }}" name="position" type="number"
+             min="1" value="{{ suggestion.position + 1 }}">
+      <p class="field__hint">{{ t("Order on the screen, lowest first.") }}</p>
+    </div>
+  </div>
+
+  <div class="field">
+    <label class="field__label" for="description-{{ suggestion.id }}">{{ t("Description") }}</label>
+    <input class="input" id="description-{{ suggestion.id }}" name="description"
+           value="{{ suggestion.description }}" maxlength="300">
+    <p class="field__hint">{{ t("One line under the name, saying what it is for.") }}</p>
+  </div>
+
+  <div class="field">
+    <label class="field__label" for="prompt-{{ suggestion.id }}">{{ t("Prompt") }}</label>
+    <textarea class="textarea" id="prompt-{{ suggestion.id }}" name="prompt"
+              rows="4">{{ suggestion.prompt }}</textarea>
+    <p class="field__hint">{{ t("Sent as the first message. Nothing is added to it, so a prompt that needs material should ask for it.") }}</p>
+  </div>
+
+  <div class="field">
+    <label class="checkbox">
+      <input type="checkbox" name="enabled" value="true" {{ 'checked' if suggestion.enabled }}>
+      <span>{{ t("Show this one") }}</span>
+    </label>
+  </div>
+
+  <div class="card__footer">
+    <button class="btn btn--primary btn--sm" type="submit">{{ t("Save") }}</button>
+  </div>
+</form>
+{% else %}
+<div class="empty">
+  {{ icon("sparkle", "empty__mark") }}
+  <h2 class="empty__title">{{ t("No suggestions") }}</h2>
+  <p class="empty__text">{{ t("The new-chat screen shows its empty state instead.") }}</p>
+</div>
+{% endfor %}
+
+{% if not at_limit %}
+<form class="card" method="post" action="/admin/suggestions">
+  <h2 class="card__title">{{ t("Add a suggestion") }}</h2>
+  <div class="field">
+    <label class="field__label" for="new-name">{{ t("Name") }}</label>
+    <input class="input" id="new-name" name="name" maxlength="120"
+           placeholder="{{ t('Summarise a document') }}" required>
+  </div>
+  <div class="field">
+    <label class="field__label" for="new-description">{{ t("Description") }}</label>
+    <input class="input" id="new-description" name="description" maxlength="300"
+           placeholder="{{ t('What it is for, in one line.') }}">
+  </div>
+  <div class="field">
+    <label class="field__label" for="new-prompt">{{ t("Prompt") }}</label>
+    <textarea class="textarea" id="new-prompt" name="prompt" rows="4"
+              placeholder="{{ t('Sent as the first message when the card is clicked.') }}"></textarea>
+  </div>
+  <div class="card__footer">
+    <button class="btn btn--primary" type="submit">{{ t("Add") }}</button>
+  </div>
+</form>
+{% else %}
+<p class="admin-lede">
+  {{ t("%(n)s is the limit. Delete one to add another — past a dozen
+  this is a menu, and a menu on the empty screen is a worse blank page than a
+  blank page.", n=max_suggestions) }}
+</p>
+{% endif %}
+{% endblock %}

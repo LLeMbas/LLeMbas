@@ -1,0 +1,88 @@
+{
+  "about": "A command line → each simple command in its plain spelling (../permission/hardline.json `plain`): what the hardline is checked against the second time.",
+  "cases": [
+    {
+      "line": "sudo -u root rm -rf /etc",
+      "expect": [
+        "rm -rf /etc"
+      ]
+    },
+    {
+      "line": "env -i FOO=1 rm -rf /",
+      "expect": [
+        "rm -rf /"
+      ]
+    },
+    {
+      "line": "timeout -s KILL 5 rm -rf /tmp/x",
+      "expect": [
+        "rm -rf /tmp/x"
+      ]
+    },
+    {
+      "line": "bash -c \"rm -rf /\"",
+      "expect": [
+        "rm -rf /",
+        "bash -c 'rm -rf /'"
+      ]
+    },
+    {
+      "line": "/usr/bin/git -C repo push --force origin main",
+      "expect": [
+        "git push --force origin main"
+      ]
+    },
+    {
+      "line": "nohup setsid rm -rf ~ &",
+      "expect": [
+        "rm -rf ~"
+      ]
+    },
+    {
+      "line": "\"rm\" -rf '/etc/'",
+      "expect": [
+        "rm -rf /etc"
+      ]
+    },
+    {
+      "line": "xargs -n 1 rm -rf",
+      "expect": [
+        "rm -rf"
+      ]
+    },
+    {
+      "line": "if true; then rm -rf /; fi",
+      "expect": [
+        "true",
+        "rm -rf /",
+        "fi"
+      ]
+    },
+    {
+      "line": "git -c x=y status",
+      "expect": [
+        "git status"
+      ]
+    },
+    {
+      "line": "echo $(git push --force origin main)",
+      "expect": [
+        "git push --force origin main",
+        "echo '$(git' push --force origin main"
+      ]
+    },
+    {
+      "line": "ls `sudo rm -rf /etc`",
+      "expect": [
+        "rm -rf /etc",
+        "ls '`sudo' rm -rf '/etc`'"
+      ]
+    },
+    {
+      "line": "echo '$(not a command)'",
+      "expect": [
+        "echo '$(not a command'"
+      ]
+    }
+  ]
+}

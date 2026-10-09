@@ -1,0 +1,40 @@
+{
+  "name": "grep",
+  "scope": "cli",
+  "risk": "read",
+  "exclusive": false,
+  "block": "search",
+  "purpose": "purpose",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Search file contents with a regular expression (ripgrep syntax), or plain text with `literal: true`. Honours .gitignore.\nReturns `path:line:text`, at most 200 matches. Filter files with `include` (e.g. `*.ts`, `*.{ts,tsx}`).",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "pattern": {
+        "type": "string",
+        "description": "Regular expression"
+      },
+      "path": {
+        "description": "File or directory to search (default: working directory)",
+        "type": "string"
+      },
+      "include": {
+        "description": "Glob of files to search",
+        "type": "string"
+      },
+      "ignore_case": {
+        "type": "boolean"
+      },
+      "literal": {
+        "description": "Match the pattern as plain text, not a regular expression",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "pattern"
+    ]
+  }
+}

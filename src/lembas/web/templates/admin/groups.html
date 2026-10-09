@@ -1,0 +1,84 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "groups" %}
+
+{% block title %}{{ t("Groups & permissions") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Groups & permissions") }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">
+  {{ tm("Permissions are a <strong>union</strong>: everyone starts with the baseline below, and each group they belong to can add more. A group never takes something away, so being in a second group can only widen what someone can do — which is what keeps “why can this person not do X?” answerable without simulating every group they are in. Administrators bypass all of it.") }}
+</p>
+
+{% if saved %}
+<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
+{% endif %}
+
+<section class="card">
+  <h2 class="card__title">{{ t("Baseline permissions") }}</h2>
+  <p class="card__lede">{{ t("What every signed-in user can do before any group is considered. Turn something off here and grant it through a group to make it opt-in.") }}</p>
+
+  <form method="post" action="/admin/permissions/defaults">
+    {% for section_name, defs in permission_groups.items() %}
+    <div class="field">
+      <span class="field__label">{{ t(section_name) }}</span>
+      {% for definition in defs %}
+      <label class="checkbox perm-row">
+        <input type="checkbox" name="permission" value="{{ definition.key }}"
+               {{ 'checked' if baseline[definition.key] }}>
+        <span>
+          <strong>{{ t(definition.label) }}</strong>
+          <span class="perm-row__desc">{{ t(definition.description) }}</span>
+        </span>
+      </label>
+      {% endfor %}
+    </div>
+    {% endfor %}
+    <div class="btn-row"><button class="btn btn--primary" type="submit">{{ t("Save baseline") }}</button></div>
+  </form>
+</section>
+
+<h2 class="admin-section-title">
+  {{ t("Groups") }} <span class="badge">{{ groups|length }}</span>
+</h2>
+
+{#
+  Rows, not a form each. The old page rendered every group's full permission
+  grid, every member and every model on one screen -- fine for two groups and
+  unreadable at ten, which is the list-plus-detail rule the model admin already
+  follows.
+#}
+<div class="model-rows">
+  {% for group in groups %}
+  <a class="model-row" href="/admin/groups/{{ group.id }}">
+    <div class="model-row__main">
+      <span class="model-row__name">{{ group.name }}</span>
+      {% if group.description %}
+      <span class="model-row__id">{{ group.description }}</span>
+      {% endif %}
+    </div>
+    <div class="model-row__meta">
+      <span class="badge">{{ t("1 member") if group.users|length == 1 else t("%(n)s members", n=group.users|length) }}</span>
+      {% if granted[group.id] %}
+      <span class="badge badge--leaf">{{ t("+1 permission") if granted[group.id] == 1 else t("+%(n)s permissions", n=granted[group.id]) }}</span>
+      {% endif %}
+      {% if group.limits_json %}<span class="badge">{{ t("quotas") }}</span>{% endif %}
+    </div>
+  </a>
+  {% else %}
+  <div class="empty" style="padding: var(--sp-8) 0">
+    <p class="empty__text">{{ t("No groups yet. Everybody gets the baseline above and nothing more.") }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+<section class="card" style="margin-top: var(--sp-6)">
+  <form method="post" action="/admin/groups" class="btn-row">
+    <input class="input" name="name" placeholder="{{ t('New group name') }}" required
+           aria-label="{{ t('New group name') }}">
+    <button class="btn btn--primary" type="submit">
+      {{ icon("plus", "icon--sm") }} {{ t("Create group") }}
+    </button>
+  </form>
+</section>
+{% endblock %}

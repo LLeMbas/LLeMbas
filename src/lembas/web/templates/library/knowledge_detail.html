@@ -1,0 +1,99 @@
+{% extends "library/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "knowledge" %}
+
+{% block title %}{{ document.title }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ document.title }}{% endblock %}
+
+{% block library_content %}
+<div class="btn-row" style="margin-bottom: var(--sp-5)">
+  <a class="btn btn--sm" href="/library/knowledge/{{ document.base_id }}">
+    {{ icon("chevron-right", "icon--sm") }} {{ t("Back to %(name)s", name=document.base.name) if document.base else t("Back to the base") }}
+  </a>
+</div>
+
+<form method="post" action="/api/library/documents/{{ document.id }}">
+  <section class="card">
+    <h2 class="card__title">{{ t("Details") }}</h2>
+    <div class="field">
+      <label class="field__label" for="title">{{ t("Title") }}</label>
+      <input class="input" id="title" name="title" value="{{ document.title }}"
+             maxlength="300" {{ 'disabled' if not is_owner }}>
+    </div>
+    <div class="field">
+      <label class="field__label" for="description">{{ t("Description") }}</label>
+      <textarea class="textarea" id="description" name="description" rows="2"
+                {{ 'disabled' if not is_owner }}
+                placeholder="{{ t('What this is, and when it is worth reading.') }}">{{ document.description }}</textarea>
+      <p class="field__hint">{{ t("Searched along with the contents, so a line here helps a model find it.") }}</p>
+    </div>
+
+    {% if document.base %}
+    <div class="field">
+      <label class="field__label" for="base_id">{{ t("Knowledge base") }}</label>
+      {# Moving a document changes who can see it, which is the point of bases.
+         Only bases this person can write to are offered. #}
+      <select class="select" id="base_id" name="base_id" {{ 'disabled' if not is_owner }}>
+        {% for option in user_bases %}
+        <option value="{{ option.id }}" {{ 'selected' if option.id == document.base_id }}>
+          {{ option.name }}
+        </option>
+        {% endfor %}
+      </select>
+      <p class="field__hint">{{ t("Moving it changes who can see it.") }}</p>
+    </div>
+    {% endif %}
+
+    <dl class="detail-list">
+      <dt>{{ t("Kind") }}</dt><dd>{{ document.kind }}</dd>
+      {% if document.source_url %}
+      <dt>{{ t("Source") }}</dt>
+      <dd><a href="{{ document.source_url }}" target="_blank" rel="noopener noreferrer nofollow">{{ document.source_url }}</a></dd>
+      {% endif %}
+      {% if document.pages %}<dt>{{ t("Pages") }}</dt><dd>{{ document.pages }}</dd>{% endif %}
+      {% if document.size_bytes %}<dt>{{ t("Size") }}</dt><dd>{{ document.human_size }}</dd>{% endif %}
+      <dt>{{ t("Text") }}</dt>
+      <dd>
+        {{ t("%(n)s characters", n="{:,}".format(document.extracted_text|length)) }}
+        {%- if document.truncated %} · {{ t("truncated") }}{% endif %}
+      </dd>
+    </dl>
+
+    {% if document.extraction_error %}
+    <div class="alert alert--warning">
+      {{ icon("warning", "alert__icon") }} <span>{{ document.extraction_error }}</span>
+    </div>
+    {% endif %}
+  </section>
+
+  {% if is_owner %}
+  <div class="form-actions">
+    <button class="btn btn--primary" type="submit">{{ t("Save") }}</button>
+    {% if document.stored_name %}
+    <a class="btn" href="/api/library/documents/{{ document.id }}/content">{{ t("Download") }}</a>
+    {% endif %}
+    <span class="spacer"></span>
+    <button class="btn btn--danger" type="submit"
+            formaction="/api/library/documents/{{ document.id }}/delete"
+            data-confirm-button="{{ t('Delete “%(name)s”? Messages it was already attached to keep their copy.', name=document.title) }}"
+            data-confirm-title="{{ t('Delete document') }}">
+      {{ icon("trash", "icon--sm") }} {{ t("Delete") }}
+    </button>
+  </div>
+  {% endif %}
+</form>
+
+{% if document.is_image and document.stored_name %}
+<section class="card">
+  <h2 class="card__title">{{ t("Preview") }}</h2>
+  <img src="/api/library/documents/{{ document.id }}/content" alt="{{ document.title }}"
+       style="max-width: 100%; border-radius: var(--radius)">
+</section>
+{% elif document.extracted_text %}
+<section class="card">
+  <h2 class="card__title">{{ t("Text") }}</h2>
+  <p class="card__lede">{{ t("What a model is given when it reads this.") }}</p>
+  <div class="reasoning__body" style="max-height: 30rem">{{ document.extracted_text }}</div>
+</section>
+{% endif %}
+{% endblock %}

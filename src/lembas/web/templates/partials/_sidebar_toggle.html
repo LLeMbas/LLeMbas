@@ -1,0 +1,19 @@
+{% from "_macros.html" import icon %}
+{#
+  The control that opens and closes the sidebar.
+
+  A partial rather than markup in each topbar, because for most of this
+  application's life it existed on `/chat` alone -- and below the phone
+  breakpoint the sidebar is a fixed overlay, so every other page rendered 280px
+  of opaque drawer over itself with nothing anywhere to dismiss it. `/settings`
+  was one of them, which is where the Install and Notifications buttons live.
+
+  `aria-expanded` is deliberately absent rather than `"true"`: it used to be
+  hard-coded open, which is a lie the moment anything closes the drawer, and
+  `app.js:syncToggles` writes the honest value on load and on every change.
+#}
+<button class="btn btn--icon sidebar-toggle" type="button"
+        aria-label="{{ t('Toggle sidebar') }}" aria-controls="sidebar"
+        data-toggle="#sidebar">
+  {{ icon("sidebar") }}
+</button>

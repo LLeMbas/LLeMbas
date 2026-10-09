@@ -1,0 +1,45 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "mcp" %}
+
+{% block title %}{{ t("MCP servers") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("MCP servers") }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">
+  {{ tm("Remote servers speaking the Model Context Protocol over HTTP. Their tools are
+  offered beside the built-in ones to models marked <strong>%(mcp)s</strong>.
+  The list of tools is discovered and cached — press <strong>%(button)s</strong> after adding one, and again whenever the server changes.", mcp=t("MCP servers"), button=t("Test & refresh")) }}
+</p>
+
+<div class="alert">
+  {{ icon("shield", "icon--sm") }}
+  <span>{{ t("A server's tool names and descriptions are sent to the model as instructions, and what it returns is read back as fact. Add servers you trust, the way you would a dependency.") }}</span>
+</div>
+
+{% if saved %}
+<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
+{% endif %}
+
+<div class="btn-row">
+  <a class="btn btn--primary" href="/admin/mcp/new">
+    {{ icon("plus", "icon--sm") }} {{ t("Add a server") }}
+  </a>
+</div>
+
+{% if not servers %}
+<div class="empty" style="padding: var(--sp-10) 0">
+  {{ icon("server", "empty__mark") }}
+  <p class="empty__text">{{ t("No servers yet. You will need the URL of an MCP endpoint that speaks streamable HTTP — local ones launched as a subprocess are not supported.") }}</p>
+</div>
+{% else %}
+
+<div class="model-rows">
+  {% for server in servers %}
+  {% with tool_count = counts[server.id] %}
+  {% include "admin/_mcp_row.html" %}
+  {% endwith %}
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

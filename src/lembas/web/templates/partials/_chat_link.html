@@ -1,0 +1,57 @@
+{% from "_macros.html" import icon %}
+{#
+  A single chat row. `chat_item` rather than `chat` so this can be included
+  from a page that already has the open chat bound to `chat`.
+
+  An archived row carries `nav-item--archived` wherever it is listed,
+  not only inside the Archived group -- a device section set to "All sessions"
+  lists them after the active ones, and they must read as put away there too.
+#}
+<div class="nav-item {% if chat and chat.id == chat_item.id %}is-active{% endif %} {{ 'nav-item--archived' if chat_item.archived }}"
+     data-chat-id="{{ chat_item.id }}">
+  <a class="nav-item__link" href="/chat/{{ chat_item.id }}">
+    {# The kind, in the one place a person looks. Legible even with the switch
+       off, which is what it is for: a chat that can run commands should not look
+       like one that cannot. #}
+    {{ icon("terminal" if chat_item.kind == "agent" else "chat", "icon--sm") }}
+    <span class="nav-item__label" id="chat-link-label-{{ chat_item.id }}">{{ chat_item.title }}</span>
+    {# Toggled out of band by the unread poll; see /api/chats/unread. #}
+    <span id="unread-{{ chat_item.id }}" class="unread-dot"
+          {{ '' if chat_item.unread else 'hidden' }} title="{{ t('New reply') }}"></span>
+  </a>
+  <span class="nav-item__actions">
+    {# Works from any page carrying the sidebar, not only from inside the chat.
+       The response carries both out-of-band spans, so the heading follows if
+       this happens to be the open chat. #}
+    <button class="btn btn--icon btn--sm" type="button"
+            hx-patch="/api/chats/{{ chat_item.id }}" hx-swap="none"
+            data-prompt="{{ t('What should this chat be called?') }}"
+            data-prompt-title="{{ t('Rename chat') }}" data-prompt-field="title"
+            data-prompt-value="{{ chat_item.title }}"
+            aria-label="{{ t('Rename chat') }}" title="{{ t('Rename chat') }}">
+      {{ icon("pencil", "icon--sm") }}
+    </button>
+    {#
+      Archiving, and un-archiving, are the same control reading the opposite
+      way round -- so one button, and the sidebar re-renders because a row has
+      to leave one group and appear in the other.
+    #}
+    <button class="btn btn--icon btn--sm" type="button"
+            hx-patch="/api/chats/{{ chat_item.id }}"
+            hx-vals='{"archived": "{{ 0 if chat_item.archived else 1 }}"}'
+            hx-target="#sidebar-tree" hx-swap="outerHTML"
+            aria-label="{{ t('Restore chat') if chat_item.archived else t('Archive chat') }}"
+            title="{{ t('Put this chat back in the list') if chat_item.archived
+                      else t('Hide this chat without deleting it') }}">
+      {{ icon("arrow-up" if chat_item.archived else "archive", "icon--sm") }}
+    </button>
+    <button class="btn btn--icon btn--sm" type="button"
+            hx-delete="/api/chats/{{ chat_item.id }}"
+            hx-confirm="{{ t('Delete “%(title)s”? This cannot be undone.', title=chat_item.title) }}"
+            data-confirm-title="{{ t('Delete chat') }}"
+            hx-swap="none"
+            aria-label="{{ t('Delete chat') }}">
+      {{ icon("trash", "icon--sm") }}
+    </button>
+  </span>
+</div>

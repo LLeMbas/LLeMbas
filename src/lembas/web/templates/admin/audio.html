@@ -1,0 +1,186 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "audio" %}
+
+{% block title %}{{ t("Audio") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Audio") }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">{{ t("Two endpoints speaking the OpenAI audio API: one that turns speech into text so a message can be dictated, one that reads a reply out. They are configured separately because they usually are separate servers — whisper.cpp and Kokoro, say, or Speaches for both.") }}</p>
+
+{% if saved %}
+<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ t("Audio settings saved.") }}</span></div>
+{% endif %}
+
+<form method="post" action="/admin/audio">
+  <section class="card">
+    <h2 class="card__title">
+      {{ t("Dictation") }}
+      {% if values.stt_enabled %}<span class="badge badge--success">{{ t("on") }}</span>
+      {% else %}<span class="badge">{{ t("off") }}</span>{% endif %}
+    </h2>
+    <p class="card__lede">{{ t("Adds a microphone to the composer. Recordings are sent to this endpoint and never written to disk.") }}</p>
+
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="stt_enabled" value="true"
+               {{ 'checked' if values.stt_enabled }}>
+        <span>{{ t("Allow messages to be dictated") }}</span>
+      </label>
+    </div>
+
+    <div class="grid grid--2">
+      <div class="field">
+        <label class="field__label" for="stt-base-url">{{ t("Base URL") }}</label>
+        <input class="input" id="stt-base-url" name="stt_base_url" type="url"
+               value="{{ values.stt_base_url }}" placeholder="{{ t('http://127.0.0.1:8081') }}">
+        <p class="field__hint">
+          {{ tm("Where <code>/v1/audio/transcriptions</code> lives — whisper.cpp's <code>whisper-server</code>, Speaches, or anything else speaking it. With or without <code>/v1</code>; either is understood.") }}
+        </p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="stt-api-key">{{ t("API key") }}</label>
+        <input class="input" id="stt-api-key" name="stt_api_key" type="password"
+               value="{{ unchanged if masked.stt else '' }}"
+               placeholder="{{ masked.stt or t('None needed for a local server') }}"
+               autocomplete="off">
+        <p class="field__hint">{{ t("Encrypted at rest. Clear the field to remove it.") }}</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="stt-model">{{ t("Model") }}</label>
+        <input class="input" id="stt-model" name="stt_model"
+               value="{{ values.stt_model }}" placeholder="{{ t('whisper-1') }}">
+        <p class="field__hint">
+          {{ tm("A server hosting one model <strong>ignores this</strong> and uses whatever it was started with — <code>whisper-1</code> is then just a label. It only selects anything on a server that hosts several.") }}
+        </p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="stt-language">{{ t("Language") }}</label>
+        <input class="input" id="stt-language" name="stt_language" maxlength="16"
+               value="{{ values.stt_language }}" placeholder="{{ t('detect') }}">
+        <p class="field__hint">
+          {{ tm("An ISO code such as <code>en</code> or <code>sk</code>. Leave empty to let the server detect it, which is what whisper does best.") }}
+        </p>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn" type="button" hx-post="/admin/audio/test/stt"
+              hx-target="#audio-test-stt" hx-swap="outerHTML">
+        {{ icon("refresh", "icon--sm") }} {{ t("Test dictation") }}
+      </button>
+    </div>
+    <div id="audio-test-stt"></div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">
+      {{ t("Read aloud") }}
+      {% if values.tts_enabled %}<span class="badge badge--success">{{ t("on") }}</span>
+      {% else %}<span class="badge">{{ t("off") }}</span>{% endif %}
+    </h2>
+    <p class="card__lede">{{ t("Adds a speaker button to every reply. Each reader can pick their own voice in their settings; what is chosen here is the default.") }}</p>
+
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="tts_enabled" value="true"
+               {{ 'checked' if values.tts_enabled }}>
+        <span>{{ t("Allow replies to be read out") }}</span>
+      </label>
+    </div>
+
+    <div class="grid grid--2">
+      <div class="field">
+        <label class="field__label" for="tts-base-url">{{ t("Base URL") }}</label>
+        <input class="input" id="tts-base-url" name="tts_base_url" type="url"
+               value="{{ values.tts_base_url }}" placeholder="{{ t('http://127.0.0.1:8880') }}">
+        <p class="field__hint">
+          {{ tm("Where <code>/v1/audio/speech</code> lives — Kokoro-FastAPI, OpenAI, or anything else speaking it.") }}
+        </p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="tts-api-key">{{ t("API key") }}</label>
+        <input class="input" id="tts-api-key" name="tts_api_key" type="password"
+               value="{{ unchanged if masked.tts else '' }}"
+               placeholder="{{ masked.tts or t('None needed for a local server') }}"
+               autocomplete="off">
+      </div>
+      <div class="field">
+        <label class="field__label" for="tts-model">{{ t("Model") }}</label>
+        <input class="input" id="tts-model" name="tts_model"
+               value="{{ values.tts_model }}" placeholder="{{ t('tts-1') }}">
+      </div>
+      <div class="field">
+        <label class="field__label" for="tts-voice">{{ t("Default voice") }}</label>
+        <select class="select" id="tts-voice" name="tts_voice">
+          {% with selected = values.tts_voice %}
+            {% include "partials/_voice_options.html" %}
+          {% endwith %}
+        </select>
+        <p class="field__hint">
+          {% if voice_error %}
+            {{ t("Could not read the voice list: %(error)s", error=voice_error) }}
+          {% else %}
+            {{ t("Read from the endpoint. Save and test to refresh it.") }}
+          {% endif %}
+        </p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="tts-format">{{ t("Format") }}</label>
+        <select class="select" id="tts-format" name="tts_format">
+          {% for format in formats %}
+          <option value="{{ format }}" {{ 'selected' if format == values.tts_format }}>
+            {{ format }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label class="field__label" for="tts-speed">{{ t("Speed") }}</label>
+        <input class="input" id="tts-speed" name="tts_speed" type="number"
+               min="0.25" max="4" step="0.05" value="{{ values.tts_speed }}">
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="tts_autoplay" value="true"
+               {{ 'checked' if values.tts_autoplay }}>
+        <span>{{ t("Read new replies aloud as they finish, by default") }}</span>
+      </label>
+      <p class="field__hint">{{ t("Only the starting value for each account — anyone can turn it off in their own settings, and nobody is made to listen.") }}</p>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn" type="button" hx-post="/admin/audio/test/tts"
+              hx-target="#audio-test-tts" hx-swap="outerHTML">
+        {{ icon("refresh", "icon--sm") }} {{ t("Test speech") }}
+      </button>
+    </div>
+    <div id="audio-test-tts"></div>
+  </section>
+
+  {# What speech costs when credits are on -- in money, like a model's
+     prices, and turned into credits at the credit's value. #}
+  <section class="card">
+    <h2 class="card__title">{{ t("Price") }}</h2>
+    <p class="card__lede">{{ t("What speech costs, in %(currency)s, when credits are on (Admin → Credits) — in the browser and through the API alike. 0 is free, which is what a server of your own usually is.", currency=currency_sign) }}</p>
+    <div class="grid grid--2">
+      <div class="field">
+        <label class="field__label" for="stt-price">{{ t("Speech to text, per minute") }} ({{ currency_sign }})</label>
+        <input class="input" id="stt-price" name="stt_per_minute" type="number" min="0" step="any"
+               value="{{ values.stt_per_minute or '' }}" placeholder="0">
+        <p class="field__hint">{{ t("Per minute of recording, by the length the server reports, or the recording's own.") }}</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="tts-price">{{ t("Text to speech, per million characters") }} ({{ currency_sign }})</label>
+        <input class="input" id="tts-price" name="tts_per_1m_chars" type="number" min="0" step="any"
+               value="{{ values.tts_per_1m_chars or '' }}" placeholder="0">
+        <p class="field__hint">{{ t("Per character read aloud.") }}</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="form-actions"><button class="btn btn--primary" type="submit">{{ t("Save settings") }}</button></div>
+</form>
+{% endblock %}

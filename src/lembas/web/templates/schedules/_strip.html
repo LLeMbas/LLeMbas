@@ -1,0 +1,65 @@
+{% from "_macros.html" import icon %}
+{#
+  What sits where a task chat's composer would be.
+
+  Three plain forms rather than htmx: each one changes what the page says about
+  itself — when it next runs, whether it is paused, a whole new reply — so a
+  redirect back is the honest response, and a refresh cannot re-submit it.
+
+  Every button here is the reader acting on their own schedule, so nothing is
+  checked against the chat's mode. That is the same argument the terminal panel,
+  the directory browser and the jobs panel already make: the model is governed,
+  the person is not.
+#}
+<div class="composer">
+  <div class="composer__inner">
+    {% if schedule %}
+    <div class="jobs__row jobs__row--open" style="justify-content: space-between">
+      <div style="min-width: 0">
+        <strong>{{ schedule_summary }}</strong>
+        <div class="text-xs faint">
+          {%- if not schedule.enabled %}
+            {{ t("Paused.") }}
+          {%- elif schedule_next %}
+            {{ t("Next run %(when)s.", when=stamp(schedule_next, "%a %-d %b, %H:%M")) }}
+          {%- else %}
+            {{ t("Nothing left to run.") }}
+          {%- endif %}
+          {%- if schedule.fired_count %} {{ t("Run %(n)s times so far.", n=schedule.fired_count) }}{% endif %}
+          {%- if schedule.target == "report" %} {{ t("Files a report each time.") }}{% endif %}
+        </div>
+        {% if schedule.last_error %}
+        <div class="text-xs faint">{{ schedule.last_error }}</div>
+        {% endif %}
+      </div>
+
+      <div class="btn-row">
+        <form method="post" action="/api/schedules/{{ schedule.id }}/run">
+          <button class="btn btn--sm" type="submit" title="{{ t('Run it now without using up the next scheduled run') }}">
+            {{ icon("bolt", "icon--sm") }} {{ t("Run now") }}
+          </button>
+        </form>
+        <form method="post" action="/api/schedules/{{ schedule.id }}/toggle">
+          <input type="hidden" name="enabled" value="{{ '0' if schedule.enabled else '1' }}">
+          <button class="btn btn--sm" type="submit">
+            {% if schedule.enabled %}
+              {{ icon("stop-circle", "icon--sm") }} {{ t("Pause") }}
+            {% else %}
+              {{ icon("refresh", "icon--sm") }} {{ t("Resume") }}
+            {% endif %}
+          </button>
+        </form>
+        <a class="btn btn--sm" href="/scheduled/{{ schedule.id }}/edit">
+          {{ icon("gear", "icon--sm") }} {{ t("Edit") }}
+        </a>
+      </div>
+    </div>
+    {% else %}
+    {#
+      The schedule was removed but its chat was kept, which is the default when
+      somebody deletes one. Said plainly rather than left as an empty bar.
+    #}
+    <p class="nav-empty">{{ t("This chat belonged to a schedule that has been removed. It is kept as a record of what was done.") }}</p>
+    {% endif %}
+  </div>
+</div>

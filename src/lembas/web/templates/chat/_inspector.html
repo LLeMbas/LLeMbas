@@ -1,0 +1,24 @@
+{% from "_macros.html" import icon %}
+{#
+  The request inspector: a third child of .shell, opening and closing like the
+  sidebar opposite it. Administrators only, and only on their own chats.
+
+  `intersect once` is what makes it lazy with no JavaScript: a hidden element
+  never intersects the viewport, so the request fires the first time it is
+  opened and never on a page load nobody looked at.
+#}
+<aside class="inspector" id="inspector" hidden aria-label="{{ t('Request inspector') }}">
+  <div class="panel-head">
+    <h2 class="panel-head__title">{{ icon("search", "icon--sm") }} {{ t("Inspector") }}</h2>
+    <button class="btn btn--icon btn--sm" type="button" data-toggle="#inspector"
+            aria-label="{{ t('Close inspector') }}">
+      {{ icon("x", "icon--sm") }}
+    </button>
+  </div>
+
+  <div class="inspector__body" id="inspector-body"
+       hx-get="/api/chats/{{ chat.id }}/inspect"
+       hx-trigger="intersect once" hx-target="this" hx-swap="innerHTML">
+    <p class="inspector__note">{{ t("Opening…") }}</p>
+  </div>
+</aside>

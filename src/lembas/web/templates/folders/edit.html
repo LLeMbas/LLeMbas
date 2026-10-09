@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{#
+  What a folder hands to the chats started inside it.
+
+  A page rather than a panel in the sidebar, following the admin convention:
+  compact rows, and the full form one click away. A form per folder row in a
+  tree that nests eight deep would be unusable, and the sidebar is the one
+  place in the application that has to stay scannable.
+
+  The whole form is one PATCH at the route that already existed. Every field is
+  clearable, because `update_folder` reads the raw form and checks key presence
+  rather than declaring `Form(None)` parameters -- with those, an empty box and
+  an absent one are the same request.
+#}
+
+{% block title %}{{ folder.name }} - {{ brand.name }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ asset('css/chat.css') }}">
+<link rel="stylesheet" href="{{ asset('css/admin.css') }}">
+{% endblock %}
+
+{% block body_attrs %} data-authenticated="true"{% endblock %}
+
+{% block body %}
+<div class="shell">
+  {% include "partials/sidebar.html" %}
+
+  <main class="main">
+    <header class="topbar">
+      {% include "partials/_sidebar_toggle.html" %}
+      <h1 class="topbar__title">
+        {{ icon("folder", "icon--sm") }}
+        <span>{{ folder.name }}</span>
+      </h1>
+      <span class="spacer"></span>
+      <a class="btn btn--sm" href="/chat?folder={{ folder.id }}">
+        {{ icon("plus", "icon--sm") }} {{ t("New chat here") }}
+      </a>
+    </header>
+
+    {#
+      `.admin-scroll` is what scrolls, not `.page`. `.main` is a flex column
+      with `min-height: 0`, so a `.page` dropped straight into it overflows the
+      viewport with nothing to scroll -- Save and Back end up somewhere below
+      the bottom of the window, reachable only by zooming out. Every other page
+      of this shape already wraps its content this way; this one did not.
+    #}
+    <div class="admin-scroll">
+    <div class="page">
+      <form hx-patch="/api/folders/{{ folder.id }}" hx-swap="none">
+        <div class="card">
+          <h2 class="card__title">{{ t("Name") }}</h2>
+          <div class="field">
+            <input class="input" type="text" name="name" maxlength="200"
+                   value="{{ folder.name }}" aria-label="{{ t('Folder name') }}" required>
+          </div>
+          <div class="field">
+            <label class="field__label" for="folder-description">{{ t("Description") }}</label>
+            <input class="input" type="text" id="folder-description" name="description"
+                   maxlength="500" value="{{ folder.description }}"
+                   placeholder="{{ t('What this folder is for.') }}">
+            <p class="field__hint">{{ t("For you, not for any model. It is never sent anywhere.") }}</p>
+          </div>
+          {#
+            Nesting has worked at the route since folders existed -- with a cycle
+            guard and a depth cap -- and the sidebar template has always
+            recursed to draw it. Nothing anywhere submitted `parent_id`, so the
+            README advertised "arbitrarily nested" folders that could not be
+            nested. This is that control.
+
+            The options are `candidate_parents`, which is the cycle guard stated
+            as a list rather than as a refusal: a picker offering a move the
+            route will reject is a control that looks like it works.
+          #}
+          <div class="field">
+            <label class="field__label" for="folder-parent">{{ t("Inside") }}</label>
+            <select class="select" id="folder-parent" name="parent_id">
+              <option value="">{{ t("Nothing — a folder at the top") }}</option>
+              {% for candidate in parents %}
+              <option value="{{ candidate.id }}"
+                      {{ 'selected' if folder.parent_id == candidate.id }}>
+                {{ candidate.name }}
+              </option>
+              {% endfor %}
+            </select>
+            <p class="field__hint">{{ t("A folder inside another inherits its system prompt where it has none of its own.") }}</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 class="card__title">{{ t("System prompt") }}</h2>
+          <p class="card__lede">{{ t("Used by every chat in this folder, and by folders nested inside it, unless the chat has a prompt of its own. Read each time a reply is built rather than copied when a chat is made, so editing this reaches the chats already here.") }}</p>
+          <div class="field">
+            <textarea class="textarea" name="system_prompt" rows="8"
+                      aria-label="{{ t('System prompt') }}"
+                      placeholder="{{ t('Leave empty to fall through to the model\'s prompt, then the instance\'s.') }}">{{ folder.system_prompt }}</textarea>
+            <p class="field__hint">{{ t("Precedence, not concatenation: chat, then folder, then model, then instance. The most specific one wins outright.") }}</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 class="card__title">{{ t("What a new chat starts as") }}</h2>
+          <p class="card__lede">{{ t("Seeds, copied onto a chat when it is created and its own from then on. Anything chosen on the new-chat screen wins over these.") }}</p>
+
+          <div class="field">
+            <label class="field__label" for="folder-model">{{ t("Model") }}</label>
+            <select class="select" id="folder-model" name="model_id">
+              <option value="">{{ t("No opinion") }}</option>
+              {% for model in models %}
+              <option value="{{ model.model_id }}"
+                      {{ 'selected' if model.model_id == folder.model_id }}>
+                {{ model.label }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="folder-kind">{{ t("Kind") }}</label>
+            <select class="select" id="folder-kind" name="kind">
+              <option value="" {{ 'selected' if not folder.kind }}>{{ t("No opinion") }}</option>
+              <option value="chat" {{ 'selected' if folder.kind == 'chat' }}>{{ t("Chat") }}</option>
+              <option value="agent" {{ 'selected' if folder.kind == 'agent' }}>{{ t("Agent chat") }}</option>
+            </select>
+            <p class="field__hint">{{ t("A folder set to one kind shows on only that side of the sidebar's switch, and opens the new-chat screen already on that fork.") }}</p>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn btn--primary" type="submit">
+            {{ icon("check", "icon--sm") }} {{ t("Save") }}
+          </button>
+          <a class="btn" href="/chat">{{ t("Back") }}</a>
+        </div>
+      </form>
+    </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

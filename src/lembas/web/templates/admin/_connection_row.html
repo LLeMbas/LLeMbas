@@ -1,0 +1,172 @@
+{% from "_macros.html" import icon %}
+{#
+  One connection: an editable form plus its current status.
+
+  Swapped in place by the "Test & refresh" button, so this fragment has to be
+  able to render on its own as well as inside the list.
+#}
+<section class="card connection" id="connection-{{ connection.id }}">
+  <form method="post" action="/admin/connections/{{ connection.id }}" class="form-grid"
+        x-data="{ kind: '{{ 'anthropic' if connection.is_anthropic else 'openai' }}' }">
+    <div class="card__header">
+      <div class="row" style="gap: var(--sp-2); min-width: 0">
+        <span class="status-dot {{ 'is-ok' if connection.enabled and not connection.last_error
+                                    else 'is-bad' if connection.last_error else 'is-off' }}"
+              aria-hidden="true"></span>
+        <strong class="truncate">{{ connection.name }}</strong>
+        <span class="badge" title="{{ t('Provider name') }}"><code>{{ connection.provider_name }}</code></span>
+        <span class="badge">{{ t("Anthropic") if connection.is_anthropic else t("OpenAI dialect") }}</span>
+        {% if model_count is defined %}
+        <span class="badge">{{ t("1 model") if model_count == 1 else t("%(n)s models", n=model_count) }}</span>
+        {% endif %}
+        {% if not connection.enabled %}
+        <span class="badge">{{ t("disabled") }}</span>
+        {% endif %}
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn--sm" type="submit"
+                hx-post="/admin/connections/{{ connection.id }}/test"
+                hx-target="#connection-{{ connection.id }}" hx-swap="outerHTML"
+                formnovalidate>
+          {{ icon("refresh", "icon--sm") }} {{ t("Test & refresh") }}
+        </button>
+        <button class="btn btn--sm btn--primary" type="submit">{{ t("Save") }}</button>
+      </div>
+    </div>
+
+    {% if message %}
+    <div class="alert alert--{{ message_kind|default('success') }}">
+      {% if message_kind == "error" %}{{ icon("warning", "alert__icon") }}{% endif %}
+      <span>{{ message }}</span>
+    </div>
+    {% elif connection.last_error %}
+    <div class="alert alert--error">
+      {{ icon("warning", "alert__icon") }}
+      <span>{{ connection.last_error }}</span>
+    </div>
+    {% endif %}
+
+    <div class="field">
+      <label class="field__label" for="kind-{{ connection.id }}">{{ t("Type") }}</label>
+      <select class="select" id="kind-{{ connection.id }}" name="kind" x-model="kind"
+              @change="if (kind === 'anthropic') { $refs.url.value = '{{ anthropic_url }}' }">
+        <option value="openai" {{ 'selected' if not connection.is_anthropic }}>{{ t("OpenAI dialect") }}</option>
+        <option value="anthropic" {{ 'selected' if connection.is_anthropic }}>{{ t("Anthropic") }}</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="name-{{ connection.id }}">{{ t("Name") }}</label>
+      <input class="input" id="name-{{ connection.id }}" name="name"
+             value="{{ connection.name }}" required>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="provider-{{ connection.id }}">{{ t("Provider name") }}</label>
+      <input class="input input--mono" id="provider-{{ connection.id }}" name="provider"
+             value="{{ connection.provider_name }}" required
+             pattern="[a-z0-9][a-z0-9\-]{0,31}" maxlength="32" autocomplete="off">
+      <p class="field__hint">{{ tm("How clients such as the LLeMbas CLI name this connection's models: <code>provider/model</code>, for example <code>llama/bonsai</code>. Lowercase letters, digits and hyphens, unique among connections.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="url-{{ connection.id }}">{{ t("Base URL") }}</label>
+      <input class="input input--mono" id="url-{{ connection.id }}" name="base_url"
+             value="{{ connection.base_url }}" required x-ref="url">
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="key-{{ connection.id }}">
+        <span x-show="kind !== 'anthropic'" {{ 'x-cloak' if connection.is_anthropic }}>{{ t("API key") }}</span>
+        <span x-show="kind === 'anthropic'" {{ 'x-cloak' if not connection.is_anthropic }}>{{ t("Anthropic API key") }}</span>
+      </label>
+      <input class="input input--mono" id="key-{{ connection.id }}" name="api_key"
+             type="password" autocomplete="off"
+             value="{{ unchanged if connection.api_key_encrypted else '' }}"
+             placeholder="{{ t('No key set') }}">
+      <p class="field__hint">
+        {% if connection.api_key_encrypted %}
+          {{ tm("Currently <code>%(masked)s</code>. Leave the dots alone to keep it, or clear the field to remove the key entirely.", masked=masked) }}
+        {% else %}
+          {{ t("No key is stored for this endpoint.") }}
+        {% endif %}
+      </p>
+    </div>
+
+    {# Which data group this provider reads. Only worth a control once there is a
+       second group to choose; until then every connection is in the default one
+       and the field would be a select with one option. #}
+    {% if data_group_choices is defined and data_group_choices|length > 1 %}
+    <div class="field">
+      <label class="field__label" for="group-{{ connection.id }}">{{ t("Data group") }}</label>
+      <select class="select" id="group-{{ connection.id }}" name="data_group_id">
+        {% for group in data_group_choices %}
+        <option value="{{ group.id }}"
+                {{ 'selected' if (connection.data_group_id or 'default') == group.id }}>{{ group.name }}</option>
+        {% endfor %}
+      </select>
+      <p class="field__hint">{{ t("Its models read only this group's memories, notes, skills, knowledge and reports, and a chat started on one of them stays in it. Moving a connection does not move any data: it starts reading the other group.") }}</p>
+    </div>
+    {% endif %}
+
+    <div class="field">
+      <label class="field__label" for="unload-{{ connection.id }}">{{ t("Unload URL") }}</label>
+      <div class="btn-row">
+        <input class="input input--mono" id="unload-{{ connection.id }}" name="unload_url"
+               value="{{ connection.unload_url }}" placeholder="{{ t('No unload call') }}"
+               style="flex: 1; min-width: 0">
+        <select class="select" name="unload_method" aria-label="{{ t('How to ask it to unload') }}" style="flex: none">
+          <option value="POST" {{ 'selected' if connection.unload_method != 'GET' }}>{{ t("POST") }}</option>
+          <option value="GET" {{ 'selected' if connection.unload_method == 'GET' }}>{{ t("GET") }}</option>
+        </select>
+      </div>
+      <p class="field__hint">
+        {{ tm("Only used by image generation's Preserve VRAM, to free this endpoint's memory while ComfyUI works. llama-swap answers <code>GET /unload</code>. Leave it empty for anything on another machine — its memory is not the memory being freed, and it would be an unexplained request.") }}
+      </p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="headers-{{ connection.id }}">{{ t("Extra headers") }}</label>
+      <textarea class="textarea input--mono" id="headers-{{ connection.id }}"
+                name="extra_headers" rows="2"
+                placeholder="{{ t('HTTP-Referer: https://example.org') }}">{% for name, value in (connection.extra_headers_json or {}).items() %}{{ name }}: {{ value }}
+{% endfor %}</textarea>
+      <p class="field__hint">
+        {{ tm("One <code>Name: value</code> per line, sent with every request to this endpoint. OpenRouter reads <code>HTTP-Referer</code> and <code>X-Title</code> and attributes your usage with them. Leave it empty unless an endpoint has asked for something.") }}
+      </p>
+    </div>
+
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="one_model_at_a_time" value="true"
+               {{ 'checked' if connection.one_model_at_a_time }}>
+        <span>{{ t("Holds one model at a time") }}</span>
+      </label>
+      <p class="field__hint">{{ t("Tick this for llama-swap in front of one GPU, or anything else that unloads one model to serve another. A model here may then be its own helper, but never send a helper to another model on this connection: loading it would unload the model whose reply is waiting.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="enabled" value="true"
+               {{ 'checked' if connection.enabled }}>
+        <span>{{ t("Enabled — its models are offered in chats") }}</span>
+      </label>
+    </div>
+
+    <div class="card__footer">
+      <span class="text-xs faint">
+        {% if connection.last_checked_at %}
+          {{ t("Last checked %(when)s UTC", when=connection.last_checked_at.strftime("%Y-%m-%d %H:%M")) }}
+        {% else %}
+          {{ t("Never checked") }}
+        {% endif %}
+      </span>
+      <button class="btn btn--sm btn--danger" type="submit"
+              formaction="/admin/connections/{{ connection.id }}/delete" formnovalidate
+              data-confirm-button="{{ t('Delete the connection “%(name)s”? Existing chats keep their history.', name=connection.name) }}">
+        {{ icon("trash", "icon--sm") }} {{ t("Delete") }}
+      </button>
+    </div>
+  </form>
+</section>

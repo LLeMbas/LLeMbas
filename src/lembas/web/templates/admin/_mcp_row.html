@@ -1,0 +1,36 @@
+{% from "_macros.html" import icon %}
+{#
+  One MCP server in the list.
+
+  Swapped in place by the “Test & refresh” button, so this fragment has to be
+  able to render on its own as well as inside the list.
+#}
+<div class="model-row {{ 'is-off' if not server.enabled }}" id="mcp-{{ server.id }}">
+  <div class="model-row__main">
+    <div class="model-row__title">
+      <a class="model-row__name" href="/admin/mcp/{{ server.id }}/edit">{{ server.name }}</a>
+      <span class="badge">{{ t("1 tool") if tool_count == 1 else t("%(n)s tools", n=tool_count) }}</span>
+      {% if not server.enabled %}<span class="badge badge--danger">{{ t("disabled") }}</span>{% endif %}
+      {% if not server.public %}<span class="badge">{{ t("restricted") }}</span>{% endif %}
+      {% if server.allow_private %}<span class="badge">{{ t("private network") }}</span>{% endif %}
+      {% if server.protocol_version %}
+      <span class="badge badge--leaf">MCP {{ server.protocol_version }}</span>
+      {% endif %}
+    </div>
+    <code class="model-row__id">{{ server.slug }} · {{ server.url }}</code>
+    {% if message %}
+    <p class="text-xs {{ 'danger' if message_kind == 'error' else 'faint' }}">{{ message }}</p>
+    {% elif server.last_error %}
+    <p class="text-xs danger">{{ server.last_error }}</p>
+    {% endif %}
+  </div>
+
+  <div class="model-row__actions">
+    <button class="btn btn--sm" type="button"
+            hx-post="/admin/mcp/{{ server.id }}/test"
+            hx-target="#mcp-{{ server.id }}" hx-swap="outerHTML">
+      {{ icon("refresh", "icon--sm") }} {{ t("Test & refresh") }}
+    </button>
+    <a class="btn btn--sm" href="/admin/mcp/{{ server.id }}/edit">{{ t("Edit") }}</a>
+  </div>
+</div>

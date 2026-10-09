@@ -1,0 +1,61 @@
+{% from "_macros.html" import icon %}
+{#
+  One step of a reply: what the model thought, what it said, or what it ran.
+
+  The only `|safe` here is `step.html`, which came out of `services/markdown.py`
+  and is the one path allowed to emit HTML. Thinking is printed as text and
+  autoescaped by Jinja; tool events go through `_tool_activity.html`, which
+  escapes everything for itself.
+
+  Ids are `think-{message}-{index}` and, inside the tool block,
+  `tool-{message}-{index}-{n}`. The index is the position of the mark this step
+  came from and the marks are append-only, so an id means the same step for ever
+  -- live, and again in the finished bubble that replaces it.
+#}
+{% if step.kind == "thinking" %}
+  {# Collapsed. The answer is what the reader is waiting for and the thinking is
+     one click away -- and on a long agent reply there are a dozen of these, so
+     any other default would bury the work between them. #}
+  <details class="reasoning" id="think-{{ message.id }}-{{ step.index }}">
+    <summary class="reasoning__summary">
+      {{ icon("sparkle", "icon--sm reasoning__icon") }}
+      {# Each block reports its own round: `step.label` is built from that
+         block's slice of the thinking and the interval between its mark and the
+         one before it. It used to read the reply's total, which meant only the
+         first block could honestly claim it and the other eleven said "Thought"
+         and nothing else. #}
+      <span class="reasoning__label">
+        {% if step.label %}
+          {{ t("Thought %(label)s", label=step.label) }}
+        {% else %}
+          {{ t("Thought") }}
+        {% endif %}
+      </span>
+      {{ icon("chevron-down", "icon--sm reasoning__chevron") }}
+    </summary>
+    <div class="reasoning__body">{{ step.text }}</div>
+  </details>
+
+{% elif step.kind == "text" %}
+  {# `--live` only on the step still being written, so the caret lands at the end
+     of the reply rather than after every paragraph that preceded a tool call. #}
+  <div class="msg__body{{ ' msg__body--live' if step.open }}">{{ step.html|safe }}</div>
+
+{% elif step.kind == "steer" %}
+  {# What the person added while the reply ran, where the model took it in
+     -- the same place live and after a reload. #}
+  {% for entry in step.events %}
+  <div class="steer" id="steer-{{ message.id }}-{{ step.index }}-{{ loop.index0 }}">
+    {{ icon("corner-down-right", "icon--sm steer__icon") }}
+    <div class="steer__text">{{ entry.text }}</div>
+  </div>
+  {% endfor %}
+
+{% else %}
+  <div class="tool-activity-list">
+    {% with tool_events = step.events, message_id = message.id,
+            step_index = step.index, live = step.open %}
+      {% include "chat/_tool_activity.html" %}
+    {% endwith %}
+  </div>
+{% endif %}

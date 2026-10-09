@@ -1,0 +1,143 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "data-groups" %}
+
+{% block title %}{{ group.name }} - {{ t("Data groups") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ group.name }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">
+  <a href="/admin/data-groups">{{ icon("chevron-left", "icon--sm") }} {{ t("All data groups") }}</a>
+  {% if owner %}· {{ t("A personal group of %(who)s.", who=owner.email) }}{% endif %}
+</p>
+
+{% if saved %}
+<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ t("Settings saved.") }}</span></div>
+{% endif %}
+{% if error %}
+<div class="alert alert--error">{{ icon("warning", "alert__icon") }} <span>{{ error }}</span></div>
+{% endif %}
+
+{#
+  The delete form is declared before the main one and reached by `form=`, so it
+  can never end up nested inside it -- a nested <form> truncates its parent, a
+  bug that once made a whole admin page unsaveable.
+#}
+<form id="delete-group" method="post" action="/admin/data-groups/{{ group.id }}/delete"></form>
+
+<form method="post" action="/admin/data-groups/{{ group.id }}" class="form-grid">
+  <section class="card">
+    <h2 class="card__title">{{ t("Name") }}</h2>
+    <div class="field">
+      <label class="field__label" for="name">{{ t("Name") }}</label>
+      <input class="input" id="name" name="name" value="{{ group.name }}" required>
+      <p class="field__hint"></p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="description">{{ t("What it is for") }}</label>
+      <input class="input" id="description" name="description"
+             value="{{ group.description }}" maxlength="2000">
+      <p class="field__hint"></p>
+    </div>
+  </section>
+
+  {% if not owner %}
+  <section class="card">
+    <h2 class="card__title">{{ t("Connections in this group") }}</h2>
+    <p class="card__lede">{{ t("Their models read this group's data and nothing else. A connection taken out of a group goes back to the default one. Moving a connection moves no data: it starts reading the other group's.") }}</p>
+    <input type="hidden" name="connections_sent" value="1">
+    <div class="field">
+      {% for connection in connections %}
+      <label class="checkbox">
+        <input type="checkbox" name="connection_ids" value="{{ connection.id }}"
+               {{ 'checked' if connection.id in member_ids }}
+               {{ 'disabled' if group.is_default and connection.id in member_ids }}>
+        <span>{{ connection.name }}{% if not connection.enabled %} <span class="badge">{{ t("disabled") }}</span>{% endif %}</span>
+      </label>
+      {% else %}
+      <p class="field__hint">{{ t("There are no connections yet.") }}</p>
+      {% endfor %}
+      {% if group.is_default %}
+      <p class="field__hint">{{ t("A connection leaves the default group by being put into another one.") }}</p>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Services that read this group") }}</h2>
+    <p class="card__lede">{{ t("The embedder is sent the full text of every document, note, skill and report it indexes, and the reviewer is sent every generated picture with its prompt. A group can name its own, so its data does not have to go to the instance's.") }}</p>
+
+    <div class="field">
+      <label class="field__label" for="embedding">{{ t("Embedding model") }}</label>
+      <select class="select" id="embedding" name="embedding">
+        <option value="">{{ t("The instance's choice") }}</option>
+        {% for model in embedders %}
+        <option value="{{ model.model_id }}|{{ model.connection_id }}"
+                {{ 'selected' if group.embedding_model_id == model.model_id and (not group.embedding_connection_id or group.embedding_connection_id == model.connection_id) }}>
+          {{ model.label }} · {{ model.connection.name }}
+        </option>
+        {% endfor %}
+      </select>
+      <p class="field__hint">{{ t("Changing it leaves this group's search keyword-only until the index is rebuilt on the Extraction page.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="reviewer">{{ t("Image reviewer") }}</label>
+      <select class="select" id="reviewer" name="reviewer">
+        <option value="">{{ t("The instance's choice") }}</option>
+        {% for model in reviewers %}
+        <option value="{{ model.model_id }}|{{ model.connection_id }}"
+                {{ 'selected' if group.review_model_id == model.model_id and (not group.review_connection_id or group.review_connection_id == model.connection_id) }}>
+          {{ model.label }} · {{ model.connection.name }}
+        </option>
+        {% endfor %}
+      </select>
+      <p class="field__hint">{{ t("Only models that can see images are listed.") }}</p>
+    </div>
+  </section>
+
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">{{ t("Save") }}</button>
+    {% if not group.is_default %}
+    <button class="btn btn--danger" type="submit" form="delete-group"
+            data-confirm-button="{{ t('Delete the data group “%(name)s”?', name=group.name) }}">
+      {{ icon("trash", "icon--sm") }} {{ t("Delete") }}
+    </button>
+    {% endif %}
+  </div>
+</form>
+
+<section class="card" style="margin-top: var(--sp-6)">
+  <h2 class="card__title">{{ t("Where this group's data goes") }}</h2>
+  <p class="card__lede">{{ t("Every provider this group's data is sent to, as the instance has it set. A person holding “Manage their own data groups” may have arranged their own differently. Speech to text and text to speech are not grouped: audio is sent and not kept.") }}</p>
+  {% if exits %}
+  {# Rows rather than a table, so a phone gets a stack instead of a sideways
+     scroll -- the same list-row pattern as every other admin list. #}
+  <div class="model-rows">
+    {% for exit in exits %}
+    <div class="model-row">
+      <div class="model-row__main">
+        <span class="model-row__name">{{ labels.get(exit.what, exit.what) }}</span>
+        <span class="model-row__id">
+          {%- if exit.model %}{{ exit.model }} · {% endif %}{{ exit.connection -}}
+        </span>
+      </div>
+      <div class="model-row__meta">
+        {% if exit.elsewhere %}
+        <span class="badge badge--danger">{{ t("its connection is in %(group)s", group=exit.elsewhere) }}</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="field__hint">{{ t("Nothing: no connection is in this group, and no service reads it.") }}</p>
+  {% endif %}
+
+  <p class="field__hint">
+    {{ t("Holds") }}:
+    {% for label, n in counts.items() %}{{ n }} {{ labels.get(label, label) }}{% if not loop.last %}, {% endif %}{% endfor %}.
+  </p>
+</section>
+{% endblock %}

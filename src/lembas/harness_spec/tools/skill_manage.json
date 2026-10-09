@@ -1,0 +1,97 @@
+{
+  "name": "skill_manage",
+  "scope": "shared",
+  "risk": "write",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": "purpose",
+  "aliases": {
+    "cli": [],
+    "llembas": [
+      "skill_create",
+      "skill_edit"
+    ]
+  },
+  "description": "Create, change or delete skills — your procedural memory for kinds of task that come back. Send a list of operations; they apply together, and if one fails none is kept.\n\n- create: a new skill from description + instructions (or content: a whole SKILL.md). Global unless where: project.\n- patch: fix part of a skill with old_string/new_string (read it with skill_view first) — preferred over rewriting.\n- write_file / remove_file: supporting files under references/, templates/, scripts/ or assets/.\n- delete: remove a skill (alone in its call).\n- revert: put back the skill as it was before its last change (a deleted one too); the version it replaces is kept, so a second revert undoes the first. Alone in its call.\n\nWrite the description as its trigger, in about 60 characters — only that much shows in the skills list: \"Use when <situation>. <what it does>.\" Write lessons, not logs: an instruction and why, no dates or incident stories.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "operations": {
+        "minItems": 1,
+        "maxItems": 20,
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "create",
+                "patch",
+                "write_file",
+                "remove_file",
+                "delete",
+                "revert"
+              ]
+            },
+            "name": {
+              "type": "string",
+              "description": "The skill (lowercase letters, digits, - _ .; up to 64)"
+            },
+            "description": {
+              "description": "create: when to use the skill, one sentence, the trigger first: \"Use when …\"",
+              "type": "string"
+            },
+            "instructions": {
+              "description": "create: the skill's instructions (markdown)",
+              "type": "string"
+            },
+            "content": {
+              "description": "create, instead of description + instructions: the whole SKILL.md. patch: a whole new SKILL.md — last resort; prefer old_string/new_string.",
+              "type": "string"
+            },
+            "category": {
+              "description": "create: an optional category directory, e.g. devops",
+              "type": "string"
+            },
+            "where": {
+              "description": "create: global (every project, the default) or this project's .agent/skills",
+              "type": "string",
+              "enum": [
+                "global",
+                "project"
+              ]
+            },
+            "old_string": {
+              "description": "patch: the exact text to replace (read the skill first)",
+              "type": "string"
+            },
+            "new_string": {
+              "description": "patch: its replacement; empty deletes it",
+              "type": "string"
+            },
+            "replace_all": {
+              "description": "patch: every occurrence",
+              "type": "boolean"
+            },
+            "file_path": {
+              "description": "write_file/remove_file, or patch of a supporting file: a path inside the skill starting with references/, templates/, scripts/ or assets/",
+              "type": "string"
+            },
+            "file_content": {
+              "description": "write_file: the file's whole text",
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "name"
+          ]
+        }
+      }
+    },
+    "required": [
+      "operations"
+    ]
+  }
+}

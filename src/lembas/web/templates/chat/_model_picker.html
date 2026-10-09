@@ -1,0 +1,115 @@
+{% from "_macros.html" import icon, model_avatar %}
+{#
+  Model picker.
+
+  A real dropdown rather than a <select>, because a <select> cannot show an
+  image or an icon -- browsers render only text in an <option>. The hidden
+  input is what actually carries the value, so the control still behaves like
+  a form field.
+
+  Each option is name, context window and an eye for vision, and nothing else.
+  Not every capability switch as a tag: that would be twenty
+  `tool_*` tags per model in a menu whose one job is choosing; the full list is
+  on /settings. The options share the list's column tracks (subgrid), so the
+  context sizes and the eyes line up whatever a name's length -- and every
+  option emits every slot, empty or not, or its row shifts.
+
+  Inside a chat it PATCHes the chat; on /chat it navigates, because there is no
+  chat row to patch yet.
+#}
+<div class="picker" data-picker>
+  <button class="picker__button" type="button" data-picker-toggle
+          aria-haspopup="listbox" aria-expanded="false">
+    {% if current_model %}
+      {{ model_avatar(current_model, cls="picker__avatar") }}
+      <span class="picker__label">{{ current_model.label }}</span>
+    {% else %}
+      <span class="picker__label">{{ t("Choose a model") }}</span>
+    {% endif %}
+    {{ icon("chevron-down", "icon--sm picker__chevron") }}
+  </button>
+
+  <div class="picker__menu" data-picker-menu role="listbox" hidden
+       aria-label="{{ t('Models') }}">
+    {% if models|length > 8 %}
+    <div class="picker__search">
+      <input class="input input--sm" type="search" data-picker-filter
+             placeholder="{{ t('Filter models…') }}" aria-label="{{ t('Filter models') }}">
+    </div>
+    {% endif %}
+
+    <div class="picker__list picker__list--models"
+         data-label-loaded="{{ t('Loaded') }}" data-label-loading="{{ t('Loading') }}">
+      {% for model in models %}
+      <button class="picker__option {{ 'is-selected' if current_model and model.model_id == current_model.model_id }}"
+              type="button" role="option"
+              aria-selected="{{ 'true' if current_model and model.model_id == current_model.model_id else 'false' }}"
+              data-picker-value="{{ model.model_id }}"
+              data-picker-search="{{ model.label|lower }} {{ model.model_id|lower }}"
+              data-model-id="{{ model.model_id }}">
+        {#
+          The avatar in a slot of its own size, carrying the load-state dot on
+          its corner. A dot there takes no track, so the columns the context
+          sizes and the eyes line up on are the ones they had. The state is
+          fetched when the menu opens (ui.js, /api/models/state) rather than
+          rendered here: it changes by the minute, and asking every endpoint on
+          every page render would put a network call in front of each page.
+        #}
+        <span class="model-slot" data-model-state="">
+          {{ model_avatar(model, cls="picker__avatar") }}
+          <span class="model-state" aria-hidden="true"></span>
+          <span class="visually-hidden" data-model-state-label></span>
+        </span>
+        <span class="picker__option-name">
+          <span class="truncate">{{ model.label }}</span>
+          {% if model.pinned %}{{ icon("pin", "icon--sm picker__pin") }}{% endif %}
+        </span>
+        <span class="model-ctx mono"
+              {% if model.context_length %}title="{{ t('Context window') }}: {{ model.context_length }}"{% endif %}>
+          {%- if model.context_length %}CTX {{ model.context_length|context_size }}{% endif -%}
+        </span>
+        <span class="model-vision">
+          {%- if (model.capabilities_json or {}).get("vision") -%}
+            {{ icon("eye", "icon--sm") }}<span class="visually-hidden">{{ t("Sees images") }}</span>
+          {%- endif -%}
+        </span>
+        {# Always rendered and shown by `.is-selected`, so it follows ui.js's
+           in-place choice rather than staying on the model the page loaded with. #}
+        <span class="picker__tick">{{ icon("check", "icon--sm") }}</span>
+      </button>
+      {% endfor %}
+    </div>
+    <p class="picker__empty" data-picker-empty hidden>{{ t("No model matches that.") }}</p>
+    {#
+      Models in another data group. Named rather than left out, so somebody
+      looking for one learns where it went; not options, because switching this
+      chat to one would hand it the whole conversation. Only inside a chat --
+      on /chat every model can start one.
+    #}
+    {% if chat and models_elsewhere %}
+    <div class="picker__elsewhere">
+      <p class="picker__elsewhere-head">
+        {{ t("In another data group than this chat (%(group)s). Start a new chat to use them:", group=chat_group_name) }}
+      </p>
+      <p class="picker__elsewhere-names">
+        {%- for model in models_elsewhere %}{{ model.label }}{% if not loop.last %}, {% endif %}{% endfor -%}
+      </p>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if chat %}
+  {# Changing the value fires the PATCH; htmx serialises the hidden input. #}
+  <form hx-patch="/api/chats/{{ chat.id }}" hx-swap="none"
+        hx-trigger="change from:find input" data-picker-form>
+    <input type="hidden" name="model_id" data-picker-input
+           value="{{ current_model.model_id if current_model else '' }}">
+  </form>
+  {% else %}
+  {# No chat yet: selecting navigates so the whole composer re-renders with the
+     right vision warning and the right hidden model_id. The URL carries the
+     other preselections -- temporary, folder, kind -- and ends in `model=`,
+     which ui.js completes. #}
+  <span hidden data-picker-navigate="{{ model_navigate_url }}"></span>
+  {% endif %}
+</div>

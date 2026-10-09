@@ -1,0 +1,33 @@
+{% from "_macros.html" import icon %}
+{#
+  The way out of the drawer, and the reason it is *inside* it.
+
+  Below the phone breakpoint the sidebar is a fixed overlay and the toggle that
+  opens it is in the topbar underneath -- so once open, the control for closing
+  it is behind it. Its own partial because there are two sidebars in this
+  application, the chat one and the admin one, and the second was given the
+  drawer behaviour without the drawer's furniture: at a phone width it was
+  hidden off-screen with no toggle and no close anywhere, which is an admin area
+  that simply could not be navigated on a phone.
+
+  Hidden above that breakpoint, where the sidebar is an ordinary column.
+
+  The rail's second control, Search, which the header comment in
+  `sidebar.html` made room for. Shown at every width -- the rail itself always
+  was; only `.sidebar__close` is phone-only (app.css). Only where the including
+  sidebar asks for it with `rail_search`: the admin sidebar shares this rail and
+  has nothing of its own to search, and an API-only instance has no chats,
+  library or reports to search (`/search` is refused there).
+#}
+<div class="sidebar__actions-rail">
+  {% if rail_search %}
+  <a class="btn btn--icon sidebar__search {{ 'is-active' if section == 'search' }}" href="/search"
+     aria-label="{{ t('Search') }}" title="{{ t('Search') }}">
+    {{ icon("search") }}
+  </a>
+  {% endif %}
+  <button class="btn btn--icon sidebar__close" type="button"
+          aria-label="{{ t('Close sidebar') }}" data-toggle="#sidebar">
+    {{ icon("x") }}
+  </button>
+</div>

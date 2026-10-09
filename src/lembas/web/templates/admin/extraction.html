@@ -1,0 +1,171 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "extraction" %}
+
+{% block title %}{{ t("Extraction") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Extraction and search") }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">{{ t("What happens to a file between the upload and the model, and how anything is found again afterwards. The two are the same pipeline: what is extracted decides what there is to search.") }}</p>
+
+{% if saved %}
+<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
+{% endif %}
+
+{# --- Extraction ----------------------------------------------------------- #}
+<form method="post" action="/admin/extraction" class="form-grid">
+  <section class="card">
+    <h2 class="card__title">{{ t("What a file may cost") }}</h2>
+    <p class="field__hint">{{ t("Every number here is a trade, and a large one usually breaks a request rather than being slow — the text of a whole book does not fit in a context window, and a model handed it fails the request outright rather than reading the first half.") }}</p>
+
+    <div class="field-row">
+      <div class="field">
+        <label class="field__label" for="max_upload_mb">{{ t("Largest upload") }}</label>
+        <input class="input" id="max_upload_mb" name="max_upload_mb"
+               type="number" min="1" max="512" step="1" value="{{ values.max_upload_mb }}">
+        <p class="field__hint">{{ t("Megabytes, before anything is done to it.") }}</p>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="max_extracted_chars">{{ t("Text kept per file") }}</label>
+        <input class="input" id="max_extracted_chars" name="max_extracted_chars"
+               type="number" min="1000" max="5000000" step="1000"
+               value="{{ values.max_extracted_chars }}">
+        <p class="field__hint">{{ t("Characters. Roughly four to a token, so 120,000 is about 30,000 tokens — already most of a small context window. The rest is cut and the model is told so.") }}</p>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="max_pdf_pages">{{ t("Pages read from a PDF") }}</label>
+        <input class="input" id="max_pdf_pages" name="max_pdf_pages"
+               type="number" min="1" max="5000" step="1" value="{{ values.max_pdf_pages }}">
+        <p class="field__hint">{{ t("Extraction is slow and happens once, at upload. Beyond this the file is still stored; only its text stops.") }}</p>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label class="field__label" for="max_image_edge">{{ t("Longest image edge") }}</label>
+        <input class="input" id="max_image_edge" name="max_image_edge"
+               type="number" min="128" max="8192" step="16"
+               value="{{ values.max_image_edge }}">
+        <p class="field__hint">{{ t("Pixels. Images are re-encoded before they are sent, because a phone photo is several megabytes of base64.") }}</p>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="jpeg_quality">{{ t("JPEG quality") }}</label>
+        <input class="input" id="jpeg_quality" name="jpeg_quality"
+               type="number" min="30" max="100" step="1" value="{{ values.jpeg_quality }}">
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="orphan_hours">{{ t("Keep abandoned uploads for") }}</label>
+        <input class="input" id="orphan_hours" name="orphan_hours"
+               type="number" min="1" max="8760" step="1" value="{{ values.orphan_hours }}">
+        <p class="field__hint">{{ t("Hours. A file chosen in the composer and never sent. Swept at startup.") }}</p>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="extra_text_extensions">{{ t("Also treat as text") }}</label>
+      <textarea class="textarea input--mono" id="extra_text_extensions"
+                name="extra_text_extensions" rows="4" spellcheck="false"
+      >{{ extensions_text }}</textarea>
+      <p class="field__hint">
+        {{ tm("One extension per line, <code>.env</code> or <code>env</code>. Only needed to pick a media type — whether the bytes decode as text is what actually decides, so an unlisted extension already works.") }}
+      </p>
+    </div>
+
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="reject_unreadable_pdf" value="true"
+               {{ 'checked' if values.reject_unreadable_pdf }}>
+        <span>{{ t("Refuse a PDF whose text cannot be read") }}</span>
+      </label>
+      <p class="field__hint">{{ t("Off, a scanned PDF is stored with an explanation saying why it contributes nothing — there is no OCR here. That is usually what somebody wants: the file is still attached and still downloadable.") }}</p>
+    </div>
+  </section>
+
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">{{ t("Save extraction") }}</button>
+  </div>
+</form>
+
+{# --- Semantic search ------------------------------------------------------ #}
+<form method="post" action="/admin/extraction/search" class="form-grid">
+  <section class="card">
+    <h2 class="card__title">{{ t("Searching by meaning") }}</h2>
+    <p class="field__hint">
+      {{ tm('Keyword search finds a document that uses your words. This finds one that means the same thing — <em>"how do I get in"</em> reaching a note about passwords. Both run and the two rankings are fused, so nothing that keyword search found is lost.') }}
+    </p>
+
+    {% if not models %}
+    <div class="alert">
+      {{ icon("warning", "icon--sm") }}
+      <span>
+        {{ tm("No model is marked as producing embeddings. Tick <strong>%(capability)s</strong> on one under <a href=\"/admin/models\">Models</a> — usually a small dedicated model such as <code>nomic-embed-text</code> or <code>bge-m3</code>, not a chat model.", capability=t("embeddings")) }}
+      </span>
+    </div>
+    {% endif %}
+
+    {% if missing_model %}
+    <div class="alert alert--error">
+      {{ icon("warning", "icon--sm") }}
+      <span>
+        {{ tm("<code>%(model)s</code> is selected but is not available — its model or its connection has gone, or it is no longer marked for embeddings. Search has fallen back to keywords.", model=missing_model) }}
+      </span>
+    </div>
+    {% endif %}
+
+    <div class="field">
+      <label class="field__label" for="embedding_model_id">{{ t("Embedding model") }}</label>
+      <select class="input" id="embedding_model_id" name="embedding_model_id">
+        <option value="">{{ t("None — keyword search only") }}</option>
+        {% for model in models %}
+        <option value="{{ model.model_id }}"
+                {{ 'selected' if values.embedding_model_id == model.model_id }}>
+          {{ model.label }}
+        </option>
+        {% endfor %}
+      </select>
+      <p class="field__hint">
+        {{ tm("<strong>%(none)s</strong> is not a degraded mode: it is the keyword search this has always had, with nothing stored and nothing sent anywhere. Changing the model changes what a vector means, so anything already indexed is ignored until it is rebuilt.", none=t("None")) }}
+      </p>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label class="field__label" for="chunk_chars">{{ t("Piece size") }}</label>
+        <input class="input" id="chunk_chars" name="chunk_chars"
+               type="number" min="200" max="8000" step="50" value="{{ values.chunk_chars }}">
+        <p class="field__hint">{{ t("Characters. A record is split on paragraph boundaries into pieces of about this size, and each is embedded separately — a document is found by its best piece, not by its average.") }}</p>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="chunk_overlap">{{ t("Overlap") }}</label>
+        <input class="input" id="chunk_overlap" name="chunk_overlap"
+               type="number" min="0" max="4000" step="10" value="{{ values.chunk_overlap }}">
+        <p class="field__hint">{{ t("How much of each piece is repeated at the start of the next, so a sentence across a boundary is whole somewhere. Capped at half the piece size.") }}</p>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="embed_batch">{{ t("Pieces per request") }}</label>
+        <input class="input" id="embed_batch" name="embed_batch"
+               type="number" min="1" max="256" step="1" value="{{ values.embed_batch }}">
+        <p class="field__hint">{{ t("Lower this if the endpoint refuses large requests; raise it if a rebuild is slow and the far side has room.") }}</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">{{ t("Save search") }}</button>
+  </div>
+</form>
+
+{# --- The index ------------------------------------------------------------ #}
+<section class="card">
+  <h2 class="card__title">{{ t("The index") }}</h2>
+  <p class="field__hint">{{ t("Documents, notes, skills and reports are indexed as they are written. A rebuild is for everything that already existed — or for after changing the model or the piece size, both of which make what is stored stop meaning anything. It runs in the background and can be left.") }}</p>
+
+  {% include "admin/_index_progress.html" %}
+</section>
+{% endblock %}

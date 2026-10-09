@@ -1,0 +1,19 @@
+{% from "_macros.html" import icon %}
+{#
+  A knowledge base attached from the `@` menu.
+
+  Deliberately not an attachment chip: nothing was copied and there is no
+  `file_ids` input to submit. The base is already on the chat, and what it does
+  is narrow what `knowledge_search` may see -- so this says so, and says it in
+  the present tense, because it is already in force before the message is sent.
+
+  No remove button. Removing one is a checkbox in the chat's settings, where
+  the whole set is visible at once rather than only whichever was added last.
+#}
+<div class="attach-chip attach-chip--base" id="base-chip-{{ base.id }}">
+  <span class="attach-chip__icon">{{ icon("archive", "icon--sm") }}</span>
+  <span class="attach-chip__body">
+    <span class="attach-chip__name" title="{{ base.name }}">{{ base.name }}</span>
+    <span class="attach-chip__meta">{{ t("This chat now searches only the bases it is attached to") }}</span>
+  </span>
+</div>

@@ -1,0 +1,282 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "tools" %}
+
+{% block title %}{{ t("New tool") if is_new else tool.name }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("New tool") if is_new else tool.name }}{% endblock %}
+
+{% block admin_content %}
+<nav class="crumbs">
+  <a href="/admin/tools">
+    {{ icon("chevron-right", "icon--sm crumbs__icon crumbs__back") }} {{ t("All tools") }}
+  </a>
+</nav>
+
+{% if error %}
+<div class="alert alert--error">{{ icon("warning", "icon--sm") }} <span>{{ error }}</span></div>
+{% endif %}
+
+<form method="post" action="{{ '/admin/tools' if is_new else '/admin/tools/' ~ tool.id }}"
+      class="form-grid">
+
+  <section class="card">
+    <h2 class="card__title">{{ t("What it is") }}</h2>
+
+    <div class="field">
+      <label class="field__label" for="name">{{ t("Name") }}</label>
+      <input class="input" id="name" name="name" value="{{ tool.name }}" required
+             maxlength="120" placeholder="{{ t('Weather') }}">
+      <p class="field__hint">{{ t("Shown in the transcript when the model uses it.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="slug">{{ t("Identifier") }}</label>
+      <input class="input input--mono" id="slug" name="slug" value="{{ tool.slug }}" required
+             maxlength="48" placeholder="{{ t('weather') }}" pattern="[a-z0-9][a-z0-9_\-]*">
+      <p class="field__hint">
+        {{ t("The name the model calls, and the key its guidance is stored under.
+        Lowercase letters, digits, hyphens and underscores.") }}
+        {% if not is_new %}{{ t("Changing it starts its guidance afresh.") }}{% endif %}
+      </p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="description">{{ t("Description") }}</label>
+      <textarea class="textarea" id="description" name="description" rows="3"
+                placeholder="{{ t('Look up the current weather for a city.') }}"
+                >{{ tool.description }}</textarea>
+      <p class="field__hint">{{ t("Sent to the model verbatim. This is the whole basis on which it decides whether to call this tool, so say what it does and when it is the right thing to use.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="parameters">{{ t("Parameters") }}</label>
+      <textarea class="textarea input--mono" id="parameters" name="parameters" rows="10"
+                spellcheck="false">{{ parameters_text }}</textarea>
+      <p class="field__hint">
+        {{ tm("A JSON Schema object. Each property becomes a
+        <code>{{name}}</code> you can use below, and a
+        <code>description</code> on each one is worth writing — the model reads
+        those too.") }}
+      </p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("The call") }}</h2>
+
+    <div class="field">
+      <label class="field__label" for="method">{{ t("Method") }}</label>
+      <select class="select" id="method" name="method">
+        {% for method in methods %}
+        <option value="{{ method }}" {{ 'selected' if method == tool.method }}>{{ method }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="url_template">{{ t("URL") }}</label>
+      <input class="input input--mono" id="url_template" name="url_template" required
+             value="{{ tool.url_template }}"
+             placeholder="https://api.example.com/weather/{{ '{{city}}' }}">
+      <p class="field__hint">{{ t("Placeholders are filled from the arguments and escaped, so a value cannot add a path segment or a query of its own. The scheme and host must be written out — they cannot come from an argument.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="headers">{{ t("Headers") }}</label>
+      <textarea class="textarea input--mono" id="headers" name="headers" rows="3"
+                spellcheck="false"
+                placeholder="{{ t('Accept: application/json') }}">{{ headers_text }}</textarea>
+      <p class="field__hint">{{ tm("One <code>Name: value</code> per line. Placeholders work here too.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="body_template">{{ t("Body") }}</label>
+      <textarea class="textarea input--mono" id="body_template" name="body_template" rows="4"
+                spellcheck="false">{{ tool.body_template }}</textarea>
+      <p class="field__hint">{{ t("Ignored for GET. Placeholders are escaped for JSON, so a value cannot end the string it sits in and add a field.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="timeout">{{ t("Timeout (seconds)") }}</label>
+      <input class="input" id="timeout" name="timeout" value="{{ tool.timeout }}" inputmode="numeric">
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Credential") }}</h2>
+
+    <div class="field">
+      <label class="field__label" for="secret_placement">{{ t("How it is sent") }}</label>
+      <select class="select" id="secret_placement" name="secret_placement">
+        {% for value, label in secret_placements %}
+        <option value="{{ value }}" {{ 'selected' if value == tool.secret_placement }}>
+          {{ label }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="secret_name">{{ t("Header or parameter name") }}</label>
+      <input class="input input--mono" id="secret_name" name="secret_name"
+             value="{{ tool.secret_name }}" maxlength="120">
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="secret">{{ t("Secret") }}</label>
+      <input class="input input--mono" id="secret" name="secret" type="password"
+             autocomplete="off" placeholder="{{ t('No secret set') }}"
+             value="{{ unchanged if tool.secret_encrypted else '' }}">
+      <p class="field__hint">
+        {% if tool.secret_encrypted %}
+          {{ tm("Currently <code>%(masked)s</code>. Leave the dots alone to keep it,
+          or clear the field to remove it.", masked=masked) }}
+        {% else %}
+          {{ t("Encrypted at rest and never shown again. It is dropped if the endpoint
+          redirects to another host.") }}
+        {% endif %}
+      </p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("The answer") }}</h2>
+
+    <div class="field">
+      <label class="field__label" for="response_mode">{{ t("Read the response as") }}</label>
+      <select class="select" id="response_mode" name="response_mode">
+        {% for value, label in response_modes %}
+        <option value="{{ value }}" {{ 'selected' if value == tool.response_mode }}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="response_path">{{ t("Path into the JSON") }}</label>
+      <input class="input input--mono" id="response_path" name="response_path"
+             value="{{ tool.response_path }}" placeholder="{{ t('data.items.0.title') }}" maxlength="300">
+      <p class="field__hint">{{ t("Dotted; a number indexes a list. Leave empty for the whole document. A path that leads nowhere gives the whole document rather than nothing.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="max_chars">{{ t("Most characters to keep") }}</label>
+      <input class="input" id="max_chars" name="max_chars" value="{{ tool.max_chars }}"
+             inputmode="numeric">
+      <p class="field__hint">{{ t("Spent out of the context window on every call. The rest is cut off, and the model is told so.") }}</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Guidance") }}</h2>
+
+    <div class="field">
+      <textarea class="textarea" name="guidance" rows="4"
+                placeholder="{{ t('- Check the weather rather than guessing at it.') }}"
+                >{{ tool.guidance }}</textarea>
+      <p class="field__hint">
+        {{ tm("Added to the system message whenever this tool is offered, and nowhere
+        else. Start a line with <code>- </code> and it joins the list of tool
+        instructions. Optional: the description above is what makes the tool
+        usable, this is for habits.") }}
+        {% if prompt_overridden %}
+          <br>{{ tm("<strong>Someone has overridden this wording under
+          <a href=\"/admin/prompts\">Prompts</a></strong> — that is what the model
+          sees, not this.") }}
+        {% endif %}
+      </p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Availability") }}</h2>
+
+    <div class="field">
+      <div class="checkbox-row">
+        <label class="checkbox">
+          <input type="checkbox" name="enabled" value="true" {{ 'checked' if tool.enabled }}>
+          <span>{{ t("Enabled — offered in chats") }}</span>
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" name="allow_private" value="true"
+                 {{ 'checked' if tool.allow_private }}>
+          <span>{{ t("May reach private and loopback addresses") }}</span>
+        </label>
+      </div>
+      <p class="field__hint">{{ t("Leave the second unticked unless this tool points at something on your own network. It is what stops a tool being aimed at this server, a router, or a cloud metadata endpoint.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="public" value="true" {{ 'checked' if tool.public }}>
+        <span>{{ t("Available to everyone") }}</span>
+      </label>
+      <p class="field__hint">{{ t("Uncheck to restrict this tool to chosen groups. Administrators always have access.") }}</p>
+    </div>
+
+    <div class="field">
+      <span class="field__label">{{ t("Groups with access") }}</span>
+      {% if groups %}
+      <div class="checkbox-row">
+        {% for group in groups %}
+        <label class="checkbox">
+          <input type="checkbox" name="group_ids" value="{{ group.id }}"
+                 {{ 'checked' if group.id in selected_groups }}>
+          <span>{{ group.name }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      <p class="field__hint">{{ t("Ignored while the tool is available to everyone.") }}</p>
+      {% else %}
+      <p class="field__hint">
+        {{ tm("No groups yet — <a href=\"/admin/groups\">create one</a> to restrict access.") }}
+      </p>
+      {% endif %}
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="position">{{ t("Position") }}</label>
+      <input class="input" id="position" name="position" value="{{ tool.position }}"
+             inputmode="numeric">
+    </div>
+  </section>
+
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">
+      {{ t("Create tool") if is_new else t("Save changes") }}
+    </button>
+    <a class="btn btn--ghost" href="/admin/tools">{{ t("Back to all tools") }}</a>
+    {% if not is_new %}
+    <button class="btn btn--danger" type="submit" formnovalidate
+            formaction="/admin/tools/{{ tool.id }}/delete"
+            data-confirm-button="{{ t('Delete the tool “%(name)s”? Chats that used it keep their transcripts.', name=tool.name) }}">{{ t("Delete") }}</button>
+    {% endif %}
+  </div>
+</form>
+
+{% if not is_new %}
+<section class="card">
+  <h2 class="card__title">{{ t("Try it") }}</h2>
+  <p class="field__hint">
+    {{ tm("Calls the <em>saved</em> tool once, so what you see here is what a chat would
+    get. Nothing is sent to a model.") }}
+  </p>
+
+  <div class="field">
+    <label class="field__label" for="arguments">{{ t("Arguments") }}</label>
+    <textarea class="textarea input--mono" id="arguments" name="arguments" rows="3"
+              spellcheck="false">{"city": "Minas Tirith"}</textarea>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn" type="button"
+            hx-post="/admin/tools/{{ tool.id }}/test"
+            hx-include="#arguments"
+            hx-target="#tool-test-result">
+      {{ icon("refresh", "icon--sm") }} {{ t("Run once") }}
+    </button>
+  </div>
+
+  <div id="tool-test-result"></div>
+</section>
+{% endif %}
+{% endblock %}

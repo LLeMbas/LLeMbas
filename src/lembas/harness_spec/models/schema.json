@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "harness/models/schema.json",
+  "title": "Model metadata",
+  "description": "What both harnesses need to know about a model, in one shape: a LLeMbas CLI connections.yaml model entry, a LLeMbas model row, and each model LLeMbas serves at /v1/models (where a logged-in CLI configures itself from it). Unknown is not zero: an absent field means nobody has said.",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string", "description": "What is sent as `model` in a request." },
+    "name": { "type": "string", "description": "A display name." },
+    "family": { "type": "string", "enum": ["anthropic", "gpt", "gemini", "local"], "description": "Which prompt overlay the model gets (prompts/family/). Guessed from the id when absent." },
+    "context": { "type": "integer", "minimum": 0, "description": "The whole context window in tokens. 0 or absent: unknown — no percentage, no automatic compaction." },
+    "max_output": { "type": "integer", "minimum": 1, "description": "The most tokens one reply may have." },
+    "temperature": { "type": "number", "minimum": 0, "maximum": 2, "description": "The sampling temperature the model is set up with. LLeMbas: the administrator's, which it also applies to a request that does not set one." },
+    "top_p": { "type": "number", "minimum": 0, "maximum": 1, "description": "Nucleus sampling, as temperature." },
+    "efforts": { "type": "array", "items": { "enum": ["minimal", "low", "medium", "high", "xhigh", "max"] }, "description": "The reasoning efforts the model takes, in offering order. Narrowed when a server refuses one (quirks.json effort-refused)." },
+    "effort": { "enum": ["minimal", "low", "medium", "high", "xhigh", "max", "off"], "description": "The effort a new conversation starts with; off sends none." },
+    "effort_style": { "enum": ["top", "kwargs", "both"], "description": "OpenAI Chat dialect: where the effort goes — top-level `reasoning_effort`, `chat_template_kwargs.reasoning_effort` (all llama.cpp reads), or both (the default)." },
+    "vision": { "type": "boolean", "description": "Takes images. Never sent images otherwise: most servers refuse the whole request." },
+    "tools": { "type": "boolean", "description": "Takes tool calls. false: it can only talk; never sent a tools array." },
+    "notes": { "type": "string", "maxLength": 300, "description": "What the model is good at, in a line: other models are told about it in the roster, for handing work over." },
+    "capacity": {
+      "type": "object",
+      "description": "How much the model's server can do at once, so a helper or a subagent on it is not started where it would evict or wait for the model already working.",
+      "properties": {
+        "group": { "type": "string", "description": "Models that share one server holding one model at a time (llama-swap): starting another model of the group unloads this one. The CLI: a model's `group`, or its connection when the connection sets one_model_at_a_time. LLeMbas: the connection's name when it sets one_model_at_a_time, which is what /v1/models says." },
+        "single_session": { "type": "boolean", "description": "The model serves one request at a time: a second one waits behind the first." }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["id"],
+  "additionalProperties": true
+}

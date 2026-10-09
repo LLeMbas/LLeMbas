@@ -1,0 +1,15 @@
+{#
+  Shared pager. Rendered only when there is more than one page, so a small
+  library shows nothing at all rather than a lone disabled "1".
+#}
+{% if pager.pages > 1 %}
+<div class="btn-row" style="justify-content: center; margin-top: var(--sp-5)">
+  {% if pager.page > 1 %}
+  <a class="btn btn--sm" href="?page={{ pager.page - 1 }}{{ '&q=' ~ q if q }}">{{ t("Previous") }}</a>
+  {% endif %}
+  <span class="text-sm faint">{{ t("Page %(page)s of %(pages)s · %(n)s items", page=pager.page, pages=pager.pages, n=pager.total) }}</span>
+  {% if pager.page < pager.pages %}
+  <a class="btn btn--sm" href="?page={{ pager.page + 1 }}{{ '&q=' ~ q if q }}">{{ t("Next") }}</a>
+  {% endif %}
+</div>
+{% endif %}

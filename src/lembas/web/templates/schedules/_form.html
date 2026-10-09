@@ -1,0 +1,121 @@
+{% from "_macros.html" import icon %}
+{#
+  The manual rule form, shared by new and edit.
+
+  Every field maps to one key `services/schedule/rule.py:validate` understands,
+  and nothing here validates: there is one normaliser, it is total, and it is
+  the same one a compiled rule goes through. Two validators would be two ideas
+  of what a legal schedule is.
+
+  The repeat fieldsets are shown and hidden by the radio's `:has()` selector in
+  admin.css — no JavaScript, and nothing that can fall out of step with the
+  control, which is the same reasoning the "Something else" box on an approval
+  card follows.
+#}
+<div class="field">
+  <label class="field__label" for="schedule-title">{{ t("Name") }}</label>
+  <input class="input" id="schedule-title" name="title" required maxlength="200"
+         value="{{ form.title }}"
+         placeholder="{{ t('Monday build check') }}">
+  <p class="field__hint">{{ t("What this appears as in the list.") }}</p>
+</div>
+
+<div class="field">
+  <label class="field__label" for="schedule-instruction">{{ t("What should happen") }}</label>
+  <textarea class="input" id="schedule-instruction" name="instruction" rows="5" required
+            placeholder="{{ t('Check whether the build is passing and summarise anything that broke since last week.') }}"
+            >{{ form.instruction }}</textarea>
+  <p class="field__hint">{{ t("Written for a model that will read it with no conversation around it, so say the whole thing. Nobody will be there to answer a question about it.") }}</p>
+</div>
+
+<div class="field">
+  <label class="field__label" for="schedule-target">{{ t("Where the result goes") }}</label>
+  <select class="select" id="schedule-target" name="target">
+    {% for value, label in targets %}
+    <option value="{{ value }}" {{ 'selected' if form.target == value }}>
+      {{ label }}
+    </option>
+    {% endfor %}
+  </select>
+</div>
+
+<fieldset class="schedule-repeat">
+  <legend class="field__label">{{ t("When") }}</legend>
+
+  <label class="checkbox">
+    <input type="radio" name="repeat" value="once"
+           {{ 'checked' if form.repeat == 'once' }}>
+    <span>{{ t("Once") }}</span>
+  </label>
+  <label class="checkbox">
+    <input type="radio" name="repeat" value="every"
+           {{ 'checked' if form.repeat == 'every' }}>
+    <span>{{ t("Every so often") }}</span>
+  </label>
+  <label class="checkbox">
+    <input type="radio" name="repeat" value="calendar"
+           {{ 'checked' if form.repeat == 'calendar' }}>
+    <span>{{ t("On particular days") }}</span>
+  </label>
+
+  <div class="field">
+    <label class="field__label" for="schedule-start">{{ t("Starting") }}</label>
+    <div class="btn-row">
+      <input class="input" type="date" id="schedule-start" name="start_date">
+      <input class="input" type="time" name="start_time" value="09:00">
+    </div>
+    <p class="field__hint">
+      {{ t("Leave the date empty for a repeating schedule and it begins now. Times are %(timezone)s.", timezone=timezone) }}
+    </p>
+  </div>
+
+  <div class="field" data-repeat="every">
+    <label class="field__label" for="schedule-every">{{ t("Repeat every") }}</label>
+    <div class="btn-row">
+      <input class="input" type="number" id="schedule-every" name="every_amount"
+             min="1" value="{{ form.every_amount }}" style="max-width: 8rem">
+      <select class="select" name="every_unit">
+        {% for unit in ["minutes", "hours", "days", "weeks"] %}
+        <option value="{{ unit }}" {{ 'selected' if form.every_unit == unit }}>{{ unit }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="field" data-repeat="calendar">
+    <label class="field__label">{{ t("On these days") }}</label>
+    <div class="checkbox-row">
+      {% for index, name in weekday_names %}
+      <label class="checkbox">
+        <input type="checkbox" name="weekdays" value="{{ index }}"
+               {{ 'checked' if index in form.weekdays }}>
+        <span>{{ name }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    <p class="field__hint">{{ t("Leave all of them unticked for every day.") }}</p>
+
+    <label class="field__label" for="schedule-times">{{ t("At") }}</label>
+    <input class="input" id="schedule-times" name="times"
+           value="{{ form.times or '09:00' }}" placeholder="09:00, 17:00">
+    <p class="field__hint">{{ t("One or more times, separated by commas. These are wall-clock times: 09:00 stays 09:00 when the clocks change.") }}</p>
+
+    <label class="field__label" for="schedule-monthdays">{{ t("Only on these dates") }}</label>
+    <input class="input" id="schedule-monthdays" name="month_days"
+           value="{{ form.month_days }}" placeholder="1, 15">
+    <p class="field__hint">{{ t("Days of the month, if you want it narrower. Optional.") }}</p>
+  </div>
+</fieldset>
+
+<div class="field">
+  <label class="field__label" for="schedule-count">{{ t("Stop after") }}</label>
+  <input class="input" type="number" id="schedule-count" name="count" min="0"
+         value="{{ form.count }}" style="max-width: 10rem">
+  <p class="field__hint">{{ t("Number of runs. Leave it at 0 to keep going until you stop it.") }}</p>
+</div>
+
+<div class="field">
+  <label class="field__label" for="schedule-until">{{ t("Or stop on") }}</label>
+  <input class="input" type="date" id="schedule-until" name="until">
+  <p class="field__hint">{{ t("Optional. Nothing runs after this date.") }}</p>
+</div>

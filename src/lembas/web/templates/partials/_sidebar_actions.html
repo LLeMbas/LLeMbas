@@ -1,0 +1,44 @@
+{% from "_macros.html" import icon %}
+{#
+  The top of the sidebar: the Chats/Agents switch.
+
+  The switch moved up here, where "New chat" was, and New chat became a
+  plain + beside each section's heading (`_sidebar_tree.html`) -- on the Agents
+  side there is one per device, which a single button above the list could not
+  be.
+
+  New folder is not in this row but on the `[ CHATS ]` heading, beside its +.
+  Folders belong to the Chats side alone, so a button that made one here would
+  sit above the Agents side doing something that side never shows; without it
+  the switch is the whole row and fills it. With no switch (agent chats off)
+  there is no row at all -- the heading still carries New folder.
+
+  Above the scroll area and OUTSIDE the tree the switch swaps, so nothing here
+  is re-rendered when it moves: the radios keep their own checked state, and
+  nothing in this row depends on which side is showing. (The row used to come
+  along out of band because "New chat" said "New agent chat" on the other side.)
+
+  The verb goes on the input, not on the wrapper: `change` fires on the control
+  and bubbles through its DOM ancestors, and htmx binds its listener to the
+  annotated element itself. `hx-vals` rather than relying on the input's own
+  value being collected -- the two radios are not inside a form, so what htmx
+  would gather is worth not depending on.
+#}
+{% if sidebar_split %}
+<div class="sidebar__actions" id="sidebar-actions">
+  <div class="kind-switch" role="radiogroup" aria-label="{{ t('Which chats to show') }}">
+    {% for option, label, glyph in [("chat", t("Chats"), "chat"), ("agent", t("Agents"), "terminal")] %}
+    <label class="kind-switch__option">
+      <input type="radio" name="sidebar_kind" value="{{ option }}"
+             id="sidebar-kind-{{ option }}"
+             {{ 'checked' if sidebar_kind == option }}
+             hx-post="/api/preferences/sidebar-kind"
+             hx-vals='{"kind": "{{ option }}"}'
+             hx-trigger="change"
+             hx-target="#sidebar-tree" hx-swap="outerHTML">
+      <span>{{ icon(glyph, "icon--sm") }} {{ label }}</span>
+    </label>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}

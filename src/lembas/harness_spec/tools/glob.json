@@ -1,0 +1,29 @@
+{
+  "name": "glob",
+  "scope": "cli",
+  "risk": "read",
+  "exclusive": false,
+  "block": "search",
+  "purpose": "purpose",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Find files by name pattern, e.g. `**/*.ts` or `src/**/test_*.py`. Honours .gitignore. Newest first, at most 200.\nBatch several searches in one turn when more than one could help.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "pattern": {
+        "type": "string",
+        "description": "Glob pattern"
+      },
+      "path": {
+        "description": "Directory to search (default: working directory)",
+        "type": "string"
+      }
+    },
+    "required": [
+      "pattern"
+    ]
+  }
+}

@@ -1,0 +1,452 @@
+{% from "_macros.html" import icon %}
+{#
+  The composer, used both inside an existing chat and on /chat where no chat
+  row exists yet.
+
+  The only difference is where it posts. With a chat, the turn is appended to
+  the thread in place; without one, /api/chats/start creates the chat and
+  redirects, and the reply streams on arrival because the page renders the
+  unfinished assistant message with its sse-connect. That is what stops an
+  opened-and-abandoned chat ever being written to the database.
+
+  The attachment chips live INSIDE this form on purpose. Each carries a hidden
+  file_ids input, and being inside the form is what gets them serialised with
+  the message. Keeping them outside and reaching for hx-include does not work:
+  that attribute only has an effect on the element issuing the request.
+
+  Layout: chips, then the text, then one toolbar row underneath carrying
+  everything that acts on the message. The kind selector and the connection
+  used to sit in a strip *above* the text, inside the same bordered card, where
+  they read as debris floating in the input rather than as controls. Below the
+  text they are in the same place as attach and send, which is where the hand
+  already is.
+#}
+{# The chat, the connection and the directory, where composer.js can read them
+   without parsing them back out of a URL. On a new chat the connection is
+   still being chosen, so the select and the hidden field win over these. #}
+<div class="composer" {% if can.get("files.upload") %}data-dropzone{% endif %}
+     {% if chat %}data-chat-id="{{ chat.id }}"{% endif %}
+     {% if chat and chat.device_token_id %}data-device-chat
+     data-project-dir="{{ chat.project_dir }}"
+     data-device-token="{{ chat.device_token_id }}"{% endif %}
+     {# What the `/` menu calls a linked device's own commands. #}
+     data-device-label="{{ t('On the device') }}">
+  {% if can.get("files.upload") %}
+  {# Outside the form: it is only ever read by JavaScript, and inside it would
+     be submitted as an empty file part on every message.
+
+     Two inputs rather than one whose accept attribute is rewritten: changing
+     accept and then calling click() in the same tick is unreliable in Safari,
+     and two hidden inputs cost nothing. #}
+  <input class="visually-hidden" type="file" id="file-input" multiple
+         data-upload-url="/api/files{% if chat %}?chat_id={{ chat.id }}{% endif %}"
+         accept=".pdf,.txt,.md,.csv,.json,.py,.js,.ts,.rs,.go,.sh,.sql,.yaml,.yml,.toml,.log"
+         onchange="window.lembas.uploadFiles(this.files); this.value = ''">
+  <input class="visually-hidden" type="file" id="image-input" multiple accept="image/*"
+         onchange="window.lembas.uploadFiles(this.files); this.value = ''">
+  {% endif %}
+
+  <div class="composer__inner">
+    <form class="composer__form" id="composer-form"
+          {% if chat %}
+          hx-post="/api/chats/{{ chat.id }}/messages"
+          hx-target="#thread" hx-swap="beforeend"
+          {# `event.target === this` is load-bearing, and its absence quietly
+             threw away typed messages for releases.
+
+             htmx events BUBBLE. This form contains six things that make
+             requests -- the two scope switches, "ask me about these again",
+             the agent mode select, the effort select and the jobs chip -- and
+             every one of their `htmx:afterRequest` events reached this handler.
+             So changing the mode, or the effort, or toggling a tool, called
+             `this.reset()` on a composer somebody was typing in and dragged the
+             view to the bottom. The jobs chip did not introduce that; it polls,
+             so it made it happen every five seconds, which is what finally made
+             it visible.
+
+             A form's own handler answers its own request. Anything else in here
+             that fetches is somebody else's business. There is a test. #}
+          hx-on::after-request="if (event.target === this && event.detail.successful) {
+            this.reset();
+            document.getElementById('attachments').replaceChildren();
+            window.lembas.autosize(this.querySelector('textarea'));
+            window.lembas.scrollThread(true);
+          }"
+          {% else %}
+          hx-post="/api/chats/start" hx-swap="none"
+          {% endif %}>
+
+      <div class="composer__attachments" id="attachments"></div>
+
+      {% if not chat and current_model %}
+      <input type="hidden" name="model_id" value="{{ current_model.model_id }}">
+      {% endif %}
+      {% if not chat and starting_temporary %}
+      <input type="hidden" name="temporary" value="true">
+      {% endif %}
+      {% if not chat and starting_folder %}
+      {# `/api/chats/start` has accepted a folder_id since folders existed and
+         nothing ever sent one, so the only way into a folder was to make the
+         chat elsewhere and move it. This is "New chat here" arriving. #}
+      <input type="hidden" name="folder_id" value="{{ starting_folder.id }}">
+      {% endif %}
+
+      {#
+        The text, with a mirror behind it.
+
+        A textarea cannot style its own contents, so the mirror holds the same
+        text with every character transparent and contributes nothing but a
+        rounded rectangle behind each recognised token. The real text stays in
+        the textarea, where it is native and selectable -- the other way round,
+        showing the mirror's text and hiding the textarea's, means any style
+        drift renders as doubled or blurred glyphs instead of a rectangle a
+        pixel out of place.
+
+        composer.js fills it. Without JavaScript there is simply no mirror.
+      #}
+      <div class="composer__field">
+        <div class="composer__mirror" data-composer-mirror aria-hidden="true"></div>
+        <textarea class="composer__input" name="content" rows="1"
+                  data-autosize data-max-height="320" data-composer-input
+                  placeholder="{% if chat %}{{ t('Send a message…') }}{% else %}{{ t('Ask anything…') }}{% endif %}"
+                  aria-label="{{ t('Message') }}" {{ 'autofocus' if not chat }}></textarea>
+      </div>
+
+      <div class="composer__toolbar">
+        <div class="composer__tools">
+          {% if can.get("files.upload") %}
+          {# A menu rather than the file picker straight away: there are four ways
+             to attach something now, and only one of them is a file on disk.
+             Uses the same picker machinery as the model chooser -- see ui.js. #}
+          <div class="picker picker--up" data-picker>
+            <button class="btn btn--icon composer__btn" type="button" data-picker-toggle
+                    aria-haspopup="menu" aria-expanded="false"
+                    aria-label="{{ t('Attach') }}" title="{{ t('Attach') }}">
+              {{ icon("attach") }}
+            </button>
+
+            <div class="picker__menu picker__menu--compact" data-picker-menu role="menu"
+                 hidden aria-label="{{ t('Attach') }}">
+              <button class="picker__option" type="button" role="menuitem"
+                      data-attach="file">
+                {{ icon("attach", "icon--sm") }}
+                <span class="picker__option-body">
+                  <span class="picker__option-name">{{ t("File") }}</span>
+                  <span class="picker__option-note">{{ t("PDF, text, code") }}</span>
+                </span>
+              </button>
+              <button class="picker__option" type="button" role="menuitem"
+                      data-attach="image">
+                {{ icon("image", "icon--sm") }}
+                <span class="picker__option-body">
+                  <span class="picker__option-name">{{ t("Image") }}</span>
+                  <span class="picker__option-note">{{ t("Sent only to vision models") }}</span>
+                </span>
+              </button>
+              <button class="picker__option" type="button" role="menuitem"
+                      data-attach="link">
+                {{ icon("link", "icon--sm") }}
+                <span class="picker__option-body">
+                  <span class="picker__option-name">{{ t("Link") }}</span>
+                  <span class="picker__option-note">{{ t("Fetch a page and attach its text") }}</span>
+                </span>
+              </button>
+              {% if can.get("library.use") %}
+              <button class="picker__option" type="button" role="menuitem"
+                      data-attach="knowledge">
+                {{ icon("archive", "icon--sm") }}
+                <span class="picker__option-body">
+                  <span class="picker__option-name">{{ t("Knowledge") }}</span>
+                  <span class="picker__option-note">{{ t("From your library") }}</span>
+                </span>
+              </button>
+              {% endif %}
+            </div>
+          </div>
+
+          {% endif %}
+
+          {#
+            The chat's settings: one button. It used to be two -- a
+            menu of tool and skill switches here, and the effort as a chip of
+            its own -- with a third, Chat settings, up in the header's overflow
+            menu. Now the tools are a default per model in Settings -> Models,
+            the switches for this chat live in the settings panel with every
+            other tweak, and this keeps what is reached for while writing: how
+            hard the model thinks, as a slider, and the way into the panel.
+
+            Without a reasoning model there is nothing to slide, and a menu
+            holding one button is a menu you open to press a button -- so the
+            button opens the panel itself.
+          #}
+          {% set reasons = current_model and current_model.capabilities_json.get("reasoning") %}
+          {% set has_panel = chat or scope_families or scope_skills or scope_allow %}
+          {% if reasons %}
+          {#
+            "off" is a sentinel and NOT an empty value. `start_chat` declares
+            `reasoning_effort: str = Form("")`, so absent and empty are
+            indistinguishable there -- with `value=""` the reader would pick off
+            and silently get the model's default.
+
+            It shows the level actually in force, never the word "default": on
+            an existing chat `resolved_effort`, the chat's own value and what
+            `build_request` sends; before there is one, what `_new_chat` will
+            seed -- the reader's own default for the model, else the model's.
+          #}
+          {% set chosen = resolved_effort if chat else new_chat_effort %}
+          {% set chosen = chosen if chosen in efforts else "off" %}
+          {% set levels = ["off"] + efforts|list %}
+          {# An icon button, the attach button's twin -- same classes,
+             same icon size. No short form of the effort beside it (L, M,
+             XH): that would make it the one control in the row whose width
+             depends on a setting, and a letter nobody can read without
+             opening the popover anyway. The level is in
+             the popover, on the slider that sets it. #}
+          <div class="picker picker--up composer__settings" data-picker>
+            <button class="btn btn--icon composer__btn" type="button" data-picker-toggle
+                    aria-haspopup="dialog" aria-expanded="false"
+                    aria-label="{{ t('Chat settings') }}" title="{{ t('Chat settings') }}">
+              {{ icon("sliders") }}
+            </button>
+
+            <div class="picker__menu picker__menu--settings" data-picker-menu role="dialog"
+                 hidden aria-label="{{ t('Chat settings') }}">
+              <div class="effort-slider" style="--levels: {{ levels|length }}">
+                <label class="effort-slider__label" for="effort-range">
+                  {{ t("Reasoning effort") }}
+                  <output class="effort-slider__value" for="effort-range" data-effort-output>{{ t("off") if chosen == "off" else chosen }}</output>
+                </label>
+                {# The slider is the control; the select under it is the state.
+                   `/effort`, htmx and a model switch all read and write the
+                   select, as they did when it was the visible control, and the
+                   slider follows it (ui.js). Out of the tab order and hidden
+                   from a screen reader, which is given the slider instead. #}
+                <input class="effort-slider__range" type="range" id="effort-range"
+                       min="0" max="{{ levels|length - 1 }}" step="1"
+                       value="{{ levels.index(chosen) }}"
+                       data-effort-range data-picker-focus
+                       data-levels='{{ levels|tojson }}'
+                       data-off-label="{{ t('off') }}"
+                       aria-valuetext="{{ t('off') if chosen == 'off' else chosen }}">
+                <div class="effort-slider__ticks" aria-hidden="true">
+                  {% for value in levels %}<span>{{ t("off") if value == "off" else value }}</span>{% endfor %}
+                </div>
+                <select class="visually-hidden" name="reasoning_effort" data-effort
+                        tabindex="-1" aria-hidden="true"
+                        {% if chat %}
+                        form="chat-params-form"
+                        hx-patch="/api/chats/{{ chat.id }}" hx-swap="none"
+                        {% endif %}>
+                  {% for value in levels %}
+                  <option value="{{ value }}" {{ 'selected' if chosen == value }}>{{ t("off") if value == "off" else value }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              {% if has_panel %}
+              <button class="picker__option" type="button" role="menuitem"
+                      data-toggle="#chat-settings" data-toggle-group="side">
+                {{ icon("sliders", "icon--sm") }}
+                <span class="picker__option-body">
+                  <span class="picker__option-name">{{ t("More settings") }}</span>
+                  <span class="picker__option-note">{{ t("Tools, skills, prompt, knowledge, sampling") }}</span>
+                </span>
+              </button>
+              {% endif %}
+            </div>
+          </div>
+          {% elif has_panel %}
+          <button class="btn btn--icon composer__btn" type="button"
+                  data-toggle="#chat-settings" data-toggle-group="side" aria-expanded="false"
+                  aria-label="{{ t('Chat settings') }}" title="{{ t('Chat settings') }}">
+            {{ icon("sliders") }}
+          </button>
+          {% endif %}
+
+        </div>
+
+        {#
+          What this conversation is and where it runs.
+
+          On a new chat all of it is editable. On an existing one the kind, the
+          connection and the directory are fixed -- update_chat refuses them
+          with a 409, because a transcript whose earlier turns ran somewhere
+          else is not one conversation -- so they render as a read-only chip and
+          only the mode stays live. The mode is the exception on purpose: it
+          decides what gets asked about, not what the conversation is.
+        #}
+        {% if not chat and starting_kind == 'agent' and agent_devices %}
+        <div class="composer__context" data-agent-picker>
+          {# No Chat/Agent switch here any more: the sidebar's Agent side
+             opens this screen with `?kind=agent`, and that is the whole choice.
+             The switch took the width of two controls in a row that has none to
+             spare, to repeat a decision already made by where you clicked. #}
+          <input type="hidden" name="kind" value="agent" id="chat-kind">
+
+          <span class="composer__agent" data-agent-extra>
+            {# `data-upward`: its list opens above it, as the composer's
+               other menus do -- the browser's own dropped off the screen. #}
+            <select class="select select--sm composer__connection" data-upward
+                      name="ssh_profile_id" aria-label="{{ t('Connection') }}">
+              {# The LLeMbas CLIs linked right now (the only targets): the work
+                 runs on them, under their own limits. #}
+              {% for device in agent_devices %}
+              <option value="{{ device.value }}" data-dir="{{ device.dir }}"
+                      data-mode="{{ device.mode }}" data-device
+                      {{ 'selected' if device.value == starting_device }}>{{ device.name }}</option>
+              {% endfor %}
+            </select>
+
+            {# A button and a hidden field, not a text box. The text box was
+               real and submitted, but unlabelled and squeezed to a few
+               characters by the select beside it, so it read as broken. A path
+               is also something you would rather find than spell. #}
+            <input type="hidden" name="project_dir" value="" data-dir-value>
+            <button class="btn btn--sm composer__dir" type="button" data-dir-browse
+                    aria-label="{{ t('Project directory') }}"
+                    title="{{ t('Choose the directory this chat works in') }}">
+              {{ icon("folder", "icon--sm") }}
+              <span class="composer__dir-path" data-dir-label>/</span>
+            </button>
+
+            {% if agent_modes %}
+            <select class="select select--sm" name="agent_mode" aria-label="{{ t('Approval mode') }}">
+              {% for value, label, hint in agent_modes %}
+              <option value="{{ value }}" title="{{ t(hint) }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+            {% endif %}
+          </span>
+        </div>
+
+        {% elif chat and chat.kind == "agent" %}
+        {# Only the mode. The connection and the directory moved to the topbar:
+           they cannot change -- update_chat refuses both with a 409 -- so they
+           are facts about the chat rather than controls on the message, and
+           they were taking a slot in a row that has work to do.
+
+           Its own form: nesting one inside the composer's form is invalid HTML
+           and the browser drops the inner one.
+
+           The verb is on the select, not on that form. htmx binds a trigger to
+           the annotated element itself, and `change` fires here and bubbles
+           through this element's *ancestors* -- which a sibling form is not.
+           `form=` scopes the values, and only the values. #}
+        <div class="composer__context">
+          {# A temporary chat is held at Plan until it is kept (agent/session.py:
+             mode_of), so the select shows that and does not offer the others. #}
+          {% if chat.temporary and not chat.parent_chat_id %}
+          <select class="select select--sm" aria-label="{{ t('Approval mode') }}" disabled
+                  title="{{ t('A temporary chat reads and changes nothing. Keep it to choose another mode.') }}">
+            {% for value, label, hint in agent_modes if value == "plan" %}
+            <option value="{{ value }}" selected>{{ label }}</option>
+            {% endfor %}
+          </select>
+          {% else %}
+          <select class="select select--sm" name="agent_mode" aria-label="{{ t('Approval mode') }}"
+                  form="agent-mode-form"
+                  hx-patch="/api/chats/{{ chat.id }}" hx-swap="none">
+            {% for value, label, hint in agent_modes %}
+            <option value="{{ value }}" title="{{ t(hint) }}"
+                    {{ 'selected' if value == chat.agent_mode }}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          {% endif %}
+        </div>
+
+        {# What is still running on the far side. Only where jobs can exist at
+           all -- a chat without background commands enabled has none, and a chip
+           that could never show anything is a chip that only takes room.
+
+           `hx-trigger="load"` and not the contents inline: the listing reads the
+           `agent_jobs` table, and the composer is rendered on every page load
+           and after every reply. One request five seconds later costs nothing;
+           a query on the render path costs it every time. #}
+        {# `hx-target="this"` is load-bearing and is the whole of a bug that
+           blanked every agent chat. htmx INHERITS `hx-target` from ancestors,
+           and this sits inside the composer's form, which carries
+           `hx-target="#thread"` so that a sent message appends a bubble. Without
+           a target of its own, this element's request resolved to `#thread` --
+           and with `outerHTML` it replaced the entire transcript with the chip.
+           The reply rendered and then vanished, prompt and all.
+
+           Anything in here that fetches must say where the answer goes. There
+           is a test. #}
+        {% endif %}
+
+        <div class="composer__actions">
+          {% if can_dictate %}
+          {# Recording is started and stopped by the same button; audio.js swaps
+             data-mic-state and the icon with it. #}
+          <button class="btn btn--icon composer__btn composer__mic" type="button"
+                  data-mic data-mic-state="idle"
+                  aria-label="{{ t('Dictate a message') }}" title="{{ t('Dictate a message') }}">
+            <span class="composer__icon composer__icon--mic">{{ icon("mic") }}</span>
+            <span class="composer__icon composer__icon--recording" aria-hidden="true">
+              {{ icon("stop-circle") }}
+            </span>
+          </button>
+          {% endif %}
+
+          {#
+            One button, two jobs. While a reply is being written it becomes Stop,
+            because that is where the hand already is and a second button sitting
+            permanently beside Send is clutter that is wrong most of the time.
+
+            ui.js flips data-composer-action, and the type with it: as `submit`
+            the form's own handler sends, as `button` the click handler stops.
+            Both icons are rendered here and chosen in CSS, so the swap costs no
+            layout and cannot flash an empty button.
+          #}
+          <button class="btn btn--primary btn--icon composer__btn" type="submit"
+                  data-composer-action="send" aria-label="{{ t('Send') }}">
+            <span class="composer__icon composer__icon--send">{{ icon("send") }}</span>
+            <span class="composer__icon composer__icon--stop" aria-hidden="true">
+              <span class="composer__stop-square"></span>
+            </span>
+          </button>
+        </div>
+      </div>
+    </form>
+
+    {# Outside the composer's form, and referenced by the two selects' `form`
+       attributes above. These carry no htmx of their own: they exist so that
+       `Nt(e)` -- htmx's "which form do the values come from", which reads
+       `e.form` before falling back to `closest("form")` -- resolves to a form
+       holding exactly one control. Without them the PATCH would carry the
+       composer's `content`, `model_id` and `project_dir`, and `update_chat`
+       answers `project_dir` with a 409.
+
+       hx-patch and not hx-post: there is no POST for a chat, only PATCH, and
+       htmx shows nothing when a request 405s -- which is how these controls
+       spent the first half of their lives doing nothing. #}
+    {% if chat and chat.kind == "agent" %}
+    <form id="agent-mode-form"></form>
+    {% endif %}
+    {% if chat %}
+    <form id="chat-params-form"></form>
+    {% endif %}
+
+    {# The button sits inside the sentence, so it is a field of it: a sentence
+       cut around it could not be translated, since the order of the parts is
+       not the same in every language. `{% set %}…{% endset %}` is Markup, so
+       `tm` keeps it as the button it is. #}
+    {% set commands_link %}<button class="composer__hint-link" type="button"
+              onclick="window.lembasCommands &amp;&amp; window.lembasCommands.help()">{{ t("/ for commands") }}</button>{% endset %}
+    <p class="composer__hint">
+      {{ tm("Enter to send, Shift+Enter for a new line. %(commands)s, @ for files.", commands=commands_link) }}
+      {% if can.get("files.upload") %}
+        {{ t("Drag files in, or paste an image.") }}
+        {% if current_model and not current_model.capabilities_json.get("vision") %}
+          {{ tm("<strong>%(model)s has no vision</strong>, so images will not be sent — documents still will.", model=current_model.label) }}
+        {% endif %}
+      {% endif %}
+    </p>
+  </div>
+
+  {% if can.get("files.upload") %}
+  <div class="dropzone-overlay" aria-hidden="true">
+    {{ icon("attach", "icon--lg") }}
+    <span>{{ t("Drop to attach") }}</span>
+  </div>
+  {% endif %}
+</div>

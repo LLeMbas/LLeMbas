@@ -1,0 +1,81 @@
+{
+  "name": "ask_user",
+  "scope": "shared",
+  "risk": "interact",
+  "exclusive": true,
+  "block": "tool",
+  "purpose": false,
+  "aliases": {
+    "cli": [
+      "question"
+    ],
+    "llembas": []
+  },
+  "description": "Ask the user when you genuinely cannot proceed well without their decision: a choice that is theirs to make, a requirement the request leaves open, a trade-off only they can weigh. Do not ask what you can find out yourself by reading the code or running something, and do not ask for approval of an action — the harness does that.\n\n- Ask everything you need in ONE call (up to 4 questions); never a question per call.\n- Give 2–6 options per question: the answers you actually think are plausible, each with a short description of what it means. Mark the one you would choose with recommended: true.\n- Do NOT add an \"Other\" or \"Something else\" option: the user always gets a free-text row, and can also answer with a question back.\n- header: a 1–3 word chip label, at most 30 characters.\n- multiple: true when several options can apply together.\n- Never ask for a password, key or other secret.\n\nThe answer comes back as one line per question: \"→ label\", \"→ custom: …\", or \"↩ counter-question: …\". When the user asks a question back, answer it, then ask again — only that question.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "why": {
+        "description": "One line: why you are asking now",
+        "type": "string"
+      },
+      "questions": {
+        "minItems": 1,
+        "maxItems": 4,
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "header": {
+              "type": "string",
+              "description": "A chip label, at most 30 characters"
+            },
+            "question": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The full question"
+            },
+            "options": {
+              "description": "2–6 answers you consider plausible, the recommended one marked",
+              "maxItems": 6,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "1–5 words"
+                  },
+                  "description": {
+                    "description": "What choosing it means, the trade-off",
+                    "type": "string"
+                  },
+                  "recommended": {
+                    "description": "At most one per question: the one you would pick",
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "label"
+                ]
+              }
+            },
+            "multiple": {
+              "description": "The user may pick several",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "header",
+            "question"
+          ]
+        },
+        "description": "1–4 questions, all you need, asked together"
+      }
+    },
+    "required": [
+      "questions"
+    ]
+  }
+}
