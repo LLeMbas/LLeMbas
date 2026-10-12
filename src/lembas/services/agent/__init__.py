@@ -21,7 +21,6 @@ from lembas.services.agent.policy import (
     MODE_PLAN,
     MODES,
     Decision,
-    Limits,
     decide,
 )
 
@@ -32,6 +31,5 @@ __all__ = [
     "MODE_MANUAL",
     "MODE_PLAN",
     "Decision",
-    "Limits",
     "decide",
 ]

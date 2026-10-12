@@ -16,12 +16,12 @@ from lembas.services import chat as chat_service
 
 
 # --- The picker --------------------------------------------------------------
-def test_a_plain_chat_gets_a_picker_with_no_file_half(client: TestClient, db, registered):
-    """`@` works everywhere; only the project half needs a connection."""
+def test_a_plain_chat_gets_a_picker(client: TestClient, db, registered):
+    """`@` works everywhere, with nothing to offer yet and no machine to ask."""
     response = client.get("/api/files/mention-picker")
 
     assert response.status_code == 200
-    assert "In the project" not in response.text
+    assert "Nothing to mention yet." in response.text
 
 
 # --- What `@` offers where there is no machine at all ------------------------

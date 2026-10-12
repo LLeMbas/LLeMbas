@@ -187,8 +187,6 @@
     var url =
       "/api/files/mention-picker?q=" + encodeURIComponent(query) +
       "&chat_id=" + encodeURIComponent(where.chatId) +
-      "&profile_id=" + encodeURIComponent(where.profileId) +
-      "&project_dir=" + encodeURIComponent(where.projectDir) +
       "&model_id=" + encodeURIComponent(where.modelId);
 
     function text(response) { return response.ok ? response.text() : ""; }
@@ -321,11 +319,7 @@
     var body = new FormData();
     body.append("chat_id", where.chatId);
     body.append("model_id", where.modelId);
-    if (option.dataset.mentionFile) {
-      body.append("profile_id", where.profileId);
-      body.append("path", option.dataset.mentionFile);
-      attach("/api/files/from-project", body);
-    } else if (option.dataset.mentionKnowledge) {
+    if (option.dataset.mentionKnowledge) {
       body.append("document_id", option.dataset.mentionKnowledge);
       attach("/api/files/from-knowledge", body);
     } else if (option.dataset.mentionNote) {

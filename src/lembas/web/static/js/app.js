@@ -523,100 +523,6 @@
     load(current || "");
   }
 
-  /* --- Choosing a file on the far side -------------------------------------
-     The same walk as chooseDirectory, finishing on a file rather than on a
-     button. Canvas used to ask for a typed path, which is the one thing in this
-     application that expected somebody to remember an absolute path on another
-     machine -- the same complaint the folder page's directory box answered.
-
-     A separate function rather than a flag on the one above, because almost
-     everything differs: what a click does, what finishes it, whether there is a
-     "use this" button at all, and what the dialog is called. What they share is
-     the listing, and that is shared where it matters -- one fragment on the
-     server, asked for with `pick=file`. */
-  function chooseFile(profileId, current, onPick) {
-    var dialog = document.createElement("dialog");
-    dialog.className = "dialog dialog--wide";
-    dialog.innerHTML =
-      '<div class="dialog__form">' +
-      '<h2 class="dialog__title">' + t("Open a file") + '</h2>' +
-      '<p class="dialog__note">' + t("Pick a file to open in the canvas. Folders walk deeper; you can also type a path and press Enter.") + "</p>" +
-      '<div class="dialog__results"></div>' +
-      '<input class="input input--mono" type="text" spellcheck="false" ' +
-      'aria-label="' + t("Path") + '" placeholder="/project/src/main.py">' +
-      '<div class="dialog__actions">' +
-      '<button class="btn" type="button" data-file-cancel>' + t("Cancel") + '</button>' +
-      "</div></div>";
-    document.body.appendChild(dialog);
-
-    var results = dialog.querySelector(".dialog__results");
-    var typed = dialog.querySelector("input");
-    var here = current || "";
-
-    function load(path) {
-      results.setAttribute("aria-busy", "true");
-      fetch(
-        "/api/agents/" + encodeURIComponent(profileId) +
-          "/browse?pick=file&path=" + encodeURIComponent(path || ""),
-        { credentials: "same-origin" }
-      )
-        .then(function (response) { return response.text(); })
-        .then(function (html) {
-          results.innerHTML = html;
-          var box = results.querySelector("#dir-results");
-          if (box) { here = box.dataset.here || path || ""; typed.value = here; }
-          results.removeAttribute("aria-busy");
-        })
-        .catch(function () {
-          results.textContent = t("Could not reach that machine.");
-          results.removeAttribute("aria-busy");
-        });
-    }
-
-    function finish(chosen) {
-      if (chosen !== undefined) onPick(chosen);
-      dialog.close();
-      setTimeout(function () { dialog.remove(); }, 200);
-    }
-
-    results.addEventListener("click", function (event) {
-      /* A file finishes; a folder is a step. Checked in that order because a
-         row is one or the other and the file case is what this dialog is for. */
-      var file = event.target.closest("[data-file-open]");
-      if (file) { finish(file.dataset.fileOpen); return; }
-      var row = event.target.closest("[data-dir-open]");
-      if (row) load(row.dataset.dirOpen);
-    });
-
-    /* Enter opens what was typed if it looks like a file, and walks into it
-       otherwise. There is no way to tell from here which it is, so the server
-       decides: a path that lists is a directory and the listing comes back; one
-       that does not is taken as a file. Cheaper than a second endpoint asking
-       "what is this", and wrong only for a directory that cannot be read --
-       which the canvas then reports in its own words. */
-    typed.addEventListener("keydown", function (event) {
-      if (event.key !== "Enter") return;
-      event.preventDefault();
-      var value = typed.value.trim();
-      if (value && value !== here) { finish(value); return; }
-      load(value);
-    });
-
-    dialog.querySelector("[data-file-cancel]").addEventListener("click", function () {
-      finish();
-    });
-    dialog.addEventListener("cancel", function (event) {
-      event.preventDefault();
-      finish();
-    });
-    dialog.addEventListener("click", function (event) {
-      if (event.target === dialog) finish();
-    });
-
-    dialog.showModal();
-    load(current || "");
-  }
-
   document.addEventListener("click", function (event) {
     var choice = event.target.closest("[data-attach]");
     if (!choice) return;
@@ -1006,7 +912,6 @@
     autosize: autosize,
     uploadFiles: uploadFiles,
     chooseDirectory: chooseDirectory,
-    chooseFile: chooseFile,
     promptInstall: promptInstall
   };
 

@@ -22,9 +22,8 @@ from lembas.db.models import Setting
 GENERAL = "general"
 AUDIO = "audio"
 
-# Used when nothing is stored. `services/tools.py:MAX_ROUNDS` is the same number
-# and exists for callers with no session -- this module is where the setting is
-# read, and the two are asserted equal by a test so they cannot drift.
+# Used when nothing is stored: no ceiling. This module is where the setting is
+# read, by the loop and the harness alike.
 DEFAULT_CHAT_ROUNDS = 0
 SEARCH = "search"
 PROMPTS = "prompts"
@@ -70,13 +69,13 @@ def _general_defaults() -> dict[str, Any]:
         # never says so.
         #
         # Zero, meaning no ceiling, and the loop falls back to MAX_TOOL_ROUNDS
-        # as a runaway backstop -- the same shape `Limits.steps` has for an agent
-        # chat. It was 1, then 5, and both were the same mistake at different
-        # scales: a number low enough to be reached by ordinary work is not a
-        # ceiling, it is a schedule, and it overrides the model's judgement on
-        # every turn rather than catching a runaway. Five was reached by a small
-        # local model doing a genuinely good piece of research -- six searches,
-        # each one informed by the last -- and the reply ended there.
+        # as a runaway backstop. It was 1, then 5, and both were the same
+        # mistake at different scales: a number low enough to be reached by
+        # ordinary work is not a ceiling, it is a schedule, and it overrides the
+        # model's judgement on every turn rather than catching a runaway. Five
+        # was reached by a small local model doing a genuinely good piece of
+        # research -- six searches, each one informed by the last -- and the
+        # reply ended there.
         #
         # What actually bounds an ordinary chat is the context window
         # (`CONTEXT_HEADROOM`), which is a real limit rather than a guess at how
@@ -129,32 +128,9 @@ def _agents_defaults() -> dict[str, Any]:
         # a model reads web pages, files and command output, all of them
         # untrusted, so a shell is a capability somebody chooses on purpose.
         "enabled": False,
-        # Left from the SSH target, which read them; nothing reads them now.
-        "loopback": "off",
-        "loopback_port": 0,
-        # Per command.
-        "default_timeout": 60,
-        "max_timeout": 600,
-        "max_output_bytes": 64 * 1024,
-        # Per reply. See services/agent/policy.py:Limits.
-        #
-        # `max_steps` is a runaway backstop rather than a working budget: an
-        # agent reply is meant to run until the task is done, and a step count
-        # low enough to be the thing that stops it is a count that stops it
-        # halfway. What actually bounds a long reply is the wall clock and
-        # `max_completion_tokens`.
-        "max_steps": 200,
-        "max_wall_seconds": 900,
-        "max_total_output_bytes": 1024 * 1024,
-        # How much the model may *write* in one reply, across every round.
-        # Zero means no ceiling, which is a thing somebody may want and has no
-        # other way of being said -- the same convention as `index_chars`.
-        "max_completion_tokens": 200_000,
         # How long a reply waits for someone to answer. Clamped on read: a zero
         # here would park a background task forever.
         "approval_timeout": 900,
-        "allow_default": ["read", "list", "glob", "grep", "ls *", "pwd", "git status"],
-        "deny_default": ["shutdown *", "reboot *", "mkfs*"],
         "ask_free_text": True,
         # The terminal panel: a person's own shell on their own device.
         # Separate from `enabled` because the two are different capabilities --
@@ -169,44 +145,6 @@ def _agents_defaults() -> dict[str, Any]:
         # on a device and fed over its link, so this is a real resource, not a scruple.
         "terminal_max_sessions": 20,
         "terminal_max_per_user": 3,
-        # Whether the panel's shell is given hooks that mark where one
-        # command ends and the next begins. Off means the Copy and Send
-        # buttons fall back to scraping the screen, and Auto is
-        # unavailable -- there is nothing to key it on.
-        "terminal_integration": True,
-        # A listing of the project directory, put in front of the model so the
-        # first rounds of a reply are not spent discovering what is there. It
-        # costs its budget on *every* request in an agent chat, forever, which
-        # is why it is a switch and a number rather than a constant.
-        "index_enabled": True,
-        # Characters. Clamped on read: a huge value here would quietly spend
-        # somebody's whole context window on filenames.
-        "index_chars": 2000,
-        # A file in the project root -- AGENTS.md, CLAUDE.md -- saying how to
-        # work in that project. Read off somebody else's disk, so it is
-        # untrusted, and the fragment carrying it is where that is dealt with.
-        "instructions_enabled": True,
-        "instructions_chars": 4000,
-        # Whether a reply that ends while its plan still has open tasks is told
-        # once to carry on. Only ever fires against a plan, because that is the
-        # one thing there is to be objectively wrong about -- a model with no
-        # plan that says it has finished is believed.
-        "nudge_unfinished": True,
-        # Whether a command may run detached, keep running after the reply ends,
-        # and be checked on later. Off by default, and off means byte-for-byte
-        # the old behaviour: a command that times out is killed. See
-        # services/agent/jobs.py.
-        "background_enabled": False,
-        # The sub-switch: a timed-out command is left running as a job instead
-        # of killed. Off leaves the timeout a hard stop and offers only the
-        # model's explicit `background=true`.
-        "background_on_timeout": True,
-        # Whether the model is woken with the result when a job finishes, rather
-        # than only seeing it when it next runs of its own accord.
-        "background_notify": True,
-        # Most background jobs watched at once. Each is a periodic reconnect to
-        # the far side, so it is a real cost, not a scruple.
-        "background_max_jobs": 5,
     }
 
 
@@ -393,8 +331,8 @@ def _subagents_defaults() -> dict[str, Any]:
     four times the queue rather than four times the speed.
 
     Every number below is a **ceiling on one reply's helpers**, not a working
-    budget for one of them. The distinction is the one `Limits.steps` already
-    makes: a bound low enough to be reached by ordinary work stops the work
+    budget for one of them. The distinction is the one `chat_rounds` makes: a
+    bound low enough to be reached by ordinary work stops the work
     halfway instead of catching a runaway.
     """
     return {
@@ -576,7 +514,7 @@ def chat_rounds(db: DBSession) -> int:
     """The ceiling on an ordinary chat's rounds of tool calls, clamped.
 
     Zero is meaningful and is not clamped away: it means "no ceiling", the same
-    convention `index_chars` and `max_completion_tokens` use. Read through here
+    convention `max_completion_tokens` uses. Read through here
     rather than from the group directly so the loop and the harness cannot
     disagree about the number the model is told.
     """
@@ -666,7 +604,6 @@ def agents(db: DBSession) -> dict[str, Any]:
     """
     values = get_group(db, AGENTS)
     values["approval_timeout"] = min(max(int(values.get("approval_timeout") or 0), 60), 3600)
-    values["max_timeout"] = min(max(int(values.get("max_timeout") or 0), 1), 3600)
     values["terminal_idle_timeout"] = min(
         max(int(values.get("terminal_idle_timeout") or 0), 60), 86400
     )
@@ -674,29 +611,6 @@ def agents(db: DBSession) -> dict[str, Any]:
         max(int(values.get("terminal_max_sessions") or 0), 1), 500
     )
     values["terminal_max_per_user"] = min(max(int(values.get("terminal_max_per_user") or 0), 1), 50)
-    # Zero is meaningful here and is not clamped away: it means "index the
-    # directory for the file picker, but put none of it in the prompt", which
-    # is a reasonable thing to want and has no other way of being said.
-    values["index_chars"] = min(max(int(values.get("index_chars") or 0), 0), 20_000)
-    values["instructions_chars"] = min(
-        max(int(values.get("instructions_chars") or 0), 0), 20_000
-    )
-    # Zero is meaningful here too: no ceiling on what one reply may write.
-    values["max_completion_tokens"] = min(
-        max(int(values.get("max_completion_tokens") or 0), 0), 5_000_000
-    )
-    values["background_max_jobs"] = min(max(int(values.get("background_max_jobs") or 0), 1), 100)
-    # Anything unrecognised means off. A stored value this version does not know
-    # must fail closed here: the one direction that is safe to get wrong is
-    # refusing a connection somebody has to re-allow, and the other direction is
-    # a shell on this host.
-    if values.get("loopback") not in ("off", "port", "on"):
-        values["loopback"] = "off"
-    try:
-        port = int(values.get("loopback_port") or 0)
-    except (TypeError, ValueError):
-        port = 0
-    values["loopback_port"] = port if 1 <= port <= 65535 else 0
     return values
 
 

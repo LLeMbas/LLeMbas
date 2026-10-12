@@ -333,14 +333,13 @@ def test_the_shipped_defaults_fit_under_the_ceiling(db, owner):
     """An agent chat's whole preamble, at the budgets this ships with.
 
     It did not fit. The fragments alone are about 7,900 characters, and on top
-    of them `index_chars` grants a 2,000 character project listing and
-    `instructions_chars` a 4,000 character AGENTS.md -- both on by default. The
+    of them the defaults granted a 2,000 character project listing and a 4,000
+    character AGENTS.md -- both on by default. The
     ceiling was 8,000, and `assemble` cuts the tail, which by fragment order is
     the context worth having: the listing was severed mid-tree and
     `context.agent_instructions` was dropped whole. So on a default install the
     one path by which a project's own instructions reach a model did not.
     """
-    values = settings_store.agents(db)
     # Every name the harness knows about, so a variable added later is covered
     # here without anybody remembering to add it.
     variables = dict.fromkeys(harness.context_variables(db, owner, [], None), "")
@@ -355,9 +354,10 @@ def test_the_shipped_defaults_fit_under_the_ceiling(db, owner):
             "tool_names": "bash, read, write, edit, apply_patch, list",
             "background": "on",
             "max_rounds": "200",
-            # Each at exactly the budget its own setting allows.
-            "project_files": "L" * int(values["index_chars"]),
-            "agent_instructions": "A" * int(values["instructions_chars"]),
+            # Each at the budget it was last given: a listing and a project's
+            # own instructions of this size still have to fit.
+            "project_files": "L" * 2000,
+            "agent_instructions": "A" * 4000,
             "agent_instructions_file": "AGENTS.md",
             "plan": "P" * 600,
             "memories": "M" * 400,

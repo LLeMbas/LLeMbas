@@ -135,16 +135,6 @@ class Folder(UUIDPrimaryKey, Timestamps, Base):
         kept.sort(key=lambda chat: not chat.pinned)
         return kept
 
-    def visible_children(self, kind: str = "") -> list[Folder]:
-        """Sub-folders the sidebar should show on this side of the switch.
-
-        Here rather than in the template because Jinja's `selectattr` names a
-        test, it does not call a method -- so the filter would have to be spelled
-        out as a loop appending to a list, in a template that already includes
-        itself recursively.
-        """
-        return [child for child in self.children if child.shown_in(kind)]
-
     def holds(self, kind: str = "") -> bool:
         """Whether anything of this kind is anywhere under this folder.
 
@@ -220,14 +210,16 @@ class Chat(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
     # rules. The connection is locked with it -- a shell history and a project
     # directory do not transplant to another machine.
     kind: Mapped[str] = mapped_column(String(16), default=KIND_CHAT, nullable=False)
-    # A plain id rather than a ForeignKey, for the reason `compacted_through_id`
-    # below gives: migrations.py compiles only the column type, so a REFERENCES
-    # clause would exist on a fresh database and not on an upgraded one.
-    # Validated on read instead.
+    # Where an agent chat ran when that could be an SSH connection. Nothing
+    # writes it any more -- an agent chat runs on a linked device, recorded
+    # below -- and it stays only because the schema is additive: dropping a
+    # column is a manual migration, and an old row's value is harmless.
     ssh_profile_id: Mapped[str | None] = mapped_column(String(32))
-    # Or a linked device: the device token of a LLeMbas CLI that dials in
-    # (services/device_link.py). One of the two, never both; a plain id for the
-    # reason the profile is one.
+    # The linked device: the device token of a LLeMbas CLI that dials in
+    # (services/device_link.py). A plain id rather than a ForeignKey, for the
+    # reason `compacted_through_id` below gives: migrations.py compiles only the
+    # column type, so a REFERENCES clause would exist on a fresh database and
+    # not on an upgraded one. Validated on read instead.
     device_token_id: Mapped[str | None] = mapped_column(String(32))
     # The device's own id for this chat's session: the same session its
     # terminal lists and can open. Kept so that a restart of either side carries
@@ -280,7 +272,7 @@ class Chat(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
     # Plain columns rather than keys in `scope_json`: that one narrows what a
     # chat may *reach* and absent means on, which is the opposite of what an
     # empty default here means. A workflow that has since been deleted reads
-    # back as no preference, so it is validated on use like `ssh_profile_id`.
+    # back as no preference, so it is validated on use like `device_token_id`.
     image_workflow_id: Mapped[str | None] = mapped_column(String(32))
     image_checkpoint: Mapped[str] = mapped_column(String(300), default="")
 
@@ -288,8 +280,8 @@ class Chat(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
     # The chat whose reply spawned this one, when a model delegated a piece of
     # work. A plain id and not a ForeignKey, for the reason the three above
     # give, and validated on read. Its presence is what makes a chat a
-    # subagent's: `agent/session.py` sizes it smaller, `services/subagent.py`
-    # refuses to spawn from one, and the sweep finds it.
+    # subagent's: `generation` bounds its rounds by the subagent settings,
+    # `services/subagent.py` refuses to spawn from one, and the sweep finds it.
     parent_chat_id: Mapped[str | None] = mapped_column(String(32))
     # Nobody is at the keyboard for this conversation, and nothing in it may
     # stop to ask. Not the same question as `kind`: a scheduled task's chat is
@@ -435,8 +427,8 @@ class Message(UUIDPrimaryKey, Timestamps, Base):
     queued: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Written by the application rather than by the person whose bubble this
-    # would otherwise be. `agent/jobs.py:wake` is the one writer: a background
-    # job finishing is a new turn in the *user* role, and that role is
+    # would otherwise be. `wake.wake_chat` is the one writer: a scheduled run or
+    # a helper's task arriving is a new turn in the *user* role, and that role is
     # load-bearing -- `_inject` sends a queued turn verbatim and `build_messages`
     # has to keep seeing a user turn -- but it is not the reader speaking, and
     # rendering it under their name with their initial beside it is the

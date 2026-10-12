@@ -55,15 +55,6 @@ def fresh_database(tmp_path: Path) -> Iterator[None]:
     Base.metadata.create_all(bind=get_engine())
     sync_schema(get_engine())
 
-    # The agent settings' `loopback` switch is off by default. The suite runs
-    # with it on, because test fixtures point at 127.0.0.1; a test that cares
-    # about the switch closes it explicitly.
-    from lembas.db.session import session_scope
-    from lembas.services import settings_store
-
-    with session_scope() as db:
-        settings_store.update(db, {"loopback": "on"}, key=settings_store.AGENTS)
-
     yield
     reset_engine()
 

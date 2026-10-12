@@ -350,7 +350,7 @@ def _agent_context(db: DBSession, user: User, chat: Chat | None) -> dict:
     }
 
 
-def _terminal_enabled(db: DBSession, user: User, chat: Chat | None, profile=None) -> bool:
+def _terminal_enabled(db: DBSession, user: User, chat: Chat | None) -> bool:
     """Whether this chat can offer a shell: a chat on a linked device whose
     device opens terminals (`remote.terminal`), for somebody who may open
     one. Every condition, not a subset: the button loads 280KB of terminal and

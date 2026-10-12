@@ -4,14 +4,14 @@
   not thinking about which store the answer is in.
 
   Swapped in whole on every keystroke, like the knowledge picker: the library
-  is searched with FTS rather than filtered in the browser, and the project
-  half is filtered beside it so the client stays one fetch and a list.
+  is searched with FTS rather than filtered in the browser. A device chat's
+  files are the other source, asked of the device by the composer beside this.
 
   Every name here came off somebody's filesystem or out of their library, so
   all of it is escaped by autoescaping and none of it is marked safe.
 #}
 <div id="mention-results">
-  {% if not files and not documents and not notes and not skills
+  {% if not documents and not notes and not skills
         and not bases and not attachments and not website %}
   <p class="muted text-sm" style="padding: var(--sp-3)">
     {% if q %}
@@ -35,24 +35,6 @@
         </span>
       </button>
     </li>
-  </ul>
-  {% endif %}
-
-  {% if files %}
-  <p class="picker__group">{{ t("In the project") }}</p>
-  <ul class="picker__list">
-    {% for file in files %}
-    <li>
-      <button class="picker__option" type="button"
-              data-mention-file="{{ file.path }}" data-mention-token="{{ file.path }}">
-        {{ icon("folder" if file.path.endswith("/") else "file-text", "icon--sm") }}
-        <span class="picker__option-body">
-          <span class="picker__option-name">{{ file.name }}</span>
-          <span class="picker__option-note mono">{{ file.path }}</span>
-        </span>
-      </button>
-    </li>
-    {% endfor %}
   </ul>
   {% endif %}
 

@@ -81,9 +81,7 @@ MAX_TOOL_ROUNDS = 200
 # A tool round appends an assistant turn and a tool turn per call, so a reply
 # that keeps calling tools grows its own request until the endpoint refuses it --
 # and `_maybe_compact` runs once, before the first round, so nothing was watching
-# it after that. The only other guard, `max_total_output_bytes`, defaults to a
-# megabyte, which is about 260k tokens: larger than the window of nearly every
-# model this talks to, so it never fired first.
+# it after that.
 #
 # The tenth left over is room to answer in. Stopping with an explanation beats an
 # upstream error that says only that the request was too long.
@@ -720,8 +718,8 @@ async def _run(generation: Generation) -> None:
 
     A reply is not necessarily one request. When tools are offered and the
     model asks to use one, the loop below runs it, appends the result to the
-    conversation and asks again -- up to tools_service.MAX_ROUNDS times, after
-    which the model has to answer with what it has. Text produced before a tool
+    conversation and asks again -- up to the round budget, after which the
+    model has to answer with what it has. Text produced before a tool
     call is kept, so a model that narrates what it is about to look up does not
     lose that when the results come back.
     """
@@ -886,11 +884,11 @@ async def _run(generation: Generation) -> None:
             quota = permissions.limits_for(db, owner)
             chat_rounds = settings_store.chat_rounds(db)
             # A helper's chat is bounded by its own number, not the instance's.
-            # Only reached in an *ordinary* helper chat -- an agent one is sized
-            # by `Limits` below, which `agent/session.py` already narrows the
-            # same way. Without this the round ceiling on a helper is whatever
-            # an ordinary chat has, which by default is none at all, and the
-            # only thing left holding it is the parent's wall clock.
+            # Only reached in an *ordinary* helper chat -- an agent one runs on
+            # a linked device, which sets its own limits. Without this the round
+            # ceiling on a helper is whatever an ordinary chat has, which by
+            # default is none at all, and the only thing left holding it is the
+            # parent's wall clock.
             if chat.parent_chat_id:
                 chat_rounds = int(settings_store.subagents(db)["max_rounds"])
 
@@ -1358,13 +1356,6 @@ def _device_attachments(message: Message) -> list[dict]:
     return out
 
 
-# How long a reply will wait for a directory listing before starting without
-# one. Short on purpose: the listing is a convenience and the reply is the
-# thing somebody is waiting for. A walk that outruns this keeps going in the
-# background and the next turn has it.
-INDEX_WAIT = 6.0
-
-
 async def _maybe_compact(generation: Generation) -> None:
     """Summarise the earlier turns if the window is about to be full.
 
@@ -1595,20 +1586,6 @@ def _arguments_for(context, calls: list[dict]) -> list[dict]:
     return [
         tools_service.parse_arguments(book.get(call["name"]), call["arguments"]) for call in calls
     ]
-
-
-def _describe(name: str, args: dict) -> tuple[str, str]:
-    """What an approval card says about one call: a title, and the detail.
-
-    The detail is the thing being agreed to -- the command line, the path -- and
-    is shown verbatim and escaped. A summary that paraphrased it would be a card
-    approving something other than what runs.
-
-    Delegated to services/tool_labels.py, which the transcript and the status
-    line read too. This used to be a hand-written if-chain and was the fourth
-    place with its own wording for the same tool.
-    """
-    return tool_labels.describe(name, args)
 
 
 def _ask_items(context, calls: list[dict], arguments: list[dict]) -> list[interaction.Item]:

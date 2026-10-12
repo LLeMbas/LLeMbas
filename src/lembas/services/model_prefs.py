@@ -41,18 +41,6 @@ def row(db: DBSession, user, model_id: str) -> UserModelSetting | None:
     )
 
 
-def rows(db: DBSession, user) -> dict[str, UserModelSetting]:
-    """Every model this person has a row for, by model id."""
-    if user is None:
-        return {}
-    return {
-        found.model_id: found
-        for found in db.scalars(
-            select(UserModelSetting).where(UserModelSetting.user_id == user.id)
-        )
-    }
-
-
 def tools_off(db: DBSession, user, model_id: str) -> frozenset[str]:
     """Gates this person switched off for this model. Empty without a row."""
     found = row(db, user, model_id)

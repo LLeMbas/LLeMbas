@@ -302,7 +302,7 @@ def test_a_device_file_is_only_the_reference():
     choose = js_function(SOURCE, "choose")
     stop = choose.index('if (option.hasAttribute("data-mention-device")) return;')
     assert choose.index("replaceToken(token)") < stop
-    assert stop < choose.index("/api/files/from-project")
+    assert stop < choose.index("/api/files/from-knowledge")
 
 
 def test_a_device_path_is_escaped_the_way_the_cli_reads_it():

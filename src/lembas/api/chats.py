@@ -269,7 +269,6 @@ async def start_chat(
     project_dir: str = Form(""),
     agent_mode: str = Form(""),
     reasoning_effort: str = Form(""),
-    draft_id: str = Form(""),
     # The scope menu, as it stood before the first word. `scope_all` names every
     # gate the menu drew and is always submitted; `scope_on` names only the
     # ticked ones, because that is all a browser sends. The difference is what
@@ -2058,16 +2057,16 @@ def _remember_always(
     """Record what "always allow" was said about.
 
     Returns (how many were new, how many could not be stored at all). The second
-    is what the caller turns into a toast: `subject` yields nothing for a
-    composed command line, so pressing the button on one is right to store
-    nothing and wrong to say nothing.
+    is what the caller turns into a toast: `always_patterns` yields nothing for a
+    command line an allow could not be trusted for, so pressing the button on
+    one is right to store nothing and wrong to say nothing.
 
     The pattern is derived **here**, and still never taken from the request as a
     pattern: `answers` carries the command a person may have corrected on the
-    card, and it goes through `agent_policy.subject` exactly as `item.detail`
-    does. That is the same normaliser `decide` matches with, so what is stored
-    is exactly what will be compared later; it returns None for a command line
-    carrying a shell metacharacter, which is precisely the shape that must never
+    card, and it goes through `agent_policy.always_patterns` exactly as
+    `item.detail` does. That splits the line the way `decide` does, so what is
+    stored is what will be compared later; it returns nothing for a line holding
+    what the split could not see, which is precisely the shape that must never
     become a standing permission.
 
     Reading the edit matters rather than being a nicety. Somebody who corrects a
@@ -2076,8 +2075,7 @@ def _remember_always(
     for something nobody ever agreed to.
 
     A tool name for everything that is not a command, which is the convention
-    the shipped `allow_default` already uses: `file_read` and `file_list` are
-    entries in it.
+    `subagent.SAFE_COMMANDS` uses too: `read` and `list` are entries in it.
     """
     scope = dict(chat.scope_json or {})
     entries = list(scope.get("allow") or [])

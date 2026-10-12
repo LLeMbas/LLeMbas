@@ -71,12 +71,6 @@ def test_a_temporary_chat_gets_no_unread_dot(client: TestClient, db, registered,
     assert "HX-Trigger" not in response.headers
 
 
-def test_user_chats_excludes_temporary_ones(db, registered, make_chat, user_id):
-    _connection(db)
-    _temporary(db, make_chat())
-    assert chat_service.user_chats(db, user_id) == []
-
-
 def test_a_finished_temporary_reply_is_not_unread(db, registered, make_chat):
     from lembas.services import generation as generation_service
 

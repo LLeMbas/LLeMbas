@@ -516,8 +516,8 @@ def explain(db: DBSession, user: User | None) -> dict[str, dict]:
 
 # --- Quotas -------------------------------------------------------------------
 # What a group may raise, and what each number means. Every one of them is
-# **zero for no limit**, which is the convention `max_completion_tokens` and
-# `index_chars` already use here, and it is what makes "unlimited" sayable at all.
+# **zero for no limit**, which is the convention `max_completion_tokens` already
+# uses, and it is what makes "unlimited" sayable at all.
 #
 # Five axes rather than one, because they fail differently and a single "budget"
 # would have to pick an exchange rate between a token and a minute of somebody's

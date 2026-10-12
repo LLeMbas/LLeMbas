@@ -121,17 +121,6 @@ def only_shared(model: Any, user: User | None) -> ColumnElement[bool]:
     return and_(visible_to(model, user), model.owner_id != user.id)
 
 
-def owned_by(model: Any, user: User | None) -> ColumnElement[bool]:
-    """Rows this user may *change*.
-
-    Sharing grants reading, never writing. Two people editing one note with no
-    history and no merge is worse than the inconvenience of copying it.
-    """
-    if user is None:
-        return model.id.is_(None)
-    return model.owner_id == user.id
-
-
 def can_read(
     db: DBSession, resource: Any, user: User | None, group: str | None = None
 ) -> bool:
@@ -276,7 +265,6 @@ __all__ = [
     "forget_resource",
     "grants_for",
     "only_shared",
-    "owned_by",
     "resource_type",
     "set_grants",
     "visible_to",

@@ -288,20 +288,6 @@ def test_the_panel_buttons_wait_for_a_connection_before_they_appear():
     assert "setPanel" in SOURCE
 
 
-def test_the_file_picker_asks_for_files():
-    """One listing serves the directory picker and the file picker, because a
-    second copy is a second place for the path arithmetic to be got subtly
-    differently — and getting it differently means a file that opens to the
-    wrong path, or to nothing."""
-    app = (ROOT / "web/static/js/app.js").read_text(encoding="utf-8")
-
-    assert "pick=file" in app
-    assert "data-file-open" in app or "dataset.fileOpen" in app
-    # Directories stay a step in file mode, or a file two folders down is
-    # unreachable.
-    assert app.count("[data-dir-open]") >= 2
-
-
 def test_a_notification_is_never_shown_to_somebody_looking_at_the_page():
     """Three channels carry one arrival and they must not all fire at once: the
     toast is for somebody watching, the tab-title count for somebody in another

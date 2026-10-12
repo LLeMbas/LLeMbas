@@ -430,7 +430,6 @@ MESSAGES.update(
         "Choose the directory this chat works in": (
             "Vyberte adresár, v ktorom táto konverzácia pracuje"
         ),
-        "In the project": "V projekte",
         "Approval mode": "Režim schvaľovania",
         "Terminal": "Terminál",
         "Close terminal": "Zavrieť terminál",
@@ -923,8 +922,8 @@ MESSAGES.update(
         "One line under the name, saying what it is for.": (
             "Jeden riadok pod názvom, ktorý hovorí, na čo to je."
         ),
-        "One per chat. Each holds an SSH connection open on the far machine.": (
-            "Jeden na konverzáciu. Každý drží otvorené SSH spojenie na vzdialenom stroji."
+        "One per chat. Each keeps a shell open on the linked device, fed over its link.": (
+            "Jeden na konverzáciu. Každý udržiava otvorený shell na prepojenom zariadení, napojený cez jeho spojenie."
         ),
     }
 )
@@ -2864,8 +2863,6 @@ MESSAGES.update(
         "Path": "Cesta",
         "Use this directory": "Použiť tento adresár",
         "Could not reach that machine.": "Ten stroj sa nepodarilo zastihnúť.",
-        "Open a file": "Otvoriť súbor",
-        "Pick a file to open in the canvas. Folders walk deeper; you can also type a path and press Enter.": "Vyberte súbor, ktorý sa otvorí na ploche. Priečinky vedú hlbšie; môžete aj napísať cestu a stlačiť Enter.",
         "Already installed — you are using the installed app now.": "Už je nainštalovaná — práve používate nainštalovanú aplikáciu.",
         "This page is not a secure context, so the browser will not install it. That means plain http, or https with a certificate this device does not trust — a private or self-signed certificate has to be installed on the device before any browser will treat the site as secure.": "Táto stránka nie je zabezpečený kontext, takže ju prehliadač nenainštaluje. To znamená obyčajné http alebo https s certifikátom, ktorému toto zariadenie nedôveruje — súkromný alebo vlastnoručne podpísaný certifikát treba nainštalovať do zariadenia, kým ktorýkoľvek prehliadač bude stránku považovať za zabezpečenú.",
         "The service worker could not be registered, so the browser will not offer an install. The usual cause is a certificate this device does not trust. The browser said: %(reason)s": "Service worker sa nepodarilo zaregistrovať, takže prehliadač inštaláciu neponúkne. Zvyčajnou príčinou je certifikát, ktorému toto zariadenie nedôveruje. Prehliadač hlási: %(reason)s",

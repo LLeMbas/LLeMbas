@@ -86,17 +86,6 @@ def now_for(user: User | None) -> datetime:
     return datetime.now(tz=zone_for(user))
 
 
-def to_utc(moment: datetime, *, zone: tzinfo) -> datetime:
-    """A wall-clock stamp in `zone`, as an instant.
-
-    Naive input is *interpreted* in `zone`; aware input is converted, so a
-    caller that already knows the offset cannot have it silently reassigned.
-    """
-    if moment.tzinfo is None:
-        moment = moment.replace(tzinfo=zone)
-    return moment.astimezone(UTC)
-
-
 def as_utc(moment: datetime) -> datetime:
     """An instant, whatever it arrived as.
 

@@ -89,7 +89,7 @@
       <label class="field__label" for="terminal_max_per_user">{{ t("Most shells per person") }}</label>
       <input class="input" id="terminal_max_per_user" name="terminal_max_per_user"
              value="{{ values.terminal_max_per_user }}" inputmode="numeric">
-      <p class="field__hint">{{ t("One per chat. Each holds an SSH connection open on the far machine.") }}</p>
+      <p class="field__hint">{{ t("One per chat. Each keeps a shell open on the linked device, fed over its link.") }}</p>
     </div>
 
   </section>

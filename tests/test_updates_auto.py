@@ -22,6 +22,14 @@ def _fresh():
     updates_auto.reset()
 
 
+def _backups() -> list:
+    """The backups on disk, newest first."""
+    folder = backup.backup_dir()
+    if not folder.exists():
+        return []
+    return sorted(folder.glob("lembas-*.db"), key=lambda p: p.stat().st_mtime, reverse=True)
+
+
 def _bump(part: str) -> str:
     major, minor, patch = (int(x) for x in __version__.split("."))
     if part == "patch":
@@ -91,12 +99,12 @@ def test_an_idle_instance_is_backed_up_then_updated(db, monkeypatch):
         db, {"auto_apply": "patch", "idle_minutes": 0}, key=settings_store.UPDATES
     )
     requested = _wanted(monkeypatch, _bump("patch"))
-    before = len(backup.listing())
+    before = len(_backups())
     asyncio.run(updates_auto.tick())
     assert requested == ["automatic"]
-    assert len(backup.listing()) == before + 1
+    assert len(_backups()) == before + 1
     # The backup is a real, whole database.
-    with sqlite3.connect(str(backup.listing()[0])) as copy:
+    with sqlite3.connect(str(_backups()[0])) as copy:
         assert copy.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
 
 
@@ -177,9 +185,9 @@ def test_apply_when_idle_from_the_page(client, db, registered, monkeypatch):
 
 def test_apply_now_still_backs_up(client, db, registered, monkeypatch):
     requested = _wanted(monkeypatch, _bump("patch"))
-    before = len(backup.listing())
+    before = len(_backups())
     client.post("/admin/updates/apply", data={"when": "now"})
-    assert requested and len(backup.listing()) == before + 1
+    assert requested and len(_backups()) == before + 1
 
 
 def test_the_backup_command(tmp_path):
@@ -190,7 +198,7 @@ def test_the_backup_command(tmp_path):
     result = CliRunner().invoke(cli_app, ["backup", "--label", "by hand", "--keep", "2"])
     assert result.exit_code == 0, result.output
     assert "lembas-" in result.output and "by-hand" in result.output
-    assert len(backup.listing()) <= 2
+    assert len(_backups()) <= 2
 
 
 def test_backups_keep_the_newest(db):
@@ -198,4 +206,4 @@ def test_backups_keep_the_newest(db):
         backup.take(f"n{n}", keep=0)
         time.sleep(0.01)
     assert backup.prune(2) >= 2
-    assert len(backup.listing()) == 2
+    assert len(_backups()) == 2

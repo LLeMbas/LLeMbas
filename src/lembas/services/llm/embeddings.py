@@ -132,15 +132,4 @@ async def embed(
     return [normalise(vector) for vector in vectors]
 
 
-async def probe(endpoint: Endpoint, model_id: str) -> int:
-    """How wide this model's vectors are, by asking for one.
-
-    Used by the admin page's Test button and by nothing on the request path.
-    There is no endpoint that reports it, so the only honest way to find out is
-    to embed something.
-    """
-    vectors = await embed(endpoint, model_id, ["lembas"], timeout=60.0)
-    return len(vectors[0])
-
-
-__all__ = ["TIMEOUT", "embed", "normalise", "probe"]
+__all__ = ["TIMEOUT", "embed", "normalise"]

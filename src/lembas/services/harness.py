@@ -53,9 +53,9 @@ log = logging.getLogger(__name__)
 #
 # It has to be larger than everything the shipped defaults are already allowed
 # to put in, and at 8000 it was not. The fragments alone are about 7,900
-# characters for an agent chat, and on top of that `index_chars` grants a 2,000
-# character project listing and `instructions_chars` a 4,000 character
-# AGENTS.md -- both defaults, both on by default. The block was therefore cut at
+# characters for an agent chat, and on top of that the defaults granted a 2,000
+# character project listing and a 4,000 character AGENTS.md, both on by
+# default. The block was therefore cut at
 # 8,000 on an ordinary agent chat, and `prompts.assemble` cuts the *tail*, which
 # by fragment order is exactly the context worth having: the listing was severed
 # mid-tree and `context.agent_instructions` was dropped in its entirety. The one
@@ -225,8 +225,7 @@ def context_variables(
         "user_name": (user.name or "") if user is not None else "",
         "model_name": "",
         # What this request will actually allow, so the model is not told a
-        # number that is not its own. `tools_service.MAX_ROUNDS` is only the
-        # fallback for callers with no session.
+        # number that is not its own.
         "max_rounds": str(settings_store.chat_rounds(db) or 0),
         # Not rendered anywhere. It is the gate on `core.rounds`: an ordinary
         # chat has a ceiling worth planning within, an agent chat is told to

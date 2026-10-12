@@ -58,14 +58,6 @@ SCROLLBACK_BYTES = 256 * 1024
 # only reached by a browser that has genuinely stopped reading.
 VIEWER_QUEUE = 512
 
-# Read size. Large enough that `cat` of a big file is not a million wakeups,
-# small enough that a prompt appears the instant it is written.
-READ_BYTES = 64 * 1024
-
-# A terminal nobody has ever heard of gets no colours; this one every shell
-# knows and it is what an ordinary ssh client announces.
-TERM_TYPE = "xterm-256color"
-
 # A size is a number the browser sends. `change_terminal_size(100000, 100000)`
 # is a way to ask the far side to allocate.
 MAX_COLS = 500
@@ -171,9 +163,7 @@ class Session:
         # polling for something that happens a few times a minute.
         self.on_command: Any = None
 
-        self._conn: Any = None
         self._process: Any = None
-        self._pump: asyncio.Task | None = None
 
         self.closed = False
         self.closed_reason = ""
@@ -195,22 +185,6 @@ class Session:
         """Open the shell. Only a linked device opens one -- see
         `DeviceSession`."""
         raise ExecError(i18n.t("A terminal opens only on a linked LLeMbas CLI device."))
-
-    def _command(self) -> str | None:
-        """What the PTY runs, or None for the account's plain login shell.
-
-        A shell has no notion of "start here" a PTY request can carry, so the chat's
-        project directory has to be a `cd` -- run before the shell rather than
-        typed into it, so the scrollback opens on a prompt instead of on a
-        command nobody entered. It is single-quoted, and a failure is ignored:
-        a directory that has been deleted should leave somebody at a shell to
-        find out why, not with a connection that closes as it opens.
-
-        With integration on, the same string also writes the shell-integration
-        files and execs through them; see `shell_marks` for why it is done in
-        the command rather than over SFTP or through the environment.
-        """
-        return shell_marks.command_for(self.project_dir, integrate=self.integrate)
 
     # --- Where one command ends and the next begins --------------------------
 
@@ -341,27 +315,7 @@ class Session:
         with contextlib.suppress(Exception):
             self._process.change_terminal_size(cols, rows)
 
-    # --- The pump ------------------------------------------------------------
-
-    async def _read_forever(self) -> None:
-        assert self._process is not None
-        try:
-            while True:
-                data = await self._process.stdout.read(READ_BYTES)
-                if not data:
-                    break
-                self._remember(data)
-                # Before the fan-out, so a "this command finished" frame can
-                # never reach a browser after the output it describes.
-                self._observe(data)
-                self._fan_out(data)
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:  # noqa: BLE001 - one shell dying is not a crash
-            log.info("terminal %s ended: %s", self.chat_id, exc)
-            await self._finish(CLOSED_ERROR)
-            return
-        await self._finish(CLOSED_EXITED)
+    # --- Output --------------------------------------------------------------
 
     def _observe(self, data: bytes) -> None:
         """Watch the stream for markers, and feed the command being captured.
@@ -425,20 +379,14 @@ class Session:
     # --- Closing -------------------------------------------------------------
 
     async def close(self, reason: str = CLOSED_SHUTDOWN) -> None:
-        pump, self._pump = self._pump, None
-        if pump is not None:
-            pump.cancel()
-            with contextlib.suppress(asyncio.CancelledError, Exception):
-                await pump
         await self._finish(reason)
 
     async def _finish(self, reason: str) -> None:
         """Mark this session over and wake everybody watching.
 
-        Called from the pump when the shell exits, and from `close` after the
-        pump has been cancelled -- which is why it does not cancel the pump
-        itself. The entry stays in the registry for KEEP_CLOSED so a late
-        attachment gets an explanation.
+        Called when the shell exits on the far side, and from `close`. The entry
+        stays in the registry for KEEP_CLOSED so a late attachment gets an
+        explanation.
         """
         if self.closed:
             return
@@ -460,15 +408,9 @@ class Session:
 
     async def _teardown(self) -> None:
         process, self._process = self._process, None
-        conn, self._conn = self._conn, None
         if process is not None:
             with contextlib.suppress(Exception):
                 process.terminate()
-        if conn is not None:
-            with contextlib.suppress(Exception):
-                conn.close()
-            with contextlib.suppress(Exception):
-                await conn.wait_closed()
 
     @property
     def idle_for(self) -> float:
@@ -604,11 +546,6 @@ def get(chat_id: str) -> Session | None:
     return session
 
 
-def peek(chat_id: str) -> Session | None:
-    """As `get`, but a recently closed session too -- it carries the reason."""
-    return _SESSIONS.get(chat_id)
-
-
 def count() -> int:
     return sum(1 for s in _SESSIONS.values() if not s.closed)
 
@@ -668,7 +605,7 @@ async def open_session(
     }
     if not device_token_id:
         raise ExecError(i18n.t("A terminal opens only on a linked LLeMbas CLI device."))
-    session: Session = DeviceSession(chat_id, token_id=device_token_id, **common)
+    session = DeviceSession(chat_id, token_id=device_token_id, **common)
     await session.start(spec)
     _SESSIONS[chat_id] = session
     _ensure_reaper()
@@ -689,45 +626,6 @@ async def close_chat(chat_id: str, reason: str = CLOSED_REVOKED) -> bool:
         return False
     await session.close(reason)
     return True
-
-
-def rekey(old: str, new: str) -> Session | None:
-    """Move a live session from one id to another, keeping the shell.
-
-    What adoption is made of: a shell opened on the new-chat screen under a
-    draft id becomes the shell of the chat that screen turned into, with its
-    scrollback and whatever is half-typed at its prompt. Nothing reconnects --
-    the browser navigates after `start_chat` and attaches to the session now
-    living under the real id, which is the "a reload is indistinguishable from a
-    second tab" property working for us rather than against us.
-
-    **Both the key and the field.** `close_for_profile`, `close_for_owner` and
-    the reaper all pop by `session.chat_id` rather than by the key they found it
-    under, so a stale field would leave a closed session in the registry that
-    `get` keeps handing out and `count_for` keeps counting.
-    """
-    session = _SESSIONS.pop(old, None)
-    if session is None:
-        return None
-    session.chat_id = new
-    _SESSIONS[new] = session
-    log.info("terminal adopted %s -> %s", old, new)
-    return session
-
-
-async def close_for_profile(profile_id: str) -> int:
-    """End every shell opened on one connection.
-
-    `session.profile_for` re-checks the profile on every reply, so deleting or
-    disabling one stops the model at once. A terminal resolves the profile
-    when it opens and then holds the connection, so without this "I disabled
-    that connection" would simply not be true of the shell already on screen.
-    """
-    doomed = [s for s in _SESSIONS.values() if s.profile_id == profile_id and not s.closed]
-    for session in doomed:
-        _SESSIONS.pop(session.chat_id, None)
-        await session.close(CLOSED_REVOKED)
-    return len(doomed)
 
 
 async def close_for_owner(owner_id: str) -> int:
@@ -812,11 +710,9 @@ __all__ = [
     "Viewer",
     "close_chat",
     "close_for_owner",
-    "close_for_profile",
     "count",
     "count_for",
     "get",
     "open_session",
-    "peek",
     "shutdown",
 ]

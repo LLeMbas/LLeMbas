@@ -341,26 +341,19 @@ async def mention_picker(
     user: RequiredUser,
     q: str = "",
     chat_id: str = "",
-    profile_id: str = "",
-    project_dir: str = "",
     model_id: str = "",
 ) -> Response:
-    """What `@` offers: files under the project directory, and the library.
+    """What `@` offers from here: the library, this chat's attachments, a URL.
 
-    One menu from two sources, because a person typing `@readme` is not
-    thinking about which store the answer lives in. The project half is only
-    there for an agent chat and only when a listing has already been built --
-    this is a keystroke-latency path and it must never wait on a machine.
+    A device chat's project files are not among them: the composer asks the
+    linked device for those beside this, and lists them first. This is a
+    keystroke-latency path and it must never wait on a machine.
 
     Filtered server-side, like the knowledge picker beside it and for the same
     reason: the library is searched with FTS rather than filtered in the
-    browser, which is what makes it work at five hundred documents. The project
-    half is filtered here too, so the client stays one `fetch` and a list.
+    browser, which is what makes it work at five hundred documents.
     """
     needle = q.strip().lower()
-
-    # Project files come from the linked device; none from here.
-    files: list[dict] = []
 
     documents: list = []
     notes: list = []
@@ -435,7 +428,6 @@ async def mention_picker(
         {
             "request": request,
             "user": user,
-            "files": files,
             "documents": documents,
             "notes": notes,
             "skills": skills,
@@ -444,7 +436,6 @@ async def mention_picker(
             "website": website,
             "q": q,
             "chat_id": chat_id,
-            "profile_id": profile_id,
         },
     )
 

@@ -45,8 +45,8 @@ applied by `resolve_tools` after every gate:
 - **Commands from a fixed list only, in every mode including Auto.** The child
   runs in Plan or Edit mode, both of which resolve `RISK_EXECUTE` to ASK, and
   ASK in an unattended chat is a refusal. What runs is what matches
-  `SAFE_COMMANDS` — and `policy.subject` refuses to match any line carrying a
-  shell metacharacter, so `git log; curl … | sh` matches nothing. Auto is
+  `SAFE_COMMANDS` — and `policy.decide` allows a line only when every command
+  in it is allowed, so `git log; curl … | sh` is not. Auto is
   deliberately **not** inherited: the task text can have come from a page, and
   that is the injection path this list exists to close.
 
@@ -98,12 +98,12 @@ STOP_GRACE = 20.0
 # Every entry is a command that reads. There is no `find -delete`, no `git
 # checkout`, no package manager: the list is short because the argument for
 # adding to it is always "this one is fine", and the sum of those is a shell.
-# `policy.subject` normalises whitespace and refuses to match anything holding a
-# shell metacharacter, so none of these can be extended with a `;` or a pipe.
+# `policy.decide` splits a line into its commands and needs every one allowed,
+# so none of these can be extended with a `;` or a pipe.
 #
 # `read`, `list`, `glob` and `grep` are here as tool names rather than commands --
 # a tool that is not `bash` is matched by its name (its name before harness spec
-# v1 too) -- the same entries `agents.allow_default` ships with.
+# v1 too).
 SAFE_COMMANDS: tuple[str, ...] = (
     "read",
     "list",

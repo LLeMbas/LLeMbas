@@ -65,9 +65,6 @@ MAX_PDF_PAGES = 300
 # frequently breaks the request outright.
 MAX_EXTRACTED_CHARS = 120_000
 
-# Orphans are files uploaded into a composer that was never sent.
-ORPHAN_AGE = timedelta(hours=24)
-
 IMAGE_TYPES: dict[bytes, tuple[str, str]] = {
     b"\x89PNG\r\n\x1a\n": ("image/png", ".png"),
     b"\xff\xd8\xff": ("image/jpeg", ".jpg"),
@@ -685,8 +682,8 @@ def sweep_orphans(db: DBSession, older_than: timedelta | None = None) -> int:
 
     `older_than` defaults to the configured age rather than to a constant, and
     it is resolved *here* rather than in the signature: a default argument is
-    evaluated at import, so a module-level `ORPHAN_AGE` in the signature would
-    pin the shipped 24 hours whatever an administrator later set.
+    evaluated at import, so a constant in the signature would pin the shipped
+    24 hours whatever an administrator later set.
     """
     if older_than is None:
         older_than = timedelta(hours=limits().orphan_hours)

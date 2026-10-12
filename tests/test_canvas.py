@@ -51,16 +51,6 @@ def test_a_key_with_a_colon_in_the_path_survives():
     assert canvas_service.split("agent:/srv/a:b.py") == ("agent", "/srv/a:b.py")
 
 
-def test_one_file_has_one_key():
-    """A tab a model opened and a tab a person opened must be one tab, or the
-    panel shows the same file twice and only one is the one being saved."""
-    assert (
-        canvas_service.path_key("/srv/app", "./main.py")
-        == canvas_service.path_key("/srv/app", "main.py")
-        == canvas_service.path_key("/srv/app", "/srv/app/main.py")
-    )
-
-
 def test_opening_the_same_key_twice_is_one_tab():
     state: dict = {}
     canvas_service.open_tab(state, {"key": "note:1", "title": "A"})

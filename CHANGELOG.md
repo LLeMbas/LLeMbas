@@ -3,6 +3,26 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## Unreleased
+
+### Removed
+
+- Code left over from when an agent chat could run over SSH, which nothing
+  reached any more: the executor interface and its request, result and listing
+  types, the reply limits in the agent policy, and the terminal's SSH reader,
+  re-keying and per-connection closing. Agent chats and their terminals run on
+  linked devices, as before.
+- Agent settings nothing read: the loopback switch, the command timeouts and
+  output caps, the step, time and token budgets, the default allow and deny
+  lists, the project listing and instructions budgets, the unfinished-plan
+  nudge, background jobs and the terminal integration switch. Values already
+  stored are ignored.
+- The project-file half of the `@` picker, which was always empty, and the
+  unused "open a file" dialog behind the canvas.
+- Unused helpers across the services and models, and comments naming modules
+  that no longer exist. The hint under "Most shells per person" now says what
+  the setting holds open: a shell on the linked device.
+
 ## 1.0.0 — 2026-10-09
 
 The first public release. A self-hosted web UI for language models: chats in

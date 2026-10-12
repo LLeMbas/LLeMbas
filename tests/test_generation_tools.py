@@ -6,7 +6,6 @@ from lembas.db.models import ROLE_ASSISTANT, Chat, Connection, Message, Model
 from lembas.services import generation as generation_service
 from lembas.services import settings_store
 from lembas.services import steps as steps_service
-from lembas.services import tools as tools_service
 from lembas.services.search.base import SearchResult
 
 
@@ -475,14 +474,6 @@ async def test_a_custom_tool_runs_inside_the_loop(db, user_id, monkeypatch, mock
     assert tool_turns[0]["content"] == "Sunny in Minas Tirith."
     assert generation.tool_events[0]["kind"] == "custom"
     assert generation.tool_events[0]["label"] == "Weather"
-
-
-def test_the_default_and_the_fallback_cannot_drift(db):
-    """`tools.MAX_ROUNDS` exists for callers with no session; the setting is
-    what the loop and the harness read. Two numbers meaning one thing is how
-    a model gets told a budget it does not have."""
-    assert tools_service.MAX_ROUNDS == settings_store.DEFAULT_CHAT_ROUNDS
-    assert settings_store.chat_rounds(db) == tools_service.MAX_ROUNDS
 
 
 async def test_a_ceiling_of_zero_does_not_mean_zero_rounds(db, user_id, monkeypatch):

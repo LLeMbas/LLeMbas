@@ -210,10 +210,6 @@ def for_connection(db: DBSession, user: User | None, connection_id: str | None) 
     return connection_groups(db, user).get(connection_id, DEFAULT_GROUP)
 
 
-def for_model(db: DBSession, user: User | None, model: Model) -> str:
-    return for_connection(db, user, model.connection_id)
-
-
 def _connection_for(db: DBSession, model_id: str, connection_id: str | None) -> str | None:
     """The connection a (model id, connection) pair actually lands on.
 
@@ -416,7 +412,6 @@ __all__ = [
     "for_chat",
     "for_composer",
     "for_connection",
-    "for_model",
     "for_pair",
     "for_speaker",
     "get",

@@ -61,12 +61,6 @@ RRF_K = 60
 CHUNK_MULTIPLIER = 6
 
 
-def embeddable(db: DBSession) -> bool:
-    from lembas.services.library import indexing
-
-    return indexing.enabled(db)
-
-
 def worker_for(db: DBSession, group: str | None = None):
     """The configured embedder, resolved while a session is open.
 
@@ -227,7 +221,6 @@ __all__ = [
     "CHUNK_MULTIPLIER",
     "RRF_K",
     "embed_query",
-    "embeddable",
     "fuse",
     "search",
     "semantic_ids",

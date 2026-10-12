@@ -227,13 +227,6 @@ def test_a_composed_command_is_still_fine_when_nothing_is_denied():
     assert decision.verdict == ALLOW
 
 
-def test_subject_refuses_to_produce_a_matchable_line_for_composed_commands():
-    assert policy.subject("shell_run", "ls -la") == "ls -la"
-    assert policy.subject("shell_run", "ls; rm") is None
-    assert policy.subject("shell_run", "") is None
-    assert policy.subject("file_read") == "file_read"
-
-
 # --- A reason is always offered when something is refused --------------------
 def test_an_ask_always_explains_itself():
     """The reason is shown on the card and handed to the model on a deny, so an
@@ -327,18 +320,22 @@ def test_an_mcp_tool_is_assumed_to_change_things(db):
     ],
 )
 def test_a_command_that_writes_or_executes_matches_no_pattern(line):
-    """`_UNSAFE` stops a line being *composed* of two commands. It says nothing
+    """The split stops a line being *composed* of two commands. It says nothing
     about one command that composes another itself, and the obvious read-only
     tools do: `find -exec` runs a program, `-fprintf` writes a file, `-delete`
     removes one, `rg --pre` runs a preprocessor per file. None needs a character
-    `_UNSAFE` refuses.
+    the split refuses.
 
     That mattered because `find *` was on `SAFE_COMMANDS` -- the list a
     **subagent** is pinned to, in every mode, unattended, with no approval card
     possible. It was arbitrary write and arbitrary execution wearing a read-only
     name.
     """
-    assert policy.subject("shell_run", line) is None
+    decision = decide(
+        mode=policy.MODE_PLAN, risk=RISK_EXECUTE, tool_name="shell_run", command=line, allow=(line,)
+    )
+    assert decision.verdict == ASK
+    assert policy.always_patterns("shell_run", line) == []
 
 
 @pytest.mark.parametrize(
@@ -354,7 +351,10 @@ def test_a_command_that_writes_or_executes_matches_no_pattern(line):
 )
 def test_ordinary_reading_still_matches(line):
     """Or the guard has taken the tool away rather than the escape."""
-    assert policy.subject("shell_run", line) == line
+    decision = decide(
+        mode=policy.MODE_PLAN, risk=RISK_EXECUTE, tool_name="shell_run", command=line, allow=(line,)
+    )
+    assert decision.verdict == ALLOW
 
 
 def test_the_subagent_allow_list_is_all_reachable():
@@ -364,4 +364,11 @@ def test_the_subagent_allow_list_is_all_reachable():
 
     for entry in SAFE_COMMANDS:
         sample = entry.replace("*", "x").strip()
-        assert policy.subject("shell_run", sample) is not None, entry
+        decision = decide(
+            mode=policy.MODE_PLAN,
+            risk=RISK_EXECUTE,
+            tool_name="shell_run",
+            command=sample,
+            allow=SAFE_COMMANDS,
+        )
+        assert decision.verdict == ALLOW, entry

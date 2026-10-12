@@ -34,13 +34,6 @@ log = logging.getLogger(__name__)
 
 router = APIRouter(tags=["devices"])
 
-# The version of the device protocol (the link, ACP and its `_lembas/*`
-# extensions). Bumped only by a change a connected device would
-# notice; a device that speaks another refuses to link rather than guessing.
-# Now 2, and 1 is still accepted (`device_link.PROTOCOLS`): what 2 added
-# is offered only to a device whose `initialize` lists it.
-PROTOCOL = 2
-
 GRANT_DEVICE_CODE = "urn:ietf:params:oauth:grant-type:device_code"
 
 
@@ -562,4 +555,4 @@ async def device_decide(
     )
 
 
-__all__ = ["PROTOCOL", "public_base", "router"]
+__all__ = ["public_base", "router"]

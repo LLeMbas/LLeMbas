@@ -121,18 +121,6 @@ def _finished_reply(db, chat_id: str, message_id: str) -> Message | None:
     return message
 
 
-def _preview(text: str, limit: int = 160) -> str:
-    """The opening of a reply, as the body of a notification.
-
-    A notification saying "a scheduled run finished" is one somebody has to open
-    something to understand, which is most of the reason notifications get
-    ignored. Flattened to one line because a push service and an operating
-    system will each do their own thing with newlines.
-    """
-    flat = " ".join((text or "").split())
-    return flat[: limit - 1] + "…" if len(flat) > limit else flat
-
-
 async def deliver(schedule_id: str, message_id: str, *, since: datetime) -> None:
     """Put a finished reply where the schedule said it should go.
 

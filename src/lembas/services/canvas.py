@@ -17,7 +17,6 @@ about the model, not about the interface.
 
 from __future__ import annotations
 
-import posixpath
 from dataclasses import dataclass
 from datetime import UTC
 
@@ -81,19 +80,6 @@ class Doc:
         put in a textarea -- both open read-only however the permissions read.
         """
         return self.writable and not self.truncated and not self.binary
-
-
-def path_key(project_dir: str, path: str) -> str:
-    """One name for one file, so `./a.py` and `a.py` open the same tab.
-
-    The same normalisation `agent/tools.py:_path_key` applies to the read-path
-    set, and lifted here so the two cannot disagree: a tab a model opened and a
-    tab a person opened have to be one tab, or the panel shows the same file
-    twice and only one of them is the one being saved.
-    """
-    if not posixpath.isabs(path) and project_dir:
-        path = posixpath.join(project_dir, path)
-    return posixpath.normpath(path)
 
 
 def split(key: str) -> tuple[str, str]:

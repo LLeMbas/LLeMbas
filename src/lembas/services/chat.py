@@ -1172,15 +1172,6 @@ def sweep_temporary(
     return len(stale)
 
 
-def user_chats(db: DBSession, user_id: str, *, folder_id: str | None = None) -> list[Chat]:
-    query = select(Chat).where(
-        Chat.user_id == user_id, Chat.archived.is_(False), Chat.temporary.is_(False)
-    )
-    if folder_id is not None:
-        query = query.where(Chat.folder_id == folder_id)
-    return list(db.scalars(query.order_by(Chat.pinned.desc(), Chat.updated_at.desc())))
-
-
 __all__ = [
     "ROLE_ASSISTANT",
     "ROLE_USER",
@@ -1191,5 +1182,4 @@ __all__ = [
     "fallback_title",
     "generate_title",
     "resolve_endpoint",
-    "user_chats",
 ]

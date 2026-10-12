@@ -361,13 +361,6 @@ def schedule(kind: str, resource_id: str) -> None:
     task.add_done_callback(lambda _t, k=key: _TASKS.pop(k, None))
 
 
-def schedule_for(row) -> None:
-    """The same, given a record rather than its kind and id."""
-    kind = kind_of(row)
-    if kind is not None:
-        schedule(kind, str(getattr(row, "id", "") or ""))
-
-
 # --- Noticing a change ----------------------------------------------------------
 # Two SQLAlchemy session events rather than a call in each of the ten writers
 # that touch these four tables. That is a departure from this codebase's taste
@@ -582,7 +575,6 @@ __all__ = [
     "progress",
     "rebuild_all",
     "schedule",
-    "schedule_for",
     "shutdown",
     "start_rebuild",
     "text_of",

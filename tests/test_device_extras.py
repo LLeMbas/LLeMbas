@@ -211,9 +211,9 @@ def test_the_terminal_button_follows_the_device(db, registered, make_chat):
     from lembas.api.pages import _terminal_enabled
 
     user = db.scalar(select(User))
-    assert _terminal_enabled(db, user, db.get(Chat, chat_id), None) is False
+    assert _terminal_enabled(db, user, db.get(Chat, chat_id)) is False
     link.initialized = {"_meta": {"lembas": {"capabilities": ["terminal"]}}}
-    assert _terminal_enabled(db, user, db.get(Chat, chat_id), None) is True
+    assert _terminal_enabled(db, user, db.get(Chat, chat_id)) is True
 
 
 # --- Continue --------------------------------------------------------------------------

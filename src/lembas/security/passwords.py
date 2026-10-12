@@ -1,8 +1,6 @@
 """Password hashing.
 
 Argon2id via argon2-cffi, using the library's current recommended parameters.
-``needs_rehash`` lets stored hashes be upgraded transparently when those
-defaults tighten in a future release.
 """
 
 from __future__ import annotations
@@ -26,13 +24,6 @@ def verify_password(password: str, password_hash: str) -> bool:
         return _hasher.verify(password_hash, password)
     except (VerifyMismatchError, VerificationError, InvalidHashError):
         return False
-
-
-def needs_rehash(password_hash: str) -> bool:
-    try:
-        return _hasher.check_needs_rehash(password_hash)
-    except InvalidHashError:
-        return True
 
 
 def validate_password(password: str) -> str | None:

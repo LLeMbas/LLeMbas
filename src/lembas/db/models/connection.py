@@ -314,10 +314,6 @@ class Model(UUIDPrimaryKey, Timestamps, Base):
         return self.display_name or self.model_id
 
     @property
-    def supports_reasoning(self) -> bool:
-        return bool((self.capabilities_json or {}).get("reasoning"))
-
-    @property
     def initial(self) -> str:
         """First character of the label, for the fallback avatar."""
         return (self.label.strip() or "?")[0].upper()

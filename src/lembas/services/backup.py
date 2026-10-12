@@ -71,11 +71,4 @@ def prune(keep: int = DEFAULT_KEEP) -> int:
     return removed
 
 
-def listing() -> list[Path]:
-    folder = backup_dir()
-    if not folder.exists():
-        return []
-    return sorted(folder.glob("lembas-*.db"), key=lambda p: p.stat().st_mtime, reverse=True)
-
-
-__all__ = ["DEFAULT_KEEP", "backup_dir", "listing", "prune", "take"]
+__all__ = ["DEFAULT_KEEP", "backup_dir", "prune", "take"]

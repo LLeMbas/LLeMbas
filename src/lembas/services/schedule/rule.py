@@ -79,7 +79,6 @@ MIN_INTERVAL_SECONDS = 60
 MAX_INTERVAL_SECONDS = 366 * 86400
 MAX_COUNT = 10_000
 MAX_TIMES = 24
-MAX_HORIZON_DAYS = 366 * 5
 
 # How far ahead a calendar search will walk before giving up. A rule asking for
 # 31 February matches nothing, and a search with no bound would spin for ever

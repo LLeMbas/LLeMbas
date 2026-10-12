@@ -332,8 +332,8 @@
            through this element's *ancestors* -- which a sibling form is not.
            `form=` scopes the values, and only the values. #}
         <div class="composer__context">
-          {# A temporary chat is held at Plan until it is kept (agent/session.py:
-             mode_of), so the select shows that and does not offer the others. #}
+          {# A temporary chat is held at Plan until it is kept, so the select
+             shows that and does not offer the others. #}
           {% if chat.temporary and not chat.parent_chat_id %}
           <select class="select select--sm" aria-label="{{ t('Approval mode') }}" disabled
                   title="{{ t('A temporary chat reads and changes nothing. Keep it to choose another mode.') }}">

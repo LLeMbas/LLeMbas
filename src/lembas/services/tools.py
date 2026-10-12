@@ -48,33 +48,6 @@ from lembas.web.i18n import N_
 
 log = logging.getLogger(__name__)
 
-# How many times a model may call tools before it has to answer with words, in
-# an ORDINARY chat. An agent chat is sized by `agent/policy.py:Limits.steps`
-# instead, which is two orders of magnitude larger, because an agent reply is
-# meant to run until the work is done.
-#
-# A **ceiling, not a schedule.** The loop ends the moment a round comes back
-# with no tool calls -- that is the model saying it has what it needs, and it is
-# the same termination condition every agentic harness uses. This number only
-# catches the case where it never says so: a small model that has decided
-# searching is the answer, searching until the context runs out at a full
-# request each.
-#
-# It was 1, then 5, and now 0 meaning no ceiling at all. Both numbers were the
-# same mistake at different scales: low enough to be reached by ordinary work is
-# low enough to be a schedule rather than a ceiling, overriding the model's
-# judgement on every turn instead of catching a runaway. One left the library
-# searchable and not readable, since `knowledge_get` and `notes_get` read a
-# document "by the id a search returned". Five ended a piece of research at its
-# sixth search.
-#
-# What bounds an ordinary chat now is the context window, and the loop falls
-# back to `generation.MAX_TOOL_ROUNDS` as a runaway backstop -- the shape
-# `Limits.steps` already had for an agent chat.
-#
-# `settings_store.chat_rounds()` is what the loop and the harness read; this is
-# the fallback for callers with no session, and a test pins the two together.
-MAX_ROUNDS = 0
 
 # Tool families, matching the per-model capability flags and the permission
 # keys. The three names differ by prefix only, which is deliberate: adding a
@@ -109,11 +82,6 @@ FAMILY_ASK = "ask"
 # of what it is doing, which is the line `plan_update` sits on. It is also its
 # own switch, because narrowing notes off must not silently take the pad too.
 FAMILY_SCRATCH = "scratch"
-
-# Acting on the machine an agent chat is pointed at. Offered only when the chat
-# is one, has a usable connection, and the feature is switched on -- see
-# services/agent/session.py:resolve, which answers all three at once.
-FAMILY_AGENT = "agent"
 
 # Drawing a picture on a ComfyUI an administrator configured. A family of its
 # own for the reason `fetch` is one: an instance may reasonably want a model
@@ -160,8 +128,6 @@ FAMILIES = (
     FAMILY_SCHEDULE,
     FAMILY_SUBAGENT,
 )
-
-GATES = (*FAMILIES, FAMILY_CUSTOM, FAMILY_MCP)
 
 
 def gate_of(family: str) -> str:
@@ -1143,8 +1109,7 @@ REGISTRY: dict[str, ToolDef] = {
             # machine -- and this cannot touch it. RISK_WRITE would put an
             # approval card on screen every time the model jotted a paragraph,
             # which is exactly the interruption batching exists to prevent. The
-            # same argument `plan_update` carries. An administrator who
-            # disagrees puts it in `deny_default`.
+            # same argument `plan_update` carries.
             risk=RISK_READ,
         ),
         ToolDef(
@@ -1863,10 +1828,10 @@ def scoped_allow(chat: Chat | None) -> tuple[str, ...]:
 
     What makes it safe is that **no pattern ever comes from a request**. Each
     entry is derived server-side in `api/chats.py:answer_interaction` from an
-    item a person has just approved on a card, through `policy.subject` -- the
-    same normaliser the matcher uses, so what is stored is exactly what will be
-    compared, and it refuses to produce anything at all for a command line
-    carrying a shell metacharacter. "Always" can therefore only ever mean "this
+    item a person has just approved on a card, through `policy.always_patterns`
+    -- the same split the matcher uses, so what is stored is what will be
+    compared, and it refuses to produce anything at all for a command line an
+    allow could not be trusted for. "Always" can therefore only ever mean "this
     exact thing again".
 
     There is a second server-side writer now: `services/subagent.py` puts its
@@ -2145,8 +2110,6 @@ def _row_source(db: DBSession):
 
 __all__ = [
     "FAMILIES",
-    "FAMILY_AGENT",
-    "MAX_ROUNDS",
     "REGISTRY",
     "ToolCallAccumulator",
     "ToolContext",

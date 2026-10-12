@@ -133,9 +133,10 @@
        Chats side's kind only -- a folder is free to hold both, and its
        agent chats are listed under their devices.
 
-       Every child folder, not `visible_children`: on the Chats side a child
-       holding only agent chats is still a folder somebody made, and with the
-       Agents side showing no folders it would otherwise be nowhere at all.
+       Every child folder, not only those holding this side's kind: on the
+       Chats side a child holding only agent chats is still a folder somebody
+       made, and with the Agents side showing no folders it would otherwise
+       be nowhere at all.
        Without the switch (`sidebar_kind` "") every child showed already. #}
     {% set listed = folder.visible_chats(sidebar_kind | default("")) %}
     {% set shown = folder.children %}
