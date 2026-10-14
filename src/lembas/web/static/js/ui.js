@@ -1002,9 +1002,12 @@ document.addEventListener("lembas:notify", function (event) {
     function setDir(value) {
       if (!dir) return;
       dir.value = value || "";
-      if (dirLabel) dirLabel.textContent = value ? baseName(value) : t("the login directory");
+      if (dirLabel) dirLabel.textContent = value ? baseName(value) : t("Choose a directory");
       var button = dirLabel && dirLabel.closest("[data-dir-browse]");
-      if (button) button.title = value || t("The connection's own login directory");
+      if (button) {
+        button.title = value || t("Choose the directory this chat works in");
+        if (value) button.removeAttribute("aria-invalid");
+      }
       announce();
     }
 
@@ -1028,10 +1031,22 @@ document.addEventListener("lembas:notify", function (event) {
       if (wanted && mode.querySelector('option[value="' + wanted + '"]')) mode.value = wanted;
     }
 
-    function profileDefault() {
+    /* The directories already used on the selected device, latest first
+       (`data-recent`, from `chat.recent_dirs`). The first is the default; with
+       none, nothing is chosen and sending waits until something is -- the
+       device's own first root used to be filled in silently, which made `/`
+       the directory of every first chat on a new machine. */
+    function recentDirs() {
       var option = picker && picker.options[picker.selectedIndex];
-      return (option && option.dataset.dir) || "";
+      try {
+        var list = JSON.parse((option && option.dataset.recent) || "[]");
+        return Array.isArray(list) ? list.filter(function (p) { return typeof p === "string" && p; }) : [];
+      } catch (error) {
+        return [];
+      }
     }
+
+    function deviceDefault() { return recentDirs()[0] || ""; }
 
     /* Which machine and which directory the panels should be looking at.
        Dispatched rather than read, because nothing here owns the terminal or
@@ -1053,32 +1068,183 @@ document.addEventListener("lembas:notify", function (event) {
 
     root.addEventListener("change", function (event) {
       if (event.target.name === "kind_choice") { sync(); announce(); }
-      // Following the profile's own directory is a convenience, not a rule:
+      // Following the device's latest directory is a convenience, not a rule:
       // once someone has chosen their own it is left alone.
       if (event.target === picker && dir && !dir.dataset.touched) {
-        setDir(profileDefault());
+        setDir(deviceDefault());
       }
       if (event.target === picker) followMode();
       if (event.target === picker) announce();
     });
 
-    root.addEventListener("click", function (event) {
-      if (!event.target.closest("[data-dir-browse]")) return;
-      event.preventDefault();
+    /* --- The directory menu --------------------------------------------------
+       The button opens a short menu: the directories already used on this
+       device, the current one marked, and "Browse…" last, which is the
+       device's own directory browser (`chooseDirectory`). A device with no
+       history goes straight to the browser -- a menu whose only item is
+       "Browse…" is one more press to reach the same dialog.
+
+       Shaped and driven like the connection chooser beside it (the upward
+       select below): the same menu classes, Escape and the arrow keys, closed
+       by a click elsewhere, and placed against the window with
+       `position: fixed`, because `.composer__context` scrolls sideways on a
+       phone and a scroller clips an absolute menu in both axes. */
+    var dirButton = root.querySelector("[data-dir-browse]");
+    var dirMenu = null;
+
+    function browse() {
       var profileId = picker ? picker.value : "";
-      if (!profileId) return;
+      if (!profileId || !dir) return;
       window.lembas.chooseDirectory(profileId, dir.value, function (chosen) {
+        if (!chosen) return;
         dir.dataset.touched = "1";
         setDir(chosen);
       });
+    }
+
+    function closeDirMenu(refocus) {
+      if (!dirMenu || dirMenu.hidden) return;
+      dirMenu.hidden = true;
+      if (dirButton) dirButton.setAttribute("aria-expanded", "false");
+      if (refocus && dirButton) dirButton.focus();
+    }
+
+    function placeDirMenu() {
+      var at = dirButton.getBoundingClientRect();
+      var gap = 4;
+      dirMenu.style.left = "0px";
+      dirMenu.style.bottom = (window.innerHeight - at.top + gap) + "px";
+      var width = dirMenu.getBoundingClientRect().width;
+      var left = Math.min(at.left, window.innerWidth - width - 8);
+      dirMenu.style.left = Math.max(8, left) + "px";
+      dirMenu.style.maxHeight = Math.max(120, at.top - gap - 8) + "px";
+    }
+
+    function dirItem(path) {
+      var current = path === (dir ? dir.value : "");
+      var item = document.createElement("button");
+      item.type = "button";
+      item.className = "picker__option dir-menu__option" + (current ? " is-selected" : "");
+      item.setAttribute("role", "menuitemradio");
+      item.setAttribute("aria-checked", current ? "true" : "false");
+      item.title = path;
+      item.dataset.dirRecent = path;
+      item.innerHTML = '<svg class="icon icon--sm dir-menu__tick" aria-hidden="true"><use href="#i-check"/></svg>' +
+        '<span class="dir-menu__path"><span class="dir-menu__text"></span></span>';
+      /* textContent, never markup: a path is whatever a directory was called. */
+      item.querySelector(".dir-menu__text").textContent = path;
+      return item;
+    }
+
+    function openDirMenu(recent) {
+      if (!dirMenu) {
+        dirMenu = document.createElement("div");
+        dirMenu.className = "picker__menu picker__menu--compact dir-menu";
+        dirMenu.setAttribute("role", "menu");
+        dirMenu.setAttribute("aria-label", t("Recent directories"));
+        dirMenu.hidden = true;
+        dirButton.parentNode.insertBefore(dirMenu, dirButton.nextSibling);
+        dirMenu.addEventListener("click", function (event) {
+          var item = event.target.closest("[data-dir-recent]");
+          if (item) {
+            dir.dataset.touched = "1";
+            setDir(item.dataset.dirRecent);
+            closeDirMenu(true);
+            return;
+          }
+          if (event.target.closest("[data-dir-more]")) {
+            closeDirMenu(false);
+            browse();
+          }
+        });
+        dirMenu.addEventListener("keydown", function (event) {
+          var items = Array.prototype.slice.call(dirMenu.querySelectorAll(".picker__option"));
+          var at = items.indexOf(document.activeElement);
+          if (event.key === "Escape") { event.preventDefault(); closeDirMenu(true); }
+          else if (event.key === "ArrowDown") { event.preventDefault(); (items[at + 1] || items[0]).focus(); }
+          else if (event.key === "ArrowUp") { event.preventDefault(); (items[at - 1] || items[items.length - 1]).focus(); }
+          else if (event.key === "Tab") { closeDirMenu(false); }
+        });
+        document.addEventListener("click", function (event) {
+          if (dirMenu.hidden || dirMenu.contains(event.target)) return;
+          if (dirButton.contains(event.target)) return;
+          closeDirMenu(false);
+        });
+        window.addEventListener("resize", function () { if (!dirMenu.hidden) placeDirMenu(); });
+        document.addEventListener("scroll", function (event) {
+          if (!dirMenu.hidden && !dirMenu.contains(event.target)) placeDirMenu();
+        }, true);
+      }
+      dirMenu.textContent = "";
+      recent.forEach(function (path) { dirMenu.appendChild(dirItem(path)); });
+      var more = document.createElement("button");
+      more.type = "button";
+      more.className = "picker__option dir-menu__option dir-menu__browse";
+      more.setAttribute("role", "menuitem");
+      more.dataset.dirMore = "1";
+      more.innerHTML = '<svg class="icon icon--sm" aria-hidden="true"><use href="#i-folder"/></svg>' +
+        '<span class="dir-menu__path"></span>';
+      more.querySelector(".dir-menu__path").textContent = t("Browse…");
+      dirMenu.appendChild(more);
+
+      dirMenu.hidden = false;
+      placeDirMenu();
+      dirButton.setAttribute("aria-expanded", "true");
+      var current = dirMenu.querySelector(".is-selected") || dirMenu.querySelector(".picker__option");
+      // `preventScroll`: the menu is placed against the window, and focusing
+      // inside the sideways scroller would scroll the row for nothing.
+      if (current) current.focus({ preventScroll: true });
+    }
+
+    /* The button's popup is a menu when there is history and the browser's
+       dialog when there is not; say which, for whoever is listening. */
+    function paintDirButton() {
+      if (dirButton) dirButton.setAttribute("aria-haspopup", recentDirs().length ? "menu" : "dialog");
+    }
+    if (picker) picker.addEventListener("change", paintDirButton);
+
+    function chooseDir() {
+      var recent = recentDirs();
+      if (!recent.length) { browse(); return; }
+      if (dirMenu && !dirMenu.hidden) { closeDirMenu(true); return; }
+      openDirMenu(recent);
+    }
+
+    root.addEventListener("click", function (event) {
+      if (!event.target.closest("[data-dir-browse]")) return;
+      event.preventDefault();
+      if (!picker || !picker.value) return;
+      chooseDir();
     });
 
+    /* No directory, no send. The server would still fall back to the device's
+       first root, and stays tolerant for a client that sends nothing -- but
+       this screen asks rather than guessing. Capture phase on the document, so
+       it runs before htmx's own submit handler on the form. The message stays
+       in the box. */
+    var form = root.closest("form");
+    if (form) {
+      document.addEventListener("submit", function (event) {
+        if (event.target !== form || !document.contains(root)) return;
+        if (!kind || kind.value !== "agent" || !dir || dir.value) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (dirButton) dirButton.setAttribute("aria-invalid", "true");
+        if (window.lembas && window.lembas.notify) {
+          window.lembas.notify(t("Choose the directory this agent works in before sending."), { kind: "info" });
+        }
+        if (picker && picker.value) chooseDir();
+      }, true);
+    }
+
     sync();
-    /* Seeded from whichever profile the select is actually showing, not from
-       the first in the list -- an unverified first profile renders `disabled`,
-       so the two disagreed and the box offered a directory on a machine the
-       chat was not going to use. */
-    setDir(profileDefault());
+    /* Seeded from whichever device the select is actually showing, not from
+       the first in the list. A folder that names a directory wins, as it does
+       on the server: the chat is being started in it on purpose. */
+    var seed = dir ? dir.dataset.dirSeed || "" : "";
+    if (seed) dir.dataset.touched = "1";
+    setDir(seed || deviceDefault());
+    paintDirButton();
     followMode();
     announce();
   }
@@ -1335,7 +1501,7 @@ document.addEventListener("lembas:notify", function (event) {
   The composer's connection chooser sits at the bottom of the window, and the
   browser's own list for a <select> drops below it -- off the screen -- where
   the composer's other menus all open upward. The select stays: hidden, in the
-  form, and the one truth the other scripts read and set (its options' data-dir
+  form, and the one truth the other scripts read and set (its options' data-recent
   and data-mode, its change event). This only draws its options as a menu above
   it and keeps the button's label in step with whatever sets the value.
 */

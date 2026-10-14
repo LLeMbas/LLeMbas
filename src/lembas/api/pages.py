@@ -293,20 +293,23 @@ def _agent_context(db: DBSession, user: User, chat: Chat | None) -> dict:
         db, user, "tools.agent"
     )
 
-    # Linked devices: a LLeMbas CLI dialled in right now. Its first allowed
-    # root is where a chat starts, and the most its own limits allow is the mode
-    # a chat starts in -- the device's owner set that on purpose. Named by its
-    # host: "LLeMbas CLI on device-1" would say the program twice in a select
-    # that is already narrow.
+    # Linked devices: a LLeMbas CLI dialled in right now. The most its own
+    # limits allow is the mode a chat starts in -- the device's owner set that
+    # on purpose. The directories this person already worked in there are what
+    # the composer offers, the latest chosen; with none, nothing is chosen and
+    # the composer asks. Named by its host: "LLeMbas CLI on device-1" would say
+    # the program twice in a select that is already narrow.
     devices: list[dict] = []
     device_name = ""
     if agents_on and permissions.has(db, user, "api.use"):
         from lembas.services import device_link
 
+        links = device_link.linked_for(user.id)
+        recent = chat_service.recent_dirs(db, user.id, [link.token_id for link in links])
         devices = [
             {"value": f"device:{link.token_id}", "name": device_link.short_name(link),
-             "dir": (link.roots or [""])[0], "mode": link.max_mode}
-            for link in device_link.linked_for(user.id)
+             "recent": recent.get(link.token_id, []), "mode": link.max_mode}
+            for link in links
         ]
     if chat is not None and getattr(chat, "device_token_id", None):
         from lembas.db.models import ApiToken

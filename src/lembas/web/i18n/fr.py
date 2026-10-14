@@ -2162,8 +2162,6 @@ MESSAGES.update(
         "Stop generating": "Arrêter la génération",
         "Send — it waits for its turn": "Envoyer — il attend son tour",
         "Sent now, taken in at the reply's next step or after it": "Envoyé maintenant, pris en compte à la prochaine étape de la réponse ou après",
-        "the login directory": "le répertoire de connexion",
-        "The connection's own login directory": "Le répertoire de connexion propre à la connexion",
         "the connection's own default": "la valeur par défaut propre à la connexion",
         "Choose a connection first — there is nothing to browse without one.": "Choisissez d'abord une connexion — sans elle, il n'y a rien à parcourir.",
     }
@@ -2247,5 +2245,15 @@ MESSAGES.update(
         "This plan has already renewed this month; it renews again on %(when)s.": "Ce forfait s'est déjà renouvelé ce mois-ci ; il se renouvellera le %(when)s.",
         "Renewed.": "Renouvelé.",
         "That is not a date.": "Ce n'est pas une date.",
+    }
+)
+
+# --- 1.1: the agent's directory, picked from the ones already used ---------------
+MESSAGES.update(
+    {
+        "Choose a directory": "Choisir un répertoire",
+        "Recent directories": "Répertoires récents",
+        "Browse…": "Parcourir…",
+        "Choose the directory this agent works in before sending.": "Choisissez le répertoire dans lequel cet agent travaille avant d'envoyer.",
     }
 )

@@ -290,7 +290,10 @@
               {# The LLeMbas CLIs linked right now (the only targets): the work
                  runs on them, under their own limits. #}
               {% for device in agent_devices %}
-              <option value="{{ device.value }}" data-dir="{{ device.dir }}"
+              {# `data-recent`: the directories already used there, latest
+                 first (`chat.recent_dirs`). JSON in a single-quoted attribute:
+                 `tojson` escapes the quote, `<`, `>` and `&`. #}
+              <option value="{{ device.value }}" data-recent='{{ device.recent|tojson }}'
                       data-mode="{{ device.mode }}" data-device
                       {{ 'selected' if device.value == starting_device }}>{{ device.name }}</option>
               {% endfor %}
@@ -299,13 +302,21 @@
             {# A button and a hidden field, not a text box. The text box was
                real and submitted, but unlabelled and squeezed to a few
                characters by the select beside it, so it read as broken. A path
-               is also something you would rather find than spell. #}
-            <input type="hidden" name="project_dir" value="" data-dir-value>
+               is also something you would rather find than spell.
+
+               Empty until something chooses: the device's latest directory
+               (ui.js), or the folder's own when the chat starts in a folder
+               that names one (`data-dir-seed`, which `_new_chat` would apply
+               anyway). With neither, the composer will not send until one is
+               picked -- the device's first root was a guess, not a choice. #}
+            <input type="hidden" name="project_dir" value="" data-dir-value
+                   data-dir-seed="{{ starting_folder.project_dir if starting_folder else '' }}">
             <button class="btn btn--sm composer__dir" type="button" data-dir-browse
-                    aria-label="{{ t('Project directory') }}"
+                    aria-label="{{ t('Project directory') }}" aria-haspopup="menu"
+                    aria-expanded="false"
                     title="{{ t('Choose the directory this chat works in') }}">
               {{ icon("folder", "icon--sm") }}
-              <span class="composer__dir-path" data-dir-label>/</span>
+              <span class="composer__dir-path" data-dir-label>{{ t('Choose a directory') }}</span>
             </button>
 
             {% if agent_modes %}

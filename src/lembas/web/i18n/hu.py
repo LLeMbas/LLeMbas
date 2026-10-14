@@ -2162,8 +2162,6 @@ MESSAGES.update(
         "Stop generating": "Generálás leállítása",
         "Send — it waits for its turn": "Küldés – kivárja a sorát",
         "Sent now, taken in at the reply's next step or after it": "Most elküldve, a válasz következő lépésénél vagy utána kerül feldolgozásra",
-        "the login directory": "a bejelentkezési könyvtár",
-        "The connection's own login directory": "A kapcsolat saját bejelentkezési könyvtára",
         "the connection's own default": "a kapcsolat saját alapértelmezése",
         "Choose a connection first — there is nothing to browse without one.": "Előbb válasszon kapcsolatot – nélküle nincs mit böngészni.",
     }
@@ -2247,5 +2245,15 @@ MESSAGES.update(
         "This plan has already renewed this month; it renews again on %(when)s.": "Ez a csomag ebben a hónapban már megújult; legközelebb ekkor újul meg: %(when)s.",
         "Renewed.": "Megújítva.",
         "That is not a date.": "Ez nem dátum.",
+    }
+)
+
+# --- 1.1: the agent's directory, picked from the ones already used ---------------
+MESSAGES.update(
+    {
+        "Choose a directory": "Válasszon könyvtárat",
+        "Recent directories": "Legutóbbi könyvtárak",
+        "Browse…": "Tallózás…",
+        "Choose the directory this agent works in before sending.": "Küldés előtt válassza ki a könyvtárat, amelyben ez az ügynök dolgozik.",
     }
 )

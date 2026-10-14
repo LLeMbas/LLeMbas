@@ -365,3 +365,99 @@ def test_no_page_loads_a_script_that_the_base_template_already_loads():
             continue
         again = set(pattern.findall(template.read_text())) & always
         assert not again, f"{template.name} re-loads {sorted(again)}, which base.html has"
+
+
+# --- The new agent chat's directory ------------------------------------------------
+def _wire() -> str:
+    from .conftest import js_function
+
+    return js_function(SOURCE, "wire")
+
+
+def test_the_directory_defaults_to_the_devices_latest_not_its_first_root():
+    """The default is the first of `data-recent`; the device's own `data-dir`
+    (its first root) is no longer read, so a device with no history starts on
+    nothing rather than on `/`."""
+    from .conftest import js_function, js_says
+
+    wire = _wire()
+    assert not re.search(r"dataset\.dir\b", wire)
+    assert "dataset.recent" in js_function(SOURCE, "recentDirs")
+    assert "recentDirs()[0]" in js_function(SOURCE, "deviceDefault")
+    # A device switch follows only until somebody chose by hand.
+    assert js_says(
+        wire, "event.target === picker && dir && !dir.dataset.touched", "setDir(deviceDefault())"
+    )
+    # A folder's own directory wins, as `_new_chat` would apply it anyway.
+    assert js_says(wire, "dataset.dirSeed", "setDir(seed || deviceDefault())")
+
+
+def test_the_button_opens_the_recent_menu_with_browse_last():
+    from .conftest import js_function, js_says
+
+    menu = js_function(SOURCE, "openDirMenu")
+    # Every recent directory, then "Browse…", which is the existing browser.
+    assert js_says(
+        menu, "recent.forEach", "dirItem(path)", 't("Browse…")', "dirMenu.appendChild(more)"
+    )
+    assert js_says(menu, "data-dir-more", "browse()")
+    assert "window.lembas.chooseDirectory(" in js_function(SOURCE, "browse")
+    # Choosing a recent one sets it at once, and counts as a choice by hand.
+    assert js_says(
+        menu, "[data-dir-recent]", 'dir.dataset.touched = "1"', "setDir(item.dataset.dirRecent)"
+    )
+    # The look and keys of the connection chooser beside it.
+    assert "picker__menu picker__menu--compact" in menu
+    for key in ('"Escape"', '"ArrowDown"', '"ArrowUp"'):
+        assert key in menu
+    # The current one is marked.
+    item = js_function(SOURCE, "dirItem")
+    assert "is-selected" in item and "aria-checked" in item
+    # A path is text, never markup.
+    assert ".textContent = path" in item
+
+
+def test_no_history_goes_straight_to_the_browser():
+    from .conftest import js_function, js_says
+
+    choose = js_function(SOURCE, "chooseDir")
+    assert js_says(choose, "if (!recent.length)", "browse()", "openDirMenu(recent)")
+
+
+def test_the_menu_escapes_the_sideways_scroller():
+    """`.composer__context` scrolls sideways on a phone and clips an absolute
+    menu; the directory menu is placed against the window, as the connection
+    chooser's is."""
+    from .conftest import js_function
+
+    css = (ROOT / "web/static/css/chat.css").read_text(encoding="utf-8")
+    rule = css[css.index(".picker__menu.dir-menu {") :]
+    rule = rule[: rule.index("}")]
+    assert "position: fixed" in rule
+    assert "100vw" in rule
+    assert "window.innerHeight" in js_function(SOURCE, "placeDirMenu")
+    # Paths cut from the left, on one fixed track per row.
+    option = css[css.index(".picker__option.dir-menu__option {") :]
+    option = option[: option.index("}")]
+    assert "grid-template-columns" in option and "minmax(0, 1fr)" in option
+    assert "min-height: var(--control-h-sm)" in option
+    path = css[css.index(".dir-menu__path {") :]
+    assert "direction: rtl" in path[: path.index("}")]
+
+
+def test_sending_without_a_directory_is_refused_before_htmx_sees_it():
+    """Capture phase on the document, so it runs before htmx's own submit
+    listener on the form; the message stays in the box and the picker opens."""
+    from .conftest import js_says
+
+    wire = _wire()
+    assert js_says(
+        wire,
+        'document.addEventListener("submit"',
+        "event.target !== form",
+        "dir.value",
+        "event.preventDefault()",
+        "event.stopImmediatePropagation()",
+        "chooseDir()",
+        "}, true)",
+    )

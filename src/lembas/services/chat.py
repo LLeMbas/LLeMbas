@@ -12,6 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DBSession
 
 from lembas.db.models import (
+    KIND_AGENT,
     ROLE_ASSISTANT,
     ROLE_SYSTEM,
     ROLE_USER,
@@ -1031,6 +1032,48 @@ def delete_chats(db: DBSession, chats) -> int:
     for chat in live:
         db.delete(chat)
     return len(live)
+
+
+RECENT_DIRS = 8
+
+
+def recent_dirs(
+    db: DBSession, user_id: str, token_ids: list[str], *, limit: int = RECENT_DIRS
+) -> dict[str, list[str]]:
+    """The directories this person's agent chats have used on each device,
+    most recent first, at most `limit` per device.
+
+    What the new-agent-chat composer offers before anything else: the
+    directory somebody worked in last on that machine is nearly always the one
+    they want next, and a path is something you would rather pick than spell.
+    Recency is the chat's own `updated_at` -- every turn touches it -- and a
+    directory used by several chats counts at its latest. Temporary chats are
+    left out: one is a scratch conversation (or a helper's), and its directory
+    is not one somebody chose to come back to.
+
+    One query for every device, grouped, rather than one per device.
+    """
+    found: dict[str, list[str]] = {token_id: [] for token_id in token_ids}
+    if not token_ids:
+        return found
+    latest = func.max(Chat.updated_at)
+    rows = db.execute(
+        select(Chat.device_token_id, Chat.project_dir, latest)
+        .where(
+            Chat.user_id == user_id,
+            Chat.kind == KIND_AGENT,
+            Chat.device_token_id.in_(token_ids),
+            Chat.project_dir != "",
+            Chat.temporary.is_(False),
+        )
+        .group_by(Chat.device_token_id, Chat.project_dir)
+        .order_by(latest.desc(), Chat.project_dir)
+    ).all()
+    for token_id, path, _when in rows:
+        bucket = found[token_id]
+        if len(bucket) < limit:
+            bucket.append(path)
+    return found
 
 
 def read_only_temporary(chat: Chat | None) -> bool:

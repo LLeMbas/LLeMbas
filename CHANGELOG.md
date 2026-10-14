@@ -3,6 +3,19 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## Unreleased
+
+### Changed
+
+- A new agent chat now starts in the directory you last worked in on the chosen
+  device, rather than in the device's first allowed directory. The directory
+  button opens a short list of the directories you have already used there,
+  newest first, with "Browse…" at the bottom for the device's directory
+  browser. On a device you have not used yet, no directory is chosen: the
+  button goes straight to the browser, and the message is not sent until you
+  pick one. Starting a chat inside a folder that names a directory still uses
+  the folder's.
+
 ## 1.0.1 — 2026-10-14
 
 A clean-up release: code nothing reached any more is gone. Nothing changes in

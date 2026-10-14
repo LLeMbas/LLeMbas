@@ -2918,8 +2918,6 @@ MESSAGES.update(
         "Stop generating": "Zastaviť generovanie",
         "Send — it waits for its turn": "Odoslať — počká, kým príde na rad",
         "Sent now, taken in at the reply's next step or after it": "Odošle sa hneď a odpoveď si to prevezme v ďalšom kroku alebo po ňom",
-        "the login directory": "prihlasovací adresár",
-        "The connection's own login directory": "Vlastný prihlasovací adresár spojenia",
         "the connection's own default": "vlastná predvoľba spojenia",
         "Choose a connection first — there is nothing to browse without one.": "Najprv vyberte spojenie — bez neho nie je čo prechádzať.",
     }
@@ -3003,5 +3001,15 @@ MESSAGES.update(
         "This plan has already renewed this month; it renews again on %(when)s.": "Tento plán sa už tento mesiac obnovil; ďalšie obnovenie bude %(when)s.",
         "Renewed.": "Obnovené.",
         "That is not a date.": "To nie je dátum.",
+    }
+)
+
+# --- 1.1: the agent's directory, picked from the ones already used ---------------
+MESSAGES.update(
+    {
+        "Choose a directory": "Vyberte adresár",
+        "Recent directories": "Nedávne adresáre",
+        "Browse…": "Prehliadať…",
+        "Choose the directory this agent works in before sending.": "Pred odoslaním vyberte adresár, v ktorom bude agent pracovať.",
     }
 )

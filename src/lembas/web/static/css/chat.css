@@ -1394,6 +1394,49 @@
    and never scrolls out of reach. It is the thing that was being cut. */
 .composer__context select[name="agent_mode"] { flex: none; }
 .composer__dir-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Nothing chosen and a send was refused for it: the button says where to look. */
+.composer__dir[aria-invalid="true"] { border-color: var(--danger); color: var(--danger); }
+
+/* The directory menu (`openDirMenu` in ui.js): the directories already used on
+   the device, then "Browse…". Placed against the window like the connection
+   chooser's list, so the sideways-scrolling row cannot clip it.
+
+   Every row is the same two tracks -- a fixed one for the tick or the icon,
+   and the rest for the path -- so the paths start on one line whatever their
+   length, and the selected row's tick takes no room the others lack. */
+.picker__menu.dir-menu {
+  position: fixed;
+  top: auto;
+  right: auto;
+  width: min(24rem, calc(100vw - var(--sp-4)));
+  max-height: min(22rem, 50dvh);
+  overflow-y: auto;
+  padding: var(--sp-1);
+}
+.picker__option.dir-menu__option {
+  display: grid;
+  grid-template-columns: var(--sp-4) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--control-h-sm);
+  font-size: var(--text-sm);
+}
+.dir-menu__tick { color: var(--accent); visibility: hidden; }
+.dir-menu__option.is-selected .dir-menu__tick { visibility: visible; }
+/* Cut from the left: the end of a path is the part that tells two projects
+   apart. `direction: rtl` puts the ellipsis on the leading edge; the inner
+   span is isolated back to left-to-right, so the slashes stay where they are. */
+.dir-menu__path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+.dir-menu__text { direction: ltr; unicode-bidi: isolate; font-family: var(--font-mono); }
+.picker__option.dir-menu__browse { border-top: var(--border-w) solid var(--border); border-radius: 0; }
+.dir-menu__browse .dir-menu__path { direction: ltr; }
 
 /* --- Background jobs -------------------------------------------------------
    A chip in the composer row saying how many commands are still running out
