@@ -3,7 +3,9 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
-## Unreleased
+## 1.1.0 — 2026-10-14
+
+A new agent chat starts where you last worked, and more code that never ran is gone.
 
 ### Changed
 
