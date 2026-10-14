@@ -3,7 +3,10 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
-## Unreleased
+## 1.0.1 — 2026-10-14
+
+A clean-up release: code nothing reached any more is gone. Nothing changes in
+use, and no stored data is touched.
 
 ### Removed
 
