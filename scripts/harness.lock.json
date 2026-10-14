@@ -1,11 +1,11 @@
 {
   "source": "https://git.houmeres.sk/LLeMbas/LLeMbas-CLI",
-  "ref": "v1.0.0",
-  "version": "1.0.0",
+  "ref": "v1.2.0",
+  "version": "1.0.1",
   "files": {
-    "README.md": "6b84bfec002d6f157a3615f16860f427ee044e68acac87bffdb8b6f898f17d2a",
-    "VERSION": "59854984853104df5c353e2f681a15fc7924742f9a2e468c29af248dce45ce03",
-    "acp.md": "0715cd5524a2b6de68518cad9c9eed9c41c5368dbb9ffaf2bc9e2e7e681e6513",
+    "README.md": "10e22311c6a1674db47f9efd191f46e852cbc431285715ed74991eacc0991d6d",
+    "VERSION": "44e161e4495cac2cf7858043e9e6418e9579f0ddcfae826f9a372622968ce066",
+    "acp.md": "d4ae0ea45f8244b1cb3ed040b7336732a6d09a7c77064fd43251903dae8ffe47",
     "conformance/always.json": "f2d37c11b1b2353c81c011a62c58b493de37a5995102cb71cb14f859bd370f37",
     "conformance/arity.json": "829fc37b6a4ab1fdca50a2f2d9a4b552eb2c8f909ddb5f35f30ce7aaad2fadee",
     "conformance/chunk.json": "d949add85680ee0bb501ce9911e955635afe645f0cdcdabd87b33376d84343ff",

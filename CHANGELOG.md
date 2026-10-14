@@ -19,6 +19,12 @@ at <https://llembas.eu/changelog.html>.
   `lembas remote add <dir>` on that computer. Before, it said only that the
   device offered no directories.
 
+### Changed
+
+- Carries harness spec 1.0.1 (from LLeMbas CLI 1.2.0): a device links even before it allows any
+  folder, and then says it allows none, so the web UI can tell that apart from a device that is
+  not running.
+
 ## 1.1.0 — 2026-10-14
 
 A new agent chat starts where you last worked, and more code that never ran is gone.

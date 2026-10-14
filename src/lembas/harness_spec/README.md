@@ -37,6 +37,13 @@ page [Harness-parity](https://git.houmeres.sk/LLeMbas/LLeMbas-CLI/wiki/Harness-p
   protected path's `scope`.
 - A tool's other names, per project, are listed in its `aliases` and work as the tool.
 
+## 1.0.1
+
+`acp.md`: a device links even with remote work off or no roots, saying `limits.roots: []` and
+refusing every session, directory and terminal; and one whose limits change dials the link again so
+the client hears the new ones. No change for a client: it already takes empty roots and a link that
+drops and comes back.
+
 ## 1.0.0
 
 The spec as described here: the shared tools with their scopes, risk classes, call blocks and

@@ -217,6 +217,17 @@ Direction is who sends it. "→ result" marks a request; the others are notifica
 Sent once when the link opens, before `initialize`:
 `{ protocol, version, harness_spec, device: { host, platform }, limits: { roots, max_mode, require_trust } }`.
 
+A device links whether its remote work is on or not, and with no roots at all. Off, or with no
+roots, it says `limits.roots: []` here and in `initialize`, and refuses every `session/new`, every
+`_lembas/directories` path and every `_lembas/terminal/open` (`-32602`, with the reason) as it does
+a directory outside its roots — so the client can tell a device that allows no folder yet from one
+that is not linked.
+
+The device's limits apply to every request as they are at that moment. When what the hello and
+`initialize` said changes (the device's `remote:` block was edited — a folder added, remote work
+turned on), the device closes the link once no session is working and dials again at once, so the
+client hears the new limits.
+
 ### `_lembas/event` — agent → client
 
 `{ sessionId, event }`: every engine event of the session, to a client that said `_meta.lembas`.
