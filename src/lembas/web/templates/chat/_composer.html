@@ -295,6 +295,7 @@
                  `tojson` escapes the quote, `<`, `>` and `&`. #}
               <option value="{{ device.value }}" data-recent='{{ device.recent|tojson }}'
                       data-mode="{{ device.mode }}" data-device
+                      {% if device.local %}title="{{ device.title }}"{% endif %}
                       {{ 'selected' if device.value == starting_device }}>{{ device.name }}</option>
               {% endfor %}
             </select>

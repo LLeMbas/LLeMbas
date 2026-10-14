@@ -69,7 +69,7 @@ lembas login {{ request.base_url|string|trim("/") }}</code></pre>
   {% set device_body = "section-device-" ~ (section.token_id or "none") %}
   <div class="nav-group {{ '' if section.linked else 'nav-group--offline' }}">
     <div class="nav-group__head">
-      {{ section_toggle(device_key, section.name, device_open, device_body, title=section.name) }}
+      {{ section_toggle(device_key, section.name, device_open, device_body, title=section.title or section.name) }}
       {% if not section.linked and section.token_id %}
       <span class="nav-group__state">{{ t("offline") }}</span>
       {% endif %}

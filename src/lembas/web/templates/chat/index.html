@@ -61,8 +61,10 @@
       {% if chat and chat.kind == "agent" %}
       <span class="topbar__where" title="{{ chat.project_dir }}">
         {{ icon("bolt", "icon--sm") }}
-        <span class="topbar__where-name">
-          {{ agent_device_name or t("device missing") }}
+        {# "Local" in LLeMbas Desktop when the chat's device is this computer,
+           with the host in the tooltip (`local_device`). #}
+        <span class="topbar__where-name"{% if agent_device_shown and agent_device_shown.local %} title="{{ agent_device_shown.title }}"{% endif %}>
+          {{ (agent_device_shown.name if agent_device_shown and agent_device_shown.local else agent_device_name) or t("device missing") }}
         </span>
         <span class="topbar__where-dir">{{ chat.project_dir }}</span>
       </span>

@@ -3008,3 +3008,12 @@ MESSAGES.update(
         "Choose the directory this agent works in before sending.": "Pred odoslaním vyberte adresár, v ktorom bude agent pracovať.",
     }
 )
+
+MESSAGES.update(
+    {
+        "Local": "Lokálny",
+        "This computer (%(host)s)": "Tento počítač (%(host)s)",
+        "This computer allows no folders yet. Add one in LLeMbas Desktop, or run <code>%(command)s</code>.": "Tento počítač zatiaľ nepovoľuje žiadny priečinok. Pridajte ho v LLeMbas Desktop alebo spustite <code>%(command)s</code>.",
+        "This device allows no folders yet. Add one there in LLeMbas Desktop, or run <code>%(command)s</code> on it.": "Toto zariadenie zatiaľ nepovoľuje žiadny priečinok. Pridajte ho tam v LLeMbas Desktop alebo na ňom spustite <code>%(command)s</code>.",
+    }
+)

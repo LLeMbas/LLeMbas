@@ -127,6 +127,11 @@ class Link:
         return [str(r) for r in (self.hello.get("limits") or {}).get("roots") or []]
 
     @property
+    def host(self) -> str:
+        """The device's host, as its hello says it, or ""."""
+        return str((self.hello.get("device") or {}).get("host") or "").strip()
+
+    @property
     def max_mode(self) -> str:
         return str((self.hello.get("limits") or {}).get("max_mode") or "")
 
@@ -649,8 +654,27 @@ class LinkClosed(Exception):
 def short_name(link: Link) -> str:
     """What a device is called where room is short: its host, as its hello says
     it (`device-1`), else the name it signed in under."""
-    host = str((link.hello.get("device") or {}).get("host") or "").strip()
-    return host or link.name
+    return link.host or link.name
+
+
+def token_hosts(db, user_id: str, token_ids: list[str]) -> dict[str, str]:
+    """token id -> the host its login named (`device_host`), for this person's
+    own device tokens only: what `local_device` compares with the computer a
+    page is shown on."""
+    from sqlalchemy import select
+
+    from lembas.db.models import TOKEN_DEVICE, ApiToken
+
+    if not token_ids:
+        return {}
+    rows = db.execute(
+        select(ApiToken.id, ApiToken.device_host).where(
+            ApiToken.id.in_(token_ids),
+            ApiToken.user_id == user_id,
+            ApiToken.kind == TOKEN_DEVICE,
+        )
+    )
+    return {token_id: host or "" for token_id, host in rows}
 
 
 class DeviceError(Exception):

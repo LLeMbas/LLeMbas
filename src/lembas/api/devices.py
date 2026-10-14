@@ -25,7 +25,7 @@ from fastapi.responses import JSONResponse, RedirectResponse, Response
 from lembas import __version__
 from lembas.api.deps import Db, RequiredUser
 from lembas.security import api_tokens, permissions
-from lembas.services import audit, harness_spec
+from lembas.services import audit, harness_spec, local_device
 from lembas.services import devices as devices_service
 from lembas.web import i18n
 from lembas.web.templating import render
@@ -362,10 +362,18 @@ async def browse_device(
             error = i18n.t("The device did not answer.")
     here = str(answer.get("path") or "")
     entries = answer.get("entries") if here else answer.get("places")
+    # A device that allows no folder at all says so where one would be
+    # chosen. Its hello's `limits.roots` is what says it: empty when its
+    # `remote.roots` is, or when remote work is off and only what its terminal
+    # shares can be reached. Not "the roots it lists do not exist", which the
+    # empty listing below says on its own.
+    no_roots = link is not None and not path.strip() and not link.roots
     return render(
         request,
         "agents/_device_browse.html",
         {
+            "no_roots": no_roots,
+            "local": local_device.is_local(token.device_host, link.host if link else ""),
             "here": here,
             "parent": str(answer.get("parent") or ""),
             "accepted": bool(answer.get("accepted", True)),

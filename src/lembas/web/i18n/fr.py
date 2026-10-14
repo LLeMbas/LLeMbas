@@ -2252,3 +2252,12 @@ MESSAGES.update(
         "Choose the directory this agent works in before sending.": "Choisissez le répertoire dans lequel cet agent travaille avant d'envoyer.",
     }
 )
+
+MESSAGES.update(
+    {
+        "Local": "Local",
+        "This computer (%(host)s)": "Cet ordinateur (%(host)s)",
+        "This computer allows no folders yet. Add one in LLeMbas Desktop, or run <code>%(command)s</code>.": "Cet ordinateur n'autorise encore aucun dossier. Ajoutez-en un dans LLeMbas Desktop, ou exécutez <code>%(command)s</code>.",
+        "This device allows no folders yet. Add one there in LLeMbas Desktop, or run <code>%(command)s</code> on it.": "Cet appareil n'autorise encore aucun dossier. Ajoutez-en un dans LLeMbas Desktop sur cet appareil, ou exécutez-y <code>%(command)s</code>.",
+    }
+)

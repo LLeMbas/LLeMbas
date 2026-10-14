@@ -50,7 +50,19 @@
 
     {% if not entries %}
     <li>
+      {# A device that allows no folder at all: where to add one, on the
+         machine itself, since nothing here can (the device decides). #}
+      {% if no_roots and not here %}
+      <p class="muted text-sm" style="padding: var(--sp-3)" data-no-roots>
+        {% if local %}
+        {{ tm("This computer allows no folders yet. Add one in LLeMbas Desktop, or run <code>%(command)s</code>.", command="lembas remote add <dir>") }}
+        {% else %}
+        {{ tm("This device allows no folders yet. Add one there in LLeMbas Desktop, or run <code>%(command)s</code> on it.", command="lembas remote add <dir>") }}
+        {% endif %}
+      </p>
+      {% else %}
       <p class="muted text-sm" style="padding: var(--sp-3)">{{ t("No directories here.") if here else t("This device offers no directories: its remote roots are empty or missing.") }}</p>
+      {% endif %}
     </li>
     {% endif %}
   </ul>

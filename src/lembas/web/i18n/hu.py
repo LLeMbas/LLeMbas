@@ -2252,3 +2252,12 @@ MESSAGES.update(
         "Choose the directory this agent works in before sending.": "Küldés előtt válassza ki a könyvtárat, amelyben ez az ügynök dolgozik.",
     }
 )
+
+MESSAGES.update(
+    {
+        "Local": "Helyi",
+        "This computer (%(host)s)": "Ez a számítógép (%(host)s)",
+        "This computer allows no folders yet. Add one in LLeMbas Desktop, or run <code>%(command)s</code>.": "Ez a számítógép még egy mappát sem enged. Adjon hozzá egyet a LLeMbas Desktopban, vagy futtassa ezt: <code>%(command)s</code>.",
+        "This device allows no folders yet. Add one there in LLeMbas Desktop, or run <code>%(command)s</code> on it.": "Ez az eszköz még egy mappát sem enged. Adjon hozzá egyet ott a LLeMbas Desktopban, vagy futtassa rajta ezt: <code>%(command)s</code>.",
+    }
+)

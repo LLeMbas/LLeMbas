@@ -29,7 +29,7 @@ from lembas.services import audio as audio_service
 from lembas.services import branding as branding_service
 from lembas.services import chat as chat_service
 from lembas.services import compaction as compaction_service
-from lembas.services import data_groups, model_prefs, settings_store
+from lembas.services import data_groups, local_device, model_prefs, settings_store
 from lembas.services import prototypes as prototypes_service
 from lembas.services import reports as reports_service
 from lembas.services import suggestions as suggestions_service
@@ -298,24 +298,34 @@ def _agent_context(db: DBSession, user: User, chat: Chat | None) -> dict:
     # on purpose. The directories this person already worked in there are what
     # the composer offers, the latest chosen; with none, nothing is chosen and
     # the composer asks. Named by its host: "LLeMbas CLI on device-1" would say
-    # the program twice in a select that is already narrow.
+    # the program twice in a select that is already narrow. In LLeMbas Desktop
+    # the computer it runs on is "Local", and first (`local_device`).
     devices: list[dict] = []
     device_name = ""
+    device_shown: dict = {}
     if agents_on and permissions.has(db, user, "api.use"):
         from lembas.services import device_link
 
         links = device_link.linked_for(user.id)
         recent = chat_service.recent_dirs(db, user.id, [link.token_id for link in links])
+        hosts = device_link.token_hosts(db, user.id, [link.token_id for link in links])
         devices = [
-            {"value": f"device:{link.token_id}", "name": device_link.short_name(link),
+            {"value": f"device:{link.token_id}",
+             **local_device.label(
+                 device_link.short_name(link), hosts.get(link.token_id), link.host
+             ),
              "recent": recent.get(link.token_id, []), "mode": link.max_mode}
             for link in links
         ]
+        # Local first; `sort` is stable, so the rest keep their order.
+        devices.sort(key=lambda device: not device["local"])
     if chat is not None and getattr(chat, "device_token_id", None):
         from lembas.db.models import ApiToken
 
         token = db.get(ApiToken, chat.device_token_id)
         device_name = (token.device_host or token.name) if token is not None else "a device"
+        if token is not None and token.user_id == user.id:
+            device_shown = local_device.label(device_name, token.device_host)
     # What this chat's device answers, for the features protocol 2
     # added: the composer's `@` files and `/` commands, the model badge. Empty
     # while it is not linked -- each feature then stays as it was.
@@ -331,6 +341,9 @@ def _agent_context(db: DBSession, user: User, chat: Chat | None) -> dict:
     return {
         "agent_devices": devices,
         "agent_device_name": device_name,
+        # The chat's device as its header shows it: "Local" in LLeMbas Desktop
+        # when it is this computer. The terminal keeps the host name.
+        "agent_device_shown": device_shown,
         "device_capabilities": capabilities,
         "device_reports_model": "model" in capabilities
         or bool(getattr(chat, "device_model", "")),
@@ -500,20 +513,25 @@ def _device_sections(
     for chat in archived or []:
         archived_by_device.setdefault(key_of(chat), []).append(chat)
 
-    def named(token_id: str) -> str:
-        if token_id in linked:
-            return device_link.short_name(linked[token_id])
+    def named(token_id: str) -> dict:
+        """The section's heading: the host, or "Local" in LLeMbas Desktop for
+        the computer it runs on. Only ever one of this person's own tokens."""
         token = tokens[token_id]
-        return token.device_host or token.name
+        if token_id in linked:
+            link = linked[token_id]
+            return local_device.label(device_link.short_name(link), token.device_host, link.host)
+        return local_device.label(token.device_host or token.name, token.device_host)
 
-    def section(token_id: str, name: str, is_linked: bool) -> dict:
+    def section(token_id: str, shown_as: dict | str, is_linked: bool) -> dict:
         active = by_device.get(token_id, [])
         put_away = archived_by_device.get(token_id, [])
         chosen = filters.get(token_id, AGENT_FILTER_DEFAULT)
         shown = {"active": active, "archived": put_away, "all": active + put_away}[chosen]
+        if isinstance(shown_as, str):
+            shown_as = {"name": shown_as, "title": shown_as, "local": False}
         return {
             "token_id": token_id,
-            "name": name,
+            **shown_as,
             "linked": is_linked,
             "chats": shown,
             "filter": chosen,
@@ -528,7 +546,9 @@ def _device_sections(
         }
 
     live = [section(token_id, named(token_id), True) for token_id in linked if token_id in tokens]
-    live.sort(key=lambda entry: entry["name"].lower())
+    # Local first, then by name. An offline Local leads the offline ones: the
+    # linked come first because only they can start a chat.
+    live.sort(key=lambda entry: (not entry["local"], entry["name"].lower()))
     with_chats = set(by_device) | set(archived_by_device)
     offline = [
         section(token_id, named(token_id), False)
@@ -540,6 +560,7 @@ def _device_sections(
     offline.sort(
         key=lambda entry: (entry["latest"] is not None, entry["latest"] or ""), reverse=True
     )
+    offline.sort(key=lambda entry: not entry["local"])
     missing = [section("", i18n.t("device missing"), False)] if "" in with_chats else []
     return live + offline + missing
 

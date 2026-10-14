@@ -58,6 +58,7 @@ from lembas.api.v1 import openai as api_openai
 from lembas.api.v1 import services as api_services
 from lembas.config import settings
 from lembas.db.session import init_db
+from lembas.services import local_device
 from lembas.services.library import indexing
 from lembas.web import i18n
 from lembas.web.templating import STATIC_DIR, render
@@ -199,9 +200,13 @@ def create_app() -> FastAPI:
     # is reused between requests -- so without resetting it here, a signed-out page
     # would inherit whichever person was served last on that worker. The user's own
     # choice is applied later, by `get_current_user`, where they are already known.
+    # And, for the same reason, which device is the computer the request comes
+    # from: LLeMbas Desktop says so in its User-Agent, a browser does not. A label
+    # only -- see services/local_device.py.
     @app.middleware("http")
     async def _language(request, call_next):
         i18n.activate(i18n.instance_default())
+        local_device.activate(request)
         return await call_next(request)
 
     # One place that notices a library record changing, rather than a call in

@@ -3,6 +3,22 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## Unreleased
+
+### Added
+
+- In LLeMbas Desktop, the computer you are sitting at is shown as **Local**
+  and listed first: in the new agent chat's device list, in the Agents
+  sidebar's device sections and their session filter, and in an agent chat's
+  header. Hover it to see the computer's name. Desktop says which computer it
+  runs on, and a device of yours that signed in from that computer gets the
+  label. In a browser nothing changes: every device keeps its own name. The
+  label is for display only and changes nothing about what a device may do.
+- When a device allows no folders at all, the directory browser in a new agent
+  chat now says so, and how to add one: in LLeMbas Desktop, or with
+  `lembas remote add <dir>` on that computer. Before, it said only that the
+  device offered no directories.
+
 ## 1.1.0 — 2026-10-14
 
 A new agent chat starts where you last worked, and more code that never ran is gone.

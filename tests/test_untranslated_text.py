@@ -50,6 +50,7 @@ ALLOWED: dict[tuple[str, str], str] = {
     ("device.html", "ABCD-EFGH"): "the shape of a device code",
     ("settings.html", "ABCD-EFGH"): "the shape of a device code",
     ("library/base_detail.html", "https://example.com/article"): "an example URL",
+    ("agents/_device_browse.html", "lembas remote add <dir>"): "a command, typed as it is",
 }
 
 JINJA_COMMENT = re.compile(r"\{#.*?#\}", re.S)
