@@ -3,7 +3,9 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
-## Unreleased
+## 1.2.0 — 2026-10-14
+
+LLeMbas Desktop shows your computer as Local, and a device that allows no folders says so.
 
 ### Added
 
