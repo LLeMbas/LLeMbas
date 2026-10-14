@@ -41,45 +41,12 @@ def tools() -> dict[str, dict[str, Any]]:
     return out
 
 
-def tool(name: str) -> dict[str, Any]:
-    found = tools().get(name)
-    if found is None:
-        raise KeyError(f"harness spec {version()} has no tool {name!r}")
-    return found
-
-
-def purpose() -> dict[str, Any]:
-    """The argument a call says what it is for in (`purpose.json`)."""
-    return _json("purpose.json")
-
-
-def described(name: str, variables: dict[str, str] | None = None) -> str:
-    """A tool's description as the spec has it, its `{{variables}}` filled in. A
-    variable left unfilled is an error: it would reach the model as a literal."""
-    import re
-
-    spec = tool(name)
-    values = variables or {}
-
-    def fill(match: re.Match[str]) -> str:
-        key = match.group(1)
-        if key not in values:
-            raise KeyError(f"harness spec: no value for {{{{{key}}}}} in {name}'s description")
-        return values[key]
-
-    return re.sub(r"\{\{(\w+)\}\}", fill, spec["description"])
-
-
 def hardline() -> dict[str, Any]:
     return _json("permission/hardline.json")
 
 
 def arity() -> dict[str, Any]:
     return _json("permission/arity.json")
-
-
-def modes() -> dict[str, Any]:
-    return _json("permission/modes.json")
 
 
 def prompt(relative: str) -> str:
@@ -98,12 +65,8 @@ __all__ = [
     "SPEC_DIR",
     "arity",
     "conformance_dir",
-    "described",
     "hardline",
-    "modes",
     "prompt",
-    "purpose",
-    "tool",
     "tools",
     "version",
 ]

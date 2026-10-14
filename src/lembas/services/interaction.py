@@ -264,20 +264,15 @@ async def wait_for(
     on its next frame; takes it out in `finally`, so answering makes it
     disappear -- and only it: a device may have several open at once,
     each its own card with its own answer, and answering one clears only that
-    one. The
-    time spent here accumulates on `generation.waited` and is taken off the
-    reply's wall-clock budget -- a reader who thinks for ten minutes about one
-    command should not thereby spend the whole allowance.
+    one.
     """
     generation.waiting.append(interruption)
     generation.touch()
-    started = time.monotonic()
     try:
         return await asyncio.wait_for(asyncio.shield(interruption._future), timeout)
     except TimeoutError:
         return Reply(outcome=EXPIRED)
     finally:
-        generation.waited += time.monotonic() - started
         with contextlib.suppress(ValueError):
             generation.waiting.remove(interruption)
         generation.touch()

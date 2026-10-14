@@ -82,21 +82,6 @@ def test_foldered_sections_chats_stay_out_of_the_tree(client: TestClient, db, re
     assert {c.id for c in folder.visible_chats("chat")} == {ordinary.id}
 
 
-def test_a_folder_holding_only_a_task_chat_reads_as_empty(client: TestClient, db, registered):
-    """`shown_in` keeps a folder that is empty of everything, because hiding a
-    container somebody just made means it can never be filed into. A folder
-    holding only a task chat has to count as that empty one -- otherwise it
-    shows on both sides claiming contents nobody can see.
-    """
-    folder = Folder(user_id=_user(db).id, name="Scheduled work")
-    db.add(folder)
-    db.commit()
-    _chat(db, kind=KIND_TASK, folder=folder)
-
-    assert folder.holds() is False
-    assert folder.shown_in("chat") is True
-
-
 def test_the_composer_cannot_manufacture_a_section_chat(client: TestClient, db, registered):
     """`_new_chat` collapses kind to agent-or-chat, so this is already true by
     construction. Pinned so it stays true: the ordinary composer is a form

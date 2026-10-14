@@ -135,28 +135,6 @@ class Folder(UUIDPrimaryKey, Timestamps, Base):
         kept.sort(key=lambda chat: not chat.pinned)
         return kept
 
-    def holds(self, kind: str = "") -> bool:
-        """Whether anything of this kind is anywhere under this folder.
-
-        Recursive, because a folder's only matching chat may be three levels
-        down and judging on its own contents alone would bury it.
-        """
-        if self.visible_chats(kind):
-            return True
-        return any(child.holds(kind) for child in self.children)
-
-    def shown_in(self, kind: str = "") -> bool:
-        """Whether this folder belongs on one side of the sidebar's switch.
-
-        Two different reasons a folder can have nothing in it, and only one of
-        them is a reason to hide it. A folder full of ordinary chats is noise on
-        the Agent side and is dropped. A folder that is empty of *everything* is
-        a container somebody just made and has not filled yet -- hiding that one
-        means it can never be found again, let alone filed into, so it shows on
-        both sides and says "Empty" for itself.
-        """
-        return self.holds(kind) or not self.holds()
-
     def __repr__(self) -> str:
         return f"<Folder {self.name}>"
 

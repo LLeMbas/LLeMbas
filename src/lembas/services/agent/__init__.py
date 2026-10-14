@@ -1,8 +1,8 @@
 """Agentic execution: running commands and touching files on the model's behalf.
 
 Four parts, and the split is the safety argument. `policy` decides what may
-happen without asking and knows nothing about how anything runs. `base` is the
-interface a target implements. Nothing runs on this machine: an agent chat
+happen without asking and knows nothing about how anything runs. `base` holds
+what the terminal and the canvas share. Nothing runs on this machine: an agent chat
 runs on a linked device (`services/device_link.py`), somebody's own machine
 running the LLeMbas CLI, which decides what it allows; `terminal` holds the
 shell panel open on it, and `shell` reads a command line the harness spec's

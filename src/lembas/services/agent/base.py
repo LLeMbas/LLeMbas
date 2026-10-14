@@ -1,21 +1,12 @@
-"""What the agent package shares: output cleaning, file revisions, and the errors.
+"""What the agent package shares: file revisions and the errors.
 
 Nothing runs on this machine: a linked device acts for itself, through
-`device_link`. What is left here is what the terminal, the canvas and the
-capture of command output have in common -- `clean_output` for anything a
-command produced, `revision_of` and `Conflict` for a file edited from a page,
-and `ExecError` for when nothing can act at all.
+`device_link`. What is left here is what the terminal and the canvas have in
+common -- `revision_of` and `Conflict` for a file edited from a page, and
+`ExecError` for when nothing can act at all.
 """
 
 from __future__ import annotations
-
-import re
-
-# Terminal escape sequences, stripped from anything a command produced. They are
-# inert in escaped HTML, but this text also re-enters the model's context, where
-# they are a known way of hiding instructions, and it may end up in a log a
-# person later cats, where they hijack the terminal.
-_ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-Z\\-_]")
 
 
 class ExecError(Exception):
@@ -54,18 +45,8 @@ class Conflict(Exception):
         self.found = found
 
 
-def clean_output(data: bytes | str, *, limit: int) -> tuple[str, bool]:
-    """Decode, strip escape sequences, and cap. Returns (text, truncated)."""
-    text = data.decode("utf-8", "replace") if isinstance(data, bytes) else data
-    text = _ANSI.sub("", text)
-    if len(text) <= limit:
-        return text, False
-    return text[:limit].rstrip() + "\n… (truncated)", True
-
-
 __all__ = [
     "Conflict",
     "ExecError",
-    "clean_output",
     "revision_of",
 ]

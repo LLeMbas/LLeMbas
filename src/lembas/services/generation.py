@@ -21,14 +21,13 @@ import logging
 import re
 import time
 import uuid
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 
 from lembas.db.models import KIND_AGENT, ROLE_ASSISTANT, ROLE_USER, Chat, Message, User
 from lembas.db.session import session_scope
-from lembas.security import permissions
 from lembas.services import canvas as canvas_service
 from lembas.services import chat as chat_service
 from lembas.services import compaction as compaction_service
@@ -192,13 +191,6 @@ class Generation:
     # beside one -- and each is its own card with its own answer. Read the first
     # through `pending`, as everything did when there could only be one.
     waiting: list[interaction.Interruption] = field(default_factory=list)
-    # Seconds spent waiting for a person, cumulative. Taken off the wall-clock
-    # budget so that thinking time is the model's and not the reader's.
-    waited: float = 0.0
-    # How much tool output this reply has handed back, against the agent budget.
-    # A model that fills its own context with build logs has no room left to
-    # answer with.
-    output_bytes: int = 0
     # A plan proposed in Plan mode, or one being kept current while it is
     # carried out. See services/plans.py for the shape. Written onto the
     # message, so the Execute button sends exactly what was proposed rather than
@@ -582,21 +574,6 @@ async def shutdown() -> None:
             await task
 
 
-def _narrower(instance: float, quota: int) -> float:
-    """The tighter of two ceilings, where **zero means no limit**.
-
-    Not `min`: a zero on either side would win and turn "no opinion" into "no
-    time at all". Written once and used wherever a group's number meets the
-    instance's, because getting it wrong in one of those places is a limit that
-    silently stops working.
-    """
-    if instance <= 0:
-        return float(quota)
-    if quota <= 0:
-        return float(instance)
-    return float(min(instance, quota))
-
-
 # --- A reasoning effort the model will not take ------------------------------
 #
 # `chat_template_kwargs.reasoning_effort` is not advisory. It reaches the
@@ -878,10 +855,6 @@ async def _run(generation: Generation) -> None:
             # vision model, a plain string to anything else, or the endpoint
             # rejects the whole request.
             vision = chat_service.model_supports(db, chat, "vision", speaker=speaker)
-            # Resolved while the session is open, like everything else here.
-            # Empty for an admin and for a user in no group, which is every
-            # instance that has not set one -- see permissions.limits_for.
-            quota = permissions.limits_for(db, owner)
             chat_rounds = settings_store.chat_rounds(db)
             # A helper's chat is bounded by its own number, not the instance's.
             # Only reached in an *ordinary* helper chat -- an agent one runs on
@@ -892,22 +865,12 @@ async def _run(generation: Generation) -> None:
             if chat.parent_chat_id:
                 chat_rounds = int(settings_store.subagents(db)["max_rounds"])
 
-        limits = None
-        # A group's ceiling narrows the instance's, never widens it. `min` of
-        # two numbers where zero means "no limit" cannot be written as `min`:
-        # the zero would win and turn a group with no opinion into an unlimited
-        # one, so the two are folded by `_narrower`.
-        if limits is not None and quota.get("agent_seconds"):
-            limits = replace(
-                limits,
-                wall_seconds=_narrower(limits.wall_seconds, quota["agent_seconds"]),
-            )
         # A ceiling, not a schedule -- the loop below ends the moment a round
         # produces no tool calls, which is the model saying it is done. Zero
-        # means an ordinary chat has no ceiling either; `steps` is already a
-        # runaway backstop rather than a budget, so an agent chat is bounded by
-        # tokens and the clock instead.
-        budget = limits.steps if limits else (chat_rounds or MAX_TOOL_ROUNDS)
+        # means no ceiling of the instance's own, and MAX_TOOL_ROUNDS is then
+        # the runaway backstop. An agent chat's work runs on its device, which
+        # sets its own limits.
+        budget = chat_rounds or MAX_TOOL_ROUNDS
 
         # Set once a budget has run out, holding the last round open with the
         # tools withdrawn so the reply ends in an answer rather than in silence.
@@ -942,25 +905,6 @@ async def _run(generation: Generation) -> None:
                 _gave_up(generation, "with no room left in the context window")
                 break
 
-            # Checked between rounds, never mid-stream: cutting a reply off in
-            # the middle of a sentence to enforce a budget produces garbage, and
-            # Stop already covers the mid-stream case. Time spent waiting for a
-            # person is subtracted -- somebody who thinks for ten minutes about
-            # one command should not thereby spend the whole allowance.
-            if limits is not None and round_number and not wrapping_up:
-                spent = (time.monotonic() - started) - generation.waited
-                ran_out = ""
-                if spent > limits.wall_seconds:
-                    ran_out = f"after {spent / 60:.0f} minutes"
-                elif generation.output_bytes > limits.output_bytes:
-                    ran_out = "with too much output to read"
-                else:
-                    written = _written(generation)
-                    if limits.completion_tokens and written > limits.completion_tokens:
-                        ran_out = f"after writing about {written:,} tokens"
-                if ran_out:
-                    offered, payload = _wrap_up(generation, ran_out, payload)
-                    wrapping_up = True
             accumulator = tools_service.ToolCallAccumulator()
             # Text the model produced in *this* round, needed separately from
             # generation.content when echoing the assistant turn back.
@@ -1148,7 +1092,6 @@ async def _run(generation: Generation) -> None:
                     outcome.event.get("todos"), list
                 ):
                     generation.todos = list(outcome.event["todos"])
-                generation.output_bytes += len(outcome.content)
                 messages.append(tools_service.tool_turn(call, outcome.content))
                 if opened := outcome.event.get("canvas"):
                     # A runner cannot write the message row, so the loop carries
@@ -1536,26 +1479,6 @@ def _mark_counted(generation: Generation) -> None:
     """
     if generation.reported_usage:
         generation.counted_chars = len(generation.text) + len(generation.thinking)
-
-
-def _written(generation: Generation) -> int:
-    """How much this reply has written so far, in tokens, reported or estimated.
-
-    Both, because neither alone is enough. `completion_tokens` is only populated
-    when the endpoint sends a usage block, and a good half of the ones this
-    talks to -- llama.cpp, Ollama and friends -- never do; the fallback estimate
-    is otherwise computed once, in `_run`'s `finally:`, long after the loop that
-    needs it. A ceiling reading only the reported figure would work on OpenAI
-    and silently do nothing everywhere else, which is the worst kind of limit:
-    one that looks configured.
-
-    Reasoning counts. It was generated and it was paid for, even though it is
-    deliberately never replayed as context.
-    """
-    return max(
-        generation.completion_tokens,
-        tokens.estimate(generation.text + generation.thinking),
-    )
 
 
 def _tool_status(calls: list[dict]) -> str:

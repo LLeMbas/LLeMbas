@@ -158,7 +158,7 @@ def test_a_terminal_on_the_device(db, registered, make_chat):
 
     async def scenario():
         session = await terminal_service.open_session(
-            "chat-1", owner_id="u", profile_id="", label="device-1", spec={},
+            "chat-1", owner_id="u", label="device-1",
             project_dir="/home/dev/project", device_token_id=link.token_id,
         )
         viewer = session.attach(100, 30)
@@ -189,7 +189,7 @@ def test_a_device_that_does_not_open_terminals_says_how_to(db, registered):
 
         with pytest.raises(ExecError, match="remote.terminal: true"):
             await terminal_service.open_session(
-                "chat-2", owner_id="u", profile_id="", label="device-1", spec={},
+                "chat-2", owner_id="u", label="device-1",
                 device_token_id=link.token_id,
             )
 

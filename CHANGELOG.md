@@ -16,6 +16,21 @@ at <https://llembas.eu/changelog.html>.
   pick one. Starting a chat inside a folder that names a directory still uses
   the folder's.
 
+### Removed
+
+- The server's own shell-integration code for the terminal panel, which never
+  ran: a linked device's shell marks its own commands, and the panel already
+  reads those marks itself. With it went the "last command" address the panel
+  could never reach, and the fields of the terminal's opening message that were
+  always empty or that nothing read. The terminal's Copy, Send and automatic
+  modes work as before.
+- The per-reply time, output and token checks for agent chats in the reply
+  loop, which could no longer trigger since an agent chat's work moved to its
+  device. The device enforces its own limits; the round ceiling for ordinary
+  chats and helpers is unchanged.
+- Unused helpers: four readers of the shared harness specification and a
+  folder check the sidebar no longer calls.
+
 ## 1.0.1 — 2026-10-14
 
 A clean-up release: code nothing reached any more is gone. Nothing changes in

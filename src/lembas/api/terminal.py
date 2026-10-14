@@ -27,9 +27,8 @@ import json
 import logging
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from lembas.api.deps import Db, RequiredUser
 from lembas.db.models import KIND_AGENT, Chat
 from lembas.db.session import session_scope
 from lembas.security import permissions
@@ -121,14 +120,11 @@ def _prepare(db, user, chat_id: str) -> tuple[str, dict]:
             return t("%(device)s is not linked right now.", device=device), {}
         return "", {
             "owner_id": user.id,
-            "profile_id": "",
             "label": device_link.short_name(link),
-            "spec": {},
             "project_dir": chat.project_dir or "",
             "idle_timeout": float(values["terminal_idle_timeout"]),
             "max_sessions": int(values["terminal_max_sessions"]),
             "max_per_user": int(values["terminal_max_per_user"]),
-            "integrate": False,
             "device_token_id": token_id,
         }
 
@@ -169,13 +165,6 @@ async def terminal_socket(
         await _refuse(websocket, t("The shell could not be started."))
         return
 
-    # Shaping a frame is this layer's job, not the session's; the session only
-    # knows it finished something. Reassigned per socket and harmless: every
-    # socket on this session would build the identical frame.
-    session.on_command = lambda found: session.announce(
-        json.dumps({"t": "command", "command": _command_frame(found)})
-    )
-
     viewer = session.attach(cols, rows)
     await websocket.send_text(
         json.dumps(
@@ -188,14 +177,9 @@ async def terminal_socket(
                 # Two tabs share one shell, and a size neither of them chose is
                 # otherwise a mystery.
                 "shared": len(session.viewers) > 1,
-                # Whether this shell will tell us where commands begin and end,
-                # which is what the Copy and Send buttons are made of.
-                "integration": session.integration,
-                "last": _command_frame(session.latest()),
                 # A linked device's shell marks its own commands (capability
                 # `shell`): the panel reads OSC 133 and 7 itself.
                 "osc": bool(getattr(session, "osc", False)),
-                "shell": getattr(session, "shell", ""),
             }
         )
     )
@@ -218,62 +202,6 @@ async def terminal_socket(
         session.detach(viewer)
 
 
-@router.get("/{chat_id}/terminal/last")
-async def last_command(db: Db, user: RequiredUser, chat_id: str) -> dict:
-    """The last command and its output, rendered ready to paste.
-
-    The *server* renders the text, so Copy and Send are a fetch and a
-    clipboard write with no formatting logic in the browser -- and the block a
-    model eventually reads exists in exactly one place. The panel's own screen
-    buffer could not produce it anyway: it holds what is on screen, hard-wrapped
-    at the terminal's width, with no way to tell a wrap from a newline.
-    """
-    if _chat_or_draft(db, user, chat_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, t("That chat no longer exists."))
-    if not permissions.has(db, user, "agent.terminal"):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, t("You cannot open a terminal."))
-
-    session = terminal_service.get(chat_id)
-    found = session.latest() if session is not None else None
-    if session is None or found is None:
-        return {
-            "ok": False,
-            "message": t("Nothing has been run in this shell yet.")
-            if session is not None
-            else t("This terminal is not open."),
-        }
-
-    return {
-        "ok": True,
-        "command": found.command,
-        "cwd": found.cwd,
-        "exit": found.exit_status,
-        "running": found.running,
-        "summary": found.summary(),
-        "text": found.as_text(label=session.label),
-    }
-
-
-def _command_frame(found) -> dict | None:
-    """A finished command, small enough to push at every viewer.
-
-    Tens of bytes, and deliberately *not* the output: a 64KB text frame would
-    compete with PTY bytes on the one path that has to stay responsive, and the
-    two buttons are pressed by a person, where a request is the natural shape.
-    """
-    if found is None:
-        return None
-    return {
-        "seq": found.seq,
-        "command": found.command,
-        "cwd": found.cwd,
-        "exit": found.exit_status,
-        "running": found.running,
-        "ms": found.duration_ms,
-        "summary": found.summary(),
-    }
-
-
 async def _to_browser(websocket: WebSocket, session, viewer) -> None:
     """Everything the shell says, plus the one frame that says it stopped."""
     while True:
@@ -290,11 +218,6 @@ async def _to_browser(websocket: WebSocket, session, viewer) -> None:
             with contextlib.suppress(Exception):
                 await websocket.send_text(json.dumps(payload))
             return
-        # A string in the queue is a control frame that had to keep its place
-        # in the stream -- see `Session.announce`.
-        if isinstance(chunk, str):
-            await websocket.send_text(chunk)
-            continue
         await websocket.send_bytes(chunk)
 
 

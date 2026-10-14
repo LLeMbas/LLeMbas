@@ -198,8 +198,8 @@ def test_the_automatic_path_never_steals_focus():
     off for good."""
     into = js_function(SOURCE, "intoComposer")
     assert js_says(into, "!quiet", "input.focus()")
-    # The `command` frame is the automatic path, and it is the quiet one.
-    assert "capture(true)" in _after(CODE, 'payload.t === "command"')
+    # A finished mark is the automatic path, and it is the quiet one.
+    assert "intoComposer(text, true)" in js_function(SOURCE, "commandDone")
 
 
 def test_a_screen_scrape_says_that_is_what_it_is():
@@ -216,7 +216,7 @@ def test_auto_is_disabled_rather_than_degraded():
     attached at all, so the control is switched off where it cannot work -- and
     switched back off if it was already on when the markers went away."""
     apply_ = js_function(SOURCE, "applyIntegration")
-    assert 'integration === "live"' in apply_
+    assert "var usable = osc" in apply_
     assert js_says(apply_, "auto.disabled", "!usable")
     assert js_says(apply_, "!usable", 'autoMode !== "off"', 'setAuto("off")')
 
@@ -313,10 +313,14 @@ def test_marks_are_dropped_with_the_buffer_they_point_into():
 
 
 def test_the_server_parses_no_marks_for_a_device_shell():
+    """The device's marks pass through to the panel untouched, and the server
+    keeps no command of its own: there is no `/terminal/last` and no
+    `command` frame any more."""
     from lembas.services.agent.terminal import DeviceSession
 
-    session = DeviceSession(
-        "c", token_id="t", owner_id="u", profile_id="device:t", label="device-1"
-    )
-    session._observe(b"\x1b]133;A\x07\x1b]133;C\x07out\x1b]133;D;0\x07")
-    assert session.integration == "none" and session.latest() is None
+    session = DeviceSession("c", token_id="t", owner_id="u", label="device-1")
+    marked = b"\x1b]133;A\x07\x1b]133;C\x07out\x1b]133;D;0\x07"
+    session.feed(marked)
+    assert b"".join(session._scrollback) == marked
+    assert not hasattr(session, "latest") and not hasattr(session, "integration")
+    assert "/last" not in CODE and '"command"' not in CODE

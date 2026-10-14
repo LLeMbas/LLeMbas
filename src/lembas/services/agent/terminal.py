@@ -43,7 +43,6 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
-from lembas.services.agent import capture, shell_marks
 from lembas.services.agent.base import ExecError
 from lembas.web import i18n
 
@@ -82,20 +81,6 @@ CLOSED_SHUTDOWN = "shutdown"
 CLOSED_REVOKED = "revoked"
 CLOSED_ERROR = "error"
 
-# Whether this shell tells us where its commands begin and end.
-#   live    -- it does
-#   loading -- the hooks went in; the first prompt has not arrived yet
-#   none    -- it never will: an unknown shell, or a dotfile that replaced it
-INTEGRATION_LIVE = "live"
-INTEGRATION_LOADING = "loading"
-INTEGRATION_NONE = "none"
-
-# How long a shell may produce output without ever marking a prompt before we
-# conclude it is not going to. This is what catches a `.bashrc` ending in `exec
-# tmux`: the hooks were installed and then the shell replaced itself. Without
-# it the buttons stay greyed out forever with no explanation.
-INTEGRATION_GRACE = 10.0
-
 
 @dataclass
 class Viewer:
@@ -122,17 +107,14 @@ class Session:
         chat_id: str,
         *,
         owner_id: str,
-        profile_id: str,
         label: str,
         project_dir: str = "",
         idle_timeout: float = 1800.0,
         cols: int = 80,
         rows: int = 24,
-        integrate: bool = True,
     ) -> None:
         self.chat_id = chat_id
         self.owner_id = owner_id
-        self.profile_id = profile_id
         self.label = label
         self.project_dir = project_dir
         self.idle_timeout = idle_timeout
@@ -140,28 +122,6 @@ class Session:
         self.viewers: dict[str, Viewer] = {}
         self._scrollback: deque[bytes] = deque()
         self._scrollback_bytes = 0
-
-        # --- Command boundaries ---------------------------------------------
-        # Three states, and the middle one matters: INTEGRATION_LOADING means
-        # the hooks were installed and no marker has arrived yet, which is a
-        # different thing to tell somebody than "this shell will never mark".
-        self.integrate = integrate
-        self.integration = INTEGRATION_LOADING if integrate else INTEGRATION_NONE
-        self.shell = ""
-        self._marks = shell_marks.Marks(self._on_mark, self._on_text)
-        # At most two, ever. The one being written and the last finished one --
-        # a history would be a second scrollback with none of the bounding.
-        self.current: capture.Capture | None = None
-        self.last: capture.Capture | None = None
-        self._captures = 0
-        # Where the shell says it is, which the panel header shows live and a
-        # capture records. Seeded from the chat so it says something sensible
-        # before the first prompt.
-        self.cwd = project_dir
-        # Set by the socket layer, which knows how to shape a frame. Called
-        # when a command finishes so a panel can enable its buttons without
-        # polling for something that happens a few times a minute.
-        self.on_command: Any = None
 
         self._process: Any = None
 
@@ -181,77 +141,10 @@ class Session:
 
     # --- Opening -------------------------------------------------------------
 
-    async def start(self, spec: dict[str, Any]) -> None:
+    async def start(self) -> None:
         """Open the shell. Only a linked device opens one -- see
         `DeviceSession`."""
         raise ExecError(i18n.t("A terminal opens only on a linked LLeMbas CLI device."))
-
-    # --- Where one command ends and the next begins --------------------------
-
-    def _on_mark(self, kind: str, value: str) -> None:
-        """One marker, from the scanner in the pump.
-
-        Advisory, never trusted: a program can print these itself and move a
-        boundary. It is not a way in -- the text is sanitised and fenced either
-        way, and a program could already print anything on screen -- but that is
-        why nothing here validates them, and why none of it decides anything a
-        person could not already do at the keyboard.
-        """
-        if kind == shell_marks.MARK_READY:
-            self.integration = INTEGRATION_LIVE
-            self.shell = value.split(";")[0][:32]
-            return
-
-        if self.integration != INTEGRATION_LIVE and kind in (
-            shell_marks.MARK_PROMPT,
-            shell_marks.MARK_OUTPUT,
-        ):
-            self.integration = INTEGRATION_LIVE
-
-        if kind == shell_marks.MARK_CWD:
-            path = shell_marks.unescape(value.partition("=")[2])[:1000]
-            self.cwd = path
-            return
-
-        if kind == shell_marks.MARK_COMMAND:
-            self._captures += 1
-            self.current = capture.Capture(
-                seq=self._captures,
-                command=capture.trim_command(shell_marks.unescape(value)),
-                cwd=self.cwd,
-            )
-            return
-
-        if kind == shell_marks.MARK_DONE and self.current is not None:
-            try:
-                self.current.exit_status = int(value.strip() or 0)
-            except ValueError:
-                self.current.exit_status = 0
-            self.current.ended = time.monotonic()
-            self.last = self.current
-            self.current = None
-            if self.on_command is not None:
-                self.on_command(self.last)
-
-    def _on_text(self, data: bytes) -> None:
-        """Everything that was not a marker, while a command is running.
-
-        Interleaved with `_on_mark` rather than applied to the whole chunk
-        afterwards: a shell often writes the command marker, the output and the
-        finished marker in one read, and absorbing after the scan would find
-        the capture already closed and keep nothing at all.
-        """
-        if self.current is not None:
-            self.current.absorb(data)
-
-    def latest(self) -> capture.Capture | None:
-        """The command to act on: the one still running, else the last one.
-
-        In-flight counts. "Copy the last command and its output" while `make` is
-        still going should give what has been printed so far, marked as still
-        running -- not "nothing yet".
-        """
-        return self.current or self.last
 
     # --- Following -----------------------------------------------------------
 
@@ -317,51 +210,11 @@ class Session:
 
     # --- Output --------------------------------------------------------------
 
-    def _observe(self, data: bytes) -> None:
-        """Watch the stream for markers, and feed the command being captured.
-
-        Server-side rather than in the browser, for five reasons. The `behind`
-        path calls `term.reset()` and replays a *truncated* scrollback, so a
-        client parser routinely sees a "finished" with no matching "started".
-        Two tabs share one shell and two parsers can disagree about what "the
-        last command" is. The server sees the stream once however many are
-        watching. And what comes out of this ends up inside a prompt -- deriving
-        it here means there is nothing to disbelieve later.
-
-        The bytes are still fanned out unchanged, markers and all: xterm
-        consumes an OSC it has no handler for and never draws it, and rewriting
-        frames on the hot path would break the "nothing decodes, so nothing can
-        split" property the pump depends on.
-        """
-        self._marks.feed(data)
-        if self.current is None and (
-            self.integration == INTEGRATION_LOADING
-            and time.monotonic() - self.started_at > INTEGRATION_GRACE
-        ):
-            # Output arrived, the grace period passed, and no marker ever came.
-            # Output arrived, the grace period passed, and no marker ever came.
-            # Something replaced the shell -- a dotfile ending in `exec tmux` is
-            # the usual one. Say so rather than leaving the buttons greyed.
-            self.integration = INTEGRATION_NONE
-
     def _remember(self, data: bytes) -> None:
         self._scrollback.append(data)
         self._scrollback_bytes += len(data)
         while self._scrollback_bytes > SCROLLBACK_BYTES and len(self._scrollback) > 1:
             self._scrollback_bytes -= len(self._scrollback.popleft())
-
-    def announce(self, text: str) -> None:
-        """Put one text frame in front of every viewer.
-
-        Through the same queues as the output so ordering is preserved: a
-        "finished" that overtook the last of the output it describes would have
-        a panel offering a capture the screen has not caught up with. Dropped
-        rather than blocking on a full queue -- that viewer is already being
-        disconnected and will be told again on reattach.
-        """
-        for viewer in list(self.viewers.values()):
-            with contextlib.suppress(asyncio.QueueFull):
-                viewer.queue.put_nowait(text)
 
     def _fan_out(self, data: bytes) -> None:
         for viewer in list(self.viewers.values()):
@@ -398,10 +251,9 @@ class Session:
                 viewer.queue.put_nowait(None)
         await self._teardown()
         log.info(
-            "terminal closed chat=%s owner=%s profile=%s reason=%s after=%.0fs",
+            "terminal closed chat=%s owner=%s reason=%s after=%.0fs",
             self.chat_id,
             self.owner_id,
-            self.profile_id,
             reason,
             time.monotonic() - self.started_at,
         )
@@ -429,22 +281,21 @@ class DeviceSession(Session):
     way. The device decides whether it opens terminals at all
     (`remote.terminal`) and where (its remote roots, trusted directories), as
     it decides everything else about remote work. No shell integration from
-    this side: the command that installs it (`shell_marks`) is a string LLeMbas
-    wrote, and a device is not asked to run one.
+    this side: a device's shell marks its own commands, and the panel reads
+    those marks itself.
     """
 
     def __init__(self, chat_id: str, *, token_id: str, **kwargs: Any) -> None:
-        kwargs["integrate"] = False
         super().__init__(chat_id, **kwargs)
         self.token_id = token_id
         self.terminal_id = ""
         self._link: Any = None
         # Capability `shell`: the device starts its shell with its own
         # integration -- OSC 133 marks and OSC 7 -- and says so. The panel's
-        # xterm reads them; this side parses nothing (`_observe`).
+        # xterm reads them; this side parses nothing.
         self.osc = False
 
-    async def start(self, spec: dict[str, Any]) -> None:
+    async def start(self) -> None:
         from lembas.services import device_link
 
         link = device_link.link_for(self.token_id)
@@ -467,9 +318,7 @@ class DeviceSession(Session):
         except (device_link.LinkClosed, TimeoutError) as exc:
             raise ExecError(f"{self.label} did not open a terminal.") from exc
         self.terminal_id = str((opened or {}).get("terminalId") or "")
-        self.cwd = str((opened or {}).get("cwd") or self.project_dir)
         if link.can("shell"):
-            self.shell = str((opened or {}).get("shell") or "")[:16]
             self.osc = bool((opened or {}).get("integration"))
         self._link = link
         # The base class reads "is there a process" off this; the link is it.
@@ -480,17 +329,12 @@ class DeviceSession(Session):
         """Output from the device's PTY."""
         if self.closed:
             return
+        # Passed through untouched, marks and all: a device's shell marks its
+        # own commands in OSC 133, which the panel's xterm reads. Parsing them
+        # here as well once turned the server's Copy and Auto on for a shell
+        # whose command lines it can never see.
         self._remember(data)
-        self._observe(data)
         self._fan_out(data)
-
-    def _observe(self, data: bytes) -> None:
-        """Nothing: a device's shell marks its own commands, in OSC 133
-        that the panel's xterm reads, and this side has no capture to make.
-        Parsing them here as well turned the server's Copy and Auto on for a
-        shell whose command lines it can never see -- they would have said
-        "nothing has been run" after every command."""
-        return
 
     async def ended(self, reason: str) -> None:
         await self._finish(CLOSED_EXITED if reason == "exited" else CLOSED_ERROR)
@@ -558,16 +402,13 @@ async def open_session(
     chat_id: str,
     *,
     owner_id: str,
-    profile_id: str,
     label: str,
-    spec: dict[str, Any],
     project_dir: str = "",
     idle_timeout: float = 1800.0,
     max_sessions: int = 20,
     max_per_user: int = 3,
     cols: int = 80,
     rows: int = 24,
-    integrate: bool = True,
     device_token_id: str = "",
 ) -> Session:
     """The shell for this chat, opening one if it is not already there.
@@ -596,7 +437,6 @@ async def open_session(
 
     common = {
         "owner_id": owner_id,
-        "profile_id": profile_id,
         "label": label,
         "project_dir": project_dir,
         "idle_timeout": idle_timeout,
@@ -606,14 +446,13 @@ async def open_session(
     if not device_token_id:
         raise ExecError(i18n.t("A terminal opens only on a linked LLeMbas CLI device."))
     session = DeviceSession(chat_id, token_id=device_token_id, **common)
-    await session.start(spec)
+    await session.start()
     _SESSIONS[chat_id] = session
     _ensure_reaper()
     log.info(
-        "terminal opened chat=%s owner=%s profile=%s host=%s dir=%s",
+        "terminal opened chat=%s owner=%s host=%s dir=%s",
         chat_id,
         owner_id,
-        profile_id,
         label,
         project_dir or "~",
     )

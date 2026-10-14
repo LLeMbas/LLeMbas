@@ -34,15 +34,11 @@
   var messageEl = null;
   var observer = null;
   var closedOnPurpose = false;
-  /* Whether this shell tells us where commands begin and end -- "live",
-     "loading" or "none". Everything the three buttons do keys off it. */
-  var integration = "loading";
   /* "off" | "copy" | "send". Three states rather than a boolean, because the
      old one did the wrong one of them: it appended into the composer, on top of
      whatever was being typed there. A select rather than a cycling button --
      a button cannot say which of three states it is in. */
   var autoMode = "off";
-  var lastCommand = null;
   /* A linked device's shell marks its own commands -- OSC 133 (A prompt,
      B command, C output, D;exit) and OSC 7 (where it is) -- and the ready frame
      says so. Then this panel reads them itself: nothing is parsed on the
@@ -196,31 +192,14 @@
         var where = panel.querySelector("[data-terminal-where]");
         if (where) where.textContent = payload.dir;
       }
-      integration = payload.integration || "none";
       osc = !!payload.osc;
       showMarkControls();
-      showLast(payload.last);
+      showLast("");
       applyIntegration();
       /* The server may have opened the shell at a size chosen by whoever got
          here first, so ask for ours now that there is something to ask. */
       refit();
       term.focus();
-      return;
-    }
-
-    if (payload.t === "command") {
-      /* A command finished. Tens of bytes, not the output: a 64KB text frame
-         would compete with PTY bytes on the one path that has to stay quick,
-         and the buttons fetch what they need when they are pressed. */
-      if (integration !== "live") { integration = "live"; applyIntegration(); }
-      showLast(payload.command);
-      if (autoMode !== "off") {
-        capture(true).then(function (text) {
-          if (!text) return;
-          if (autoMode === "copy") return intoComposer(text, true);
-          sendStraightToChat(text);
-        });
-      }
       return;
     }
 
@@ -421,11 +400,7 @@
       if (old.decoration) old.decoration.dispose();
     }
     visiting = -1;
-    lastCommand = {
-      summary: (mark.command || "…") + (mark.exit ? " · exit " + mark.exit : "")
-    };
-    var slot = panel && panel.querySelector("[data-terminal-last]");
-    if (slot) slot.textContent = lastCommand.summary;
+    showLast((mark.command || "…") + (mark.exit ? " · exit " + mark.exit : ""));
     if (autoMode !== "off") {
       var text = blockOf(mark);
       if (!text) return;
@@ -478,16 +453,15 @@
 
   /* --- Handing a command to the chat --------------------------------------
      Three buttons over one idea: the last command, its output, and where it
-     ran. The server renders the block, so the text a model eventually reads
-     exists in exactly one place -- and the screen buffer could not produce it
-     anyway, holding as it does what is *on screen*, hard-wrapped at the
-     terminal's width with no way to tell a wrap from a newline. */
+     ran. With the device's marks (`osc`) the block is read from this panel's
+     own buffer between them; without, it is the screen as it appeared, and
+     says so. */
 
   function applyIntegration() {
     if (!panel) return;
     var auto = panel.querySelector("[data-terminal-auto]");
     if (!auto) return;
-    var usable = integration === "live" || osc;
+    var usable = osc;
     auto.disabled = !usable;
     auto.title = usable
       ? t("What to do with each command you run")
@@ -495,12 +469,12 @@
     if (!usable && autoMode !== "off") setAuto("off");
   }
 
-  function showLast(command) {
-    lastCommand = command || null;
+  /* The last command's one-line summary beside the buttons; "" clears it. */
+  function showLast(summary) {
     var slot = panel && panel.querySelector("[data-terminal-last]");
     if (!slot) return;
     // textContent, always: this is a command line off somebody's machine.
-    slot.textContent = lastCommand ? lastCommand.summary : "";
+    slot.textContent = summary || "";
   }
 
   var AUTO_SAID = {
@@ -549,50 +523,33 @@
     return lines.join("\n").replace(/\n+$/, "");
   }
 
-  /* Fetches the rendered block, or falls back to the screen. `quiet` is the
-     auto path, which must not narrate every command it collects. */
-  function capture(quiet) {
+  /* The marked block, or falls back to the screen. (The automatic path reads
+     a finished mark directly, in `commandDone`.) */
+  function capture() {
     var chosen = selected();
-    if (chosen && !quiet) return Promise.resolve("```\n" + chosen + "\n```\n");
+    if (chosen) return Promise.resolve("```\n" + chosen + "\n```\n");
 
     /* The device's marks: the last command and its output, read from
        this panel's own buffer between its markers. */
     if (osc) {
       var mark = lastFinished();
       if (!mark) {
-        if (!quiet) say(panel.dataset.sayNothingYet || "Nothing has been run in this shell yet.");
+        say(panel.dataset.sayNothingYet || "Nothing has been run in this shell yet.");
         return Promise.resolve("");
       }
       return Promise.resolve(blockOf(mark));
     }
 
-    if (integration !== "live") {
-      if (quiet) return Promise.resolve("");
-      var text = scraped();
-      if (!text.trim()) {
-        say(t("Nothing to send: select some output first."));
-        return Promise.resolve("");
-      }
-      /* Said plainly rather than dressed up. Without markers this is the last
-         forty rows as they appeared, wraps and all, and pretending otherwise
-         would put a precise-looking block in front of a model that is not. */
-      say(t("Copied the last of the screen, as it appeared. This shell does not mark where commands begin."));
-      return Promise.resolve("```\n" + text + "\n```\n");
+    var text = scraped();
+    if (!text.trim()) {
+      say(t("Nothing to send: select some output first."));
+      return Promise.resolve("");
     }
-
-    return fetch(panel.dataset.url.replace(/\/ws$/, "/last"), { credentials: "same-origin" })
-      .then(function (response) { return response.json(); })
-      .then(function (body) {
-        if (!body.ok) {
-          if (!quiet) say(body.message || t("Nothing to send yet."));
-          return "";
-        }
-        return body.text + "\n";
-      })
-      .catch(function () {
-        if (!quiet) say(t("Could not read the last command."), true);
-        return "";
-      });
+    /* Said plainly rather than dressed up. Without markers this is the last
+       forty rows as they appeared, wraps and all, and pretending otherwise
+       would put a precise-looking block in front of a model that is not. */
+    say(t("Copied the last of the screen, as it appeared. This shell does not mark where commands begin."));
+    return Promise.resolve("```\n" + text + "\n```\n");
   }
 
   function intoComposer(text, quiet) {
@@ -610,19 +567,18 @@
 
   function sendToChat() {
     if (!term) return;
-    capture(false).then(function (text) {
+    capture().then(function (text) {
       if (!text) return;
-      intoComposer(text, false);
       /* Into the composer, never sent. What a machine printed is exactly the
          sort of text somebody should read before a model does, and the box is
          where that happens. */
-      if (integration === "live") say(t("Put into the message box. It is not sent yet."));
+      intoComposer(text, false);
     });
   }
 
   function copyToClipboard() {
     if (!term) return;
-    capture(false).then(function (text) {
+    capture().then(function (text) {
       if (!text) return;
       if (window.lembas && window.lembas.copyText) {
         window.lembas.copyText(text);

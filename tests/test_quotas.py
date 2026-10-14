@@ -132,26 +132,6 @@ def test_an_unlimited_account_is_never_over(db, reader):
     assert usage_service.over_token_budget(db, reader) == ""
 
 
-# --- Narrowing ------------------------------------------------------------------
-@pytest.mark.parametrize(
-    ("instance", "quota", "expected"),
-    [
-        (900, 300, 300),   # the group is tighter
-        (300, 900, 300),   # the instance is tighter
-        (0, 300, 300),     # the instance has no limit
-        (300, 0, 300),     # the group has no opinion
-        (0, 0, 0),         # neither
-    ],
-)
-def test_two_ceilings_fold_to_the_tighter_one(instance, quota, expected):
-    """Not `min`: a zero on either side would win and turn "no opinion" into
-    "no time at all". Written once because getting it wrong in one place is a
-    limit that silently stops working."""
-    from lembas.services.generation import _narrower
-
-    assert _narrower(instance, quota) == expected
-
-
 # --- The screens ----------------------------------------------------------------
 def test_a_group_stores_only_the_boxes_that_were_filled(db, client, registered, reader):
     group = Group(name="team")

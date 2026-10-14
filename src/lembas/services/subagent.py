@@ -471,8 +471,8 @@ async def _run_subagent(context: ToolContext, args: dict[str, Any]) -> ToolOutco
         # only move for a call that is about to spend one.
         values = settings_store.subagents(db)
         # A group's ceiling narrows the instance's, never widens it. Zero on
-        # either side means "no opinion", so the two cannot be folded with
-        # `min` -- see generation._narrower for the same arithmetic.
+        # either side means "no opinion", so the two cannot be folded with a
+        # bare `min`: only a set allowance narrows.
         allowance = permissions.limit(db, owner, "helpers_per_reply")
         if allowance:
             values = {**values, "max_per_reply": min(int(values["max_per_reply"]), allowance)}
