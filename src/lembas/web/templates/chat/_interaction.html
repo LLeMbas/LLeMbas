@@ -84,6 +84,21 @@
                      placeholder="{{ t('Your own answer…') }}">
             </span>
           </label>
+          {# A question back instead of an answer. The spec's third kind of
+             answer: the model answers it, then asks again -- only that
+             question. The same row shape as "Something else", for the same
+             reasons; the field is `ask.<key>`, which the endpoint reads as a
+             counter-question whatever else was ticked. #}
+          <label class="interaction__option interaction__option--other">
+            <input type="{{ 'checkbox' if item.multiple else 'radio' }}"
+                   name="choice.{{ item.key }}" value="{{ other_value }}">
+            <span class="interaction__option-body">
+              <span class="interaction__option-name">{{ t("Ask it something back") }}</span>
+              <input class="input interaction__other-input" type="text"
+                     name="ask.{{ item.key }}" autocomplete="off"
+                     placeholder="{{ t('Your question for the model…') }}">
+            </span>
+          </label>
           {% endif %}
         </div>
       </fieldset>
@@ -108,20 +123,29 @@
 
     {% elif ask.kind == "plan" %}
       {#
-        A linked device's plan (`_lembas/plan`): what its model means to
-        do before it does anything. Approve it into Edit (it works, asking only
-        for what Edit asks about) or Manual (it asks about every step); send it
-        back with what to change; or dismiss it. The plan is model output: it is
-        shown only as `render_markdown` sanitised it.
+        A plan put to you before anything is done: this chat's own
+        (`plan_submit`, in Plan mode) or a linked device's (`_lembas/plan`).
+        Approve it -- for a device, into Edit (it works, asking only for what
+        Edit asks about) or Manual (it asks about every step); for a chat,
+        Plan mode simply ends -- send it back with what to change, or dismiss
+        it. A structured plan is drawn as the plan card; a device without the
+        structure sends text, shown only as `render_markdown` sanitised it.
       #}
       {% for item in ask.items %}
       <div class="interaction__question" x-data="{ revising: false }">
         <p class="interaction__title">{{ t("The plan") }}</p>
         {% if item.detail %}<p class="interaction__reason mono">{{ item.detail }}</p>{% endif %}
-        {% if item.detail_html %}
+        {% if item.plan %}
+        <div class="interaction__plan">
+          {% with plan = item.plan, plan_actions = false %}
+          {% include "chat/_plan.html" %}
+          {% endwith %}
+        </div>
+        {% elif item.detail_html %}
         <div class="interaction__plan msg__body">{{ item.detail_html | safe }}</div>
         {% endif %}
 
+        {% if item.mode_choice %}
         <div class="interaction__options" role="radiogroup" aria-label="{{ t('How to carry it out') }}">
           <label class="interaction__option">
             <input type="radio" name="choice.{{ item.key }}" value="edit" checked>
@@ -138,6 +162,9 @@
             </span>
           </label>
         </div>
+        {% else %}
+        <p class="interaction__note">{{ t("Approving ends Plan mode: the model carries the plan out in this reply, keeping it current above the message box.") }}</p>
+        {% endif %}
 
         <div class="interaction__actions">
           <button class="btn btn--primary" type="submit" name="verdict" value="allow"

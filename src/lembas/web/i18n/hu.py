@@ -829,7 +829,6 @@ MESSAGES: dict[str, str] = {
     "the device": "az eszköz",
     "Carried on after the instance restarted": "A példány újraindulása után folytatódott",
     "These are no longer sent to the model; a summary of them goes instead. They are kept here so nothing is lost.": "Ezeket már nem küldjük el a modellnek; helyettük egy összefoglaló megy. Itt megmaradnak, hogy semmi se vesszen el.",
-    "Todo": "Teendők",
     "No output.": "Nincs kimenet.",
     "Nothing was found.": "Nincs találat.",
     "Show the whole change": "A teljes módosítás megjelenítése",
@@ -1758,7 +1757,6 @@ MESSAGES.update(
         "A message cannot be empty.": "Az üzenet nem lehet üres.",
         "Wait for the current reply to finish, or stop it.": "Várja meg, amíg az aktuális válasz elkészül, vagy állítsa le.",
         "There is no plan on that message.": "Ennél az üzenetnél nincs terv.",
-        "This chat cannot act on anything.": "Ez a csevegés semmit sem hajthat végre.",
         "That message is not waiting to be sent.": "Ez az üzenet nem vár küldésre.",
         "That question is no longer waiting for an answer.": "Ez a kérdés már nem vár válaszra.",
         "This chat will not ask about 1 more action. Clear that from the menu beside the composer.": "Ez a csevegés még 1 műveletről nem fog kérdezni. Ezt az üzenetszerkesztő melletti menüben törölheti.",
@@ -2259,5 +2257,23 @@ MESSAGES.update(
         "This computer (%(host)s)": "Ez a számítógép (%(host)s)",
         "This computer allows no folders yet. Add one in LLeMbas Desktop, or run <code>%(command)s</code>.": "Ez a számítógép még egy mappát sem enged. Adjon hozzá egyet a LLeMbas Desktopban, vagy futtassa ezt: <code>%(command)s</code>.",
         "This device allows no folders yet. Add one there in LLeMbas Desktop, or run <code>%(command)s</code> on it.": "Ez az eszköz még egy mappát sem enged. Adjon hozzá egyet ott a LLeMbas Desktopban, vagy futtassa rajta ezt: <code>%(command)s</code>.",
+    }
+)
+
+# --- 1.3: the plan in every chat, and Plan mode for a chat --------------------
+MESSAGES.update(
+    {
+        "An older override, saved for <code>%(key)s</code> before it became part of this fragment — review it: it is no longer sent.": "Egy régebbi felülírás, amelyet a(z) <code>%(key)s</code> kulcshoz mentettek, mielőtt ennek a töredéknek a része lett — nézze át: már nem kerül elküldésre.",
+        "Mode": "Mód",
+        "Answers and acts as usual.": "A szokásos módon válaszol és cselekszik.",
+        "Normal": "Normál",
+        "Approving ends Plan mode: the model carries the plan out in this reply, keeping it current above the message box.": "A jóváhagyással véget ér a Plan mód: a modell ebben a válaszban végrehajtja a tervet, és az üzenetmező felett naprakészen tartja.",
+        "Carry out this plan? The model works through it in order, and the plan stays above the message box while it does.": "Végrehajtja ezt a tervet? A modell sorban végigmegy rajta, és a terv közben az üzenetmező felett marad.",
+        "Show the whole plan": "A teljes terv megjelenítése",
+        "This chat has no plan.": "Ennek a csevegésnek nincs terve.",
+        "Waiting for you to look at the plan…": "Várakozás, hogy megnézze a tervet…",
+        "Ask it something back": "Visszakérdezés",
+        "Your question for the model…": "Az Ön kérdése a modellhez…",
+        "Keeping a plan": "Terv vezetése",
     }
 )

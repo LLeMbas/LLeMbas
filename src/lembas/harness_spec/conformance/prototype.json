@@ -1,0 +1,63 @@
+{
+  "about": "A fenced block's info string read as a prototype (prompts/blocks/prototypes.md): `prototype-chat` and `prototype-page` with an optional title on the same line, and bare `prototype` as the inline kind; anything else is the code block it is (`null`). The title is the fence's, else the page's own <title>, whitespace collapsed, at most 80 characters. LLeMbas: services/prototypes.py parse_info and title_for; CLI: src/prototype/fence.ts.",
+  "cases": [
+    {
+      "info": "prototype-chat Monthly sales",
+      "code": "<p>hi</p>",
+      "expect": {
+        "kind": "chat",
+        "title": "Monthly sales"
+      }
+    },
+    {
+      "info": "prototype-page Bakery landing",
+      "code": "<!doctype html><title>Ignored</title>",
+      "expect": {
+        "kind": "page",
+        "title": "Bakery landing"
+      }
+    },
+    {
+      "info": "prototype",
+      "code": "<p>x</p>",
+      "expect": {
+        "kind": "chat",
+        "title": ""
+      }
+    },
+    {
+      "info": "PROTOTYPE-PAGE",
+      "code": "<html><head><title>  From the\n page </title></head></html>",
+      "expect": {
+        "kind": "page",
+        "title": "From the page"
+      }
+    },
+    {
+      "info": "prototype-chat",
+      "code": "<title><b>Bold</b> title</title>",
+      "expect": {
+        "kind": "chat",
+        "title": "Bold title"
+      }
+    },
+    {
+      "info": "html",
+      "code": "<p>x</p>",
+      "expect": null
+    },
+    {
+      "info": "",
+      "code": "",
+      "expect": null
+    },
+    {
+      "info": "prototype-page A title that goes on and on and on and on and on and on and on and on and on and on and on",
+      "code": "",
+      "expect": {
+        "kind": "page",
+        "title": "A title that goes on and on and on and on and on and on and on and on and on and"
+      }
+    }
+  ]
+}

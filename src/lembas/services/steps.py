@@ -173,11 +173,15 @@ def tail(generation: Any) -> tuple[str, str]:
 
 
 def _shown(events: list[dict] | tuple[dict, ...]) -> tuple[dict, ...]:
-    """The tool calls the transcript shows: all but the todo list's,
-    which has its own panel above the composer and would otherwise repeat the
-    whole list as a block after every tick. Filtered after slicing, so the marks'
-    offsets still count every call."""
-    return tuple(e for e in events if e.get("name") != "todo")
+    """The tool calls the transcript shows: all but the plan's (`plan_write`,
+    `plan_update`, the former `todo`), which has its own panel above the
+    composer and would otherwise repeat the whole plan as a block after every
+    tick. Filtered after slicing, so the marks' offsets still count every call."""
+    from lembas.services import tool_blocks
+
+    return tuple(
+        e for e in events if tool_blocks.kind_of(str(e.get("name") or "")) != tool_blocks.HIDDEN
+    )
 
 
 def _at(mark: dict, key: str) -> int:

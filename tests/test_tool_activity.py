@@ -175,7 +175,7 @@ def test_every_builtin_tool_has_a_label_and_an_icon(db):
     to replace.
     """
     names = [tool.name for tool in tools_service.registry(db).values()]
-    for expected in ("subagent_run", "schedule_create", "image_generate"):
+    for expected in ("task", "schedule_create", "image_generate", "plan_write"):
         assert expected in names, f"{expected} is not in the registry; this test went blind"
     missing = [name for name in names if name not in tool_labels.LABELS]
     assert not missing, f"no label for {missing}"

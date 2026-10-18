@@ -33,28 +33,30 @@ SAMPLE_DOCUMENTS = "report.pdf, notes.txt"
 # The rest of what a preview has to pretend, and the reason it must.
 #
 # `harness.context_variables` fills most `requires` gates only when it is handed
-# a real `Chat` -- the machine, the directory, the plan, the project listing, a
-# scheduled task's instruction, the flag saying this is a helper. The preview
-# passes `chat=None`, so every one of those stayed empty and **eleven gated
-# fragments could never appear in it at all**: the whole agent surface, both
-# scheduling fragments, and the helper warning. An administrator editing
-# `tool.agent` previewed a system message with `tool.agent` missing from it, and
+# a real `Chat` -- the plan, a scheduled task's instruction, the flag saying
+# this is a helper. The preview passes `chat=None`, so every one of those
+# stayed empty and the gated fragments could never appear in it at all: an
+# administrator editing one previewed a system message with it missing, and
 # nothing said so.
 #
 # Samples rather than a transient Chat. `compose_from` takes plain variables
-# precisely so this screen never has to build one, and a constructed row would
-# need a connection, a profile and a directory that exist -- inventing an SSH
-# host to render a paragraph is a worse trade than inventing the paragraph's
-# values. This is what `SAMPLE_DOCUMENTS` has always done, extended to the rest.
-SAMPLE_AGENT = {
-    "agent_target": "buildbox",
-    "agent_dir": "/srv/www/example",
-    "agent_rewound": "on 3 August at 14:20",
-    "background": "on",
-    "project_files": "src/\n  app.py\n  models.py\nREADME.md\npyproject.toml",
-    "agent_instructions": "Run the tests with `make check` before proposing a change.",
-    "agent_instructions_file": "AGENTS.md",
-    "plan": "1. [done] Read the failing test\n2. [doing] Fix the parser\n3. [todo] Add a case",
+# precisely so this screen never has to build one. This is what
+# `SAMPLE_DOCUMENTS` has always done, extended to the rest.
+SAMPLE_PLAN = {
+    "title": "Fix the parser",
+    "findings": ["The failing test is test_parse_dates (tests/test_parser.py:41)"],
+    "objectives": ["Dates with a two-digit year parse"],
+    "phases": [
+        {
+            "title": "Code",
+            "status": "active",
+            "tasks": [
+                {"text": "Read the failing test", "status": "done"},
+                {"text": "Fix the parser", "status": "doing"},
+            ],
+        },
+        {"title": "Verify", "tasks": ["Add a case for a two-digit year"]},
+    ],
 }
 
 SAMPLE_SCHEDULE = {
@@ -117,34 +119,38 @@ def _variables(
     so that this screen never has to build a transient one.
 
     The samples are gated exactly as `context_variables` gates the real values --
-    the agent block on the `agent` family, the schedule and helper blocks on the
-    situation rather than on any family, because neither is a tool. A preview
-    that admitted a fragment the real request would not is worse than one that
-    omitted it, so the gating is mirrored rather than approximated.
+    the plan on the `plan` family (a chat with the plan tools is one that may
+    have a plan), the mode on the mode chosen, the schedule and helper blocks
+    on the situation rather than on any family, because neither is a tool. A
+    preview that admitted a fragment the real request would not is worse than
+    one that omitted it, so the gating is mirrored rather than approximated.
     """
+    from lembas.services import plans
     from lembas.services.agent import policy
     from lembas.services.library import memories as memories_service
     from lembas.services.library import skills as skills_service
 
     values = harness_service.context_variables(db, user, [], None)
+    names = _tool_names(db, families)
+    scope = bases if "knowledge" in families else ""
     values.update(
         {
             "model_name": model_name,
-            "tool_names": _tool_names(db, families),
+            "tool_names": names,
+            "tool_list": harness_service.tool_list_sentence(names),
             "memories": memories_service.block(db, user) if "memory" in families else "",
             "skills": skills_service.index_block(db, user) if "skills" in families else "",
-            "knowledge_bases": bases if "knowledge" in families else "",
+            "knowledge_bases": scope,
+            "knowledge_scope": harness_service.knowledge_scope_sentence(scope),
             "document_names": documents,
         }
     )
-    if "agent" in families:
-        values.update(SAMPLE_AGENT)
-        # A real one out of the table, not invented prose: this bullet *is* the
-        # mode guidance, so a made-up sentence here would preview wording that
-        # no request ever carries.
-        values["agent_mode"] = policy.MODE_GUIDANCE.get(mode, "") or policy.MODE_GUIDANCE[
-            policy.MODE_EDIT
-        ]
+    if "plan" in families:
+        plan = plans.normalise(SAMPLE_PLAN)
+        values["plan"] = plans.render(plan)
+        values["plan_context"] = harness_service.plan_context(plan)
+    if mode in policy.MODES:
+        values[f"mode_{mode}"] = "yes"
     if situation == SITUATION_TASK:
         values.update(SAMPLE_SCHEDULE)
     if situation == SITUATION_HELPER:
@@ -165,6 +171,12 @@ async def prompts_page(request: Request, db: Db, user: AdminUser, saved: bool = 
     stored = prompts_service.stored(db)
     models = chat_service.available_models(db, user)
     families = list(tools_service.families(db))
+    # Overrides stored under a key that has since been folded into another
+    # fragment: shown beside the successor to review, since nothing sends them.
+    older: dict[str, list[tuple[str, str]]] = {}
+    for old_key, new_key in prompts_service.RENAMED_KEYS.items():
+        if old_key in stored:
+            older.setdefault(new_key, []).append((old_key, stored[old_key]))
 
     return render(
         request,
@@ -176,6 +188,7 @@ async def prompts_page(request: Request, db: Db, user: AdminUser, saved: bool = 
                 for fragment in prompts_service.catalogue(db).values()
             },
             "overridden": set(stored),
+            "older": older,
             "variables": prompts_service.VARIABLES,
             # The legend shows what each name resolves to right now, with every
             # family on -- a legend nobody can check is just a list of words.

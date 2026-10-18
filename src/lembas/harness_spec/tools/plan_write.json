@@ -1,0 +1,131 @@
+{
+  "name": "plan_write",
+  "scope": "shared",
+  "risk": "interact",
+  "exclusive": false,
+  "block": "plan",
+  "purpose": false,
+  "aliases": {
+    "cli": [
+      "todo"
+    ],
+    "llembas": [
+      "todo"
+    ]
+  },
+  "description": "Write the plan for this work, or replace it: what you found, what it is for, and the work as phases of tasks. The whole plan each time — it replaces the previous one. Use it for anything with three or more steps, from the start, and in plan mode before plan_submit.\n\n- findings: what you learned that shapes the plan, with file:line references where there are any.\n- objectives: what will be true when it is done.\n- phases: the work in order, each a short title and its tasks. One phase is fine for a short job.\n- Ids are given to you in the result (p1, t3, o2…) and are what plan_update takes; never make them up.\n- Keep it short: a task is one sentence. What does not fit is not a task.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 120,
+        "description": "What the plan is for, in a few words"
+      },
+      "summary": {
+        "type": "string",
+        "maxLength": 300,
+        "description": "One or two sentences on the approach"
+      },
+      "findings": {
+        "type": "array",
+        "maxItems": 20,
+        "description": "What was found that shapes the plan",
+        "items": {
+          "type": "string",
+          "maxLength": 300
+        }
+      },
+      "objectives": {
+        "type": "array",
+        "maxItems": 8,
+        "description": "What will be true when the work is done",
+        "items": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "open",
+                "done",
+                "dropped"
+              ],
+              "default": "open"
+            }
+          },
+          "required": [
+            "text"
+          ]
+        }
+      },
+      "phases": {
+        "type": "array",
+        "maxItems": 8,
+        "description": "The work, in order",
+        "items": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "active",
+                "done"
+              ],
+              "default": "pending"
+            },
+            "tasks": {
+              "type": "array",
+              "maxItems": 12,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "todo",
+                      "doing",
+                      "done",
+                      "dropped"
+                    ],
+                    "default": "todo"
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 300,
+                    "description": "Why it was dropped, or what came of it"
+                  }
+                },
+                "required": [
+                  "text"
+                ]
+              }
+            }
+          },
+          "required": [
+            "tasks"
+          ]
+        }
+      }
+    },
+    "required": [
+      "title",
+      "phases"
+    ]
+  }
+}

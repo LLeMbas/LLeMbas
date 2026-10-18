@@ -1,12 +1,14 @@
 {% from "_macros.html" import icon %}
 {#
-  A plan: what was found, what it is for, and the work as phases of tasks.
+  The plan card: what was found, what it is for, and the work as phases of
+  tasks -- the one structure the harness spec has LLeMbas and the LLeMbas CLI
+  keep per conversation (services/plans.py).
 
-  Rendered from `message.plan` -- the property, which normalises -- rather than
-  from `plan_json`, so a row written before version 2 comes through as one phase
-  and this template never sees two shapes. The Execute button still posts the
-  message id and the server still reads the flattened `steps`, so it sends
-  exactly what was proposed.
+  Rendered from `plan`, already normalised: a message's snapshot
+  (`message.plan`, in a bubble), the chat's own (`chat.plan`, in the panel
+  above the composer), or the one on a card waiting to be approved
+  (`item.plan`). Every caller sets `plan`, so this template never sees two
+  shapes; a row written before version 2 came through `normalise` as one phase.
 
   Every line is model output and is escaped; a task is shown as text, never as
   Markdown, because a plan is the last thing that should be able to emit a link.
@@ -14,15 +16,20 @@
   A status is a CLASS, never a character in the text: a tick written into the
   string would be indistinguishable from a tick the model wrote itself.
 
-  It does not re-render in place as work goes on. The newest bubble carries the
-  current plan and older ones carry the plan as it was then -- that is what a
+  A bubble's card does not re-render as work goes on: the newest bubble carries
+  the plan as it was then and the panel carries it now -- that is what a
   transcript is, and it makes "what did it think at step three" answerable.
 
-  Execute switches the chat to Edit, never Auto -- the plan was written under a
-  mode where every command stopped for approval, and a button that also removed
-  the asking is not the button anybody pressed. The confirm dialog says so.
+  `plan_actions` (default on) draws the Execute button: on a message, for that
+  snapshot; in the panel, for the plan as it stands (`current`). Off on the
+  approval card, whose own buttons are the decision. In an agent chat Execute
+  switches to Edit, never Auto -- the plan was written under a mode where every
+  command stopped for approval, and a button that also removed the asking is
+  not the button anybody pressed; in a chat it leaves Plan mode and carries on.
+  The confirm dialog says which.
 #}
-{% set plan = message.plan %}
+{% set plan_actions = plan_actions if plan_actions is defined else true %}
+{% set plan_message_id = message.id if message is defined and message else "current" %}
 <section class="plan">
   <h3 class="plan__title">
     {{ icon("check", "icon--sm") }}
@@ -59,7 +66,7 @@
   <div class="plan__phase plan__phase--{{ phase.status }}">
     {# A single unnamed phase is what a version-1 row becomes, and heading it
        "Plan" above a plan headed "Plan" reads as a mistake. #}
-    {% if plan.phases | length > 1 or phase.title != "Plan" %}
+    {% if plan.phases | length > 1 or phase.title not in ("Plan", "Work") %}
     <h4 class="plan__heading">{{ phase.title }}</h4>
     {% endif %}
     <ol class="plan__steps">
@@ -73,10 +80,11 @@
   </div>
   {% endfor %}
 
-  {% if chat.kind == "agent" %}
+  {% if plan_actions and chat and plan.steps %}
   <div class="btn-row">
+    {% if chat.kind == "agent" %}
     <button class="btn btn--primary btn--sm" type="button"
-            hx-post="/api/chats/{{ chat.id }}/messages/{{ message.id }}/execute-plan"
+            hx-post="/api/chats/{{ chat.id }}/messages/{{ plan_message_id }}/execute-plan"
             hx-target="#thread" hx-swap="beforeend"
             hx-confirm="{{ t('Switch this chat to Edit mode and carry out this plan? Every command will still be shown to you before it runs.') }}"
             data-confirm-label="{{ t('Carry it out') }}"
@@ -84,6 +92,16 @@
       {{ icon("send", "icon--sm") }} {{ t("Carry out this plan") }}
     </button>
     <span class="plan__note">{{ t("Switches to Edit — commands still ask.") }}</span>
+    {% else %}
+    <button class="btn btn--primary btn--sm" type="button"
+            hx-post="/api/chats/{{ chat.id }}/messages/{{ plan_message_id }}/execute-plan"
+            hx-target="#thread" hx-swap="beforeend"
+            hx-confirm="{{ t('Carry out this plan? The model works through it in order, and the plan stays above the message box while it does.') }}"
+            data-confirm-label="{{ t('Carry it out') }}"
+            data-confirm-danger="false">
+      {{ icon("send", "icon--sm") }} {{ t("Carry out this plan") }}
+    </button>
+    {% endif %}
   </div>
   {% endif %}
 </section>

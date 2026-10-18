@@ -1,0 +1,13 @@
+{
+  "about": "knowledge_search's `base` against the knowledge bases a conversation may search (`bases`: id and name): which base ids are searched, or the error the tool answers with. No `base` searches them all; an id matches first, then a name regardless of case; an unknown one is an error naming what there is. LLeMbas: services/library/documents.py resolve_base; CLI: library/store.ts resolveBase.",
+  "cases": [
+    { "bases": [{ "id": "kb1", "name": "Manuals" }, { "id": "kb2", "name": "Contracts" }], "base": null, "expect": { "ids": ["kb1", "kb2"] } },
+    { "bases": [{ "id": "kb1", "name": "Manuals" }, { "id": "kb2", "name": "Contracts" }], "base": "kb2", "expect": { "ids": ["kb2"] } },
+    { "bases": [{ "id": "kb1", "name": "Manuals" }, { "id": "kb2", "name": "Contracts" }], "base": "contracts", "expect": { "ids": ["kb2"] } },
+    { "bases": [{ "id": "kb1", "name": "Manuals" }, { "id": "kb2", "name": "Contracts" }], "base": "  Manuals ", "expect": { "ids": ["kb1"] } },
+    { "bases": [{ "id": "kb1", "name": "Manuals" }, { "id": "kb2", "name": "Contracts" }], "base": "Invoices", "expect": { "error": "No knowledge base called \"Invoices\" here. Available: Manuals, Contracts." } },
+    { "bases": [], "base": null, "expect": { "ids": [] } },
+    { "bases": [], "base": "Manuals", "expect": { "error": "No knowledge base called \"Manuals\" here. Available: none." } },
+    { "bases": [{ "id": "kb1", "name": "kb2" }, { "id": "kb2", "name": "Other" }], "base": "kb2", "expect": { "ids": ["kb2"] } }
+  ]
+}

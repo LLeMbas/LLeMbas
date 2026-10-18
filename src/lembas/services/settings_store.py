@@ -83,6 +83,13 @@ def _general_defaults() -> dict[str, Any]:
         # ceiling can still set one, and `core.rounds` then tells the model it
         # has one; with none, `core.keep_working` tells it to work until done.
         "max_chat_rounds": 0,
+        # What one reply may spend (harness spec `loop.json`, read by
+        # `generation.loop_budgets`): seconds of work, bytes of tool output,
+        # tokens written. None takes the spec's default for LLeMbas; 0 turns
+        # one off. Instance settings without a form yet.
+        "loop_wall_seconds": None,
+        "loop_output_bytes": None,
+        "loop_completion_tokens": None,
         # Prototypes: HTML a model writes and the reader's browser runs, sealed
         # off from this application (services/prototypes.py). On by default --
         # nothing runs here, and the permission and each chat's own switch

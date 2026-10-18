@@ -34,11 +34,11 @@ from sqlalchemy.orm import Session as DBSession
 
 from lembas.db.models import AUTHOR_MODEL, DEFAULT_GROUP, KIND_TASK, SOURCE_CHAT, Chat, User
 from lembas.db.session import session_scope
+from lembas.services import harness_spec, plans, settings_store
 from lembas.services import prompts as prompts_service
 from lembas.services import reports as reports_service
 from lembas.services import scratch as scratch_service
 from lembas.services import search as search_service
-from lembas.services import settings_store
 from lembas.services.library import documents as documents_service
 from lembas.services.library import memories as memories_service
 from lembas.services.library import notes as notes_service
@@ -75,6 +75,13 @@ FAMILY_MCP = "mcp"
 # other one: it is offered in an ordinary chat as much as an agent chat, and it
 # is the only tool the model cannot resolve by itself.
 FAMILY_ASK = "ask"
+
+# The plan: `plan_write`, `plan_update` and -- in Plan mode -- `plan_submit`, the
+# one structure the harness spec has both projects keep per conversation. Not
+# gated by a permission or a model flag, like `ask`: a chat that has tools at
+# all has these, because the plan is how the person sees where the work is.
+# Withheld from a helper's chat, which has one reply and nobody reading it.
+FAMILY_PLAN = "plan"
 
 # The chat's own working surface -- the canvas panel's scratch document.
 # Deliberately not part of `notes`: a note is a durable artefact of the reader's
@@ -123,6 +130,7 @@ FAMILIES = (
     FAMILY_SKILLS,
     FAMILY_SCRATCH,
     FAMILY_ASK,
+    FAMILY_PLAN,
     FAMILY_IMAGE,
     FAMILY_REPORT,
     FAMILY_SCHEDULE,
@@ -189,6 +197,10 @@ class ToolContext:
     # Which knowledge bases this chat is scoped to. Empty means "everything the
     # owner can see", which is what a chat with none attached should do.
     base_ids: list[str] = field(default_factory=list)
+    # Every base a `knowledge_search` here may name with `base`, as
+    # `{"id", "name"}`: the scoped ones, else all the owner can see in this
+    # data group. Snapshotted for the reason the rest of this is.
+    bases: list[dict[str, str]] = field(default_factory=list)
     # Name -> definition for the tools actually offered on this request. None
     # means nobody resolved a set, and only then does `run_tool` fall back to
     # the import-time registry. A dict, *even an empty one*, is authoritative:
@@ -306,6 +318,63 @@ def _object(properties: dict[str, Any], required: list[str]) -> dict[str, Any]:
 
 _STRING = {"type": "string"}
 
+# What LLeMbas fills the harness spec's tool-description variables with. One
+# place, read by the definitions below and by the test that holds them equal
+# to the spec. `agents`: the subagents a `task` may name -- this instance has
+# one kind of helper.
+SPEC_VARIABLES: dict[str, str] = {"agents": "general (default)"}
+
+
+def spec_description(name: str) -> str:
+    """A shared tool's description, as the spec writes it, variables filled."""
+    return harness_spec.fill(harness_spec.tools()[name]["description"], SPEC_VARIABLES)
+
+
+def spec_parameters(name: str) -> dict[str, Any]:
+    """A shared tool's parameters, as the spec writes them (a deep copy)."""
+    return json.loads(json.dumps(harness_spec.tools()[name]["parameters"]))
+
+
+def spec_aliases() -> dict[str, str]:
+    """Former name -> spec name, for every alias the spec lists for LLeMbas."""
+    out: dict[str, str] = {}
+    for name, spec in harness_spec.tools().items():
+        for alias in (spec.get("aliases") or {}).get("llembas") or []:
+            out[str(alias)] = name
+    return out
+
+
+def resolve_alias(name: str, args: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    """A tool call by a former name, as the call it means.
+
+    The spec keeps each tool's old names per project (`aliases.llembas`), and a
+    transcript or a model trained on the old name still uses it. Most aliases
+    take the same arguments; the two that do not are converted here: `todo`'s
+    list becomes one "Work" phase for `plan_write` (the spec's conversion,
+    `plans.from_todos`), and `subagent_run`'s task, title, context and write
+    become `task`'s prompt and description, with `write` kept as the helper's
+    own extra. A name that is no alias comes back unchanged.
+    """
+    target = spec_aliases().get(name)
+    if target is None:
+        return name, args
+    if name == "todo":
+        plan = plans.from_todos(args.get("todos"))
+        return target, {k: v for k, v in plan.items() if k in ("title", "phases")} if plan else {}
+    if name == "subagent_run":
+        prompt = str(args.get("task") or "").strip()
+        briefing = str(args.get("context") or "").strip()
+        if briefing:
+            prompt = f"{prompt}\n\n## Context\n{briefing}" if prompt else briefing
+        converted = {
+            "description": str(args.get("title") or "").strip()[:60],
+            "prompt": prompt,
+        }
+        if args.get("write"):
+            converted["write"] = True
+        return target, converted
+    return target, args
+
 
 # --- Web search --------------------------------------------------------------
 async def _run_web_search(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
@@ -404,6 +473,18 @@ async def _run_knowledge_search(context: ToolContext, args: dict[str, Any]) -> T
             {"name": "knowledge_search", "status": "error", "error": "No query."},
         )
 
+    # `base`: only one knowledge base, named by id or by name among the ones
+    # this chat may search. An unknown one is the tool's answer, naming what
+    # there is -- the spec's `library_scope` cases pin the wording.
+    scoped = documents_service.resolve_base(context.bases, str(args.get("base") or ""))
+    if "error" in scoped:
+        return ToolOutcome(
+            scoped["error"],
+            {"name": "knowledge_search", "query": query, "status": "error",
+             "error": scoped["error"], "results": []},
+        )
+    base_ids = scoped["ids"] if str(args.get("base") or "").strip() else context.base_ids
+
     # Embedded before the session opens, because it is an HTTP request and a
     # session held across one is the trade `_maybe_compact` already refuses.
     # None for every "no" -- no model configured, endpoint down -- and the
@@ -417,7 +498,7 @@ async def _run_knowledge_search(context: ToolContext, args: dict[str, Any]) -> T
             user,
             query,
             limit=6,
-            base_ids=context.base_ids,
+            base_ids=base_ids,
             vector=vector,
             group=context.data_group,
         )
@@ -449,6 +530,10 @@ async def _run_knowledge_search(context: ToolContext, args: dict[str, Any]) -> T
 
 async def _run_knowledge_get(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
     document_id = str(args.get("id") or "").strip()
+    try:
+        offset = max(int(args.get("offset") or 0), 0)
+    except (TypeError, ValueError):
+        offset = 0
     with session_scope() as db:
         user = db.get(User, context.owner_id)
         document = documents_service.get(db, document_id, user, context.data_group)
@@ -463,15 +548,26 @@ async def _run_knowledge_get(context: ToolContext, args: dict[str, Any]) -> Tool
             "status": "ok",
             "results": [{"title": document.title, "id": document.id}],
         }
-        body = document.extracted_text or document.extraction_error or "(no text)"
+        whole = document.extracted_text or document.extraction_error or "(no text)"
+        total = len(document.extracted_text or "")
+        if offset and offset >= len(whole):
+            return ToolOutcome(
+                f"{document.title}\n\n[Nothing past character {offset:,}: the document is "
+                f"{total:,} characters long.]",
+                event,
+            )
+        body = whole[offset:]
         if len(body) > MAX_DOCUMENT_CHARS:
+            shown_to = offset + MAX_DOCUMENT_CHARS
             body = (
                 f"{body[:MAX_DOCUMENT_CHARS]}\n\n"
-                f"[Cut off here. This document is {len(document.extracted_text or ''):,} "
-                f"characters and the first {MAX_DOCUMENT_CHARS:,} are above. Search it "
-                "with knowledge_search to find the part you need.]"
+                f"[Cut off here. This document is {total:,} characters and characters "
+                f"{offset:,}–{shown_to:,} are above. Read on with offset={shown_to}, or "
+                "search it with knowledge_search to find the part you need.]"
             )
             event["truncated"] = True
+        elif offset:
+            body = f"[From character {offset:,} of {total:,}.]\n\n{body}"
         return ToolOutcome(f"{document.title}\n\n{body}", event)
 
 
@@ -657,7 +753,6 @@ async def _run_scratch_write(context: ToolContext, args: dict[str, Any]) -> Tool
         )
 
 
-# --- Personality -------------------------------------------------------------
 # --- Memory ------------------------------------------------------------------
 async def _run_memory_add(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
     content = str(args.get("content") or "").strip()
@@ -917,7 +1012,6 @@ async def _run_skill_edit(context: ToolContext, args: dict[str, Any]) -> ToolOut
         )
 
 
-# --- The registry ------------------------------------------------------------
 # --- Asking the reader -------------------------------------------------------
 async def _run_ask_user(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
     """Never reached on the normal path.
@@ -954,6 +1048,70 @@ async def _run_ask_user(context: ToolContext, args: dict[str, Any]) -> ToolOutco
             "results": [],
         },
     )
+
+
+# --- The plan ------------------------------------------------------------------
+def _plan_event(name: str, plan: dict[str, Any], **extra: Any) -> dict[str, Any]:
+    """What the transcript keeps of a plan call: the structure, for the panel and
+    the card, and nothing drawn in the thread (`block: plan`)."""
+    return {
+        "name": name,
+        "status": "ok",
+        "query": plan.get("title") or "",
+        "results": [],
+        "plan": plan,
+        **extra,
+    }
+
+
+async def _run_plan_write(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
+    """The whole plan, replacing any before it. The result is the plan rendered
+    with the ids this side gave it, which is what plan_update then takes."""
+    plan = plans.normalise(args)
+    if not plan or not plan.get("steps"):
+        return ToolOutcome(
+            "A plan needs a title and at least one phase with a task in it. Nothing was "
+            "written.",
+            {"name": "plan_write", "status": "error", "error": "Empty plan.", "results": []},
+        )
+    return ToolOutcome(plans.render(plan), _plan_event("plan_write", plan))
+
+
+def _current_plan(context: ToolContext) -> dict[str, Any]:
+    if not context.chat_id:
+        return {}
+    with session_scope() as db:
+        chat = db.get(Chat, context.chat_id)
+        return chat.plan if chat is not None else {}
+
+
+async def _run_plan_update(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
+    """Changes to the plan as it stands on the chat -- or, within one reply, as
+    this reply last wrote it: the loop hands the latest in through `args` under
+    `_current`, since `_persist` writes the row only at the end."""
+    current = args.pop("_current", None) or _current_plan(context)
+    result = plans.apply(current, args)
+    if "error" in result:
+        return ToolOutcome(
+            result["error"],
+            {"name": "plan_update", "status": "error", "error": result["error"], "results": []},
+        )
+    plan = result["plan"]
+    return ToolOutcome(plans.render(plan), _plan_event("plan_update", plan))
+
+
+async def _run_plan_submit(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
+    """The plan put to the person. The loop sees `plan_final` and stops the
+    reply on the plan card; what they decide becomes this call's result there
+    (`generation._settle_plan`). This runner only hands the plan up."""
+    current = args.pop("_current", None) or _current_plan(context)
+    plan = plans.normalise(current)
+    if not plan:
+        return ToolOutcome(
+            "There is no plan to submit yet. Write one with plan_write first.",
+            {"name": "plan_submit", "status": "error", "error": "No plan.", "results": []},
+        )
+    return ToolOutcome(plans.render(plan), _plan_event("plan_submit", plan, plan_final=True))
 
 
 REGISTRY: dict[str, ToolDef] = {
@@ -1008,29 +1166,27 @@ REGISTRY: dict[str, ToolDef] = {
             ),
             run=_run_fetch,
         ),
+        # The two library readers are the harness spec's, word for word. The one
+        # thing not copied: a document's id is a string here (`Document.id`),
+        # where the spec, written for the CLI's numbered library, says integer.
         ToolDef(
             name="knowledge_search",
             family=FAMILY_KNOWLEDGE,
-            description=(
-                "Search the user's own collected documents, files and saved web "
-                "pages. Use this before searching the web when the question is "
-                "about their material rather than about the world."
-            ),
-            parameters=_object(
-                {"query": {**_STRING, "description": "Words likely to appear in the document."}},
-                ["query"],
-            ),
+            description=spec_description("knowledge_search"),
+            parameters=spec_parameters("knowledge_search"),
             run=_run_knowledge_search,
         ),
         ToolDef(
             name="knowledge_get",
             family=FAMILY_KNOWLEDGE,
-            description=(
-                "Read one knowledge document, by the id a search returned. A "
-                "long one is cut off at the end rather than refused, and you "
-                "are told when that happened."
-            ),
-            parameters=_object({"id": _STRING}, ["id"]),
+            description=spec_description("knowledge_get"),
+            parameters={
+                **spec_parameters("knowledge_get"),
+                "properties": {
+                    **spec_parameters("knowledge_get")["properties"],
+                    "id": {"type": "string"},
+                },
+            },
             run=_run_knowledge_get,
         ),
         ToolDef(
@@ -1268,90 +1424,11 @@ REGISTRY: dict[str, ToolDef] = {
         ToolDef(
             name="ask_user",
             family=FAMILY_ASK,
-            description=(
-                "Ask the person you are talking to one or more questions, and wait "
-                "for their answers before going on. Use it when you genuinely need "
-                "a decision only they can make — which of several approaches to "
-                "take, a detail you cannot infer, permission for something "
-                "consequential.\n\n"
-                "**Always give options.** A question with no options is a blank box, "
-                "and a blank box asks the person to do the thinking you were meant "
-                "to do: offer the two to six answers you actually think are "
-                "plausible, in the order you would recommend them. Do NOT add an "
-                "option meaning “other”, “something else”, “none of these” or "
-                "“let me type it” — one is added for you, on every question, with a "
-                "box behind it. Yours would have no box and would do nothing.\n\n"
-                "Say whether the options are exclusive. `multiple: false` (the "
-                "default) is for alternatives, where picking one rules out the "
-                "rest; `multiple: true` is for a set, where any number may be "
-                "chosen. Give an option a `description` wherever the label alone "
-                "does not say what choosing it would mean — that is what makes a "
-                "real decision possible rather than a guess between two words.\n\n"
-                "Ask everything you need in ONE call: they answer the whole card at "
-                "once and it costs them a single interruption, where asking twice "
-                "in a row costs two. Do not use it for anything you can work out "
-                "yourself, and never ask for a password, a key or any other secret."
-            ),
-            parameters=_object(
-                {
-                    "questions": {
-                        "type": "array",
-                        "description": (
-                            "The questions to put, answered together. Ask up to "
-                            "about four at a time; more than that is a form, not a "
-                            "conversation."
-                        ),
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "question": {
-                                    **_STRING,
-                                    "description": "One question, in plain language.",
-                                },
-                                "options": {
-                                    "type": "array",
-                                    "description": (
-                                        "The answers to offer, two to six of them. "
-                                        "Required. Never include an “other” or "
-                                        "“something else” option — one is always "
-                                        "added for you."
-                                    ),
-                                    "items": {
-                                        "type": "object",
-                                        "properties": {
-                                            "label": {
-                                                **_STRING,
-                                                "description": (
-                                                    "The choice itself, in a few words."
-                                                ),
-                                            },
-                                            "description": {
-                                                **_STRING,
-                                                "description": (
-                                                    "Optional: one line on what "
-                                                    "choosing this would mean, where "
-                                                    "the label alone does not say."
-                                                ),
-                                            },
-                                        },
-                                        "required": ["label"],
-                                    },
-                                },
-                                "multiple": {
-                                    "type": "boolean",
-                                    "description": (
-                                        "Whether more than one option may be chosen. "
-                                        "False (the default) for alternatives, true "
-                                        "for a set."
-                                    ),
-                                },
-                            },
-                            "required": ["question", "options"],
-                        },
-                    },
-                },
-                ["questions"],
-            ),
+            # The spec's text and schema: a `why`, up to four questions each
+            # with a chip `header`, options with a `recommended` one, and the
+            # answer format the card produces (`generation._answered`).
+            description=spec_description("ask_user"),
+            parameters=spec_parameters("ask_user"),
             # Never resolved by this runner. The reader answers it, in every
             # mode, and the loop turns their answer into the outcome -- see
             # services/interaction.py. The runner exists so that a call reaching
@@ -1360,8 +1437,48 @@ REGISTRY: dict[str, ToolDef] = {
             run=_run_ask_user,
             risk=RISK_ASK,
         ),
+        # The plan, as the spec defines it. `interact` in the spec; here the
+        # risk class governs the four modes of a machine, and these touch no
+        # machine -- the same argument `scratch_write` makes -- so they are
+        # reads, offered in every mode and never put on an approval card.
+        ToolDef(
+            name="plan_write",
+            family=FAMILY_PLAN,
+            description=spec_description("plan_write"),
+            parameters=spec_parameters("plan_write"),
+            run=_run_plan_write,
+            risk=RISK_READ,
+        ),
+        ToolDef(
+            name="plan_update",
+            family=FAMILY_PLAN,
+            description=spec_description("plan_update"),
+            parameters=spec_parameters("plan_update"),
+            run=_run_plan_update,
+            risk=RISK_READ,
+        ),
+        # Offered only in Plan mode -- `resolve_tools` withholds it elsewhere.
+        # It is the approval: the reply stops on the plan card and the answer
+        # is the call's result.
+        ToolDef(
+            name="plan_submit",
+            family=FAMILY_PLAN,
+            description=spec_description("plan_submit"),
+            parameters=spec_parameters("plan_submit"),
+            run=_run_plan_submit,
+            risk=RISK_READ,
+        ),
     )
 }
+
+
+def plan_mode(chat: Chat | None) -> bool:
+    """Whether this chat is planning: reading freely, changing nothing, and
+    finishing with `plan_submit`. `Chat.agent_mode` holds it for both kinds;
+    a helper's chat reuses the mode name for its reading set and is not this."""
+    if chat is None or getattr(chat, "parent_chat_id", None):
+        return False
+    return getattr(chat, "agent_mode", "") == "plan"
 
 
 def _family_allowed(
@@ -1422,6 +1539,9 @@ def _family_allowed(
         # rather than read here so that the whole gate is answered from the
         # snapshot `resolve_tools` already took.
         return bool(allowed.get("tools.subagent") and subagents)
+    if gate == FAMILY_PLAN:
+        # No permission and no switch of its own: a chat with tools has a plan.
+        return True
     if gate in (
         FAMILY_CUSTOM,
         FAMILY_MCP,
@@ -1643,6 +1763,16 @@ def resolve_tools(
     # helper is a fan-out with no bound anybody set.
     if unattended(chat):
         off = off | {FAMILY_ASK, FAMILY_SUBAGENT}
+    # A helper has one reply and nobody reading it, so a plan would be a plan
+    # for no one; the same line prototypes draw.
+    if getattr(chat, "parent_chat_id", None):
+        off = off | {FAMILY_PLAN}
+
+    # Plan mode: everything that changes the library or runs something is
+    # withheld, not merely discouraged, and `plan_submit` appears -- it is the
+    # approval, and a model that has it in another mode would submit a plan
+    # nobody asked to approve.
+    planning = plan_mode(chat)
 
     # Everything that changes something, withheld. Set by `services/subagent.py`
     # on the chat it creates and by nothing else, so absent means on exactly as
@@ -1686,6 +1816,8 @@ def resolve_tools(
             )
             and gate_of(tool.family) not in off
             and not (writes_off and tool.risk == RISK_WRITE)
+            and not (planning and tool.risk in (RISK_WRITE, RISK_EXECUTE))
+            and (planning or tool.name != "plan_submit")
             and may_write(tool)
             # Nothing to read and nothing to improve. Offering `skill_get` with
             # no skills is what makes a model spend a round looking one up and
@@ -1785,6 +1917,7 @@ GATE_LABELS = {
     "memory": N_("Memory"),
     "skills": N_("Skills"),
     "ask": N_("Asking you questions"),
+    "plan": N_("Keeping a plan"),
     "scratch": N_("Writing in the canvas"),
     "image": N_("Generating images"),
     "report": N_("Filing reports"),
@@ -1893,11 +2026,29 @@ def context_for(
             else DEFAULT_GROUP
         ),
         base_ids=[base.id for base in chat.knowledge_bases] if chat is not None else [],
+        bases=_searchable_bases(db, user, chat, speaker),
         skills_off=scoped_skills_off(chat),
         tools=tools.by_name if tools is not None else None,
         interaction_timeout=float(settings_store.agents(db)["approval_timeout"]),
         unattended=unattended(chat),
     )
+
+
+def _searchable_bases(db: DBSession, user: User | None, chat: Chat | None, speaker) -> list[dict]:
+    """The bases a `knowledge_search` in this chat may name: the attached ones,
+    else every base the owner may see in the answering model's data group."""
+    from lembas.services import data_groups
+
+    if chat is None or user is None:
+        return []
+    group = data_groups.for_speaker(db, user, chat, speaker)
+    attached = [
+        base
+        for base in chat.knowledge_bases
+        if (base.data_group_id or DEFAULT_GROUP) == group
+    ]
+    rows = attached or list(db.scalars(documents_service.visible_bases(db, user, group)))
+    return [{"id": base.id, "name": base.name} for base in rows]
 
 
 def parse_arguments(tool: ToolDef | None, raw: str) -> dict[str, Any]:

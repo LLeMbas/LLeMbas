@@ -1799,7 +1799,6 @@ MESSAGES.update(
         'It will be installed as soon as nothing is running and nobody is active.': 'Nainštaluje sa, len čo nič nebude bežať a nikto nebude aktívny.',
         'Typed in the terminal on the device; this chat shows the same session': 'Napísané v termináli na zariadení; táto konverzácia ukazuje tú istú reláciu',
         'in the terminal': 'v termináli',
-        'Todo': 'Úlohy',
         'Show the whole change': 'Zobraziť celú zmenu',
         'No output.': 'Žiadny výstup.',
         'failed': 'zlyhalo',
@@ -2598,7 +2597,6 @@ MESSAGES.update(
         "A message cannot be empty.": "Správa nemôže byť prázdna.",
         "Wait for the current reply to finish, or stop it.": "Počkajte, kým sa aktuálna odpoveď dopíše, alebo ju zastavte.",
         "There is no plan on that message.": "Pri tejto správe nie je žiadny plán.",
-        "This chat cannot act on anything.": "Táto konverzácia nemôže nič vykonávať.",
         "That message is not waiting to be sent.": "Táto správa nečaká na odoslanie.",
         "That question is no longer waiting for an answer.": "Táto otázka už nečaká na odpoveď.",
         "This chat will not ask about 1 more action. Clear that from the menu beside the composer.": "Táto konverzácia sa už nebude pýtať na 1 ďalšiu akciu. Zrušiť to môžete v ponuke vedľa editora správy.",
@@ -3015,5 +3013,23 @@ MESSAGES.update(
         "This computer (%(host)s)": "Tento počítač (%(host)s)",
         "This computer allows no folders yet. Add one in LLeMbas Desktop, or run <code>%(command)s</code>.": "Tento počítač zatiaľ nepovoľuje žiadny priečinok. Pridajte ho v LLeMbas Desktop alebo spustite <code>%(command)s</code>.",
         "This device allows no folders yet. Add one there in LLeMbas Desktop, or run <code>%(command)s</code> on it.": "Toto zariadenie zatiaľ nepovoľuje žiadny priečinok. Pridajte ho tam v LLeMbas Desktop alebo na ňom spustite <code>%(command)s</code>.",
+    }
+)
+
+# --- 1.3: the plan in every chat, and Plan mode for a chat --------------------
+MESSAGES.update(
+    {
+        "An older override, saved for <code>%(key)s</code> before it became part of this fragment — review it: it is no longer sent.": "Staršia úprava, uložená pre <code>%(key)s</code> skôr, než sa stal súčasťou tohto fragmentu — skontrolujte ju: už sa neodosiela.",
+        "Mode": "Režim",
+        "Answers and acts as usual.": "Odpovedá a koná ako zvyčajne.",
+        "Normal": "Bežný",
+        "Approving ends Plan mode: the model carries the plan out in this reply, keeping it current above the message box.": "Schválením sa končí režim Plan: model plán vykoná v tejto odpovedi a priebežne ho aktualizuje nad poľom pre správu.",
+        "Carry out this plan? The model works through it in order, and the plan stays above the message box while it does.": "Vykonať tento plán? Model ho prejde po poriadku a plán zostane nad poľom pre správu, kým na ňom pracuje.",
+        "Show the whole plan": "Zobraziť celý plán",
+        "This chat has no plan.": "Táto konverzácia nemá žiadny plán.",
+        "Waiting for you to look at the plan…": "Čaká sa, kým sa pozriete na plán…",
+        "Ask it something back": "Opýtať sa niečo späť",
+        "Your question for the model…": "Vaša otázka pre model…",
+        "Keeping a plan": "Vedenie plánu",
     }
 )

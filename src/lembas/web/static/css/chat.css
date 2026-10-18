@@ -2009,10 +2009,10 @@
   right: auto;
 }
 
-/* The agent's todo list above the composer, as the LLeMbas CLI shows it
+/* The plan above the composer, as the LLeMbas CLI shows it
    above its prompt. Compact: it shares the bottom of the window with the
    composer, so at most six one-line items, each cut rather than wrapped. */
-.todo-panel {
+.plan-panel {
   flex: none;
   box-sizing: border-box;
   /* In line with the composer's box below it: its column, inside its gutter. */
@@ -2025,8 +2025,8 @@
   background: var(--surface-raised);
   font-size: var(--text-sm);
 }
-.todo-panel[hidden] { display: none; }
-.todo-panel__head {
+.plan-panel[hidden] { display: none; }
+.plan-panel__head {
   display: flex;
   align-items: baseline;
   gap: var(--sp-2);
@@ -2037,18 +2037,18 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
-.todo-panel__list { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.15rem; }
-.todo-panel__item {
+.plan-panel__list { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.15rem; }
+.plan-panel__item {
   display: grid;
   grid-template-columns: 1.25rem minmax(0, 1fr);
   align-items: baseline;
   color: var(--ink);
 }
-.todo-panel__text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.todo-panel__item.is-in-progress { color: var(--accent); font-weight: 500; }
-.todo-panel__item.is-completed,
-.todo-panel__item.is-cancelled { color: var(--ink-faint); }
-.todo-panel__item.is-completed .todo-panel__text { text-decoration: line-through; }
+.plan-panel__text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-panel__item.is-in-progress { color: var(--accent); font-weight: 500; }
+.plan-panel__item.is-completed,
+.plan-panel__item.is-cancelled { color: var(--ink-faint); }
+.plan-panel__item.is-completed .plan-panel__text { text-decoration: line-through; }
 
 /* --- What the person added while the reply ran ---------------------
    Inside the reply, at the step where the model took it in -- the same place

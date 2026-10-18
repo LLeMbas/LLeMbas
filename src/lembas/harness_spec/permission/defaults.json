@@ -1,5 +1,5 @@
 {
-  "about": "The rules every session starts from, before the user's own. Keys are permission keys (a tool's access), values an action or a map of pattern → action; for a pattern the last matching rule wins, across patterns the strictest.",
+  "about": "The rules every session starts from, before the user's own. Keys are permission keys (a tool's access), values an action or a map of pattern → action; for a pattern the last matching rule wins, across patterns the strictest. Permission keys are tool names, except `plan`, which covers plan_write and plan_update together (the former `todo` key is read as `plan`).",
   "rules": {
     "*": "ask",
     "read": {
@@ -16,7 +16,7 @@
     "task": "allow",
     "tasks": "allow",
     "decisions": "allow",
-    "todo": "allow",
+    "plan": "allow",
     "bash_output": "allow",
     "bash_kill": "allow",
     "web_search": "allow",

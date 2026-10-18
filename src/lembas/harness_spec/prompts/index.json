@@ -1,19 +1,21 @@
 {
-  "about": "Every prompt text of the harness, by path under prompts/. scope: shared — both projects send this text (LLeMbas as the default of the fragments named, which an administrator may still override); cli — LLeMbas CLI's own. `llembas` names the LLeMbas fragment keys (services/prompts.py) the text is, or replaces. A shared text with no fragment named is not yet one of LLeMbas's. HTML comments are provenance and are stripped before sending; {{name}} is a variable. `llembas_text`: whether LLeMbas's default for that fragment is this text word for word (`identical`), or still its own (`differs`, with why) — a shared text that differs is an open item on the Harness-parity page. personality/*.md are the presets both offer: one is appended last, under \"## Personality\".",
+  "about": "Every prompt text of the harness, by path under prompts/. scope: shared — both projects send this text (LLeMbas as the default of the fragments named, which an administrator may still override); cli — LLeMbas CLI's own. `llembas` names the LLeMbas fragment keys (services/prompts.py) the text is, or replaces. A shared text with no fragment named is not yet one of LLeMbas's. HTML comments are provenance and are stripped before sending; {{name}} is a variable. `llembas_text`: whether LLeMbas's default for that fragment is this text word for word (`identical`), or still its own (`differs`, with why) — a shared text that differs is an open item on the Harness-parity page. personality/*.md are the presets both offer: one is appended last, under \"## Personality\". `variables`: what each {{name}} in the text means; each project fills every one before sending, an empty one taking its bullet with it, and none may reach a model unfilled.",
   "prompts": {
     "system/default.md": {
       "scope": "shared",
       "llembas": [
-        "core.engineering",
-        "core.objective",
-        "core.tools_preamble",
-        "core.tool_list",
-        "core.keep_working",
-        "core.commit",
-        "core.untrusted"
+        "core.shared"
       ],
-      "llembas_text": "differs",
-      "why": "LLeMbas's core.* fragments are separate, editable pieces; this is one text"
+      "llembas_text": "identical",
+      "variables": {
+        "intro": "the opening line: what the model is here to help with on this surface (the CLI: software engineering and running the project; LLeMbas: whatever the person is working on)",
+        "surface": "where the output is shown and how it is rendered (a terminal, monospace, GitHub-flavoured markdown; a web page rendering markdown)",
+        "tool_list": "LLeMbas: the exact tools offered on this request, as a sentence; the CLI: empty",
+        "file_tools": "the CLI: the bullet about using read, edit, write, grep and glob rather than shell commands; LLeMbas: empty",
+        "plan_context": "the current plan, rendered with its ids, under a heading, with the sentence to work to it and quote the ids; empty when there is none",
+        "background": "the CLI: the bullet about bash `background: true`, bash_output and bash_kill; LLeMbas: empty",
+        "git": "the CLI: the `# Git` section; LLeMbas: empty"
+      }
     },
     "system/identity.md": {
       "scope": "cli",
@@ -45,27 +47,34 @@
     },
     "modes/manual.md": {
       "scope": "shared",
-      "llembas": [],
-      "llembas_text": "differs",
-      "why": "not adopted yet"
+      "llembas": [
+        "mode.manual"
+      ],
+      "llembas_text": "identical"
     },
     "modes/edit.md": {
       "scope": "shared",
-      "llembas": [],
-      "llembas_text": "differs",
-      "why": "not adopted yet"
+      "llembas": [
+        "mode.edit"
+      ],
+      "llembas_text": "identical"
     },
     "modes/auto.md": {
       "scope": "shared",
-      "llembas": [],
-      "llembas_text": "differs",
-      "why": "not adopted yet"
+      "llembas": [
+        "mode.auto"
+      ],
+      "llembas_text": "identical"
     },
     "modes/plan.md": {
       "scope": "shared",
-      "llembas": [],
-      "llembas_text": "differs",
-      "why": "not adopted yet"
+      "llembas": [
+        "mode.plan"
+      ],
+      "llembas_text": "identical",
+      "variables": {
+        "plan_dir": "the CLI: the project's plans directory; LLeMbas: `the plan` (there is no file)"
+      }
     },
     "modes/unattended.md": {
       "scope": "shared",
@@ -73,7 +82,10 @@
         "core.unattended"
       ],
       "llembas_text": "differs",
-      "why": "the CLI: a headless run with modes; LLeMbas: a scheduled chat with nobody reading"
+      "why": "the CLI: a headless run with modes; LLeMbas: a scheduled chat with nobody reading",
+      "variables": {
+        "refused": "what the mode would have asked about, as a phrase"
+      }
     },
     "blocks/memory.md": {
       "scope": "shared",
@@ -90,7 +102,11 @@
         "context.skills"
       ],
       "llembas_text": "differs",
-      "why": "LLeMbas's skills index differs in shape"
+      "why": "LLeMbas's skills index differs in shape",
+      "variables": {
+        "skills": "the index: one line per skill",
+        "manage": "the line about fixing and saving skills, or empty"
+      }
     },
     "blocks/skills-empty.md": {
       "scope": "cli",
@@ -163,6 +179,27 @@
       "scope": "shared",
       "llembas": [],
       "llembas_text": "identical"
+    },
+    "blocks/prototypes.md": {
+      "scope": "shared",
+      "llembas": [
+        "core.prototypes"
+      ],
+      "llembas_text": "identical",
+      "variables": {
+        "prototype_sources": "whether the page may load anything over https (the instance's network setting), as one sentence",
+        "prototype_surface": "where it is seen on this surface: empty in the web UI, which renders it; in a terminal, that it is saved as a file the person can open, and that the web UI renders it"
+      }
+    },
+    "blocks/library.md": {
+      "scope": "shared",
+      "llembas": [
+        "core.library"
+      ],
+      "llembas_text": "identical",
+      "variables": {
+        "knowledge_scope": "the sentence naming the knowledge bases this conversation is limited to (\"Knowledge searches here cover only: …. Finding nothing there means nothing is there, not that the library is empty.\"), or empty"
+      }
     }
   }
 }

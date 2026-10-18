@@ -15,6 +15,8 @@ is read, and so does this now:
 - **search** -- the pattern and how many hits; the hits behind the click.
 - **web** -- the query or the address; the results behind the click.
 - **task** -- the job handed to a helper, and what it came back with.
+- **plan** (the spec's word) -- not drawn at all: the plan card above the
+  composer refreshes instead, so it is `hidden` here.
 - anything else -- the generic block it always was.
 
 The kind comes from the harness spec where the tool is in it (`block` in
@@ -76,6 +78,8 @@ def _spec_kinds() -> dict[str, str]:
                 continue
             data = json.loads(entry.read_text(encoding="utf-8"))
             block = data.get("block")
+            if block == "plan":
+                block = HIDDEN
             if block not in KINDS:
                 continue
             kinds[str(data.get("name") or entry.name[:-5])] = block

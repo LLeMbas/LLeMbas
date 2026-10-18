@@ -53,6 +53,9 @@ OLD_COLUMNS = (
     # listed because a column absent from here is one the migration tests do not
     # exercise at all.
     ("messages", "connection_id"),
+    # The plan on the chat (1.3.0). Nullable JSON: an older row reads NULL and
+    # `Chat.plan` falls back to the todo list or the message snapshot it had.
+    ("chats", "plan_json"),
 )
 
 

@@ -829,7 +829,6 @@ MESSAGES: dict[str, str] = {
     "the device": "das Gerät",
     "Carried on after the instance restarted": "Nach dem Neustart der Instanz fortgesetzt",
     "These are no longer sent to the model; a summary of them goes instead. They are kept here so nothing is lost.": "Diese werden nicht mehr an das Modell gesendet; stattdessen geht eine Zusammenfassung von ihnen. Sie bleiben hier, damit nichts verloren geht.",
-    "Todo": "Aufgaben",
     "No output.": "Keine Ausgabe.",
     "Nothing was found.": "Nichts gefunden.",
     "Show the whole change": "Die ganze Änderung anzeigen",
@@ -1758,7 +1757,6 @@ MESSAGES.update(
         "A message cannot be empty.": "Eine Nachricht darf nicht leer sein.",
         "Wait for the current reply to finish, or stop it.": "Warten Sie, bis die aktuelle Antwort fertig ist, oder halten Sie sie an.",
         "There is no plan on that message.": "Zu dieser Nachricht gibt es keinen Plan.",
-        "This chat cannot act on anything.": "Dieser Chat kann nichts ausführen.",
         "That message is not waiting to be sent.": "Diese Nachricht wartet nicht darauf, gesendet zu werden.",
         "That question is no longer waiting for an answer.": "Diese Frage wartet nicht mehr auf eine Antwort.",
         "This chat will not ask about 1 more action. Clear that from the menu beside the composer.": "Dieser Chat fragt bei 1 weiteren Aktion nicht mehr nach. Das lässt sich im Menü neben dem Eingabefeld zurücknehmen.",
@@ -2259,5 +2257,23 @@ MESSAGES.update(
         "This computer (%(host)s)": "Dieser Computer (%(host)s)",
         "This computer allows no folders yet. Add one in LLeMbas Desktop, or run <code>%(command)s</code>.": "Dieser Computer gibt noch keinen Ordner frei. Fügen Sie einen in LLeMbas Desktop hinzu oder führen Sie <code>%(command)s</code> aus.",
         "This device allows no folders yet. Add one there in LLeMbas Desktop, or run <code>%(command)s</code> on it.": "Dieses Gerät gibt noch keinen Ordner frei. Fügen Sie dort einen in LLeMbas Desktop hinzu oder führen Sie dort <code>%(command)s</code> aus.",
+    }
+)
+
+# --- 1.3: the plan in every chat, and Plan mode for a chat --------------------
+MESSAGES.update(
+    {
+        "An older override, saved for <code>%(key)s</code> before it became part of this fragment — review it: it is no longer sent.": "Eine ältere Anpassung, gespeichert für <code>%(key)s</code>, bevor es Teil dieses Fragments wurde — prüfen Sie sie: sie wird nicht mehr gesendet.",
+        "Mode": "Modus",
+        "Answers and acts as usual.": "Antwortet und handelt wie gewohnt.",
+        "Normal": "Normal",
+        "Approving ends Plan mode: the model carries the plan out in this reply, keeping it current above the message box.": "Mit der Freigabe endet der Plan-Modus: Das Modell führt den Plan in dieser Antwort aus und hält ihn über dem Eingabefeld aktuell.",
+        "Carry out this plan? The model works through it in order, and the plan stays above the message box while it does.": "Diesen Plan ausführen? Das Modell arbeitet ihn der Reihe nach ab, und der Plan bleibt dabei über dem Eingabefeld stehen.",
+        "Show the whole plan": "Den ganzen Plan anzeigen",
+        "This chat has no plan.": "Dieser Chat hat keinen Plan.",
+        "Waiting for you to look at the plan…": "Wartet darauf, dass Sie sich den Plan ansehen…",
+        "Ask it something back": "Etwas zurückfragen",
+        "Your question for the model…": "Ihre Frage an das Modell…",
+        "Keeping a plan": "Einen Plan führen",
     }
 )

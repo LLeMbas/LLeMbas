@@ -117,6 +117,17 @@ def title_for(code: str, given: str = "") -> str:
     return title[:MAX_TITLE]
 
 
+def info(info_string: str, code: str) -> dict[str, str] | None:
+    """A fence's info string and body read as a prototype: `{kind, title}`, or
+    None for the code block it is. `parse_info` and `title_for` together, in
+    the shape `harness_spec/conformance/prototype.json` pins."""
+    parsed = parse_info(info_string)
+    if parsed is None:
+        return None
+    kind, given = parsed
+    return {"kind": kind, "title": title_for(code, given)}
+
+
 def find(text: str, wanted: str) -> Prototype | None:
     """The block in `text` whose digest is `wanted`, if there is one.
 

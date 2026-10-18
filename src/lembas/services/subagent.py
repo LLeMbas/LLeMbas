@@ -71,7 +71,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
-from lembas.db.models import KIND_AGENT, KIND_CHAT, Chat, User
+from lembas.db.models import KIND_CHAT, Chat, User
 from lembas.db.session import session_scope
 from lembas.security import permissions
 from lembas.services import data_groups, settings_store
@@ -138,11 +138,6 @@ SAFE_COMMANDS: tuple[str, ...] = (
 MODE_READING = agent_policy.MODE_PLAN
 MODE_WRITING = agent_policy.MODE_EDIT
 
-# The parent modes from which a *writing* helper may be asked for. In Manual and
-# Plan the reader is stopped before anything is written, and a helper that wrote
-# on the model's own authority would be that rule going through a side door.
-WRITING_ALLOWED_FROM = (agent_policy.MODE_EDIT, agent_policy.MODE_AUTO)
-
 # Helpers running right now, across the instance, by child chat id. In-process
 # and cleared by a restart, which is correct: a restart abandons replies in
 # flight, so there is nothing for a durable count to describe.
@@ -187,14 +182,17 @@ def _create_child(
     *,
     title: str,
     write: bool,
+    model=None,
 ) -> Chat:
     """The hidden chat one helper runs in.
 
     A helper inherits the parent's model, connection and reasoning effort, and
-    nothing else -- always the parent's model. The effort has to be **seeded onto the row**
-    rather than left to be inherited at request time: `chat_service.resolved_effort`
-    reads the chat's own `params_json` and deliberately consults no fallback, so
-    a helper of a high-effort reply would otherwise quietly run at none.
+    nothing else -- the parent's model unless `task` named another the reader
+    may use (`model`, a `Model` row in the parent's data group). The effort has
+    to be **seeded onto the row** rather than left to be inherited at request
+    time: `chat_service.resolved_effort` reads the chat's own `params_json` and
+    deliberately consults no fallback, so a helper of a high-effort reply would
+    otherwise quietly run at none.
     """
     from lembas.services import chat as chat_service
 
@@ -202,8 +200,8 @@ def _create_child(
         user_id=parent.user_id,
         kind=KIND_CHAT,
         title=title[:200] or "Helper",
-        model_id=parent.model_id,
-        connection_id=parent.connection_id,
+        model_id=model.model_id if model is not None else parent.model_id,
+        connection_id=model.connection_id if model is not None else parent.connection_id,
         data_group_id=data_groups.for_chat(db, parent),
         # Never in a listing, and swept a day later even if it is kept.
         temporary=True,
@@ -364,8 +362,31 @@ def _outcome(text: str, event: dict[str, Any]) -> ToolOutcome:
 def _error(message: str, *, task: str = "") -> ToolOutcome:
     return _outcome(
         message,
-        {"name": "subagent_run", "status": "error", "query": task[:120], "error": message},
+        {"name": "task", "status": "error", "query": task[:120], "error": message},
     )
+
+
+def _pick_model(db, owner: User, parent: Chat, wanted: str):
+    """The model a `task` names, among those this person may use in the
+    parent's data group: `connection/model`, or the model id alone when that
+    is unambiguous, or the label the pickers show. None when there is no such
+    model."""
+    from lembas.services import chat as chat_service
+
+    candidates = chat_service.available_models(db, owner, data_groups.for_chat(db, parent))
+    connection, _, model_id = wanted.rpartition("/")
+    matches = [
+        m
+        for m in candidates
+        if m.model_id == (model_id if connection else wanted)
+        and (
+            not connection
+            or (m.connection is not None and m.connection.name.casefold() == connection.casefold())
+        )
+    ]
+    if len(matches) != 1:
+        matches = [m for m in candidates if m.label == wanted]
+    return matches[0] if len(matches) == 1 else None
 
 
 def _budget(generation, values: dict[str, Any]) -> str:
@@ -401,17 +422,33 @@ def _budget(generation, values: dict[str, Any]) -> str:
 
 
 async def _run_subagent(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
+    """`task`, the spec's name: `prompt` is the whole job, `description` what the
+    reader sees. `subagent_run` arrives here too, converted by
+    `tools.resolve_alias`, and may still carry `write` -- the one thing the
+    spec's schema has no word for. `agent` and `worktree` are the CLI's:
+    accepted and ignored, with a note in the result so the model is not left
+    believing it got either."""
     from lembas.services import generation as generation_service
+    from lembas.services import tools as tools_service
     from lembas.services import wake as wake_service
 
-    task = str(args.get("task") or "").strip()
-    title = str(args.get("title") or "").strip() or task[:60]
+    task = str(args.get("prompt") or args.get("task") or "").strip()
+    title = str(args.get("description") or args.get("title") or "").strip() or task[:60]
     briefing = str(args.get("context") or "")
     want_write = bool(args.get("write"))
+    wanted_model = str(args.get("model") or "").strip()
+    ignored = []
+    if str(args.get("agent") or "").strip() not in ("", "general", "explore"):
+        ignored.append(
+            f"there is no subagent called {str(args.get('agent')).strip()!r} here, so the "
+            "general helper did it"
+        )
+    if args.get("worktree"):
+        ignored.append("a helper here works in no checkout, so worktree was ignored")
 
     if not task:
         return _error(
-            "A helper needs a task: what to find out or do, written out in full. "
+            "A helper needs a prompt: what to find out or do, written out in full. "
             "It starts with none of this conversation, so say everything it needs."
         )
 
@@ -444,19 +481,30 @@ async def _run_subagent(context: ToolContext, args: dict[str, Any]) -> ToolOutco
                 "reader to keep the chat first.",
                 task=task,
             )
-        if write and parent.kind == KIND_AGENT and parent.agent_mode not in WRITING_ALLOWED_FROM:
+        # A chat planning may not change anything, and a helper is not a way
+        # round that either.
+        if write and tools_service.plan_mode(parent):
             return _error(
-                "This chat is in "
-                f"{agent_policy.MODE_LABELS.get(parent.agent_mode, parent.agent_mode)} mode, "
-                "where you are stopped before anything is written — so a helper "
-                "cannot write either, since nobody can be stopped to ask. Send a "
-                "reading helper and make the changes yourself, or ask the reader "
-                "to switch mode.",
+                "This chat is in Plan mode, where nothing is changed — so a helper "
+                "cannot write either. Send a reading helper, and make the changes "
+                "once the plan is approved.",
                 task=task,
             )
         owner = db.get(User, parent.user_id)
         if owner is None:  # pragma: no cover - a chat outliving its owner
             return _error("That account no longer exists.", task=task)
+
+        # Another model the reader may use, named as the spec says
+        # (`connection/model`, or the model id alone); else the parent's own.
+        model_override = None
+        if wanted_model:
+            model_override = _pick_model(db, owner, parent, wanted_model)
+            if model_override is None:
+                return _error(
+                    f"There is no model called {wanted_model!r} that this chat may use. "
+                    "Leave `model` out to run the helper on this chat's own model.",
+                    task=task,
+                )
 
         # On the parent's own model, unless that serves one request at a time:
         # the helper would take its only slot and push this conversation's
@@ -480,7 +528,7 @@ async def _run_subagent(context: ToolContext, args: dict[str, Any]) -> ToolOutco
         if refusal:
             return _error(refusal, task=task)
 
-        child = _create_child(db, parent, title=title, write=write)
+        child = _create_child(db, parent, title=title, write=write, model=model_override)
         child_id = child.id
 
     _LIVE.add(child_id)
@@ -514,12 +562,14 @@ async def _run_subagent(context: ToolContext, args: dict[str, Any]) -> ToolOutco
     # it; the answer goes to the model. Putting the tool list in front of the
     # model as well would be spending its window on our own bookkeeping.
     note = "" if finished else "\n\n(It ran out of time; this is as far as it got.)"
+    if ignored:
+        note += "\n\n(Note: " + "; ".join(ignored) + ".)"
     return _outcome(
         f"The helper answered:\n\n{answer}{note}\n\n"
         "This is another model's work, not yours and not the reader's. Check it "
         "against what you know before relying on it, and say what came from it.",
         {
-            "name": "subagent_run",
+            "name": "task",
             "status": "ok" if finished else "error" if not answer else "ok",
             "query": title,
             "detail": (
@@ -547,33 +597,24 @@ def capacity_refusal(db, chat: Chat) -> str:
 
 
 def tool_defs() -> list[ToolDef]:
-    """The one tool, built here so `services/tools.py` need not know the wording.
-    A helper runs on the same model as the reply that sends it."""
-    from lembas.services.tools import FAMILY_SUBAGENT, RISK_READ, ToolDef
+    """The one tool, `task`, as the harness spec defines it: description and
+    parameters are the spec's, `{{agents}}` filled with this instance's one
+    kind of helper. `subagent_run`, the name it had, still runs through
+    `tools.resolve_alias`."""
+    from lembas.services.tools import (
+        FAMILY_SUBAGENT,
+        RISK_READ,
+        ToolDef,
+        spec_description,
+        spec_parameters,
+    )
 
-    properties = _subagent_properties()
     return [
         ToolDef(
-            name="subagent_run",
+            name="task",
             family=FAMILY_SUBAGENT,
-            description=(
-                "Hand one self-contained piece of work to a helper — a second "
-                "model that works on its own and gives you its answer. Use it "
-                "to cover several independent areas at once: call it several "
-                "times in one turn and each runs in parallel. It gets a "
-                "narrower set of tools than you: it reads, it cannot ask you or "
-                "the reader anything, it cannot delegate further, it changes "
-                "nothing unless you set write. It starts knowing nothing "
-                "about this conversation, so the task must say everything it "
-                "needs. Do not use it for something you could do in one call "
-                "yourself, or for anything needing a decision only the reader "
-                "can make."
-            ),
-            parameters={
-                "type": "object",
-                "properties": properties,
-                "required": ["task"],
-            },
+            description=spec_description("task"),
+            parameters=spec_parameters("task"),
             run=_run_subagent,
             # It reads, from the parent's side: what it changes, it changes
             # through tools that carry their own risk class inside the helper's
@@ -590,46 +631,8 @@ __all__ = [
     "MODE_READING",
     "MODE_WRITING",
     "SAFE_COMMANDS",
-    "WRITING_ALLOWED_FROM",
     "capacity_refusal",
     "clear",
     "live_count",
     "tool_defs",
 ]
-
-
-def _subagent_properties() -> dict[str, Any]:
-    """The arguments `subagent_run` takes."""
-    return {
-        "task": {
-            "type": "string",
-            "description": (
-                "What the helper is to do, written out in full and as "
-                "an instruction. Say what a good answer contains and "
-                "how long it should be. It is read on its own, with "
-                "none of this conversation around it."
-            ),
-        },
-        "title": {
-            "type": "string",
-            "description": "A few words naming this piece of work.",
-        },
-        "context": {
-            "type": "string",
-            "description": (
-                "Facts the helper needs that it cannot look up — what "
-                "the reader asked for, decisions already made, names "
-                "and paths. Not a summary of the conversation."
-            ),
-        },
-        "write": {
-            "type": "boolean",
-            "description": (
-                "True if the helper must change something: write a "
-                "file, keep a note, file a report. Leave it out for "
-                "anything that only reads, which is nearly always. A "
-                "writing helper is refused where you would have been "
-                "stopped for approval yourself."
-            ),
-        },
-    }

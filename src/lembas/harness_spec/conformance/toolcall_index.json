@@ -1,0 +1,10 @@
+{
+  "about": "Streamed tool-call fragments reassembled into calls (quirks.json tool-call-without-index). Each delta may carry `index`, `id`, `name` and an `arguments` fragment; a delta without an index continues the last call started, and the first delta of a stream without one starts call 0. Arguments are concatenated as text, not parsed. LLeMbas: services/llm/openai_client.py; CLI: provider/openai-chat.ts ToolCallAccumulator.",
+  "cases": [
+    { "deltas": [{ "index": 0, "id": "a", "name": "read", "arguments": "{\"pa" }, { "index": 0, "arguments": "th\":\"x\"}" }], "expect": [{ "id": "a", "name": "read", "arguments": "{\"path\":\"x\"}" }] },
+    { "deltas": [{ "id": "a", "name": "read", "arguments": "{\"pa" }, { "arguments": "th\":\"x\"}" }], "expect": [{ "id": "a", "name": "read", "arguments": "{\"path\":\"x\"}" }] },
+    { "deltas": [{ "index": 0, "id": "a", "name": "read", "arguments": "{}" }, { "index": 1, "id": "b", "name": "grep", "arguments": "{\"q\":" }, { "arguments": "\"x\"}" }], "expect": [{ "id": "a", "name": "read", "arguments": "{}" }, { "id": "b", "name": "grep", "arguments": "{\"q\":\"x\"}" }] },
+    { "deltas": [{ "index": 1, "id": "b", "name": "grep", "arguments": "{}" }, { "index": 0, "id": "a", "name": "read", "arguments": "{}" }], "expect": [{ "id": "a", "name": "read", "arguments": "{}" }, { "id": "b", "name": "grep", "arguments": "{}" }] },
+    { "deltas": [{ "index": 0, "id": "a", "name": "read" }, { "index": 0, "name": "" }, { "index": 0, "arguments": "" }], "expect": [{ "id": "a", "name": "read", "arguments": "" }] }
+  ]
+}

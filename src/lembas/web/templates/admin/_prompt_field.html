@@ -20,6 +20,16 @@
 
   {% if fragment.hint %}<p class="card__lede">{{ fragment.hint }}</p>{% endif %}
 
+  {% for old_key, old_text in (older | default({})).get(fragment.key, []) %}
+  {# An override saved for a fragment this one replaced. It is sent nowhere
+     now; it is shown so the wording can be carried into the box above or
+     let go, rather than vanishing. #}
+  <div class="alert alert--warning">
+    <span>{{ tm("An older override, saved for <code>%(key)s</code> before it became part of this fragment — review it: it is no longer sent.", key=old_key) }}
+    <pre>{{ old_text }}</pre></span>
+  </div>
+  {% endfor %}
+
   <div class="field">
     <label class="field__label visually-hidden" for="{{ field_id }}-text">
       {{ fragment.label }}

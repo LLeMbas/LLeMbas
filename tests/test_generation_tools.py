@@ -226,9 +226,9 @@ async def test_no_ceiling_by_default(db, user_id):
 
 
 async def test_without_a_ceiling_the_model_is_told_to_keep_working(db, user_id):
-    """Exactly one of the two fragments ever appears. With no budget the model
-    must not be left with nothing said about when to stop -- and must certainly
-    not be told it has a budget of two hundred, which it would ration."""
+    """With no budget the model must not be left with nothing said about when
+    to stop -- and must certainly not be told it has a budget of two hundred,
+    which it would ration. The line is the shared system text's."""
     from lembas.db.models import User
     from lembas.services import harness
     from lembas.services import tools as tools_service
@@ -240,7 +240,6 @@ async def test_without_a_ceiling_the_model_is_told_to_keep_working(db, user_id):
 
     values = harness.context_variables(db, user, offered, chat)
     assert values["round_budget"] == ""
-    assert values["unbounded"] == "yes"
 
     text = harness.compose(db, user, offered, chat)
     assert "Keep working until the task is actually done" in text
@@ -260,11 +259,9 @@ async def test_with_a_ceiling_the_model_is_told_the_budget(db, user_id):
 
     values = harness.context_variables(db, user, offered, chat)
     assert values["round_budget"] == "3"
-    assert values["unbounded"] == ""
 
     text = harness.compose(db, user, offered, chat)
     assert "at most 3 rounds" in text
-    assert "Keep working until the task is actually done" not in text
 
 
 async def test_a_prompt_queued_during_a_one_round_reply_waits_for_its_own(

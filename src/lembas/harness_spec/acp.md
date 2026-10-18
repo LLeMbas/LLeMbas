@@ -51,6 +51,11 @@ change to the protocol is a change here first, then in both projects.
 | `model` | the `model` event; `_meta.lembas.connection` in `initialize` |
 | `turns` | `_meta.lembas.turnId` on `session/prompt`, deduplicated; `turnId` on `prompt`/`task` events; turn fields in `status` |
 | `shell` | `shell` and `integration` in `_lembas/terminal/open`'s answer (listed only with `terminal`) |
+| `context` | `system_prompt` and `personalization` in `session/new` and `session/prompt` `_meta.lembas` are read |
+| `library` | `library` in `session/new` and `session/prompt` `_meta.lembas` is read; `_meta.lembas.scope` sent on the instance library's `tools/call` |
+| `prototypes` | `prototypes` in `session/new` and `session/prompt` `_meta.lembas` is read |
+| `plan_state` | the structured plan: `_meta.lembas.plan` on the `plan` session update and on `_lembas/plan`; `plan` in `_lembas/session/status` |
+| `rewind` | `_lembas/session/rewind` |
 
 ## Standard ACP, as used here
 
@@ -69,10 +74,10 @@ Result:
     "mcpCapabilities": { "http": false, "sse": false }
   },
   "authMethods": [],
-  "agentInfo": { "name": "LLeMbas CLI", "version": "1.0.0" },
+  "agentInfo": { "name": "LLeMbas CLI", "version": "1.3.0" },
   "_meta": { "lembas": {
     "protocol": 2,
-    "harness_spec": "1.0.0",
+    "harness_spec": "1.1.0",
     "limits": { "roots": ["~/work"], "max_mode": "edit" },
     "connection": "example",
     "capabilities": ["directories", "configure", "…"]
@@ -100,7 +105,7 @@ id before its first `/`; an id with a `/` from any other instance is just an id 
 
 ### `session/new` — client → agent
 
-Params: `{ cwd: <absolute>, mcpServers?: [], _meta?: { mode?, lembas_model?, model?, effort? } }`.
+Params: `{ cwd: <absolute>, mcpServers?: [], _meta?: { mode?, lembas_model?, model?, effort?, lembas?: Context } }`.
 `cwd` must be a directory inside `remote.roots`, in a trusted project when `remote.require_trust`
 (the default) — otherwise `-32602` with the reason. `mode` is lowered to `remote.max_mode`.
 `lembas_model` is the instance's name of a model (it becomes `<connection>/<name>` here); `model`
@@ -111,9 +116,20 @@ The id is the device's store id and lasts: a session the client names later that
 is opened from the store under the same rules (capability `sessions`). With capability `commands`,
 an `available_commands_update` follows the answer.
 
+**`_meta.lembas` — what only the client knows** (`Context`, read on `session/new` and again on every
+`session/prompt`, the newer replacing the older; the device composes its own prompt from the spec's
+texts, as for its own sessions, and these are the pieces the instance holds):
+
+| Field | Capability | What |
+|---|---|---|
+| `system_prompt: string` | `context` | the chat's effective authored prompt (chat over folder over model over instance), appended after the shared text as `## Instructions from <instance>`; empty: none |
+| `personalization: { personality, personality_custom, instructions } \| null` | `context` | the account's, as `/v1/me/personalization` gives them, used in place of the device's own for this session; `null`: the device's own |
+| `library: { bases: [{ id, name }] }` | `library` | the knowledge bases this chat may search, named to the model (`blocks/library.md`'s `{{knowledge_scope}}`) and sent back as the scope on every library call (below); an empty list: the account's whole library, as before |
+| `prototypes: { offered: boolean, sources: string }` | `prototypes` | whether the model may write a prototype (`blocks/prototypes.md`), and the sentence saying what a page may load (a device offering them on its own, with no instance, sends nothing and the bullet drops) |
+
 ### `session/prompt` — client → agent
 
-Params: `{ sessionId, prompt: ContentBlock[], _meta?: { lembas?: { turnId?: string } } }`.
+Params: `{ sessionId, prompt: ContentBlock[], _meta?: { lembas?: { turnId?: string, ...Context } } }`.
 
 Blocks (capability `attachments` for the last two kinds):
 
@@ -181,7 +197,7 @@ Params: `{ sessionId }`. Stops the running turn.
 ### `session/update` — agent → client (notification)
 
 `{ sessionId, update }` with `sessionUpdate` one of `agent_message_chunk`, `agent_thought_chunk`,
-`tool_call`, `tool_call_update`, `plan` (the todo list), `current_mode_update`, and
+`tool_call`, `tool_call_update`, `plan` (below), `current_mode_update`, and
 `available_commands_update` (capability `commands`):
 
 ```json
@@ -194,7 +210,15 @@ Sent after `session/new`, after a session is opened from the store or taken over
 when a terminal's session is shared, and after a turn whenever the set changed (a skill made, a
 command file written). `kind`: `builtin`, `custom` (`.agent/commands`, `~/.config/lembas/commands`)
 or `skill`. The set is the shared one only: the built-ins `compact`, `plan`, `undo`, `review`,
-`changelog`, `init`, `continue`, then custom commands, then skills. Commands that need the TUI's
+`changelog`, `init`, `continue`, then custom commands, then skills.
+
+`plan` (capability `plan_state`): the session's plan, as `plan_write` and `plan_update` keep it —
+`{ sessionUpdate: "plan", entries: [{ content, priority: "medium", status }], _meta: { lembas: { plan: Plan } } }`.
+`entries` is ACP's flat list for an editor (every task, `status` one of `pending`, `in_progress`,
+`completed` — a dropped task is `completed` there, ACP having no word for it); `_meta.lembas.plan` is the structure (`conformance/plan.json`: `version`, `title`,
+`summary`, `findings`, `objectives`, `phases` with their `tasks`, `steps`), which the web UI draws as
+the plan card. Sent after every change, after `session/new` and after a session is opened from the
+store when it has a plan, and with `plan: null` when the plan is cleared. Commands that need the TUI's
 own screens (sessions, settings, theme, login, quit, …) are never listed; a custom command or skill
 named like any TUI command is not a command (the built-in wins in the TUI).
 
@@ -233,7 +257,7 @@ client hears the new limits.
 `{ sessionId, event }`: every engine event of the session, to a client that said `_meta.lembas`.
 `event.type` is one of `session`, `prompt`, `step`, `title`, `text`, `reasoning`,
 `tool_call_delta`, `progress`, `tool_start`, `tool_end`, `tool_denied`, `usage`, `inbox`,
-`steered`, `task`, `notice`, `retract`, `todos`, `compacted`, `sub_tool`, `mode`, `model`, `flash`,
+`steered`, `task`, `notice`, `retract`, `plan`, `compacted`, `sub_tool`, `mode`, `model`, `flash`,
 `setting`, `error`, `done` (`src/bus/index.ts`). Those this protocol relies on:
 
 | Event | Fields |
@@ -243,6 +267,7 @@ client hears the new limits.
 | `steered` | `texts`, `ids?` — the `_lembas/steer` message ids taken in at this step |
 | `mode` | `mode` |
 | `model` | `ref` (the device's ref, above), `effort` (a level or `"off"`), `connection` (the device connection it is spoken to through) and **`instance: boolean`** — true exactly when that connection is the login of **this link's** instance, i.e. the model is one the instance serves (its served id is `ref`, or `ref` less a leading `<connection>/`). Whenever either changes, for any reason: `/model`, `/effort`, the settings tool, a fallback, `_lembas/configure` |
+| `plan` | `plan` — the structure, or `null` when cleared (what the `plan` session update carries) |
 | `compacted` | `summary` |
 | `title` | `id`, `title` |
 
@@ -273,8 +298,9 @@ with the message in the store; `attachments`, and the text without them) or `{ r
 ### `_lembas/session/status` — client → agent → result
 
 Params `{ sessionId }`. Result
-`{ sessionId, exists, held: "here" | "terminal" | "none", busy, title, turnId?, queued: string[], lastTurnId? }`
-— the turn fields with capability `turns`: the turn running now, the ones waiting, the last
+`{ sessionId, exists, held: "here" | "terminal" | "none", busy, title, turnId?, queued: string[], lastTurnId?, plan? }`
+— `plan` the session's plan or `null` (capability `plan_state`), so a client reattaching draws it
+without waiting for the next change; the turn fields with capability `turns`: the turn running now, the ones waiting, the last
 one finished (for a session not open, `held: "none"`, the last one it finished before). **Reattaching** after a restart or a dropped link, for an incomplete row with turn T:
 T running → follow it; T queued → wait, and follow it when it starts; T done → import it from
 `history`; T unknown → send the prompt again (safe: the device deduplicates).
@@ -296,6 +322,16 @@ The client keeps a delete it could not deliver — the device was not linked, di
 refused — and sends it again when the device next links, until it is answered (LLeMbas keeps it in its
 database and gives up after five refusals). A delete is idempotent, so sending it twice
 is safe. A session pending deletion is not made into a chat again by an `announce`.
+
+### `_lembas/session/rewind` — client → agent → result (capability `rewind`)
+
+Params `{ sessionId, turnId }`: the client is editing or regenerating from the turn `turnId` (a
+client's turn id; `-32602` for one the session does not have, or while the session works). The
+device marks that turn's messages and every later one as reverted — they leave the conversation the
+model sees and the history, as `/undo` does; a turn already folded into a compaction summary stays
+in that summary — and answers `{ reverted: <turns> }`. **Files are not
+touched**: what the turns changed on disk stays, and the client says so beside the control. The
+client then sends the new prompt as a new turn.
 
 ### `_lembas/session/compact` — client → agent → result
 
@@ -359,8 +395,9 @@ Anything else reads as dismissed.
 
 ### `_lembas/plan` — agent → client → result (capability `plan`)
 
-`plan_submit`, likewise. Params `{ sessionId, toolCallId, path, text, _meta: { lembas: { patient? } } }`
-— `path` as the model sees it (relative to the project), `text` the plan's markdown. Result
+`plan_submit`, likewise. Params `{ sessionId, toolCallId, path, text, plan?, _meta: { lembas: { patient? } } }`
+— `path` the plan file written for the record (relative to the project), `text` the plan rendered as
+markdown, `plan` the structure (capability `plan_state`; a client without it draws `text`). Result
 `{ outcome: "approve", mode: "edit" | "manual" }` (the session continues in that mode, lowered to
 `remote.max_mode`; where even `manual` is beyond it, nothing is decided),
 `{ outcome: "revise", feedback }`, or `{ outcome: "dismissed" }`.
@@ -468,6 +505,11 @@ Besides `/v1/models`, the chat completions, `/api/v1/instance` and `/mcp`:
   keys apply.
 - **The library**: logged in to one instance whose token has the `library` scope, a config that sets
   no `library:` uses the account's (`lembas`); `library: local` written stays local.
+  **Scope** (capability `library`): on a `tools/call` to `/mcp` made for a session the client opened,
+  the device sends `params._meta.lembas.scope: <sessionId>`. The instance then answers within that
+  chat's scope — its knowledge bases (`conformance/library_scope.json` for how `base` is read
+  against them) and its data group — and refuses (`-32602`) a session id that is not one of this
+  device's. Without `scope`, the account's default data group, as before.
 
 ## Notes
 

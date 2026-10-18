@@ -697,11 +697,13 @@ def test_the_card_renders_every_question_with_its_own_fields():
     # while two other questions are still blank.
     assert 'name="choice.q0" value="SQLite"' in html
     assert 'name="text.q0"' in html and 'name="text.q1"' in html
-    # Every question gets "Something else" and the box behind it, including one
-    # the model gave no options for -- that row is added here, never by the
-    # model, which is why the tool tells it not to write an "other" of its own.
-    assert html.count(f'value="{interaction.OTHER}"') == 2
+    # Every question gets "Something else" and the box behind it, and a row to
+    # ask something back, including one the model gave no options for -- those
+    # rows are added here, never by the model, which is why the tool tells it
+    # not to write an "other" of its own.
+    assert html.count(f'value="{interaction.OTHER}"') == 4
     assert html.count("Something else") == 2
+    assert html.count('name="ask.q0"') == 1 and html.count('name="ask.q1"') == 1
     assert html.count("Send answers") == 1, "one submit for the whole card"
 
 
@@ -722,9 +724,9 @@ def test_options_are_radios_when_exclusive_and_checkboxes_when_not():
 
     assert 'type="radio"' in one and 'type="checkbox"' not in one
     assert 'type="checkbox"' in many and 'type="radio"' not in many
-    # Including the "Something else" row, which has to match the rest or the
-    # card offers a set and then refuses to take one.
-    assert one.count('type="radio"') == many.count('type="checkbox"') == 3
+    # Including the "Something else" and "ask back" rows, which have to match
+    # the rest or the card offers a set and then refuses to take one.
+    assert one.count('type="radio"') == many.count('type="checkbox"') == 4
 
 
 def test_an_option_can_carry_a_line_explaining_it():

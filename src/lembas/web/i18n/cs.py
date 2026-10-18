@@ -829,7 +829,6 @@ MESSAGES: dict[str, str] = {
     "the device": "zařízení",
     "Carried on after the instance restarted": "Pokračováno po restartu instance",
     "These are no longer sent to the model; a summary of them goes instead. They are kept here so nothing is lost.": "Tyto se už modelu neposílají, místo nich jde jejich shrnutí. Zůstávají tady, aby se nic neztratilo.",
-    "Todo": "Úkoly",
     "No output.": "Žádný výstup.",
     "Nothing was found.": "Nic se nenašlo.",
     "Show the whole change": "Zobrazit celou změnu",
@@ -1758,7 +1757,6 @@ MESSAGES.update(
         "A message cannot be empty.": "Zpráva nemůže být prázdná.",
         "Wait for the current reply to finish, or stop it.": "Počkejte, až se aktuální odpověď dopíše, nebo ji zastavte.",
         "There is no plan on that message.": "U této zprávy není žádný plán.",
-        "This chat cannot act on anything.": "Tato konverzace nemůže nic provádět.",
         "That message is not waiting to be sent.": "Tato zpráva nečeká na odeslání.",
         "That question is no longer waiting for an answer.": "Tato otázka už nečeká na odpověď.",
         "This chat will not ask about 1 more action. Clear that from the menu beside the composer.": "Tato konverzace se už nebude ptát na 1 další akci. Zrušit to můžete v nabídce vedle pole zprávy.",
@@ -2259,5 +2257,23 @@ MESSAGES.update(
         "This computer (%(host)s)": "Tento počítač (%(host)s)",
         "This computer allows no folders yet. Add one in LLeMbas Desktop, or run <code>%(command)s</code>.": "Tento počítač zatím nepovoluje žádnou složku. Přidejte ji v LLeMbas Desktop, nebo spusťte <code>%(command)s</code>.",
         "This device allows no folders yet. Add one there in LLeMbas Desktop, or run <code>%(command)s</code> on it.": "Toto zařízení zatím nepovoluje žádnou složku. Přidejte ji tam v LLeMbas Desktop, nebo na něm spusťte <code>%(command)s</code>.",
+    }
+)
+
+# --- 1.3: the plan in every chat, and Plan mode for a chat --------------------
+MESSAGES.update(
+    {
+        "An older override, saved for <code>%(key)s</code> before it became part of this fragment — review it: it is no longer sent.": "Starší úprava, uložená pro <code>%(key)s</code> dřív, než se stal součástí tohoto fragmentu — zkontrolujte ji: už se neodesílá.",
+        "Mode": "Režim",
+        "Answers and acts as usual.": "Odpovídá a jedná jako obvykle.",
+        "Normal": "Běžný",
+        "Approving ends Plan mode: the model carries the plan out in this reply, keeping it current above the message box.": "Schválením končí režim Plan: model plán provede v této odpovědi a průběžně ho aktualizuje nad polem pro zprávu.",
+        "Carry out this plan? The model works through it in order, and the plan stays above the message box while it does.": "Provést tento plán? Model ho projde po pořádku a plán zůstane nad polem pro zprávu, dokud na něm pracuje.",
+        "Show the whole plan": "Zobrazit celý plán",
+        "This chat has no plan.": "Tato konverzace nemá žádný plán.",
+        "Waiting for you to look at the plan…": "Čeká se, až se podíváte na plán…",
+        "Ask it something back": "Zeptat se na něco zpět",
+        "Your question for the model…": "Vaše otázka pro model…",
+        "Keeping a plan": "Vedení plánu",
     }
 )

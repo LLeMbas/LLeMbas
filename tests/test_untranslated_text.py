@@ -51,6 +51,11 @@ ALLOWED: dict[tuple[str, str], str] = {
     ("settings.html", "ABCD-EFGH"): "the shape of a device code",
     ("library/base_detail.html", "https://example.com/article"): "an example URL",
     ("agents/_device_browse.html", "lembas remote add <dir>"): "a command, typed as it is",
+    ("chat/_composer.html", "Plan"): "a mode's name, the same in every language (Working notes)",
+    ("chat/_plan.html", "Plan"): "a phase title compared against, not shown: the one a "
+    "version-1 plan got",
+    ("chat/_plan.html", "Work"): "a phase title compared against, not shown: the one a todo "
+    "list became",
 }
 
 JINJA_COMMENT = re.compile(r"\{#.*?#\}", re.S)

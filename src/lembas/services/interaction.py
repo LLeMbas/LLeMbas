@@ -27,8 +27,9 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time
+import uuid
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from lembas.web.i18n import t
 
@@ -37,9 +38,11 @@ if TYPE_CHECKING:  # pragma: no cover - annotation only
 
 KIND_APPROVAL = "approval"
 KIND_QUESTION = "question"
-# A plan a linked device's model proposes before it acts (`_lembas/plan`):
-# approved -- into Edit or Manual -- sent back for revision with what to change,
-# or dismissed. The same card, a third shape.
+# A plan put to the person before anything is done: `plan_submit` in a chat's
+# own Plan mode, or a linked device's model proposing one (`_lembas/plan`).
+# Approved -- for a device, into Edit or Manual -- sent back for revision with
+# what to change, or dismissed. The same card, a third shape; `plan_card`
+# builds it for either source.
 KIND_PLAN = "plan"
 
 # How a pause ended.
@@ -153,6 +156,14 @@ class Item:
     detail_html: str = ""
     # A device question's short header ("Database"), shown above the question.
     header: str = ""
+    # A plan as a structure (services/plans.py), when the card has one: drawn
+    # as the plan card rather than as `detail_html`. A device without
+    # `plan_state` sends only the text, which still works.
+    plan: dict[str, Any] | None = None
+    # Whether approving means choosing a mode to carry on in (a device's plan:
+    # Edit or Manual). A chat's own plan has no modes to choose between --
+    # approval ends Plan mode and that is all -- so its card offers none.
+    mode_choice: bool = True
 
 
 @dataclass
@@ -265,9 +276,14 @@ async def wait_for(
     disappear -- and only it: a device may have several open at once,
     each its own card with its own answer, and answering one clears only that
     one.
+
+    The time spent here is added to `generation.waited`: the loop's wall-clock
+    budget is seconds of *work*, and time waiting for a person is not work
+    (harness spec `loop.json`).
     """
     generation.waiting.append(interruption)
     generation.touch()
+    started = time.monotonic()
     try:
         return await asyncio.wait_for(asyncio.shield(interruption._future), timeout)
     except TimeoutError:
@@ -275,7 +291,51 @@ async def wait_for(
     finally:
         with contextlib.suppress(ValueError):
             generation.waiting.remove(interruption)
+        if hasattr(generation, "waited"):
+            generation.waited += time.monotonic() - started
         generation.touch()
+
+
+def plan_card(
+    plan: dict[str, Any] | None = None,
+    *,
+    text: str = "",
+    path: str = "",
+    tool_name: str = "plan_submit",
+    timeout: float,
+    mode_choice: bool = False,
+    dismissable: bool = True,
+    tool_call_id: str = "",
+) -> Interruption:
+    """The plan card, ready to be waited on: a structured plan (drawn as the
+    card the transcript uses), or a plan as text (rendered Markdown, sanitised
+    -- what a device without `plan_state` sends), or both.
+
+    One builder for both sources, so `_lembas/plan` and a chat's own
+    `plan_submit` cannot drift into two cards: the device link passes the
+    structure from `_meta.lembas.plan` with `mode_choice=True`; the generation
+    loop passes the chat's plan.
+    """
+    from lembas.services import plans
+    from lembas.services.markdown import render_markdown
+
+    normalised = plans.normalise(plan) if plan else {}
+    item = Item(
+        index=0,
+        key="plan",
+        kind=KIND_PLAN,
+        tool_name=tool_name,
+        title="The plan",
+        detail=str(path or "")[:1000],
+        detail_html=render_markdown(text) if text.strip() and not normalised else "",
+        plan=normalised or None,
+        allow_free_text=False,
+        mode_choice=mode_choice,
+    )
+    card = build(uuid.uuid4().hex, [item], timeout=timeout)
+    card.tool_call_id = tool_call_id
+    card.dismissable = dismissable
+    return card
 
 
 def summarise(items: tuple[Item, ...]) -> str:
@@ -283,7 +343,7 @@ def summarise(items: tuple[Item, ...]) -> str:
     if not items:
         return ""
     if items[0].kind == KIND_PLAN:
-        return "Waiting for you to look at the plan…"
+        return t("Waiting for you to look at the plan…")
     if items[0].kind == KIND_QUESTION:
         return t("Waiting for your answer…") if len(items) == 1 else t("Waiting for your answers…")
     if len(items) == 1:
@@ -310,6 +370,7 @@ __all__ = [
     "Item",
     "Reply",
     "build",
+    "plan_card",
     "summarise",
     "wait_for",
 ]

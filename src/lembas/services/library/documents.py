@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import secrets
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
@@ -71,6 +72,28 @@ def stored_path(stored_name: str) -> Path | None:
 
 
 # --- Bases -------------------------------------------------------------------
+def resolve_base(bases: list[dict[str, str]], base: str | None) -> dict[str, Any]:
+    """Which of `bases` a `knowledge_search` with `base` searches.
+
+    `bases` are the ones this conversation may search, each `{"id", "name"}`.
+    No `base` means all of them; an id matches first, then a name regardless
+    of case and surrounding space; anything else is an error naming what there
+    is, which is the tool's result. Pinned by `harness_spec/conformance/
+    library_scope.json`, which the LLeMbas CLI runs against its own copy.
+    """
+    wanted = str(base or "").strip()
+    if not wanted:
+        return {"ids": [b["id"] for b in bases]}
+    for b in bases:
+        if b["id"] == wanted:
+            return {"ids": [b["id"]]}
+    for b in bases:
+        if str(b["name"]).strip().casefold() == wanted.casefold():
+            return {"ids": [b["id"]]}
+    names = ", ".join(str(b["name"]) for b in bases) or "none"
+    return {"error": f'No knowledge base called "{wanted}" here. Available: {names}.'}
+
+
 def visible_bases(db: DBSession, user: User | None, group: str | None = None):
     """Bases this user may see; `group` narrows to one data group, for a model."""
     return select(KnowledgeBase).where(sharing.visible_to(KnowledgeBase, user, group))

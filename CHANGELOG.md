@@ -3,6 +3,80 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## Unreleased
+
+Every chat can keep a plan, and any chat can be put into Plan mode.
+
+### Added
+
+- **A plan in every chat.** A model working on anything with a few steps now
+  writes a plan -- what it found, what the work is for, and the work as phases
+  of tasks -- and keeps it current as it goes: a task is marked as started,
+  done or dropped, and work the plan did not foresee is added. The plan sits
+  above the message box while anything on it is still to do (the task in
+  progress, what is left, the last two done), with the whole card one click
+  away, and the reply that last changed it shows the card as it stood then.
+  It is the same plan the LLeMbas CLI keeps, from harness spec 1.1.0
+  (`plan_write`, `plan_update`), and it is put in front of the model on every
+  turn while it exists.
+- **Plan mode for an ordinary chat.** The mode control beside the message box
+  offers Normal or Plan. In Plan mode the model reads and searches freely but
+  changes nothing -- every tool that writes to the library or runs something
+  is withheld -- and finishes by putting its plan to you on a card: approve it
+  and the model carries on and carries it out in the same reply with the tools
+  it was planning for, send it back with what to change, or put it aside.
+  Approval ends Plan mode. Agent chats keep their four modes.
+- **Carry out this plan** on the plan card of any chat, not only an agent
+  chat; an agent chat still switches to Edit, a chat just leaves Plan mode.
+  The panel's own card carries the plan out as it stands now.
+- A reply that says nothing -- only thinking, or cut off at the output limit
+  -- is asked to continue, at most twice in a row, rather than ending with
+  nothing said. The transcript shows that it was asked.
+- Time, tool-output and output-token budgets for one reply, from the harness
+  spec's defaults (15 minutes of work, 1 MiB of tool output, 200,000 tokens
+  written); past one, the tools are withdrawn and the model is told which
+  limit it reached and asked to answer from what it has. Time waiting for
+  you does not count. They are instance settings (`loop_wall_seconds`,
+  `loop_output_bytes`, `loop_completion_tokens` under General; 0 turns one
+  off), without a field on the settings page yet.
+
+### Changed
+
+- **The prompt is the shared one.** The core of what every model is told --
+  tone, conventions, how to do a task, how to use tools, the plan -- is now
+  the harness spec's own system text, word for word the one the LLeMbas CLI
+  sends, as one fragment on the prompts page (*How to work*) in place of four.
+  The prototype and library guidance and the four mode texts are the spec's
+  too. An override saved for one of the replaced fragments is shown beside
+  its successor as an older override to review; it is no longer sent.
+- `knowledge_search` takes a `base`: the name or id of one knowledge base to
+  search among those the chat may, with the available ones named back when
+  there is no such base. `knowledge_get` takes an `offset` to read past what
+  the first call returned. Both carry the spec's descriptions.
+- `ask_user` is the spec's: a `why`, up to four questions each with a short
+  header, options with the one the model recommends marked, and the answers
+  handed back one line per question. The card shows the header and the
+  recommendation.
+- The helper tool is called `task`, with the spec's arguments (`description`,
+  `prompt`, and `model` to run it on another model you may use); the old
+  name `subagent_run` still works, as does `todo`, which becomes a plan with
+  one phase. `agent` and `worktree` are accepted and ignored, with a note in
+  the result.
+- The plan is kept on the chat, with a snapshot on each message that changed
+  it; a chat from before this release shows the plan it had.
+- Carries harness spec 1.1.0 (planning, the shared system text, four new
+  conformance areas), run here against `plan`, `prototype` and
+  `library_scope`.
+
+### Removed
+
+- The prompt fragments that only an agent chat used -- the machine, the
+  project listing, the project's own instructions, background commands, the
+  rewind note, the helper-on-a-machine guidance -- which the linked LLeMbas
+  CLI has assembled itself since agent chats moved there. They were on the
+  prompts page and reached no model.
+- The todo list above the composer, replaced by the plan.
+
 ## 1.2.0 — 2026-10-14
 
 LLeMbas Desktop shows your computer as Local, and a device that allows no folders says so.

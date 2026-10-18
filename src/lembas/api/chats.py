@@ -1240,9 +1240,19 @@ def _step_html(message_id: str, step) -> str:
     )
 
 
-def _todos_html(todos: list) -> str:
-    """The todo panel, marked to land in its place above the composer."""
-    return templates.get_template("chat/_todos.html").render({"todos": todos, "oob": True})
+def _plan_panel_html(plan) -> str:
+    """The plan panel, marked to land in its place above the composer.
+
+    Takes the plan as a structure, or -- until the device link sends the
+    structure -- a device's todo list, which is read as one (`plans.from_todos`).
+    """
+    from lembas.services import plans
+
+    if isinstance(plan, list):
+        plan = plans.from_todos(plan)
+    return templates.get_template("chat/_plan_panel.html").render(
+        {"plan": plans.normalise(plan), "oob": True, "chat": None}
+    )
 
 
 def _think_label(generation, thinking_tail: str) -> str:
@@ -1395,7 +1405,7 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
                 if generation.todos is not None and generation.todos != todos_sent:
                     # Out of band, into the panel above the composer.
                     todos_sent = list(generation.todos)
-                    yield sse.event("todos", _todos_html(todos_sent))
+                    yield sse.event("plan", _plan_panel_html(todos_sent))
                 yield sse.event("metrics", _metrics_html(generation))
                 yield sse.event("status", escape_text(generation.status))
                 yield sse.event("ask", _ask_html(chat_id, generation.waiting))
@@ -1781,9 +1791,16 @@ async def execute_plan(
 ) -> Response:
     """Carry out a plan the model proposed.
 
-    Switches to **Edit**, never Auto. The plan was written under a mode where
-    every command stopped for approval, and a button that also removed the
-    asking is not the button anybody pressed.
+    `message_id` names the bubble whose snapshot to carry out, or `current` for
+    the plan as the chat has it now (the panel's button). Either way the plan
+    becomes the chat's, so the harness puts it in front of the model each turn
+    and `plan_update` keeps it current -- a model that cannot see the plan it
+    is carrying out could not tick anything off if it wanted to.
+
+    An agent chat switches to **Edit**, never Auto. The plan was written under
+    a mode where every command stopped for approval, and a button that also
+    removed the asking is not the button anybody pressed. A chat leaves Plan
+    mode, which is what withheld the tools that change things.
 
     The plan is sent back **marked as a quotation of the model's own words**
     rather than as a bare instruction. A plan whose text came out of a file the
@@ -1792,26 +1809,29 @@ async def execute_plan(
     injected instruction would like to arrive.
     """
     chat = _owned_chat(db, chat_id, user.id)
-    message = db.get(Message, message_id)
-    if message is None or message.chat_id != chat.id or not message.plan_json:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, t("There is no plan on that message."))
-    if chat.kind != KIND_AGENT:
-        raise HTTPException(status.HTTP_409_CONFLICT, t("This chat cannot act on anything."))
+    if message_id == "current":
+        plan = chat.plan
+        if not plan:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, t("This chat has no plan."))
+    else:
+        message = db.get(Message, message_id)
+        if message is None or message.chat_id != chat.id or not message.plan_json:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, t("There is no plan on that message.")
+            )
+        # `message.plan`, the property, so a row written before version 2
+        # comes through as one phase.
+        plan = message.plan
+        chat.plan_json = plan
+        chat.plan_message_id = message.id
 
-    # `message.plan`, the property, so a row written before version 2 comes
-    # through as one phase. `steps` is flattened from every phase in order and
-    # is always written, which is why this line needed no change when the shape
-    # grew findings, objectives and phases.
-    plan = message.plan
+    # `steps` is flattened from every phase in order and is always written,
+    # which is why this line needed no change when the shape grew findings,
+    # objectives and phases.
     steps = [str(s) for s in (plan.get("steps") or [])]
     body = "\n".join(f"{n}. {step}" for n, step in enumerate(steps, start=1))
 
-    chat.agent_mode = agent_policy.MODE_EDIT
-    # The chat is now working to this plan, so the harness puts it in front of
-    # the model each turn and `plan_update` is offered. Without this the model
-    # carrying it out cannot see the plan it is carrying out, and could not tick
-    # anything off if it wanted to.
-    chat.plan_message_id = message.id
+    chat.agent_mode = agent_policy.MODE_EDIT if chat.kind == KIND_AGENT else ""
     db.commit()
 
     content = (
@@ -1946,13 +1966,20 @@ async def answer_interaction(
     # the rest, which is an answer that says something the reader did not.
     chosen: dict[str, list[str]] = {}
     typed: dict[str, str] = {}
+    # A question asked back instead of an answer (`ask.<key>`): carried to the
+    # model as a counter-question, which the spec has it answer and then ask
+    # again.
+    asked_back: dict[str, str] = {}
     for field, value in form.multi_items():
         kind, _, key = str(field).partition(".")
-        if not key or kind not in ("choice", "text"):
+        if not key or kind not in ("choice", "text", "ask"):
             continue
         written = str(value).strip()
         if kind == "text":
             typed[key] = written
+        elif kind == "ask":
+            if written:
+                asked_back[key] = written
         elif written:
             chosen.setdefault(key, []).append(written)
 
@@ -2000,6 +2027,9 @@ async def answer_interaction(
     for key, written in typed.items():
         if written:
             picks[f"text.{key}"] = [written]
+    for key, written in asked_back.items():
+        picks[f"ask.{key}"] = [written]
+        answers.setdefault(key, written)
     answered = generation_service.answer(
         chat.id,
         interaction_id,
@@ -2181,10 +2211,15 @@ async def update_chat(request: Request, db: Db, user: RequiredUser, chat_id: str
         chat.archived = wanted
 
     # The mode is the one agent field that changes mid-chat: it decides what
-    # gets asked about, not what the conversation is.
+    # gets asked about, not what the conversation is. A chat has Plan or
+    # normal (empty); an agent chat has the four. Anything else is ignored
+    # rather than refused, as a bad model id below is.
     if "agent_mode" in form:
         wanted = str(form["agent_mode"]).strip()
-        if wanted in agent_policy.MODES:
+        if chat.kind == KIND_AGENT:
+            if wanted in agent_policy.MODES:
+                chat.agent_mode = wanted
+        elif wanted in ("", agent_policy.MODE_PLAN) and not chat.parent_chat_id:
             chat.agent_mode = wanted
 
     # And these are the ones that never do. Refused rather than ignored: a form

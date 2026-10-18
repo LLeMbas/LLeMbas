@@ -188,10 +188,11 @@ class Chat(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
     # rules. The connection is locked with it -- a shell history and a project
     # directory do not transplant to another machine.
     kind: Mapped[str] = mapped_column(String(16), default=KIND_CHAT, nullable=False)
-    # Where an agent chat ran when that could be an SSH connection. Nothing
-    # writes it any more -- an agent chat runs on a linked device, recorded
-    # below -- and it stays only because the schema is additive: dropping a
-    # column is a manual migration, and an old row's value is harmless.
+    # Where an agent chat ran when that could be an SSH connection. Unused
+    # since 1.3.0: nothing writes it -- an agent chat runs on a linked device,
+    # recorded below -- and it stays only because the schema is additive:
+    # dropping a column is a manual migration, and an old row's value is
+    # harmless.
     ssh_profile_id: Mapped[str | None] = mapped_column(String(32))
     # The linked device: the device token of a LLeMbas CLI that dials in
     # (services/device_link.py). A plain id rather than a ForeignKey, for the
@@ -209,13 +210,19 @@ class Chat(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
     # "on the device: <ref>" and sends no model with the next prompt. Empty
     # while the chat's own model is the one in use.
     device_model: Mapped[str] = mapped_column(String(300), default="")
-    # The agent's working checklist as it last stood: the `todo` tool's
-    # whole list, from this instance's agent or a linked device's. Shown in its own
-    # panel above the composer while anything on it is open, as the LLeMbas CLI shows
-    # it above its prompt -- not as a block in the transcript. On the chat, not a
-    # message: it outlives the reply that wrote it. Nullable for the reason
-    # `steps_json` is.
+    # The former `todo` tool's list as it last stood. Unused since 1.3.0: never
+    # written again, read once by `plan` below for a chat whose plan was still
+    # a todo list when it upgraded (`plans.from_todos`), and kept because the
+    # schema is additive. Nullable for the reason `steps_json` is.
     todos_json: Mapped[list[Any] | None] = mapped_column(JSONList, nullable=True, default=list)
+    # The plan this chat is working to, as `plan_write` and `plan_update` keep
+    # it (services/plans.py) -- the one structure the harness spec has both
+    # LLeMbas and the LLeMbas CLI keep per conversation, shown in the panel
+    # above the composer and put into the prompt on every turn. On the chat,
+    # not a message: it outlives the reply that wrote it, and a message keeps
+    # only a snapshot (`Message.plan_json`). Nullable, added in 1.3.0, so an
+    # older row reads as "no plan here" and `plan` falls back to what it had.
+    plan_json: Mapped[dict[str, Any] | None] = mapped_column(JSONDict, nullable=True, default=dict)
     # Where commands start on the far side, and what file paths resolve against.
     project_dir: Mapped[str] = mapped_column(String(500), default="")
     # Which of the four permission modes is in force. The one agent field that
@@ -227,12 +234,10 @@ class Chat(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
     # somebody's real working tree and deleting their work would be far worse
     # than an inconsistency -- so the harness says so instead.
     rewound_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    # Which message carries the plan currently in force. A plain id and not a
-    # ForeignKey, for the reason `compacted_through_id` below gives; validated
-    # on read. It exists so the harness can put the plan in front of the model
-    # with one `db.get` by primary key rather than a scan for "the newest
-    # message with a plan" -- `context_variables` is synchronous and on the
-    # request path. A plan a model cannot see is a plan it cannot keep current.
+    # Which message last carried the plan. A plain id and not a ForeignKey,
+    # for the reason `compacted_through_id` below gives; validated on read. The
+    # plan itself is `plan_json` above since 1.3.0; this is what `plan` falls
+    # back to for a chat whose rows predate that column.
     plan_message_id: Mapped[str | None] = mapped_column(String(32))
     # What this chat has switched off, narrowing what it is already allowed.
     # {"families": {"web_search": false}, "skills": {"weekly-report": false}}.
@@ -305,6 +310,31 @@ class Chat(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
     knowledge_bases: Mapped[list[KnowledgeBase]] = relationship(
         "KnowledgeBase", secondary="chat_knowledge_bases"
     )
+
+    @property
+    def plan(self) -> dict:
+        """The plan this chat is working to, in the current shape, or {}.
+
+        `plan_json` when there is one; else, for a chat from before 1.3.0, the
+        todo list it had (as one "Work" phase) or the snapshot on the message
+        `plan_message_id` names. A property for the reason `Message.plan` is:
+        everything that reads a plan -- the panel, the prompt, the Execute
+        button, `plan_update` -- gets exactly one shape.
+        """
+        from lembas.services import plans
+
+        if self.plan_json:
+            return plans.normalise(self.plan_json)
+        if self.todos_json:
+            return plans.from_todos(self.todos_json)
+        if self.plan_message_id:
+            from sqlalchemy.orm import object_session
+
+            session = object_session(self)
+            message = session.get(Message, self.plan_message_id) if session is not None else None
+            if message is not None and message.chat_id == self.id and message.plan_json:
+                return plans.normalise(message.plan_json)
+        return {}
 
     def __repr__(self) -> str:
         return f"<Chat {self.title!r}>"

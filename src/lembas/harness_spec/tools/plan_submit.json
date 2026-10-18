@@ -1,6 +1,6 @@
 {
   "name": "plan_submit",
-  "scope": "cli",
+  "scope": "shared",
   "risk": "interact",
   "exclusive": true,
   "block": "tool",
@@ -11,17 +11,14 @@
     ],
     "llembas": []
   },
-  "description": "Present your finished plan for approval — only in plan mode, and only once the plan file is written.\n\n- `path`: the plan file you wrote under the plans directory.\n- The user approves it (and you continue, now allowed to make the changes), asks for a revision (change the file, then call plan_submit again), or asks you a question (answer it, then call plan_submit again).",
+  "description": "Present the plan written with plan_write for approval — only in plan mode, and only once the plan is written.\n\n- The user approves it (and you continue, now allowed to make the changes), asks for a revision (change the plan with plan_write or plan_update, then call plan_submit again), or asks you a question (answer it, then call plan_submit again).",
   "parameters": {
     "type": "object",
     "properties": {
       "path": {
         "type": "string",
-        "description": "The plan file"
+        "description": "Ignored: the plan is the one written with plan_write. Kept for callers that still send it."
       }
-    },
-    "required": [
-      "path"
-    ]
+    }
   }
 }

@@ -6,12 +6,33 @@
   },
   "budgets": {
     "about": "What one prompt may spend. Checked between steps, never mid-reply — a reply cut off mid-sentence is worth nothing. Time spent waiting for the user (an approval, a question, a plan) is not counted. Past one, the tools are withdrawn and the model answers from what it has (wrap_up). The CLI leaves them unset by default (one user at their own terminal); LLeMbas sets them, and a group's quota can narrow them.",
-    "wall_seconds": { "about": "Seconds of work.", "cli": null, "llembas": 900 },
-    "output_bytes": { "about": "Bytes of tool output read: a model filling its own context with build logs has no room left to answer.", "cli": null, "llembas": 1048576 },
-    "completion_tokens": { "about": "Tokens the model writes.", "cli": null, "llembas": 200000 }
+    "wall_seconds": {
+      "about": "Seconds of work.",
+      "cli": null,
+      "llembas": 900
+    },
+    "output_bytes": {
+      "about": "Bytes of tool output read: a model filling its own context with build logs has no room left to answer.",
+      "cli": null,
+      "llembas": 1048576
+    },
+    "completion_tokens": {
+      "about": "Tokens the model writes.",
+      "cli": null,
+      "llembas": 200000
+    }
   },
-  "wrap_up": "One more request with no tools and a user message saying which limit was reached: answer now — what is done, what is not, what would come next. The transcript says the prompt was stopped, so an answer given because the room ran out is never mistaken for one the model chose to give.",
-  "nudges": "A reply with only thinking, or one cut off at the output limit, is asked again (at most twice in a row) instead of ending the prompt with nothing said.",
-  "parallel": "Calls in one step run together, at most 4; a call that waits on the user (ask_user, plan_submit) runs alone; two calls on one file run in order. A tool's error is its result, never the end of the prompt.",
+  "wrap_up": {
+    "about": "One more request with no tools and a user message saying which limit was reached: answer now — what is done, what is not, what would come next. The transcript says the prompt was stopped, so an answer given because the room ran out is never mistaken for one the model chose to give.",
+    "message": "The {{limit}} for this prompt has been reached and the tools have been withdrawn. Answer now from what you have: what is done, what is not, and what would come next."
+  },
+  "nudges": {
+    "about": "A reply with only thinking, or one cut off at the output limit, is asked again (at most twice in a row) instead of ending the prompt with nothing said.",
+    "max": 2
+  },
+  "parallel": {
+    "about": "Calls in one step run together, at most 4; a call that waits on the user (ask_user, plan_submit) runs alone; two calls on one file run in order. A tool's error is its result, never the end of the prompt.",
+    "max": 4
+  },
   "capacity": "A subagent (task) is not started on a model whose server cannot hold it beside the prompt's own model: another model of a connection that holds one model at a time, or the same model when it serves one request at a time (models/schema.json capacity)."
 }

@@ -237,8 +237,10 @@
     {% endif %}
 
     {% if not streaming and message.plan_json %}
-    {# What the model proposed in Plan mode, with the way to carry it out. #}
+    {# The plan as this reply left it, with the way to carry it out. #}
+    {% with plan = message.plan %}
     {% include "chat/_plan.html" %}
+    {% endwith %}
     {% endif %}
 
     {% if not streaming and message.role == "assistant" and (message.usage_json or message.model_id) %}
@@ -356,9 +358,9 @@
     on every version bump and would overwrite a textarea somebody is typing in.
   #}
   <div hidden sse-swap="canvas" hx-swap="none"></div>
-  {# The todo list: the frame carries the panel marked `hx-swap-oob`,
+  {# The plan: the frame carries the panel marked `hx-swap-oob`,
      which lands above the composer; this is only where it arrives. #}
-  <div hidden sse-swap="todos" hx-swap="none"></div>
+  <div hidden sse-swap="plan" hx-swap="none"></div>
   {# A message taken into the reply: the frame deletes its queued
      bubble out of band; the reply's own steps show it where it went in. #}
   <div hidden sse-swap="steered" hx-swap="none"></div>

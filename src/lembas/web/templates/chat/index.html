@@ -254,8 +254,8 @@
       {% if chat and chat.kind == "task" %}
         {% include "schedules/_strip.html" %}
       {% else %}
-        {% with todos = (chat.todos_json if chat else []), oob = false %}
-          {% include "chat/_todos.html" %}
+        {% with plan = (chat.plan if chat else {}), oob = false %}
+          {% include "chat/_plan_panel.html" %}
         {% endwith %}
         {% include "chat/_composer.html" %}
       {% endif %}

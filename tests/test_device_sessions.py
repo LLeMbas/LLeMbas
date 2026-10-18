@@ -368,6 +368,12 @@ def test_the_device_reply_thinking_is_timed_per_round():
 
 
 def test_the_todo_list_is_a_panel_above_the_composer_not_a_block(client, db, registered):
+    """A device's todo list (the former `todo` tool) arrives as the chat's
+    plan -- one "Work" phase, `plans.from_todos` -- and is shown in the plan
+    panel above the composer, never as a block in the transcript. `todos_json`
+    is not written any more (1.3.0)."""
+    from lembas.services import plans
+
     token_id, raw = _device(db)
     with client.websocket_connect(
         "/api/devices/link", headers={"Authorization": f"Bearer {raw}"}
@@ -400,17 +406,20 @@ def test_the_todo_list_is_a_panel_above_the_composer_not_a_block(client, db, reg
         _event(ws, "ses_4", {"type": "task", "state": "end"})
         _until(lambda: _finished(db, chat.id), "the reply")
         db.expire_all()
-        assert db.get(Chat, chat.id).todos_json == items
+        assert db.get(Chat, chat.id).todos_json in (None, [])
+        assert db.get(Chat, chat.id).plan == plans.from_todos(items)
         page = client.get(f"/chat/{chat.id}").text
-        panel = page[page.index('id="todo-panel"') :]
-        panel = panel[: panel.index("</div>\n", panel.index("todo-panel__list"))]
+        panel = page[page.index('id="plan-panel"') :]
+        panel = panel[: panel.index("</div>\n", panel.index("plan-panel__list"))]
         assert "1/3" in panel and "Fix the &lt;validation&gt;" in panel
         assert "is-in-progress" in panel
         # Not also a block in the transcript.
         assert "[x] Read the form" not in page
 
         # All of it done: the panel goes.
-        db.get(Chat, chat.id).todos_json = [{"content": "Read the form", "status": "completed"}]
+        db.get(Chat, chat.id).plan_json = plans.from_todos(
+            [{"content": "Read the form", "status": "completed"}]
+        )
         db.commit()
         page = client.get(f"/chat/{chat.id}").text
-        assert 'id="todo-panel" class="todo-panel" hidden' in page
+        assert 'id="plan-panel" class="plan-panel" hidden' in page

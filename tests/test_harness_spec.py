@@ -12,15 +12,17 @@ the gap is visible in every test run rather than forgotten.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
-from lembas.services import generation, harness_spec, reasoning
+from lembas.services import generation, harness_spec, plans, prompts, prototypes, reasoning
+from lembas.services import tools as tools_service
 from lembas.services.agent import policy, shell
-from lembas.services.library import chunks
+from lembas.services.library import chunks, documents
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -38,7 +40,20 @@ AREAS = {
         "refused": generation._effort_was_refused(c["message"]),
         "advertised": generation._advertised_efforts(c["message"]),
     },
+    "plan": lambda c: _plan(c),
+    "prototype": lambda c: prototypes.info(c["info"], c["code"]),
+    "library_scope": lambda c: documents.resolve_base(c["bases"], c["base"]),
 }
+
+
+def _plan(c):
+    if c["op"] == "normalise":
+        return plans.normalise(c["plan"])
+    if c["op"] == "update":
+        return plans.apply(c["plan"], c["changes"])
+    if c["op"] == "todos":
+        return plans.from_todos(c["todos"])
+    raise AssertionError(f"unknown plan op {c['op']!r}")
 
 
 def _think(c):
@@ -61,6 +76,7 @@ PENDING = {
     "edit": _ON_THE_DEVICE,
     "unidiff": _ON_THE_DEVICE,
     "envelope": _ON_THE_DEVICE,
+    "toolcall_index": "openai_client, next agent",
 }
 
 
@@ -72,7 +88,26 @@ def _cases():
             yield pytest.param(area, case, id=f"{area}-{n}")
 
 
+def _semver(text: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in text.strip().lstrip("v").split("."))
+
+
 def test_the_vendored_spec_matches_its_lock():
+    """The lock is what makes the vendored copy a *pinned* one.
+
+    Skipped, not failed, while the spec directory carries a newer version than
+    the lock: that is the state between copying the CLI's `harness/` over for
+    development and `fetch_harness.py --update vX.Y.Z` re-pinning it at
+    release. Older than the lock, or the same version with other bytes, is an
+    edit by hand and fails.
+    """
+    lock = json.loads((ROOT / "scripts" / "harness.lock.json").read_text())
+    if _semver(harness_spec.version()) > _semver(lock["version"]):
+        pytest.skip(
+            f"the spec directory is {harness_spec.version()} and the lock pins "
+            f"{lock['version']}: a development copy, re-pinned at release with "
+            "scripts/fetch_harness.py --update"
+        )
     r = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "fetch_harness.py")], capture_output=True, text=True
     )
@@ -113,14 +148,21 @@ DEVICE_TOOLS = (
     "bash_output",
     "bash_list",
     "bash_kill",
-    "todo",
+)
+# Shared tools LLeMbas offers under the spec's own name, description and
+# parameters -- the definition a model is sent is the spec's, read from it.
+SHARED_ADOPTED = (
+    "plan_write",
+    "plan_update",
     "plan_submit",
+    "knowledge_search",
+    "knowledge_get",
+    "ask_user",
+    "task",
 )
 # Shared tools whose LLeMbas implementation keeps its own name or shape for now,
 # and why -- the parity page lists the same.
 TOOLS_PENDING = {
-    "ask_user": "LLeMbas's own card and schema (services/interaction.py); same name",
-    "task": "subagent_run, always on the parent's own model",
     "web_search": "LLeMbas's own description; same name",
     "web_fetch": "still fetch",
     "memory": "memory_add / memory_forget",
@@ -130,14 +172,79 @@ TOOLS_PENDING = {
     "skills_list": "the skill index is in the prompt",
     "skill_view": "skill_get",
     "skill_manage": "skill_create / skill_edit",
-    "knowledge_search": "LLeMbas's own description; same name",
-    "knowledge_get": "LLeMbas's own description; same name",
 }
 
 
-def test_every_shared_tool_is_named_as_pending():
+def test_every_shared_tool_is_adopted_or_named_as_pending():
     shared = {n for n, t in harness_spec.tools().items() if t["scope"] == "shared"}
-    assert shared == set(TOOLS_PENDING), sorted(shared ^ set(TOOLS_PENDING))
+    named = set(TOOLS_PENDING) | set(SHARED_ADOPTED)
+    assert shared == named, sorted(shared ^ named)
+    assert not set(TOOLS_PENDING) & set(SHARED_ADOPTED)
+
+
+def _registry():
+    from lembas.services import subagent
+
+    book = dict(tools_service.REGISTRY)
+    for tool in subagent.tool_defs():
+        book.setdefault(tool.name, tool)
+    return book
+
+
+@pytest.mark.parametrize("name", SHARED_ADOPTED)
+def test_an_adopted_tool_is_sent_exactly_as_the_spec_says(name):
+    """Description and parameters word for word, with the spec's own variables
+    filled the way LLeMbas fills them. The one declared difference: a knowledge
+    document's id is a string here (`Document.id`), where the spec says
+    integer -- the CLI's library numbers its documents."""
+    spec = harness_spec.tools()[name]
+    tool = _registry()[name]
+    expected = harness_spec.fill(spec["description"], tools_service.SPEC_VARIABLES)
+    assert tool.description == expected
+    parameters = tool.parameters
+    if name == "knowledge_get":
+        parameters = json.loads(json.dumps(parameters))
+        assert parameters["properties"]["id"]["type"] == "string"
+        parameters["properties"]["id"]["type"] = "integer"
+    assert parameters == spec["parameters"]
+
+
+def test_a_former_name_still_runs_as_the_tool():
+    """`aliases.llembas`: a name a transcript or a trained model still uses."""
+    for name, spec in harness_spec.tools().items():
+        for alias in spec.get("aliases", {}).get("llembas", []):
+            resolved, _args = tools_service.resolve_alias(alias, {})
+            assert resolved == name, alias
+    # And the one that changed its arguments: a todo list arrives as a plan.
+    name, args = tools_service.resolve_alias(
+        "todo", {"todos": [{"content": "Fix it", "status": "in_progress"}]}
+    )
+    assert name == "plan_write"
+    assert args["title"] == "Work" and args["phases"][0]["tasks"][0]["status"] == "doing"
+
+
+# --- The prompt texts -----------------------------------------------------------
+def _identical():
+    for path, entry in harness_spec.index()["prompts"].items():
+        if entry.get("scope") == "shared" and entry.get("llembas_text") == "identical":
+            for key in entry.get("llembas") or []:
+                yield pytest.param(path, key, entry, id=f"{path}->{key}")
+
+
+@pytest.mark.parametrize(("path", "key", "entry"), list(_identical()))
+def test_a_shared_text_marked_identical_is_the_fragment_default(path, key, entry):
+    """`prompts/index.json` says which LLeMbas fragment each shared text is, and
+    whether the default is that text word for word. Where it says `identical`,
+    it has to be: the fragment's default with every variable empty is the spec
+    text with every variable empty -- except the one LLeMbas fills with a
+    constant (`plan_dir`), which is filled the same on both sides."""
+    fragment = {f.key: f for f in prompts.BUILTIN}[key]
+    values = {
+        name: prompts.PLAN_DIR if name == "plan_dir" else ""
+        for name in entry.get("variables") or {}
+    }
+    ours = re.sub(r"\n{3,}", "\n\n", prompts.substitute(fragment.default, values)).strip()
+    assert ours == harness_spec.prompt_with(path, values)
 
 
 def test_the_execution_tools_are_the_clis():

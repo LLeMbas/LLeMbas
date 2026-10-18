@@ -330,6 +330,23 @@
           </span>
         </div>
 
+        {% elif chat and chat.kind == "chat" and not chat.parent_chat_id %}
+        {# Plan or Normal. A chat has one mode worth a control: planning --
+           reading freely, changing nothing, and finishing with a plan for you
+           to approve. The same column `agent_mode` holds an agent chat's four;
+           for a chat, empty is normal. Its own form, for the reason the agent
+           select below gives. #}
+        <div class="composer__context">
+          <select class="select select--sm" name="agent_mode" aria-label="{{ t('Mode') }}"
+                  form="agent-mode-form"
+                  hx-patch="/api/chats/{{ chat.id }}" hx-swap="none">
+            <option value="" title="{{ t('Answers and acts as usual.') }}"
+                    {{ 'selected' if chat.agent_mode != 'plan' }}>{{ t("Normal") }}</option>
+            <option value="plan" title="{{ t('Reads freely, changes nothing, and finishes by proposing a plan.') }}"
+                    {{ 'selected' if chat.agent_mode == 'plan' }}>Plan</option>
+          </select>
+        </div>
+
         {% elif chat and chat.kind == "agent" %}
         {# Only the mode. The connection and the directory moved to the topbar:
            they cannot change -- update_chat refuses both with a 409 -- so they
@@ -431,10 +448,8 @@
        hx-patch and not hx-post: there is no POST for a chat, only PATCH, and
        htmx shows nothing when a request 405s -- which is how these controls
        spent the first half of their lives doing nothing. #}
-    {% if chat and chat.kind == "agent" %}
-    <form id="agent-mode-form"></form>
-    {% endif %}
     {% if chat %}
+    <form id="agent-mode-form"></form>
     <form id="chat-params-form"></form>
     {% endif %}
 

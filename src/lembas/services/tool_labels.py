@@ -61,6 +61,8 @@ LABELS: dict[str, str] = {
     "file_list": "List",
     "plan_submit": "Plan",
     "plan_update": "Plan updated",
+    "plan_write": "Plan written",
+    "task": "Helper",
     "job_output": "Job output",
     "job_list": "Jobs",
     "job_stop": "Job stopped",
@@ -121,6 +123,8 @@ ICONS: dict[str, str] = {
     "file_list": "folder",
     "plan_submit": "check",
     "plan_update": "check",
+    "plan_write": "check",
+    "task": "sparkle",
     "job_output": "clock",
     "job_list": "dots",
     "job_stop": "stop-circle",
@@ -198,6 +202,7 @@ ACTIONS: dict[str, str] = {
     "schedule_update": "Change a schedule",
     "schedule_cancel": "Stop a schedule",
     "subagent_run": "Send a helper",
+    "task": "Send a helper",
     "memory_add": "Remember something",
     "memory_forget": "Forget something",
     "skill_get": "Read a skill",
@@ -250,6 +255,7 @@ DETAIL_KEYS: dict[str, str] = {
     # the one field worth correcting before it goes -- a task with a wrong path
     # in it comes back as a confident answer about the wrong thing.
     "subagent_run": "task",
+    "task": "prompt",
     # The question, not the model asked. It is what actually goes, and a
     # question carrying a wrong assumption comes back as a confident answer
     # about the wrong thing -- the same reason `subagent_run` names the task.

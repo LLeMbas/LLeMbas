@@ -39,7 +39,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
 from lembas.db.models import KIND_TASK, User
-from lembas.services import branding, prompts, settings_store
+from lembas.services import branding, plans, prompts, settings_store
 from lembas.services import prototypes as prototypes_service
 from lembas.services.library import memories as memories_service
 from lembas.services.library import skills as skills_service
@@ -52,33 +52,26 @@ log = logging.getLogger(__name__)
 # "use this".
 #
 # It has to be larger than everything the shipped defaults are already allowed
-# to put in, and at 8000 it was not. The fragments alone are about 7,900
-# characters for an agent chat, and on top of that the defaults granted a 2,000
-# character project listing and a 4,000 character AGENTS.md, both on by
-# default. The block was therefore cut at
-# 8,000 on an ordinary agent chat, and `prompts.assemble` cuts the *tail*, which
-# by fragment order is exactly the context worth having: the listing was severed
-# mid-tree and `context.agent_instructions` was dropped in its entirety. The one
-# path by which a project's own instructions reach a model did not reach it.
+# to put in. It once was not: the agent fragments and a project listing and an
+# AGENTS.md together crossed an 8,000 ceiling, and `prompts.assemble` cuts the
+# *tail*, which by fragment order is exactly the context worth having -- the
+# project's own instructions were dropped whole, silently. The agent surface
+# has since moved to the linked LLeMbas CLI, which assembles its own prompt;
+# what is bounded here now is the shared system text, the guidance per tool
+# family, the plan, the memories and the skill index.
 #
-# The two big blocks already carry their own budgets, applied before assembly,
-# so they are bounded whatever this is. What this bounds is the *fragments*
-# growing without anybody noticing -- so it is set above the sum of what those
-# budgets grant, with room for the plan and the memories beside them.
+# The big blocks carry their own budgets, applied before assembly, so they are
+# bounded whatever this is. What this bounds is the *fragments* growing without
+# anybody noticing -- so it is set well above the sum of what those budgets
+# grant, and `tests/test_harness.py` pins a margin as well as a fit, so the
+# room is a fact rather than a hope. Raising the ceiling costs nothing by
+# itself -- it is a limit, not a size.
 #
-# 20,000 rather than 16,000, which the shipped set had grown to within 1,300
-# characters of. A ceiling this close to the content is one the next fragment
-# crosses, and crossing it is silent: `assemble` cuts the tail, and the tail is
-# the project's own AGENTS.md. `tests/test_harness.py` pins a margin now as well
-# as a fit, so the room is a fact rather than a hope.
-#
-# 24,000 now, because that margin did its job: adding `core.commit` and
-# `tool.agent_edits` took the headroom under 20% and the test said so rather
-# than the AGENTS.md quietly losing its last paragraph on somebody's install.
-# Raising the ceiling costs nothing by itself -- it is a limit, not a size, and
-# the assembled block is the same length either way. What it buys is that the
-# margin keeps meaning what it says.
-MAX_HARNESS_CHARS = 24000
+# 36,000 since 1.3.0: the shared system text is about five thousand characters
+# longer than the four fragments it replaced, and the fit test now counts the
+# memories at their whole budget (4,000) and a full plan twice over, as the
+# prompt carries it. With every family on, the fragments alone are 18,500.
+MAX_HARNESS_CHARS = 36000
 
 # How much of the ceiling the shipped fragments may occupy at full budget. The
 # rest is headroom for an administrator's own wording, which is the thing this
@@ -113,6 +106,53 @@ def _families(db: DBSession, tools: list[dict[str, Any]]) -> list[str]:
 def _tool_names(tools: list[dict[str, Any]]) -> str:
     return ", ".join(
         name for tool in tools if (name := (tool.get("function") or {}).get("name"))
+    )
+
+
+# The sentences the shared system text takes from this side. Module constants
+# rather than fragments: they are the facts the LLeMbas CLI differs in, not
+# guidance an administrator tunes -- that is `core.shared` itself.
+SURFACE = "Your output is rendered as Markdown in a web page."
+
+
+def tool_list_sentence(names: str) -> str:
+    """`{{tool_list}}`: exactly what is offered, so the model does not spend a
+    round discovering its own list by calling something that is not there."""
+    if not names:
+        return ""
+    return (
+        f"The tools you have on this request are: {names}. That is the whole list. "
+        "Anything not named there does not exist here — calling it costs a round and "
+        "returns nothing."
+    )
+
+
+def intro_sentence(user_name: str) -> str:
+    """`{{intro}}`: what the model is here for, naming the person when known."""
+    whom = f"what {user_name} is working on" if user_name else "what the user is working on"
+    return f"Use the instructions below and the tools you have to help with {whom}."
+
+
+def plan_context(plan: dict | None) -> str:
+    """`{{plan_context}}`: the plan under a heading, with the sentence to work to
+    it. Empty with no plan, which takes its bullet with it."""
+    text = plans.render(plan)
+    if not text:
+        return ""
+    return (
+        "### The current plan\n\n"
+        f"{text}\n\n"
+        "Work to it and quote the ids above rather than restating the plan."
+    )
+
+
+def knowledge_scope_sentence(bases: str) -> str:
+    """`{{knowledge_scope}}`: which bases this chat is limited to, or nothing."""
+    if not bases:
+        return ""
+    return (
+        f"Knowledge searches here cover only: {bases}. Finding nothing there means "
+        "nothing is there, not that the library is empty."
     )
 
 
@@ -233,13 +273,18 @@ def context_variables(
         # same sentence with a different number in it. Blank when there is no
         # ceiling at all, so the fragment vanishes rather than promising zero.
         "round_budget": str(settings_store.chat_rounds(db) or ""),
-        # The complement, and the gate on `core.keep_working`. Exactly one of
-        # the two is ever set: a model told it has a budget rations it and stops
-        # early to report progress, and one told to keep going does the work.
-        # Not rendered anywhere either.
-        "unbounded": "" if settings_store.chat_rounds(db) else "yes",
         "memory_limit": str(memories_service.MAX_MEMORY_CHARS),
         "tool_names": _tool_names(offered),
+        # The shared system text's variables (harness spec `system/default.md`):
+        # what this side is, said once. The CLI's three -- its file tools, its
+        # background commands, its Git section -- are empty here and their
+        # bullets go with them.
+        "intro": intro_sentence((user.name or "") if user is not None else ""),
+        "surface": SURFACE,
+        "tool_list": tool_list_sentence(_tool_names(offered)),
+        "file_tools": "",
+        "background": "",
+        "git": "",
         "memories": memories_service.block(db, user, group) if "memory" in families else "",
         "skills": (
             skills_service.index_block(
@@ -265,6 +310,9 @@ def context_variables(
         # rather than two fragments: what may be loaded is a fact about this
         # instance, and the rest of the guidance is the same either way.
         "prototype_sources": _prototype_sources(db),
+        # Where a prototype is seen: here, rendered by the page, so nothing to
+        # say -- the CLI fills this with "saved as a file".
+        "prototype_surface": "",
         # The gate on `core.temporary`, and its one variable: how long the chat
         # has. A person's temporary chat only, never a helper's, which is also
         # `temporary` but is told what it may do by `core.subagent`.
@@ -274,18 +322,19 @@ def context_variables(
             str(settings_store.images(db).get("instructions") or "") if "image" in families else ""
         ),
         "knowledge_bases": "",
+        "knowledge_scope": "",
         "document_names": "",
-        "agent_target": "",
-        "agent_dir": "",
-        "agent_mode": "",
-        "agent_rewound": "",
-        "background": "",
-        "background_notify": "",
-        "project_files": "",
-        "agent_instructions": "",
-        "agent_instructions_file": "",
+        # The plan this chat is working to, rendered with its ids: bare, and
+        # as the section the shared text carries. Empty with none.
         "plan": "",
-        "plan_editable": "",
+        "plan_context": "",
+        # The mode flags: the gates on `mode.*`. Plan mode is the one a chat
+        # here can be in; the other three are an agent chat's, set only by the
+        # admin preview.
+        "mode_plan": "",
+        "mode_manual": "",
+        "mode_edit": "",
+        "mode_auto": "",
         # Empty everywhere but a scheduled task's own chat, which is what makes
         # it the gate on `core.unattended` as well as the content of
         # `context.schedule`. Two fragments, one variable, and no way for the
@@ -324,7 +373,18 @@ def context_variables(
         ]
         if "knowledge" in families and in_group:
             values["knowledge_bases"] = ", ".join(base.name for base in in_group)
+            values["knowledge_scope"] = knowledge_scope_sentence(values["knowledge_bases"])
         values["document_names"] = _document_names(db, chat)
+
+        # The plan, whichever reply wrote it: one column read, no scan. In
+        # front of the model on every turn while it exists, in every mode --
+        # a plan it cannot see is a plan it cannot keep current.
+        plan = chat.plan
+        if plan:
+            values["plan"] = plans.render(plan)
+            values["plan_context"] = plan_context(plan)
+        if tools_service.plan_mode(chat):
+            values["mode_plan"] = "yes"
 
         # Not gated on a family: a scheduled task has no tools of its own, and
         # the thing that must reach the model is precisely that nobody is

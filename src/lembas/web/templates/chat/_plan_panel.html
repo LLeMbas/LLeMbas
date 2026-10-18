@@ -1,0 +1,46 @@
+{#
+  The plan above the composer -- where the LLeMbas CLI shows it, above its
+  prompt, rather than as a block in the transcript after every change. Shown
+  while anything on it is still to do; gone when it is all done or dropped.
+
+  The element is always there, empty or not, so the stream's out-of-band frame
+  (`oob`) always has somewhere to land. What is shown: the task in progress,
+  what is left, then the last two done -- six lines at most, as in the
+  terminal (`plans.summary_lines`). The whole card is one click away, behind
+  the disclosure, with its Execute button for the plan as it stands.
+
+  The status classes keep the names the stylesheet has: in progress, completed,
+  cancelled, pending.
+#}
+{% set open_tasks = plan and plan.steps and (plan.phases | map(attribute="tasks") | sum(start=[]) | selectattr("status", "in", ["todo", "doing"]) | list) %}
+<div id="plan-panel" class="plan-panel"{% if oob %} hx-swap-oob="outerHTML"{% endif %}{% if not open_tasks %} hidden{% endif %}
+     aria-live="polite">
+  {% if open_tasks %}
+  {% set tasks = plan.phases | map(attribute="tasks") | sum(start=[]) | list %}
+  {% set done = tasks | selectattr("status", "equalto", "done") | list %}
+  {% set kept = tasks | rejectattr("status", "equalto", "dropped") | list %}
+  {% set shown = ((tasks | selectattr("status", "equalto", "doing") | list)
+                  + (tasks | selectattr("status", "equalto", "todo") | list)
+                  + done[-2:])[:6] %}
+  {% set classes = {"todo": "is-pending", "doing": "is-in-progress", "done": "is-completed", "dropped": "is-cancelled"} %}
+  {% set marks = {"todo": "☐", "doing": "▸", "done": "☑", "dropped": "✗"} %}
+  <details class="plan-panel__details">
+    <summary class="plan-panel__head" title="{{ t('Show the whole plan') }}">
+      <span class="plan-panel__title">{{ t("Plan") }}</span>
+      <span class="plan-panel__name">{{ plan.title }}</span>
+      <span class="plan-panel__count">{{ done | length }}/{{ kept | length }}</span>
+    </summary>
+    <div class="plan-panel__card">
+      {% include "chat/_plan.html" %}
+    </div>
+  </details>
+  <ul class="plan-panel__list">
+    {% for task in shown %}
+    <li class="plan-panel__item {{ classes[task.status] }}">
+      <span class="plan-panel__mark" aria-hidden="true">{{ marks[task.status] }}</span>
+      <span class="plan-panel__text">{{ task.text }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>

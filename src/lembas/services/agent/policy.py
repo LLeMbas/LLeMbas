@@ -18,6 +18,7 @@ import re
 from dataclasses import dataclass
 from fnmatch import fnmatch
 
+from lembas.services import harness_spec, prompts
 from lembas.services.agent import shell
 from lembas.services.tools import RISK_ASK, RISK_EXECUTE, RISK_READ, RISK_WRITE
 from lembas.web.i18n import N_
@@ -46,37 +47,14 @@ MODE_HINTS = {
 }
 
 # What the *model* is told about the mode it is in. Different words from
-# MODE_HINTS, which describes it to a person: this is about how to behave, and
-# says the one thing that changes what a competent model does -- that being
-# stopped for approval is normal and worth batching for.
+# MODE_HINTS, which describes it to a person: this is about how to behave. The
+# texts are the harness spec's (`prompts/modes/<mode>.md`), the same words the
+# LLeMbas CLI sends, read from the vendored copy; `{{plan_dir}}` is "the plan"
+# here, since LLeMbas keeps a plan as a structure and not as a file. They are
+# the defaults of the `mode.*` fragments in `services/prompts.py`.
 MODE_GUIDANCE = {
-    MODE_MANUAL: (
-        "You are in **Manual** mode: everything you do is shown to them for "
-        "approval first. Expect to be interrupted, and say what you are about "
-        "to do before you do it."
-    ),
-    MODE_EDIT: (
-        "You are in **Edit** mode: you may read and write files freely, but "
-        "every command is shown to them for approval first. Prefer reading and "
-        "writing files over shelling out where both would work."
-    ),
-    MODE_AUTO: (
-        "You are in **Auto** mode: nothing is shown to them first. That is trust "
-        "rather than permission — be as careful as you would be if each step "
-        "were being watched, and stop to say so if you find yourself about to "
-        "do something you could not undo."
-    ),
-    MODE_PLAN: (
-        "You are in **Plan** mode: read and explore freely, but change nothing. "
-        "Research before you propose anything — read the files, run the "
-        "read-only commands, look at what is actually there rather than at what "
-        "is usually there. If the scope is genuinely ambiguous, and only then, "
-        "ask with ask_user before planning rather than planning for the wrong "
-        "thing; put everything you need into one question. Then finish with "
-        "plan_submit: what you found, what the work is for, and the work itself "
-        "as phases of concrete tasks. Anything that writes or runs will be "
-        "stopped for approval, so do not rely on it."
-    ),
+    mode: harness_spec.prompt_with(f"modes/{mode}.md", {"plan_dir": prompts.PLAN_DIR})
+    for mode in (MODE_MANUAL, MODE_EDIT, MODE_AUTO, MODE_PLAN)
 }
 
 ALLOW = "allow"

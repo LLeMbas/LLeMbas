@@ -829,7 +829,6 @@ MESSAGES: dict[str, str] = {
     "the device": "el dispositivo",
     "Carried on after the instance restarted": "Continuado tras reiniciarse la instancia",
     "These are no longer sent to the model; a summary of them goes instead. They are kept here so nothing is lost.": "Estos ya no se envían al modelo; en su lugar va un resumen de ellos. Se conservan aquí para que no se pierda nada.",
-    "Todo": "Tareas",
     "No output.": "Sin salida.",
     "Nothing was found.": "No se ha encontrado nada.",
     "Show the whole change": "Mostrar el cambio completo",
@@ -1758,7 +1757,6 @@ MESSAGES.update(
         "A message cannot be empty.": "Un mensaje no puede estar vacío.",
         "Wait for the current reply to finish, or stop it.": "Espere a que termine la respuesta actual, o deténgala.",
         "There is no plan on that message.": "Ese mensaje no tiene ningún plan.",
-        "This chat cannot act on anything.": "Este chat no puede actuar sobre nada.",
         "That message is not waiting to be sent.": "Ese mensaje no está esperando para enviarse.",
         "That question is no longer waiting for an answer.": "Esa pregunta ya no está esperando respuesta.",
         "This chat will not ask about 1 more action. Clear that from the menu beside the composer.": "Este chat no preguntará por 1 acción más. Puede borrarlo desde el menú junto al editor de mensajes.",
@@ -2259,5 +2257,23 @@ MESSAGES.update(
         "This computer (%(host)s)": "Este equipo (%(host)s)",
         "This computer allows no folders yet. Add one in LLeMbas Desktop, or run <code>%(command)s</code>.": "Este equipo aún no permite ninguna carpeta. Añada una en LLeMbas Desktop o ejecute <code>%(command)s</code>.",
         "This device allows no folders yet. Add one there in LLeMbas Desktop, or run <code>%(command)s</code> on it.": "Este dispositivo aún no permite ninguna carpeta. Añada una allí en LLeMbas Desktop o ejecute <code>%(command)s</code> en él.",
+    }
+)
+
+# --- 1.3: the plan in every chat, and Plan mode for a chat --------------------
+MESSAGES.update(
+    {
+        "An older override, saved for <code>%(key)s</code> before it became part of this fragment — review it: it is no longer sent.": "Una modificación anterior, guardada para <code>%(key)s</code> antes de que pasara a formar parte de este fragmento — revísela: ya no se envía.",
+        "Mode": "Modo",
+        "Answers and acts as usual.": "Responde y actúa como de costumbre.",
+        "Normal": "Normal",
+        "Approving ends Plan mode: the model carries the plan out in this reply, keeping it current above the message box.": "Aprobarlo termina el modo Plan: el modelo lleva a cabo el plan en esta respuesta y lo mantiene al día encima del cuadro de mensaje.",
+        "Carry out this plan? The model works through it in order, and the plan stays above the message box while it does.": "¿Llevar a cabo este plan? El modelo lo recorre en orden y el plan se queda encima del cuadro de mensaje mientras tanto.",
+        "Show the whole plan": "Mostrar el plan completo",
+        "This chat has no plan.": "Este chat no tiene plan.",
+        "Waiting for you to look at the plan…": "Esperando a que revise el plan…",
+        "Ask it something back": "Preguntarle algo a su vez",
+        "Your question for the model…": "Su pregunta para el modelo…",
+        "Keeping a plan": "Llevar un plan",
     }
 )

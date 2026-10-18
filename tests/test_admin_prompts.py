@@ -214,9 +214,9 @@ def test_the_preview_gates_its_samples_exactly_as_a_real_request_would(
     block on the family, the other two on the situation and on no family at all.
     """
     plain = client.post("/admin/prompts/preview", data={"preview_family": ["notes"]}).text
-    assert "buildbox" not in plain
-    assert "AGENTS.md" not in plain
+    assert "Fix the parser" not in plain
     assert "every weekday at 08:00" not in plain
+    assert "Permission mode: plan" not in plain
 
 
 def test_the_preview_warns_when_the_cap_would_cut_it_off(client: TestClient, db, registered):

@@ -309,7 +309,6 @@ def test_a_plain_chat_is_told_its_real_ceiling(db, owner):
     text = harness.compose(db, owner, _tools("web_search"))
 
     assert "at most 3 rounds" in text
-    assert "Keep working until the task is actually done" not in text
 
 
 def test_no_ceiling_means_no_round_budget_is_claimed(db, owner):
@@ -330,47 +329,61 @@ def test_the_fetch_guidance_appears_only_with_the_tool(db, owner):
 
 # --- The ceiling has to fit what the defaults already grant --------------------
 def test_the_shipped_defaults_fit_under_the_ceiling(db, owner):
-    """An agent chat's whole preamble, at the budgets this ships with.
+    """A chat's whole preamble with every family on, at the budgets this ships
+    with: the shared system text, every tool family's guidance, a plan, the
+    memories and a skill index.
 
-    It did not fit. The fragments alone are about 7,900 characters, and on top
-    of them the defaults granted a 2,000 character project listing and a 4,000
-    character AGENTS.md -- both on by default. The
-    ceiling was 8,000, and `assemble` cuts the tail, which by fragment order is
-    the context worth having: the listing was severed mid-tree and
-    `context.agent_instructions` was dropped whole. So on a default install the
-    one path by which a project's own instructions reach a model did not.
+    It once did not fit, when the agent surface lived here: the fragments plus
+    a project listing and an AGENTS.md crossed the ceiling, and `assemble` cuts
+    the tail -- the project's own instructions -- silently. The agent surface
+    is the linked LLeMbas CLI's now; what has to fit is what is left, and the
+    memories and the plan are the tail that would go first.
     """
+    from lembas.services import tools as tools_service
+
     # Every name the harness knows about, so a variable added later is covered
     # here without anybody remembering to add it.
     variables = dict.fromkeys(harness.context_variables(db, owner, [], None), "")
+    names = ", ".join(tools_service.REGISTRY)
     variables.update(
         {
             "today": "Monday 3 August 2026",
             "instance_name": "LLeMbas",
             "user_name": "Frodo",
-            "agent_target": "homeserver",
-            "agent_dir": "/srv/project",
-            "agent_mode": "You are in **Edit** mode.",
-            "tool_names": "bash, read, write, edit, apply_patch, list",
-            "background": "on",
+            "intro": harness.intro_sentence("Frodo"),
+            "surface": harness.SURFACE,
+            "tool_names": names,
+            "tool_list": harness.tool_list_sentence(names),
             "max_rounds": "200",
-            # Each at the budget it was last given: a listing and a project's
-            # own instructions of this size still have to fit.
-            "project_files": "L" * 2000,
-            "agent_instructions": "A" * 4000,
-            "agent_instructions_file": "AGENTS.md",
-            "plan": "P" * 600,
-            "memories": "M" * 400,
+            "prototypes": "yes",
+            "prototype_sources": "Nothing can be loaded from the internet.",
+            "mode_plan": "yes",
+            "knowledge_bases": "Contracts, Recipes",
+            "knowledge_scope": harness.knowledge_scope_sentence("Contracts, Recipes"),
+            "document_names": "report.pdf, notes.txt",
+            "image_templates": "- portrait: a portrait",
+            "image_models": "sdxl",
+            # Each at a size a real chat reaches: a full plan, the memories at
+            # their whole budget (`memories.MAX_TOTAL_CHARS`), a long skill
+            # index.
+            "plan": "P" * 1200,
+            "plan_context": "### The current plan\n\n" + "P" * 1200,
+            "memories": "M" * 4000,
+            "skills": "S" * 2000,
         }
     )
 
     out = harness.compose_from(
-        db, variables=variables, families=["agent"], has_tools=True, overrides={}
+        db,
+        variables=variables,
+        families=list(tools_service.FAMILIES),
+        has_tools=True,
+        overrides={},
     )
 
     assert not out.endswith("…"), f"the preamble was truncated at {len(out):,} characters"
-    assert "A" * 100 in out, "the project's own instructions were cut off entirely"
-    assert "L" * 100 in out, "the project listing was cut off"
+    assert "M" * 100 in out, "the memories were cut off"
+    assert "S" * 100 in out, "the skill index was cut off"
 
     # Fitting is not enough. It fitted with 1,300 characters to spare once, and
     # a ceiling that close to the content is one the next fragment crosses --

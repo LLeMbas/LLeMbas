@@ -17,12 +17,14 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import logging
 import re
 import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import select
 
@@ -31,7 +33,15 @@ from lembas.db.session import session_scope
 from lembas.services import canvas as canvas_service
 from lembas.services import chat as chat_service
 from lembas.services import compaction as compaction_service
-from lembas.services import data_groups, interaction, settings_store, tokens, tool_labels
+from lembas.services import (
+    data_groups,
+    harness_spec,
+    interaction,
+    plans,
+    settings_store,
+    tokens,
+    tool_labels,
+)
 from lembas.services import metrics as metrics_service
 from lembas.services import prompts as prompts_service
 from lembas.services import push as push_service
@@ -44,6 +54,7 @@ from lembas.services.llm.openai_client import (
     delta_reasoning,
     delta_text,
     delta_tool_calls,
+    finish_reason,
     stream_chat,
 )
 from lembas.services.reasoning import REASONING, ReasoningSplitter
@@ -191,16 +202,21 @@ class Generation:
     # beside one -- and each is its own card with its own answer. Read the first
     # through `pending`, as everything did when there could only be one.
     waiting: list[interaction.Interruption] = field(default_factory=list)
-    # A plan proposed in Plan mode, or one being kept current while it is
-    # carried out. See services/plans.py for the shape. Written onto the
-    # message, so the Execute button sends exactly what was proposed rather than
-    # something parsed back out of prose.
+    # The plan as this reply last wrote it (`plan_write`, `plan_update`,
+    # `plan_submit`; services/plans.py for the shape), or None while it has not
+    # touched one. Folded onto the chat by `_persist`, with a snapshot on the
+    # message; streamed to the panel above the composer live.
     plan: dict | None = None
-    # Whether that plan came from `plan_submit`, which ends the turn, rather
-    # than from `plan_update`, which does not. Both write `plan` so that
-    # `_persist` stays one writer with one rule; only this decides whether the
-    # tools are withdrawn for a final round.
+    # Set by `plan_submit`: the plan is on the card, waiting for the person.
+    # `_settle_plan` clears it once they have answered -- approval carries the
+    # reply on with the tools it was planning for; dismissal withdraws them for
+    # a final round, so the reply ends in an answer rather than mid-sentence.
     plan_final: bool = False
+    # Seconds this reply spent waiting for a person (an approval, a question,
+    # the plan card). Not counted against the wall-clock budget.
+    waited: float = 0.0
+    # Bytes of tool output this reply has read, against the output budget.
+    output_bytes: int = 0
     # Which files this reply has put in the canvas panel. Seeded once from
     # `chat.canvas_json` where `_run` already has the chat loaded, then mutated
     # in place -- two `file_read` calls in one round that each re-read the row
@@ -229,9 +245,10 @@ class Generation:
     # turn it belongs to, which is the same division of labour `canvas` above
     # follows and for the same reason.
     attachment_ids: list[str] = field(default_factory=list)
-    # How many times *in a row* this reply has ended with plan tasks still open
-    # and been told to carry on. Reset the moment it calls a tool again, so the
-    # count is of consecutive stops rather than of stops in total.
+    # How many times *in a row* this reply has been asked again after a round
+    # that said nothing -- only thinking, or cut off at the output limit
+    # (harness spec `loop.json` nudges). Reset the moment it calls a tool
+    # again, so the count is of consecutive stops rather than of stops in total.
     nudges: int = 0
     # How many helpers this reply has spawned. Here rather than keyed on the
     # chat because this object is the only one that knows what "this reply"
@@ -254,8 +271,9 @@ class Generation:
     # reasoning arrives and closed by what follows -- `_thought_at`'s span, kept
     # here because the device's events reach `apply_event` one at a time.
     device_think_span: tuple[float, float] | None = None
-    # The todo list as this reply last set it; None while it has not
-    # touched it. Folded onto the chat by `_persist`, streamed to the panel live.
+    # The former `todo` list as a linked device last sent it; None while it has
+    # not. Read by `_persist` as a plan (`plans.from_todos`) when the reply
+    # wrote no plan of its own, until the device link sends the structure.
     todos: list | None = None
     # A device reply's turn has ended on the device (its `task` end): later
     # events of that session are a new turn, not more of this reply.
@@ -864,6 +882,10 @@ async def _run(generation: Generation) -> None:
             # parent's wall clock.
             if chat.parent_chat_id:
                 chat_rounds = int(settings_store.subagents(db)["max_rounds"])
+            budgets = loop_budgets(db)
+            # Whether `plan_submit` can be answered here at all, and how long
+            # it waits -- read now, for the reason the timeout above is.
+            attended = not tools_service.unattended(chat)
 
         # A ceiling, not a schedule -- the loop below ends the moment a round
         # produces no tool calls, which is the model saying it is done. Zero
@@ -920,10 +942,15 @@ async def _run(generation: Generation) -> None:
             # (Anthropic's thinking blocks with their signatures, which a tool
             # loop has to hand back unchanged with the calls they led to).
             round_blocks: list[dict] = []
+            # Why the endpoint said it stopped, when it said: "length" is a
+            # reply cut off at the output limit, which is asked again below.
+            round_finish = ""
 
             async for chunk in _stream_once(endpoint, payload, generation, model_id):
                 if native := assistant_blocks(chunk):
                     round_blocks = native
+                if reason := finish_reason(chunk):
+                    round_finish = reason
                 counts = chunk_usage(chunk)
                 if counts is not None:
                     generation.reported_usage = True
@@ -997,9 +1024,39 @@ async def _run(generation: Generation) -> None:
             # See metrics._since_counted.
             _mark_counted(generation)
             # Before `close_step` below, which stamps the total this adds to.
+            # Whether the round thought at all is kept: the nudge below asks
+            # about it after the span has been closed.
+            thought_this_round = round_thinking is not None
             round_thinking = _close_thinking(generation, round_thinking)
 
             calls = accumulator.calls
+            if not calls and not generation.stopped and not wrapping_up:
+                # A round that said nothing -- only thinking, or cut off at the
+                # output limit -- is asked again rather than ending the reply
+                # with nothing said, at most `nudges.max` times in a row
+                # (harness spec `loop.json`). Past that it is believed.
+                nudge = _nudge_for(round_finish, "".join(round_text), thought_this_round)
+                if nudge and generation.nudges < budgets["nudges"]:
+                    generation.nudges += 1
+                    generation.tool_events.append(
+                        {
+                            "name": "nudge",
+                            "kind": "agent",
+                            "status": "ok",
+                            "results": [],
+                            "text": f"Asked again: {nudge}.",
+                        }
+                    )
+                    generation.close_step()
+                    generation.touch()
+                    messages = [*payload["messages"]]
+                    if "".join(round_text).strip():
+                        messages.append({"role": "assistant", "content": "".join(round_text)})
+                    messages.append(
+                        {"role": "user", "content": harness_spec.prompt("tasks/continue.md")}
+                    )
+                    payload = {**payload, "messages": messages}
+                    continue
             if generation.stopped or not calls:
                 # The model says it is done. Believe it.
                 break
@@ -1007,6 +1064,19 @@ async def _run(generation: Generation) -> None:
             # Something was called, so whatever it said it had finished, it had
             # not. The count is of *consecutive* stops.
             generation.nudges = 0
+
+            # A call by a former name is the call it means (the spec's
+            # `aliases.llembas`): `todo` is `plan_write` with its list as one
+            # phase, `subagent_run` is `task`. Rewritten in place, so the card,
+            # the policy, the runner and the echoed assistant turn all see one
+            # name -- an endpoint matches the tool turn by id, not by name.
+            for call in calls:
+                resolved, converted = tools_service.resolve_alias(
+                    call["name"], tools_service.parse_arguments(None, call["arguments"])
+                )
+                if resolved != call["name"]:
+                    call["name"] = resolved
+                    call["arguments"] = json.dumps(converted, ensure_ascii=False)
 
             if round_number >= budget:
                 # Out of rounds with the model still asking for tools.
@@ -1032,6 +1102,7 @@ async def _run(generation: Generation) -> None:
                     f"after {howmany} of tool calls",
                     payload,
                     name=calls[0]["name"],
+                    limit="round limit",
                 )
                 if wrapping_up:
                     # Already asked, and it called a tool anyway -- which it
@@ -1043,6 +1114,13 @@ async def _run(generation: Generation) -> None:
             # Parsed once, here, and shared by everything below: the approval
             # card, `policy.decide`, and the runner. See `_arguments_for`.
             arguments = _arguments_for(tool_context, calls)
+            # A plan changed earlier in this same reply is not on the row yet
+            # (`_persist` writes once, at the end), so the plan tools are
+            # handed it directly; the runner pops it before it is stored.
+            if generation.plan is not None:
+                for call, args in zip(calls, arguments, strict=True):
+                    if call["name"] in ("plan_update", "plan_submit"):
+                        args["_current"] = generation.plan
 
             # Decided before anything runs, never during. A round's calls run
             # together under a semaphore, and four people-shaped pauses inside
@@ -1087,11 +1165,20 @@ async def _run(generation: Generation) -> None:
                     # wearing an authorship it does not have, in either
                     # direction.
                     outcome.event["edited"] = True
+                if outcome.event.get("plan"):
+                    generation.plan = outcome.event["plan"]
+                    if outcome.event.get("plan_final"):
+                        # The plan is on the card, and what the person decides
+                        # is this call's result: the model reads the approval
+                        # or the revision as the tool's answer.
+                        generation.plan_final = True
+                        outcome.content, tool_context, offered, payload = await _settle_plan(
+                            generation, tool_context, offered, payload, attended=attended
+                        )
+                        if generation.stopped:
+                            break
                 generation.tool_events.append(outcome.event)
-                if outcome.event.get("name") == "todo" and isinstance(
-                    outcome.event.get("todos"), list
-                ):
-                    generation.todos = list(outcome.event["todos"])
+                generation.output_bytes += len(outcome.content.encode("utf-8"))
                 messages.append(tools_service.tool_turn(call, outcome.content))
                 if opened := outcome.event.get("canvas"):
                     # A runner cannot write the message row, so the loop carries
@@ -1106,15 +1193,8 @@ async def _run(generation: Generation) -> None:
                     # the canvas tab above is -- a runner cannot write the
                     # message row, and `_persist` is the single writer.
                     generation.attachment_ids.append(str(attachment_id))
-                if outcome.event.get("plan"):
-                    generation.plan = outcome.event["plan"]
-                    # Only `plan_submit` sets this. `plan_update` writes the
-                    # same key -- so `_persist` stays one writer with one
-                    # rule -- but is bookkeeping mid-work and must not end the
-                    # reply, or the turn would stop dead every time a task was
-                    # ticked off.
-                    if outcome.event.get("plan_final"):
-                        generation.plan_final = True
+            if generation.stopped:
+                break
             # This round is over: its thinking, its prose and its tool calls are
             # all in. Anything appended from here belongs to the next step, and
             # that is what makes the bubble a sequence rather than three zones.
@@ -1143,14 +1223,26 @@ async def _run(generation: Generation) -> None:
             # it would draw a picture, be asked again, and draw another.
             payload.pop("tool_choice", None)
 
-            # A plan ends the turn. One more request so the model can say what
-            # it proposed and why -- a bubble containing only a card reads as
-            # though it had nothing to add -- but with the tools withdrawn, so
-            # "one more round" cannot become three rounds of it changing its
-            # mind about a plan the reader is being asked to approve.
+            # A plan put aside ends the turn. One more request so the model can
+            # say what it proposed and why -- a bubble containing only a card
+            # reads as though it had nothing to add -- but with the tools
+            # withdrawn, so "one more round" cannot become three rounds of it
+            # changing its mind about a plan nobody approved.
             if generation.plan_final:
                 offered = []
                 payload.pop("tools", None)
+                wrapping_up = True
+                continue
+
+            # The budgets, checked between rounds and never mid-reply: time
+            # worked, tool output read, tokens written (harness spec
+            # `loop.json`). Past one, the tools are withdrawn and the model is
+            # told which limit it reached and asked to answer from what it has.
+            if not wrapping_up and (limit := _over_budget(generation, budgets, started)):
+                offered, payload = _wrap_up(
+                    generation, f"at the {limit}", payload, limit=limit
+                )
+                wrapping_up = True
 
         for kind, piece in splitter.flush():
             (generation.reasoning if kind == REASONING else generation.content).append(piece)
@@ -1389,11 +1481,15 @@ def _gave_up(generation, why: str) -> None:
     generation.touch()
 
 
-def _wrap_up(generation, why: str, payload: dict, *, name: str = "budget") -> tuple[list, dict]:
+def _wrap_up(
+    generation, why: str, payload: dict, *, name: str = "budget", limit: str = "round limit"
+) -> tuple[list, dict]:
     """A budget has run out. Withdraw the tools and ask for an answer.
 
-    Returns the empty tool list and the payload without its `tools` array, so
-    the next request is one the model can only answer.
+    Returns the empty tool list and the payload without its `tools` array and
+    with the harness spec's wrap-up message (`loop.json`) as a user turn
+    naming `limit` -- so the next request is one the model can only answer,
+    and it is told why.
 
     Every budget used to end the reply where it was noticed, which is fine for a
     model that narrates as it works and produces nothing at all for one that goes
@@ -1423,7 +1519,152 @@ def _wrap_up(generation, why: str, payload: dict, *, name: str = "budget") -> tu
     # mark of its own or it lands in the step still being written.
     generation.close_step()
     generation.touch()
-    return [], {key: value for key, value in payload.items() if key != "tools"}
+    told = harness_spec.fill(harness_spec.loop()["wrap_up"]["message"], {"limit": limit})
+    messages = [*payload.get("messages", []), {"role": "user", "content": told}]
+    return [], {**{k: v for k, v in payload.items() if k != "tools"}, "messages": messages}
+
+
+# What `{{limit}}` in the wrap-up message says for each budget.
+LIMIT_NAMES = {
+    "wall_seconds": "time limit",
+    "output_bytes": "tool-output limit",
+    "completion_tokens": "output-token limit",
+}
+
+
+def loop_budgets(db) -> dict[str, int]:
+    """What one reply may spend: the spec's defaults for LLeMbas
+    (`loop.json`), each one an instance setting may override -- `loop_wall_seconds`,
+    `loop_output_bytes`, `loop_completion_tokens`; 0 is off -- and how many times
+    in a row a silent round is asked again."""
+    spec = harness_spec.loop()
+    out: dict[str, int] = {}
+    for name in LIMIT_NAMES:
+        stored = settings_store.get(db, f"loop_{name}")
+        default = spec["budgets"][name].get("llembas") or 0
+        out[name] = max(int(stored), 0) if stored is not None else int(default)
+    out["nudges"] = int(spec["nudges"]["max"])
+    return out
+
+
+def _over_budget(generation: Generation, budgets: dict[str, int], started: float) -> str:
+    """Which budget this reply has passed, as the words the wrap-up uses, or "".
+
+    Time waiting for a person is not work and is not counted; tokens written
+    are the endpoint's count when it gave one, else the estimate the metrics
+    use.
+    """
+    worked = time.monotonic() - started - generation.waited
+    if budgets["wall_seconds"] and worked > budgets["wall_seconds"]:
+        return LIMIT_NAMES["wall_seconds"]
+    if budgets["output_bytes"] and generation.output_bytes > budgets["output_bytes"]:
+        return LIMIT_NAMES["output_bytes"]
+    written = generation.completion_tokens or tokens.estimate(
+        generation.text + generation.thinking
+    )
+    if budgets["completion_tokens"] and written > budgets["completion_tokens"]:
+        return LIMIT_NAMES["completion_tokens"]
+    return ""
+
+
+def _nudge_for(finish: str, text: str, thought: bool) -> str:
+    """Why a round that called nothing is asked again, or "" when it is not:
+    cut off at the output limit, or only thinking and no answer."""
+    if finish == "length":
+        return "the reply was cut off at the output limit"
+    if not text.strip() and thought:
+        return "the round was thinking only"
+    return ""
+
+
+async def _settle_plan(
+    generation: Generation, context, offered: list, payload: dict, *, attended: bool
+) -> tuple[str, Any, list, dict]:
+    """`plan_submit`: the plan on the card, and what the person decides as the
+    call's result.
+
+    Approved: Plan mode ends for the chat, and the tools are resolved again so
+    the rest of this reply has what Plan mode withheld -- the spec says the
+    model carries on and implements. (An agent chat's approval chooses the mode
+    to carry on in, as the device card does; an agent chat never reaches this
+    loop, so only a chat's own mode is cleared here.) Sent back: the feedback,
+    and the model revises and submits again. Put aside, timed out, or nobody
+    there to ask: the tools are withdrawn for a final round, in which the model
+    says what it proposed.
+
+    Returns the content for the tool turn and the context, offered tools and
+    payload to carry on with.
+    """
+    plan = generation.plan or {}
+    if not attended:
+        generation.plan_final = True
+        return (
+            "There is nobody here to approve the plan: this conversation runs on its "
+            "own. Say what you proposed and stop.",
+            context,
+            offered,
+            payload,
+        )
+
+    timeout = float(context.interaction_timeout or 900)
+    card = interaction.plan_card(plan, timeout=timeout, mode_choice=False)
+    generation.status = interaction.summarise(card.items)
+    reply = await interaction.wait_for(generation, card, timeout=timeout)
+    generation.status = ""
+
+    if reply.ended:
+        generation.stopped = True
+        return "Stopped.", context, offered, payload
+
+    if reply.permitted:
+        generation.plan_final = False
+        with session_scope() as db:
+            chat = db.get(Chat, generation.chat_id)
+            owner = db.get(User, chat.user_id) if chat is not None else None
+            if chat is not None and chat.kind != KIND_AGENT:
+                # Plan mode is over: the next turn, and the rest of this one,
+                # may change things.
+                chat.agent_mode = ""
+                db.commit()
+            if chat is not None:
+                speaker = chat_service.speaker_for(db, chat)
+                toolset = tools_service.resolve_tools(db, chat, owner, speaker)
+                context = tools_service.context_for(
+                    db, owner, chat, tools=toolset, speaker=speaker
+                )
+                offered = toolset.schemas
+                payload = {**payload, "tools": offered} if offered else {
+                    k: v for k, v in payload.items() if k != "tools"
+                }
+        return (
+            "The plan was approved. Carry on and implement it now, keeping it current "
+            "with plan_update as you go. The tools that were withheld while planning "
+            "are offered with this request.",
+            context,
+            offered,
+            payload,
+        )
+
+    if reply.outcome == interaction.DENY and reply.reason:
+        generation.plan_final = False
+        return (
+            f"They sent the plan back with this to change:\n\n{reply.reason}\n\n"
+            "Change the plan with plan_write or plan_update, then call plan_submit again.",
+            context,
+            offered,
+            payload,
+        )
+
+    generation.plan_final = True
+    why = "They did not answer in time." if reply.outcome == interaction.EXPIRED else (
+        "They put the plan aside without approving it."
+    )
+    return (
+        f"{why} Nothing is to be carried out. Say what you proposed and why, and stop.",
+        context,
+        offered,
+        payload,
+    )
 
 
 def _too_big(generation: Generation) -> bool:
@@ -1536,6 +1777,8 @@ def _ask_items(context, calls: list[dict], arguments: list[dict]) -> list[intera
                     kind=interaction.KIND_QUESTION,
                     tool_name=call["name"],
                     title=str(asked.get("question") or "").strip() or "A question for you",
+                    # The spec's chip label, shown above the question.
+                    header=str(asked.get("header") or "").strip()[:60],
                     options=_options_in(asked),
                     multiple=bool(asked.get("multiple")),
                 )
@@ -1560,11 +1803,14 @@ def _options_in(asked: dict) -> tuple[interaction.Option, ...]:
     """
     out: list[interaction.Option] = []
     for raw in asked.get("options") or []:
+        recommended = False
         if isinstance(raw, str):
             label, description = raw.strip(), ""
         elif isinstance(raw, dict):
             label = str(raw.get("label") or raw.get("name") or raw.get("value") or "").strip()
             description = str(raw.get("description") or "").strip()
+            # At most one per question, the spec says: the first one marked.
+            recommended = bool(raw.get("recommended")) and not any(o.recommended for o in out)
         else:
             continue
         if not label:
@@ -1573,6 +1819,7 @@ def _options_in(asked: dict) -> tuple[interaction.Option, ...]:
             interaction.Option(
                 label=label[: interaction.MAX_OPTION_CHARS],
                 description=description[: interaction.MAX_OPTION_CHARS],
+                recommended=recommended,
             )
         )
         if len(out) >= interaction.MAX_OPTIONS:
@@ -1722,6 +1969,24 @@ def _unanswerable(item: interaction.Item) -> ToolOutcome:
     )
 
 
+def _answer_line(item: interaction.Item, reply: interaction.Reply) -> str:
+    """One question's answer in the spec's shape: "→ label" for an option (or
+    several, comma separated), "→ custom: …" for something typed, and
+    "↩ counter-question: …" when the person asked something back instead."""
+    asked_back = (reply.picks.get(f"ask.{item.key}") or [""])[0].strip()
+    if asked_back:
+        return f"↩ counter-question: {asked_back}"
+    chosen = [p for p in reply.picks.get(item.key, []) if p != interaction.OTHER]
+    typed = (reply.picks.get(f"text.{item.key}") or [""])[0].strip()
+    parts = [f"→ {label}" for label in chosen]
+    if typed and (interaction.OTHER in reply.picks.get(item.key, []) or not chosen):
+        parts.append(f"→ custom: {typed}")
+    if parts:
+        return "\n  ".join(parts)
+    text = reply.answer_to(item)
+    return f"→ {text}" if text else ""
+
+
 def _answered(items: list[interaction.Item], reply: interaction.Reply) -> ToolOutcome:
     """What one `ask_user` call gets back, however many questions it put."""
     event = {
@@ -1739,7 +2004,7 @@ def _answered(items: list[interaction.Item], reply: interaction.Reply) -> ToolOu
             {**event, "status": "error", "error": "No answer.", "text": ""},
         )
 
-    answered = [(item, reply.answer_to(item)) for item in items]
+    answered = [(item, _answer_line(item, reply)) for item in items]
     given = [(item, text) for item, text in answered if text]
     if not given:
         return ToolOutcome(
@@ -1747,14 +2012,20 @@ def _answered(items: list[interaction.Item], reply: interaction.Reply) -> ToolOu
             {**event, "status": "error", "error": "No answer.", "text": ""},
         )
 
-    # Each answer is quoted next to the question it belongs to. With four
+    # Each answer is quoted next to the question it belongs to, in the spec's
+    # shape -- "→ label", "→ custom: …", "↩ counter-question: …". With four
     # questions on one card, a bare list of answers would leave the model
     # matching them up by position and sometimes getting it wrong.
-    lines = [f"{item.title}\n  → {text}" for item, text in given]
+    lines = [f"{item.title}\n  {text}" for item, text in given]
     skipped = [item for item, text in answered if not text]
     if skipped:
         lines.append(
             "They left unanswered: " + "; ".join(item.title for item in skipped)
+        )
+    if any(text.startswith("↩") for _item, text in given):
+        lines.append(
+            "A counter-question is theirs to you: answer it, then ask again — only "
+            "that question."
         )
 
     body = "\n\n".join(lines)
@@ -2026,26 +2297,31 @@ def _persist(generation: Generation, title: str, elapsed: float) -> None:
             # reply's text. Regeneration reuses the `Message` row and overwrites
             # all four for the same reason.
             message.steps_json = generation.steps
-            message.plan_json = generation.plan or {}
+            # The plan this reply wrote, or a device's todo list as one (until
+            # the device link sends the structure). The chat carries the plan
+            # in force; the message keeps a snapshot, which is what a
+            # transcript is for -- the card in an old bubble is never
+            # re-rendered.
+            plan = generation.plan
+            if plan is None and generation.todos:
+                plan = plans.from_todos(generation.todos)
+            message.plan_json = plan or {}
+            if plan:
+                chat.plan_json = plan
             if generation.canvas.get("tabs"):
                 # A union with whatever the row says *now*, not an overwrite:
                 # the snapshot above was seeded when the reply began, and
                 # somebody may have opened a tab by hand since.
                 chat.canvas_json = canvas_service.merge(chat.canvas_json, generation.canvas)
-            if generation.todos is not None:
-                chat.todos_json = list(generation.todos)
             if generation.attachment_ids:
                 # Images this reply made, bound to it here because this is the
                 # only writer. Scoped to rows this chat owns and still unbound,
                 # for the reason `files.claim` is scoped: an id that came back
                 # on an event must not be able to pull in somebody else's file.
                 _bind_attachments(db, chat, message, generation.attachment_ids)
-            if generation.plan:
-                # This bubble now carries the plan in force, and the chat points
-                # at it so the harness can find it with one primary-key lookup
-                # rather than a scan. Older bubbles keep the plan as it was then,
-                # which is what a transcript is for -- the card is never
-                # re-rendered in place.
+            if plan:
+                # Which bubble last carried the plan: what `Chat.plan` falls
+                # back to for rows from before `plan_json`.
                 chat.plan_message_id = message.id
             message.usage_json = metrics_service.to_json(
                 metrics_service.from_generation(generation)

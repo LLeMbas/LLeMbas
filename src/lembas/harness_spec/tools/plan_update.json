@@ -1,0 +1,131 @@
+{
+  "name": "plan_update",
+  "scope": "shared",
+  "risk": "interact",
+  "exclusive": false,
+  "block": "plan",
+  "purpose": false,
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Change the plan as the work goes: mark a task doing when you start it and done once you have checked it works, drop one that turned out unnecessary (say why in its note), add work the plan did not anticipate, record a new finding. Several changes go in one call. Quote the ids the plan shows (p1, t3, o2); an unknown id is an error naming the known ones. Updating is bookkeeping, not a milestone: carry straight on afterwards.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "tasks": {
+        "type": "array",
+        "description": "Tasks to change, by id",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "todo",
+                "doing",
+                "done",
+                "dropped"
+              ]
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      },
+      "objectives": {
+        "type": "array",
+        "description": "Objectives to change, by id",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "open",
+                "done",
+                "dropped"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "status"
+          ]
+        }
+      },
+      "phases": {
+        "type": "array",
+        "description": "Phases to change, by id",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "active",
+                "done"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "status"
+          ]
+        }
+      },
+      "add_tasks": {
+        "type": "array",
+        "description": "New tasks, each in a phase; after an existing task's id, or at the end of the phase",
+        "items": {
+          "type": "object",
+          "properties": {
+            "phase": {
+              "type": "string",
+              "minLength": 1
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "after": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "text"
+          ]
+        }
+      },
+      "add_findings": {
+        "type": "array",
+        "description": "New findings",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        }
+      }
+    }
+  }
+}

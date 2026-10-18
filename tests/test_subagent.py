@@ -124,7 +124,10 @@ async def _run(db, chat: Chat, args: dict, *, generation=None):
 
     generation_service.running_for = running_for
     try:
-        return await tools_service.run_tool(context, "subagent_run", json.dumps(args))
+        # By the former name, which the loop converts first (`resolve_alias`):
+        # the tool is `task` now, and `subagent_run` still runs as it.
+        name, converted = tools_service.resolve_alias("subagent_run", args)
+        return await tools_service.run_tool(context, name, json.dumps(converted))
     finally:
         generation_service.running_for = original
 
@@ -180,7 +183,7 @@ async def test_a_helper_cannot_ask_and_cannot_delegate(db, monkeypatch):
 
     offered = _child_tools(db, seen)
     assert "ask_user" not in offered
-    assert "subagent_run" not in offered
+    assert "task" not in offered
 
 
 async def test_a_helper_writes_nothing_by_default(db, monkeypatch):
@@ -280,29 +283,60 @@ async def test_building_is_refused_even_in_a_writing_helper(db):
 
 
 # --- Where a writing helper may be asked for ------------------------------------
-@pytest.mark.parametrize("mode", [agent_policy.MODE_MANUAL, agent_policy.MODE_PLAN])
-async def test_a_writing_helper_is_refused_where_the_parent_would_be_stopped(
-    db, monkeypatch, mode
-):
-    """Otherwise the mode is laundered: a reply that must ask before writing
-    gets a helper to write on its behalf, with nobody stopped."""
+async def test_a_writing_helper_is_refused_while_the_chat_is_planning(db, monkeypatch):
+    """Otherwise Plan mode is laundered: a chat that may change nothing gets a
+    helper to write on its behalf."""
     _spawn(monkeypatch)
 
-    outcome = await _run(db, _agent_chat(db, mode=mode), {"task": "Fix it.", "write": True})
+    outcome = await _run(db, _chat(db, agent_mode="plan"), {"task": "Fix it.", "write": True})
 
     assert outcome.event["status"] == "error"
-    assert "mode" in outcome.content
+    assert "Plan mode" in outcome.content
     # Nothing was created for it.
     assert db.scalar(select(Chat).where(Chat.parent_chat_id.isnot(None))) is None
 
 
-async def test_a_writing_helper_is_allowed_in_edit_mode(db, monkeypatch):
+async def test_a_writing_helper_is_allowed_outside_plan_mode(db, monkeypatch):
     settings_store.update(db, {"keep_transcript": True}, key=settings_store.SUBAGENTS)
     seen = _spawn(monkeypatch)
 
-    await _run(db, _agent_chat(db, mode=agent_policy.MODE_EDIT), {"task": "x", "write": True})
+    await _run(db, _chat(db), {"task": "x", "write": True})
 
     assert db.get(Chat, seen["chat_id"]).scope_json["write"] is True
+
+
+async def test_the_spec_names_are_the_tools_own(db, monkeypatch):
+    """`task` with `prompt` and `description`, as the harness spec defines it;
+    `agent` and `worktree` are the CLI's and are said to be ignored."""
+    seen = _spawn(monkeypatch)
+    user = _user(db)
+    chat = _chat(db)
+    resolved = tools_service.resolve_tools(db, chat, user)
+    context = tools_service.context_for(db, user, chat, tools=resolved)
+    fake = _Fake()
+    from lembas.services import generation as generation_service
+
+    original = generation_service.running_for
+    generation_service.running_for = lambda chat_id: fake if chat_id == chat.id else None
+    try:
+        outcome = await tools_service.run_tool(
+            context,
+            "task",
+            json.dumps(
+                {
+                    "description": "Read the tests",
+                    "prompt": "Read the tests and say what they cover.",
+                    "agent": "reviewer",
+                    "worktree": True,
+                }
+            ),
+        )
+    finally:
+        generation_service.running_for = original
+
+    assert outcome.event["name"] == "task"
+    assert "Read the tests and say what they cover." in seen["turn"]
+    assert "reviewer" in outcome.content and "worktree" in outcome.content
 
 
 # --- Recursion and the caps -----------------------------------------------------
@@ -313,7 +347,7 @@ async def test_a_helper_cannot_ask_for_a_helper(db, monkeypatch):
     child = _chat(db, parent_chat_id=_chat(db).id, unattended=True)
 
     # The withdrawal is the first half, and it is what a model actually meets.
-    assert "subagent_run" not in {
+    assert "task" not in {
         tool.name for tool in tools_service.resolve_tools(db, child, _user(db)).defs
     }
 
@@ -504,13 +538,13 @@ def test_a_scheduled_task_chat_is_unattended_too(db):
 # --- The gates ------------------------------------------------------------------
 def test_the_tool_is_offered_when_the_switch_and_the_permission_are_on(db):
     offered = {tool.name for tool in tools_service.resolve_tools(db, _chat(db), _user(db)).defs}
-    assert "subagent_run" in offered
+    assert "task" in offered
 
 
 def test_the_instance_switch_withdraws_it(db):
     settings_store.update(db, {"enabled": False}, key=settings_store.SUBAGENTS)
     offered = {tool.name for tool in tools_service.resolve_tools(db, _chat(db), _user(db)).defs}
-    assert "subagent_run" not in offered
+    assert "task" not in offered
 
 
 def test_the_permission_withdraws_it(db):
@@ -531,17 +565,17 @@ def test_the_permission_withdraws_it(db):
     db.commit()
 
     offered = {tool.name for tool in tools_service.resolve_tools(db, chat, reader).defs}
-    assert "subagent_run" not in offered
+    assert "task" not in offered
 
     settings_store.update(db, {"default_permissions": {"tools.subagent": True}})
     offered = {tool.name for tool in tools_service.resolve_tools(db, chat, reader).defs}
-    assert "subagent_run" in offered
+    assert "task" in offered
 
 
 def test_the_family_resolves_so_the_guidance_reaches_the_model(db):
     """A name that maps back to no family is a tool whose fragment is never
     admitted. That omission has cost two features their instructions already."""
-    assert tools_service.registry(db)["subagent_run"].family == tools_service.FAMILY_SUBAGENT
+    assert tools_service.registry(db)["task"].family == tools_service.FAMILY_SUBAGENT
 
 
 async def test_a_helper_is_told_it_is_one_and_the_parent_is_not(db, monkeypatch):
@@ -610,41 +644,3 @@ def test_the_admin_card_clamps_what_is_typed(db, client, registered):
     assert values["max_per_reply"] == 20
     assert values["max_rounds"] == 1
     assert values["wall_seconds"] == 30
-
-
-# --- What the model is told it may do -----------------------------------------
-def test_the_guidance_names_every_command_a_helper_may_run():
-    """`SAFE_COMMANDS` holds twenty-three entries; the fragment named seven of
-    them and said "and nothing else", so a model avoided commands it had --
-    which costs nothing visible and is therefore never reported. Pinned rather
-    than proof-read, because the two drift the moment one is edited alone.
-    """
-    from lembas.services import harness_spec, prompts
-
-    text = next(f for f in prompts.BUILTIN if f.key == "tool.subagent_agent").default
-    for entry in subagent_service.SAFE_COMMANDS:
-        if entry in harness_spec.tools():
-            continue  # a tool name, not a command -- see SAFE_COMMANDS' comment
-        # The word a model would look for: the command itself, or for git the
-        # subcommand, since the prose shares one "git" across all six.
-        parts = entry.removesuffix("*").strip().split()
-        word = parts[1] if parts[0] == "git" else parts[0]
-        assert word in text, f"{entry!r} is allowed and unmentioned"
-
-
-def test_the_guidance_does_not_deny_a_parameter_the_tool_offers():
-    """It said a helper "reads and reports ... and nothing else, in every mode",
-    beside a `write` parameter that makes one write files. A model reads the
-    prose, not the schema, so the parameter was effectively unreachable.
-    """
-    from lembas.services import prompts
-
-    text = next(f for f in prompts.BUILTIN if f.key == "tool.subagent_agent").default
-    assert "write" in text
-    assert "nothing else, in every mode" not in text
-
-    schema = subagent_service.tool_defs()[0]
-    assert "write" in schema.parameters["properties"]
-    # And the command list really is fixed whatever `write` says, which is the
-    # distinction the wording now has to carry.
-    assert "in every mode" in text

@@ -1,0 +1,779 @@
+{
+  "about": "The plan as both projects keep it (plan_write / plan_update): `op` is `normalise` (what plan_write stores for what a model sent: ids generated in order, loose shapes accepted, unknown statuses defaulted, bounds applied, `steps` the tasks flattened), `update` (plan_update's changes applied to a stored plan; an unknown id is an error naming the known ones and changes nothing), or `todos` (the former todo tool's list as a plan). LLeMbas: services/plans.py; CLI: src/plan/plan.ts.",
+  "cases": [
+    {
+      "op": "normalise",
+      "plan": {
+        "title": "  Fix the  login  bug ",
+        "summary": "Two changes.",
+        "findings": [
+          "Session cookie is not renewed",
+          {
+            "text": "Test missing"
+          },
+          ""
+        ],
+        "objectives": [
+          "Login works",
+          {
+            "text": "Test covers it",
+            "status": "bogus"
+          }
+        ],
+        "phases": [
+          {
+            "title": "Code",
+            "tasks": [
+              "Renew the cookie",
+              {
+                "text": "Add the test",
+                "status": "doing",
+                "note": "started"
+              }
+            ]
+          },
+          {
+            "title": "Verify",
+            "status": "pending",
+            "tasks": [
+              {
+                "text": "Run the suite",
+                "status": "todo"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "version": 2,
+        "title": "Fix the login bug",
+        "summary": "Two changes.",
+        "findings": [
+          {
+            "id": "f1",
+            "text": "Session cookie is not renewed"
+          },
+          {
+            "id": "f2",
+            "text": "Test missing"
+          }
+        ],
+        "objectives": [
+          {
+            "id": "o1",
+            "text": "Login works",
+            "status": "open"
+          },
+          {
+            "id": "o2",
+            "text": "Test covers it",
+            "status": "open"
+          }
+        ],
+        "phases": [
+          {
+            "id": "p1",
+            "title": "Code",
+            "status": "pending",
+            "tasks": [
+              {
+                "id": "t1",
+                "text": "Renew the cookie",
+                "status": "todo",
+                "note": ""
+              },
+              {
+                "id": "t2",
+                "text": "Add the test",
+                "status": "doing",
+                "note": "started"
+              }
+            ]
+          },
+          {
+            "id": "p2",
+            "title": "Verify",
+            "status": "pending",
+            "tasks": [
+              {
+                "id": "t3",
+                "text": "Run the suite",
+                "status": "todo",
+                "note": ""
+              }
+            ]
+          }
+        ],
+        "steps": [
+          "Renew the cookie",
+          "Add the test",
+          "Run the suite"
+        ]
+      }
+    },
+    {
+      "op": "normalise",
+      "plan": {
+        "title": "Steps only",
+        "steps": [
+          "One",
+          "Two",
+          ""
+        ]
+      },
+      "expect": {
+        "version": 2,
+        "title": "Steps only",
+        "summary": "",
+        "findings": [],
+        "objectives": [],
+        "phases": [
+          {
+            "id": "p1",
+            "title": "Plan",
+            "status": "pending",
+            "tasks": [
+              {
+                "id": "t1",
+                "text": "One",
+                "status": "todo",
+                "note": ""
+              },
+              {
+                "id": "t2",
+                "text": "Two",
+                "status": "todo",
+                "note": ""
+              }
+            ]
+          }
+        ],
+        "steps": [
+          "One",
+          "Two"
+        ]
+      }
+    },
+    {
+      "op": "normalise",
+      "plan": {
+        "phases": "Just a string"
+      },
+      "expect": {
+        "version": 2,
+        "title": "A plan",
+        "summary": "",
+        "findings": [],
+        "objectives": [],
+        "phases": [
+          {
+            "id": "p1",
+            "title": "Just a string",
+            "status": "pending",
+            "tasks": []
+          }
+        ],
+        "steps": []
+      }
+    },
+    {
+      "op": "normalise",
+      "plan": {},
+      "expect": {}
+    },
+    {
+      "op": "normalise",
+      "plan": {
+        "title": "Over the limits",
+        "findings": [
+          "f1",
+          "f2",
+          "f3",
+          "f4",
+          "f5",
+          "f6",
+          "f7",
+          "f8",
+          "f9",
+          "f10",
+          "f11",
+          "f12",
+          "f13",
+          "f14",
+          "f15",
+          "f16",
+          "f17",
+          "f18",
+          "f19",
+          "f20",
+          "f21"
+        ],
+        "phases": [
+          {
+            "title": "P",
+            "tasks": [
+              "t1",
+              "t2",
+              "t3",
+              "t4",
+              "t5",
+              "t6",
+              "t7",
+              "t8",
+              "t9",
+              "t10",
+              "t11",
+              "t12",
+              "t13"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "version": 2,
+        "title": "Over the limits",
+        "summary": "",
+        "findings": [
+          {
+            "id": "f1",
+            "text": "f1"
+          },
+          {
+            "id": "f2",
+            "text": "f2"
+          },
+          {
+            "id": "f3",
+            "text": "f3"
+          },
+          {
+            "id": "f4",
+            "text": "f4"
+          },
+          {
+            "id": "f5",
+            "text": "f5"
+          },
+          {
+            "id": "f6",
+            "text": "f6"
+          },
+          {
+            "id": "f7",
+            "text": "f7"
+          },
+          {
+            "id": "f8",
+            "text": "f8"
+          },
+          {
+            "id": "f9",
+            "text": "f9"
+          },
+          {
+            "id": "f10",
+            "text": "f10"
+          },
+          {
+            "id": "f11",
+            "text": "f11"
+          },
+          {
+            "id": "f12",
+            "text": "f12"
+          },
+          {
+            "id": "f13",
+            "text": "f13"
+          },
+          {
+            "id": "f14",
+            "text": "f14"
+          },
+          {
+            "id": "f15",
+            "text": "f15"
+          },
+          {
+            "id": "f16",
+            "text": "f16"
+          },
+          {
+            "id": "f17",
+            "text": "f17"
+          },
+          {
+            "id": "f18",
+            "text": "f18"
+          },
+          {
+            "id": "f19",
+            "text": "f19"
+          },
+          {
+            "id": "f20",
+            "text": "f20"
+          }
+        ],
+        "objectives": [],
+        "phases": [
+          {
+            "id": "p1",
+            "title": "P",
+            "status": "pending",
+            "tasks": [
+              {
+                "id": "t1",
+                "text": "t1",
+                "status": "todo",
+                "note": ""
+              },
+              {
+                "id": "t2",
+                "text": "t2",
+                "status": "todo",
+                "note": ""
+              },
+              {
+                "id": "t3",
+                "text": "t3",
+                "status": "todo",
+                "note": ""
+              },
+              {
+                "id": "t4",
+                "text": "t4",
+                "status": "todo",
+                "note": ""
+              },
+              {
+                "id": "t5",
+                "text": "t5",
+                "status": "todo",
+                "note": ""
+              },
+              {
+                "id": "t6",
+                "text": "t6",
+                "status": "todo",
+                "note": ""
+              },
+              {
+                "id": "t7",
+                "text": "t7",
+                "status": "todo",
+                "note": ""
+              },
+              {
+                "id": "t8",
+                "text": "t8",
+                "status": "todo",
+                "note": ""
+              },
+              {
+                "id": "t9",
+                "text": "t9",
+                "status": "todo",
+                "note": ""
+              },
+              {
+                "id": "t10",
+                "text": "t10",
+                "status": "todo",
+                "note": ""
+              },
+              {
+                "id": "t11",
+                "text": "t11",
+                "status": "todo",
+                "note": ""
+              },
+              {
+                "id": "t12",
+                "text": "t12",
+                "status": "todo",
+                "note": ""
+              }
+            ]
+          }
+        ],
+        "steps": [
+          "t1",
+          "t2",
+          "t3",
+          "t4",
+          "t5",
+          "t6",
+          "t7",
+          "t8",
+          "t9",
+          "t10",
+          "t11",
+          "t12"
+        ]
+      }
+    },
+    {
+      "op": "update",
+      "plan": {
+        "version": 2,
+        "title": "T",
+        "summary": "",
+        "findings": [
+          {
+            "id": "f1",
+            "text": "A"
+          }
+        ],
+        "objectives": [
+          {
+            "id": "o1",
+            "text": "O",
+            "status": "open"
+          }
+        ],
+        "phases": [
+          {
+            "id": "p1",
+            "title": "Code",
+            "status": "pending",
+            "tasks": [
+              {
+                "id": "t1",
+                "text": "One",
+                "status": "todo",
+                "note": ""
+              },
+              {
+                "id": "t2",
+                "text": "Two",
+                "status": "todo",
+                "note": ""
+              }
+            ]
+          },
+          {
+            "id": "p2",
+            "title": "Verify",
+            "status": "pending",
+            "tasks": [
+              {
+                "id": "t3",
+                "text": "Three",
+                "status": "todo",
+                "note": ""
+              }
+            ]
+          }
+        ],
+        "steps": [
+          "One",
+          "Two",
+          "Three"
+        ]
+      },
+      "changes": {
+        "tasks": [
+          {
+            "id": "t1",
+            "status": "done"
+          },
+          {
+            "id": "t2",
+            "status": "dropped",
+            "note": "not needed"
+          }
+        ],
+        "phases": [
+          {
+            "id": "p1",
+            "status": "done"
+          },
+          {
+            "id": "p2",
+            "status": "active"
+          }
+        ],
+        "objectives": [
+          {
+            "id": "o1",
+            "status": "done"
+          }
+        ],
+        "add_tasks": [
+          {
+            "phase": "p2",
+            "text": "Four",
+            "after": "t3"
+          },
+          {
+            "phase": "p1",
+            "text": "Zero",
+            "after": ""
+          }
+        ],
+        "add_findings": [
+          "B"
+        ]
+      },
+      "expect": {
+        "plan": {
+          "version": 2,
+          "title": "T",
+          "summary": "",
+          "findings": [
+            {
+              "id": "f1",
+              "text": "A"
+            },
+            {
+              "id": "f2",
+              "text": "B"
+            }
+          ],
+          "objectives": [
+            {
+              "id": "o1",
+              "text": "O",
+              "status": "done"
+            }
+          ],
+          "phases": [
+            {
+              "id": "p1",
+              "title": "Code",
+              "status": "done",
+              "tasks": [
+                {
+                  "id": "t1",
+                  "text": "One",
+                  "status": "done",
+                  "note": ""
+                },
+                {
+                  "id": "t2",
+                  "text": "Two",
+                  "status": "dropped",
+                  "note": "not needed"
+                },
+                {
+                  "id": "t5",
+                  "text": "Zero",
+                  "status": "todo",
+                  "note": ""
+                }
+              ]
+            },
+            {
+              "id": "p2",
+              "title": "Verify",
+              "status": "active",
+              "tasks": [
+                {
+                  "id": "t3",
+                  "text": "Three",
+                  "status": "todo",
+                  "note": ""
+                },
+                {
+                  "id": "t4",
+                  "text": "Four",
+                  "status": "todo",
+                  "note": ""
+                }
+              ]
+            }
+          ],
+          "steps": [
+            "One",
+            "Two",
+            "Zero",
+            "Three",
+            "Four"
+          ]
+        }
+      }
+    },
+    {
+      "op": "update",
+      "plan": {
+        "version": 2,
+        "title": "T",
+        "summary": "",
+        "findings": [],
+        "objectives": [],
+        "phases": [
+          {
+            "id": "p1",
+            "title": "Code",
+            "status": "pending",
+            "tasks": [
+              {
+                "id": "t1",
+                "text": "One",
+                "status": "todo",
+                "note": ""
+              }
+            ]
+          }
+        ],
+        "steps": [
+          "One"
+        ]
+      },
+      "changes": {
+        "tasks": [
+          {
+            "id": "t9",
+            "status": "done"
+          }
+        ]
+      },
+      "expect": {
+        "error": "Unknown task id \"t9\". Known: t1."
+      }
+    },
+    {
+      "op": "update",
+      "plan": {
+        "version": 2,
+        "title": "T",
+        "summary": "",
+        "findings": [],
+        "objectives": [],
+        "phases": [
+          {
+            "id": "p1",
+            "title": "Code",
+            "status": "pending",
+            "tasks": [
+              {
+                "id": "t1",
+                "text": "One",
+                "status": "todo",
+                "note": ""
+              }
+            ]
+          }
+        ],
+        "steps": [
+          "One"
+        ]
+      },
+      "changes": {
+        "add_tasks": [
+          {
+            "phase": "p7",
+            "text": "Nowhere"
+          }
+        ]
+      },
+      "expect": {
+        "error": "Unknown phase id \"p7\". Known: p1."
+      }
+    },
+    {
+      "op": "update",
+      "plan": {
+        "version": 2,
+        "title": "T",
+        "summary": "",
+        "findings": [],
+        "objectives": [],
+        "phases": [
+          {
+            "id": "p1",
+            "title": "Code",
+            "status": "pending",
+            "tasks": [
+              {
+                "id": "t1",
+                "text": "One",
+                "status": "todo",
+                "note": ""
+              }
+            ]
+          }
+        ],
+        "steps": [
+          "One"
+        ]
+      },
+      "changes": {
+        "tasks": [
+          {
+            "id": "t1",
+            "status": "flying"
+          }
+        ]
+      },
+      "expect": {
+        "error": "Unknown status \"flying\" for a task. One of: todo, doing, done, dropped."
+      }
+    },
+    {
+      "op": "todos",
+      "todos": [
+        {
+          "content": "Read the code",
+          "status": "completed"
+        },
+        {
+          "content": "Fix it",
+          "status": "in_progress"
+        },
+        "Test it",
+        {
+          "content": "Old idea",
+          "status": "cancelled"
+        }
+      ],
+      "expect": {
+        "version": 2,
+        "title": "Work",
+        "summary": "",
+        "findings": [],
+        "objectives": [],
+        "phases": [
+          {
+            "id": "p1",
+            "title": "Work",
+            "status": "active",
+            "tasks": [
+              {
+                "id": "t1",
+                "text": "Read the code",
+                "status": "done",
+                "note": ""
+              },
+              {
+                "id": "t2",
+                "text": "Fix it",
+                "status": "doing",
+                "note": ""
+              },
+              {
+                "id": "t3",
+                "text": "Test it",
+                "status": "todo",
+                "note": ""
+              },
+              {
+                "id": "t4",
+                "text": "Old idea",
+                "status": "dropped",
+                "note": ""
+              }
+            ]
+          }
+        ],
+        "steps": [
+          "Read the code",
+          "Fix it",
+          "Test it",
+          "Old idea"
+        ]
+      }
+    }
+  ]
+}
