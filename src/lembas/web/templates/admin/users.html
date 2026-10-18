@@ -51,14 +51,14 @@
     </div>
   </a>
   {% else %}
-  <div class="empty" style="padding: var(--sp-8) 0">
+  <div class="empty u-pad-y-8">
     <p class="empty__text">{{ t("Nobody matches that.") if q else t("No accounts yet.") }}</p>
   </div>
   {% endfor %}
 </div>
 
 {% if pager.pages > 1 %}
-<div class="btn-row" style="margin-top: var(--sp-5)">
+<div class="btn-row u-mt-5">
   {% if pager.page > 1 %}
   <a class="btn btn--sm" href="/admin/users?page={{ pager.page - 1 }}{% if q %}&q={{ q|urlencode }}{% endif %}">
     {{ icon("chevron-left", "icon--sm") }} {{ t("Previous") }}
@@ -73,7 +73,7 @@
 </div>
 {% endif %}
 
-<section class="card" style="margin-top: var(--sp-8)">
+<section class="card u-mt-8">
   <h2 class="card__title">{{ t("Add an account") }}</h2>
   <p class="card__lede">{{ t("Without going through registration — useful when sign-up is closed.") }}</p>
   <form method="post" action="/admin/users" class="form-grid">

@@ -1255,6 +1255,28 @@ def _plan_panel_html(plan) -> str:
     )
 
 
+def _tail_oob(message_id: str, thinking_tail: str, think_label: str, text_tail: str) -> str:
+    """The open tail, as out-of-band swaps riding on a `steps` frame.
+
+    A round closing moves the text being written out of the tail and into a
+    step above it. Sent as two frames -- `steps`, then an emptying `render` --
+    the browser can paint between them, and for that paint the sentence is on
+    screen twice: once in its new step and once still in the tail, with the
+    whole transcript shifted down by its height. Carrying the tail in the same
+    frame as the steps means one swap, one paint, and nothing moves that should
+    not. Whatever the tail holds *now* is sent, not an empty string: the next
+    round may already have begun by the time the follower polls.
+    """
+    return (
+        f'<div id="stream-{message_id}" hx-swap-oob="innerHTML">'
+        f"{render_markdown(text_tail) if text_tail else ''}</div>"
+        f'<div id="reasoning-body-{message_id}" hx-swap-oob="innerHTML">'
+        f"{escape_text(thinking_tail)}</div>"
+        f'<span id="think-stats-{message_id}" hx-swap-oob="innerHTML">'
+        f"{escape_text(think_label)}</span>"
+    )
+
+
 def _think_label(generation, thinking_tail: str) -> str:
     """How long this round has been thinking, and roughly how much.
 
@@ -1276,11 +1298,11 @@ def _think_label(generation, thinking_tail: str) -> str:
 def _ask_html(chat_id: str, pending) -> str:
     """The cards asking the reader something, or nothing at all.
 
-    Returns "" when there is nothing pending, and the frame is sent
-    unconditionally, because this is one of the few blocks that has to be able
-    to *clear* itself: the card must vanish the moment it is answered.
-    `reasoning`, `render` and `steps` are the opposite -- guarded by truthiness
-    so a frame can never blank them.
+    Returns "" when there is nothing pending, and an empty frame is sent the
+    moment it becomes empty, because this is one of the few blocks that has to
+    be able to *clear* itself: the card must vanish the moment it is answered.
+    `steps` is the opposite -- guarded by truthiness so a frame can never blank
+    it.
 
     `pending` is the generation's list of open cards -- one each, in the
     order they were asked, every one answered on its own -- or a single card.
@@ -1344,6 +1366,21 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
     `render`, because `steps` carries the containers those two are swapped into.
     htmx re-registers `sse-swap` on content it swaps in, which is the same
     property the approval card's buttons already rely on.
+
+    **A frame is sent only when its content changed.** Every version bump used
+    to send `reasoning`, `think`, `render`, `status` and `ask` whether or not
+    anything in them had moved, and each one is a swap the browser lays out and
+    the page scrolls after -- seven swaps a bump, twelve bumps a second, most of
+    them replacing a block with itself. The page jumped under the reader for the
+    whole of a long reply. `sent` below is the last payload of each, and a frame
+    whose payload matches it is not sent. A follower starts with nothing sent,
+    so one attaching mid-reply still receives the whole state in its first pass.
+
+    **A round closes in one frame.** The `steps` frame carries the tail with it,
+    out of band (`_tail_oob`), so the text moving from the tail into a step is
+    one swap rather than two with a paint between them in which it is on screen
+    twice. The tail is recorded as sent, so the frames that follow do not repeat
+    it.
     """
     generation = generation_service.ensure(chat_id, message_id)
     generation.followers += 1
@@ -1355,20 +1392,44 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
     # prose, tools -- so the length of the list is not an index into the marks.
     rendered: list[str] = []
     marks_done = 0
-    # The todo list last sent, so the panel is re-sent only when it changed.
-    todos_sent: list | None = None
+    # The plan last sent, so the panel is re-sent only when it changed: a
+    # chat's own plan (a structure) or, from a device that still sends a todo
+    # list, that list -- `_plan_panel_html` reads either.
+    plan_sent: dict | list | None = None
     # Messages already taken out of the queue at the bottom of the thread.
     unqueued: set[str] = set()
+    # The last payload of every frame that is sent only on change. The five
+    # that land in the bubble start as empty, because that is how the
+    # streaming shell renders their containers: a first pass that finds them
+    # empty has nothing to say about them.
+    sent: dict[str, str] = {"reasoning": "", "think": "", "render": "", "status": "", "ask": ""}
+
+    def changed(name: str, payload: str) -> bool:
+        if sent.get(name) == payload:
+            return False
+        sent[name] = payload
+        return True
 
     try:
         while True:
             if generation.version != seen:
                 seen = generation.version
+                thinking_tail, text_tail = steps_service.tail(generation)
+                think_label = _think_label(generation, thinking_tail)
                 if len(generation.steps) > marks_done:
                     for step in steps_service.closed_from(generation, since=marks_done):
                         rendered.append(_step_html(message_id, step))
                     marks_done = len(generation.steps)
-                    yield sse.event("steps", "".join(rendered))
+                    # The tail rides along, and is recorded as sent: see
+                    # `_tail_oob` for why it is one frame and not two.
+                    sent["reasoning"] = escape_text(thinking_tail)
+                    sent["think"] = escape_text(think_label)
+                    sent["render"] = render_markdown(text_tail) if text_tail else ""
+                    yield sse.event(
+                        "steps",
+                        "".join(rendered)
+                        + _tail_oob(message_id, thinking_tail, think_label, text_tail),
+                    )
                     # A message taken in just now is shown in the reply; its
                     # bubble at the bottom of the thread goes.
                     if gone := steps_service.steered_ids(generation.steps) - unqueued:
@@ -1380,47 +1441,60 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
                                 for i in sorted(gone)
                             ),
                         )
-                # Sent every pass, empty included. That is what clears the tail
-                # when a round closes and its contents become a step above --
-                # and it is safe precisely because these carry the open tail
-                # only. The version that carried the whole reply had to be
-                # guarded, or a frame could wipe the answer.
-                thinking_tail, text_tail = steps_service.tail(generation)
-                yield sse.event("reasoning", escape_text(thinking_tail))
-                yield sse.event("think", escape_text(_think_label(generation, thinking_tail)))
-                yield sse.event("render", render_markdown(text_tail) if text_tail else "")
-                if generation.canvas.get("tabs"):
-                    # Guarded on truthiness, which puts this in the
-                    # reasoning/tools/render group and not the
-                    # metrics/status/ask one. Those three are sent even when
-                    # empty *because* each has to be able to clear itself; this
-                    # one must never be able to, since an empty canvas frame
-                    # would close every tab somebody had open. The card that
-                    # could be pressed twice, with the sign reversed.
-                    #
-                    # The whole strip each time, not a delta, so a follower
-                    # attaching mid-reply gets every tab the reply has touched
-                    # rather than the ones that happened to arrive after it.
-                    yield sse.event("canvas", _canvas_tabs(chat_id, generation.canvas))
-                if generation.todos is not None and generation.todos != todos_sent:
+                # The open tail, whenever it moved -- an empty one included,
+                # which is what clears it after a round closes with nothing new
+                # yet. Safe precisely because these carry the open tail only;
+                # the version that carried the whole reply had to be guarded,
+                # or a frame could wipe the answer.
+                if changed("reasoning", escape_text(thinking_tail)):
+                    yield sse.event("reasoning", sent["reasoning"])
+                if changed("think", escape_text(think_label)):
+                    yield sse.event("think", sent["think"])
+                if changed("render", render_markdown(text_tail) if text_tail else ""):
+                    yield sse.event("render", sent["render"])
+                # Guarded on truthiness, which puts this in the
+                # reasoning/tools/render group and not the
+                # metrics/status/ask one. Those three are sent even when
+                # empty *because* each has to be able to clear itself; this
+                # one must never be able to, since an empty canvas frame
+                # would close every tab somebody had open. The card that
+                # could be pressed twice, with the sign reversed.
+                #
+                # The whole strip each time, not a delta, so a follower
+                # attaching mid-reply gets every tab the reply has touched
+                # rather than the ones that happened to arrive after it.
+                if generation.canvas.get("tabs") and changed(
+                    "canvas", _canvas_tabs(chat_id, generation.canvas)
+                ):
+                    yield sse.event("canvas", sent["canvas"])
+                current_plan = getattr(generation, "plan", None) or generation.todos
+                if current_plan is not None and current_plan != plan_sent:
                     # Out of band, into the panel above the composer.
-                    todos_sent = list(generation.todos)
-                    yield sse.event("plan", _plan_panel_html(todos_sent))
-                yield sse.event("metrics", _metrics_html(generation))
-                yield sse.event("status", escape_text(generation.status))
-                yield sse.event("ask", _ask_html(chat_id, generation.waiting))
-                last_frame = last_metrics = time.monotonic()
+                    plan_sent = (
+                        dict(current_plan) if isinstance(current_plan, dict) else list(current_plan)
+                    )
+                    yield sse.event("plan", _plan_panel_html(plan_sent))
+                if changed("status", escape_text(generation.status)):
+                    yield sse.event("status", sent["status"])
+                if changed("ask", _ask_html(chat_id, generation.waiting)):
+                    yield sse.event("ask", sent["ask"])
+                last_frame = time.monotonic()
 
-            # On a clock as well as on a change, because the version does not
-            # move while a tool runs -- there is no `touch()` inside
-            # `_run_calls` -- and a five-minute build on the far side is exactly
-            # when somebody looks at these numbers to see whether anything is
-            # happening. The elapsed clock is advancing throughout, so tok/s has
-            # to be allowed to fall; frozen chips beside a spinner read as a
-            # hang. One small swap a second, and only while the reply is live.
-            elif time.monotonic() - last_metrics > METRICS_INTERVAL:
-                yield sse.event("metrics", _metrics_html(generation))
-                last_frame = last_metrics = time.monotonic()
+            # The metrics keep to a clock rather than to the version. The
+            # counts move with every token, so sending them on every bump is a
+            # swap twelve times a second for numbers nobody reads that fast;
+            # and the version does not move while a tool runs -- there is no
+            # `touch()` inside `_run_calls` -- while a five-minute build on the
+            # far side is exactly when somebody looks at these numbers to see
+            # whether anything is happening. The elapsed clock is advancing
+            # throughout, so tok/s has to be allowed to fall; frozen chips
+            # beside a spinner read as a hang. One small swap a second, and
+            # only while the reply is live.
+            if time.monotonic() - last_metrics > METRICS_INTERVAL:
+                last_metrics = time.monotonic()
+                if changed("metrics", _metrics_html(generation)):
+                    yield sse.event("metrics", sent["metrics"])
+                    last_frame = time.monotonic()
 
             if generation.done:
                 break

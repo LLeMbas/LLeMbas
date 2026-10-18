@@ -160,7 +160,7 @@
       {{ icon("warning", "alert__icon") }}
       <div>
         <strong>{{ t("Registration is open.") }}</strong>
-        <div class="text-sm" style="margin-top: var(--sp-1)">
+        <div class="text-sm u-mt-1">
           {{ t("This instance has 1 account.") if user_count == 1 else t("This instance has %(n)s accounts.", n=user_count) }}
           {{ t("Anyone who can reach it can add another, and every account can use your configured models and API keys.") }}
         </div>

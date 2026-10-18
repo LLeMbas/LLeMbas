@@ -12,13 +12,13 @@
 
 {% block body %}
 <main class="auth">
-  <div class="auth__card" style="text-align: center">
+  <div class="auth__card u-center">
     {{ mark(cls="empty__mark", uid="offline") }}
-    <h1 class="auth__title" style="margin-top: var(--sp-4)">{{ t(brand.text.offline_title) }}</h1>
-    <p class="empty__text" style="margin: var(--sp-3) auto var(--sp-5)">
+    <h1 class="auth__title u-mt-4">{{ t(brand.text.offline_title) }}</h1>
+    <p class="empty__text u-mt-3 u-mb-5 u-mx-auto">
       {{ t(brand.text.offline_line) }}
     </p>
-    <p class="text-sm muted" style="margin-bottom: var(--sp-5)">
+    <p class="text-sm muted u-mb-5">
       {{ t("%(name)s answers from your server, so there is nothing to read until it can be reached again.", name=brand.name) }}
     </p>
     <button class="btn btn--primary" type="button" onclick="window.location.reload()">{{ t("Try again") }}</button>

@@ -59,12 +59,12 @@
   {#- A compact control rather than a field: the label is for a screen reader,
       because the options ("Every group", the group names) already say what the
       select is for, and a full-width field here outweighed the list below it. #}
-  <form method="get" action="{{ action }}" class="btn-row" style="margin-bottom: var(--sp-4)">
+  <form method="get" action="{{ action }}" class="btn-row u-mb-4">
     {%- for name, value in keep.items() %}{% if value %}
     <input type="hidden" name="{{ name }}" value="{{ value }}">
     {%- endif %}{% endfor %}
     <label class="visually-hidden" for="group-filter">{{ t("Data group") }}</label>
-    <select class="select" id="group-filter" name="group" style="flex: none; width: auto"
+    <select class="select u-none u-w-auto" id="group-filter" name="group"
             onchange="this.form.submit()">
       <option value="">{{ t("Every group") }}</option>
       {%- for group in data_groups %}

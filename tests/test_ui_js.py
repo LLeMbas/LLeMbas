@@ -94,12 +94,29 @@ def test_the_scroll_listener_is_too():
 
 
 def test_the_stream_no_longer_scrolls_for_every_frame():
-    """`metrics`, `status`, `ask` and `canvas` all arrive on htmx:sseMessage,
-    and none of them changes the height of the thread. Scrolling for all of them
-    is what made an opened block impossible to keep on screen."""
+    """`canvas` and `plan` arrive on htmx:sseMessage and land in a panel, not
+    in the thread; the frames that do land there all ask the one scroll owner,
+    which grants the bottom once per animation frame however many asked."""
     found = re.search(r'htmx:sseMessage", function \(event\) \{([\s\S]{0,400}?)\n  \}\);', APP)
     assert found, "the handler is gone"
     assert "thread-scroll" in found.group(1)
+    assert "scrollThread(false)" in found.group(1)
+    assert "requestAnimationFrame" in re.search(
+        r"function scrollThread\(force\) \{([\s\S]*?)\n  \}", APP
+    ).group(1)
+
+
+def test_the_toggle_listener_asks_who_toggled():
+    """A programmatic open fires a trusted toggle too (measured in Chromium),
+    so `isTrusted` alone cannot tell steps.js's restore from a click; the
+    listener also consumes the `data-restored` mark steps.js sets. Both halves,
+    or a reader who once opened a tool block stops being followed at the next
+    round close."""
+    found = re.search(r'"toggle",\s*function \(event\) \{([\s\S]*?)\n    \},\n    true', APP)
+    assert found, "the toggle listener is gone"
+    assert "event.isTrusted" in found.group(1)
+    assert "data-restored" in found.group(1)
+    assert 'setAttribute("data-restored", "")' in STEPS
 
 
 def test_the_open_state_is_recorded_before_the_swap_and_restored_after():

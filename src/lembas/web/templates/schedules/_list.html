@@ -15,7 +15,7 @@
 <ul class="model-list">
   {% for item in schedules %}
   <li class="model-list__item">
-    <div style="min-width: 0">
+    <div class="u-shrink">
       <a href="/chat/{{ item.row.chat_id }}"><strong>{{ item.row.title }}</strong></a>
       <div class="text-xs faint">
         {{ item.summary }}

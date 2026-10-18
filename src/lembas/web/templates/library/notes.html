@@ -17,13 +17,13 @@
   shape the admin lists use. A badge on a row answers "is this mine?"; the question somebody has is
   "what have people given me?", which a mixed list of two hundred cannot answer.
 #}
-<div class="filter-tabs" style="margin-bottom: var(--sp-4)">
+<div class="filter-tabs u-mb-4">
   <a class="filter-tab {{ 'is-active' if not shared }}" href="/library/notes">{{ t("All notes") }}</a>
   <a class="filter-tab {{ 'is-active' if shared }}" href="/library/notes?shared=1">{{ t("Shared with me") }}</a>
 </div>
 {{ group_filter("/library/notes", group, {"shared": "1" if shared else "", "q": q}) }}
-<form method="get" action="/library/notes" class="btn-row" style="margin-bottom: var(--sp-5)">
-  <input class="input" type="search" name="q" value="{{ q }}" style="flex: 1"
+<form method="get" action="/library/notes" class="btn-row u-mb-5">
+  <input class="input u-grow" type="search" name="q" value="{{ q }}"
          placeholder="{{ t('Search notes…') }}">
   <button class="btn" type="submit">{{ icon("search", "icon--sm") }} {{ t("Search") }}</button>
   {% if q %}<a class="btn btn--sm" href="/library/notes">{{ t("Clear") }}</a>{% endif %}
@@ -45,7 +45,7 @@
 <ul class="model-list">
   {% for note in notes %}
   <li class="model-list__item">
-    <div style="min-width: 0">
+    <div class="u-shrink">
       <a href="/library/notes/{{ note.id }}"><strong>{{ note.title }}</strong></a>
       <div class="text-xs faint">{{ note.body[:160] }}{{ "…" if note.body|length > 160 }}</div>
     </div>

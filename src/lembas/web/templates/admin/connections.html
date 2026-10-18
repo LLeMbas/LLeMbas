@@ -61,7 +61,7 @@
       <p class="field__hint">{{ t("Encrypted before it is stored, and never sent back to the browser. Leave empty for endpoints that need no key.") }}</p>
     </div>
 
-    <div class="btn-row" style="margin-top: var(--sp-5)">
+    <div class="btn-row u-mt-5">
       <button class="btn btn--primary" type="submit">
         {{ icon("plus", "icon--sm") }} {{ t("Add and load models") }}
       </button>
@@ -75,7 +75,7 @@
 </h2>
 
 {% if not connections %}
-<div class="empty" style="padding: var(--sp-10) 0">
+<div class="empty u-pad-y-10">
   {{ icon("server", "empty__mark") }}
   <p class="empty__text">{{ t("Nothing configured yet. Add a connection above and its models appear here.") }}</p>
 </div>

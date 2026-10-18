@@ -10,7 +10,7 @@
 <p class="admin-lede">{{ t("Knowledge bases are collections of documents, images and saved web pages. Keep them separate — one per subject, project or client — and a chat can be pointed at just the ones it should draw on. Sharing happens here too: share a base and everything in it comes with it.") }}</p>
 
 {# Links rather than a form, so a filtered view is a URL you can keep. #}
-<div class="filter-tabs" style="margin-bottom: var(--sp-4)">
+<div class="filter-tabs u-mb-4">
   <a class="filter-tab {{ 'is-active' if not shared }}" href="/library/knowledge">{{ t("All bases") }}</a>
   <a class="filter-tab {{ 'is-active' if shared }}"
      href="/library/knowledge?shared=1">{{ t("Shared with me") }}</a>
@@ -25,7 +25,7 @@
 <ul class="model-list">
   {% for base in bases %}
   <li class="model-list__item">
-    <div style="min-width: 0">
+    <div class="u-shrink">
       <a href="/library/knowledge/{{ base.id }}"><strong>{{ base.name }}</strong></a>
       <div class="text-xs faint">
         {{ t("%(n)s document", n=counts.get(base.id, 0)) if counts.get(base.id, 0) == 1 else t("%(n)s documents", n=counts.get(base.id, 0)) }}
@@ -47,7 +47,7 @@
 </div>
 {% endif %}
 
-<section class="card" style="margin-top: var(--sp-6)">
+<section class="card u-mt-6">
   <h2 class="card__title">{{ t("New knowledge base") }}</h2>
   <form method="post" action="/api/library/bases">
     <div class="grid grid--2">

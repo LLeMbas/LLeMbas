@@ -7,7 +7,7 @@
 {% block heading %}{{ base.name }}{% endblock %}
 
 {% block library_content %}
-<div class="btn-row" style="margin-bottom: var(--sp-5)">
+<div class="btn-row u-mb-5">
   <a class="btn btn--sm" href="/library/knowledge">
     {{ icon("chevron-right", "icon--sm") }} {{ t("All knowledge bases") }}
   </a>
@@ -42,9 +42,8 @@
 </section>
 {% endif %}
 
-<form method="get" action="/library/knowledge/{{ base.id }}" class="btn-row"
-      style="margin-bottom: var(--sp-5)">
-  <input class="input" type="search" name="q" value="{{ q }}" style="flex: 1"
+<form method="get" action="/library/knowledge/{{ base.id }}" class="btn-row u-mb-5">
+  <input class="input u-grow" type="search" name="q" value="{{ q }}"
          placeholder="{{ t('Search this base…') }}">
   <button class="btn" type="submit">{{ icon("search", "icon--sm") }} {{ t("Search") }}</button>
   {% if q %}<a class="btn btn--sm" href="/library/knowledge/{{ base.id }}">{{ t("Clear") }}</a>{% endif %}
@@ -63,7 +62,7 @@
 <ul class="model-list">
   {% for document in documents %}
   <li class="model-list__item">
-    <div style="min-width: 0">
+    <div class="u-shrink">
       <a href="/library/knowledge/document/{{ document.id }}">
         <strong>{{ document.title }}</strong>
       </a>
@@ -88,7 +87,7 @@
 {% include "library/_pager.html" %}
 {% endif %}
 
-<form method="post" action="/api/library/bases/{{ base.id }}" style="margin-top: var(--sp-8)">
+<form method="post" action="/api/library/bases/{{ base.id }}" class="u-mt-8">
   <section class="card">
     <h2 class="card__title">{{ t("This base") }}</h2>
     <div class="grid grid--2">

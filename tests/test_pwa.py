@@ -251,6 +251,39 @@ def test_the_two_icons_a_device_crops_are_cached():
     assert "apple-touch-icon-180.png" in shell
 
 
+def test_every_script_the_base_template_loads_is_in_the_shell():
+    """steps.js and canvas.js were loaded by every page and precached by
+    nobody, so the installed app drew a chat with its blocks forgetting their
+    state the first time the network was away."""
+    import re
+
+    base = (Path(STATIC_DIR).parent / "templates" / "base.html").read_text()
+    loaded = set(re.findall(r"asset\('js/([a-z_]+\.js)'", base))
+    assert loaded, "base.html stopped loading any script; this test is now blind"
+    source = (STATIC_DIR / "js" / "sw.js").read_text()
+    shell = source.split("var SHELL = [", 1)[1].split("];", 1)[0]
+    missing = sorted(name for name in loaded if f"/static/js/{name}" not in shell)
+    assert not missing, f"loaded by base.html but not precached: {missing}"
+
+
+def test_the_first_paint_colours_come_from_the_tokens(client, registered):
+    """The two `theme-color` metas used to repeat the hex from tokens.css by
+    hand, which is a value that drifts. They read it out of the file now."""
+    import re
+
+    from lembas.web.templating import theme_colour
+
+    tokens = (STATIC_DIR / "css" / "tokens.css").read_text()
+    moria = re.search(r'\[data-theme="moria"\][^{]*\{[^}]*?--bg:\s*(#[0-9A-Fa-f]+);', tokens)
+    shire = re.search(r'\[data-theme="shire"\][^{]*\{[^}]*?--bg:\s*(#[0-9A-Fa-f]+);', tokens)
+    assert moria and shire
+    assert theme_colour("moria") == moria.group(1)
+    assert theme_colour("shire") == shire.group(1)
+    page = client.get("/chat").text
+    assert f'content="{moria.group(1)}" media="(prefers-color-scheme: dark)"' in page
+    assert f'content="{shire.group(1)}" media="(prefers-color-scheme: light)"' in page
+
+
 # --- The window's own edges --------------------------------------------------
 def test_the_page_asks_for_the_whole_screen_and_then_pays_for_it(client, registered):
     """`viewport-fit=cover` is what makes `env(safe-area-inset-*)` resolve to

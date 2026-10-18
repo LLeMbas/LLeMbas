@@ -35,7 +35,7 @@
     <h2 class="card__title">{{ t("Provider") }}</h2>
     <div class="field">
       {% for provider in providers %}
-      <label class="checkbox" style="align-items: flex-start">
+      <label class="checkbox u-start">
         <input type="radio" name="provider" value="{{ provider.key }}"
                {{ 'checked' if values.provider == provider.key }}>
         <span>
@@ -43,7 +43,7 @@
           {% if not provider.needs_setup %}<span class="badge">{{ t("no setup") }}</span>{% endif %}
           <div class="text-xs faint">{{ provider.description }}</div>
           {% if problems[provider.key] %}
-          <div class="text-xs" style="color: var(--danger)">{{ problems[provider.key] }}</div>
+          <div class="text-xs u-danger">{{ problems[provider.key] }}</div>
           {% endif %}
         </span>
       </label>
@@ -165,9 +165,8 @@
     {{ tm("Runs a real search against the <em>saved</em> settings, which is what a chat
     would do. Save first if you have just changed something.") }}
   </p>
-  <div class="row" style="gap: var(--sp-2)">
-    <input class="input" id="test-query" name="query" placeholder="{{ t('mallorn tree') }}"
-           style="flex: 1">
+  <div class="row u-gap-2">
+    <input class="input u-grow" id="test-query" name="query" placeholder="{{ t('mallorn tree') }}">
     <button class="btn" type="button" hx-post="/admin/search/test"
             hx-include="#test-query" hx-target="#search-test" hx-swap="outerHTML">
       {{ icon("search", "icon--sm") }} {{ t("Search") }}

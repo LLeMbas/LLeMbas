@@ -13,6 +13,19 @@
   append-only, and the finished bubble emits the same ids the live one did. See
   services/steps.py.
 
+  The live thinking box is the one block that is not in the container: it is a
+  static sibling that is never swapped, and when a round closes its text
+  becomes a closed `think-…` block inside the container with a different id.
+  So whether it is open is written down too, and the block its thinking became
+  -- the first thinking block the swap added -- is opened in its place.
+
+  Every open this file performs is marked `data-restored` first. `toggle` fires
+  for a programmatic open exactly as it does for a click, and is `isTrusted`
+  either way (measured in Chromium), so app.js -- which stops following the
+  reply when the *reader* opens a block -- needs the mark to tell them apart.
+  The mark is consumed by the toggle it causes; a toggle on an unmarked block
+  is the reader's.
+
   Not `hx-preserve`: that keeps a node and its contents, and these nodes have to
   update. Not a CSS checkbox either -- the input would live inside the container
   being replaced, so it would be destroyed with everything else.
@@ -24,22 +37,46 @@
      each other's state. */
   var open = {};
 
+  function liveBox(box) {
+    var main = box.closest(".msg__main");
+    return main ? main.querySelector(".reasoning--live") : null;
+  }
+
   function remember(box) {
     var ids = [];
     box.querySelectorAll("details[id][open]").forEach(function (details) {
       ids.push(details.id);
     });
-    open[box.id || "steps"] = ids;
+    var live = liveBox(box);
+    open[box.id || "steps"] = {
+      ids: ids,
+      liveOpen: !!(live && live.open),
+      /* How many thinking blocks the container held: any beyond that after the
+         swap are the ones the round just closed. */
+      thoughts: box.querySelectorAll("details.reasoning").length
+    };
+  }
+
+  function show(details) {
+    if (details.open) return;
+    details.setAttribute("data-restored", "");
+    details.open = true;
   }
 
   function restore(box) {
-    (open[box.id || "steps"] || []).forEach(function (id) {
+    var state = open[box.id || "steps"];
+    if (!state) return;
+    state.ids.forEach(function (id) {
       /* CSS.escape, never concatenation into a selector: an id is built from a
          message id and two integers today, but a selector assembled by hand is
          how that stops being true safely. */
       var found = box.querySelector("details[id='" + cssEscape(id) + "']");
-      if (found) found.open = true;
+      if (found) show(found);
     });
+    if (state.liveOpen) {
+      var thoughts = box.querySelectorAll("details.reasoning");
+      if (thoughts.length > state.thoughts) show(thoughts[state.thoughts]);
+    }
   }
 
   function cssEscape(value) {
@@ -91,13 +128,18 @@
      the last frame, and a block somebody had since closed opened itself again:
      "I open a thinking block and cannot close it". `toggle` does not bubble:
      capture phase. Restoring sets `open`, which toggles too, and records the
-     same thing again -- harmless. */
+     same thing again -- harmless. The live box toggling is recorded through its
+     container, since that is where its state is kept. */
   document.addEventListener(
     "toggle",
     function (event) {
       var el = event.target;
       if (!el || el.tagName !== "DETAILS" || !el.id) return;
       var box = container(el);
+      if (!box && el.classList.contains("reasoning--live")) {
+        var main = el.closest(".msg__main");
+        box = main ? main.querySelector("[data-steps]") : null;
+      }
       if (box) remember(box);
     },
     true

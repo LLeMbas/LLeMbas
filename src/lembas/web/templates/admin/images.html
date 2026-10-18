@@ -315,7 +315,7 @@
   </div>
 
   {% if not workflows %}
-  <div class="empty" style="padding: var(--sp-8) 0">
+  <div class="empty u-pad-y-8">
     {{ icon("image", "empty__mark") }}
     <p class="empty__text">{{ t("No workflows yet. One is needed before anything can be drawn; the default one is filled in for you when you add the first.") }}</p>
   </div>
@@ -343,7 +343,7 @@
     {% endfor %}
   </div>
 
-  <form method="post" action="/admin/images" class="field" style="margin-top: var(--sp-4)">
+  <form method="post" action="/admin/images" class="field u-mt-4">
     {# Every other value is resubmitted with it, because this posts to the same
        handler as the form above and an absent field reads as cleared. #}
     <input type="hidden" name="enabled" value="{{ 'true' if values.enabled }}">

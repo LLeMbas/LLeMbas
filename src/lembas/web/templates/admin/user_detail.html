@@ -63,7 +63,7 @@
     <span class="field__label">{{ t(section_name) }}</span>
     {% for definition in defs %}
     {% set state = explained[definition.key] %}
-    <div class="perm-row" style="display: flex; gap: var(--sp-3); align-items: baseline">
+    <div class="perm-row perm-row--explained">
       {{ icon("check" if state.on else "x", "icon--sm") }}
       <span>
         <strong title="{{ t(definition.description) }}">{{ t(definition.label) }}</strong>
@@ -213,15 +213,14 @@
 <section class="card">
   <h2 class="card__title">{{ t("Password and removal") }}</h2>
   <form method="post" action="/admin/users/{{ target.id }}/password" class="btn-row">
-    <input class="input" name="password" type="password" required
-           placeholder="{{ t('New password') }}" aria-label="{{ t('New password') }}" style="flex: 1">
+    <input class="input u-grow" name="password" type="password" required
+           placeholder="{{ t('New password') }}" aria-label="{{ t('New password') }}">
     <button class="btn" type="submit">{{ t("Reset password") }}</button>
   </form>
   <p class="field__hint">{{ t("Signs them out everywhere. An administrator resetting a password usually means the account is compromised or the person has gone.") }}</p>
 
   <form method="post" action="/admin/users/{{ target.id }}/delete"
-        data-confirm="{{ t('Delete %(email)s? Their chats, folders and library go with them.', email=target.email) }}"
-        style="margin-top: var(--sp-4)">
+        data-confirm="{{ t('Delete %(email)s? Their chats, folders and library go with them.', email=target.email) }}" class="u-mt-4">
     <button class="btn btn--danger btn--sm" type="submit">
       {{ icon("trash", "icon--sm") }} {{ t("Delete this account") }}
     </button>

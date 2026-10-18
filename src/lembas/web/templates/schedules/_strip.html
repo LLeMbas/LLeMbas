@@ -14,8 +14,8 @@
 <div class="composer">
   <div class="composer__inner">
     {% if schedule %}
-    <div class="jobs__row jobs__row--open" style="justify-content: space-between">
-      <div style="min-width: 0">
+    <div class="jobs__row jobs__row--open u-between">
+      <div class="u-shrink">
         <strong>{{ schedule_summary }}</strong>
         <div class="text-xs faint">
           {%- if not schedule.enabled %}

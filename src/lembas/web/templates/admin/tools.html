@@ -19,7 +19,7 @@
 {% endif %}
 
 {% if not total %}
-<div class="empty" style="padding: var(--sp-10) 0">
+<div class="empty u-pad-y-10">
   {{ icon("link", "empty__mark") }}
   <p class="empty__text">
     {{ tm("No tools yet. <a href=\"/admin/tools/new\">Define one</a> — a name, a
@@ -52,7 +52,7 @@
 </div>
 
 {% if not tools %}
-<div class="empty" style="padding: var(--sp-8) 0">
+<div class="empty u-pad-y-8">
   <p class="empty__text">{{ t("Nothing matches that filter.") }}</p>
 </div>
 {% else %}
@@ -94,13 +94,13 @@
     {% if page > 1 %}
     <a class="btn btn--sm" href="{{ base }}&page={{ page - 1 }}">{{ t("Previous") }}</a>
     {% else %}
-    <span class="btn btn--sm" aria-disabled="true" style="opacity: .45">{{ t("Previous") }}</span>
+    <span class="btn btn--sm u-dim" aria-disabled="true">{{ t("Previous") }}</span>
     {% endif %}
     <span class="text-xs faint">{{ t("Page %(page)s of %(pages)s", page=page, pages=pages) }}</span>
     {% if page < pages %}
     <a class="btn btn--sm" href="{{ base }}&page={{ page + 1 }}">{{ t("Next") }}</a>
     {% else %}
-    <span class="btn btn--sm" aria-disabled="true" style="opacity: .45">{{ t("Next") }}</span>
+    <span class="btn btn--sm u-dim" aria-disabled="true">{{ t("Next") }}</span>
     {% endif %}
   </div>
   {% endif %}

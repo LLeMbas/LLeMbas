@@ -93,6 +93,14 @@
       encodeURIComponent(message) + "/prototypes/" + digest;
   }
 
+  /* The height each inline page last reported, by address. The steps container
+     is swapped whole every time a round closes, which remounts every frame in
+     it from scratch: without this each one came back at the starting height
+     and jumped to its real one when the page had booted and said so again --
+     and the transcript jumped with it, once per frame per round. A frame
+     mounted on an address already measured is reserved its height at once. */
+  var heights = {};
+
   function frame(address, title, className) {
     var element = document.createElement("iframe");
     element.className = className;
@@ -102,8 +110,17 @@
     element.setAttribute("sandbox", "allow-scripts allow-forms");
     element.setAttribute("referrerpolicy", "no-referrer");
     element.setAttribute("title", title);
+    element.setAttribute("data-address", address);
+    if (heights[address]) element.style.setProperty("--proto-h", heights[address] + "px");
     element.src = address + "?scheme=" + scheme();
     return element;
+  }
+
+  /* The transcript follows a frame that grew, through the one scroll owner in
+     app.js, so the growth and the follow are one layout rather than a jump and
+     a correction. */
+  function follow() {
+    if (window.lembas && window.lembas.scrollThread) window.lembas.scrollThread(false);
   }
 
   /* --- Mounting ---------------------------------------------------------- */
@@ -383,7 +400,12 @@
       if (!isFinite(height) || height < 0) return;
       /* The CSS clamps it between the two tokens; this only keeps an absurd
          number from being written at all. */
-      source.style.setProperty("--proto-h", Math.min(Math.round(height), 100000) + "px");
+      var px = Math.min(Math.round(height), 100000);
+      var address = source.getAttribute("data-address");
+      if (address) heights[address] = px;
+      if (source.style.getPropertyValue("--proto-h") === px + "px") return;
+      source.style.setProperty("--proto-h", px + "px");
+      follow();
     }
   }
 

@@ -13,7 +13,7 @@
 <div id="mention-results">
   {% if not documents and not notes and not skills
         and not bases and not attachments and not website %}
-  <p class="muted text-sm" style="padding: var(--sp-3)">
+  <p class="muted text-sm u-pad-3">
     {% if q %}
       {{ t("Nothing matches “%(q)s”.", q=q) }}
     {% else %}

@@ -7,7 +7,7 @@
 {% block heading %}{{ skill.name if skill else t("New skill") }}{% endblock %}
 
 {% block library_content %}
-<div class="btn-row" style="margin-bottom: var(--sp-5)">
+<div class="btn-row u-mb-5">
   <a class="btn btn--sm" href="/library/skills">{{ icon("chevron-right", "icon--sm") }} {{ t("All skills") }}</a>
 </div>
 
@@ -57,7 +57,7 @@
       {{ icon("sparkle", "alert__icon") }}
       <div>
         <strong>{{ t("A model wrote this version.") }}</strong>
-        <div class="text-sm" style="margin-top: var(--sp-1)">
+        <div class="text-sm u-mt-1">
           {{ t("Worth reading before you rely on it. A model that has just read a web page can be talked into things by that page, and a skill persists. Every earlier version is below.") }}
         </div>
       </div>
@@ -90,7 +90,7 @@
   <ul class="model-list">
     {% for revision in revisions %}
     <li class="model-list__item">
-      <div style="min-width: 0">
+      <div class="u-shrink">
         <strong>{{ revision.created_at.strftime("%Y-%m-%d %H:%M") }}</strong>
         {% if revision.author == "model" %}
         <span class="badge badge--leaf">{{ t("model") }}</span>

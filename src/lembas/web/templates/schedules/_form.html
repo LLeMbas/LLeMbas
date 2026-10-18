@@ -72,8 +72,8 @@
   <div class="field" data-repeat="every">
     <label class="field__label" for="schedule-every">{{ t("Repeat every") }}</label>
     <div class="btn-row">
-      <input class="input" type="number" id="schedule-every" name="every_amount"
-             min="1" value="{{ form.every_amount }}" style="max-width: 8rem">
+      <input class="input u-w-field-xs" type="number" id="schedule-every" name="every_amount"
+             min="1" value="{{ form.every_amount }}">
       <select class="select" name="every_unit">
         {% for unit in ["minutes", "hours", "days", "weeks"] %}
         <option value="{{ unit }}" {{ 'selected' if form.every_unit == unit }}>{{ unit }}</option>
@@ -109,8 +109,8 @@
 
 <div class="field">
   <label class="field__label" for="schedule-count">{{ t("Stop after") }}</label>
-  <input class="input" type="number" id="schedule-count" name="count" min="0"
-         value="{{ form.count }}" style="max-width: 10rem">
+  <input class="input u-w-field-sm" type="number" id="schedule-count" name="count" min="0"
+         value="{{ form.count }}">
   <p class="field__hint">{{ t("Number of runs. Leave it at 0 to keep going until you stop it.") }}</p>
 </div>
 

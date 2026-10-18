@@ -65,6 +65,9 @@
   --leading-relaxed: 1.75;
 
   /* --- Space (4px scale) ------------------------------------------------ */
+  /* Half a step: the gap between the lines of one tool result, the bleed of a
+     mention's highlight. The one place a 2px space is allowed to be named. */
+  --sp-half: 0.125rem;
   --sp-1: 0.25rem;
   --sp-2: 0.5rem;
   --sp-3: 0.75rem;
@@ -155,6 +158,45 @@
   --thread-max-width: 48rem;
   --header-height: 3.5rem;
 
+  /* --- The sizes of things -------------------------------------------------
+     Caps and floors that used to be a literal rem in seventy places across
+     three stylesheets -- 20, 22, 24, 26 -- with no way to tell which of them
+     meant the same thing. A handful of roles instead, and a component takes the
+     one that names what it is: a theme can then widen every menu at once, and
+     two popovers cannot drift a rem apart by accident. Control heights are
+     `--control-h`; these are the boxes around them. */
+  --w-field-xs: 8rem;      /* a short input: a count, a duration */
+  --w-field-sm: 10rem;     /* a short select's floor */
+  --w-field: 14rem;        /* a capped field, a label column, a small menu */
+  --w-chip: 16rem;         /* a name that truncates: a model, a path */
+  --w-menu-sm: 20rem;      /* a compact popover, an attachment chip */
+  --w-menu: 24rem;         /* a popover, a results list, a card's column */
+  --w-menu-lg: 28rem;      /* a wide popover */
+  --w-dialog: 34rem;       /* a dialog with a list in it */
+  --w-prose-sm: 32rem;     /* a short reading measure: an empty state */
+  --w-prose: 44rem;        /* a reading measure: a lede, a card grid */
+  --h-list: 22rem;         /* a scrolling list or menu */
+  --h-block: 24rem;        /* a scrolling block inside a card */
+  --h-block-lg: 26rem;     /* a reasoning body, a preview */
+  --h-media: 20rem;        /* a picture in the transcript */
+
+  /* The live reply's two one-line rows -- the waiting row and the metrics --
+     keep this height whether or not they have anything in them, so their
+     content arriving or leaving never moves the transcript. One line of the
+     small type. */
+  --row-h: calc(var(--text-xs) * var(--leading-normal) + 2 * var(--sp-2));
+
+  /* A dot that marks state: unsaved, unread. */
+  --dot-size: 0.375rem;
+  /* The streaming caret: a thin bar the height of a line. */
+  --caret-bar-w: 0.45rem;
+  /* The drag handle on a panel's edge: how wide, and how far it overhangs the
+     panel so the border itself is inside the target. */
+  --resize-w: 9px;
+  --resize-overhang: 3px;
+  /* A faded control: something present but not the point. */
+  --opacity-dim: 0.45;
+
   /* What `--header-height` does at the top of the shell, this does at the
      bottom. The sidebar's footer and the composer sit either side of the same
      vertical line and both are content-sized, so without this they end at
@@ -211,6 +253,8 @@
      means a theme that wants a heavier border gets a heavier focus ring too,
      which is two decisions tied together by a coincidence. */
   --outline-w: 2px;
+  /* How far the focus ring stands off the box it rings. */
+  --outline-offset: 2px;
 
   /* --- Touch --------------------------------------------------------------
      A control a thumb has to hit is 44px. `--control-h` is 2.25rem, which is

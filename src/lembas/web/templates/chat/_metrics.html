@@ -23,8 +23,9 @@
       title="{% if metrics.estimated %}{{ t("Estimated.") }} {% endif %}{% if metrics.context_limit %}{{ t("What the conversation now occupies: %(n)s of %(limit)s tokens (%(percent)s%%)", n=metrics.context_tokens, limit=metrics.context_limit, percent=metrics.percent) }}{% else %}{{ t("What the conversation now occupies: %(n)s tokens; the window's size is not known", n=metrics.context_tokens) }}{% endif %}">
   {% if metrics.context_limit %}
   <span class="metric__bar">
-    {# A width is data, not a design value: it is the measurement itself. #}
-    <span class="metric__fill" style="width: {{ metrics.percent }}%"></span>
+    {# A width is data, not a design value: it is the measurement itself, so it
+       travels as a custom property the stylesheet reads (`.metric__fill`). #}
+    <span class="metric__fill" style="--fill: {{ metrics.percent }}%"></span>
   </span>
   {% endif %}
   {% if metrics.estimated %}~{% endif %}{{ compact_tokens(metrics.context_tokens) }}{% if metrics.context_limit %} / {{ compact_tokens(metrics.context_limit) }} · {{ metrics.percent }}%{% else %} {{ t("in context") }}{% endif %}

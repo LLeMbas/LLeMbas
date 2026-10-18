@@ -6,11 +6,21 @@
 */
 
 /* --- Thread --------------------------------------------------------------- */
-/* A `.scroll-region` (app.css); the smooth behaviour is this one's own, because
-   this is the scroller something is repeatedly scrolled *to* -- the newest
-   message, a jump back to the bottom -- and the others are not. */
+/* A `.scroll-region` (app.css). Two things this one must NOT have, because it
+   is the scroller a streaming reply is followed in (app.js:scrollThread):
+
+   No `scroll-behavior: smooth`. An animated `scrollTop = scrollHeight` reads
+   back its *start*, so the script could never tell its own scroll from the
+   reader's, and every frame of the animation went through the "did they
+   scroll up?" logic -- eight times a stream frame. The one jump control that
+   wants an animation asks for it with `scrollTo({behavior: "smooth"})`.
+
+   No scroll anchoring. Chrome adjusts `scrollTop` by itself when content above
+   the viewport changes height, which while a reply streams is a second hand on
+   the scrollbar: a round closing or a table appearing moved the view, the
+   script measured the result as the reader leaving, and following stopped. */
 .thread-scroll {
-  scroll-behavior: smooth;
+  overflow-anchor: none;
 }
 
 .thread {
@@ -64,7 +74,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 16rem;
+  max-width: var(--w-chip);
 }
 
 .msg__body {
@@ -81,7 +91,7 @@
 .msg--user .msg__body--plain {
   background: var(--bubble-user);
   padding: var(--sp-3) var(--sp-4);
-  border-inline-start: 3px solid var(--accent);
+  border-inline-start: var(--border-w-accent) solid var(--accent);
   border-radius: var(--radius);
   display: block;
   max-width: 100%;
@@ -101,13 +111,25 @@
 /* The blocks inside carry the rhythm; their own bottom margins would double it. */
 .msg__steps > .reasoning { margin-bottom: 0; }
 
+/* The live reply: the closed steps and the step still being written, on the
+   same column with the same gap, so a block moving from the tail into a step
+   above keeps its spacing and the transcript does not shift by the difference.
+   An empty part takes no slot -- `display: none` leaves the gap too -- or the
+   tail's gap would open and close with every round. */
+.msg__flow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.msg__flow > .reasoning { margin: 0; }
+.msg__flow > .msg__body--live:empty,
+.msg__flow > .interaction-slot:empty { display: none; }
+
 .msg__error { margin: var(--sp-2) 0; align-items: flex-start; }
 
 /* --- Streaming indicator -------------------------------------------------- */
-/* Shown until the first token arrives, then hidden by the sibling selector
-   below -- no JavaScript involved in either direction. */
-.msg__waiting { padding: var(--sp-2) 0; }
-
+/* Shown until the first token arrives, then hidden by the `:has()` rule under
+   "Stop, notes and editing" -- no JavaScript involved in either direction. */
 .dots { display: inline-flex; gap: 0.25rem; align-items: center; }
 .dots i {
   width: 0.4rem;
@@ -124,14 +146,20 @@
   30% { opacity: 1; transform: translateY(-2px); }
 }
 
-/* A caret trailing the text while it streams. Attached to the last block so it
-   sits at the end of the prose rather than on a line of its own. */
-.msg__body--live:not(:empty) > :last-child::after {
+/* A caret trailing the text while it streams. Drawn inside the last element
+   that holds a run of text -- a paragraph, a heading, the last item of a list
+   -- so it sits at the end of the words. Not on whatever the last child
+   happens to be: a `::after` on a list, a table or a code block is an inline
+   box after a block, which is a line box of its own, and that line appeared
+   and vanished with every frame that ended in one. A block that is not text
+   gets no caret; the row under the reply says it is still going. */
+.msg__body--live > :is(p, h1, h2, h3, h4, h5, h6):last-child::after,
+.msg__body--live > :is(ul, ol):last-child > li:last-child::after {
   content: "";
   display: inline-block;
-  width: 0.45rem;
+  width: var(--caret-bar-w);
   height: 1.05em;
-  margin-left: 1px;
+  margin-left: var(--sp-half);
   vertical-align: text-bottom;
   background: var(--accent);
   animation: caret 1.05s steps(1) infinite;
@@ -203,7 +231,7 @@
    default: the point of compacting was that they stopped mattering.
 */
 .compacted {
-  border: 1px dashed var(--border-strong);
+  border: var(--border-w) dashed var(--border-strong);
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--surface) 50%, transparent);
 }
@@ -266,7 +294,7 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
   gap: var(--sp-3);
   width: 100%;
-  max-width: 40rem;
+  max-width: var(--w-prose);
   margin-top: var(--sp-6);
   text-align: left;
 }
@@ -287,7 +315,7 @@
 }
 .suggestion:hover { background: var(--surface-hover); }
 .suggestion:active { transform: translate(var(--press), var(--press)); box-shadow: none; }
-.suggestion:focus-visible { outline: var(--outline-w) solid var(--accent); outline-offset: 2px; }
+.suggestion:focus-visible { outline: var(--outline-w) solid var(--accent); outline-offset: var(--outline-offset); }
 
 .suggestion__name { font-family: var(--font-ui); font-weight: 600; font-size: var(--text-sm); }
 .suggestion__note {
@@ -313,18 +341,31 @@
    something to read every time.
 */
 .msg__metrics {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--sp-3);
+  /* One line, always. It wrapped, and a live reply's chips grow as the
+     numbers do -- `9 processed` becomes `1.4k processed`, a tok/s chip arrives
+     -- so on a narrow screen the row went from one line to two under the
+     reader's eye, mid-reply. A block with inline chips rather than a flex row,
+     because `text-overflow` works on a line of inline boxes and not on flex
+     items: the chips that do not fit are cut with an ellipsis, and the ones
+     that matter come first in the markup. */
+  display: block;
+  max-width: 100%;
   margin-top: var(--sp-2);
   font-size: var(--text-xs);
   color: var(--ink-faint);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .msg__metrics:empty { display: none; }
+/* While the reply streams the row is there before the first chips are, at the
+   height one line of chips will take, so their arrival moves nothing. */
+.msg__metrics--live { min-height: var(--row-h); }
+.msg__metrics--live:empty { display: block; }
 
 .metric { display: inline-flex; align-items: center; gap: var(--sp-1); cursor: default; }
+.metric + .metric { margin-inline-start: var(--sp-3); }
 
 .metric__bar {
   display: inline-block;
@@ -334,8 +375,11 @@
   background: var(--surface-active);
   overflow: hidden;
 }
+/* `--fill` is set on the element by the template: a measurement, not a design
+   value, and the one inline style a chip is allowed. */
 .metric__fill {
   display: block;
+  width: var(--fill, 0%);
   height: 100%;
   background: var(--ink-faint);
   transition: width var(--transition);
@@ -363,7 +407,7 @@
   color: var(--ink-muted);
   font-size: var(--text-sm);
   line-height: var(--leading-relaxed);
-  max-height: 26rem;
+  max-height: var(--h-block-lg);
   overflow-y: auto;
   scrollbar-width: thin;
 }
@@ -398,7 +442,7 @@
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -2px;
+  bottom: calc(-1 * var(--border-w-thick));
   height: var(--border-w);
   background: linear-gradient(90deg, transparent, var(--leaf), transparent);
   background-size: 50% 100%;
@@ -467,7 +511,7 @@
 .tool-result {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--sp-half);
   padding-left: var(--sp-3);
   border-left: var(--border-w-thick) solid var(--border-strong);
   min-width: 0;
@@ -512,7 +556,7 @@
 .tool-image img {
   display: block;
   max-width: 100%;
-  max-height: 20rem;
+  max-height: var(--h-media);
   width: auto;
   height: auto;
   border-radius: var(--radius-sm);
@@ -628,7 +672,7 @@
 }
 .interaction__option:has(input:focus-visible) {
   outline: var(--outline-w) solid var(--accent);
-  outline-offset: 2px;
+  outline-offset: var(--outline-offset);
 }
 
 .interaction__option-body {
@@ -680,7 +724,7 @@
   background: var(--surface-active);
   color: var(--ink);
 }
-.chip input:focus-visible + span { outline: var(--outline-w) solid var(--accent); outline-offset: 2px; }
+.chip input:focus-visible + span { outline: var(--outline-w) solid var(--accent); outline-offset: var(--outline-offset); }
 .interaction__detail {
   margin: 0;
   padding: var(--sp-3);
@@ -694,7 +738,7 @@
 /* A device's plan on its card: the model's markdown, sanitised, in a
    box of its own that scrolls rather than pushing the buttons off the screen. */
 .interaction__plan {
-  max-height: 24rem;
+  max-height: var(--h-block);
   overflow: auto;
   padding: var(--sp-3);
   border-radius: var(--radius-sm);
@@ -751,16 +795,25 @@
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  padding: var(--sp-2) 0;
+  padding: 0;
+  /* One line's height whether the dots, the status, both or neither are
+     showing: the row is a fixed slot, not something that grows when the
+     status arrives and collapses when it goes. */
+  min-height: var(--row-h);
 }
-/* Once the answer has content the caret carries the "still going" signal, so
-   the dots go, but Stop must stay reachable until the stream ends.
+/* The dots mean "nothing has arrived yet", and only that. Once anything has
+   -- text in the tail, or a step that closed -- the caret, the thinking box's
+   spinner and the status line carry the "still going" signal, and the dots
+   go for good. They used to come back every time a round closed and emptied
+   the tail, which read as the reply starting over, and the row's width
+   changed with them.
 
    `:has()` on the bubble rather than a sibling selector: the live body and the
    waiting row stopped being siblings when the reply became a sequence of steps,
    and an adjacent-sibling rule that matches nothing fails by leaving the dots
    pulsing beside a finished-looking answer forever. */
-.msg__main:has(.msg__body--live:not(:empty)) .msg__waiting .dots { display: none; }
+.msg__main:has(.msg__body--live:not(:empty)) .msg__waiting .dots,
+.msg__main:has(.msg__steps:not(:empty)) .msg__waiting .dots { display: none; }
 
 /* Send and Stop are one button. Which icon shows is decided here rather than
    in JavaScript, so the state is visible in the markup and the swap is free. */
@@ -804,7 +857,7 @@
 .composer__stop-square {
   width: 0.7rem;
   height: 0.7rem;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   background: currentColor;
 }
 
@@ -867,7 +920,7 @@
    find by hovering is one somebody will not find. */
 .msg--queued { opacity: 0.75; }
 .msg--queued .msg__body {
-  border-inline-start: 2px dashed var(--border-strong);
+  border-inline-start: var(--border-w-thick) dashed var(--border-strong);
   padding-inline-start: var(--sp-2);
 }
 .msg__actions--queued { opacity: 1; align-items: center; }
@@ -928,6 +981,11 @@
 }
 .msg__body th { background: var(--surface); font-weight: 600; }
 
+/* `height: auto` with `max-width`, and never a fixed height: an image that
+   carries `width` and `height` attributes (services/markdown.py lets them
+   through) is laid out at their aspect ratio before a byte of it has loaded,
+   so the box is reserved and the text under it does not drop by the picture's
+   height a moment later. A fixed height here would throw that ratio away. */
 .msg__body img { max-width: 100%; height: auto; border-radius: var(--radius); }
 
 /* --- Code blocks ---------------------------------------------------------- */
@@ -1065,7 +1123,7 @@
   border-radius: 0;
   box-shadow: none;
 }
-.proto__source .code-block__pre { max-height: 24rem; overflow: auto; }
+.proto__source .code-block__pre { max-height: var(--h-block); overflow: auto; }
 
 /* --- Composer ------------------------------------------------------------- */
 .composer {
@@ -1191,18 +1249,18 @@
 }
 .composer__mirror .tok-mention {
   background: var(--accent-soft);
-  box-shadow: 0 0 0 2px var(--accent-soft);
+  box-shadow: 0 0 0 var(--sp-half) var(--accent-soft);
 }
 .composer__mirror .tok-command {
   background: var(--leaf-soft);
-  box-shadow: 0 0 0 2px var(--leaf-soft);
+  box-shadow: 0 0 0 var(--sp-half) var(--leaf-soft);
 }
 
 /* The same two in a sent message, where they are text rather than a backdrop --
    and scoped to it, because unscoped they also matched the mirror's spans. */
 .msg .tok-mention {
   border-radius: var(--radius-sm);
-  padding: 0 2px;
+  padding: 0 var(--sp-half);
   background: var(--accent-soft);
   color: var(--accent);
   font-family: var(--font-mono);
@@ -1252,7 +1310,7 @@
   width of the popover or the language of the labels.
 */
 .picker__menu--settings {
-  width: min(20rem, calc(100vw - var(--sp-8)));
+  width: min(var(--w-menu-sm), calc(100vw - var(--sp-8)));
   padding: var(--sp-1);
 }
 .effort-slider {
@@ -1317,11 +1375,11 @@
 }
 .effort-slider__range:focus-visible::-webkit-slider-thumb {
   outline: var(--outline-w) solid var(--ink);
-  outline-offset: 2px;
+  outline-offset: var(--outline-offset);
 }
 .effort-slider__range:focus-visible::-moz-range-thumb {
   outline: var(--outline-w) solid var(--ink);
-  outline-offset: 2px;
+  outline-offset: var(--outline-offset);
 }
 .effort-slider__ticks {
   display: grid;
@@ -1408,8 +1466,8 @@
   position: fixed;
   top: auto;
   right: auto;
-  width: min(24rem, calc(100vw - var(--sp-4)));
-  max-height: min(22rem, 50dvh);
+  width: min(var(--w-menu), calc(100vw - var(--sp-4)));
+  max-height: min(var(--h-list), 50dvh);
   overflow-y: auto;
   padding: var(--sp-1);
 }
@@ -1438,116 +1496,26 @@
 .picker__option.dir-menu__browse { border-top: var(--border-w) solid var(--border); border-radius: 0; }
 .dir-menu__browse .dir-menu__path { direction: ltr; }
 
-/* --- Background jobs -------------------------------------------------------
-   A chip in the composer row saying how many commands are still running out
-   there, and a panel behind it. `flex: none` for the reason the mode select is:
-   this is a control being read, and the row's one shrinkable child is
-   `.composer__context` itself. */
-.composer__jobs { flex: none; display: flex; align-items: center; }
-.composer__chip--jobs {
-  gap: var(--sp-1);
-  color: var(--accent);
-  font-variant-numeric: tabular-nums;
+/* --- A row in a strip above the composer ------------------------------------
+   What is left of the background-jobs panel, which is gone: the schedule strip
+   (schedules/_strip.html) borrows the row it drew its entries in, and nothing
+   else does. Inset to match `.picker__group` and `.picker__lede`: the padding
+   goes inside the row and the border stays on it, so the divider is still
+   full-bleed -- which is what makes a stack of rows read as a list rather than
+   as paragraphs. The open row's mark is an inset shadow rather than a
+   `border-inline-start`, which would take its width out of the row's and shift
+   the open row's text against every closed one above it. */
+.jobs__row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: var(--border-w) solid var(--border);
 }
-/* Something is still happening on a machine nobody is looking at, which is the
-   whole reason this exists. Slow, because it sits beside the composer for as
-   long as a build takes and a fast pulse there is a nuisance rather than a
-   signal.
-
-   No reduced-motion guard here, and not from carelessness: this file is pinned
-   to contain no media queries at all -- the test matches the string, comments
-   included -- and `dot-pulse` and `caret` above set the same precedent.
-   Honouring that preference belongs in one rule covering every animation, in
-   app.css, rather than in a third copy of the exception. */
-.composer__chip--jobs .icon { animation: jobs-pulse 2.4s ease-in-out infinite; }
-@keyframes jobs-pulse { 50% { opacity: 0.35; } }
-
-.picker__menu--jobs { width: min(34rem, 92vw); }
-
-/* Inset to match `.picker__group` and `.picker__lede` above them. The menu has
-   no padding of its own (app.css), so a row with none ran flush into the border
-   while the header over it sat --sp-3 in. The padding goes inside the row and
-   the border stays on it, so the divider is still full-bleed -- which is what
-   makes a stack of rows read as a list rather than as paragraphs. */
-.jobs__row { padding: var(--sp-2) var(--sp-3); border-bottom: var(--border-w) solid var(--border); }
 .jobs__row:last-child { border-bottom: 0; }
-
-/* Which row's log is on screen. An inset shadow rather than a
-   `border-inline-start`, which would take its 2px out of the row's width and
-   shift the open row's text against every closed one above it. */
-.jobs__row--open { background: var(--surface-active); box-shadow: inset 2px 0 0 var(--accent); }
-
-/* The whole row lights up, driven by the one thing in it you can press. The
-   command button spans the row's content but not its padding, so hovering the
-   band between two rows would otherwise light nothing. `:has()` is already how
-   `.interaction__option` follows its own input.
-
-   No `:focus-visible` rule here, and that is not an omission: app.css gives
-   every focusable element an accent outline, and a second one written locally
-   is a copy that drifts. */
-.jobs__row:has(.jobs__command:hover) { background: var(--surface-hover); }
-
-.jobs__head { display: flex; align-items: center; gap: var(--sp-2); }
-
-.jobs__dot {
-  flex: none;
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: var(--radius-full);
-  background: var(--ink-muted);
-}
-/* Keyed on `JobView.tone`, not on `status`: `done` is both exit 0 and exit 2.
-   `lost` is muted rather than red to match what the row says in words -- the
-   host rebooted or /tmp was cleared, so nothing failed and we simply cannot say
-   how it ended. */
-.jobs__dot--running { background: var(--accent); }
-.jobs__dot--ok { background: var(--success); }
-.jobs__dot--failed { background: var(--danger); }
-.jobs__dot--killed { background: var(--warning); }
-.jobs__dot--lost { background: var(--ink-muted); }
-
-/* The command is the button: the row is wide, the affordance should be too.
-   `min-width: 0` or the flex item will not shrink below its content and the
-   Stop button is what falls off -- the same rule as the composer row itself. */
-.jobs__command {
-  flex: 1 1 auto;
-  min-width: 0;
-  text-align: left;
-  background: none;
-  border: 0;
-  padding: 0;
-  color: inherit;
-  cursor: pointer;
-  font: inherit;
-}
-.jobs__command code {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--text-xs);
-}
-.jobs__command:hover code { color: var(--accent); }
-.jobs__stop { flex: none; }
-
-.jobs__meta {
-  margin: var(--sp-1) 0 0;
-  font-size: var(--text-xs);
-  color: var(--ink-muted);
-}
-.jobs__error { margin: var(--sp-2) 0 0; font-size: var(--text-xs); color: var(--danger); }
-
-.jobs__log {
-  margin: var(--sp-2) 0 0;
-  max-height: 16rem;
-  overflow: auto;
-  padding: var(--sp-2);
-  border-radius: var(--radius-sm);
-  background: var(--bg-sunken);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  white-space: pre-wrap;
-  word-break: break-word;
+.jobs__row--open {
+  background: var(--surface-active);
+  box-shadow: inset var(--border-w-thick) 0 0 var(--accent);
 }
 
 .composer__hint {
@@ -1584,7 +1552,7 @@
   left: 0;
   right: 0;
   z-index: var(--z-dropdown);
-  max-height: min(20rem, 45vh);
+  max-height: min(var(--h-list), 45dvh);
   overflow-y: auto;
   scrollbar-width: thin;
   border: var(--border-w) solid var(--border);
@@ -1685,7 +1653,7 @@
   border: var(--border-w) solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
-  max-width: 20rem;
+  max-width: var(--w-menu-sm);
   font-size: var(--text-sm);
 }
 .attach-chip--error { border-color: var(--danger); background: var(--danger-soft); }
@@ -1715,7 +1683,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--sp-2);
-  border: 2px dashed var(--accent);
+  border: var(--border-w-thick) dashed var(--accent);
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--bg) 88%, var(--accent));
   color: var(--accent);
@@ -1748,8 +1716,8 @@
   display: block;
   width: auto;
   height: auto;
-  max-width: min(22rem, 100%);
-  max-height: 20rem;
+  max-width: min(var(--w-menu), 100%);
+  max-height: var(--h-media);
   object-fit: contain;
 }
 .attachments__doc {
@@ -1810,7 +1778,7 @@
   background: var(--success);
   flex: none;
   /* A ring so it stays visible against the active row's lighter background. */
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--success) 25%, transparent);
+  box-shadow: 0 0 0 var(--outline-w) color-mix(in srgb, var(--success) 25%, transparent);
 }
 .unread-dot[hidden] { display: none; }
 
@@ -1895,29 +1863,6 @@
 }
 .plan__note { color: var(--ink-faint); font-size: var(--text-xs); }
 
-/* --- Reading backwards ------------------------------------------------------ */
-/*
-  The row that fetches older messages when it comes into view. Given real height
-  so `revealed` fires reliably -- a zero-height element at the top of a scroll
-  container is intersected ambiguously, and a sentinel that never fires is a
-  history nobody can reach.
-*/
-.history-sentinel {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--sp-4) 0;
-  min-height: 2.5rem;
-}
-
-/* The shape of the turns being fetched, at the width they will arrive in. */
-.history-sentinel__shape {
-  width: 100%;
-  max-width: var(--thread-max-width);
-  margin: 0 auto;
-  padding: 0 var(--sp-5);
-}
-
 /* The mark first, then the question, then the line under it -- a tenth of a
    second apart, which is enough to read as one movement rather than three
    things appearing at once. */
@@ -1941,10 +1886,9 @@
   `.composer__toolbar` or `.composer__actions`, and a test refuses it if it
   does.
 
-  What was wrong: a 390px screen spent 40px of its width on thread padding and
-  another 44 on the avatar gutter before a single word was drawn, which is
-  nearly a quarter of the screen given over to margin -- so anything that could
-  not wrap had to be scrolled to sideways.
+  What was wrong: a 390px screen spent 40px of its width on thread padding
+  before a single word was drawn -- a tenth of the screen given over to margin
+  -- so anything that could not wrap had to be scrolled to sideways.
 */
 @media (max-width: 48rem) {
   /* Half the horizontal padding. The vertical stays: it is what separates one
@@ -1959,8 +1903,15 @@
   /* A bubble against the edge of the screen wants less inside it. */
   .msg--user .msg__body--plain { padding: var(--sp-2) var(--sp-3); }
 
-  /* The composer is the other thing pressed against both edges. */
-  .composer { padding-left: var(--sp-2); padding-right: var(--sp-2); }
+  /* The composer is the other thing pressed against both edges. Its floor
+     goes too: `--footer-height` exists to end it level with the sidebar's
+     footer, and below this width the sidebar is a drawer, so there is nothing
+     to be level with and the floor only pushes the transcript up. */
+  .composer {
+    padding-left: var(--sp-2);
+    padding-right: var(--sp-2);
+    min-height: 0;
+  }
 
   /* A hint that runs to four lines on a phone is a hint nobody reads, and it
      sits directly under the thing a thumb is reaching for. */
@@ -1996,7 +1947,7 @@
 .composer__context .upward { flex: 0 1 auto; min-width: 6rem; }
 .upward__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .upward__menu {
-  max-height: min(22rem, 50dvh);
+  max-height: min(var(--h-list), 50dvh);
   overflow-y: auto;
 }
 .upward__menu .picker__option { font-size: var(--text-sm); }
@@ -2074,10 +2025,10 @@
   gap: var(--sp-1);
   margin-block: var(--sp-2);
   color: var(--ink-muted);
-  font-size: var(--text-sm, 0.875rem);
+  font-size: var(--text-sm);
 }
 
-.metric--model { font-family: var(--font-mono); color: var(--ink-faint); max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.metric--model { font-family: var(--font-mono); color: var(--ink-faint); max-width: var(--w-chip); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* --- A tool call by its kind ----------------------------------------
    Each kind is read differently, so each is drawn differently: a command in
@@ -2088,7 +2039,7 @@
 .tool-activity--search,
 .tool-activity--task,
 .tool-edit,
-.tool-line { border-inline-start-width: 3px; }
+.tool-line { border-inline-start-width: var(--border-w-accent); }
 .tool-activity--shell { border-inline-start-color: var(--leaf); }
 .tool-activity--search { border-inline-start-color: var(--accent); }
 .tool-activity--task { border-inline-start-color: var(--warning, var(--accent)); }
@@ -2115,7 +2066,7 @@
   margin: 0 0 var(--sp-2);
   padding: var(--sp-1) var(--sp-3);
   border: var(--border-w) solid transparent;
-  border-inline-start: 3px solid var(--border-strong);
+  border-inline-start: var(--border-w-accent) solid var(--border-strong);
   font-size: var(--text-sm);
 }
 .tool-line--error { border-inline-start-color: var(--danger); }
@@ -2125,7 +2076,7 @@
 .tool-edit {
   margin: 0 0 var(--sp-3);
   border: var(--border-w) solid var(--border);
-  border-inline-start: 3px solid var(--success);
+  border-inline-start: var(--border-w-accent) solid var(--success);
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--surface) 70%, transparent);
   font-size: var(--text-sm);

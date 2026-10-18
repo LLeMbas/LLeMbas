@@ -191,25 +191,49 @@
      on its own and nothing ever unsticks. */
   var placed = -1;
 
+  /* One scroll owner, one scroll a frame.
+
+     Every swap and every stream frame asks for the bottom; this grants it once,
+     in a `requestAnimationFrame`, after everything else that was going to touch
+     the transcript in this turn has touched it. Two things depend on that
+     order. The MutationObservers in this file and in prototypes.js add a label
+     bar to every code block and a status line to every prototype card, and
+     they run as microtasks -- so when the scroll happened in the swap listener
+     itself, the bottom it measured was short by exactly what they were about to
+     insert, on every frame. And a shrink -- a round closing, incomplete Markdown
+     changing shape as the next token lands, a block the reader shuts -- clamps
+     `scrollTop` when layout runs, which fires a scroll event *upward* that the
+     listener below would read as the reader leaving. Here the clamp and the
+     follow happen in one layout, so the one scroll event the browser fires
+     lands exactly on `placed` and is ignored as ours.
+
+     `.thread-scroll` therefore has no `scroll-behavior: smooth`: an animated
+     assignment reads back its *start* position, so `placed` was never where the
+     scroll ended, and the animation's own events went through the up/near-bottom
+     logic eight times a frame. And `overflow-anchor: none`, so Chrome's scroll
+     anchoring does not add a second opinion about where the reader is. */
+  var scrollFrame = 0;
+
   function scrollThread(force) {
-    var thread = document.getElementById("thread-scroll");
-    if (!thread) return;
     if (force) stick = true;
-    if (stick) {
+    if (scrollFrame) return;
+    scrollFrame = requestAnimationFrame(function () {
+      scrollFrame = 0;
+      var thread = document.getElementById("thread-scroll");
+      if (!thread || !stick) return;
       thread.scrollTop = thread.scrollHeight;
       placed = thread.scrollTop;
-    }
+    });
   }
 
   /* Any scroll *up* by the reader stops following at once; only
      coming back down to the bottom starts it again. The threshold alone used to
      decide both, so somebody who had moved up less than STICK_THRESHOLD to read
      a line was still "following" -- and the next swap pulled them back down,
-     which is the page "dragging me down". A block closing shrinks the page and
-     the browser moves scrollTop up by itself: that is not the reader leaving the
-     bottom, so it is not counted (`resized`). */
+     which is the page "dragging me down". A scroll that ends where
+     `scrollThread` put it is ours, whatever happened to the height on the way
+     there -- see the note above the function. */
   var lastTop = -1;
-  var resized = false;
   document.addEventListener(
     "scroll",
     function (event) {
@@ -219,60 +243,36 @@
       var up = lastTop >= 0 && top < lastTop - 1;
       lastTop = top;
       if (top === placed) return;
-      if (resized) {
-        resized = false;
-        return;
-      }
       if (up) stick = false;
       else if (isNearBottom(thread)) stick = true;
     },
     true
   );
 
-  /* --- Reading backwards -------------------------------------------------
-     The mirror of `scrollThread`. Messages pages in older turns above the ones
-     on screen, and *prepending* moves everything down by the height of what
-     arrived -- so without this the reader is dragged up the page the instant
-     the sentinel fires, which reads as a browser bug rather than as a feature.
-
-     Height is recorded before the swap and the difference added back after, so
-     whatever was under the reader's eye stays there. `overflow-anchor` is not
-     reliable across an htmx swap, and `stick` deliberately is not touched:
-     reading history is not following a reply, and re-arming it here would jump
-     to the bottom the moment the next page landed. */
-  var heightBefore = -1;
-
-  document.body.addEventListener("htmx:beforeSwap", function (event) {
-    var el = event.target;
-    if (!el || !el.classList || !el.classList.contains("history-sentinel")) return;
-    var thread = document.getElementById("thread-scroll");
-    heightBefore = thread ? thread.scrollHeight : -1;
-  });
-
-  document.body.addEventListener("htmx:afterSwap", function (event) {
-    if (heightBefore < 0) return;
-    var thread = document.getElementById("thread-scroll");
-    if (thread) {
-      thread.scrollTop += thread.scrollHeight - heightBefore;
-      placed = thread.scrollTop;
-    }
-    heightBefore = -1;
-  });
-
   /* `toggle` does not bubble, so this has to be registered in the CAPTURE phase.
      Without the third argument the listener is never called and the whole thing
      is silently dead in every browser -- the same shape of failure as a trigger
-     bound where the event does not go. There is a test on it. */
+     bound where the event does not go. There is a test on it.
+
+     Only the reader's own toggle counts. steps.js opens blocks too -- putting
+     back what was open before a swap replaced it -- and a programmatic open
+     fires exactly the same `toggle`, trusted and all, so its opens are marked
+     `data-restored` and the mark is consumed here. Without that, once somebody
+     had opened a tool block the next round to close would open its copy and
+     stop following the reply for good. A block closing shrinks the page: the
+     scroll is asked for so the clamp and the follow are one event. */
   document.addEventListener(
     "toggle",
     function (event) {
       var el = event.target;
-      if (!el || el.tagName !== "DETAILS") return;
+      if (!event.isTrusted || !el || el.tagName !== "DETAILS") return;
       if (!(el.closest && el.closest("#thread-scroll"))) return;
+      if (el.hasAttribute("data-restored")) {
+        el.removeAttribute("data-restored");
+        return;
+      }
       if (el.open) stick = false;
-      // Closing one moves the page under the reader; the scroll that follows
-      // is the browser's, not theirs.
-      else resized = true;
+      else scrollThread(false);
     },
     true
   );
@@ -1258,14 +1258,22 @@
     navigator.serviceWorker.ready.then(watchForUpdate).catch(function () {});
   }
 
-  /* After any htmx swap: re-measure the composer, and follow new content --
-     only content that arrived in the transcript. A poll swapping the
-     sidebar's unread dots, or the composer re-rendering, is not a reason to move
-     the transcript, and doing it on every swap is what pulled a reader down
-     every few seconds. */
+  /* After any htmx swap: re-measure a composer that was swapped, and follow
+     new content -- only content that arrived in the transcript. A poll swapping
+     the sidebar's unread dots, or the composer re-rendering, is not a reason to
+     move the transcript, and doing it on every swap is what pulled a reader
+     down every few seconds.
+
+     The autosize is scoped to what arrived, by selector, and not every textarea
+     on the page: measuring one sets its height twice and forces a layout, and
+     doing that for the composer on every stream frame that swapped something
+     else entirely was a reflow of the whole shell twelve times a second. */
   document.body.addEventListener("htmx:afterSwap", function (event) {
-    document.querySelectorAll("[data-autosize]").forEach(autosize);
     var target = (event.detail && event.detail.target) || event.target;
+    if (target && target.querySelectorAll) {
+      if (target.matches && target.matches("[data-autosize]")) autosize(target);
+      target.querySelectorAll("[data-autosize]").forEach(autosize);
+    }
     var thread = document.getElementById("thread-scroll");
     if (thread && target && (target === thread || thread.contains(target) || target.id === "thread")) {
       scrollThread(false);
@@ -1348,10 +1356,10 @@
 
   /* Tokens arriving over SSE are appended outside the normal swap cycle.
 
-     Narrowed to frames that land in the thread. `metrics`, `status`, `ask` and
-     `canvas` all arrive on this event too, so the unconditional version fired
-     up to seven times per version bump -- most of them for content that changes
-     no height at all. */
+     Narrowed to frames that land in the thread: `canvas` and `plan` arrive on
+     this event too and land in a panel. The rest all land in the bubble, and
+     each is a request for the same single scroll a frame -- `scrollThread`
+     coalesces them, so a pass of several frames moves the transcript once. */
   document.body.addEventListener("htmx:sseMessage", function (event) {
     var target = event.target;
     if (target && target.closest && !target.closest("#thread-scroll")) return;

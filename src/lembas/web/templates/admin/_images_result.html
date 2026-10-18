@@ -6,8 +6,7 @@
   checkpoint filename is a filename somebody chose, not a value this
   application generated.
 #}
-<div class="alert {{ 'alert--error' if message_kind == 'error' else 'alert--success' }}"
-     style="margin-top: var(--sp-3)">
+<div class="alert {{ 'alert--error' if message_kind == 'error' else 'alert--success' }} u-mt-3">
   {{ icon("warning" if message_kind == "error" else "check", "icon--sm") }}
   <span>{{ message }}</span>
 </div>

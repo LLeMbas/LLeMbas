@@ -114,6 +114,14 @@
     {% endif %}
 
     {% if streaming %}
+      {# One column with one rhythm for the closed steps and the step still
+         being written, so a block moving from the tail into a step above keeps
+         the spacing it had and the transcript does not shift by the difference.
+         A plain wrapper, not a swap target: the rule below is about one
+         `sse-swap` element inside another, and this contains several siblings.
+         The finished bubble has no need of it -- the `done` frame draws every
+         step inside `.msg__steps`, which carries the same rhythm. #}
+      <div class="msg__flow">
       {# The reply as a sequence of steps, in the order they happened. Closed
          steps only, re-sent when a round ends. See services/steps.py. #}
       <div class="msg__steps" id="steps-{{ message.id }}" data-steps
@@ -125,44 +133,50 @@
          boundary with the frames aimed at it arriving in the same pass. That is
          what made an agent reply render nothing from its first tool call on.
 
-         Both frames are sent on every version bump *including empty*, which is
-         how the tail clears when a round closes and its contents move into a
-         step above. That is safe here and was not before: these carry the open
-         tail only, so an empty one means the tail is genuinely empty, whereas
-         the version that carried the whole reply would have wiped it. `steps`
-         is the one that must never blank now. #}
+         Each frame is sent when its content moves, an empty one included. When
+         a round closes the `steps` frame itself carries the tail out of band
+         (`_tail_oob` in api/chats.py), aimed at the ids below, so the text
+         moving into a step above and leaving the tail is one swap and never on
+         screen twice. The ids are therefore part of the wire protocol. These
+         carry the open tail only, so an empty one means the tail is genuinely
+         empty; `steps` is the one that must never blank. #}
       {# The word animates its own ellipsis in CSS -- `.` `..` `...` -- so there
          is no timer to start or clean up, and it stops when the element does.
          The numbers beside it come from the `think` frame.
 
          That span is a SIBLING of the body, inside a `<details>` that is never
-         itself swapped. Two swap targets in one static container is fine; a
-         swap target inside another is what blanked every agent chat. #}
+         itself swapped -- which is what keeps it open across a round: steps.js
+         reads whether it is open and opens the closed block the thinking became.
+         Two swap targets in one static container is fine; a swap target inside
+         another is what blanked every agent chat. #}
       <details class="reasoning reasoning--live" id="reasoning-{{ message.id }}">
         <summary class="reasoning__summary">
           {{ icon("sparkle", "icon--sm reasoning__icon") }}
           <span class="reasoning__label">
             <span class="reasoning__working">{{ t("Thinking") }}</span>
-            <span class="reasoning__stats" sse-swap="think" hx-swap="innerHTML"></span>
+            <span class="reasoning__stats" id="think-stats-{{ message.id }}"
+                  sse-swap="think" hx-swap="innerHTML"></span>
           </span>
           {{ icon("chevron-down", "icon--sm reasoning__chevron") }}
         </summary>
-        <div class="reasoning__body" sse-swap="reasoning" hx-swap="innerHTML"></div>
+        <div class="reasoning__body" id="reasoning-body-{{ message.id }}"
+             sse-swap="reasoning" hx-swap="innerHTML"></div>
       </details>
 
       <div class="msg__body msg__body--live" id="stream-{{ message.id }}"
            sse-swap="render" hx-swap="innerHTML"></div>
 
       {# Where a question from the model, or a command waiting to be allowed,
-         lands. Unlike the blocks above it this frame is sent on every version
-         bump including when it is empty, because the card has to disappear the
-         moment it is answered. The buttons inside are hx-post and they work:
-         the SSE extension processes what it swaps in. #}
+         lands. An empty frame is sent the moment it empties, because the card
+         has to disappear the moment it is answered. The buttons inside are
+         hx-post and they work: the SSE extension processes what it swaps in. #}
       <div class="interaction-slot" id="ask-{{ message.id }}"
            sse-swap="ask" hx-swap="innerHTML"></div>
 
       {# No stop button here: the composer's send button becomes Stop while a
-         reply is being written, which is where the hand already is. #}
+         reply is being written, which is where the hand already is. The row
+         keeps one height whether the dots or the status are showing (chat.css),
+         so neither appearing moves the transcript. #}
       <div class="msg__waiting">
         <span class="dots"><i></i><i></i><i></i></span>
         {# What the reply is doing when it is not producing tokens. A silent
@@ -171,9 +185,11 @@
         <span class="msg__status" sse-swap="status" hx-swap="innerHTML"></span>
       </div>
       {# Counts as the reply is written. Everything is an estimate until the
-         usage chunk lands at the very end, and the chips say so. #}
-      <div class="msg__metrics" id="metrics-{{ message.id }}"
+         usage chunk lands at the very end, and the chips say so. `--live`
+         reserves the row's height before the first chips arrive. #}
+      <div class="msg__metrics msg__metrics--live" id="metrics-{{ message.id }}"
            sse-swap="metrics" hx-swap="innerHTML"></div>
+      </div>
     {% else %}
       {# Finished, and rendered from the same partial the live view uses so the
          bubble cannot rearrange itself the moment the stream ends.
@@ -204,7 +220,7 @@
         {{ icon("warning", "alert__icon") }}
         <div>
           <strong>{{ t("The reply could not be completed.") }}</strong>
-          <div class="text-sm" style="margin-top: var(--sp-1)">{{ message.error }}</div>
+          <div class="text-sm u-mt-1">{{ message.error }}</div>
         </div>
       </div>
       {% endif %}
@@ -223,8 +239,7 @@
            reference to this reader's files and people, and an `@` inside a
            command line or a log is neither. Nothing here goes through
            services/markdown.py either -- the fence in the content stays a fence
-           on screen, which is the rule `_jobs_panel.html` states about the log
-           it shows for the same reason: it came off somebody else's machine. #}
+           on screen, for the same reason: it came off somebody else's machine. #}
         <div class="msg__body msg__body--plain">{{ message.content }}</div>
       {% elif message.content %}
         {# `tokens` escapes and then marks up: @mentions read as references

@@ -45,7 +45,12 @@ ALLOWED_ATTRIBUTES = {
     # "rel" is intentionally absent: nh3 rejects it here when link_rel is set,
     # because link_rel below is what writes it.
     "a": {"href", "title", "target"},
-    "img": {"src", "alt", "title"},
+    # `width` and `height` so a sized image reserves its box before it has
+    # loaded: with both, the browser lays the image out at its aspect ratio at
+    # once, and the paragraph under it does not drop by the picture's height a
+    # moment later -- mid-stream, that drop is the transcript jumping. Kept to
+    # plain pixel counts by `_attribute_filter`.
+    "img": {"src", "alt", "title", "width", "height"},
     "code": {"class"},
     "pre": {"class"},
     "span": {"class"},
@@ -256,6 +261,18 @@ def _parser() -> MarkdownIt:
     return md
 
 
+# An image dimension is a count of pixels and nothing else. Anything a model
+# writes that is not one -- a percentage, a unit, a word -- is dropped rather
+# than passed to the browser to interpret.
+_DIMENSION = re.compile(r"^\d{1,5}$")
+
+
+def _attribute_filter(element: str, attribute: str, value: str) -> str | None:
+    if element == "img" and attribute in ("width", "height"):
+        return value if _DIMENSION.match(value) else None
+    return value
+
+
 def render_markdown(text: str) -> str:
     """Markdown to safe HTML, ready to drop into a message bubble."""
     if not text:
@@ -267,6 +284,7 @@ def render_markdown(text: str) -> str:
         html,
         tags=ALLOWED_TAGS,
         attributes=ALLOWED_ATTRIBUTES,
+        attribute_filter=_attribute_filter,
         url_schemes=ALLOWED_URL_SCHEMES,
         # Anything opened from a model's output is untrusted; noopener stops it
         # reaching back through window.opener.

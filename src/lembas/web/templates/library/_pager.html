@@ -3,7 +3,7 @@
   library shows nothing at all rather than a lone disabled "1".
 #}
 {% if pager.pages > 1 %}
-<div class="btn-row" style="justify-content: center; margin-top: var(--sp-5)">
+<div class="btn-row u-justify-center u-mt-5">
   {% if pager.page > 1 %}
   <a class="btn btn--sm" href="?page={{ pager.page - 1 }}{{ '&q=' ~ q if q }}">{{ t("Previous") }}</a>
   {% endif %}

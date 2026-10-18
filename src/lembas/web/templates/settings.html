@@ -426,8 +426,8 @@
               <form method="post" action="/api/preferences/language">
                 <div class="field">
                   <label class="field__label visually-hidden" for="language">{{ t("Language") }}</label>
-                  <div class="row" style="gap: var(--sp-2)">
-                    <select class="select" id="language" name="language" style="flex: 1">
+                  <div class="row u-gap-2">
+                    <select class="select u-grow" id="language" name="language">
                       <option value="">{{ t("Follow the instance (%(language)s)", language=instance_language) }}</option>
                       {% for code, name in languages %}
                       <option value="{{ code }}" {{ 'selected' if chosen_language == code }}>
@@ -471,7 +471,7 @@
                 redirect back is what stops a refresh re-submitting it.
               #}
               <form method="post" action="/api/preferences/timezone" class="btn-row">
-                <select class="select" name="timezone" style="flex: 1" aria-label="{{ t('Your timezone') }}">
+                <select class="select u-grow" name="timezone" aria-label="{{ t('Your timezone') }}">
                   <option value="" {{ 'selected' if not timezone }}>
                     {{ t("Follow the server (%(zone)s)", zone=server_timezone) }}
                   </option>
@@ -612,9 +612,9 @@
                 {% for memory in memories %}
                 <li class="model-list__item">
                   <form method="post" action="/api/library/memories/{{ memory.id }}"
-                        class="row" style="flex: 1; gap: var(--sp-2); min-width: 0">
-                    <input class="input" name="content" value="{{ memory.content }}"
-                           maxlength="{{ memory_limit }}" style="flex: 1"
+                        class="row u-grow u-gap-2 u-shrink">
+                    <input class="input u-grow" name="content" value="{{ memory.content }}"
+                           maxlength="{{ memory_limit }}"
                            aria-label="{{ t('What this memory says') }}">
                     {% if several_groups %}
                     <span class="badge" title="{{ t('Data group') }}">{{ group_names.get(memory.data_group_id or 'default', '') }}</span>
@@ -691,7 +691,7 @@
               <ul class="model-list">
                 {% for device in api_devices %}
                 <li class="model-list__item">
-                  <div style="min-width: 0">
+                  <div class="u-shrink">
                     <strong>{{ device.name }}</strong>
                     {% if device.id in linked_now %}<span class="badge badge--success">{{ t("linked now") }}</span>{% endif %}
                     <div class="text-xs faint">
@@ -765,7 +765,7 @@ lembas service install</code></pre></li>
               <ul class="model-list">
                 {% for group in data_groups %}
                 <li class="model-list__item">
-                  <div style="min-width: 0">
+                  <div class="u-shrink">
                     <strong>{{ group.name }}</strong>
                     {% if group.personal %}<span class="badge">{{ t("yours") }}</span>{% endif %}
                     <div class="text-xs faint">
@@ -785,9 +785,8 @@ lembas service install</code></pre></li>
                 {% endfor %}
               </ul>
               {% if may_manage_groups %}
-              <form method="post" action="/api/preferences/data-groups/new" class="row"
-                    style="gap: var(--sp-2); margin-top: var(--sp-4)">
-                <input class="input" name="name" required maxlength="120" style="flex: 1"
+              <form method="post" action="/api/preferences/data-groups/new" class="row u-gap-2 u-mt-4">
+                <input class="input u-grow" name="name" required maxlength="120"
                        aria-label="{{ t('New data group name') }}"
                        placeholder="{{ t('New data group name') }}">
                 <button class="btn" type="submit">{{ icon("plus", "icon--sm") }} {{ t("Create") }}</button>
@@ -945,7 +944,7 @@ lembas service install</code></pre></li>
               <ul class="model-list">
                 {% for token in api_tokens %}
                 <li class="model-list__item">
-                  <div style="min-width: 0">
+                  <div class="u-shrink">
                     <strong>{{ token.name }}</strong> <code class="text-xs">{{ token.prefix }}…</code>
                     {% if not api_live(token) %}<span class="badge">{{ t("revoked") if token.revoked_at else t("expired") }}</span>{% endif %}
                     <div class="text-xs faint">

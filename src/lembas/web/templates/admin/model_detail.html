@@ -28,9 +28,9 @@
 
 <section class="card">
   <div class="card__header">
-    <div class="row" style="gap: var(--sp-3); min-width: 0">
+    <div class="row u-gap-3 u-shrink">
       {{ model_avatar(model, cls="model-detail__avatar") }}
-      <div style="min-width: 0">
+      <div class="u-shrink">
         <strong>{{ model.label }}</strong>
         <div><code class="text-xs faint">{{ model.model_id }}</code></div>
         <div class="text-xs faint">{{ t("via %(connection)s", connection=model.connection.name) }}</div>

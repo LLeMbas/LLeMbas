@@ -67,6 +67,36 @@ Every chat can keep a plan, and any chat can be put into Plan mode.
 - Carries harness spec 1.1.0 (planning, the shared system text, four new
   conformance areas), run here against `plan`, `prototype` and
   `library_scope`.
+- The browser's own colour before any stylesheet has loaded is read from
+  `tokens.css` rather than repeated by hand in the page.
+- The sidebar's header makes room for a phone's status bar the way the chat's
+  header does, and the composer's minimum height no longer applies on a phone,
+  where there is no sidebar footer for it to line up with.
+- Every size a stylesheet named as a bare number -- menu, dialog and chip
+  widths, list and block heights -- is a token now, and every inline `style`
+  attribute in a template is a class. The service worker precaches the two
+  scripts it had missed, so the installed app works offline the first time.
+- Dead stylesheet rules for the background-jobs panel, the talk-rules matrix
+  and form, the old model picker, the admin page header, the connection card's
+  header and footer, the directory row and the history sentinel are gone.
+
+### Fixed
+
+- A reply being written no longer makes the page jump up and down. The
+  transcript was scrolled by several listeners at once into a scroller that
+  animated every scroll, every frame re-sent every block of the reply whether
+  or not it had changed, and a round of tool calls closed in two frames with
+  the text on screen twice in between. The stream now sends a block only when
+  it changed, closes a round in one frame, and the page scrolls once per
+  animation frame from one place. The waiting row and the metrics under a
+  live reply keep one height; the metrics stay on one line and are cut with an
+  ellipsis rather than wrapping; the "writing" dots do not come back after
+  every tool call; a prototype shown inline keeps its height across rounds;
+  and an image a model writes with `width` and `height` reserves its space
+  before it loads.
+- Opening a thinking or tool block while a reply streams no longer stops the
+  page following the reply after the next tool call, and the open thinking
+  box stays open as the block it becomes.
 
 ### Removed
 

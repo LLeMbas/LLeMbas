@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import functools
+import re
 from pathlib import Path
 from typing import Any
 
@@ -183,6 +185,36 @@ def asset(path: str) -> str:
 
 
 templates.env.globals["asset"] = asset
+
+
+# One source for the two colours the browser paints before any stylesheet has
+# loaded. `tokens.css` is hand-written and is the place colours live, so the
+# `theme-color` metas read their values out of it rather than repeating the hex
+# -- the pair in base.html had already drifted once from a token nobody
+# re-copied. Read once per process: the file is part of the release.
+_THEME_BG = re.compile(r'\[data-theme="(?P<theme>[a-z]+)"\][^{]*\{(?P<block>[^}]*)\}')
+_BG = re.compile(r"--bg:\s*(?P<hex>#[0-9A-Fa-f]{3,8})\s*;")
+
+
+@functools.lru_cache(maxsize=1)
+def _theme_colours() -> dict[str, str]:
+    text = (STATIC_DIR / "css" / "tokens.css").read_text(encoding="utf-8")
+    found: dict[str, str] = {}
+    for block in _THEME_BG.finditer(text):
+        colour = _BG.search(block.group("block"))
+        if colour and block.group("theme") not in found:
+            found[block.group("theme")] = colour.group("hex")
+    return found
+
+
+def theme_colour(theme: str) -> str:
+    """A built-in theme's `--bg` as declared in tokens.css, or "" if it has
+    none -- a meta with an empty `content` is ignored by the browser, which is
+    the right failure for a theme that stopped declaring a background."""
+    return _theme_colours().get(theme, "")
+
+
+templates.env.globals["theme_colour"] = theme_colour
 
 # A finished reply as the sequence of steps it was. A global for exactly the
 # reason the two above are, and it is why turning the bubble into a sequence

@@ -20,7 +20,7 @@
 </p>
 
 {% if report.error %}
-<div class="alert alert--warning" style="margin-top: var(--sp-4)">
+<div class="alert alert--warning u-mt-4">
   {{ icon("warning", "alert__icon") }}
   <span><strong>{{ t("This run did not finish cleanly.") }}</strong> {{ report.error }}</span>
 </div>
@@ -31,20 +31,20 @@
   allowed to emit HTML here. A report is model output and hard rule 6 applies to
   it exactly as it does to a reply.
 #}
-<article class="msg__body" style="margin-top: var(--sp-5)">
+<article class="msg__body u-mt-5">
   {{ body_html | safe }}
 </article>
 
 {# The same panel every library store uses. A finished piece of work is the
    thing somebody most wants to hand over. #}
-<div style="margin-top: var(--sp-6)">
+<div class="u-mt-6">
   {% include "library/_share.html" %}
 </div>
 
 {# Only the owner may delete. Sharing grants reading, so somebody a report was
    shared with sees the panel above saying so and no button here. #}
 {% if report.owner_id == user.id %}
-<div class="btn-row" style="margin-top: var(--sp-6)">
+<div class="btn-row u-mt-6">
   <form method="post" action="/api/reports/{{ report.id }}/delete"
         data-confirm="{{ t('Delete this report? It cannot be brought back.') }}">
     <button class="btn btn--sm btn--danger" type="submit">

@@ -16,13 +16,13 @@
   Two views, as links, so a filtered list is a real URL you can keep -- the same
   shape the admin lists use. Same as the notes list.
 #}
-<div class="filter-tabs" style="margin-bottom: var(--sp-4)">
+<div class="filter-tabs u-mb-4">
   <a class="filter-tab {{ 'is-active' if not shared }}" href="/library/skills">{{ t("All skills") }}</a>
   <a class="filter-tab {{ 'is-active' if shared }}" href="/library/skills?shared=1">{{ t("Shared with me") }}</a>
 </div>
 {{ group_filter("/library/skills", group, {"shared": "1" if shared else "", "q": q}) }}
-<form method="get" action="/library/skills" class="btn-row" style="margin-bottom: var(--sp-5)">
-  <input class="input" type="search" name="q" value="{{ q }}" style="flex: 1"
+<form method="get" action="/library/skills" class="btn-row u-mb-5">
+  <input class="input u-grow" type="search" name="q" value="{{ q }}"
          placeholder="{{ t('Search skills…') }}">
   <button class="btn" type="submit">{{ icon("search", "icon--sm") }} {{ t("Search") }}</button>
   {% if q %}<a class="btn btn--sm" href="/library/skills">{{ t("Clear") }}</a>{% endif %}
@@ -44,7 +44,7 @@
 <ul class="model-list">
   {% for skill in skills %}
   <li class="model-list__item">
-    <div style="min-width: 0">
+    <div class="u-shrink">
       <a href="/library/skills/{{ skill.id }}"><strong class="mono">{{ skill.name }}</strong></a>
       <div class="text-xs faint">{{ skill.description }}</div>
     </div>

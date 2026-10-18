@@ -41,10 +41,12 @@
   every reader of the light theme got a dark browser chrome on every page load
   until `app.js` -- which is deferred -- corrected it. `applyTheme` still has
   the last word, and still reads the value from `--bg` rather than repeating a
-  hex here; these two are only what is painted before it can.
+  hex here; these two are only what is painted before it can. The values are
+  read out of tokens.css at startup (`theme_colour` in web/templating.py), so
+  the colour has one home.
 #}
-<meta name="theme-color" content="#0B0D10" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#F1EAD6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="{{ theme_colour('moria') }}" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="{{ theme_colour('shire') }}" media="(prefers-color-scheme: light)">
 <link rel="apple-touch-icon" href="{{ asset('img/apple-touch-icon-180.png') }}">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">

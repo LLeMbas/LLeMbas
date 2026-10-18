@@ -6,7 +6,7 @@
 {% block heading %}{{ document.title }}{% endblock %}
 
 {% block library_content %}
-<div class="btn-row" style="margin-bottom: var(--sp-5)">
+<div class="btn-row u-mb-5">
   <a class="btn btn--sm" href="/library/knowledge/{{ document.base_id }}">
     {{ icon("chevron-right", "icon--sm") }} {{ t("Back to %(name)s", name=document.base.name) if document.base else t("Back to the base") }}
   </a>
@@ -86,14 +86,13 @@
 {% if document.is_image and document.stored_name %}
 <section class="card">
   <h2 class="card__title">{{ t("Preview") }}</h2>
-  <img src="/api/library/documents/{{ document.id }}/content" alt="{{ document.title }}"
-       style="max-width: 100%; border-radius: var(--radius)">
+  <img src="/api/library/documents/{{ document.id }}/content" alt="{{ document.title }}" class="u-w-full u-rounded">
 </section>
 {% elif document.extracted_text %}
 <section class="card">
   <h2 class="card__title">{{ t("Text") }}</h2>
   <p class="card__lede">{{ t("What a model is given when it reads this.") }}</p>
-  <div class="reasoning__body" style="max-height: 30rem">{{ document.extracted_text }}</div>
+  <div class="reasoning__body u-h-block-lg">{{ document.extracted_text }}</div>
 </section>
 {% endif %}
 {% endblock %}

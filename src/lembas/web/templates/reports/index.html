@@ -11,13 +11,13 @@
 {# Reports became shareable and this filter arrived with them: a feed that
    quietly grew somebody else's work with no way to see only theirs would be
    worse than one that never grew. #}
-<div class="filter-tabs" style="margin-bottom: var(--sp-4)">
+<div class="filter-tabs u-mb-4">
   <a class="filter-tab {{ 'is-active' if not shared }}" href="/library/reports">{{ t("All reports") }}</a>
   <a class="filter-tab {{ 'is-active' if shared }}" href="/library/reports?shared=1">{{ t("Shared with me") }}</a>
 </div>
 
-<form method="get" action="/library/reports" class="btn-row" style="margin-bottom: var(--sp-5)">
-  <input class="input" type="search" name="q" value="{{ q }}" style="flex: 1"
+<form method="get" action="/library/reports" class="btn-row u-mb-5">
+  <input class="input u-grow" type="search" name="q" value="{{ q }}"
          placeholder="{{ t('Search reports…') }}">
   <button class="btn" type="submit">{{ icon("search", "icon--sm") }} {{ t("Search") }}</button>
   {% if q %}<a class="btn btn--sm" href="/library/reports">{{ t("Clear") }}</a>{% endif %}
@@ -39,7 +39,7 @@
 <ul class="model-list">
   {% for report in reports %}
   <li class="model-list__item">
-    <div style="min-width: 0">
+    <div class="u-shrink">
       <a href="/library/reports/{{ report.id }}">
         <strong>{{ report.title }}</strong>
       </a>

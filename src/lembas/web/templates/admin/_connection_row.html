@@ -9,7 +9,7 @@
   <form method="post" action="/admin/connections/{{ connection.id }}" class="form-grid"
         x-data="{ kind: '{{ 'anthropic' if connection.is_anthropic else 'openai' }}' }">
     <div class="card__header">
-      <div class="row" style="gap: var(--sp-2); min-width: 0">
+      <div class="row u-gap-2 u-shrink">
         <span class="status-dot {{ 'is-ok' if connection.enabled and not connection.last_error
                                     else 'is-bad' if connection.last_error else 'is-off' }}"
               aria-hidden="true"></span>
@@ -113,10 +113,9 @@
     <div class="field">
       <label class="field__label" for="unload-{{ connection.id }}">{{ t("Unload URL") }}</label>
       <div class="btn-row">
-        <input class="input input--mono" id="unload-{{ connection.id }}" name="unload_url"
-               value="{{ connection.unload_url }}" placeholder="{{ t('No unload call') }}"
-               style="flex: 1; min-width: 0">
-        <select class="select" name="unload_method" aria-label="{{ t('How to ask it to unload') }}" style="flex: none">
+        <input class="input input--mono u-grow u-shrink" id="unload-{{ connection.id }}" name="unload_url"
+               value="{{ connection.unload_url }}" placeholder="{{ t('No unload call') }}">
+        <select class="select u-none" name="unload_method" aria-label="{{ t('How to ask it to unload') }}">
           <option value="POST" {{ 'selected' if connection.unload_method != 'GET' }}>{{ t("POST") }}</option>
           <option value="GET" {{ 'selected' if connection.unload_method == 'GET' }}>{{ t("GET") }}</option>
         </select>
