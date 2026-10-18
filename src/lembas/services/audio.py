@@ -120,7 +120,7 @@ def measure_seconds(data: bytes, reported: Any = None) -> float:
                 rate = recording.getframerate()
                 if rate:
                     return recording.getnframes() / rate
-        except Exception:  # noqa: BLE001 - a header that lies is measured by its size
+        except Exception:  # a header that lies is measured by its size
             pass
     return len(data) / ASSUMED_BYTES_PER_SECOND
 
@@ -388,7 +388,7 @@ def record_speech(db, user_id: str, characters: int, *, token_id: str | None = N
 def _commit(db) -> None:
     try:
         db.commit()
-    except Exception:  # noqa: BLE001 - bookkeeping must never break the request
+    except Exception:  # bookkeeping must never break the request
         db.rollback()
         log.warning("could not record speech usage", exc_info=True)
 

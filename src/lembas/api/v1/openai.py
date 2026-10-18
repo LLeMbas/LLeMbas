@@ -49,9 +49,11 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session as DBSession
 
 from lembas.api.deps import Db
+from lembas.api.v1._common import error_response
 from lembas.config import settings
 from lembas.db.models import MODEL_CHAT, MODEL_EMBEDDING, MODEL_KINDS, Connection, Model, User
 from lembas.security.api_tokens import ModelsCaller
+from lembas.services.llm import sse
 from lembas.services.llm.openai_client import (
     Endpoint,
     LLMError,
@@ -267,14 +269,6 @@ async def list_models(db: Db, caller: ModelsCaller) -> dict[str, Any]:
     return {"object": "list", "data": data}
 
 
-def _error(status_code: int, message: str, kind: str = "invalid_request_error") -> JSONResponse:
-    """OpenAI's error shape, which every client already knows how to print."""
-    return JSONResponse(
-        {"error": {"message": message, "type": kind, "code": status_code}},
-        status_code=status_code,
-    )
-
-
 def _refusal(db: DBSession, user: User, model: Model | None = None) -> str:
     from lembas.security import permissions
     from lembas.services import credits as credits_service
@@ -375,17 +369,17 @@ async def chat_completions(request: Request, db: Db, caller: ModelsCaller):
     body = await _read_json(request)
     wanted = str(body.get("model") or "")
     if not wanted:
-        return _error(400, "`model` is required.")
+        return error_response(400, "`model` is required.")
     try:
         served = resolve(db, caller.user, wanted)
     except HTTPException as exc:
-        return _error(exc.status_code, str(exc.detail), "not_found_error")
+        return error_response(exc.status_code, str(exc.detail), "not_found_error")
     if kind_of(served.model) == MODEL_EMBEDDING:
-        return _error(
+        return error_response(
             400, f"{served.id} is an embedding model: send it to /v1/embeddings."
         )
     if reason := _refusal(db, caller.user, served.model):
-        return _error(429, reason, "rate_limit_error")
+        return error_response(429, reason, "rate_limit_error")
     model_row_id, token_id = served.model.id, caller.token.id
 
     endpoint = Endpoint.from_connection(served.connection)
@@ -407,12 +401,18 @@ async def chat_completions(request: Request, db: Db, caller: ModelsCaller):
                 try:
                     response.raise_for_status()
                 except httpx.HTTPStatusError as exc:
-                    return _error(response.status_code, describe_http_error(exc), "upstream_error")
+                    return error_response(
+                        response.status_code, describe_http_error(exc), "upstream_error"
+                    )
             data = response.json()
         except httpx.RequestError as exc:
-            return _error(502, f"The model's server could not be reached: {exc}", "upstream_error")
+            return error_response(
+                502, f"The model's server could not be reached: {exc}", "upstream_error"
+            )
         except ValueError:
-            return _error(502, "The model's server answered with something that is not JSON.")
+            return error_response(
+                502, "The model's server answered with something that is not JSON."
+            )
         finally:
             _IN_FLIGHT[user_id] = max(0, _IN_FLIGHT.get(user_id, 1) - 1)
         if isinstance(data, dict):
@@ -441,7 +441,9 @@ async def chat_completions(request: Request, db: Db, caller: ModelsCaller):
     except httpx.RequestError as exc:
         await client.aclose()
         _IN_FLIGHT[user_id] = max(0, _IN_FLIGHT.get(user_id, 1) - 1)
-        return _error(502, f"The model's server could not be reached: {exc}", "upstream_error")
+        return error_response(
+            502, f"The model's server could not be reached: {exc}", "upstream_error"
+        )
     if upstream_response.status_code >= 400:
         await upstream_response.aread()
         await client.aclose()
@@ -449,29 +451,39 @@ async def chat_completions(request: Request, db: Db, caller: ModelsCaller):
         try:
             upstream_response.raise_for_status()
         except httpx.HTTPStatusError as exc:
-            return _error(upstream_response.status_code, describe_http_error(exc), "upstream_error")
+            return error_response(
+                upstream_response.status_code, describe_http_error(exc), "upstream_error"
+            )
 
     async def relay() -> AsyncIterator[bytes]:
         usage: dict[str, Any] | None = None
         try:
-            async for line in upstream_response.aiter_lines():
-                stripped = line.strip()
-                if stripped.startswith("data:"):
-                    data = stripped[5:].strip()
-                    if data and data != "[DONE]":
-                        try:
-                            frame = json.loads(data)
-                        except json.JSONDecodeError:
-                            frame = None
-                        if isinstance(frame, dict):
-                            if frame.get("usage"):
-                                usage = frame["usage"]
-                            frame["model"] = served.id
-                            yield f"data: {json.dumps(frame, ensure_ascii=False)}\n\n".encode()
-                            continue
-                    yield (stripped + "\n\n").encode()
-                elif stripped.startswith(":"):
-                    yield (stripped + "\n\n").encode()
+            async for event, data in sse.iter_sse(upstream_response.aiter_lines()):
+                if event == sse.COMMENT:
+                    yield f":{data}\n\n".encode()  # a keep-alive, passed on as one
+                    continue
+                if event == sse.ERROR:
+                    # Written outside the frame format upstream (quirks.json
+                    # `error-in-200-stream`); framed properly here, so the
+                    # client reads the error it is rather than an empty reply.
+                    frame = sse.error_object(data)
+                    yield f"data: {json.dumps(frame, ensure_ascii=False)}\n\n".encode()
+                    continue
+                data = data.strip()
+                if not data:
+                    continue
+                if data != sse.DONE:
+                    try:
+                        frame = json.loads(data)
+                    except json.JSONDecodeError:
+                        frame = None
+                    if isinstance(frame, dict):
+                        if frame.get("usage"):
+                            usage = frame["usage"]
+                        frame["model"] = served.id
+                        yield f"data: {json.dumps(frame, ensure_ascii=False)}\n\n".encode()
+                        continue
+                yield f"data: {data}\n\n".encode()
         finally:
             await upstream_response.aclose()
             await client.aclose()
@@ -513,7 +525,7 @@ async def _anthropic(
         try:
             data = await anthropic_client.complete_response(endpoint, upstream)
         except LLMError as exc:
-            return _error(exc.status_code or 502, exc.message, "upstream_error")
+            return error_response(exc.status_code or 502, exc.message, "upstream_error")
         finally:
             _release(user_id)
         await asyncio.to_thread(_record, user_id, data.get("usage"), 1, model_row_id, token_id)
@@ -527,7 +539,7 @@ async def _anthropic(
         first = None
     except LLMError as exc:
         _release(user_id)
-        return _error(exc.status_code or 502, exc.message, "upstream_error")
+        return error_response(exc.status_code or 502, exc.message, "upstream_error")
 
     async def relay() -> AsyncIterator[bytes]:
         usage: dict[str, Any] | None = None
@@ -570,20 +582,20 @@ async def embeddings(request: Request, db: Db, caller: ModelsCaller):
     try:
         served = resolve(db, caller.user, str(body.get("model") or ""))
     except HTTPException as exc:
-        return _error(exc.status_code, str(exc.detail), "not_found_error")
+        return error_response(exc.status_code, str(exc.detail), "not_found_error")
     endpoint = Endpoint.from_connection(served.connection)
     try:
         require_openai(endpoint, "embeddings")
     except LLMError as exc:
-        return _error(400, exc.message)
+        return error_response(400, exc.message)
     if not takes_embeddings(served.model):
-        return _error(
+        return error_response(
             400,
             f"{served.id} is a chat model: send it to /v1/chat/completions, or an "
             "embedding model here.",
         )
     if reason := _refusal(db, caller.user, served.model):
-        return _error(429, reason, "rate_limit_error")
+        return error_response(429, reason, "rate_limit_error")
     upstream = {**body, "model": served.model.model_id}
     started = time.monotonic()
     try:
@@ -595,12 +607,16 @@ async def embeddings(request: Request, db: Db, caller: ModelsCaller):
             try:
                 response.raise_for_status()
             except httpx.HTTPStatusError as exc:
-                return _error(response.status_code, describe_http_error(exc), "upstream_error")
+                return error_response(
+                    response.status_code, describe_http_error(exc), "upstream_error"
+                )
         data = response.json()
     except httpx.RequestError as exc:
-        return _error(502, f"The model's server could not be reached: {exc}", "upstream_error")
+        return error_response(
+            502, f"The model's server could not be reached: {exc}", "upstream_error"
+        )
     except ValueError:
-        return _error(502, "The model's server answered with something that is not JSON.")
+        return error_response(502, "The model's server answered with something that is not JSON.")
     if isinstance(data, dict):
         # Counted and charged like a reply, on the model's input price: the
         # caller asked for these vectors. The library's own index is the one

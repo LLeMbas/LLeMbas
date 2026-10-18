@@ -23,13 +23,14 @@ Every change is an audit event.
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+from functools import partial
 from typing import Any
-from urllib.parse import quote
 
 from fastapi import APIRouter, Body, Form, Header, HTTPException, Request, status
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import Response
 from sqlalchemy import select
 
+from lembas.api._redirect import back
 from lembas.api.deps import Db, RequiredUser
 from lembas.db.models import (
     ENTRY_ADJUST,
@@ -59,11 +60,7 @@ def _guard(db, user: User) -> None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, i18n.t("You may not manage credits."))
 
 
-def _back(message: str, ok: bool = True) -> Response:
-    field = "saved" if ok else "error"
-    return RedirectResponse(
-        f"/admin/credits?{field}={quote(message)}", status_code=status.HTTP_303_SEE_OTHER
-    )
+_back = partial(back, "/admin/credits")
 
 
 @router.get("/admin/credits")

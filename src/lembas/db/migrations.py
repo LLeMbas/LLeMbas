@@ -55,7 +55,7 @@ def _default_shape(column: Column) -> type | None:
     try:
         # SQLAlchemy wraps a zero-argument callable to take a context.
         produced = default.arg(None)
-    except Exception:  # noqa: BLE001 - a default we cannot call tells us nothing
+    except Exception:  # a default we cannot call tells us nothing
         return None
     if isinstance(produced, list):
         return list
@@ -473,7 +473,7 @@ def sync_schema(engine: Engine) -> list[str]:
     for step in (prices_to_money, backfill_entry_costs, infer_model_kinds):
         try:
             changes.extend(step(engine))
-        except Exception:  # noqa: BLE001 - a conversion that fails must not stop a start
+        except Exception:  # a conversion that fails must not stop a start
             log.exception("could not run %s", step.__name__)
 
     # Before the search indexes, and before anything can try to load a row:
@@ -481,13 +481,13 @@ def sync_schema(engine: Engine) -> list[str]:
     try:
         for repair in repair_json_shapes(engine):
             changes.append(f"repair {repair}")
-    except Exception:  # noqa: BLE001 - a repair that fails must not stop a start
+    except Exception:  # a repair that fails must not stop a start
         log.exception("could not repair JSON column shapes")
 
     try:
         for index in ensure_fts(engine):
             changes.append(f"create search index {index}")
-    except Exception:  # noqa: BLE001 - search is not worth refusing to start over
+    except Exception:  # search is not worth refusing to start over
         log.exception("could not create the full-text search indexes")
 
     if changes:

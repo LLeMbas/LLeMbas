@@ -117,7 +117,7 @@ def instance_default() -> str:
 
         with session_scope() as db:
             _DEFAULT = known(settings_store.get(db, "language"))
-    except Exception:  # noqa: BLE001 - defaults are a usable answer
+    except Exception:  # defaults are a usable answer
         log.debug("could not read the instance language; using %s", SOURCE, exc_info=True)
         return SOURCE
     return _DEFAULT
@@ -161,7 +161,7 @@ def catalogue(code: str) -> Mapping[str, str]:
         try:
             module = __import__(f"lembas.web.i18n.{code}", fromlist=["MESSAGES"])
             _catalogues[code] = dict(getattr(module, "MESSAGES", {}))
-        except Exception:  # noqa: BLE001 - a broken catalogue must not break the page
+        except Exception:  # a broken catalogue must not break the page
             log.exception("could not load the %s catalogue", code)
             _catalogues[code] = {}
     return _catalogues[code]

@@ -43,6 +43,7 @@ from lembas.services.library import documents as documents_service
 from lembas.services.library import memories as memories_service
 from lembas.services.library import notes as notes_service
 from lembas.services.library import skills as skills_service
+from lembas.services.llm.openai_client import ToolCallAccumulator
 from lembas.services.search.base import SearchError
 from lembas.web.i18n import N_
 
@@ -2119,65 +2120,13 @@ async def run_tool(
         parsed = parse_arguments(tool, arguments)
     try:
         return await tool.run(context, parsed)
-    except Exception as exc:  # noqa: BLE001 - a tool must never kill the reply
+    except Exception as exc:  # a tool must never kill the reply
         log.exception("tool %s failed", name)
         return ToolOutcome(
             f"The {name} tool failed: {exc}",
             {"name": name, "status": "error", "error": str(exc)[:200]},
         )
 
-
-class ToolCallAccumulator:
-    """Reassembles tool calls arriving as streamed fragments.
-
-    An endpoint sends ``delta.tool_calls`` as a list of partial objects: the id
-    and the function name arrive once, and ``arguments`` arrives as a string
-    split across however many chunks the tokeniser produced. Entries are keyed
-    by ``index`` because that is the only field guaranteed on every fragment --
-    the id is absent from continuations, and matching on name breaks the moment
-    a model calls the same tool twice in one turn.
-    """
-
-    def __init__(self) -> None:
-        self._calls: dict[int, dict[str, Any]] = {}
-
-    def feed(self, fragments: list[dict[str, Any]]) -> None:
-        for fragment in fragments:
-            if not isinstance(fragment, dict):
-                continue
-            index = fragment.get("index")
-            if not isinstance(index, int):
-                # Some servers omit index entirely when there is only one call.
-                index = 0
-            call = self._calls.setdefault(index, {"id": "", "name": "", "arguments": ""})
-
-            if fragment.get("id"):
-                call["id"] = str(fragment["id"])
-            function = fragment.get("function") or {}
-            if isinstance(function, dict):
-                if function.get("name"):
-                    call["name"] = str(function["name"])
-                arguments = function.get("arguments")
-                if isinstance(arguments, str):
-                    call["arguments"] += arguments
-
-    @property
-    def calls(self) -> list[dict[str, Any]]:
-        """Completed calls, in the order the endpoint indexed them."""
-        return [
-            {
-                # An id is required when the results are sent back, and not
-                # every server supplies one.
-                "id": call["id"] or f"call_{index}",
-                "name": call["name"],
-                "arguments": call["arguments"],
-            }
-            for index, call in sorted(self._calls.items())
-            if call["name"]
-        ]
-
-    def __bool__(self) -> bool:
-        return bool(self.calls)
 
 
 def assistant_turn(

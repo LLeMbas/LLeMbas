@@ -315,7 +315,7 @@ async def index_resource(kind: str, resource_id: str, *, force: bool = False) ->
         return 0
     except asyncio.CancelledError:
         raise
-    except Exception:  # noqa: BLE001 - one bad record must not stop a rebuild
+    except Exception:  # one bad record must not stop a rebuild
         log.exception("indexing %s %s failed", kind, resource_id)
         return 0
 
@@ -515,7 +515,7 @@ async def rebuild_all(*, force: bool = True) -> None:
     except asyncio.CancelledError:
         _PROGRESS.error = "Stopped."
         raise
-    except Exception as exc:  # noqa: BLE001 - a rebuild failing must be reportable
+    except Exception as exc:  # a rebuild failing must be reportable
         log.exception("rebuilding the index failed")
         _PROGRESS.error = str(exc)
     finally:

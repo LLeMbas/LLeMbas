@@ -16,12 +16,12 @@ import json
 import logging
 import re
 from datetime import UTC, datetime
-from urllib.parse import quote
+from functools import partial
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
-from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
 
+from lembas.api._redirect import back
 from lembas.api.deps import AdminUser, Db
 from lembas.db.models import (
     RESPONSE_JSON,
@@ -102,9 +102,7 @@ def _ordered(db: Db) -> list[CustomTool]:
     return list(db.scalars(select(CustomTool).order_by(CustomTool.position, CustomTool.slug)))
 
 
-def _back(message: str = "") -> Response:
-    target = f"/admin/tools?saved={quote(message)}" if message else "/admin/tools"
-    return RedirectResponse(target, status_code=status.HTTP_303_SEE_OTHER)
+_back = partial(back, "/admin/tools")
 
 
 # --- Form <-> row ------------------------------------------------------------
@@ -205,7 +203,7 @@ def _problem(db: Db, tool: CustomTool, form, *, existing_id: str = "") -> str:
     # is refused here rather than at the first call.
     try:
         custom_tools.fill_url(custom_tools.spec_from(tool), {})
-    except Exception as exc:  # noqa: BLE001 - any refusal is a message for the form
+    except Exception as exc:  # any refusal is a message for the form
         return str(getattr(exc, "message", exc))
 
     return ""
@@ -450,9 +448,7 @@ def _server(db: Db, server_id: str) -> McpServer:
     return server
 
 
-def _mcp_back(message: str = "") -> Response:
-    target = f"/admin/mcp?saved={quote(message)}" if message else "/admin/mcp"
-    return RedirectResponse(target, status_code=status.HTTP_303_SEE_OTHER)
+_mcp_back = partial(back, "/admin/mcp")
 
 
 def _populate_server(server: McpServer, form) -> None:

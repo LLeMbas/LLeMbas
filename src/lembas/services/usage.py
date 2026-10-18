@@ -71,7 +71,7 @@ def record(
         row.replies += max(0, int(replies))
         row.audio_seconds = (row.audio_seconds or 0) + max(0, math.ceil(audio_seconds))
         row.speech_chars = (row.speech_chars or 0) + max(0, int(speech_chars))
-    except Exception:  # noqa: BLE001 - bookkeeping must never break a reply
+    except Exception:  # bookkeeping must never break a reply
         log.debug("could not record usage for %s", user_id, exc_info=True)
 
 
@@ -93,7 +93,7 @@ def record_token(
             token.usage_completion_tokens = 0
         token.usage_prompt_tokens += max(0, int(prompt_tokens))
         token.usage_completion_tokens += max(0, int(completion_tokens))
-    except Exception:  # noqa: BLE001 - bookkeeping must never break a reply
+    except Exception:  # bookkeeping must never break a reply
         log.debug("could not record usage for token %s", token_id, exc_info=True)
 
 
@@ -110,7 +110,7 @@ def images_today(db: DBSession, user_id: str) -> int:
     and a second reset. The month's total on `Usage.images` is for the admin
     screen, where a number that is a day stale costs nothing.
     """
-    start = datetime.combine(date.today(), datetime.min.time(), tzinfo=UTC)  # noqa: DTZ011
+    start = datetime.combine(date.today(), datetime.min.time(), tzinfo=UTC)
     return int(
         db.scalar(
             select(func.count())

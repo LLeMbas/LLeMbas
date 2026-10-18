@@ -387,20 +387,21 @@ def test_pinned_models_fold_and_remember_it(client: TestClient, db, registered):
     assert user.settings_json["sections"] == {}
 
 
-def test_the_old_pinned_key_is_still_read_and_its_route_still_answers(
+def test_the_old_pinned_key_is_still_read_and_retired_on_the_next_write(
     client: TestClient, db, registered
 ):
     """The pinned group's state lives in `sections`, not the older `pinned_open`
-    key. A choice stored under the old key is honoured, and a page loaded before
-    the update still posts to the old route -- which writes the new map and
-    retires the old key."""
+    key. A choice stored under the old key is honoured until the first write
+    to the map, which retires it. (The old key's own route is gone: nothing
+    has posted to it since 1.2.0.)"""
     _pin_a_model(db)
     user = _owner(db)
     user.settings_json = {**(user.settings_json or {}), "pinned_open": False}
     db.commit()
     assert 'aria-expanded="false"' in _pinned_head(client.get("/chat").text)
 
-    assert client.post("/api/preferences/pinned-open", data={"state": "1"}).status_code == 204
+    posted = client.post("/api/preferences/section", data={"key": "pinned", "state": "1"})
+    assert posted.status_code == 204
     db.refresh(user)
     assert "pinned_open" not in user.settings_json
     assert 'aria-expanded="true"' in _pinned_head(client.get("/chat").text)

@@ -147,7 +147,7 @@ def limits() -> Limits:
             ),
             reject_unreadable_pdf=bool(values.get("reject_unreadable_pdf")),
         )
-    except Exception:  # noqa: BLE001 - the shipped defaults are a usable answer
+    except Exception:  # the shipped defaults are a usable answer
         log.debug("could not read extraction settings; using defaults", exc_info=True)
         return Limits()
     return _LIMITS
@@ -279,7 +279,7 @@ def _process_pdf(payload: bytes) -> Prepared:
             # An empty password unlocks a surprising number of "encrypted" PDFs.
             try:
                 reader.decrypt("")
-            except Exception:  # noqa: BLE001 - any failure means the same thing
+            except Exception:  # any failure means the same thing
                 prepared.extraction_error = (
                     "This PDF is password-protected, so its text could not be read."
                 )
@@ -292,7 +292,7 @@ def _process_pdf(payload: bytes) -> Prepared:
         for index, page in enumerate(reader.pages[:bounds.max_pdf_pages]):
             try:
                 text = page.extract_text() or ""
-            except Exception as exc:  # noqa: BLE001 - one bad page is not fatal
+            except Exception as exc:  # one bad page is not fatal
                 log.debug("page %d of a PDF failed to extract: %s", index, exc)
                 continue
             if not text.strip():
@@ -319,7 +319,7 @@ def _process_pdf(payload: bytes) -> Prepared:
     except PdfReadError as exc:
         prepared.extraction_error = "This file is not a readable PDF."
         log.info("unreadable PDF: %s", exc)
-    except Exception as exc:  # noqa: BLE001 - never let a bad file 500 the upload
+    except Exception as exc:  # never let a bad file 500 the upload
         prepared.extraction_error = "This PDF could not be read."
         log.warning("unexpected PDF failure: %s", exc)
 

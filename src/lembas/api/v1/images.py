@@ -34,6 +34,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from lembas.api.deps import Db
+from lembas.api.v1._common import error_response
 from lembas.security import permissions
 from lembas.security.api_tokens import ModelsCaller
 from lembas.services import settings_store
@@ -46,13 +47,6 @@ router = APIRouter(tags=["images"])
 PROVIDER = "comfyui"
 FORMATS = ("url", "b64_json")
 _SIZE = re.compile(r"^\s*(\d{1,5})\s*[xX×]\s*(\d{1,5})\s*$")
-
-
-def _error(status_code: int, message: str, kind: str = "invalid_request_error") -> JSONResponse:
-    return JSONResponse(
-        {"error": {"message": message, "type": kind, "code": status_code}},
-        status_code=status_code,
-    )
 
 
 def available(db, user) -> bool:
@@ -111,45 +105,45 @@ async def generations(request: Request, db: Db, caller: ModelsCaller):
 
     user = caller.user
     if not available(db, user):
-        return _error(404, "Image generation is not on for this account on this instance.")
+        return error_response(404, "Image generation is not on for this account on this instance.")
     try:
         body = await request.json()
     except (ValueError, UnicodeDecodeError):
         body = None
     if not isinstance(body, dict):
-        return _error(400, "The body must be a JSON object.")
+        return error_response(400, "The body must be a JSON object.")
     prompt = str(body.get("prompt") or "").strip()
     if not prompt:
-        return _error(400, "`prompt` is required: what to draw.")
+        return error_response(400, "`prompt` is required: what to draw.")
     values = settings_store.images(db)
     try:
         count = int(body.get("n") or 1)
     except (TypeError, ValueError):
-        return _error(400, "`n` must be a whole number.")
+        return error_response(400, "`n` must be a whole number.")
     cap = int(values["api_max_images"])
     if not 1 <= count <= cap:
-        return _error(400, f"`n` is 1 to {cap} on this instance.")
+        return error_response(400, f"`n` is 1 to {cap} on this instance.")
     response_format = str(body.get("response_format") or "url")
     if response_format not in FORMATS:
-        return _error(400, "`response_format` is url or b64_json.")
+        return error_response(400, "`response_format` is url or b64_json.")
     checkpoint, unknown = _checkpoint(str(body.get("model") or ""), values)
     if unknown:
-        return _error(
+        return error_response(
             404, f"There is no model {body.get('model')!r} here. GET /v1/models lists them.",
             "not_found_error",
         )
     if checkpoint is None:
-        return _error(404, "No checkpoint is listed on this instance.")
+        return error_response(404, "No checkpoint is listed on this instance.")
 
     # The two budgets, before a minute of somebody's GPU is spent.
     if over := usage_service.over_image_budget(db, user):
-        return _error(429, over, "rate_limit_error")
+        return error_response(429, over, "rate_limit_error")
     price = float(values["per_image"])
     if short := credits_service.service_refusal(db, user, price):
-        return _error(429, short, "rate_limit_error")
+        return error_response(429, short, "rate_limit_error")
     ceiling = permissions.limit(db, user, "images_per_day")
     if ceiling and usage_service.images_today(db, user.id) + count > ceiling:
-        return _error(
+        return error_response(
             429, f"That would be more than this account's {ceiling} image(s) for today.",
             "rate_limit_error",
         )
@@ -157,7 +151,7 @@ async def generations(request: Request, db: Db, caller: ModelsCaller):
     rows, _ = _choices(db, values)
     chosen = _pick(rows, "", "", values)
     if chosen is None:
-        return _error(404, "No image workflow has been set up on this instance.")
+        return error_response(404, "No image workflow has been set up on this instance.")
     template = json.loads(json.dumps(chosen.workflow_json or {}))
     slug = chosen.slug
     given: dict[str, Any] = {"prompt": prompt, "model": checkpoint}
@@ -187,7 +181,7 @@ async def generations(request: Request, db: Db, caller: ModelsCaller):
     except comfy.ComfyError as exc:
         log.info("an image through the API failed: %s", exc.message)
         if not pictures:
-            return _error(502, f"The image could not be generated: {exc.message}",
+            return error_response(502, f"The image could not be generated: {exc.message}",
                           "upstream_error")
 
     base = str(request.base_url).rstrip("/")
@@ -228,7 +222,9 @@ async def generations(request: Request, db: Db, caller: ModelsCaller):
         )
         session.commit()
     if not data:
-        return _error(502, "The images were generated but could not be saved.", "upstream_error")
+        return error_response(
+            502, "The images were generated but could not be saved.", "upstream_error"
+        )
     return JSONResponse({"created": int(time.time()), "data": data})
 
 
@@ -248,10 +244,10 @@ async def file_content(db: Db, caller: ModelsCaller, attachment_id: str) -> Resp
 
     attachment = db.get(Attachment, attachment_id)
     if attachment is None or attachment.user_id != caller.user.id:
-        return _error(404, "There is no such file.", "not_found_error")
+        return error_response(404, "There is no such file.", "not_found_error")
     path = files_service.stored_path(attachment.stored_name)
     if path is None:
-        return _error(404, "That file is no longer on disk.", "not_found_error")
+        return error_response(404, "That file is no longer on disk.", "not_found_error")
     return FileResponse(
         path,
         media_type=attachment.media_type if attachment.is_image else "application/octet-stream",

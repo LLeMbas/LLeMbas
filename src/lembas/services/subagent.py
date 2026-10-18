@@ -346,7 +346,7 @@ def _cleanup(chat_id: str, *, keep: bool) -> None:
                 # `db.delete` would leave both on disk with the row that named
                 # them gone.
                 chat_service.delete_chats(db, [chat])
-    except Exception:  # noqa: BLE001 - tidying up is not the result
+    except Exception:  # tidying up is not the result
         log.debug("could not remove subagent chat %s", chat_id, exc_info=True)
 
 

@@ -35,7 +35,7 @@ def owner(db, registered) -> User:
 @pytest.fixture
 def reader(db) -> User:
     person = User(
-        email="sam@shire.test", name="Sam", password_hash="x", role=ROLE_USER  # noqa: S106
+        email="sam@shire.test", name="Sam", password_hash="x", role=ROLE_USER
     )
     db.add(person)
     db.commit()
@@ -123,7 +123,7 @@ def test_reading_somebody_elses_report_does_not_clear_their_dot(db, client, regi
     """`unread` is the owner's notification. Somebody it was shared with opening
     it would silence a dot meant for a person who has not seen it."""
     other = User(
-        email="sam@shire.test", name="Sam", password_hash="x", role=ROLE_USER  # noqa: S106
+        email="sam@shire.test", name="Sam", password_hash="x", role=ROLE_USER
     )
     db.add(other)
     db.commit()
@@ -195,7 +195,7 @@ def test_the_panel_searches_rather_than_listing_everybody(db, client, registered
             User(
                 email=f"p{n}@shire.test",
                 name=f"Person {n}",
-                password_hash="x",  # noqa: S106
+                password_hash="x",
             )
         )
     db.commit()

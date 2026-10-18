@@ -105,7 +105,7 @@ def test_an_old_database_with_data_upgrades(db):
     # Data first, while the schema still has the columns the ORM expects.
     from lembas.db.models import Chat, Group, User
 
-    owner = User(name="Frodo", email="f@shire.test", password_hash="x")  # noqa: S106
+    owner = User(name="Frodo", email="f@shire.test", password_hash="x")
     db.add(owner)
     db.commit()
     group = Group(name="Fellowship")
@@ -162,7 +162,7 @@ def test_a_nullable_column_arrives_empty_rather_than_defaulted(db):
 
     from lembas.db.models import Chat, User
 
-    owner = User(name="Sam", email="s@shire.test", password_hash="x")  # noqa: S106
+    owner = User(name="Sam", email="s@shire.test", password_hash="x")
     db.add(owner)
     db.commit()
     chat = Chat(user_id=owner.id, model_id="m")
@@ -191,7 +191,7 @@ def test_a_not_null_column_backfills_every_existing_row(db):
 
     from lembas.db.models import Chat, User
 
-    owner = User(name="Merry", email="m@shire.test", password_hash="x")  # noqa: S106
+    owner = User(name="Merry", email="m@shire.test", password_hash="x")
     db.add(owner)
     db.commit()
     db.add(Chat(user_id=owner.id, model_id="m"))

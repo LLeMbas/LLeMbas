@@ -170,25 +170,6 @@ async def set_sidebar_kind(
     )
 
 
-@router.post("/pinned-open")
-async def set_pinned_open(db: Db, user: RequiredUser, state: str = Form("1")) -> Response:
-    """Remember whether `[ PINNED MODELS ]` is open or closed.
-
-    On the account, not in `localStorage`, because the sidebar renders it: the
-    server writes `open` into the `<details>`, so the group is drawn the way it
-    was left with no flash -- and the same way after the Chats/Agents switch
-    swaps it out of band, which re-renders it from this. Posted by app.js on the
-    element's `toggle` event; nothing comes back to swap, the browser already
-    shows the new state.
-
-    Anything other than "0" is open, so a malformed request can only leave the
-    shortcuts showing.
-    """
-    # Kept for a page loaded before an update, whose app.js still
-    # posts here; it lands in the one map every section now uses.
-    return _store_section(db, user, "pinned", state != "0")
-
-
 def _store_section(db, user, key: str, is_open: bool) -> Response:
     from lembas.api.pages import SECTION_DEFAULTS, SECTIONS_KEY
 

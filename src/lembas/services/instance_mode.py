@@ -114,7 +114,7 @@ def _api_only() -> bool:
 
         with session_scope() as db:
             return settings_store.api_only(db)
-    except Exception:  # noqa: BLE001
+    except Exception:
         log.debug("could not read the instance mode; treating it as full", exc_info=True)
         return False
 

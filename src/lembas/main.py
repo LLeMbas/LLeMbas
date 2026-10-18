@@ -116,7 +116,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             sweep_chunks(db)
             # Three starting points on the empty screen, written once ever.
             seed_suggestions(db)
-    except Exception:  # noqa: BLE001 - housekeeping must never block startup
+    except Exception:  # housekeeping must never block startup
         log.exception("orphaned upload sweep failed")
 
     # Schedules. `release_claims` first, because a firing interrupted by the
@@ -138,7 +138,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if released:
             log.info("released %s interrupted schedule claim(s)", released)
         start_ticker()
-    except Exception:  # noqa: BLE001 - scheduling failing must not block startup
+    except Exception:  # scheduling failing must not block startup
         log.exception("could not start the schedule ticker")
 
     # Replies the last shutdown cut off are taken up again, after the
@@ -152,7 +152,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         with session_scope() as db:
             api_only = settings_store.api_only(db)
-    except Exception:  # noqa: BLE001 - the mode unreadable is the mode it was before
+    except Exception:  # the mode unreadable is the mode it was before
         api_only = False
 
     resuming = asyncio.get_running_loop().create_task(

@@ -241,7 +241,7 @@ def test_an_administrator_cannot_read_somebody_elses_note(db, client, registered
     """`permissions.resolve` gives an admin everything and `services/sharing.py`
     deliberately has no admin branch. Reading somebody's private notes is not
     configuration, and being able to reach the database is not being invited."""
-    other = User(email="merry@shire.test", name="Merry", password_hash="x")  # noqa: S106
+    other = User(email="merry@shire.test", name="Merry", password_hash="x")
     db.add(other)
     db.commit()
     note = _note(db, other, title="Theirs", body="not for you")

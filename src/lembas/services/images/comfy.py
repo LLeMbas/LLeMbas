@@ -338,7 +338,7 @@ async def free(config: Config) -> None:
                 headers=config.headers(),
                 json={"unload_models": True, "free_memory": True},
             )
-    except Exception:  # noqa: BLE001 - a hint that failed is not a failed generation
+    except Exception:  # a hint that failed is not a failed generation
         log.debug("could not free ComfyUI at %s", config.base_url, exc_info=True)
 
 

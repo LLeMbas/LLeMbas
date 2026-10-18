@@ -26,6 +26,7 @@ import httpx
 from lembas.config import settings
 from lembas.db.models import Connection
 from lembas.services.crypto import decrypt
+from lembas.services.llm import sse
 
 log = logging.getLogger(__name__)
 
@@ -42,6 +43,26 @@ class LLMError(Exception):
         super().__init__(message)
         self.message = message
         self.status_code = status_code
+
+
+class StreamError(LLMError):
+    """An error the server wrote inside a 200 event stream (quirks.json
+    `error-in-200-stream`, `model-unloaded`).
+
+    Its own class because the HTTP status was fine: the retry that drops
+    `stream_options` after a 400 is about the request, and must not fire for a
+    400 the model's server reported while already answering.
+    """
+
+
+def _stream_error(error_object: dict[str, Any]) -> StreamError:
+    """The LLMError for an error object found inside a stream."""
+    error = error_object.get("error")
+    message = sse.error_message(error)
+    return StreamError(
+        message or "The endpoint reported an error inside the reply.",
+        status_code=sse.error_status(error),
+    )
 
 
 @dataclass(frozen=True)
@@ -324,20 +345,39 @@ async def stream_chat(
         return
 
     wants_usage = endpoint.base_url not in _NO_STREAM_OPTIONS
+    retried_server_error = False
 
-    try:
-        async for chunk in _stream_once(endpoint, payload, usage=wants_usage):
-            yield chunk
-    except LLMError as exc:
-        if not wants_usage or exc.status_code not in (400, 422):
+    while True:
+        sent = False
+        try:
+            async for chunk in _stream_once(endpoint, payload, usage=wants_usage):
+                sent = True
+                yield chunk
+            return
+        except LLMError as exc:
+            # Once a chunk has reached the caller the reply is under way, and a
+            # second request would duplicate what was already shown.
+            if sent:
+                raise
+            if wants_usage and exc.status_code in (400, 422) and not isinstance(exc, StreamError):
+                _NO_STREAM_OPTIONS.add(endpoint.base_url)
+                log.info(
+                    "%s rejected stream_options; token counts will be estimated there",
+                    endpoint.base_url,
+                )
+                wants_usage = False
+                continue
+            # A server error before anything was streamed is retried once: often
+            # the model's own output failing the server's parser, or the model
+            # swapped out from under the request by another client (llama-swap's
+            # "model unloaded" frame, quirks.json `model-unloaded`). Sampling
+            # differs on a second go.
+            if (exc.status_code or 0) >= 500 and not retried_server_error:
+                retried_server_error = True
+                log.info("%s: server error before any output, retrying once: %s",
+                         endpoint.base_url, exc.message)
+                continue
             raise
-        _NO_STREAM_OPTIONS.add(endpoint.base_url)
-        log.info(
-            "%s rejected stream_options; token counts will be estimated there",
-            endpoint.base_url,
-        )
-        async for chunk in _stream_once(endpoint, payload, usage=False):
-            yield chunk
 
 
 async def _stream_once(
@@ -366,21 +406,29 @@ async def _stream_once(
                 await response.aread()
                 response.raise_for_status()
 
-            async for line in response.aiter_lines():
-                line = line.strip()
-                if not line or line.startswith(":"):
-                    continue  # keep-alive comment
-                if not line.startswith("data:"):
+            async for event, data in sse.iter_sse(response.aiter_lines()):
+                if event == sse.COMMENT:
+                    continue  # keep-alive
+                if event == sse.ERROR:
+                    # llama.cpp's mid-stream failure: a bare error line inside a
+                    # 200, often the stream's unterminated last line.
+                    raise _stream_error(sse.error_object(data))
+                data = data.strip()
+                if not data:
                     continue
-                data = line[5:].strip()
-                if data == "[DONE]":
+                if data == sse.DONE:
                     return
                 try:
-                    yield json.loads(data)
+                    chunk = json.loads(data)
                 except json.JSONDecodeError:
                     # A malformed frame is not worth killing a reply over.
                     log.warning("skipping unparseable SSE frame: %.120s", data)
                     continue
+                if isinstance(chunk, dict) and chunk.get("error"):
+                    # An error framed as data (quirks.json `error-in-200-stream`):
+                    # the error it is, not a chunk with nothing in it.
+                    raise _stream_error(chunk)
+                yield chunk
 
     except httpx.HTTPStatusError as exc:
         raise LLMError(describe_http_error(exc), status_code=exc.response.status_code) from exc
@@ -442,7 +490,7 @@ def delta_tool_calls(chunk: dict[str, Any]) -> list[dict[str, Any]]:
 
     Each entry carries an ``index`` and, across chunks, a name that arrives
     once and an ``arguments`` string that arrives in pieces. Reassembling them
-    is lembas.services.tools.ToolCallAccumulator's job; this only extracts.
+    is `ToolCallAccumulator`'s job; this only extracts.
     """
     try:
         choices = chunk.get("choices") or []
@@ -452,6 +500,70 @@ def delta_tool_calls(chunk: dict[str, Any]) -> list[dict[str, Any]]:
         return calls if isinstance(calls, list) else []
     except (AttributeError, TypeError):
         return []
+
+
+class ToolCallAccumulator:
+    """Reassembles tool calls arriving as streamed fragments.
+
+    An endpoint sends ``delta.tool_calls`` as a list of partial objects: the id
+    and the function name arrive once, and ``arguments`` arrives as a string
+    split across however many chunks the tokeniser produced. Entries are keyed
+    by ``index`` because that is the only field guaranteed on every fragment --
+    the id is absent from continuations, and matching on name breaks the moment
+    a model calls the same tool twice in one turn.
+
+    Some llama.cpp builds omit the index (quirks.json `tool-call-without-index`,
+    conformance `toolcall_index.json`): such a fragment continues the call
+    started last, and the first fragment of a stream without one starts call 0.
+    Arguments are concatenated as text, never parsed on the way.
+    """
+
+    def __init__(self) -> None:
+        self._calls: dict[int, dict[str, Any]] = {}
+        self._last = 0
+
+    def feed(self, fragments: list[dict[str, Any]]) -> None:
+        if not isinstance(fragments, list):
+            return
+        for fragment in fragments:
+            if not isinstance(fragment, dict):
+                continue
+            index = fragment.get("index")
+            if not isinstance(index, int) or isinstance(index, bool):
+                index = self._last
+            self._last = index
+            call = self._calls.setdefault(index, {"id": "", "name": "", "arguments": ""})
+
+            if fragment.get("id"):
+                call["id"] = str(fragment["id"])
+            function = fragment.get("function") or {}
+            if isinstance(function, dict):
+                if function.get("name"):
+                    call["name"] = str(function["name"])
+                arguments = function.get("arguments")
+                if isinstance(arguments, str):
+                    call["arguments"] += arguments
+                elif isinstance(arguments, dict):
+                    # A server that sends the arguments already parsed.
+                    call["arguments"] += json.dumps(arguments, ensure_ascii=False)
+
+    @property
+    def calls(self) -> list[dict[str, Any]]:
+        """Completed calls, in the order the endpoint indexed them."""
+        return [
+            {
+                # An id is required when the results are sent back, and not
+                # every server supplies one.
+                "id": call["id"] or f"call_{index}",
+                "name": call["name"],
+                "arguments": call["arguments"],
+            }
+            for index, call in sorted(self._calls.items())
+            if call["name"]
+        ]
+
+    def __bool__(self) -> bool:
+        return bool(self.calls)
 
 
 def assistant_blocks(chunk: dict[str, Any]) -> list[dict[str, Any]]:

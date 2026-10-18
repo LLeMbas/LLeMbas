@@ -101,7 +101,7 @@ def record(
                 )
             )
             db.commit()
-    except Exception:  # noqa: BLE001 - the log must never break what it records
+    except Exception:  # the log must never break what it records
         log.warning("could not write audit event %s", action, exc_info=True)
 
 
@@ -281,7 +281,7 @@ class AdminAuditMiddleware:
                 target_id=path[:64],
                 summary=f"{request.method} {path}",
             )
-        except Exception:  # noqa: BLE001 - the log must never break what it records
+        except Exception:  # the log must never break what it records
             log.warning("could not audit an admin change", exc_info=True)
 
 

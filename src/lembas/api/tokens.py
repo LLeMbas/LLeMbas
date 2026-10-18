@@ -9,11 +9,13 @@ audit log.
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from functools import partial
 from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import RedirectResponse, Response
 
+from lembas.api._redirect import back
 from lembas.api.deps import AdminUser, Db, RequiredUser
 from lembas.db.models import ApiToken, User
 from lembas.security import api_tokens, permissions
@@ -26,11 +28,7 @@ router = APIRouter(tags=["tokens"])
 EXPIRY_CHOICES = (0, 30, 90, 365)
 
 
-def _back(message: str, *, ok: bool = True) -> Response:
-    field = "saved" if ok else "error"
-    return RedirectResponse(
-        f"/settings?{field}={quote(message)}", status_code=status.HTTP_303_SEE_OTHER
-    )
+_back = partial(back, "/settings")
 
 
 @router.post("/api/tokens")

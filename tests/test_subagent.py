@@ -556,7 +556,7 @@ def test_the_permission_withdraws_it(db):
 
     settings_store.update(db, {"default_permissions": {"tools.subagent": False}})
     reader = User(
-        email="sam@example.test", name="Sam", password_hash="x", role=ROLE_USER  # noqa: S106
+        email="sam@example.test", name="Sam", password_hash="x", role=ROLE_USER
     )
     db.add(reader)
     db.commit()

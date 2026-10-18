@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import logging
-from urllib.parse import quote
+from functools import partial
 
 from fastapi import APIRouter, Form, HTTPException, Request, Response, status
-from fastapi.responses import RedirectResponse
 
+from lembas.api._redirect import back
 from lembas.api.deps import AdminUser, Db
 from lembas.db.models import Suggestion
 from lembas.services import suggestions as suggestions_service
@@ -26,9 +26,7 @@ def _suggestion(db: Db, suggestion_id: str) -> Suggestion:
     return suggestion
 
 
-def _back(message: str = "") -> Response:
-    target = f"/admin/suggestions?saved={quote(message)}" if message else "/admin/suggestions"
-    return RedirectResponse(target, status_code=status.HTTP_303_SEE_OTHER)
+_back = partial(back, "/admin/suggestions")
 
 
 @router.get("")

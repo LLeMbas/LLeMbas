@@ -344,3 +344,32 @@ def test_revoking_ones_own_token(client, db, registered):
     client.post(f"/api/tokens/{token.id}/revoke")
     db.expire_all()
     assert api_tokens.resolve(db, raw) is None
+
+
+def test_a_bare_error_line_in_the_upstream_stream_is_relayed_as_a_framed_error(
+    client, db, registered, mock_http
+):
+    """llama.cpp writes a mid-stream failure as a bare JSON line, often the
+    stream's unterminated last line. The relay frames it as `data:` so the
+    client reads the error it is rather than an empty reply."""
+    _models(db)
+    body = (
+        'data: {"choices":[{"delta":{"content":"Lem"}}]}\n\n'
+        ': keepalive\n\n'
+        '{"error":{"code":500,"message":"model unloaded"}}'
+    )
+    mock_http(
+        lambda r: httpx.Response(200, text=body, headers={"content-type": "text/event-stream"})
+    )
+    response = client.post(
+        "/v1/chat/completions",
+        headers=_bearer(_token(db)),
+        json={"model": "qwen", "stream": True, "messages": [{"role": "user", "content": "x"}]},
+    )
+    assert response.status_code == 200
+    events = [e for e in response.text.split("\n\n") if e]
+    assert events[0].startswith('data: {"choices"') and '"model": "local/qwen"' in events[0]
+    assert events[1] == ": keepalive"
+    assert json.loads(events[2].removeprefix("data: ")) == {
+        "error": {"code": 500, "message": "model unloaded"}
+    }

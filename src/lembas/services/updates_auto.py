@@ -169,7 +169,7 @@ async def apply(who: str) -> str:
         return t("The update helper is not installed on this host.")
     try:
         taken = await asyncio.to_thread(backup.take, f"before-{STATE.wanted or 'update'}")
-    except Exception as exc:  # noqa: BLE001 - no update without a backup
+    except Exception as exc:  # no update without a backup
         log.exception("pre-update backup failed")
         return t(
             "The backup before the update failed, so nothing was requested: %(error)s", error=exc
@@ -202,7 +202,7 @@ def _tell_admins(title: str, body: str) -> None:
                 push.announce_later(
                     admin.id, title=title, body=body, url="/admin/updates", kind="update"
                 )
-    except Exception:  # noqa: BLE001 - a notification is never worth failing over
+    except Exception:  # a notification is never worth failing over
         log.debug("could not tell the administrators", exc_info=True)
 
 
@@ -264,7 +264,7 @@ async def tick(*, now: float | None = None, moment: datetime | None = None) -> N
             return
         problem = await apply("an administrator" if STATE.manual else "automatic")
         STATE.error = problem
-    except Exception:  # noqa: BLE001 - the ticker must outlive one bad pass
+    except Exception:  # the ticker must outlive one bad pass
         log.exception("the automatic update check raised")
 
 

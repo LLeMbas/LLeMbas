@@ -76,12 +76,12 @@ def search_ids(
         try:
             rows = db.execute(
                 text(
-                    f"SELECT id, bm25({index}) AS rank FROM {index} "  # noqa: S608 - see above
+                    f"SELECT id, bm25({index}) AS rank FROM {index} "  # see above
                     f"WHERE {index} MATCH :q ORDER BY rank LIMIT :limit"
                 ),
                 {"q": query, "limit": max(1, min(limit, 100))},
             ).fetchall()
-        except Exception:  # noqa: BLE001 - a broken index must not break the page
+        except Exception:  # a broken index must not break the page
             log.exception("full-text search failed on %s", index)
             # Rolled back because a failed statement leaves the session
             # unusable: without this, one broken search turns into every later

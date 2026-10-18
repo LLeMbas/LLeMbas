@@ -294,7 +294,7 @@ async def _unload_llm(context: ToolContext) -> bool:
             if connection is not None:
                 url = (connection.unload_url or "").strip()
                 method = (connection.unload_method or "POST").upper()
-    except Exception:  # noqa: BLE001 - a hint that could not be looked up is not a failure
+    except Exception:  # a hint that could not be looked up is not a failure
         log.debug("could not read the unload hook", exc_info=True)
         return False
 
@@ -304,7 +304,7 @@ async def _unload_llm(context: ToolContext) -> bool:
         async with httpx.AsyncClient(timeout=UNLOAD_TIMEOUT) as client:
             await client.request(method, url)
         return True
-    except Exception:  # noqa: BLE001 - see the module docstring: a hint, not a step
+    except Exception:  # see the module docstring: a hint, not a step
         log.info("could not unload the model at %s", url, exc_info=True)
         return False
 
@@ -375,7 +375,7 @@ def _reviewer(context: ToolContext) -> tuple[Endpoint, str] | None:
             if connection is None or not connection.enabled:
                 return None
             return Endpoint.from_connection(connection), model.model_id
-    except Exception:  # noqa: BLE001 - no reviewer is a degraded mode, not an error
+    except Exception:  # no reviewer is a degraded mode, not an error
         log.warning("could not resolve an image reviewer", exc_info=True)
         return None
 
@@ -514,7 +514,7 @@ async def run(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
             template_slug, template_name = chosen.slug, chosen.name
     except ToolOutcome:  # pragma: no cover - defensive
         raise
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         log.exception("could not resolve an image workflow")
         return ToolOutcome(
             f"The image workflow could not be read: {exc}",
@@ -627,7 +627,7 @@ async def run(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
                 quantity=1,
                 note="image: 1 picture(s)",
             )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         log.exception("could not store a generated image")
         return ToolOutcome(
             f"The image was generated but could not be saved: {exc}",

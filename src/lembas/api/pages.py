@@ -739,7 +739,7 @@ async def healthz() -> Response:
     try:
         with session_scope() as db:
             db.execute(text("SELECT 1"))
-    except Exception:  # noqa: BLE001 - the answer is the status code
+    except Exception:  # the answer is the status code
         return JSONResponse({"status": "error"}, status_code=503)
     return JSONResponse({"status": "ok"})
 

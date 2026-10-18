@@ -135,7 +135,7 @@ async def sweep(*, now: datetime | None = None) -> int:
                     fire_now, _ = claim(schedule, now=now, zone=clock.zone_for(owner))
                     if fire_now:
                         to_fire.append((schedule.id, due_at))
-                except Exception:  # noqa: BLE001 - one bad row must not stop the sweep
+                except Exception:  # one bad row must not stop the sweep
                     log.exception("could not claim schedule %s", schedule.id)
                     with contextlib.suppress(Exception):
                         schedule.enabled = False
@@ -199,7 +199,7 @@ def tidy(*, force: bool = False) -> None:
             from lembas.services import credits
 
             credits.renew_due(db)
-    except Exception:  # noqa: BLE001 - housekeeping must never stop the ticker
+    except Exception:  # housekeeping must never stop the ticker
         log.exception("the ticker's housekeeping raised")
 
 
@@ -228,7 +228,7 @@ async def _loop() -> None:
             await sweep()
         except asyncio.CancelledError:
             raise
-        except Exception:  # noqa: BLE001 - the ticker must outlive one bad sweep
+        except Exception:  # the ticker must outlive one bad sweep
             log.exception("the schedule ticker raised")
 
 

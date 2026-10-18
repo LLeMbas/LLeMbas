@@ -67,7 +67,7 @@ async def wake_chat(chat_id: str, content: str, *, model_id: str = "") -> str:
             if settings_store.api_only(db):
                 log.info("not waking chat %s: this instance serves the API only", chat_id)
                 return ""
-    except Exception:  # noqa: BLE001 - unreadable is "full", what it was before
+    except Exception:  # unreadable is "full", what it was before
         log.debug("could not read the instance mode for chat %s", chat_id, exc_info=True)
 
     assistant_id = ""
@@ -96,7 +96,7 @@ async def wake_chat(chat_id: str, content: str, *, model_id: str = "") -> str:
                         model_id=model_id or chat.model_id,
                     )
                     assistant_id = assistant.id
-        except Exception:  # noqa: BLE001 - a failed wake must not kill its caller
+        except Exception:  # a failed wake must not kill its caller
             log.exception("could not wake chat %s", chat_id)
             return ""
 

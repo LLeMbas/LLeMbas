@@ -160,7 +160,7 @@ async def terminal_socket(
     except ExecError as exc:
         await _refuse(websocket, str(exc))
         return
-    except Exception:  # noqa: BLE001 - a failure here is one socket, not the app
+    except Exception:  # a failure here is one socket, not the app
         log.exception("could not open a terminal for %s", owner_email)
         await _refuse(websocket, t("The shell could not be started."))
         return

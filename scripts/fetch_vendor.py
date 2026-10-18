@@ -87,7 +87,7 @@ def sha256(data: bytes) -> str:
 
 def fetch(url: str) -> bytes:
     request = urllib.request.Request(url, headers={"User-Agent": "lembas-vendor-fetch"})
-    with urllib.request.urlopen(request, timeout=60) as response:  # noqa: S310
+    with urllib.request.urlopen(request, timeout=60) as response:
         return response.read()
 
 

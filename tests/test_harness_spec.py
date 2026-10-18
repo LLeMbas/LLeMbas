@@ -23,6 +23,7 @@ from lembas.services import generation, harness_spec, plans, prompts, prototypes
 from lembas.services import tools as tools_service
 from lembas.services.agent import policy, shell
 from lembas.services.library import chunks, documents
+from lembas.services.llm import openai_client
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -43,7 +44,20 @@ AREAS = {
     "plan": lambda c: _plan(c),
     "prototype": lambda c: prototypes.info(c["info"], c["code"]),
     "library_scope": lambda c: documents.resolve_base(c["bases"], c["base"]),
+    "toolcall_index": lambda c: _toolcalls(c),
 }
+
+
+def _toolcalls(c):
+    """The spec writes a delta flat; the wire puts name and arguments under `function`."""
+    acc = openai_client.ToolCallAccumulator()
+    for delta in c["deltas"]:
+        fragment = {k: delta[k] for k in ("index", "id") if k in delta}
+        function = {k: delta[k] for k in ("name", "arguments") if k in delta}
+        if function:
+            fragment["function"] = function
+        acc.feed([fragment])
+    return acc.calls
 
 
 def _plan(c):
@@ -76,7 +90,6 @@ PENDING = {
     "edit": _ON_THE_DEVICE,
     "unidiff": _ON_THE_DEVICE,
     "envelope": _ON_THE_DEVICE,
-    "toolcall_index": "openai_client, next agent",
 }
 
 

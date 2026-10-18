@@ -39,6 +39,30 @@ Every chat can keep a plan, and any chat can be put into Plan mode.
   you does not count. They are instance settings (`loop_wall_seconds`,
   `loop_output_bytes`, `loop_completion_tokens` under General; 0 turns one
   off), without a field on the settings page yet.
+- **An agent chat knows what the instance knows.** A chat on a linked device
+  now gets the instructions it would get here -- the chat's own, its folder's,
+  its model's or the instance's -- your personalization, which knowledge
+  bases it may search, and whether it may write a prototype, sent with the
+  session and again on every message, so a change made here reaches the
+  device's next turn (harness spec 1.1.0, `_meta.lembas` on `session/new`
+  and `session/prompt`; a LLeMbas CLI 1.3.0, each piece on its capability).
+- **The plan card for a device chat is the structured one.** A device sends
+  its plan as the same structure a chat here keeps, so the panel above the
+  message box, the card in the reply and the plan it asks you to approve
+  are drawn as for any other chat -- and a chat taken up again after a
+  restart draws the plan the device has, without waiting for the next
+  change. A device without it still sends its todo list, shown as before.
+- **Edit and Regenerate on agent chats**, with a LLeMbas CLI 1.3.0: the
+  device drops the turn and every later one from the conversation its model
+  reads, and the edited or repeated message goes as a new turn. The files
+  the device changed are not undone, and the controls say so. With an older
+  CLI, or while the device is not linked, the controls stay hidden as before.
+- **The library scoped to the chat for a device.** A library call the CLI
+  makes for an agent chat names the chat's session (`_meta.lembas.scope` on
+  `/mcp`), and is answered within that chat's scope -- its knowledge bases
+  and its data group, exactly as the chat loop's own tools are; a session
+  that is not that device's is refused. Without a scope, the account's
+  default group, as before.
 
 ### Changed
 
@@ -79,6 +103,15 @@ Every chat can keep a plan, and any chat can be put into Plan mode.
 - Dead stylesheet rules for the background-jobs panel, the talk-rules matrix
   and form, the old model picker, the admin page header, the connection card's
   header and footer, the directory row and the history sentinel are gone.
+- Every event stream LLeMbas reads -- a model's reply, an Anthropic reply, a
+  reply relayed through the `/v1` API, an MCP server's answer -- is read by one
+  parser, which knows what servers really send: a last line with no newline
+  after it, Windows line endings, a frame split over several `data:` lines,
+  keep-alive comments, and frames with no blank line between them.
+- A model's server failing before it had sent any of the reply -- llama-swap
+  saying the model was unloaded because another client loaded a different
+  one, or any other server error -- is asked once more before the failure is
+  shown, since a second request usually succeeds.
 
 ### Fixed
 
@@ -97,6 +130,14 @@ Every chat can keep a plan, and any chat can be put into Plan mode.
 - Opening a thinking or tool block while a reply streams no longer stops the
   page following the reply after the next tool call, and the open thinking
   box stays open as the block it becomes.
+- A streaming error a server sends as a bare line inside a 200 reply --
+  llama.cpp's way, often as the very last line -- is shown as the error it is,
+  not as an empty reply; through the `/v1` API it is passed on as a proper
+  error frame. An error a server frames as data is read the same way.
+- A tool call whose fragments arrive without an index is assembled onto the
+  right call: the one started last, not the first. A reply through an
+  Anthropic connection to the non-streaming `/v1` API reassembles its tool
+  calls by the same rule.
 
 ### Removed
 
@@ -106,6 +147,9 @@ Every chat can keep a plan, and any chat can be put into Plan mode.
   CLI has assembled itself since agent chats moved there. They were on the
   prompts page and reached no model.
 - The todo list above the composer, replaced by the plan.
+- The old `POST /api/preferences/pinned-open` route, which nothing has posted
+  to since 1.2.0 moved every sidebar section's state into one map. A choice
+  stored under the old key is still read until the next change retires it.
 
 ## 1.2.0 — 2026-10-14
 

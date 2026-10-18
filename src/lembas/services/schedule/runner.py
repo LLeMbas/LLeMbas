@@ -255,7 +255,7 @@ async def fire(schedule_id: str, *, due_at: datetime | None = None) -> None:
             await deliver(schedule_id, message_id, since=began)
     except asyncio.CancelledError:
         raise
-    except Exception:  # noqa: BLE001 - one bad schedule must not stop the rest
+    except Exception:  # one bad schedule must not stop the rest
         log.exception("schedule %s failed to fire", schedule_id)
         with contextlib.suppress(Exception), session_scope() as db:
             schedule = db.get(Schedule, schedule_id)

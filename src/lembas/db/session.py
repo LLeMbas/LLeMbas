@@ -18,7 +18,7 @@ _SessionFactory: sessionmaker[Session] | None = None
 
 
 @event.listens_for(Engine, "connect")
-def _configure_sqlite(dbapi_connection, connection_record) -> None:  # noqa: ANN001
+def _configure_sqlite(dbapi_connection, connection_record) -> None:
     """Apply the pragmas SQLite needs to behave under a concurrent web server.
 
     - WAL lets readers proceed while a write is in flight, which matters because

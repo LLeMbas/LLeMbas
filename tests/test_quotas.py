@@ -19,7 +19,7 @@ from lembas.services import usage as usage_service
 @pytest.fixture
 def reader(db, registered) -> User:
     person = User(
-        email="sam@shire.test", name="Sam", password_hash="x", role=ROLE_USER  # noqa: S106
+        email="sam@shire.test", name="Sam", password_hash="x", role=ROLE_USER
     )
     db.add(person)
     db.commit()
@@ -217,7 +217,7 @@ def test_the_user_list_is_paginated_and_searchable(db, client, registered):
             User(
                 email=f"p{n}@shire.test",
                 name=f"Person {n}",
-                password_hash="x",  # noqa: S106
+                password_hash="x",
             )
         )
     db.commit()

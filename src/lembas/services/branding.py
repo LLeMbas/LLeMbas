@@ -170,7 +170,7 @@ def snapshot() -> Branding:
 
         with session_scope() as db:
             _CACHE = _read(db)
-    except Exception:  # noqa: BLE001 - defaults are a usable answer, an exception is not
+    except Exception:  # defaults are a usable answer, an exception is not
         log.debug("could not read the instance name; using the default", exc_info=True)
         return build()
     return _CACHE

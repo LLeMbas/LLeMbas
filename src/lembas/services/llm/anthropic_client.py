@@ -57,6 +57,7 @@ from typing import Any
 import httpx
 
 from lembas.config import settings
+from lembas.services.llm import sse
 from lembas.services.llm.openai_client import Endpoint, LLMError, wrap_transport_error
 
 log = logging.getLogger(__name__)
@@ -771,11 +772,19 @@ async def stream_chat(
             if not 200 <= response.status_code < 300:
                 await response.aread()
                 raise _error_from(response)
-            async for line in response.aiter_lines():
-                line = line.strip()
-                if not line.startswith("data:"):
-                    continue  # `event:` lines repeat the type the data carries
-                data = line[5:].strip()
+            # The `event:` name is not read: it repeats the `type` the data carries.
+            async for name, data in sse.iter_sse(response.aiter_lines()):
+                if name == sse.COMMENT:
+                    continue
+                if name == sse.ERROR:
+                    # Written outside the frame format, as a proxy in front of
+                    # the API might (quirks.json `error-in-200-stream`).
+                    error = sse.error_object(data)["error"]
+                    raise LLMError(
+                        f"Anthropic stopped the reply: {sse.error_message(error)}",
+                        status_code=sse.error_status(error),
+                    )
+                data = data.strip()
                 if not data:
                     continue
                 try:
@@ -800,6 +809,7 @@ async def complete_response(endpoint: Endpoint, payload: dict[str, Any]) -> dict
     at the mercy of one HTTP request's timeout, and there is one parser, not two.
     """
     from lembas.services.llm.openai_client import (
+        ToolCallAccumulator,
         delta_reasoning,
         delta_text,
         delta_tool_calls,
@@ -808,7 +818,7 @@ async def complete_response(endpoint: Endpoint, payload: dict[str, Any]) -> dict
 
     text: list[str] = []
     reasoning: list[str] = []
-    calls: dict[int, dict[str, Any]] = {}
+    calls = ToolCallAccumulator()
     finish = "stop"
     usage: dict[str, Any] | None = None
     blocks: list[dict[str, Any]] = []
@@ -817,17 +827,7 @@ async def complete_response(endpoint: Endpoint, payload: dict[str, Any]) -> dict
         response_id = chunk.get("id") or response_id
         text.append(delta_text(chunk))
         reasoning.append(delta_reasoning(chunk))
-        for fragment in delta_tool_calls(chunk):
-            slot = calls.setdefault(
-                int(fragment.get("index") or 0),
-                {"id": "", "type": "function", "function": {"name": "", "arguments": ""}},
-            )
-            if fragment.get("id"):
-                slot["id"] = fragment["id"]
-            function = fragment.get("function") or {}
-            if function.get("name"):
-                slot["function"]["name"] = function["name"]
-            slot["function"]["arguments"] += function.get("arguments") or ""
+        calls.feed(delta_tool_calls(chunk))
         finish = finish_reason(chunk) or finish
         if chunk.get("usage"):
             usage = chunk["usage"]
@@ -837,11 +837,16 @@ async def complete_response(endpoint: Endpoint, payload: dict[str, Any]) -> dict
     if any(reasoning):
         message["reasoning_content"] = "".join(reasoning)
     if calls:
-        for call in calls.values():
-            # A tool called with no input streams no JSON at all; an OpenAI
-            # client parses `arguments`, and "" is not JSON.
-            call["function"]["arguments"] = call["function"]["arguments"] or "{}"
-        message["tool_calls"] = [calls[i] for i in sorted(calls)]
+        message["tool_calls"] = [
+            {
+                "id": call["id"],
+                "type": "function",
+                # A tool called with no input streams no JSON at all; an OpenAI
+                # client parses `arguments`, and "" is not JSON.
+                "function": {"name": call["name"], "arguments": call["arguments"] or "{}"},
+            }
+            for call in calls.calls
+        ]
     if blocks:
         message["assistant_blocks"] = blocks
     out: dict[str, Any] = {

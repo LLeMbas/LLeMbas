@@ -534,7 +534,7 @@ async def resume_interrupted(delay: float = 20.0) -> int:
                 row.origin = ORIGIN_ATTACH
                 row.interrupted = True
             db.commit()
-    except Exception:  # noqa: BLE001 - never stops the instance from starting
+    except Exception:  # never stops the instance from starting
         log.exception("could not mark unfinished device replies")
     await asyncio.sleep(delay)
     started: list[tuple[str, str]] = []
@@ -573,7 +573,7 @@ async def resume_interrupted(delay: float = 20.0) -> int:
                 )
                 started.append((chat.id, reply.id))
             db.commit()
-    except Exception:  # noqa: BLE001 - never stops the instance from starting
+    except Exception:  # never stops the instance from starting
         log.exception("could not take up interrupted replies")
         return 0
     for chat_id, message_id in started:
@@ -669,7 +669,7 @@ def _learn_refused_effort(model_id: str, refused: str, message: str) -> None:
                         "model %s refused reasoning effort %r; efforts narrowed to %s",
                         model_id, refused, wanted,
                     )
-    except Exception:  # noqa: BLE001 - never let bookkeeping fail a reply
+    except Exception:  # never let bookkeeping fail a reply
         log.exception("could not record the refused effort for model %s", model_id)
 
 
@@ -1257,7 +1257,7 @@ async def _run(generation: Generation) -> None:
         generation.stopped = True
         generation.interrupted = True
         raise
-    except Exception:  # noqa: BLE001 - a task that dies silently is worse
+    except Exception:  # a task that dies silently is worse
         generation.error = i18n.t("Something went wrong while generating this reply.")
         log.exception("unexpected generation failure for chat %s", generation.chat_id)
     finally:
@@ -1444,7 +1444,7 @@ async def _maybe_compact(generation: Generation) -> None:
             compaction_service.apply(chat, summary=summary, upto=upto)
             db.commit()
             log.info("chat %s compacted automatically through %s", chat.id, upto_id)
-    except Exception:  # noqa: BLE001 - the reply matters more than the tidy-up
+    except Exception:  # the reply matters more than the tidy-up
         log.exception("automatic compaction failed for chat %s", generation.chat_id)
     finally:
         generation.status = ""
@@ -2163,7 +2163,7 @@ def _drain(generation: Generation) -> None:
                 db, chat, ROLE_ASSISTANT, "", complete_=False, model_id=chat.model_id
             )
             chat_id, assistant_id = chat.id, assistant.id
-    except Exception:  # noqa: BLE001 - the reply is over either way
+    except Exception:  # the reply is over either way
         log.exception("could not drain the queue for chat %s", generation.chat_id)
         return
 
@@ -2225,7 +2225,7 @@ def _inject(
                 placeholder.created_at = datetime.now(UTC)
             generation.injected_ids.append(waiting.id)
             waiting_id = waiting.id
-    except Exception:  # noqa: BLE001 - a lost interjection is not a failed reply
+    except Exception:  # a lost interjection is not a failed reply
         log.exception("could not take a queued prompt into chat %s", chat_id)
         return None
 
@@ -2409,7 +2409,7 @@ def _persist(generation: Generation, title: str, elapsed: float) -> None:
                 len(message.reasoning),
                 elapsed,
             )
-    except Exception:  # noqa: BLE001 - the task is ending either way
+    except Exception:  # the task is ending either way
         log.exception("could not persist generation for chat %s", generation.chat_id)
 
 

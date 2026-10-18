@@ -18,6 +18,7 @@ from contextlib import suppress
 from typing import Any
 
 from lembas import __version__
+from lembas.services.llm import sse
 
 # What we tell a server we speak. A server answering an older version is not
 # refused: several in the wild still answer 2024-11-05 and work perfectly.
@@ -77,20 +78,17 @@ def _messages(body: bytes, content_type: str) -> list[dict[str, Any]]:
             raise McpError(f"That server did not answer with JSON: {exc}") from exc
         return document if isinstance(document, list) else [document]
 
-    # Frames are `data:` lines gathered until a blank line -- the same framing
-    # services/sse.py writes. Read here rather than shared, because that module
-    # is a writer and this is a reader with a size cap.
+    # Frames are `data:` lines gathered until a blank line, read by the one
+    # SSE reader (services/llm/sse.py); the size cap is the caller's.
     out: list[dict[str, Any]] = []
-    data: list[str] = []
-    for line in text.splitlines() + [""]:
-        if line.startswith("data:"):
-            data.append(line[5:].lstrip())
-        elif not line.strip() and data:
-            # A frame that is not JSON is a comment or a keep-alive, not a
-            # message; the stream carries both.
-            with suppress(json.JSONDecodeError):
-                out.append(json.loads("\n".join(data)))
-            data = []
+    for event, data in sse.parse_sse(text.splitlines()):
+        if event == sse.COMMENT:
+            continue  # a keep-alive, not a message
+        # A frame that is not JSON is not a message either; the stream carries
+        # both. An error a server wrote outside the frame format is read as a
+        # message, which `result_of` then answers for.
+        with suppress(json.JSONDecodeError):
+            out.append(json.loads(data))
     return out
 
 

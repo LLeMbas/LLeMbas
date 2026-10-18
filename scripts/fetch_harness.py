@@ -43,7 +43,7 @@ RELEASE_TAG = re.compile(r"^v\d+\.\d+\.\d+$")
 
 def _get(url: str) -> bytes:
     request = urllib.request.Request(url, headers={"User-Agent": "lembas-fetch-harness"})
-    with urllib.request.urlopen(request, timeout=60) as response:  # noqa: S310 - a fixed https forge
+    with urllib.request.urlopen(request, timeout=60) as response:  # a fixed https forge
         return response.read()
 
 

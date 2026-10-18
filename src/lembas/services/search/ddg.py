@@ -63,7 +63,7 @@ async def search(config: dict[str, Any], query: str, count: int) -> list[SearchR
         )
     except TimeoutError as exc:
         raise SearchError("DuckDuckGo did not answer in time.") from exc
-    except Exception as exc:  # noqa: BLE001 - the library raises its own types
+    except Exception as exc:  # the library raises its own types
         # Rate limiting is the common failure and worth naming, because the fix
         # is to wait rather than to change anything.
         detail = str(exc)

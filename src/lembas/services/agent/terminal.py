@@ -520,7 +520,7 @@ async def _reaper_loop() -> None:
             _reap()
         except asyncio.CancelledError:
             raise
-        except Exception:  # noqa: BLE001 - the reaper must outlive one bad sweep
+        except Exception:  # the reaper must outlive one bad sweep
             log.exception("the terminal reaper raised")
 
 

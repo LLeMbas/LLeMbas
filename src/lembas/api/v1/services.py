@@ -37,6 +37,7 @@ from starlette.datastructures import UploadFile
 
 from lembas import __version__
 from lembas.api.deps import Db
+from lembas.api.v1._common import error_response
 from lembas.security import permissions
 from lembas.security.api_tokens import ModelsCaller
 from lembas.services import audio as audio_service
@@ -63,13 +64,6 @@ def connection_name(name: str) -> str:
     plain = unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode()
     slug = re.sub(r"[^a-z0-9]+", "-", plain.lower()).strip("-")
     return slug[:40].strip("-") or "lembas"
-
-
-def _error(status_code: int, message: str, kind: str = "invalid_request_error") -> JSONResponse:
-    return JSONResponse(
-        {"error": {"message": message, "type": kind, "code": status_code}},
-        status_code=status_code,
-    )
 
 
 def _audio_user(user) -> dict[str, Any]:
@@ -133,19 +127,19 @@ async def transcriptions(request: Request, db: Db, caller: ModelsCaller):
     """OpenAI's transcription call: a multipart `file`, and optionally
     `language` and `prompt`. `model` is ignored -- the instance's is used."""
     if not available(db, caller.user)["stt"]:
-        return _error(404, "Speech to text is not on for this account on this instance.")
+        return error_response(404, "Speech to text is not on for this account on this instance.")
     form = await request.form()
     upload = form.get("file")
     if not isinstance(upload, UploadFile):
-        return _error(400, "`file` is required: the recording.")
+        return error_response(400, "`file` is required: the recording.")
     data = await upload.read(MAX_AUDIO_BYTES + 1)
     if len(data) > MAX_AUDIO_BYTES:
-        return _error(413, "That recording is too long.")
+        return error_response(413, "That recording is too long.")
     if not data:
-        return _error(400, "The recording was empty.")
+        return error_response(400, "The recording was empty.")
     # Credits, as a reply's: a priced transcription is gated first.
     if short := audio_service.refusal(db, caller.user, "stt"):
-        return _error(429, short, "rate_limit_error")
+        return error_response(429, short, "rate_limit_error")
     config = settings_store.audio(db)
     asked = form.get("language")
     language = (
@@ -165,7 +159,7 @@ async def transcriptions(request: Request, db: Db, caller: ModelsCaller):
         )
     except LLMError as exc:
         log.info("transcription through the API failed: %s", exc.message)
-        return _error(502, exc.message, "upstream_error")
+        return error_response(502, exc.message, "upstream_error")
     audio_service.record_transcription(db, caller.user.id, seconds, token_id=caller.token.id)
     return JSONResponse({"text": text})
 
@@ -178,20 +172,20 @@ async def speech(request: Request, db: Db, caller: ModelsCaller):
     from lembas.api.audio import resolve_speed, resolve_voice
 
     if not available(db, caller.user)["tts"]:
-        return _error(404, "Text to speech is not on for this account on this instance.")
+        return error_response(404, "Text to speech is not on for this account on this instance.")
     try:
         body = await request.json()
     except (ValueError, UnicodeDecodeError):
         body = None
     if not isinstance(body, dict):
-        return _error(400, "The body must be a JSON object.")
+        return error_response(400, "The body must be a JSON object.")
     text = str(body.get("input") or "").strip()
     if not text:
-        return _error(400, "`input` is required: the text to speak.")
+        return error_response(400, "`input` is required: the text to speak.")
     if len(text) > MAX_SPEECH_CHARS:
-        return _error(413, f"That is more than {MAX_SPEECH_CHARS} characters.")
+        return error_response(413, f"That is more than {MAX_SPEECH_CHARS} characters.")
     if short := audio_service.refusal(db, caller.user, "tts"):
-        return _error(429, short, "rate_limit_error")
+        return error_response(429, short, "rate_limit_error")
     config = settings_store.audio(db)
     voice = str(body.get("voice") or "").strip() or resolve_voice(config, caller.user)
     try:
@@ -210,7 +204,7 @@ async def speech(request: Request, db: Db, caller: ModelsCaller):
         )
     except LLMError as exc:
         log.info("speech through the API failed: %s", exc.message)
-        return _error(502, exc.message, "upstream_error")
+        return error_response(502, exc.message, "upstream_error")
     audio_service.record_speech(db, caller.user.id, len(text), token_id=caller.token.id)
     return StreamingResponse(
         stream, media_type=media_type, headers={"Cache-Control": "no-store"}
@@ -233,10 +227,10 @@ async def web_search(request: Request, db: Db, caller: ModelsCaller):
     from lembas.services.search import SearchError
 
     if not available(db, caller.user)["search"]:
-        return _error(404, "Web search is not on for this account on this instance.")
+        return error_response(404, "Web search is not on for this account on this instance.")
     body = await _json(request)
     if body is None:
-        return _error(400, "The body must be a JSON object.")
+        return error_response(400, "The body must be a JSON object.")
     config = settings_store.search(db)
     try:
         limit = int(body["max_results"]) if body.get("max_results") is not None else None
@@ -245,7 +239,7 @@ async def web_search(request: Request, db: Db, caller: ModelsCaller):
     try:
         results = await search_service.run(config, str(body.get("query") or ""), limit=limit)
     except SearchError as exc:
-        return _error(502, exc.message, "upstream_error")
+        return error_response(502, exc.message, "upstream_error")
     return JSONResponse(
         {
             "provider": str(config.get("provider") or "ddgs"),
@@ -262,20 +256,20 @@ async def web_fetch(request: Request, db: Db, caller: ModelsCaller):
     from lembas.services import fetch as fetch_service
 
     if not available(db, caller.user)["fetch"]:
-        return _error(404, "Fetching pages is not on for this account on this instance.")
+        return error_response(404, "Fetching pages is not on for this account on this instance.")
     body = await _json(request)
     if body is None:
-        return _error(400, "The body must be a JSON object.")
+        return error_response(400, "The body must be a JSON object.")
     url = str(body.get("url") or "").strip()
     if not url:
-        return _error(400, "`url` is required.")
+        return error_response(400, "`url` is required.")
     config = settings_store.search(db)
     try:
         page = await fetch_service.fetch(
             url, allow_private=bool(config.get("allow_private_fetch"))
         )
     except fetch_service.FetchError as exc:
-        return _error(502, exc.message, "upstream_error")
+        return error_response(502, exc.message, "upstream_error")
     return JSONResponse(
         {"url": page.url, "title": page.title, "text": page.text, "truncated": page.truncated}
     )

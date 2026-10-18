@@ -242,7 +242,7 @@ def _git(args: list[str], *, cwd: Path, timeout: float = GIT_TIMEOUT) -> tuple[i
     a thing to report on the page, not a 500.
     """
     try:
-        done = subprocess.run(  # noqa: S603 - fixed argv, no shell, admin-only
+        done = subprocess.run(  # fixed argv, no shell, admin-only
             ["git", *args],
             cwd=str(cwd),
             capture_output=True,
@@ -254,7 +254,7 @@ def _git(args: list[str], *, cwd: Path, timeout: float = GIT_TIMEOUT) -> tuple[i
         return 127, "git is not installed on this machine."
     except subprocess.TimeoutExpired:
         return 124, f"git took longer than {int(timeout)}s."
-    except Exception as exc:  # noqa: BLE001 - a broken git is a message, not a crash
+    except Exception as exc:  # a broken git is a message, not a crash
         log.debug("git %s failed", args, exc_info=True)
         return 1, str(exc)
     return done.returncode, (done.stdout or done.stderr or "").strip()

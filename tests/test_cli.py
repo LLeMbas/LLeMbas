@@ -98,7 +98,7 @@ def test_create_admin_promotes_an_account_that_already_exists(db):
         User(
             email="sam@shire.test",
             name="Sam",
-            password_hash="not-a-real-hash",  # noqa: S106
+            password_hash="not-a-real-hash",
             role=ROLE_USER,
             active=False,
         )

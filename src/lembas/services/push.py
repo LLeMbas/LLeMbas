@@ -263,7 +263,7 @@ async def send_one(db: DBSession, subscription: PushSubscription, payload: dict[
             body, p256dh=subscription.p256dh, auth=subscription.auth_secret
         )
         token = _jwt(keys(db).private, _audience(subscription.endpoint), subject_for(db))
-    except Exception:  # noqa: BLE001 - a malformed stored key must not kill a reply
+    except Exception:  # a malformed stored key must not kill a reply
         log.exception("could not build a push for %s", subscription.id)
         return False
 
@@ -396,7 +396,7 @@ def announce_later(user_id: str, *, title: str, body: str, url: str = "", kind: 
                 if user is None:
                     return
                 await announce(db, user, title=title, body=body, url=url, kind=kind)
-        except Exception:  # noqa: BLE001 - nothing upstream can act on this
+        except Exception:  # nothing upstream can act on this
             log.exception("could not announce to %s", user_id)
 
     task = asyncio.create_task(run())

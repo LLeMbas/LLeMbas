@@ -76,7 +76,7 @@ async def _read(connection) -> dict[str, str]:
         entries = await asyncio.wait_for(
             list_models(Endpoint.from_connection(connection)), TIMEOUT
         )
-    except Exception:  # noqa: BLE001 - an unreachable endpoint has no state, not an error page
+    except Exception:  # an unreachable endpoint has no state, not an error page
         log.debug("model state unavailable for %s", connection.name, exc_info=True)
         # Not cached: the next open asks again, which is right for an endpoint
         # that is merely starting up.

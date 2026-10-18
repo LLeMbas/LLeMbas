@@ -504,7 +504,7 @@ def charge(
             usage=usage,
             commit=commit,
         )
-    except Exception:  # noqa: BLE001 - bookkeeping must never break a reply
+    except Exception:  # bookkeeping must never break a reply
         log.warning("could not charge credits to %s", user_id, exc_info=True)
         return 0
 
@@ -542,7 +542,7 @@ def charge_service(
             token_id=token_id,
             commit=commit,
         )
-    except Exception:  # noqa: BLE001 - bookkeeping must never break a request
+    except Exception:  # bookkeeping must never break a request
         log.warning("could not charge %s to %s", service, user_id, exc_info=True)
         return 0
 
