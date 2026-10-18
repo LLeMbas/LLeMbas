@@ -3,7 +3,7 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
-## Unreleased
+## 1.3.0 — 2026-10-18
 
 Every chat can keep a plan, and any chat can be put into Plan mode.
 
