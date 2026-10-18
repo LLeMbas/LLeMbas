@@ -229,6 +229,19 @@ templates.env.globals["inline_steers"] = lambda messages: {
 }
 
 
+def device_offers(chat, capability: str) -> bool:
+    """Whether the device a chat runs on is linked now and lists this
+    capability -- Edit and Regenerate on a device chat need `rewind`. A global
+    for the reason `message_steps` is: `_message.html` is rendered from five
+    places, and a link's capabilities live in memory, not on the row."""
+    from lembas.services import device_link
+
+    return device_link.offers(getattr(chat, "device_token_id", None), capability)
+
+
+templates.env.globals["device_offers"] = device_offers
+
+
 class _Brand:
     """Whose instance this is, as a Jinja global.
 
@@ -262,7 +275,7 @@ def instance_api_only() -> bool:
 
         with session_scope() as db:
             return settings_store.api_only(db)
-    except Exception:  # noqa: BLE001 - a link is not worth failing a page over
+    except Exception:  # a link is not worth failing a page over
         return False
 
 

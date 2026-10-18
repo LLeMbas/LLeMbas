@@ -298,14 +298,19 @@ class Link:
             return
         if method == "session/update":
             # ACP's own updates carry what `_lembas/event` carries, and are read
-            # for one thing only: the session's commands.
+            # for two things only: the session's commands, and its plan as a
+            # structure (capability `plan_state`: `_meta.lembas.plan` beside
+            # ACP's flat `entries`, which an editor draws and this does not).
             update = params.get("update") or {}
-            if isinstance(update, dict) and update.get("sessionUpdate") == (
-                "available_commands_update"
-            ):
-                self.commands[str(params.get("sessionId") or "")] = clean_commands(
-                    update.get("availableCommands")
-                )
+            if not isinstance(update, dict):
+                return
+            session_id = str(params.get("sessionId") or "")
+            if update.get("sessionUpdate") == "available_commands_update":
+                self.commands[session_id] = clean_commands(update.get("availableCommands"))
+            elif update.get("sessionUpdate") == "plan" and self.can("plan_state"):
+                meta = (update.get("_meta") or {}).get("lembas") or {}
+                if "plan" in meta:
+                    take_plan(self, session_id, meta.get("plan"))
             return
         if method == "_lembas/session/announce":
             session_id = str(params.get("sessionId") or "")
@@ -556,11 +561,14 @@ class Link:
         )
 
     async def _plan(self, message_id: Any, params: dict[str, Any]) -> None:
-        """`_lembas/plan`: the device's plan_exit -- the plan shown,
+        """`_lembas/plan`: the device's plan_submit -- the plan shown,
         and approved into Edit or Manual, sent back with what to change, or
-        dismissed."""
-        from lembas.services.markdown import render_markdown
+        dismissed.
 
+        The card is the structured one when the device sends `plan`
+        (capability `plan_state`): the same card a chat's own `plan_submit`
+        draws, with the mode choice a device's plan needs. A device without
+        it sends the plan as text, drawn as rendered Markdown."""
         session_id = str(params.get("sessionId") or "")
         generation = self.writer(session_id)
         patient = _patient(params)
@@ -568,21 +576,21 @@ class Link:
             await self._nobody_here(message_id, patient)
             return
         text = str(params.get("text") or "")[:MAX_PLAN_CHARS]
-        item = interaction.Item(
-            index=0,
-            key="plan",
-            kind=interaction.KIND_PLAN,
-            tool_name="plan_exit",
-            title="The plan",
-            detail=str(params.get("path") or "")[:1000],
-            detail_html=render_markdown(text) if text.strip() else "",
-            allow_free_text=False,
-        )
+        plan = params.get("plan") if self.can("plan_state") else None
+        structured = plan if isinstance(plan, dict) and plan else None
         timeout = PATIENT_WAIT if patient else ASK_WAIT
         call_id = str(params.get("toolCallId") or "")
-        card = interaction.build(uuid.uuid4().hex, [item], timeout=timeout)
-        card.tool_call_id = call_id
-        card.dismissable = True
+        card = interaction.plan_card(
+            structured,
+            text=text,
+            path=str(params.get("path") or ""),
+            tool_name="plan_submit" if structured else "plan_exit",
+            timeout=timeout,
+            mode_choice=True,
+            dismissable=True,
+            tool_call_id=call_id,
+        )
+        item = card.items[0]
         reply = await self._ask(generation, card, session_id, call_id, timeout=timeout)
         if reply.ended:
             generation.stopped = True
@@ -978,6 +986,53 @@ def todo_items(raw: Any) -> list[dict[str, str]]:
     return items[:30]
 
 
+def _plan_onto(generation, raw: Any) -> dict[str, Any] | None:
+    """The device's plan onto the reply being written: normalised, or cleared
+    for `null`. The structure wins over a todo list the same turn sent."""
+    from lembas.services import plans
+
+    plan = plans.normalise(raw) if isinstance(raw, dict) and raw else None
+    generation.plan = plan or None
+    generation.todos = None
+    generation.touch()
+    return generation.plan
+
+
+def take_plan(link: Link, session_id: str, raw: Any) -> dict[str, Any] | None:
+    """A `plan` session update (capability `plan_state`): onto the reply
+    writing the session, and onto the chat itself -- the device sends one
+    after `session/new`, after a session is opened from the store and after
+    every change, and only some of those have a reply writing. The chat row
+    is what the plan panel reads, and `_persist` never *clears* it, so a
+    `null` has to reach the row from here."""
+    from lembas.services import plans
+
+    plan = plans.normalise(raw) if isinstance(raw, dict) and raw else None
+    generation = link.writer(session_id)
+    if generation is not None:
+        _plan_onto(generation, raw)
+    _store_plan(link, session_id, plan)
+    return plan
+
+
+def _store_plan(link: Link, session_id: str, plan: dict[str, Any] | None) -> None:
+    """The chat's plan as the device has it now; `None` clears it, the todo
+    list of an older turn included."""
+    from lembas.db.session import session_scope
+
+    with session_scope() as db:
+        chat = _chat_for(db, link, session_id)
+        if chat is None:
+            return
+        if plan:
+            chat.plan_json = plan
+        else:
+            chat.plan_json = {}
+            chat.plan_message_id = None
+            chat.todos_json = None
+        db.commit()
+
+
 def _mark_steered(generation, event: dict[str, Any]) -> None:
     """The device's model took in messages sent from here: marked into the reply
     at this point. By the ids the device hands back; when it names
@@ -1044,7 +1099,13 @@ def apply_event(generation, event: dict[str, Any]) -> None:
     elif kind == "done" and event.get("reason") == "cancelled":
         generation.stopped = True
     elif kind == "todos":
+        # A device without `plan_state`: its todo list, which `_persist`
+        # keeps as a one-phase plan (`plans.from_todos`).
         generation.todos = todo_items(event.get("items"))
+    elif kind == "plan" and "plan" in event:
+        # The structured plan, as a `plan` engine event carries it (the
+        # `session/update` of the same name goes through `take_plan`).
+        _plan_onto(generation, event.get("plan"))
     elif kind == "retract":
         # The device retries a step: what it streamed is not the reply.
         pass
@@ -1247,8 +1308,14 @@ async def _prompt(
     if turn:
         link.turn_writers[(session_id, turn)] = generation
     params: dict[str, Any] = {"sessionId": session_id, "prompt": content}
-    if turn:
-        params["_meta"] = {"lembas": {"turnId": turn}}
+    # The turn's id, and what only this instance knows -- the chat's
+    # instructions, the person's personalization, the library's scope, the
+    # prototypes -- sent again on every prompt so a change made here
+    # between two turns reaches the device's next one.
+    meta: dict[str, Any] = {"turnId": turn} if turn else {}
+    meta.update(session_context(link, chat_id))
+    if meta:
+        params["_meta"] = {"lembas": meta}
     try:
         task = asyncio.create_task(link.request("session/prompt", params, timeout=None))
         while not task.done():
@@ -1366,6 +1433,11 @@ async def _reattach(
     if not status.get("exists", True):
         generation.error = f"The session is gone from {device_name}."
         return False
+    if link.can("plan_state") and "plan" in status:
+        # The plan as the device has it, so a reply taken up again draws it
+        # without waiting for the next change. Onto this reply by hand: it
+        # is not registered as the session's writer until it follows.
+        _store_plan(link, session_id, _plan_onto(generation, status.get("plan")))
     if turn:
         running = str(status.get("turnId") or "")
         queued = [str(t) for t in status.get("queued") or []]
@@ -1510,6 +1582,10 @@ async def _open(
         meta["lembas_model"] = model
     if effort:
         meta["effort"] = effort
+    # What only this instance knows, under `lembas` -- beside the mode and
+    # model, which protocol 1 devices read at the top of `_meta`.
+    if context := session_context(link, chat_id):
+        meta["lembas"] = context
     opened = await link.request(
         "session/new", {"cwd": project_dir, "mcpServers": [], "_meta": meta}, timeout=60
     )
@@ -1576,6 +1652,92 @@ def _keep_session_id(chat_id: str, session_id: str) -> None:
         if chat is not None and chat.device_session_id != session_id:
             chat.device_session_id = session_id
             db.commit()
+
+
+# --- What only this instance knows: the session's Context ------------------
+def session_context(link: Link, chat_id: str) -> dict[str, Any]:
+    """`_meta.lembas`'s Context for a chat's session (harness spec `acp.md`,
+    `session/new`): what the device composes its prompt from and cannot know
+    by itself. Each piece is gated on the capability that says the device
+    reads it; a device listing none gets `{}`, and nothing changes for it."""
+    if not (link.can("context") or link.can("library") or link.can("prototypes")):
+        return {}
+    from lembas.db.models import Chat, User
+    from lembas.db.session import session_scope
+
+    with session_scope() as db:
+        chat = db.get(Chat, chat_id)
+        if chat is None:
+            return {}
+        return context_for(db, link, db.get(User, chat.user_id), chat)
+
+
+def context_for(db, link: Link, user, chat) -> dict[str, Any]:
+    """The Context itself, read while a session is open.
+
+    `system_prompt`: the chat's effective authored prompt, chat over folder over
+    model over instance, "" when none -- the device appends it as
+    "Instructions from <instance>". `personalization`: the account's, in the
+    shape `/v1/me/personalization` gives it, or `null` for the device's own
+    (the feature off here, or switched off by the person). `library`: the
+    bases this chat may search, the device's scope on every library call.
+    `prototypes`: whether the model may write one, and what a page may load.
+    """
+    from lembas.services import chat as chat_service
+    from lembas.services import harness, personalization
+    from lembas.services import prototypes as prototypes_service
+    from lembas.services.library import scope as library_scope
+
+    context: dict[str, Any] = {}
+    if link.can("context"):
+        context["system_prompt"] = chat_service.effective_system_prompt(db, chat)
+        chosen = personalization.of(user) if user is not None else None
+        context["personalization"] = (
+            {
+                "personality": chosen["personality"],
+                "personality_custom": chosen["custom"],
+                "instructions": chosen["instructions"],
+            }
+            if chosen is not None and personalization.enabled(db) and chosen["on"]
+            else None
+        )
+    if link.can("library"):
+        context["library"] = {"bases": library_scope.chat_bases(db, user, chat)}
+    if link.can("prototypes"):
+        context["prototypes"] = {
+            "offered": prototypes_service.offered(db, user, chat),
+            "sources": harness._prototype_sources(db),
+        }
+    return context
+
+
+# --- Rewind: editing or regenerating a turn ---------------------------------
+def offers(token_id: str | None, capability: str) -> bool:
+    """Whether the device a chat runs on is linked now and lists this
+    capability -- what a template asks before showing a control that needs
+    it (Edit and Regenerate need `rewind`)."""
+    link = link_for(token_id)
+    return link is not None and link.can(capability)
+
+
+async def rewind(link_or_token: Link | str | None, chat, turn_id: str) -> int | None:
+    """`_lembas/session/rewind` (capability `rewind`): the person is editing
+    or regenerating from the turn `turn_id`, so the device drops that turn
+    and every later one from the conversation its model sees -- the files
+    they changed stay, and the control says so. Returns how many turns the
+    device reverted, or None when nothing could be asked: no link, a device
+    without the capability, a chat with no session yet, or no turn id (a turn
+    typed in the device's terminal has none here). A refusal -- a turn the
+    session does not have, a session still working -- is a `DeviceError`."""
+    link = link_or_token if isinstance(link_or_token, Link) else link_for(link_or_token)
+    session_id = str(getattr(chat, "device_session_id", "") or "")
+    if link is None or not link.can("rewind") or not session_id or not turn_id:
+        return None
+    answer = await link.request(
+        "_lembas/session/rewind", {"sessionId": session_id, "turnId": turn_id}, timeout=30
+    )
+    answer = answer if isinstance(answer, dict) else {}
+    return int(answer.get("reverted") or 0)
 
 
 # --- A session the device's terminal shares -----------------------------
@@ -1944,7 +2106,7 @@ async def _announced(link: Link, session_id: str) -> None:
             chat = _adopt_chat(db, link, session_id)
             if chat is not None:
                 _import_turns(db, chat, turns, short_name(link))
-    except Exception:  # noqa: BLE001 - one session that cannot be shown must not end the link
+    except Exception:  # one session that cannot be shown must not end the link
         log.exception("could not take in device session %s", session_id)
     finally:
         adopting.set()
@@ -2031,7 +2193,7 @@ async def _mirror_turn(
                 )
                 ids = (chat.id, reply.id)
                 link.sessions[chat.id] = session_id
-    except Exception:  # noqa: BLE001 - as `_announced`
+    except Exception:  # as `_announced`
         log.exception("could not mirror a terminal turn of %s", session_id)
     if ids is None:
         link.buffered.pop(session_id, None)
@@ -2266,7 +2428,7 @@ def _settle_delete(token_id: str, session_id: str, error: str = "") -> None:
                     token_id, session_id, row.attempts, error,
                 )
                 db.delete(row)
-    except Exception:  # noqa: BLE001 - bookkeeping; the next link asks again
+    except Exception:  # bookkeeping; the next link asks again
         log.warning("device %s: could not record the delete of %s", token_id, session_id,
                     exc_info=True)
 
@@ -2290,7 +2452,7 @@ async def _tell_delete(link: Link, session_id: str) -> bool:
         )
         _settle_delete(link.token_id, session_id, f"no answer: {type(e).__name__}")
         return False
-    except Exception as e:  # noqa: BLE001 - one request on one device's link
+    except Exception as e:  # one request on one device's link
         log.warning("deleting session %s on device %s failed", session_id, name, exc_info=True)
         _settle_delete(link.token_id, session_id, f"failed: {e}")
         return False
@@ -2324,7 +2486,7 @@ def tombstone_pending(link: Link) -> None:
     try:
         for session_id in pending_deletes(link.token_id):
             DELETED.add((link.token_id, session_id))
-    except Exception:  # noqa: BLE001 - a link is not refused over bookkeeping
+    except Exception:  # a link is not refused over bookkeeping
         log.warning("could not read the pending deletes of %s", link.token_id, exc_info=True)
 
 
@@ -2335,7 +2497,7 @@ async def send_pending_deletes(link: Link) -> None:
         return
     try:
         pending = pending_deletes(link.token_id)
-    except Exception:  # noqa: BLE001 - as tombstone_pending
+    except Exception:  # as tombstone_pending
         log.warning("could not read the pending deletes of %s", link.token_id, exc_info=True)
         return
     for session_id in pending:

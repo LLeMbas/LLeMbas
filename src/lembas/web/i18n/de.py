@@ -786,6 +786,7 @@ MESSAGES: dict[str, str] = {
     "Discard": "Verwerfen",
     "Discard this message?": "Diese Nachricht verwerfen?",
     "Edit and retry from here": "Bearbeiten und ab hier neu versuchen",
+    "Files the device changed are not undone": "Dateien, die das Gerät geändert hat, werden nicht zurückgesetzt",
     "Read this reply aloud": "Diese Antwort vorlesen",
     "Regenerate reply": "Antwort neu generieren",
     "Send now": "Jetzt senden",

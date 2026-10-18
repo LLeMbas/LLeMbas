@@ -786,6 +786,7 @@ MESSAGES: dict[str, str] = {
     "Discard": "Zahodit",
     "Discard this message?": "Zahodit tuto zprávu?",
     "Edit and retry from here": "Upravit a pokračovat odsud",
+    "Files the device changed are not undone": "Soubory, které zařízení změnilo, se nevrací zpět",
     "Read this reply aloud": "Přečíst tuto odpověď nahlas",
     "Regenerate reply": "Vygenerovat odpověď znovu",
     "Send now": "Odeslat teď",

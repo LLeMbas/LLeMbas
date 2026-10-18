@@ -9,7 +9,10 @@ a fix to one is a fix to both.
 **What a person may do in a chat is what a device may do here**: the families are
 gated by the same permissions (`library.use`, `tools.<family>`, and the split
 write permissions), checked on every call. The data group is the person's
-default one -- a device is not a chat, and has no connection to pick a group by.
+default one -- a device is not a chat, and has no connection to pick a group by
+-- unless the call names the session it is made for (`_meta.lembas.scope`,
+harness spec 1.1.0): then it is answered within that chat's scope, its
+knowledge bases and its data group, exactly as the chat loop's own tools are.
 
 Streamable HTTP in its plainest form: one JSON-RPC message per POST, answered
 with one JSON response (no server-to-client stream, so `GET` is 405). Methods:
@@ -135,7 +138,21 @@ async def mcp(request: Request, db: Db) -> Response:
             return _reply(
                 message_id, error=(-32602, f"There is no tool {name!r} for this account.")
             )
-        context = tools_service.context_for(db, caller.user, None)
+        # The scope (capability `library`): a call made for a session this
+        # instance opened on the device names it, and is answered within that
+        # chat's scope -- its knowledge bases and its data group, as the chat
+        # loop's own tools would be -- by the same builder the loop uses. A
+        # session that is not this device's is refused, whoever's it is.
+        # Without a scope, the account's default group, as before.
+        scope = str(((params.get("_meta") or {}).get("lembas") or {}).get("scope") or "")
+        chat = None
+        if scope:
+            from lembas.services.library import scope as library_scope
+
+            chat = library_scope.device_chat(db, caller.token.id, scope, caller.user.id)
+            if chat is None:
+                return _reply(message_id, error=(-32602, "not this device's session"))
+        context = tools_service.context_for(db, caller.user, chat)
         context.tools = tools
         outcome = await tools_service.run_tool(
             context, name, json.dumps(arguments), parsed=dict(arguments)

@@ -78,6 +78,68 @@ def _device_keeps_history() -> str:
         "This chat runs on a device, which keeps its own history. Send a new message instead."
     )
 
+
+async def _device_rewind(chat: Chat, asked: Message | None) -> int:
+    """Rewind a device chat to the turn `asked` started, on the device, before
+    the rows here are rewound (harness spec 1.1.0, `_lembas/session/rewind`).
+
+    The conversation the device's model reads lives in its session, so an
+    edit or a regenerate that only rewound the rows here would re-run the turn
+    on top of the old one. A device that is not linked, or lists no `rewind`,
+    or a turn that has no id here (one typed in the device's terminal) is the
+    refusal this route always gave; a refusal from the device -- a session
+    still working -- is said in its words. The files the turn changed stay as
+    they are, which the control says.
+    """
+    if asked is None or asked.origin == device_link.ORIGIN_TERMINAL:
+        raise HTTPException(status.HTTP_409_CONFLICT, _device_keeps_history())
+    try:
+        reverted = await device_link.rewind(chat.device_token_id, chat, asked.id)
+    except device_link.DeviceError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    except (TimeoutError, device_link.LinkClosed) as exc:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, t("The device did not answer in time.")
+        ) from exc
+    if reverted is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, _device_keeps_history())
+    return reverted
+
+
+def _renew_turn(db: DBSession, message: Message) -> Message:
+    """A device chat's turn under a fresh id, everything else carried over.
+
+    The turn's id on the device is the message's id, and a device answers a
+    turn id it has run before with the original's answer -- rewound or not,
+    since a rewind drops the turn from the conversation and not from the log
+    that deduplicates prompts. So a turn sent again after a rewind carries a
+    new id, which here means a new row: same place in the order, same words
+    (or the edited ones), same attachments. Only for a chat on a device; an
+    ordinary chat keeps its row, as it always has.
+    """
+    fresh = Message(
+        chat_id=message.chat_id,
+        role=message.role,
+        content=message.content,
+        origin=message.origin,
+        machine=message.machine,
+        created_at=message.created_at,
+        terminal_attachments_json=message.terminal_attachments_json,
+    )
+    db.add(fresh)
+    db.flush()
+    # Through the relationship, so the orphan cascade sees a move and not a
+    # removal: assigning `message_id` alone leaves them in the old collection,
+    # and deleting the old row would take the files with it.
+    for attachment in list(message.attachments):
+        fresh.attachments.append(attachment)
+    chat = message.chat
+    if chat is not None and chat.compacted_through_id == message.id:
+        chat.compacted_through_id = fresh.id
+    db.delete(message)
+    db.flush()
+    return fresh
+
 # Which tools a request may compel the model to call. An allow list rather than
 # a passthrough: this becomes `tool_choice`, and a name read straight off a form
 # would let anyone who can send a message decide what the model must do next.
@@ -573,7 +635,7 @@ async def compact_chat(request: Request, db: Db, user: RequiredUser, chat_id: st
 
     try:
         endpoint, model_id = chat_service.resolve_endpoint(db, chat)
-    except Exception as exc:  # noqa: BLE001 - said, rather than a bare 500
+    except Exception as exc:  # said, rather than a bare 500
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             t("This chat has no model that can summarise it -- pick one in the composer first."),
@@ -1740,9 +1802,14 @@ async def edit_form(
             status.HTTP_404_NOT_FOUND, t("A background job's message cannot be edited.")
         )
     # A chat on a device: the conversation the model reads lives in the
-    # device's session, which cannot be rewound from here -- so editing or
-    # regenerating would re-run a turn on top of the old one, side effects and all.
-    if chat.device_token_id:
+    # device's session, which only a device offering `rewind` can rewind from
+    # here -- otherwise editing would re-run a turn on top of the old one,
+    # side effects and all. A turn typed in the device's terminal has no turn
+    # id here to rewind by.
+    if chat.device_token_id and (
+        not device_link.offers(chat.device_token_id, "rewind")
+        or message.origin == device_link.ORIGIN_TERMINAL
+    ):
         raise HTTPException(status.HTTP_409_CONFLICT, _device_keeps_history())
 
     return templates.TemplateResponse(
@@ -1809,12 +1876,6 @@ async def edit_message(
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, t("A background job's message cannot be edited.")
         )
-    # A chat on a device: the conversation the model reads lives in the
-    # device's session, which cannot be rewound from here -- so editing or
-    # regenerating would re-run a turn on top of the old one, side effects and all.
-    if chat.device_token_id:
-        raise HTTPException(status.HTTP_409_CONFLICT, _device_keeps_history())
-
     content = content.strip()
     if not content and not message.attachments:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, t("A message cannot be empty."))
@@ -1831,12 +1892,22 @@ async def edit_message(
     # `_reply_in_flight` is about *this* chat; the quota is about the account.
     _refuse_extra_reply(db, chat, user)
 
+    # A chat on a device: the conversation its model reads lives in the
+    # device's session, so the device rewinds first -- and refuses, as this
+    # route always did, when it cannot (not linked, no `rewind`, a turn typed
+    # in its terminal). Nothing here has changed yet when it refuses.
+    if chat.device_token_id:
+        await _device_rewind(chat, message)
+
     message.content = content
 
     # Attachments cascade with their message, so the files go too.
     discarded = _messages_after(db, message)
     for later in discarded:
         db.delete(later)
+    if chat.device_token_id:
+        # Sent to the device as a new turn, under a new id -- see `_renew_turn`.
+        message = _renew_turn(db, message)
 
     # A rewind to at or before the compaction boundary leaves that boundary
     # describing turns that no longer exist. There is no foreign key to null it
@@ -2517,10 +2588,25 @@ async def regenerate(
     message = db.get(Message, message_id)
     if message is None or message.chat_id != chat.id or message.role != ROLE_ASSISTANT:
         raise HTTPException(status.HTTP_404_NOT_FOUND, t("That reply no longer exists."))
-    if chat.device_token_id:
-        raise HTTPException(status.HTTP_409_CONFLICT, _device_keeps_history())
 
     _refuse_extra_reply(db, chat, user)
+
+    if chat.device_token_id:
+        # A chat on a device: the turn this reply answered -- the person's
+        # message before it, as `generation._device_turn` finds it -- is
+        # rewound on the device first, and sent again under a new id. The
+        # device refuses while the session works, and that is the answer.
+        asked = db.scalars(
+            select(Message)
+            .where(
+                Message.chat_id == chat.id,
+                Message.role == ROLE_USER,
+                Message.created_at <= message.created_at,
+            )
+            .order_by(Message.created_at.desc())
+        ).first()
+        await _device_rewind(chat, asked)
+        _renew_turn(db, asked)
 
     message.content = ""
     message.error = ""

@@ -140,6 +140,7 @@ MESSAGES.update(
         "Copy code": "Skopírovať kód",
         "Edit message": "Upraviť správu",
         "Edit and retry from here": "Upraviť a pokračovať odtiaľto",
+        "Files the device changed are not undone": "Súbory, ktoré zariadenie zmenilo, sa nevracajú späť",
         "Rewind and send": "Vrátiť sa a poslať",
         "Rewind the conversation": "Vrátiť konverzáciu",
         "Regenerate reply": "Vygenerovať odpoveď znova",

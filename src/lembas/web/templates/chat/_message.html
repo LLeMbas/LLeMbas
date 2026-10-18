@@ -306,11 +306,17 @@
          reply from the edited words, so a pencil here offers to rewrite what a
          machine reported and re-send it under the reader's own authority. The
          route refuses it too -- this only removes the button. #}
-      {% if message.role == "user" and not machine and not chat.device_token_id %}
+      {# A device keeps its own history: the pencil is there only while the
+         device is linked and offers `rewind`, and a turn typed in its terminal
+         has no turn id here to rewind by. The files the device changed are not
+         undone, and the control says so. #}
+      {% set device_rewinds = chat.device_token_id and device_offers(chat, "rewind") %}
+      {% if message.role == "user" and not machine and (not chat.device_token_id or (device_rewinds and message.origin != "terminal")) %}
       <button class="btn btn--icon btn--sm" type="button"
               hx-get="/api/chats/{{ chat.id }}/messages/{{ message.id }}/edit"
               hx-target="#msg-{{ message.id }}" hx-swap="outerHTML"
               data-edit-message
+              {% if chat.device_token_id %}title="{{ t('Files the device changed are not undone') }}"{% endif %}
               aria-label="{{ t('Edit and retry from here') }}">
         {{ icon("pencil", "icon--sm") }}
       </button>
@@ -325,11 +331,13 @@
               aria-label="{{ t('Continue') }}" title="{{ t('Continue from where it stopped') }}">
         {{ icon("chevron-right", "icon--sm") }}
       </button>
-      {# A device keeps its own history: nothing here can rewind it. #}
-      {% if not chat.device_token_id %}
+      {# A device keeps its own history: regenerate only while it is linked
+         and offers `rewind` (the same rule as the pencil above). #}
+      {% if not chat.device_token_id or device_rewinds %}
       <button class="btn btn--icon btn--sm" type="button"
               hx-post="/api/chats/{{ chat.id }}/messages/{{ message.id }}/regenerate"
               hx-target="#msg-{{ message.id }}" hx-swap="outerHTML"
+              {% if chat.device_token_id %}title="{{ t('Files the device changed are not undone') }}"{% endif %}
               aria-label="{{ t('Regenerate reply') }}">
         {{ icon("refresh", "icon--sm") }}
       </button>

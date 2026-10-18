@@ -786,6 +786,7 @@ MESSAGES: dict[str, str] = {
     "Discard": "Elvetés",
     "Discard this message?": "Elveti ezt az üzenetet?",
     "Edit and retry from here": "Szerkesztés és újrapróbálás innen",
+    "Files the device changed are not undone": "Az eszköz által módosított fájlok nem állnak vissza",
     "Read this reply aloud": "A válasz felolvasása",
     "Regenerate reply": "Válasz újragenerálása",
     "Send now": "Küldés most",

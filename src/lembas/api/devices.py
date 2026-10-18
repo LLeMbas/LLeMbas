@@ -310,7 +310,7 @@ async def device_link_socket(websocket: WebSocket) -> None:
         sending = asyncio.create_task(device_link.send_pending_deletes(link))
         await reading
         sending.cancel()
-    except Exception:  # noqa: BLE001 - one device's link, not the app
+    except Exception:  # one device's link, not the app
         log.warning("device link for %s ended badly", name, exc_info=True)
     finally:
         reading.cancel()
