@@ -64,7 +64,7 @@
     <span>
       {{ tm("This is tagged <strong>%(tag)s</strong> but reports
       version <strong>%(version)s</strong>. A tag cut before the version
-      bump names a release nobody can identify afterwards.", tag=state.version_mismatch, version=state.version) }}
+      bump names a release nobody can identify afterwards.", tag=state.version_mismatch, version=state.version_declared or state.version) }}
     </span>
   </div>
   {% endif %}

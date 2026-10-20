@@ -180,6 +180,8 @@ class State:
     # and it is the one thing about a release that is worth catching: a tag cut
     # before the version bump names a release nobody can identify afterwards.
     version_mismatch: str = ""
+    # What the code at that tag declares, which the note names beside the tag.
+    version_declared: str = ""
     helper: bool = False
     # What the helper will actually deploy, when it said. Empty means it did not
     # -- an older install -- and the page then says nothing rather than claiming
@@ -406,6 +408,19 @@ def spec_at(root: Path, ref: str) -> str:
         return ""
 
 
+_VERSION_LINE = re.compile(r'^__version__\s*=\s*["\']([^"\']+)["\']', re.MULTILINE)
+
+
+def version_at(root: Path, ref: str) -> str:
+    """The version the code at `ref` declares (`src/lembas/__init__.py`), or ""
+    when it cannot be read."""
+    code, output = _git(["show", f"{ref}:src/lembas/__init__.py"], cwd=root)
+    if code != 0:
+        return ""
+    match = _VERSION_LINE.search(output)
+    return match.group(1) if match else ""
+
+
 def _describe(root: Path) -> str:
     """What is running, in the most human terms git can manage.
 
@@ -473,11 +488,18 @@ def read(*, fetch: bool = False) -> State:
     code, status = _git(["status", "--porcelain"], cwd=root)
     dirty = bool(status.strip()) if code == 0 else False
 
-    # Exactly at a tag whose name disagrees with the version this process
-    # reports. No subprocess: `running` and `__version__` are both already here.
-    mismatch = ""
-    if RELEASE_TAG.match(running) and running != __version__:
-        mismatch = running
+    # Exactly at a tag whose name disagrees with the version the code at that
+    # tag declares. Against the checkout, not this process: during an update
+    # the checkout is at the new tag a moment before the service restarts, and
+    # a page drawn in that moment by the old process compared the new tag with
+    # its own old `__version__` and blamed a release that was cut correctly
+    # (1.5.0, reported as "tagged 1.5.0 but reports 1.3.0"). `__version__` is
+    # only the fallback when the file cannot be read at HEAD.
+    mismatch = declared = ""
+    if RELEASE_TAG.match(running):
+        declared = version_at(root, "HEAD") or __version__
+        if running != declared:
+            mismatch = running
 
     between: list[Release] = []
     target_spec = ""
@@ -497,6 +519,7 @@ def read(*, fetch: bool = False) -> State:
         behind=behind,
         dirty=dirty,
         version_mismatch=mismatch,
+        version_declared=declared if mismatch else "",
         error=error,
     )
 

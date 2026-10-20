@@ -3,6 +3,20 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## 1.5.1 — 2026-10-20
+
+A false warning on the update page.
+
+### Fixed
+
+- **"This is tagged 1.5.0 but reports version 1.3.0" during an update.** The
+  note that flags a tag cut before its version bump compared the tag the
+  checkout is at with the version of the running process. While an update is
+  being installed the checkout is already at the new release and the old
+  process is still answering, so a page drawn in that moment blamed a release
+  that was cut correctly. It now compares the tag with the version the code at
+  that tag declares, and names that version.
+
 ## 1.5.0 — 2026-10-20
 
 Memory, notes and skills are the LLeMbas CLI's tools: one harness for both.
