@@ -223,11 +223,13 @@ def test_an_adopted_tool_is_sent_exactly_as_the_spec_says(name):
 
 
 def test_a_former_name_still_runs_as_the_tool():
-    """`aliases.llembas`: a name a transcript or a trained model still uses."""
+    """`aliases.llembas`: a name a transcript or a trained model still uses --
+    unless LLeMbas still has a tool by that name, which keeps it."""
     for name, spec in harness_spec.tools().items():
         for alias in spec.get("aliases", {}).get("llembas", []):
             resolved, _args = tools_service.resolve_alias(alias, {})
-            assert resolved == name, alias
+            expected = alias if alias in tools_service.REGISTRY else name
+            assert resolved == expected, alias
     # And the one that changed its arguments: a todo list arrives as a plan.
     name, args = tools_service.resolve_alias(
         "todo", {"todos": [{"content": "Fix it", "status": "in_progress"}]}
@@ -235,6 +237,22 @@ def test_a_former_name_still_runs_as_the_tool():
     assert name == "plan_write"
     assert args["title"] == "Work" and args["phases"][0]["tasks"][0]["status"] == "doing"
 
+
+
+def test_no_offered_tool_is_renamed_away():
+    """The spec lists `fetch`, `notes_get`, `memory_add` and others as former
+    names of spec tools LLeMbas does not have. Rewritten, each call to them
+    came back "Unknown tool" -- 1.3.0 broke every one. A name that was offered
+    keeps it, and an alias whose target was not offered is left alone."""
+    offered = dict(tools_service.REGISTRY)
+    for name in offered:
+        assert tools_service.resolve_alias(name, {"x": 1}, offered)[0] == name, name
+    # `subagent_run` -> `task` still converts where `task` is offered ...
+    assert tools_service.resolve_alias("subagent_run", {"task": "t"}, {"task": object()})[0] == (
+        "task"
+    )
+    # ... and not where it is not: nothing is gained by renaming to a stranger.
+    assert tools_service.resolve_alias("subagent_run", {"task": "t"}, {})[0] == "subagent_run"
 
 # --- The prompt texts -----------------------------------------------------------
 def _identical():

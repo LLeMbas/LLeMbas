@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -345,7 +345,9 @@ def spec_aliases() -> dict[str, str]:
     return out
 
 
-def resolve_alias(name: str, args: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+def resolve_alias(
+    name: str, args: dict[str, Any], offered: Mapping[str, Any] | None = None
+) -> tuple[str, dict[str, Any]]:
     """A tool call by a former name, as the call it means.
 
     The spec keeps each tool's old names per project (`aliases.llembas`), and a
@@ -355,9 +357,20 @@ def resolve_alias(name: str, args: dict[str, Any]) -> tuple[str, dict[str, Any]]
     `plans.from_todos`), and `subagent_run`'s task, title, context and write
     become `task`'s prompt and description, with `write` kept as the helper's
     own extra. A name that is no alias comes back unchanged.
+
+    So does a name LLeMbas still has a tool by. The spec lists the server's
+    current names (`fetch`, `notes_get`, `memory_add`, ...) as former names of
+    spec tools LLeMbas has not taken on, and rewriting those turned every call
+    to them into "Unknown tool". `offered` is what this request was offered:
+    given it, the call keeps its name when that name is offered or the alias's
+    target is not. Without it, the registry stands in for the first check.
     """
     target = spec_aliases().get(name)
     if target is None:
+        return name, args
+    if name in (REGISTRY if offered is None else offered):
+        return name, args
+    if offered is not None and target not in offered:
         return name, args
     if name == "todo":
         plan = plans.from_todos(args.get("todos"))

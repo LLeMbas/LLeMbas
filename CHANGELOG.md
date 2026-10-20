@@ -3,6 +3,22 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## 1.3.1 — 2026-10-20
+
+Reading a page after a search works again.
+
+### Fixed
+
+- **Fetch, notes, memories and skills answered "Unknown tool".** Since 1.3.0
+  every call a model made to `fetch` was renamed to the harness spec's
+  `web_fetch`, a tool this server does not have, so a model that searched and
+  then tried to read a result failed every time, whichever model it was. The
+  same happened to `notes_get`, `notes_create`, `notes_edit`, `notes_delete`,
+  `memory_add`, `memory_forget`, `skill_create`, `skill_edit` and `skill_get`.
+  A former tool name is now converted only when the name was not offered and
+  the tool it stands for was; `todo` and `subagent_run` still convert as
+  before. Harness spec 1.1.0, unchanged.
+
 ## 1.3.0 — 2026-10-18
 
 Every chat can keep a plan, and any chat can be put into Plan mode.

@@ -1070,9 +1070,12 @@ async def _run(generation: Generation) -> None:
             # phase, `subagent_run` is `task`. Rewritten in place, so the card,
             # the policy, the runner and the echoed assistant turn all see one
             # name -- an endpoint matches the tool turn by id, not by name.
+            # Only against what was offered: a name this request has a tool by
+            # is never rewritten away from it.
+            book = _book(tool_context)
             for call in calls:
                 resolved, converted = tools_service.resolve_alias(
-                    call["name"], tools_service.parse_arguments(None, call["arguments"])
+                    call["name"], tools_service.parse_arguments(None, call["arguments"]), book
                 )
                 if resolved != call["name"]:
                     call["name"] = resolved

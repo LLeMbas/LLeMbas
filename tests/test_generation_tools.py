@@ -94,6 +94,42 @@ async def test_a_tool_call_produces_a_second_request(db, user_id, monkeypatch):
     assert generation.tool_events[0]["results"][0]["url"] == "https://tolkien.test/mallorn"
 
 
+async def test_fetch_after_a_search_runs_as_fetch(db, user_id, monkeypatch):
+    """1.3.0 rewrote every `fetch` call to the spec's `web_fetch`, which this
+    server has no tool by, so a model that searched and then read a page got
+    "Unknown tool" every time, whichever model it was."""
+    from lembas.services import fetch as fetch_service
+
+    settings_store.update(db, {"enabled": True, "fetch_enabled": True}, key=settings_store.SEARCH)
+    chat_id, message_id = _chat_with_tools(db, user_id)
+
+    async def fake_fetch(url, *, allow_private=False):
+        return fetch_service.Fetched(url=url, title="Mallorn", text="A golden tree of Lorien.")
+
+    monkeypatch.setattr(fetch_service, "fetch", fake_fetch)
+    payloads = []
+    monkeypatch.setattr(
+        generation_service,
+        "stream_chat",
+        _stub_stream(
+            [
+                [_tool_call_chunk("fetch", '{"url": "https://tolkien.test/mallorn"}')],
+                [_text_chunk("A mallorn is a golden tree.")],
+            ],
+            payloads,
+        ),
+    )
+    monkeypatch.setattr("lembas.services.chat.generate_title", _never_called_title)
+
+    generation = generation_service.Generation(chat_id=chat_id, message_id=message_id)
+    await generation_service._run(generation)
+
+    assert "fetch" in {tool["function"]["name"] for tool in payloads[0]["tools"]}
+    assert generation.tool_events[0]["name"] == "fetch"
+    assert generation.tool_events[0]["status"] == "ok"
+    turn = [m for m in payloads[1]["messages"] if m.get("role") == "tool"][0]
+    assert "A golden tree of Lorien." in turn["content"]
+
 async def test_the_tools_array_is_absent_without_the_capability(db, user_id, monkeypatch):
     chat_id, message_id = _chat_with_tools(db, user_id)
     # Search enabled, but the model is not marked as supporting tools.
