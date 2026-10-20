@@ -950,17 +950,18 @@ BUILTIN: tuple[Fragment, ...] = (
         group=GROUP_TOOLS,
         order=205,
         families=("fetch",),
-        hint="Appears when the fetch tool is offered. The sentence about "
+        hint="Appears when the web_fetch tool is offered. The sentence about "
         "JavaScript is the one that earns its place: an empty page is the "
         "commonest confusing result, and without it a model concludes the "
         "page is gone rather than that it could not be read.",
         default=(
-            "- You can read one web page at a time with fetch, given its address. Use "
-            "it after a search when the snippet is not enough, on a link somebody gave "
-            "you, or on a link inside a page you have just read. It returns the page's "
-            "text with the markup gone and cannot run JavaScript, so a page that comes "
-            "back empty is usually one that builds itself in the browser rather than "
-            "one that is missing. Quote the address of anything you take from it."
+            "- You can read one web page at a time with web_fetch, given its address. "
+            "Use it after a search when the snippet is not enough, on a link somebody "
+            "gave you, or on a link inside a page you have just read. It returns the "
+            "page as markdown, a long page in parts, and cannot run JavaScript, so a "
+            "page that comes back empty is usually one that builds itself in the "
+            "browser rather than one that is missing. Quote the address of anything "
+            "you take from it."
         ),
     ),
     Fragment(

@@ -364,18 +364,18 @@ def _offered_names(db, user_id, **capabilities):
 
 
 def test_fetch_is_offered_by_default(db, user_id):
-    assert "fetch" in _offered_names(db, user_id)
+    assert "web_fetch" in _offered_names(db, user_id)
 
 
 def test_fetch_needs_the_model_capability(db, user_id):
-    assert "fetch" not in _offered_names(db, user_id, tool_fetch=False)
+    assert "web_fetch" not in _offered_names(db, user_id, tool_fetch=False)
 
 
 def test_fetch_needs_the_instance_switch(db, user_id):
     """Separate from the link-attach path on purpose: an administrator can stop
     a model choosing an address while somebody attaching one still works."""
     settings_store.update(db, {"fetch_enabled": False}, key=settings_store.SEARCH)
-    assert "fetch" not in _offered_names(db, user_id)
+    assert "web_fetch" not in _offered_names(db, user_id)
 
 
 def test_fetch_needs_the_permission(db, user_id):
@@ -385,7 +385,7 @@ def test_fetch_needs_the_permission(db, user_id):
     db.commit()
 
     chat = _chat_with(db, user_id, capabilities={"tools": True})
-    assert "fetch" not in {d.name for d in tools_service.resolve_tools(db, chat, user).defs}
+    assert "web_fetch" not in {d.name for d in tools_service.resolve_tools(db, chat, user).defs}
 
 
 def test_fetch_does_not_need_the_library_permission(db, user_id):
@@ -397,7 +397,7 @@ def test_fetch_does_not_need_the_library_permission(db, user_id):
     db.commit()
 
     chat = _chat_with(db, user_id, capabilities={"tools": True})
-    assert "fetch" in {d.name for d in tools_service.resolve_tools(db, chat, user).defs}
+    assert "web_fetch" in {d.name for d in tools_service.resolve_tools(db, chat, user).defs}
 
 
 async def test_a_failed_fetch_does_not_kill_the_reply(monkeypatch):
@@ -409,7 +409,7 @@ async def test_a_failed_fetch_does_not_kill_the_reply(monkeypatch):
     monkeypatch.setattr(fetch_service, "fetch", boom)
 
     outcome = await tools_service.run_tool(
-        _context(), "fetch", '{"url": "https://a.test/"}'
+        _context(), "web_fetch", '{"url": "https://a.test/"}'
     )
     assert outcome.event["status"] == "error"
     assert "not reachable" in outcome.content
@@ -477,6 +477,58 @@ async def test_a_long_page_is_cut_and_the_model_told(monkeypatch):
 
     monkeypatch.setattr(fetch_service, "fetch", big)
 
-    outcome = await tools_service.run_tool(_context(), "fetch", '{"url": "https://a.test/"}')
+    outcome = await tools_service.run_tool(_context(), "web_fetch", '{"url": "https://a.test/"}')
     assert len(outcome.content) < tools_service.MAX_FETCH_CHARS + 500
-    assert "cut off" in outcome.content
+    assert "call again with offset 20000" in outcome.content
+
+
+async def test_a_long_page_is_read_in_parts_with_offset(monkeypatch):
+    """The harness spec's `web_fetch`: a long page comes in parts, and the
+    model continues with `offset` -- the LLeMbas CLI's page size and wording."""
+    from lembas.services import fetch as fetch_service
+
+    text = "a" * 20_000 + "b" * 20_000 + "c" * 5_000
+
+    async def big(*_args, **_kwargs):
+        return fetch_service.Fetched(url="https://a.test/", title="Long", text=text)
+
+    monkeypatch.setattr(fetch_service, "fetch", big)
+
+    first = await tools_service.run_tool(_context(), "web_fetch", '{"url": "https://a.test/"}')
+    assert first.content.startswith("# Long\nhttps://a.test/\n\n")
+    assert "(25000 more characters — call again with offset 20000)" in first.content
+    second = await tools_service.run_tool(
+        _context(), "web_fetch", '{"url": "https://a.test/", "offset": 20000}'
+    )
+    assert "b" * 20_000 in second.content and "aaaa" not in second.content
+    assert "call again with offset 40000" in second.content
+    last = await tools_service.run_tool(
+        _context(), "web_fetch", '{"url": "https://a.test/", "offset": 40000}'
+    )
+    assert last.content.endswith("c" * 5_000)
+
+
+async def test_a_page_cut_at_the_fetch_ceiling_says_so_on_its_last_part(monkeypatch):
+    from lembas.services import fetch as fetch_service
+
+    async def capped(*_args, **_kwargs):
+        return fetch_service.Fetched(url="https://a.test/", title="", text="x", truncated=True)
+
+    monkeypatch.setattr(fetch_service, "fetch", capped)
+    outcome = await tools_service.run_tool(_context(), "web_fetch", '{"url": "https://a.test/"}')
+    assert outcome.content.startswith("https://a.test/")
+    assert "has been cut off" in outcome.content
+
+
+async def test_the_model_is_given_markdown(monkeypatch):
+    from lembas.services import fetch as fetch_service
+
+    seen = {}
+
+    async def spy(url, **kwargs):
+        seen.update(kwargs)
+        return fetch_service.Fetched(url=url, title="T", text="# T")
+
+    monkeypatch.setattr(fetch_service, "fetch", spy)
+    await tools_service.run_tool(_context(), "web_fetch", '{"url": "https://a.test/"}')
+    assert seen["markdown"] is True

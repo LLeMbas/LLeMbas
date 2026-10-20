@@ -250,9 +250,11 @@ async def web_search(request: Request, db: Db, caller: ModelsCaller):
 
 @router.post("/api/v1/fetch")
 async def web_fetch(request: Request, db: Db, caller: ModelsCaller):
-    """`{"url": …}` → the page as text, through `services/fetch.py`: every
-    redirect re-checked, and this network out of reach unless the administrator
-    allowed it."""
+    """`{"url": …}` → the page, through `services/fetch.py`: every redirect
+    re-checked, and this network out of reach unless the administrator allowed
+    it. `text` is markdown, as the LLeMbas CLI's `web_fetch` reads a page by
+    every other route (its own fetch, Firecrawl), so the model is handed the
+    same thing whichever one the CLI is set to."""
     from lembas.services import fetch as fetch_service
 
     if not available(db, caller.user)["fetch"]:
@@ -266,7 +268,7 @@ async def web_fetch(request: Request, db: Db, caller: ModelsCaller):
     config = settings_store.search(db)
     try:
         page = await fetch_service.fetch(
-            url, allow_private=bool(config.get("allow_private_fetch"))
+            url, allow_private=bool(config.get("allow_private_fetch")), markdown=True
         )
     except fetch_service.FetchError as exc:
         return error_response(502, exc.message, "upstream_error")

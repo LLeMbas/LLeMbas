@@ -68,6 +68,7 @@ LABELS: dict[str, str] = {
     "job_stop": "Job stopped",
     # The web.
     "web_search": "Web search",
+    "web_fetch": "Fetch",
     "fetch": "Fetch",
     # The library.
     "knowledge_search": "Knowledge searched",
@@ -129,6 +130,7 @@ ICONS: dict[str, str] = {
     "job_list": "dots",
     "job_stop": "stop-circle",
     "web_search": "globe",
+    "web_fetch": "link",
     "fetch": "link",
     "knowledge_search": "archive",
     "knowledge_get": "file-text",
@@ -185,6 +187,7 @@ ACTIONS: dict[str, str] = {
     "file_edit": "Update a file",
     "file_list": "List a directory",
     "web_search": "Search the web",
+    "web_fetch": "Fetch a page",
     "fetch": "Fetch a page",
     "knowledge_search": "Search the library",
     "knowledge_get": "Read a document",
@@ -231,6 +234,7 @@ DETAIL_KEYS: dict[str, str] = {
     "file_write": "path",
     "file_edit": "path",
     "file_list": "path",
+    "web_fetch": "url",
     "fetch": "url",
     "web_search": "query",
     "knowledge_search": "query",

@@ -323,7 +323,7 @@ def test_no_ceiling_means_no_round_budget_is_claimed(db, owner):
 
 
 def test_the_fetch_guidance_appears_only_with_the_tool(db, owner):
-    assert "read one web page at a time" in harness.compose(db, owner, _tools("fetch"))
+    assert "read one web page at a time" in harness.compose(db, owner, _tools("web_fetch"))
     assert "read one web page at a time" not in harness.compose(db, owner, _tools("web_search"))
 
 

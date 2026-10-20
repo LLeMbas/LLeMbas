@@ -94,16 +94,17 @@ async def test_a_tool_call_produces_a_second_request(db, user_id, monkeypatch):
     assert generation.tool_events[0]["results"][0]["url"] == "https://tolkien.test/mallorn"
 
 
-async def test_fetch_after_a_search_runs_as_fetch(db, user_id, monkeypatch):
+async def test_fetch_after_a_search_runs_as_web_fetch(db, user_id, monkeypatch):
     """1.3.0 rewrote every `fetch` call to the spec's `web_fetch`, which this
-    server has no tool by, so a model that searched and then read a page got
-    "Unknown tool" every time, whichever model it was."""
+    server had no tool by, so a model that searched and then read a page got
+    "Unknown tool" every time. The tool is `web_fetch` now, and a model still
+    calling it `fetch` -- a transcript, a habit -- gets the page all the same."""
     from lembas.services import fetch as fetch_service
 
     settings_store.update(db, {"enabled": True, "fetch_enabled": True}, key=settings_store.SEARCH)
     chat_id, message_id = _chat_with_tools(db, user_id)
 
-    async def fake_fetch(url, *, allow_private=False):
+    async def fake_fetch(url, *, allow_private=False, markdown=False):
         return fetch_service.Fetched(url=url, title="Mallorn", text="A golden tree of Lorien.")
 
     monkeypatch.setattr(fetch_service, "fetch", fake_fetch)
@@ -124,8 +125,9 @@ async def test_fetch_after_a_search_runs_as_fetch(db, user_id, monkeypatch):
     generation = generation_service.Generation(chat_id=chat_id, message_id=message_id)
     await generation_service._run(generation)
 
-    assert "fetch" in {tool["function"]["name"] for tool in payloads[0]["tools"]}
-    assert generation.tool_events[0]["name"] == "fetch"
+    offered = {tool["function"]["name"] for tool in payloads[0]["tools"]}
+    assert "web_fetch" in offered and "fetch" not in offered
+    assert generation.tool_events[0]["name"] == "web_fetch"
     assert generation.tool_events[0]["status"] == "ok"
     turn = [m for m in payloads[1]["messages"] if m.get("role") == "tool"][0]
     assert "A golden tree of Lorien." in turn["content"]

@@ -184,6 +184,27 @@ def test_fetch_keeps_the_ssrf_guard(client, db, registered):
     assert response.status_code == 502
 
 
+
+def test_fetch_hands_the_cli_markdown(client, db, registered, mock_http, monkeypatch):
+    """What the LLeMbas CLI's `web_fetch` gets by its other routes (its own
+    fetch, Firecrawl), so a model reads a page the same way whichever is set."""
+    import socket
+
+    monkeypatch.setattr(
+        socket, "getaddrinfo", lambda *a, **k: [(2, 1, 6, "", ("93.184.216.34", 80))]
+    )
+    settings_store.update(db, {"fetch_enabled": True}, key=settings_store.SEARCH)
+    mock_http(
+        lambda _r: httpx.Response(
+            200,
+            headers={"content-type": "text/html"},
+            text="<head><title>L</title></head><h2>Waybread</h2><p>See <a href='/m'>more</a>.</p>",
+        )
+    )
+    response = client.post("/api/v1/fetch", headers=_bearer(db), json={"url": "https://e.org/l"})
+    assert response.status_code == 200, response.text
+    assert response.json()["text"] == "## Waybread\n\nSee [more](https://e.org/m)."
+
 def test_a_library_token_reaches_none_of_it(client, db, registered):
     _voice(db)
     headers = _bearer(db, scopes=("library",))

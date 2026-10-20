@@ -157,15 +157,16 @@ RISK_ASK = "ask"
 
 RISKS = (RISK_READ, RISK_WRITE, RISK_EXECUTE, RISK_ASK)
 
-# How much of a fetched page reaches the model. `fetch()` returns up to 120_000
-# characters, which is roughly thirty thousand tokens -- one call would fill an
-# ordinary window and, in an agent chat, spend the whole output budget on a
-# single page. Cut with the model told so, rather than refused.
+# How much of a fetched page reaches the model in one call. `fetch()` returns up
+# to 120_000 characters, which is roughly thirty thousand tokens -- one call would
+# fill an ordinary window and, in an agent chat, spend the whole output budget on
+# a single page. So `web_fetch` reads it in parts of this size, with `offset`
+# for the next one -- the LLeMbas CLI's page size too.
 MAX_FETCH_CHARS = 20_000
 
 # The same bound for a knowledge document, and it was missing. `knowledge_get`
 # returned `extracted_text` whole while every sibling reader capped and said so
-# -- `fetch` above, `file_read`, the memories block, the skill index, the
+# -- `web_fetch` above, `file_read`, the memories block, the skill index, the
 # project listing. `MAX_EXTRACTED_CHARS` is 120_000 by default and an
 # administrator can raise it, so one call on a long PDF filled an ordinary
 # window with nothing anywhere reporting that it had.
@@ -173,7 +174,7 @@ MAX_FETCH_CHARS = 20_000
 # Larger than a fetched page on purpose. Somebody put this document in the
 # library deliberately and named it in a search; a page the model followed a
 # link to is a guess. Cut with the model told so rather than refused, which is
-# what `fetch` and `file_read` both do -- a reader that fails on exactly the
+# what `web_fetch` and `file_read` both do -- a reader that fails on exactly the
 # documents worth reading is worse than one that hands back the first part and
 # says there was more.
 MAX_DOCUMENT_CHARS = 40_000
@@ -433,14 +434,18 @@ async def _run_web_search(context: ToolContext, args: dict[str, Any]) -> ToolOut
 
 
 # --- Fetching one page ---------------------------------------------------------
-async def _run_fetch(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
-    """Retrieve one URL and hand back its text.
+async def _run_web_fetch(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
+    """Retrieve one URL and hand back a part of it as markdown.
 
     Straight through `services/fetch.py`, which owns the SSRF guard, the
     hand-rolled redirect loop that re-checks every hop, and the content-type
     sniff. Deliberately not a second HTTP client: the working notes already name three
     places that follow redirects by hand as the ceiling, and a fourth is how one
     of them loses its check.
+
+    Read in parts the way the LLeMbas CLI's `web_fetch` reads a page: up to
+    `MAX_FETCH_CHARS` from `offset`, the title as a heading, then the address,
+    and a closing line naming the offset to call again with while more is left.
     """
     from lembas.services import fetch as fetch_service
 
@@ -448,34 +453,50 @@ async def _run_fetch(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
     if not url:
         return ToolOutcome(
             "No address was given.",
-            {"name": "fetch", "status": "error", "error": "No URL."},
+            {"name": "web_fetch", "status": "error", "error": "No URL."},
         )
+    try:
+        offset = max(int(args.get("offset") or 0), 0)
+    except (TypeError, ValueError):
+        offset = 0
 
     try:
         page = await fetch_service.fetch(
-            url, allow_private=bool(context.search_config.get("allow_private_fetch"))
+            url,
+            allow_private=bool(context.search_config.get("allow_private_fetch")),
+            markdown=True,
         )
     except fetch_service.FetchError as exc:
         # Its messages are already written to be shown to a person, which is
         # close enough to being written for a model to act on.
         return ToolOutcome(
             f"That page could not be read: {exc.message}",
-            {"name": "fetch", "query": url, "status": "error", "error": exc.message},
+            {"name": "web_fetch", "query": url, "status": "error", "error": exc.message},
         )
 
-    text = page.text[:MAX_FETCH_CHARS]
-    cut = page.truncated or len(page.text) > MAX_FETCH_CHARS
+    text = page.text
+    part = text[offset : offset + MAX_FETCH_CHARS]
+    left = len(text) - offset - MAX_FETCH_CHARS
+    if left > 0:
+        more = (
+            f"\n\n({left} more characters — call again with offset "
+            f"{offset + MAX_FETCH_CHARS})"
+        )
+    elif page.truncated:
+        more = "\n\n(The page was longer than this and has been cut off.)"
+    else:
+        more = ""
     event = {
-        "name": "fetch",
+        "name": "web_fetch",
         "kind": "fetch",
         "query": page.title or url,
         "detail": page.url,
         "status": "ok",
         "results": [],
-        "text": text[:2000],
+        "text": part[:2000],
     }
-    note = "\n\n(The page was longer than this and has been cut off.)" if cut else ""
-    return ToolOutcome(f"{page.title}\n{page.url}\n\n{text}{note}", event)
+    heading = f"# {page.title}\n" if page.title else ""
+    return ToolOutcome(f"{heading}{page.url}\n\n{part}{more}", event)
 
 
 # --- Knowledge ---------------------------------------------------------------
@@ -1131,54 +1152,21 @@ async def _run_plan_submit(context: ToolContext, args: dict[str, Any]) -> ToolOu
 REGISTRY: dict[str, ToolDef] = {
     tool.name: tool
     for tool in (
+        # The two web tools are the harness spec's, word for word, as the
+        # LLeMbas CLI sends them.
         ToolDef(
             name="web_search",
             family=FAMILY_SEARCH,
-            description=(
-                "Search the web for current information. Use this when the answer "
-                "depends on recent events, on facts you are unsure of, or on "
-                "anything that may have changed since your training data. Returns "
-                "a numbered list of results with titles, URLs and short extracts."
-            ),
-            parameters=_object(
-                {
-                    "query": {
-                        "type": "string",
-                        "description": "The search terms. Keep them short and specific.",
-                    },
-                    "max_results": {
-                        "type": "integer",
-                        "description": "How many results to return.",
-                    },
-                },
-                ["query"],
-            ),
+            description=spec_description("web_search"),
+            parameters=spec_parameters("web_search"),
             run=_run_web_search,
         ),
         ToolDef(
-            name="fetch",
+            name="web_fetch",
             family=FAMILY_FETCH,
-            description=(
-                "Retrieve one web page and read it as text. Use it on an address "
-                "you already have — from a search result, from the person you are "
-                "talking to, or from a link in a page you have just read. "
-                "Redirects are followed and the markup is removed, so what comes "
-                "back is the prose rather than the HTML. It cannot run "
-                "JavaScript: a page that comes back empty is usually one that "
-                "builds itself in the browser rather than one that is missing. It "
-                "is not a general HTTP client — GET only, no headers, no body — "
-                "and a long page is cut off at the end."
-            ),
-            parameters=_object(
-                {
-                    "url": {
-                        **_STRING,
-                        "description": "The http or https address of the page.",
-                    }
-                },
-                ["url"],
-            ),
-            run=_run_fetch,
+            description=spec_description("web_fetch"),
+            parameters=spec_parameters("web_fetch"),
+            run=_run_web_fetch,
         ),
         # The two library readers are the harness spec's, word for word. The one
         # thing not copied: a document's id is a string here (`Document.id`),

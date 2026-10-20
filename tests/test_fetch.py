@@ -10,7 +10,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from lembas.services.fetch import FetchError, check_url, fetch, html_to_text
+from lembas.services.fetch import FetchError, check_url, fetch, html_to_markdown, html_to_text
 
 
 # --- What is refused ---------------------------------------------------------
@@ -231,3 +231,66 @@ async def test_binary_is_still_refused(mock_http, public, content_type):
     )
     with pytest.raises(FetchError, match="Attach it as a file"):
         await fetch("https://example.com/x")
+
+
+# --- Markdown, for a model reading the page (`web_fetch`) -------------------------
+# The LLeMbas CLI reads a page with turndown (ATX headings, fenced code, `-`
+# bullets, `_` / `**`), keeping `<main>` or `<article>` when there is one and
+# dropping script, style, navigation and the footer. These hold the server to
+# the same reading.
+_PAGE = (
+    "<html><head><title>Mallorn &amp; trees</title><style>p{}</style></head><body>"
+    "<nav>Menu <a href='/x'>x</a></nav><main><h1>The Mallorn</h1>"
+    "<p>A <b>golden</b> tree of <a href='/lorien'>Lothlórien</a>, see <i>LotR</i>.</p>"
+    "<ul><li>Leaves <code>gold</code></li><li>Bark<ol><li>one</li><li>two</li></ol></li></ul>"
+    "<blockquote><p>Quoted</p></blockquote>"
+    "<pre><code>def f():\n    return 1</code></pre>"
+    "<script>evil()</script><img src='/i.png' alt='tree'></main>"
+    "<footer>Foot</footer></body></html>"
+)
+
+
+def test_markdown_keeps_the_structure():
+    title, text = html_to_markdown(_PAGE, "https://ex.test/page")
+    assert title == "Mallorn & trees"
+    assert text == (
+        "# The Mallorn\n\n"
+        "A **golden** tree of [Lothlórien](https://ex.test/lorien), see _LotR_.\n\n"
+        "- Leaves `gold`\n- Bark\n  1. one\n  2. two\n\n"
+        "> Quoted\n\n"
+        "```\ndef f():\n    return 1\n```\n\n"
+        "![tree](https://ex.test/i.png)"
+    )
+
+
+def test_markdown_drops_what_is_not_the_page():
+    _title, text = html_to_markdown(_PAGE, "https://ex.test/")
+    for gone in ("Menu", "Foot", "evil", "p{}"):
+        assert gone not in text
+
+
+def test_markdown_reads_the_whole_page_without_main():
+    _title, text = html_to_markdown("<mainframe>A</mainframe><p>B</p>", "")
+    assert text == "A\n\nB"
+
+
+def test_markdown_on_a_page_of_unclosed_tags_is_quick():
+    import time
+
+    started = time.monotonic()
+    html_to_markdown("<main" * 20_000, "")
+    assert time.monotonic() - started < 2
+
+
+async def test_fetch_gives_markdown_when_asked(mock_http, public):
+    mock_http(
+        lambda _r: httpx.Response(
+            200,
+            headers={"content-type": "text/html"},
+            text="<title>M</title><p>A <a href='/b'>link</a>.</p>",
+        )
+    )
+    page = await fetch("https://example.com/a", markdown=True)
+    assert page.text == "A [link](https://example.com/b)."
+    plain = await fetch("https://example.com/a")
+    assert "link" in plain.text and "](" not in plain.text

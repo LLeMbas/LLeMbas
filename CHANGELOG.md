@@ -3,6 +3,28 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## 1.4.0 — 2026-10-20
+
+The web tools are the LLeMbas CLI's: the same names, words and behaviour.
+
+### Changed
+
+- **`fetch` is `web_fetch` now**, the harness spec's tool, word for word as
+  the LLeMbas CLI sends it. A page comes back as markdown -- headings, lists,
+  links with their full addresses, code blocks -- instead of flattened text,
+  so a model can follow a link it read, and the page's own `<main>` or
+  `<article>` is taken when it has one, with navigation, footers and scripts
+  left out. A long page is read in parts: 20,000 characters at a time, with
+  the offset to continue from at the end of each part, where before
+  everything past the first part was cut off. A model or a transcript still
+  calling it `fetch` gets `web_fetch`.
+- **`web_search` is described the spec's way** too, and points a model at
+  `web_fetch` for the pages that matter.
+- **`/api/v1/fetch` returns markdown**, so a CLI reading pages through this
+  instance gets the same page it would get by fetching it itself.
+- Nothing to change in settings: the switch, the permission (`tools.fetch`)
+  and the per-model tool settings are the ones they were. Harness spec 1.1.0.
+
 ## 1.3.1 — 2026-10-20
 
 Reading a page after a search works again.

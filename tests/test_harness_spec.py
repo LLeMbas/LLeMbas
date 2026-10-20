@@ -172,12 +172,12 @@ SHARED_ADOPTED = (
     "knowledge_get",
     "ask_user",
     "task",
+    "web_search",
+    "web_fetch",
 )
 # Shared tools whose LLeMbas implementation keeps its own name or shape for now,
 # and why -- the parity page lists the same.
 TOOLS_PENDING = {
-    "web_search": "LLeMbas's own description; same name",
-    "web_fetch": "still fetch",
     "memory": "memory_add / memory_forget",
     "notes_search": "LLeMbas's notes tools, five",
     "note_view": "notes_get",

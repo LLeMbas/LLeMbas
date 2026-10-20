@@ -39,7 +39,9 @@ def test_initialize_and_list(client, db, registered):
     names = {t["name"] for t in _rpc(client, headers, "tools/list").json()["result"]["tools"]}
     assert {"memory_add", "notes_search", "knowledge_search"} <= names
     # Nothing that is not the library.
-    assert not names & {"bash", "fetch", "web_search", "image_generate", "schedule_create"}
+    assert not names & {
+        "bash", "fetch", "web_fetch", "web_search", "image_generate", "schedule_create"
+    }
 
 
 def test_a_notification_is_accepted_without_an_answer(client, db, registered):
