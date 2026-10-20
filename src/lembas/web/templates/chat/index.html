@@ -215,9 +215,10 @@
 
       {% if chat %}
       {#
-        Where a reply that started outside a request arrives. A background job
-        finishing wakes the chat server-side and there is no channel to say so:
-        the only stream is per-message, opened by a bubble this page has not got.
+        Where a reply that started outside a request arrives. A schedule
+        firing, or a background helper ending with its note, wakes the chat
+        server-side (`wake.wake_chat`) and there is no channel to say so: the
+        only stream is per-message, opened by a bubble this page has not got.
         See `GET /api/chats/{id}/tail`, and `app.js` for the cursor -- which is
         read from the DOM on `htmx:configRequest`, not rendered here, because the
         DOM is the honest answer to what this page already holds.
@@ -227,8 +228,8 @@
         living inside would be swapped away by the first one and never fire
         again. OUTSIDE the composer's form as well, and it names its own target
         regardless -- htmx inherits `hx-target`, the form carries `#thread`, and
-        the jobs chip has already demonstrated once what an unstated target does
-        to a transcript.
+        a polling chip that once lived inside it demonstrated what an unstated
+        target does to a transcript.
 
         `hx-sync="this:drop"` because a poll fires whether or not the last one
         has come back, and two answers computed from the same cursor are two
@@ -254,6 +255,14 @@
       {% if chat and chat.kind == "task" %}
         {% include "schedules/_strip.html" %}
       {% else %}
+        {% if chat %}
+        {# The chat's background jobs -- helpers started here, a device's jobs
+           -- with Stop and a way into a helper. Above the plan, as the LLeMbas
+           CLI's status bar sits above its prompt. #}
+        {% with jobs = (jobs | default([])), oob = false %}
+          {% include "chat/_jobs_strip.html" %}
+        {% endwith %}
+        {% endif %}
         {% with plan = (chat.plan if chat else {}), oob = false %}
           {% include "chat/_plan_panel.html" %}
         {% endwith %}
@@ -268,6 +277,9 @@
      -- see the toggle group. #}
   {% if canvas_enabled %}
     {% include "chat/_canvas.html" %}
+  {% endif %}
+  {% if chat and chat.kind != "task" %}
+    {% include "chat/_job_panel.html" %}
   {% endif %}
   {% if prototypes_enabled %}
     {% include "chat/_prototype.html" %}
@@ -317,6 +329,12 @@
     <button class="winswitch__btn" type="button" data-window="#terminal" aria-pressed="false"
             {% if not chat %}data-agent-only hidden{% endif %}>
       {{ icon("terminal", "icon--sm") }}<span class="winswitch__label">{{ t("Terminal") }}</span>
+    </button>
+    {% endif %}
+    {% if chat and chat.kind != "task" %}
+    <button class="winswitch__btn" type="button" data-window="#jobpanel" aria-pressed="false"
+            aria-label="{{ t('Helper') }}" title="{{ t('Helper') }}">
+      {{ icon("sparkle", "icon--sm") }}
     </button>
     {% endif %}
     {% if models and (chat or scope_families or scope_skills or scope_allow) and not (chat and chat.kind == "task") %}

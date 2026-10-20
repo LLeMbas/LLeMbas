@@ -164,6 +164,11 @@ class Item:
     # Edit or Manual). A chat's own plan has no modes to choose between --
     # approval ends Plan mode and that is all -- so its card offers none.
     mode_choice: bool = True
+    # Which background subagent is asking, when one is (`_meta.lembas.job` on a
+    # device's `request_permission`, spec 2.0.0): "explore (job7)". Empty for
+    # the session's own call. Said on the card, because a background subagent
+    # may ask while the conversation itself is idle.
+    job: str = ""
 
 
 @dataclass

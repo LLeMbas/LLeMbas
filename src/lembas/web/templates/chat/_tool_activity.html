@@ -110,13 +110,34 @@
           {% if block.title %}<code class="tool-line__title">{{ block.title }}</code>{% endif %}
         {% endif %}
         {% for chip in block.chips %}<span class="tool-chip{{ ' tool-chip--bad' if chip.startswith('exit ') and chip != 'exit 0' }}">{{ chip }}</span>{% endfor %}
+        {% if event.status == "stopped" %}<span class="tool-chip tool-chip--bad">{{ t("stopped") }}</span>{% endif %}
         {% if event.edited %}<span class="badge">{{ t("edited by you") }}</span>{% endif %}
+        {% if event.purpose %}<span class="tool-activity__why">{{ event.purpose }}</span>{% endif %}
         {% if event.why %}<span class="tool-activity__why">{{ event.why }}</span>{% endif %}
       </span>
       {{ icon("chevron-down", "icon--sm reasoning__chevron") }}
     </summary>
     <div class="tool-activity__body">
       {% if event.error %}<p class="tool-activity__error">{{ event.error }}</p>{% endif %}
+      {# A helper's account of itself: which job, which agent, how many calls,
+         how long -- and whether it was stopped short. The task block's alone:
+         a shell row written before 1.3.0 carries a host line in `detail`, and
+         the chat says where it works. #}
+      {% if block.kind == "task" and event.detail %}<p class="tool-activity__detail">{{ event.detail }}</p>{% endif %}
+      {# A subagent's tool calls, drawn under the task line as the CLI draws
+         them. The names and titles came from another model, or off a device. #}
+      {% if event.children %}
+      <div class="tool-children">
+        {% for child in event.children %}
+        <div class="tool-line tool-line--read tool-line--child{{ ' tool-line--error' if child.isError }}">
+          {{ icon(tool_icon(child.name), "icon--sm tool-activity__icon") }}
+          <span class="tool-line__verb">{{ tool_label(child.name) }}</span>
+          {% if child.title %}<code class="tool-line__title">{{ child.title }}</code>{% endif %}
+          {% if child.isError %}<span class="tool-line__error">{{ t("failed") }}</span>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
       {% if event.text and event.text != event.error %}<pre class="tool-result__text">{{ event.text }}</pre>
       {% elif not event.error and not event.results %}<p class="tool-activity__empty">{{ t("No output.") }}</p>{% endif %}
       {% if event.diff %}{{ whole_diff(event.diff) }}{% endif %}
@@ -180,6 +201,11 @@
       <span class="badge">{{ t("edited by you") }}</span>
       {% endif %}
 
+      {% if event.purpose %}
+      {# The spec's `purpose`: one sentence from the model for the person,
+         shown beside the call as the approval card would have shown it. #}
+      <span class="tool-activity__why">{{ event.purpose }}</span>
+      {% endif %}
       {% if event.why %}
       {# What the model said this call was for. In the summary rather than the
          body because the body is collapsed: in Auto mode nothing stops for

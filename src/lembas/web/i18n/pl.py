@@ -124,7 +124,6 @@ MESSAGES: dict[str, str] = {
     "Sent on its own after the first reply, not as part of any conversation.": "Wysyłane osobno po pierwszej odpowiedzi, nie jako część rozmowy.",
     "This is what the model would read back:": "Oto, co model by odczytał:",
     "A backstop, as it is above. The clock and the token ceiling are what normally end one.": "Zabezpieczenie, tak jak powyżej. Zwykle przebieg kończy zegar i limit tokenów.",
-    "A reply can hand a self-contained piece of work to a second model that runs on its own and reports back — several at once, which is what makes research fan out instead of queueing. This applies to ordinary chats as much as agent ones.": "Odpowiedź może przekazać samodzielny fragment pracy drugiemu modelowi, który działa sam i zdaje relację — także kilku naraz, i właśnie dzięki temu badanie rozgałęzia się zamiast czekać w kolejce. Dotyczy to zwykłych czatów tak samo jak czatów agenta.",
     "Allow agent chats": "Zezwalaj na czaty agenta",
     "Allow the terminal panel": "Zezwalaj na panel terminala",
     "Ask another model": "Zapytaj inny model",
@@ -1195,7 +1194,6 @@ MESSAGES.update(
         "People also need the permission “%(permission)s” and a linked LLeMbas CLI (Settings → Devices).": "Użytkownicy potrzebują też uprawnienia „%(permission)s” i połączonego LLeMbas CLI (Ustawienia → Urządzenia).",
         "Seconds with nobody watching <em>and</em> nothing typed. Closing the panel does not end the session — a build carries on and is still there on the way back — so this is what eventually ends one.": "Sekundy, gdy nikt nie patrzy <em>i</em> nic nie jest wpisywane. Zamknięcie panelu nie kończy sesji — build trwa dalej i czeka po powrocie — więc to właśnie ostatecznie ją kończy.",
         "<strong>Asking another model a question uses the same switch and the same allowance below</strong>, because it costs the same thing: one reply setting another reply going. Which people may do it is a separate permission — <strong>%(permission)s</strong> — and which models may is a switch on each model's own page.": "<strong>Zadanie pytania innemu modelowi korzysta z tego samego przełącznika i tego samego limitu poniżej</strong>, bo kosztuje tyle samo: jedna odpowiedź uruchamia drugą. Kto może to robić, to osobne uprawnienie — <strong>%(permission)s</strong> — a które modele mogą, to przełącznik na stronie każdego modelu.",
-        "A helper cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads, it searches, and on a machine it runs a short fixed list of read-only commands and nothing else, in every mode including <strong>%(mode)s</strong>. It cannot send helpers of its own.": "Pomocnik nie może nikogo o nic zapytać, więc nic w jego czacie nie może zatrzymać się w oczekiwaniu na zatwierdzenie. Dostaje zatem tylko to, co ten czat mógł już robić <em>bez</em> pytania: czyta, wyszukuje, a na maszynie uruchamia krótką, stałą listę poleceń tylko do odczytu i nic więcej, w każdym trybie, także <strong>%(mode)s</strong>. Nie może wysyłać własnych pomocników.",
         "People also need the <strong>%(permission)s</strong> permission, and the model needs the <strong>%(capability)s</strong> capability. Off by default: a reply that spawns helpers spends model time multiplicatively, and on one local endpoint four at once is four times the queue rather than four times the speed.": "Użytkownicy potrzebują też uprawnienia <strong>%(permission)s</strong>, a model — możliwości <strong>%(capability)s</strong>. Domyślnie wyłączone: odpowiedź, która uruchamia pomocników, zużywa czas modelu wielokrotnie, a na jednym lokalnym punkcie końcowym cztery naraz to czterokrotnie dłuższa kolejka, a nie czterokrotna prędkość.",
         "Seconds. Past it the helper is <em>stopped</em>, not abandoned: what it had written is kept and handed back with a note saying it is partial.": "Sekundy. Po ich upływie pomocnik zostaje <em>zatrzymany</em>, nie porzucony: to, co napisał, jest zachowywane i oddawane z adnotacją, że jest niepełne.",
         "Where <code>/v1/audio/transcriptions</code> lives — whisper.cpp's <code>whisper-server</code>, Speaches, or anything else speaking it. With or without <code>/v1</code>; either is understood.": "Gdzie znajduje się <code>/v1/audio/transcriptions</code> — <code>whisper-server</code> z whisper.cpp, Speaches lub cokolwiek innego, co go obsługuje. Z <code>/v1</code> lub bez; oba warianty są rozumiane.",
@@ -2278,3 +2276,33 @@ MESSAGES.update(
         "Keeping a plan": "Prowadzenie planu",
     }
 )
+
+# --- 1.6.0: background jobs, the helper panel, the subagent preamble ---
+MESSAGES["A reply can hand a self-contained piece of work to a second model that runs on its own and reports back — several at once, which is what makes research fan out instead of queueing, and in the background, so the reply carries on and is told when the helper is done. There are two kinds: explore, which reads and searches only, and general, which may also change things the chat itself may change. An agent chat's helpers run on its linked device instead, under the device's own limits."] = 'Odpowiedź może przekazać samodzielny kawałek pracy drugiemu modelowi, który pracuje sam i raportuje — kilku naraz, dlatego badanie rozgałęzia się, zamiast stać w kolejce; i w tle, więc odpowiedź trwa dalej i dowiaduje się, gdy pomocnik skończy. Są dwa rodzaje: explore, który tylko czyta i wyszukuje, oraz general, który może też zmieniać to, co może zmieniać sam czat. Pomocnicy czatu agenta działają zamiast tego na jego połączonym urządzeniu, w granicach tego urządzenia.'
+MESSAGES["A helper cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads and searches the library and the web, and the general kind writes what the chat may write. It cannot send helpers of its own; it can message the main agent, and be messaged, while it works. <strong>%(mode)s</strong> is not inherited: a helper's task text can have come from a page it read."] = 'Pomocnik nie może nikogo o nic pytać, więc nic w jego czacie nie może zatrzymać się na zgodę. Dostaje zatem tylko to, co ten czat już mógł <em>bez</em> pytania: czyta i wyszukuje w bibliotece i w sieci, a rodzaj general pisze to, co czat może pisać. Nie może wysyłać własnych pomocników; w trakcie pracy może pisać do głównego agenta i odbierać od niego wiadomości. Tryb <strong>%(mode)s</strong> nie jest dziedziczony: tekst zadania pomocnika mógł pochodzić ze strony, którą przeczytał.'
+MESSAGES['%(job)s asks:'] = '%(job)s pyta:'
+MESSAGES['Helper'] = 'Pomocnik'
+MESSAGES['Close the helper panel'] = 'Zamknąć panel pomocnika'
+MESSAGES['Open a helper from the strip above the composer to follow it here.'] = 'Otwórz pomocnika z paska nad polem wiadomości, aby śledzić go tutaj.'
+MESSAGES['subagent'] = 'podagent'
+MESSAGES['Stop'] = 'Zatrzymać'
+MESSAGES['A message to the helper'] = 'Wiadomość do pomocnika'
+MESSAGES['Message the helper — it reads it at its next step; a finished one is started again with it'] = 'Napisz do pomocnika — przeczyta to w następnym kroku; zakończony zostanie z tym uruchomiony ponownie'
+MESSAGES['From the main agent'] = 'Od głównego agenta'
+MESSAGES['The task'] = 'Zadanie'
+MESSAGES['Working…'] = 'Pracuje…'
+MESSAGES['Background jobs'] = 'Zadania w tle'
+MESSAGES['Running for %(time)s'] = 'Działa od %(time)s'
+MESSAGES['Follow this helper'] = 'Śledzić tego pomocnika'
+MESSAGES['Follow this helper and message it'] = 'Śledzić tego pomocnika i pisać do niego'
+MESSAGES['Stop %(job)s'] = 'Zatrzymać %(job)s'
+MESSAGES['Stop this job'] = 'Zatrzymać to zadanie'
+MESSAGES['Scheduled run'] = 'Zaplanowane uruchomienie'
+MESSAGES['The device did not answer in time.'] = 'Urządzenie nie odpowiedziało na czas.'
+MESSAGES['Not done: %(error)s'] = 'Nie wykonano: %(error)s'
+MESSAGES['That job is not here any more.'] = 'Tego zadania już tu nie ma.'
+MESSAGES['Write something to send.'] = 'Napisz coś do wysłania.'
+MESSAGES["That helper's conversation is gone, so it cannot be messaged."] = 'Rozmowa tego pomocnika zniknęła, więc nie można do niego pisać.'
+MESSAGES['running'] = 'działa'
+MESSAGES['done'] = 'gotowe'
+MESSAGES['lost'] = 'utracone'

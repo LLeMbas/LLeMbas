@@ -27,6 +27,12 @@ from lembas.db.models.attachment import (
 from lembas.db.models.canvas import ScratchDoc
 from lembas.db.models.chat import (
     ALL_KINDS,
+    JOB_DONE,
+    JOB_ERROR,
+    JOB_RUNNING,
+    JOB_STATES,
+    JOB_STOPPED,
+    JOB_SUBAGENT,
     KIND_AGENT,
     KIND_CHAT,
     KIND_TASK,
@@ -36,6 +42,7 @@ from lembas.db.models.chat import (
     ROLE_TOOL,
     ROLE_USER,
     Chat,
+    ChatJob,
     Folder,
     Message,
 )
@@ -138,6 +145,12 @@ from lembas.db.models.user import (
 )
 
 __all__ = [
+    "JOB_DONE",
+    "JOB_ERROR",
+    "JOB_RUNNING",
+    "JOB_STATES",
+    "JOB_STOPPED",
+    "JOB_SUBAGENT",
     "ENTRY_ADJUST",
     "ENTRY_EXPIRE",
     "ENTRY_GRANT",
@@ -213,6 +226,7 @@ __all__ = [
     "Report",
     "Schedule",
     "Chat",
+    "ChatJob",
     "Connection",
     "DEFAULT_GROUP",
     "DataGroup",

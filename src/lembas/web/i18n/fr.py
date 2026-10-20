@@ -124,7 +124,6 @@ MESSAGES: dict[str, str] = {
     "Sent on its own after the first reply, not as part of any conversation.": "Envoyée à part après la première réponse, pas dans le cadre d'une conversation.",
     "This is what the model would read back:": "Voici ce que le modèle relirait :",
     "A backstop, as it is above. The clock and the token ceiling are what normally end one.": "Un garde-fou, comme plus haut. Ce sont l'horloge et le plafond de jetons qui mettent normalement fin à une exécution.",
-    "A reply can hand a self-contained piece of work to a second model that runs on its own and reports back — several at once, which is what makes research fan out instead of queueing. This applies to ordinary chats as much as agent ones.": "Une réponse peut confier un travail autonome à un second modèle qui s'exécute de son côté et rend compte — plusieurs à la fois, ce qui permet à la recherche de se déployer en parallèle au lieu de faire la queue. Cela vaut pour les conversations ordinaires autant que pour les conversations d'agent.",
     "Allow agent chats": "Autoriser les conversations d'agent",
     "Allow the terminal panel": "Autoriser le panneau de terminal",
     "Ask another model": "Demander à un autre modèle",
@@ -1195,7 +1194,6 @@ MESSAGES.update(
         "People also need the permission “%(permission)s” and a linked LLeMbas CLI (Settings → Devices).": "Il faut aussi l'autorisation « %(permission)s » et une LLeMbas CLI reliée (Paramètres → Appareils).",
         "Seconds with nobody watching <em>and</em> nothing typed. Closing the panel does not end the session — a build carries on and is still there on the way back — so this is what eventually ends one.": "Secondes sans personne qui regarde <em>et</em> sans rien de tapé. Fermer le panneau ne met pas fin à la session — un build continue et est toujours là au retour — c'est donc ce délai qui finit par en clore une.",
         "<strong>Asking another model a question uses the same switch and the same allowance below</strong>, because it costs the same thing: one reply setting another reply going. Which people may do it is a separate permission — <strong>%(permission)s</strong> — and which models may is a switch on each model's own page.": "<strong>Poser une question à un autre modèle utilise le même interrupteur et le même quota ci-dessous</strong>, parce que cela coûte la même chose : une réponse qui en lance une autre. Qui peut le faire est une autorisation distincte — <strong>%(permission)s</strong> — et quels modèles le peuvent est un interrupteur sur la page de chaque modèle.",
-        "A helper cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads, it searches, and on a machine it runs a short fixed list of read-only commands and nothing else, in every mode including <strong>%(mode)s</strong>. It cannot send helpers of its own.": "Un auxiliaire ne peut rien demander à personne, donc rien dans sa conversation ne peut s'arrêter pour une approbation. Il ne reçoit donc que ce que cette conversation pouvait déjà faire <em>sans</em> demander : il lit, il cherche, et sur une machine il exécute une courte liste fixe de commandes en lecture seule et rien d'autre, dans tous les modes, y compris <strong>%(mode)s</strong>. Il ne peut pas envoyer ses propres auxiliaires.",
         "People also need the <strong>%(permission)s</strong> permission, and the model needs the <strong>%(capability)s</strong> capability. Off by default: a reply that spawns helpers spends model time multiplicatively, and on one local endpoint four at once is four times the queue rather than four times the speed.": "Il faut aussi l'autorisation <strong>%(permission)s</strong>, et le modèle doit avoir la capacité <strong>%(capability)s</strong>. Désactivé par défaut : une réponse qui lance des auxiliaires multiplie le temps de modèle consommé, et sur un seul point d'accès local, quatre à la fois, c'est quatre fois la file d'attente plutôt que quatre fois la vitesse.",
         "Seconds. Past it the helper is <em>stopped</em>, not abandoned: what it had written is kept and handed back with a note saying it is partial.": "Secondes. Au-delà, l'auxiliaire est <em>arrêté</em>, pas abandonné : ce qu'il avait écrit est conservé et rendu avec une note indiquant que c'est partiel.",
         "Where <code>/v1/audio/transcriptions</code> lives — whisper.cpp's <code>whisper-server</code>, Speaches, or anything else speaking it. With or without <code>/v1</code>; either is understood.": "Là où se trouve <code>/v1/audio/transcriptions</code> — le <code>whisper-server</code> de whisper.cpp, Speaches, ou tout autre serveur qui le parle. Avec ou sans <code>/v1</code> ; les deux sont compris.",
@@ -2278,3 +2276,33 @@ MESSAGES.update(
         "Keeping a plan": "Tenir un plan",
     }
 )
+
+# --- 1.6.0: background jobs, the helper panel, the subagent preamble ---
+MESSAGES["A reply can hand a self-contained piece of work to a second model that runs on its own and reports back — several at once, which is what makes research fan out instead of queueing, and in the background, so the reply carries on and is told when the helper is done. There are two kinds: explore, which reads and searches only, and general, which may also change things the chat itself may change. An agent chat's helpers run on its linked device instead, under the device's own limits."] = "Une réponse peut confier un travail autonome à un second modèle qui travaille seul et rend compte — plusieurs à la fois, ce qui fait que la recherche se ramifie au lieu d'attendre son tour ; et en arrière-plan, de sorte que la réponse continue et est prévenue quand l'assistant a fini. Il en existe deux sortes : explore, qui lit et cherche seulement, et general, qui peut aussi modifier ce que la discussion elle-même peut modifier. Les assistants d'une discussion d'agent s'exécutent sur son appareil lié, dans les limites de cet appareil."
+MESSAGES["A helper cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads and searches the library and the web, and the general kind writes what the chat may write. It cannot send helpers of its own; it can message the main agent, and be messaged, while it works. <strong>%(mode)s</strong> is not inherited: a helper's task text can have come from a page it read."] = "Un assistant ne peut rien demander à personne, donc rien dans sa discussion ne peut s'arrêter pour une approbation. Il n'obtient donc que ce que cette discussion pouvait déjà faire <em>sans</em> demander : il lit et cherche dans la bibliothèque et sur le web, et la sorte general écrit ce que la discussion peut écrire. Il ne peut pas envoyer d'assistants à son tour ; il peut écrire à l'agent principal, et en recevoir des messages, pendant qu'il travaille. <strong>%(mode)s</strong> n'est pas hérité : le texte de la tâche d'un assistant peut venir d'une page qu'il a lue."
+MESSAGES['%(job)s asks:'] = '%(job)s demande :'
+MESSAGES['Helper'] = 'Assistant'
+MESSAGES['Close the helper panel'] = "Fermer le panneau de l'assistant"
+MESSAGES['Open a helper from the strip above the composer to follow it here.'] = 'Ouvrez un assistant depuis la bande au-dessus de la zone de saisie pour le suivre ici.'
+MESSAGES['subagent'] = 'sous-agent'
+MESSAGES['Stop'] = 'Arrêter'
+MESSAGES['A message to the helper'] = "Un message pour l'assistant"
+MESSAGES['Message the helper — it reads it at its next step; a finished one is started again with it'] = "Écrivez à l'assistant — il le lit à sa prochaine étape ; un assistant terminé est relancé avec"
+MESSAGES['From the main agent'] = "De l'agent principal"
+MESSAGES['The task'] = 'La tâche'
+MESSAGES['Working…'] = 'En cours…'
+MESSAGES['Background jobs'] = 'Travaux en arrière-plan'
+MESSAGES['Running for %(time)s'] = 'En cours depuis %(time)s'
+MESSAGES['Follow this helper'] = 'Suivre cet assistant'
+MESSAGES['Follow this helper and message it'] = 'Suivre cet assistant et lui écrire'
+MESSAGES['Stop %(job)s'] = 'Arrêter %(job)s'
+MESSAGES['Stop this job'] = 'Arrêter ce travail'
+MESSAGES['Scheduled run'] = 'Exécution planifiée'
+MESSAGES['The device did not answer in time.'] = "L'appareil n'a pas répondu à temps."
+MESSAGES['Not done: %(error)s'] = 'Non fait : %(error)s'
+MESSAGES['That job is not here any more.'] = "Ce travail n'est plus là."
+MESSAGES['Write something to send.'] = 'Écrivez quelque chose à envoyer.'
+MESSAGES["That helper's conversation is gone, so it cannot be messaged."] = 'La discussion de cet assistant a disparu ; on ne peut plus lui écrire.'
+MESSAGES['running'] = 'en cours'
+MESSAGES['done'] = 'terminé'
+MESSAGES['lost'] = 'perdu'

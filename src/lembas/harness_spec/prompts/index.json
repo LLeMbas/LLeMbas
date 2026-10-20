@@ -12,8 +12,10 @@
         "surface": "where the output is shown and how it is rendered (a terminal, monospace, GitHub-flavoured markdown; a web page rendering markdown)",
         "tool_list": "LLeMbas: the exact tools offered on this request, as a sentence; the CLI: empty",
         "file_tools": "the CLI: the bullet about using read, edit, write, grep and glob rather than shell commands; LLeMbas: empty",
+        "plan_tools": "the bullet about planning with plan_write from the start and keeping the plan current with plan_update, and saying so with ask_user when the plan turns out wrong; empty for a subagent, which has no plan tools",
         "plan_context": "the current plan, rendered with its ids, under a heading, with the sentence to work to it and quote the ids; empty when there is none",
-        "background": "the CLI: the bullet about bash `background: true`, bash_output and bash_kill; LLeMbas: empty",
+        "ask_tool": "the bullet about asking with ask_user when a decision is the user's; empty for a subagent, which has nobody to ask",
+        "background": "the CLI: the bullet about running commands in the background and the job tools (job_output, job_list, job_stop), and that a finished job or subagent announces itself; LLeMbas: empty",
         "git": "the CLI: the `# Git` section; LLeMbas: empty"
       }
     },
@@ -200,6 +202,31 @@
       "variables": {
         "knowledge_scope": "the sentence naming the knowledge bases this conversation is limited to (\"Knowledge searches here cover only: …. Finding nothing there means nothing is there, not that the library is empty.\"), or empty"
       }
+    },
+    "blocks/subagent.md": {
+      "scope": "shared",
+      "llembas": [
+        "core.subagent"
+      ],
+      "llembas_text": "identical",
+      "variables": {
+        "name": "the subagent's name (the agent it was started as)",
+        "instructions": "the agent's own instructions (prompts/agents/<name>.md for a built-in one, the body of the agent file otherwise)",
+        "report": "when the `report` tool is offered: the sentence saying a finding or a question may be sent to the main agent before the final reply, and that a message from it may arrive meanwhile; otherwise empty",
+        "read_only": "in plan mode: the sentence saying it can read and search but change nothing; otherwise empty"
+      }
+    },
+    "agents/explore.md": {
+      "scope": "shared",
+      "llembas": [],
+      "llembas_text": "identical",
+      "why": "LLeMbas reads it from the vendored spec (harness_spec.prompt), not from a fragment"
+    },
+    "agents/general.md": {
+      "scope": "shared",
+      "llembas": [],
+      "llembas_text": "identical",
+      "why": "LLeMbas reads it from the vendored spec (harness_spec.prompt), not from a fragment"
     }
   }
 }

@@ -1,0 +1,35 @@
+{% from "_macros.html" import icon %}
+{#
+  A helper's conversation so far, as the panel shows it. One shape for a helper
+  running here and a device's subagent (`services/jobs.transcript`,
+  `device_link.job_transcript`): a user turn is the task, or a message sent to
+  it (`machine`); an assistant turn is its tool lines and what it wrote.
+
+  `turn.html` is the one `|safe`: it came out of `services/markdown.py`. The
+  rest is text and is escaped.
+#}
+{% if not turns %}
+<p class="jobpanel__empty">{{ t("Nothing yet.") }}</p>
+{% endif %}
+{% for turn in turns %}
+  {% if turn.role == "user" %}
+  <div class="jobpanel__turn jobpanel__turn--user">
+    <span class="badge">{{ t("From the main agent") if turn.machine else t("The task") }}</span>
+    <div class="jobpanel__text">{{ turn.text }}</div>
+  </div>
+  {% else %}
+  <div class="jobpanel__turn jobpanel__turn--assistant">
+    {% for tool in turn.tools %}
+    <div class="tool-line tool-line--read{{ ' tool-line--error' if tool.isError }}">
+      {{ icon(tool_icon(tool.name), "icon--sm tool-activity__icon") }}
+      <span class="tool-line__verb">{{ tool_label(tool.name) }}</span>
+      {% if tool.title %}<code class="tool-line__title">{{ tool.title }}</code>{% endif %}
+      {% if tool.isError %}<span class="tool-line__error">{{ t("failed") }}</span>{% endif %}
+    </div>
+    {% endfor %}
+    {% if turn.html %}<div class="msg__body">{{ turn.html|safe }}</div>{% endif %}
+    {% if turn.error %}<p class="tool-activity__error">{{ turn.error }}</p>{% endif %}
+    {% if turn.running %}<p class="jobpanel__live">{{ t("Working…") }}</p>{% endif %}
+  </div>
+  {% endif %}
+{% endfor %}

@@ -3,6 +3,90 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## Unreleased
+
+## 1.6.0 — 2026-10-20
+
+Background helpers and a device's jobs, shown and controllable: one registry of
+background work with the LLeMbas CLI (harness spec 2.0.0, from LLeMbas CLI 1.5.0).
+
+### Added
+
+- **A helper can run in the background.** `task` with `background: true`
+  returns at once with a job id (`job1`, `job2`, ... per chat) and the reply
+  carries on; when the helper ends, the chat is told with the spec's note --
+  taken in at the reply's next step while it is answering, as a turn of its
+  own when it is idle. `job_list`, `job_output`, `job_stop` and `job_send` work
+  on that id across requests and restarts (a new `chat_jobs` table; nothing
+  else in the schema changed), and `job_send` to a finished helper starts it
+  again with its context intact. A helper has `report`, the one way to message
+  the main agent before its final reply. The two kinds of helper are the spec's
+  built-in agents: `explore` (reads and searches, the default) and `general`
+  (the full toolset the chat allows; what `write: true` meant).
+- **A Jobs strip above the composer** lists the chat's running jobs -- the
+  helpers started here, and on an agent chat the commands and subagents the
+  linked LLeMbas CLI runs in the background -- with how long each has run and
+  a Stop button. A subagent row opens a side panel with the helper's
+  transcript, followed live, and a box to message it. On an agent chat the
+  strip reads the device's jobs (`_lembas/jobs`), stops over `_lembas/job/stop`
+  and messages over `_lembas/job/send`; it polls itself while it has rows and
+  is refilled from the device's status when a reply is taken up again.
+- **A device's subagent and job events are shown.** A `task` block nests its
+  subagent's tool lines; a job's note taken into a turn is shown where it went
+  in; a harness-started turn (a job's note, a subagent's message) is mirrored
+  into the chat as the harness's turn, not as typed in the terminal; an
+  approval asked by a background subagent says which (`explore (job7) asks`).
+  A device's `retract` now drops the step's partial text, as the CLI's own view
+  does, and a plain notice reaches the status line.
+- **`purpose`** -- the spec's one-sentence account of what a call is for -- is
+  offered on every tool whose spec takes it (`task`, `memory`, `skill_manage`,
+  `web_fetch`) and shown beside the call in the transcript; the tool itself
+  never sees it.
+- The prompt lists the models a helper may run on (`task`'s `model`), as its
+  description promised; `{{agents}}` names the two kinds.
+
+### Changed
+
+- **The helper's preamble is the spec's** (`blocks/subagent.md`, the
+  `core.subagent` fragment), with the agent's instructions
+  (`prompts/agents/explore.md`, `general.md`) filled in -- the same words the
+  LLeMbas CLI gives its subagents. The planning and asking bullets of the
+  shared system text are the spec's `plan_tools` and `ask_tool` variables now,
+  and a helper's prompt drops both: it has no plan tools and nobody to ask.
+- `task`, `job_send` and `report` are the spec's `interact` risk class: a
+  message to somebody, asked about in no mode and not withheld in Plan mode.
+- The "Background job" badge says what wrote the turn: "Scheduled run" in a
+  schedule's chat, "From the main agent" in a helper's, "Background job" for a
+  job's or a helper's note.
+- The admin Helpers card describes helpers as they are now.
+
+### Fixed
+
+- **Stop never reached a helper.** The reply's Stop was read only between
+  streamed chunks, and a reply waiting on `task` streams nothing; the wait
+  watches it now and stops the helper it was waiting on. A background helper
+  is not stopped by its parent's Stop, as the CLI's are not.
+- A helper's chat cut off by a shutdown was taken up again at the next start
+  with nobody waiting for its answer. It is skipped.
+- The helper setting `max_completion_tokens` was never enforced; it is the
+  helper's own ceiling now, checked between rounds like every other.
+- A helper stopped at its time limit showed as a success; its block says
+  `stopped` and gives its account (which job, which agent, how many calls, how
+  long, and that it was stopped at the time limit).
+- The capacity rule ignored `Connection.one_model_at_a_time` and compared a
+  helper only with the parent's model; it compares with every running helper's
+  as well, as the spec says.
+- The `{{agents}}` variable said "general (default)"; the hint on the helper's
+  fragment named `subagent_run`.
+- "Run now" on a report schedule held the browser's request open until the
+  report was filed -- up to an hour. It fires and returns.
+- Dead code and stale words: the unreachable crowd branch in the queue frames,
+  the `allowed` set `_authorise` returned empty and nobody read, the `messages`
+  schedule target the runner's docstring still listed, docstrings naming a
+  `jobs.wake` that is gone, the orphaned "jobs chip" comment in the composer,
+  and `Chat.rewound_at`, which was written and never read (the column stays;
+  the schema is additive).
+
 ## 1.5.1 — 2026-10-20
 
 A false warning on the update page.

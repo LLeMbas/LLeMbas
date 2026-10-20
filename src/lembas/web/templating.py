@@ -13,6 +13,7 @@ from fastapi.templating import Jinja2Templates
 from lembas import __version__
 from lembas.config import settings
 from lembas.db.models import User
+from lembas.services import jobs as jobs_service
 from lembas.services import metrics as metrics_service
 from lembas.services import steps as steps_service
 from lembas.services import tool_blocks, tool_labels
@@ -157,6 +158,10 @@ templates.env.filters["tokens"] = highlight_tokens
 # trap `audio_service.template_flags` fell into.
 templates.env.globals["tool_label"] = tool_labels.label_for
 templates.env.globals["tool_icon"] = tool_labels.icon_for
+# The jobs strip and the helper panel: a duration as both harnesses write one,
+# and a job's state in the reader's language.
+templates.env.globals["job_duration"] = jobs_service.duration
+templates.env.globals["job_state"] = jobs_service.state_word
 
 def asset(path: str) -> str:
     """A static asset's URL, with the release stamped into it.

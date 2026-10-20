@@ -711,7 +711,8 @@ input.visually-hidden[type="checkbox"] {
 /* The inspector, mirroring the sidebar on the other side of .shell. Hidden by
    the `hidden` attribute, which the rule at the top of this file forces to win. */
 .inspector,
-.chat-settings {
+.chat-settings,
+.jobpanel {
   width: var(--inspector-width);
   flex: none;
   display: flex;
@@ -846,7 +847,8 @@ input.visually-hidden[type="checkbox"] {
 
 @media (max-width: 64rem) {
   .inspector,
-  .chat-settings {
+  .chat-settings,
+  .jobpanel {
     position: fixed;
     inset: 0 0 0 auto;
     z-index: var(--z-panel);
@@ -2218,11 +2220,11 @@ a.picker__option { text-decoration: none; }
     background: var(--bg);
     border-bottom: var(--border-w) solid var(--border);
   }
-  :root[data-window]:not([data-window=""]) :is(.inspector, .chat-settings, .terminal, .canvas, .proto-panel) {
+  :root[data-window]:not([data-window=""]) :is(.inspector, .chat-settings, .terminal, .canvas, .proto-panel, .jobpanel) {
     top: calc(var(--header-height) + var(--safe-top));
   }
-  :root[data-window]:not([data-window=""]) :is(.inspector, .chat-settings, .terminal, .canvas, .proto-panel) > .panel-head,
-  :root[data-window]:not([data-window=""]) :is(.inspector, .chat-settings, .terminal, .canvas, .proto-panel) > * > .panel-head {
+  :root[data-window]:not([data-window=""]) :is(.inspector, .chat-settings, .terminal, .canvas, .proto-panel, .jobpanel) > .panel-head,
+  :root[data-window]:not([data-window=""]) :is(.inspector, .chat-settings, .terminal, .canvas, .proto-panel, .jobpanel) > * > .panel-head {
     height: var(--header-height);
     padding-top: 0;
   }

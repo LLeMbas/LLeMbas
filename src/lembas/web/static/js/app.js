@@ -1278,6 +1278,15 @@
     if (thread && target && (target === thread || thread.contains(target) || target.id === "thread")) {
       scrollThread(false);
     }
+    /* The helper panel is opened by what lands in it, not by a toggle: the
+       jobs strip's Follow button fetches a helper's transcript into
+       `#jobpanel-body`, and the panel has to be shown for that swap to mean
+       anything. The same `setPanel` as a toggle, in the `side` group, so it
+       takes the slot the inspector and the canvas share. A poll of the
+       transcript inside the panel swaps `#jobpanel-turns`, not the body, so it
+       re-opens nothing. In this one listener rather than a second: every path
+       a swap takes is read here. */
+    if (target && target.id === "jobpanel-body") setPanel("#jobpanel", true, "side");
   });
 
   /* --- The transcript tail -----------------------------------------------

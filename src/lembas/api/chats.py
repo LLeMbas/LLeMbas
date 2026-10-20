@@ -36,10 +36,12 @@ from lembas.services import compaction as compaction_service
 from lembas.services import data_groups, device_link, interaction, model_prefs, settings_store, sse
 from lembas.services import files as files_service
 from lembas.services import generation as generation_service
+from lembas.services import jobs as jobs_service
 from lembas.services import metrics as metrics_service
 from lembas.services import prompts as prompts_service
 from lembas.services import reports as reports_service
 from lembas.services import steps as steps_service
+from lembas.services import subagent as subagent_service
 from lembas.services import tokens as tokens_service
 from lembas.services import tools as tools_service
 from lembas.services.agent import policy as agent_policy
@@ -949,9 +951,10 @@ async def device_model_badge(
 async def thread_tail(db: Db, user: RequiredUser, chat_id: str, after: str = "") -> Response:
     """Turns this page has not got yet, appended to the transcript it is showing.
 
-    A reply can begin without a request from the browser: `jobs.wake` writes a
-    completion turn and calls `generation.ensure` when a background job finishes
-    on an idle chat. There is no channel to tell the page about it. The only
+    A reply can begin without a request from the browser: `wake.wake_chat`
+    writes a turn and starts a reply when a schedule fires, or when a background
+    helper ends and its note reaches an idle chat. There is no channel to tell
+    the page about it. The only
     stream here is per-message and it is opened by the `sse-connect` on an
     incomplete assistant bubble -- a bubble this page does not have, because the
     reply that created it started somewhere else. `_queue_frames` proves the swap
@@ -1094,16 +1097,16 @@ def _reply_in_flight(db: DBSession, chat: Chat) -> bool:
 
 
 def _note_rewind(chat: Chat) -> None:
-    """Record that an agent chat's transcript went back and the machine did not.
+    """An agent chat's transcript went back and the machine did not.
 
     Deliberately no attempt to undo anything out there. The project directory is
     somebody's real working tree, and deleting their work to match a rewound
-    transcript would be far worse than the inconsistency. So the model is told
-    instead -- see the `tool.agent_rewound` fragment -- and can look rather than
-    assume.
+    transcript would be far worse than the inconsistency. The device is told
+    through `rewind` (`device_link.rewind`) where it can be, and keeps its files
+    either way. `Chat.rewound_at` used to be stamped here and was read by
+    nothing; the column stays (the schema is additive) and is no longer written.
     """
-    if chat.kind == KIND_AGENT:
-        chat.rewound_at = datetime.now(UTC)
+    return None
 
 
 def _too_many_replies(db: DBSession, chat: Chat | None, user: User) -> str:
@@ -1315,6 +1318,27 @@ def _plan_panel_html(plan) -> str:
     return templates.get_template("chat/_plan_panel.html").render(
         {"plan": plans.normalise(plan), "oob": True, "chat": None}
     )
+
+
+def _jobs_strip_html(chat_id: str, jobs: list[dict], *, oob: bool = True) -> str:
+    """The jobs strip, marked to land in its place above the composer. `jobs`
+    is `JobInfo` dicts -- a reply's `generation.jobs`, the rows, or a device's
+    answer -- all in the one shape `services/jobs.py` gives."""
+    return templates.get_template("chat/_jobs_strip.html").render(
+        {"chat": SimpleNamespace(id=chat_id), "jobs": jobs, "oob": oob}
+    )
+
+
+async def chat_jobs(db: DBSession, chat: Chat) -> list[dict]:
+    """The chat's background jobs as the strip shows them: a device chat's from
+    the device (capability `jobs`), any other chat's from its rows. Never
+    raises -- a device that cannot say has no jobs to show."""
+    if chat.device_token_id:
+        try:
+            return await device_link.list_jobs(chat.device_token_id, chat.device_session_id)
+        except (device_link.DeviceError, device_link.LinkClosed, TimeoutError):
+            return []
+    return [jobs_service.info(db, job) for job in jobs_service.for_chat(db, chat.id)]
 
 
 def _tail_oob(message_id: str, thinking_tail: str, think_label: str, text_tail: str) -> str:
@@ -1540,6 +1564,14 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
                     yield sse.event("status", sent["status"])
                 if changed("ask", _ask_html(chat_id, generation.waiting)):
                     yield sse.event("ask", sent["ask"])
+                # The background jobs, out of band into the strip above the
+                # composer -- only once there are any, for the reason the
+                # canvas frame gives: an empty one would clear a strip the
+                # page filled for itself.
+                if generation.jobs and changed(
+                    "jobs", _jobs_strip_html(chat_id, list(generation.jobs.values()))
+                ):
+                    yield sse.event("jobs", sent["jobs"])
                 last_frame = time.monotonic()
 
             # The metrics keep to a clock rather than to the version. The
@@ -1621,8 +1653,13 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
         # that reaches the browser -- so it carries the rest out of band, the
         # way the chat title already does.
         moved_html, queue_html = _queue_frames(db, chat, owner, generation)
+        # The strip as the reply leaves it: with rows, it polls from here on,
+        # because no frame of this stream reaches the page after this one.
+        jobs_html = (
+            _jobs_strip_html(chat.id, list(generation.jobs.values())) if generation.jobs else ""
+        )
 
-    yield sse.event("done", moved_html + final_html + queue_html + title_html)
+    yield sse.event("done", moved_html + final_html + queue_html + title_html + jobs_html)
     yield sse.event("close", "")
 
 
@@ -1694,32 +1731,6 @@ def _queue_frames(
             out_of_band.append(
                 '<div hx-swap-oob="beforeend:#thread">'
                 + _render_bubble(db, chat, owner, assistant)
-                + "</div>"
-            )
-
-    # The next speaker of a crowd round, on the same frame and by the same
-    # mechanism -- an incomplete assistant bubble carries `sse-connect`, so htmx
-    # opens the next stream itself and there is no new streaming machinery here at
-    # all.
-    #
-    # Its own branch and not the one above, deliberately. That one also re-renders
-    # "the last user turn at or before this bubble" to take Send now and Discard
-    # off it, and a crowd has no queued user turn: the swap would either re-render
-    # a node that was already correct or target one that is not in the document,
-    # where htmx silently does nothing. A branch that sometimes does nothing is a
-    # branch nobody can reason about.
-    if getattr(generation, "crowded", False):
-        following = list(
-            db.scalars(
-                select(Message)
-                .where(Message.chat_id == chat.id, Message.complete.is_(False))
-                .order_by(Message.created_at, Message.id)
-            )
-        )
-        for speaker_row in following:
-            out_of_band.append(
-                '<div hx-swap-oob="beforeend:#thread">'
-                + _render_bubble(db, chat, owner, speaker_row)
                 + "</div>"
             )
 
@@ -2004,6 +2015,106 @@ async def stop_message(db: Db, user: RequiredUser, chat_id: str, message_id: str
 
     generation_service.request_stop(message.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# --- Background jobs: the strip and the helper panel (spec 2.0.0) --------------------
+def _device_or_409(chat: Chat, error: Exception) -> HTTPException:
+    return HTTPException(status.HTTP_409_CONFLICT, t("Not done: %(error)s", error=error))
+
+
+@router.get("/{chat_id}/jobs")
+async def jobs_strip(db: Db, user: RequiredUser, chat_id: str) -> Response:
+    """The strip, as the page polls it while it has rows."""
+    chat = _owned_chat(db, chat_id, user.id)
+    return HTMLResponse(_jobs_strip_html(chat.id, await chat_jobs(db, chat), oob=False))
+
+
+async def _job_turns(db: DBSession, chat: Chat, job_id: str) -> tuple[dict, list[dict]]:
+    """A job's facts and its transcript, from the device or the rows; 404 for an
+    id the chat does not have, 409 for a device that cannot answer."""
+    if chat.device_token_id:
+        try:
+            jobs = await device_link.list_jobs(chat.device_token_id, chat.device_session_id)
+            job = next((j for j in jobs if j["id"] == job_id), None)
+            if job is None:
+                raise HTTPException(status.HTTP_404_NOT_FOUND, t("That job is not here any more."))
+            turns = await device_link.job_transcript(
+                chat.device_token_id, chat.device_session_id, job_id
+            )
+        except (device_link.DeviceError, device_link.LinkClosed, TimeoutError) as exc:
+            raise _device_or_409(chat, exc) from exc
+        return job, turns
+    row = jobs_service.by_id(db, chat.id, job_id)
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, t("That job is not here any more."))
+    return jobs_service.info(db, row), jobs_service.transcript(db, row)
+
+
+def _panel_html(chat: Chat, job: dict, turns: list[dict], *, part: str = "") -> str:
+    for turn in turns:
+        if turn.get("role") == "assistant":
+            turn["html"] = render_markdown(turn.get("text") or "") if turn.get("text") else ""
+    name = "chat/_job_turns.html" if part == "turns" else "chat/_job_panel_body.html"
+    return templates.get_template(name).render({"chat": chat, "job": job, "turns": turns})
+
+
+@router.get("/{chat_id}/jobs/{job_id}")
+async def job_panel(
+    db: Db, user: RequiredUser, chat_id: str, job_id: str, part: str = ""
+) -> Response:
+    """The helper panel's body for one job, or its transcript alone (`part=turns`)."""
+    chat = _owned_chat(db, chat_id, user.id)
+    job, turns = await _job_turns(db, chat, job_id)
+    return HTMLResponse(_panel_html(chat, job, turns, part=part))
+
+
+@router.post("/{chat_id}/jobs/{job_id}/stop")
+async def stop_job(db: Db, user: RequiredUser, chat_id: str, job_id: str) -> Response:
+    """Stop a job from the strip. On a device chat the device stops it
+    (`_lembas/job/stop`) and wakes its session with the end note; here the
+    helper's chat is stopped and its watcher does the same. Returns the strip."""
+    chat = _owned_chat(db, chat_id, user.id)
+    if chat.device_token_id:
+        if refused := device_link.refusal(db, user, chat.device_token_id):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, refused)
+        try:
+            await device_link.stop_job(chat.device_token_id, chat.device_session_id, job_id)
+        except (device_link.DeviceError, device_link.LinkClosed, TimeoutError) as exc:
+            raise _device_or_409(chat, exc) from exc
+    else:
+        if not await subagent_service.stop_job(chat.id, job_id):
+            raise HTTPException(status.HTTP_404_NOT_FOUND, t("That job is not here any more."))
+    return HTMLResponse(_jobs_strip_html(chat.id, await chat_jobs(db, chat), oob=False))
+
+
+@router.post("/{chat_id}/jobs/{job_id}/send")
+async def send_job(
+    db: Db, user: RequiredUser, chat_id: str, job_id: str, text: str = Form("")
+) -> Response:
+    """A message to a helper, from the person: what `job_send` does for the
+    model. Returns the panel body, with the message in the transcript."""
+    chat = _owned_chat(db, chat_id, user.id)
+    text = text.strip()
+    if not text:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, t("Write something to send."))
+    if chat.device_token_id:
+        if refused := device_link.refusal(db, user, chat.device_token_id):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, refused)
+        try:
+            await device_link.send_job(chat.device_token_id, chat.device_session_id, job_id, text)
+        except (device_link.DeviceError, device_link.LinkClosed, TimeoutError) as exc:
+            raise _device_or_409(chat, exc) from exc
+    else:
+        state = await subagent_service.send_to_job(chat.id, job_id, text)
+        if not state:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, t("That job is not here any more."))
+        if state == "gone":
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                t("That helper's conversation is gone, so it cannot be messaged."),
+            )
+    job, turns = await _job_turns(db, chat, job_id)
+    return HTMLResponse(_panel_html(chat, job, turns))
 
 
 def _waiting_message(db: DBSession, chat: Chat, message_id: str) -> Message:

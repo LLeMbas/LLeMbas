@@ -1,0 +1,26 @@
+{
+  "name": "report",
+  "scope": "shared",
+  "risk": "interact",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": false,
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "offered": "subagent",
+  "description": "Send a message to the main agent now, before your final reply: a finding it should act on at once, or a question you cannot settle yourself. It reaches the main agent as a message; an answer, if one comes, arrives as a message to you. Your final reply still goes to it when you finish.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "text"
+    ]
+  }
+}

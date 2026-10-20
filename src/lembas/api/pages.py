@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from urllib.parse import urlencode
 from zoneinfo import available_timezones
 
@@ -37,6 +38,8 @@ from lembas.services.library import documents as documents_service
 from lembas.services.schedule import clock
 from lembas.web import i18n
 from lembas.web.templating import STATIC_DIR, render
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(tags=["pages"])
 
@@ -1059,6 +1062,18 @@ async def chat_detail(request: Request, db: Db, user: RequiredUser, chat_id: str
         if instance_prompt:
             inherited, inherited_from = instance_prompt, "instance"
 
+    # The chat's background jobs for the strip: its rows, or -- on a device
+    # chat -- what the device says, when it is linked and can say. Never a
+    # reason for the page not to open.
+    from lembas.api.chats import chat_jobs
+
+    jobs: list[dict] = []
+    if chat.kind != KIND_TASK:
+        try:
+            jobs = await chat_jobs(db, chat)
+        except Exception:  # the strip is a convenience
+            log.debug("could not list the jobs of chat %s", chat.id, exc_info=True)
+
     return render(
         request,
         "chat/index.html",
@@ -1067,6 +1082,7 @@ async def chat_detail(request: Request, db: Db, user: RequiredUser, chat_id: str
             "messages": messages,
             "compacted": compacted,
             "bodies": bodies,
+            "jobs": jobs,
             "inherited_prompt": inherited,
             "inherited_from": inherited_from,
             **_schedule_context(db, user, chat),

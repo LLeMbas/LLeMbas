@@ -66,6 +66,8 @@ LABELS: dict[str, str] = {
     "job_output": "Job output",
     "job_list": "Jobs",
     "job_stop": "Job stopped",
+    "job_send": "Message to a helper",
+    "report": "Report to the main agent",
     # The web.
     "web_search": "Web search",
     "web_fetch": "Fetch",
@@ -135,6 +137,8 @@ ICONS: dict[str, str] = {
     "job_output": "clock",
     "job_list": "dots",
     "job_stop": "stop-circle",
+    "job_send": "corner-down-right",
+    "report": "corner-down-right",
     "web_search": "globe",
     "web_fetch": "link",
     "fetch": "link",
@@ -193,6 +197,9 @@ ACTIONS: dict[str, str] = {
     "glob": "Find files",
     "grep": "Search files",
     "bash_kill": "Stop a background job",
+    "job_stop": "Stop a background job",
+    "job_send": "Message a helper",
+    "report": "Message the main agent",
     "shell_run": "Run a command",
     "file_read": "Read a file",
     "file_write": "Write a file",
@@ -229,7 +236,6 @@ ACTIONS: dict[str, str] = {
     "skill_get": "Read a skill",
     "skill_create": "Write a skill",
     "skill_edit": "Change a skill",
-    "job_stop": "Stop a background job",
 }
 
 # Which argument is the thing being agreed to. Shown verbatim and escaped on the
@@ -245,6 +251,9 @@ DETAIL_KEYS: dict[str, str] = {
     "glob": "pattern",
     "grep": "pattern",
     "bash_kill": "id",
+    "job_stop": "id",
+    "job_send": "text",
+    "report": "text",
     # Not `apply_patch`: what it is agreed to is a set of files, which `describe`
     # names, and there is no one value on the card that could be corrected.
     "shell_run": "command",
@@ -263,7 +272,6 @@ DETAIL_KEYS: dict[str, str] = {
     # what a report will be called before it is filed is cheap, and renaming
     # one afterwards means finding it first.
     "report_write": "title",
-    "job_stop": "id",
     # The thing being agreed to is what will be drawn, not which sampler draws
     # it. Also what makes the box on the card editable: a prompt corrected
     # before it runs is the commonest useful edit this feature will see.

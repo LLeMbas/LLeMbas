@@ -11,6 +11,13 @@ development instrument, like the Node DOM stub the JavaScript is driven under
 and like `fetch_vendor.py` -- it is not imported by the application and nothing
 in `src/` knows it exists.
 
+`SHOOT_KIND=agent` shoots the sidebar on its Agents side; `SHOOT_OPEN=sel,…`
+clicks selectors once the page has loaded (a popover, a side panel);
+`SHOOT_FILL=#sel=/path,…` puts the fragment served at `/path` inside `#sel`
+first (what htmx would have fetched into it -- the helper panel's body);
+`SHOOT_TAG` names a run; `/chat/<SHOOT_DEVICE_CHAT>` is the linked device's chat
+with two fake background jobs, for the jobs strip and the helper panel.
+
 Not a test runner: an instrument. It renders a page through TestClient, rewrites
 every asset URL to a file:// path, and refuses to continue if even one is left
 pointing at `testserver` -- because the last harness that did this silently
@@ -264,6 +271,10 @@ def authored_sideways() -> tuple[str, ...]:
 
 # The chat `build_client` seeds, so a run can name `/chat/<SHOOT_CHAT>`.
 SHOOT_CHAT = "5" * 32
+# The agent chat on the linked `device-1`, whose fake link lists two background
+# jobs (`_seed_devices_reports_schedules`), so a run can name
+# `/chat/<SHOOT_DEVICE_CHAT>` and shoot the jobs strip and the helper panel.
+SHOOT_DEVICE_CHAT = "6" * 32
 
 
 def build_client():
@@ -466,6 +477,50 @@ def build_client():
     return client
 
 
+# What the fake `device-1` answers over its link: two background jobs (spec
+# 2.0.0) and a subagent's transcript, so the strip above the composer and the
+# helper panel have something to draw. Nothing is sent anywhere.
+_FAKE_JOBS = [
+    {
+        "id": "job7", "kind": "subagent", "state": "running", "agent": "explore",
+        "description": "find where the config loader is called from",
+        "started": "2026-10-20T10:00:00+00:00", "unread": 240, "steps": 6, "tools": 9,
+    },
+    {
+        "id": "job3", "kind": "command", "state": "running",
+        "description": "npm run build && npm test", "command": "npm run build && npm test",
+        "started": "2026-10-20T09:58:40+00:00", "unread": 1200,
+    },
+]
+_FAKE_TRANSCRIPT = {
+    "id": "job7",
+    "turns": [
+        {"role": "user", "text": "Find where the config loader is called from, and by what."},
+        {
+            "role": "assistant",
+            "text": "Two call sites so far: `src/app.ts:120` at start-up and `src/cli.ts:44` "
+            "for `--config`. Checking the tests next.",
+            "tools": [
+                {"id": "1", "name": "grep", "args": {"pattern": "loadConfig"}},
+                {"id": "2", "name": "read", "args": {"path": "src/app.ts"}},
+                {"id": "3", "name": "read", "args": {"path": "src/cli.ts"}},
+            ],
+        },
+        {"role": "user", "text": "The YAML one. Ignore the env loader.", "machine": True},
+    ],
+}
+
+
+async def _fake_device_requests(method, params=None, *, timeout=60):
+    if method == "_lembas/jobs":
+        return {"jobs": _FAKE_JOBS}
+    if method == "_lembas/job/transcript":
+        return _FAKE_TRANSCRIPT
+    if method == "_lembas/session/status":
+        return {"exists": True, "busy": False, "jobs": _FAKE_JOBS}
+    return {}
+
+
 def _seed_devices_reports_schedules() -> None:
     """Two linked devices and one that is not, each with an agent chat; a report;
     a schedule. Without them the Agents side of the sidebar, Library → Reports
@@ -489,21 +544,29 @@ def _seed_devices_reports_schedules() -> None:
             )
             db.add(token)
             db.flush()
-            for title in (f"Refactor the loader on {host}", f"Release notes ({host})")[
-                : 1 if host == "device-2" else 2
-            ]:
+            for n, title in enumerate(
+                (f"Refactor the loader on {host}", f"Release notes ({host})")[
+                    : 1 if host == "device-2" else 2
+                ]
+            ):
+                first = host == "device-1" and n == 0
                 db.add(Chat(
+                    id=SHOOT_DEVICE_CHAT if first else None,
                     user_id=owner.id, kind="agent", model_id="qwen3-coder",
                     connection_id=local.id, data_group_id="default", title=title,
                     device_token_id=token.id, project_dir=f"/home/me/{host}/project",
+                    device_session_id="s-shoot" if first else None,
                 ))
             if linked:
-                device_link.LINKS[token.id] = device_link.Link(
+                link = device_link.Link(
                     token_id=token.id, user_id=owner.id, name=token.name,
                     send_text=None, close=None,
                     hello={"device": {"host": host},
                            "limits": {"roots": ["~/projects"], "max_mode": "edit"}},
+                    initialized={"_meta": {"lembas": {"capabilities": ["jobs", "status"]}}},
                 )
+                link.request = _fake_device_requests  # type: ignore[method-assign]
+                device_link.LINKS[token.id] = link
         db.add(Report(
             owner_id=owner.id, title="Weekly digest", data_group_id="default",
             summary="Three pull requests merged, one release cut, nothing failing.",
@@ -520,6 +583,31 @@ def _seed_devices_reports_schedules() -> None:
 
 def rewrite(html: str, client, assets: Path) -> str:
     """Point every asset at a file on disk, and prove none was missed."""
+    # `SHOOT_FILL=#selector=/path[,...]` puts the fragment the application
+    # serves at `path` inside `selector` before the page is measured -- what
+    # htmx would have fetched into it on a live page, which a file:// shot
+    # cannot do. The helper panel's body is the case: it is filled by a request
+    # the strip's button makes.
+    fills = []
+    for spec in (os.environ.get("SHOOT_FILL") or "").split(","):
+        if "=" not in spec:
+            continue
+        selector, path = spec.split("=", 1)
+        response = client.get(path)
+        if response.status_code != 200:
+            raise SystemExit(f"SHOOT_FILL {path} -> HTTP {response.status_code}")
+        fills.append((selector, response.text))
+    if fills:
+        script = "".join(
+            "var e=document.querySelector(" + json.dumps(sel) + ");"
+            "if(e)e.innerHTML=" + json.dumps(body) + ";"
+            for sel, body in fills
+        )
+        html = html.replace(
+            "</head>",
+            "<script>window.addEventListener('load',function(){" + script + "});</script></head>",
+            1,
+        )
     for route, name in ROUTE_ASSETS.items():
         response = client.get(route)
         if response.status_code == 200:

@@ -1,0 +1,31 @@
+{
+  "name": "job_output",
+  "scope": "shared",
+  "risk": "read",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": false,
+  "aliases": {
+    "cli": [
+      "bash_output"
+    ],
+    "llembas": []
+  },
+  "description": "New output from a background job since you last looked, and whether it is still running: a command's output; a subagent's progress — its tool calls and what it has written so far. `wait` (seconds, up to 60) waits for more first.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "wait": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 60
+      }
+    },
+    "required": [
+      "id"
+    ]
+  }
+}

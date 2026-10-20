@@ -14,7 +14,7 @@
   "argument_aliases": {
     "workdir": "cwd"
   },
-  "description": "Run a shell command (bash) and return its combined output and exit status.\n\n- Each call is a fresh shell: `cd` and variables do not carry over. Use `cwd` instead of `cd`.\n- Use the dedicated tools for files: read, not cat; edit/write, not sed or heredocs; grep and glob, not find.\n- Quote paths that contain spaces.\n- Commands time out (default {{timeout}}, `timeout` up to {{timeout_max}}).{{background}}\n- Git: do not commit, amend, push or change git config unless asked. Before a commit, check `git status` and `git diff`, stage files by name, never commit secrets.",
+  "description": "Run a shell command (bash) and return its combined output and exit status.\n\n- Each call is a fresh shell: `cd` and variables do not carry over. Use `cwd` instead of `cd`.\n- Use the dedicated tools for files: read, not cat; edit/write, not sed or heredocs; grep and glob, not find.\n- Quote paths that contain spaces.\n- A command still running when `timeout` passes (default {{timeout}}, up to {{timeout_max}}) is not killed: it goes on in the background as a job, and the call returns what it had printed with the job id.{{background}}\n- Git: do not commit, amend, push or change git config unless asked. Before a commit, check `git status` and `git diff`, stage files by name, never commit secrets.",
   "parameters": {
     "type": "object",
     "properties": {
@@ -31,13 +31,13 @@
         "type": "string"
       },
       "timeout": {
-        "description": "Milliseconds",
+        "description": "Milliseconds to wait for the command before it goes on in the background",
         "type": "integer",
         "exclusiveMinimum": 0,
         "maximum": 600000
       },
       "background": {
-        "description": "Run in the background and return a job id at once",
+        "description": "Run in the background from the start and return a job id at once",
         "type": "boolean"
       }
     },
@@ -46,8 +46,8 @@
     ]
   },
   "variables": {
-    "timeout": "how long a command may run when the call names no timeout, in words (\"2 minutes\")",
+    "timeout": "how long a command may run before it goes on in the background when the call names no timeout, in words (\"2 minutes\")",
     "timeout_max": "the longest timeout a call may ask for, in words (\"10 minutes\")",
-    "background": "where commands may run in the background: \" For a server, a watcher or anything long, set `background: true`: it returns at once with a job id; read its output with bash_output, list jobs with bash_list, stop one with bash_kill.\" — otherwise empty, and the `background` parameter is not sent"
+    "background": "where commands may run in the background: \" For a server, a watcher or anything long, set `background: true`: it returns at once with a job id. Read a job's output with job_output, list jobs with job_list, stop one with job_stop; you are told when one ends.\" — otherwise empty, and the `background` parameter is not sent"
   }
 }

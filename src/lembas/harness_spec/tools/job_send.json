@@ -1,0 +1,29 @@
+{
+  "name": "job_send",
+  "scope": "shared",
+  "risk": "interact",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": false,
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Send a message to a subagent running as a background job — an answer to something it reported, a correction, more to do. It is given to it at its next step. To a subagent that has finished, the message starts it again with its context intact, under the same job id; its new report comes to you when it ends.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "text": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "id",
+      "text"
+    ]
+  }
+}

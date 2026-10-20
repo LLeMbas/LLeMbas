@@ -47,7 +47,6 @@ KINDS = (SHELL, EDIT, READ, SEARCH, WEB, TASK, HIDDEN, TOOL)
 # names stored transcripts carry from before the spec's.
 _LOCAL: dict[str, str] = {
     "shell_run": SHELL,
-    "job_output": SHELL,
     "file_read": READ,
     "file_write": EDIT,
     "file_edit": EDIT,

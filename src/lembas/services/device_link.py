@@ -292,9 +292,14 @@ class Link:
             if session_id in self.buffered:
                 self.buffered[session_id].append(event)
                 return
-            # A turn typed in the device's terminal, in a session it shares.
-            if event.get("type") == "prompt" and session_id in self.announced:
-                _begin_mirror(self, session_id, str(event.get("text") or ""))
+            # A turn typed in the device's terminal, in a session it shares --
+            # or one the harness started itself (a job's note, spec 2.0.0),
+            # in any session a chat here shows.
+            if event.get("type") == "prompt" and self._mirrors(session_id, event):
+                _begin_mirror(
+                    self, session_id, str(event.get("text") or ""),
+                    machine=bool(event.get("machine")),
+                )
             return
         if method == "session/update":
             # ACP's own updates carry what `_lembas/event` carries, and are read
@@ -358,6 +363,16 @@ class Link:
         # `session/update` carries the same as `_lembas/event` in ACP's words;
         # LLeMbas asked for its own and reads only those.
 
+    def _mirrors(self, session_id: str, event: dict[str, Any]) -> bool:
+        """Whether a `prompt` event of this session is a turn to mirror here: a
+        terminal's, in a session it shares; or the harness's own (`machine`,
+        capability `jobs`) -- a finished job's note, a subagent's message --
+        in any session, because the chat showing it would otherwise never see
+        the turn the device's model was given."""
+        if session_id in self.announced:
+            return True
+        return bool(event.get("machine")) and self.can("jobs")
+
     def _session_event(self, session_id: str, event: dict[str, Any]) -> None:
         """What an event says about the session rather than the reply: its
         title, its mode, its model -- onto the chat showing it."""
@@ -410,12 +425,13 @@ class Link:
             apply_event(generation, event)
         elif session_id in self.buffered:
             self.buffered[session_id].append(event)
-        elif kind == "prompt" and session_id in self.announced and turn not in self.sent_turns:
-            # A turn typed in the device's terminal: its own row, whatever reply
-            # this session's last web turn is still finishing.
+        elif kind == "prompt" and self._mirrors(session_id, event) and turn not in self.sent_turns:
+            # A turn typed in the device's terminal, or started by the harness
+            # itself: its own row, whatever reply this session's last web turn
+            # is still finishing.
             _begin_mirror(
                 self, session_id, str(event.get("text") or ""), turn=turn,
-                attachments=event.get("attachments"),
+                attachments=event.get("attachments"), machine=bool(event.get("machine")),
             )
         if _ends_task(event):
             self.busy.discard(session_id)
@@ -463,6 +479,12 @@ class Link:
         name = str(call.get("title") or "a tool")
         tool = "bash" if command else str(call.get("kind") or "tool")
         options = {str(o.get("optionId")) for o in params.get("options") or []}
+        # Which background subagent asks, when one does (capability `jobs`):
+        # "explore (job7)", said on the card.
+        asker = meta.get("job") if isinstance(meta.get("job"), dict) else {}
+        job = ""
+        if asker.get("id"):
+            job = f"{str(asker.get('agent') or 'subagent')[:60]} ({str(asker['id'])[:32]})"
         item = interaction.Item(
             index=0,
             key="0",
@@ -473,6 +495,7 @@ class Link:
             reason=str(meta.get("reason") or "")[: interaction.MAX_REASON_CHARS],
             purpose=str(meta.get("purpose") or ""),
             editable=bool(command),
+            job=job,
         )
         timeout = PATIENT_WAIT if patient else ASK_WAIT
         call_id = str(call.get("toolCallId") or "")
@@ -1074,6 +1097,46 @@ def _close_thinking(generation) -> None:
     generation.device_think_span = None
 
 
+# How much of a job's note the transcript keeps where it went in, and how many
+# of a subagent's tool lines are kept under its task block or in its panel.
+MAX_NOTE_CHARS = 8000
+MAX_SUB_TOOLS = 50
+MAX_RECENT_SUB_TOOLS = 8
+
+
+def _retract(generation) -> None:
+    """Drop what the current step streamed: the text and thinking appended
+    since the last mark. The marks are cumulative lengths, so everything up to
+    the last one is kept whole and the open tail alone goes."""
+    last = generation.steps[-1] if generation.steps else {}
+    text_to = int(last.get("text_to") or 0)
+    thinking_to = int(last.get("thinking_to") or 0)
+    generation.content[:] = [generation.text[:text_to]] if text_to else []
+    generation.reasoning[:] = [generation.thinking[:thinking_to]] if thinking_to else []
+    generation.device_think_span = None
+
+
+def _sub_tool(generation, event: dict[str, Any]) -> None:
+    """A subagent's tool call finished (spec 2.0.0): kept under the `task` call
+    it belongs to, to be drawn under that block when the call ends, and on its
+    job's record for the panel. Bounded: it came off another machine."""
+    line = {
+        "name": str(event.get("name") or "tool")[:60],
+        "title": str(event.get("title") or "")[:200],
+        "isError": bool(event.get("isError")),
+    }
+    call_id = str(event.get("callId") or "")
+    if call_id:
+        lines = generation.sub_tools.setdefault(call_id, [])
+        if len(lines) < MAX_SUB_TOOLS:
+            lines.append(line)
+    job_id = str(event.get("jobId") or "")
+    if job_id and job_id in generation.jobs:
+        recent = generation.jobs[job_id].setdefault("recent", [])
+        recent.append(line)
+        del recent[:-MAX_RECENT_SUB_TOOLS]
+
+
 def apply_event(generation, event: dict[str, Any]) -> None:
     """One engine event from the device, into the reply being written."""
     kind = event.get("type")
@@ -1107,8 +1170,27 @@ def apply_event(generation, event: dict[str, Any]) -> None:
         # `session/update` of the same name goes through `take_plan`).
         _plan_onto(generation, event.get("plan"))
     elif kind == "retract":
-        # The device retries a step: what it streamed is not the reply.
-        pass
+        # The device retries a step: what it streamed since the last round
+        # closed is not the reply, and goes -- as the CLI's own view drops it.
+        _retract(generation)
+    elif kind == "job" and isinstance(event.get("job"), dict):
+        # A background job of the session began, has news, or ended (spec
+        # 2.0.0): onto the reply, which the stream turns into the strip above
+        # the composer. What the device said of it last is kept beside it.
+        from lembas.services import jobs as jobs_service
+
+        facts = jobs_service.device_info(event["job"])
+        if facts["id"]:
+            previous = generation.jobs.get(facts["id"]) or {}
+            if previous.get("recent"):
+                facts["recent"] = previous["recent"]
+            generation.jobs[facts["id"]] = facts
+    elif kind == "job_note":
+        # The note about a job was given to the model inside this turn: shown
+        # where it went in, as a message taken in is.
+        generation.mark_steer([{"id": "", "text": str(event.get("text") or "")[:MAX_NOTE_CHARS]}])
+    elif kind == "sub_tool":
+        _sub_tool(generation, event)
     elif kind == "tool_start":
         generation.status = f"{event.get('name') or 'tool'}…"
         # What it was called with, for the block it ends as: the
@@ -1119,17 +1201,22 @@ def apply_event(generation, event: dict[str, Any]) -> None:
         result = event.get("result") or {}
         failed = kind == "tool_denied" or bool(result.get("isError"))
         output = str(result.get("output") or event.get("reason") or "")
-        args = generation.device_args.pop(str(event.get("id") or ""), None)
-        generation.tool_events.append(
-            tool_event(
-                str(event.get("name") or "tool"),
-                args,
-                title=str(result.get("title") or ""),
-                output=output,
-                failed=failed,
-                meta=result.get("meta"),
-            )
+        call_id = str(event.get("id") or "")
+        args = generation.device_args.pop(call_id, None)
+        finished = tool_event(
+            str(event.get("name") or "tool"),
+            args,
+            title=str(result.get("title") or ""),
+            output=output,
+            failed=failed,
+            meta=result.get("meta"),
         )
+        # A `task` call ends: the subagent's tool lines it collected are drawn
+        # under its block, as the CLI draws them.
+        children = generation.sub_tools.pop(call_id, None)
+        if children:
+            finished["children"] = children
+        generation.tool_events.append(finished)
     elif kind == "usage":
         usage = event.get("usage") or {}
         if not event.get("child"):
@@ -1151,7 +1238,9 @@ def apply_event(generation, event: dict[str, Any]) -> None:
     elif kind == "steered":
         generation.status = i18n.t("Taking in what you just added…")
         _mark_steered(generation, event)
-    elif kind == "notice" and event.get("level") == "warn":
+    elif kind == "notice":
+        # A warning or a plain notice (an agent file that would not parse, a
+        # job moved to the background): said in the status line either way.
         generation.status = str(event.get("message") or "")[:200]
     elif kind == "error":
         generation.error = str(event.get("message") or i18n.t("The device reported an error."))
@@ -1438,6 +1527,14 @@ async def _reattach(
         # without waiting for the next change. Onto this reply by hand: it
         # is not registered as the session's writer until it follows.
         _store_plan(link, session_id, _plan_onto(generation, status.get("plan")))
+    if link.can("jobs") and isinstance(status.get("jobs"), list):
+        # The session's background jobs, for the strip, for the same reason.
+        from lembas.services import jobs as jobs_service
+
+        for raw in status["jobs"]:
+            facts = jobs_service.device_info(raw)
+            if facts["id"]:
+                generation.jobs[facts["id"]] = facts
     if turn:
         running = str(status.get("turnId") or "")
         queued = [str(t) for t in status.get("queued") or []]
@@ -2114,16 +2211,30 @@ async def _announced(link: Link, session_id: str) -> None:
 
 
 def _begin_mirror(
-    link: Link, session_id: str, text: str, *, turn: str = "", attachments: Any = None
+    link: Link,
+    session_id: str,
+    text: str,
+    *,
+    turn: str = "",
+    attachments: Any = None,
+    machine: bool = False,
 ) -> None:
-    """A turn typed in the terminal: hold its events, and make its bubbles."""
+    """A turn typed in the terminal, or started by the harness (`machine`):
+    hold its events, and make its bubbles."""
     link.buffered[session_id] = []
     if turn:
         link.mirror_turns[session_id] = turn
     # A prompt is a turn running, whether or not its `task` start came first.
     link.busy.add(session_id)
     asyncio.get_running_loop().create_task(
-        _mirror_turn(link, session_id, text, turn=turn, attachments=attachment_chips(attachments))
+        _mirror_turn(
+            link,
+            session_id,
+            text,
+            turn=turn,
+            attachments=attachment_chips(attachments),
+            machine=machine,
+        )
     )
 
 
@@ -2149,7 +2260,13 @@ async def _previous_reply_done(chat_id: str) -> bool:
 
 
 async def _mirror_turn(
-    link: Link, session_id: str, text: str, *, turn: str = "", attachments: list | None = None
+    link: Link,
+    session_id: str,
+    text: str,
+    *,
+    turn: str = "",
+    attachments: list | None = None,
+    machine: bool = False,
 ) -> None:
     from lembas.db.models import ROLE_ASSISTANT, ROLE_USER, Message
     from lembas.db.session import session_scope
@@ -2178,13 +2295,25 @@ async def _mirror_turn(
     ids: tuple[str, str] | None = None
     try:
         with session_scope() as db:
-            chat = _chat_for(db, link, session_id) or _adopt_chat(db, link, session_id)
+            chat = _chat_for(db, link, session_id)
+            # A harness turn in a session no chat shows is not a reason to make
+            # one; a terminal's turn in a shared session is.
+            if chat is None and (session_id in link.announced or not machine):
+                chat = _adopt_chat(db, link, session_id)
             # One reply at a time in a chat: with one running here (it cannot be
             # this session's, or the event would have gone to it), the terminal's
             # turn is not shown rather than shown twice.
             if chat is not None and generation_service.running_for(chat.id) is None:
+                # The harness's own turn is badged as such (`machine`, as a
+                # schedule's or a helper's note here is), never as typed in the
+                # terminal: nobody typed it.
                 asked = chat_service.create_message(
-                    db, chat, ROLE_USER, text, origin=ORIGIN_TERMINAL
+                    db,
+                    chat,
+                    ROLE_USER,
+                    text,
+                    origin="" if machine else ORIGIN_TERMINAL,
+                    machine=machine,
                 )
                 if attachments:
                     asked.terminal_attachments_json = attachments
@@ -2539,6 +2668,97 @@ async def compact_session(token_id: str | None, session_id: str | None) -> str:
         raise DeviceError("the session is working -- compact it when the reply is done")
     answer = await link.request("_lembas/session/compact", {"sessionId": session_id}, timeout=600)
     return str((answer or {}).get("summary") or "")
+
+
+def _jobs_link(token_id: str | None, session_id: str | None) -> Link:
+    """The link a job request goes over, or why it cannot (`DeviceError`)."""
+    link = link_for(token_id)
+    if link is None:
+        raise DeviceError("the device is not linked right now")
+    if not session_id or not link.can("jobs"):
+        raise DeviceError(
+            "the device's LLeMbas CLI does not show its jobs from here; update it there"
+        )
+    return link
+
+
+def shows_jobs(token_id: str | None) -> bool:
+    """Whether a device chat's strip has anything to ask: the device is
+    linked and lists `jobs`."""
+    return offers(token_id, "jobs")
+
+
+async def list_jobs(token_id: str | None, session_id: str | None) -> list[dict[str, Any]]:
+    """`_lembas/jobs`: the session's background jobs, running ones first, as
+    the strip reads them. Empty for a device that cannot say."""
+    try:
+        link = _jobs_link(token_id, session_id)
+    except DeviceError:
+        return []
+    from lembas.services import jobs as jobs_service
+
+    answer = await link.request("_lembas/jobs", {"sessionId": session_id}, timeout=15)
+    raw = (answer or {}).get("jobs") if isinstance(answer, dict) else None
+    jobs = [jobs_service.device_info(j) for j in raw or [] if isinstance(j, dict)]
+    return [j for j in jobs if j["id"]]
+
+
+async def stop_job(token_id: str | None, session_id: str | None, job_id: str) -> str:
+    """`_lembas/job/stop`: the person stops a job. Returns the state after."""
+    link = _jobs_link(token_id, session_id)
+    answer = await link.request(
+        "_lembas/job/stop", {"sessionId": session_id, "id": job_id}, timeout=30
+    )
+    return str((answer or {}).get("state") or "stopped") if isinstance(answer, dict) else "stopped"
+
+
+async def send_job(token_id: str | None, session_id: str | None, job_id: str, text: str) -> str:
+    """`_lembas/job/send`: the person's message to a subagent job -- taken in
+    at its next step, or starting a finished one again. Returns the state."""
+    link = _jobs_link(token_id, session_id)
+    answer = await link.request(
+        "_lembas/job/send", {"sessionId": session_id, "id": job_id, "text": text}, timeout=30
+    )
+    return str((answer or {}).get("state") or "running") if isinstance(answer, dict) else "running"
+
+
+async def job_transcript(
+    token_id: str | None, session_id: str | None, job_id: str
+) -> list[dict[str, Any]]:
+    """`_lembas/job/transcript`: a subagent's conversation so far, in the shape
+    `services/jobs.transcript` gives for a helper here, so one panel draws
+    both. Everything in it came off the device: bounded, and escaped where
+    it is shown."""
+    link = _jobs_link(token_id, session_id)
+    answer = await link.request(
+        "_lembas/job/transcript", {"sessionId": session_id, "id": job_id}, timeout=30
+    )
+    from lembas.services import tool_blocks
+
+    turns: list[dict[str, Any]] = []
+    raw_turns = (answer or {}).get("turns") if isinstance(answer, dict) else None
+    for raw in raw_turns or []:
+        if not isinstance(raw, dict):
+            continue
+        role = str(raw.get("role") or "")
+        text = str(raw.get("text") or "")[:MAX_REPLY_CHARS]
+        if role == "user":
+            turns.append({"role": "user", "text": text, "machine": bool(raw.get("machine"))})
+        elif role == "assistant":
+            tools = []
+            for tool in raw.get("tools") or []:
+                if not isinstance(tool, dict):
+                    continue
+                event = _tool_event(tool)
+                tools.append(
+                    {
+                        "name": str(tool.get("name") or "tool")[:60],
+                        "title": tool_blocks.block_for(event).title[:200],
+                        "isError": bool(tool.get("isError")),
+                    }
+                )
+            turns.append({"role": "assistant", "text": text, "tools": tools, "error": ""})
+    return turns
 
 
 def link_restarted(generation) -> bool:

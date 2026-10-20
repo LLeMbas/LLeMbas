@@ -289,6 +289,15 @@ class Generation:
     # Cut off by a shutdown, not stopped by anybody: written on the row,
     # and taken up again when the instance is back.
     interrupted: bool = False
+    # The chat's background jobs as this reply last knew them, id -> JobInfo
+    # (spec 2.0.0, `acp.md`): a device's `job` events, or the helpers a reply
+    # here started (`services/subagent.py`). Streamed to the strip above the
+    # composer while the reply runs; after it, the strip polls the rows or the
+    # device for itself.
+    jobs: dict = field(default_factory=dict)
+    # A device's `sub_tool` events, by the `task` call they belong to, until
+    # that call ends and they are drawn under its block.
+    sub_tools: dict = field(default_factory=dict)
 
     def touch(self) -> None:
         self.version += 1
@@ -552,6 +561,11 @@ async def resume_interrupted(delay: float = 20.0) -> int:
                 row.interrupted = False
                 chat = db.get(Chat, row.chat_id)
                 if chat is None or running_for(chat.id) is not None:
+                    continue
+                # A helper's chat: the reply that was waiting on it died with
+                # the shutdown, so there is nobody to hand its answer to, and
+                # resuming it would spend the endpoint on work nothing reads.
+                if chat.parent_chat_id:
                     continue
                 if chat.device_token_id:
                     row.complete = False
@@ -880,9 +894,11 @@ async def _run(generation: Generation) -> None:
             # ceiling on a helper is whatever an ordinary chat has, which by
             # default is none at all, and the only thing left holding it is the
             # parent's wall clock.
-            if chat.parent_chat_id:
-                chat_rounds = int(settings_store.subagents(db)["max_rounds"])
             budgets = loop_budgets(db)
+            if chat.parent_chat_id:
+                helper = settings_store.subagents(db)
+                chat_rounds = int(helper["max_rounds"])
+                budgets = helper_budgets(budgets, helper)
             # Whether `plan_submit` can be answered here at all, and how long
             # it waits -- read now, for the reason the timeout above is.
             attended = not tools_service.unattended(chat)
@@ -1129,9 +1145,7 @@ async def _run(generation: Generation) -> None:
             # together under a semaphore, and four people-shaped pauses inside
             # that gather would queue behind each other invisibly -- see
             # services/interaction.py.
-            decided, allowed, edited = await _authorise(
-                generation, tool_context, calls, arguments
-            )
+            decided, edited = await _authorise(generation, tool_context, calls, arguments)
             if generation.stopped:
                 break
 
@@ -1153,9 +1167,7 @@ async def _run(generation: Generation) -> None:
             generation.status = _tool_status(calls)
             generation.touch()
             try:
-                outcomes = await _run_calls(
-                    tool_context, calls, arguments, decided=decided, allowed=allowed
-                )
+                outcomes = await _run_calls(tool_context, calls, arguments, decided=decided)
             finally:
                 generation.status = ""
                 generation.touch()
@@ -1550,6 +1562,22 @@ def loop_budgets(db) -> dict[str, int]:
     return out
 
 
+def helper_budgets(budgets: dict[str, int], values: dict) -> dict[str, int]:
+    """A helper's budgets: the loop's, narrowed by the subagent settings.
+
+    `max_completion_tokens` was a setting nothing read -- a promise. It is the
+    helper's own ceiling on what it writes, so it goes where every other ceiling
+    is checked, between rounds, and ends the helper with an answer rather than a
+    cut. Zero means no ceiling of its own; a set one only ever narrows.
+    """
+    out = dict(budgets)
+    tokens_max = int(values.get("max_completion_tokens") or 0)
+    if tokens_max:
+        current = int(out.get("completion_tokens") or 0)
+        out["completion_tokens"] = min(current, tokens_max) if current else tokens_max
+    return out
+
+
 def _over_budget(generation: Generation, budgets: dict[str, int], started: float) -> str:
     """Which budget this reply has passed, as the words the wrap-up uses, or "".
 
@@ -1862,20 +1890,20 @@ def _questions_in(args: dict) -> list[dict]:
 
 async def _authorise(
     generation, context, calls: list[dict], arguments: list[dict]
-) -> tuple[dict[int, ToolOutcome], set[int], set[int]]:
+) -> tuple[dict[int, ToolOutcome], set[int]]:
     """Which of this round's calls may run, and what the others answer instead.
 
-    Returns outcomes keyed by the call's index, the indices a person allowed,
-    and the indices whose command they corrected on the way. Every index the
-    caller does not find in the first is cleared to run; every index it does
-    find is answered without the runner being reached at all. That is what keeps
+    Returns outcomes keyed by the call's index, and the indices whose command a
+    person corrected on the way. Every index the caller does not find in the
+    first is cleared to run; every index it does find is answered without the
+    runner being reached at all. That is what keeps
     `zip(calls, outcomes, strict=True)` aligned -- an endpoint matching on
     `tool_call_id` pairs the wrong content with the right id otherwise.
 
-    Also returns the indices a person explicitly allowed, so the runners can be
-    told. They re-check the mode as a backstop and would otherwise refuse the
-    very thing that was just approved -- the mode says "ask", and asking is what
-    happened.
+    The only cards a reply written here puts up are the model's questions
+    (`ask_user`); approvals of a chat's own tools are a linked device's, asked
+    and answered there. So there is no set of "allowed" indices any more -- it
+    was returned empty and read by nobody.
 
     A command corrected on the card is written back into `arguments` **in
     place**, because that same list is what `_run_calls` hands to `run_tool` as
@@ -1885,7 +1913,7 @@ async def _authorise(
     refused: dict[int, ToolOutcome] = {}
     items = _ask_items(context, calls, arguments)
     if not items:
-        return refused, set(), set()
+        return refused, set()
 
     # Nobody can answer, so nothing waits. A scheduled task and a subagent both
     # run with no reader, and a card built for one of them is a reply doing
@@ -1899,7 +1927,7 @@ async def _authorise(
     # "not in this chat" rather than "hold everything". See
     # services/subagent.py.
     if getattr(context, "unattended", False):
-        return {**refused, **{item.index: _unanswerable(item) for item in items}}, set(), set()
+        return {**refused, **{item.index: _unanswerable(item) for item in items}}, set()
 
     timeout = float(context.interaction_timeout or 900)
     pause = interaction.build(uuid.uuid4().hex, items, timeout=timeout)
@@ -1909,10 +1937,9 @@ async def _authorise(
 
     if reply.ended:
         generation.stopped = True
-        return refused, set(), set()
+        return refused, set()
 
     decided: dict[int, ToolOutcome] = dict(refused)
-    allowed: set[int] = set()
     edited: set[int] = set()
 
     # Questions are grouped back by call, because one `ask_user` call may have
@@ -1923,7 +1950,7 @@ async def _authorise(
     for index, asked in grouped.items():
         decided[index] = _answered(asked, reply)
 
-    return decided, allowed, edited
+    return decided, edited
 
 
 def _unanswerable(item: interaction.Item) -> ToolOutcome:
@@ -2041,7 +2068,6 @@ async def _run_calls(
     arguments: list[dict],
     *,
     decided: dict[int, ToolOutcome] | None = None,
-    allowed: set[int] | None = None,
 ) -> list:
     """Run one round's calls together, results in call order.
 
@@ -2067,15 +2093,9 @@ async def _run_calls(
         if decided and index in decided:
             return decided[index]
 
-        # A per-call copy for anything a person allowed, so the runner's own
-        # check does not undo their decision. A copy rather than a flag on the
-        # shared context, because a round runs its calls together and only some
-        # of them were approved.
-        ctx = context
-
         async with limit:
             return await tools_service.run_tool(
-                ctx, call["name"], call["arguments"], parsed=arguments[index]
+                context, call["name"], call["arguments"], parsed=arguments[index]
             )
 
     return list(await asyncio.gather(*(one(i, c) for i, c in enumerate(calls))))

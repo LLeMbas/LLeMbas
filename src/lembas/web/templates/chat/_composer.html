@@ -56,13 +56,12 @@
 
              htmx events BUBBLE. This form contains six things that make
              requests -- the two scope switches, "ask me about these again",
-             the agent mode select, the effort select and the jobs chip -- and
-             every one of their `htmx:afterRequest` events reached this handler.
-             So changing the mode, or the effort, or toggling a tool, called
-             `this.reset()` on a composer somebody was typing in and dragged the
-             view to the bottom. The jobs chip did not introduce that; it polls,
-             so it made it happen every five seconds, which is what finally made
-             it visible.
+             the agent mode select and the effort select -- and every one of
+             their `htmx:afterRequest` events reached this handler. So changing
+             the mode, or the effort, or toggling a tool, called `this.reset()`
+             on a composer somebody was typing in and dragged the view to the
+             bottom. A polling chip that once lived in here made it happen every
+             five seconds, which is what finally made it visible.
 
              A form's own handler answers its own request. Anything else in here
              that fetches is somebody else's business. There is a test. #}
@@ -381,25 +380,12 @@
           </select>
           {% endif %}
         </div>
-
-        {# What is still running on the far side. Only where jobs can exist at
-           all -- a chat without background commands enabled has none, and a chip
-           that could never show anything is a chip that only takes room.
-
-           `hx-trigger="load"` and not the contents inline: the listing reads the
-           `agent_jobs` table, and the composer is rendered on every page load
-           and after every reply. One request five seconds later costs nothing;
-           a query on the render path costs it every time. #}
-        {# `hx-target="this"` is load-bearing and is the whole of a bug that
-           blanked every agent chat. htmx INHERITS `hx-target` from ancestors,
-           and this sits inside the composer's form, which carries
-           `hx-target="#thread"` so that a sent message appends a bubble. Without
-           a target of its own, this element's request resolved to `#thread` --
-           and with `outerHTML` it replaced the entire transcript with the chip.
-           The reply rendered and then vanished, prompt and all.
-
-           Anything in here that fetches must say where the answer goes. There
-           is a test. #}
+        {# The background jobs are not in here any more: they are the strip
+           above the composer (`chat/_jobs_strip.html`), outside this form --
+           because htmx INHERITS `hx-target`, this form carries `#thread`, and
+           a chip in here without a target of its own once replaced the whole
+           transcript with itself. Anything that fetches says where its answer
+           goes. There is a test. #}
         {% endif %}
 
         <div class="composer__actions">

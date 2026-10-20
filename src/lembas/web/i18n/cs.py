@@ -124,7 +124,6 @@ MESSAGES: dict[str, str] = {
     "Sent on its own after the first reply, not as part of any conversation.": "Pošle se samostatně po první odpovědi, ne jako součást konverzace.",
     "This is what the model would read back:": "Tohle by si model přečetl:",
     "A backstop, as it is above. The clock and the token ceiling are what normally end one.": "Záchranná síť, jako výše. Běh obvykle ukončí hodiny a strop tokenů.",
-    "A reply can hand a self-contained piece of work to a second model that runs on its own and reports back — several at once, which is what makes research fan out instead of queueing. This applies to ordinary chats as much as agent ones.": "Odpověď může samostatný kus práce předat druhému modelu, který běží sám a ozve se — i více najednou, a právě proto se výzkum rozvětví, místo aby stál ve frontě. Platí to pro obyčejné konverzace stejně jako pro agentní.",
     "Allow agent chats": "Povolit agentní konverzace",
     "Allow the terminal panel": "Povolit panel terminálu",
     "Ask another model": "Zeptat se jiného modelu",
@@ -1195,7 +1194,6 @@ MESSAGES.update(
         "People also need the permission “%(permission)s” and a linked LLeMbas CLI (Settings → Devices).": "Lidé potřebují také oprávnění „%(permission)s“ a připojené LLeMbas CLI (Nastavení → Zařízení).",
         "Seconds with nobody watching <em>and</em> nothing typed. Closing the panel does not end the session — a build carries on and is still there on the way back — so this is what eventually ends one.": "Sekundy, kdy se nikdo nedívá <em>a</em> nic se nepíše. Zavření panelu relaci neukončí — build pokračuje a po návratu tam pořád je — takže ji nakonec ukončí právě tohle.",
         "<strong>Asking another model a question uses the same switch and the same allowance below</strong>, because it costs the same thing: one reply setting another reply going. Which people may do it is a separate permission — <strong>%(permission)s</strong> — and which models may is a switch on each model's own page.": "<strong>Otázka pro jiný model používá stejný přepínač a stejný limit níže</strong>, protože stojí totéž: jedna odpověď spouští další. Kteří lidé to smějí, určuje samostatné oprávnění — <strong>%(permission)s</strong> — a které modely, přepínač na stránce každého modelu.",
-        "A helper cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads, it searches, and on a machine it runs a short fixed list of read-only commands and nothing else, in every mode including <strong>%(mode)s</strong>. It cannot send helpers of its own.": "Pomocník se nemůže nikoho na nic zeptat, takže nic v jeho konverzaci se nemůže zastavit kvůli schválení. Dostane proto jen to, co tato konverzace už smí <em>bez</em> ptaní: čte, vyhledává a na stroji spouští krátký pevný seznam příkazů jen pro čtení a nic jiného, v každém režimu včetně <strong>%(mode)s</strong>. Vlastní pomocníky posílat nemůže.",
         "People also need the <strong>%(permission)s</strong> permission, and the model needs the <strong>%(capability)s</strong> capability. Off by default: a reply that spawns helpers spends model time multiplicatively, and on one local endpoint four at once is four times the queue rather than four times the speed.": "Lidé potřebují také oprávnění <strong>%(permission)s</strong> a model schopnost <strong>%(capability)s</strong>. Ve výchozím stavu vypnuto: odpověď, která spouští pomocníky, spotřebovává čas modelu násobně a na jednom lokálním endpointu jsou čtyři najednou čtyřnásobná fronta, ne čtyřnásobná rychlost.",
         "Seconds. Past it the helper is <em>stopped</em>, not abandoned: what it had written is kept and handed back with a note saying it is partial.": "Sekundy. Potom se pomocník <em>zastaví</em>, ne opustí: co stihl napsat, se ponechá a předá s poznámkou, že je to neúplné.",
         "Where <code>/v1/audio/transcriptions</code> lives — whisper.cpp's <code>whisper-server</code>, Speaches, or anything else speaking it. With or without <code>/v1</code>; either is understood.": "Kde je <code>/v1/audio/transcriptions</code> — <code>whisper-server</code> z whisper.cpp, Speaches nebo cokoli jiného, co ho podporuje. S <code>/v1</code> i bez; rozumí se obojímu.",
@@ -2278,3 +2276,33 @@ MESSAGES.update(
         "Keeping a plan": "Vedení plánu",
     }
 )
+
+# --- 1.6.0: background jobs, the helper panel, the subagent preamble ---
+MESSAGES["A reply can hand a self-contained piece of work to a second model that runs on its own and reports back — several at once, which is what makes research fan out instead of queueing, and in the background, so the reply carries on and is told when the helper is done. There are two kinds: explore, which reads and searches only, and general, which may also change things the chat itself may change. An agent chat's helpers run on its linked device instead, under the device's own limits."] = 'Odpověď může samostatný kus práce předat druhému modelu, který běží sám a ozve se — i více najednou, a právě proto se výzkum rozvětví, místo aby stál ve frontě; a také na pozadí, takže odpověď pokračuje a dozví se, až pomocník skončí. Jsou dva druhy: explore, který jen čte a vyhledává, a general, který smí měnit i to, co smí měnit samotná konverzace. Pomocníci agentní konverzace běží místo toho na připojeném zařízení, v jeho vlastních limitech.'
+MESSAGES["A helper cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads and searches the library and the web, and the general kind writes what the chat may write. It cannot send helpers of its own; it can message the main agent, and be messaged, while it works. <strong>%(mode)s</strong> is not inherited: a helper's task text can have come from a page it read."] = 'Pomocník se nemůže nikoho na nic zeptat, takže nic v jeho konverzaci se nemůže zastavit kvůli schválení. Dostane proto jen to, co tato konverzace už smí <em>bez</em> ptaní: čte a vyhledává v knihovně a na webu a druh general píše to, co smí psát konverzace. Vlastní pomocníky posílat nemůže; během práce může psát hlavnímu agentovi a ten jemu. Režim <strong>%(mode)s</strong> se nedědí: text úlohy pomocníka mohl přijít ze stránky, kterou si přečetl.'
+MESSAGES['%(job)s asks:'] = '%(job)s se ptá:'
+MESSAGES['Helper'] = 'Pomocník'
+MESSAGES['Close the helper panel'] = 'Zavřít panel pomocníka'
+MESSAGES['Open a helper from the strip above the composer to follow it here.'] = 'Otevřete pomocníka z lišty nad polem zprávy a sledujte ho tady.'
+MESSAGES['subagent'] = 'podagent'
+MESSAGES['Stop'] = 'Zastavit'
+MESSAGES['A message to the helper'] = 'Zpráva pro pomocníka'
+MESSAGES['Message the helper — it reads it at its next step; a finished one is started again with it'] = 'Napište pomocníkovi — přečte si to v dalším kroku; skončený se s tím spustí znovu'
+MESSAGES['From the main agent'] = 'Od hlavního agenta'
+MESSAGES['The task'] = 'Úloha'
+MESSAGES['Working…'] = 'Pracuje…'
+MESSAGES['Background jobs'] = 'Úlohy na pozadí'
+MESSAGES['Running for %(time)s'] = 'Běží %(time)s'
+MESSAGES['Follow this helper'] = 'Sledovat tohoto pomocníka'
+MESSAGES['Follow this helper and message it'] = 'Sledovat tohoto pomocníka a psát mu'
+MESSAGES['Stop %(job)s'] = 'Zastavit %(job)s'
+MESSAGES['Stop this job'] = 'Zastavit tuto úlohu'
+MESSAGES['Scheduled run'] = 'Plánovaný běh'
+MESSAGES['The device did not answer in time.'] = 'Zařízení neodpovědělo včas.'
+MESSAGES['Not done: %(error)s'] = 'Neprovedeno: %(error)s'
+MESSAGES['That job is not here any more.'] = 'Tato úloha tu už není.'
+MESSAGES['Write something to send.'] = 'Napište něco k odeslání.'
+MESSAGES["That helper's conversation is gone, so it cannot be messaged."] = 'Konverzace tohoto pomocníka je pryč, takže mu nelze psát.'
+MESSAGES['running'] = 'běží'
+MESSAGES['done'] = 'hotovo'
+MESSAGES['lost'] = 'ztracená'

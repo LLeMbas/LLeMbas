@@ -229,10 +229,10 @@ class Chat(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
     # IS switchable mid-chat: it decides what gets asked about, not what the
     # conversation is.
     agent_mode: Mapped[str] = mapped_column(String(16), default=MODE_MANUAL, nullable=False)
-    # Set when a turn was edited or regenerated in an agent chat. The project
-    # directory is deliberately NOT rewound with the transcript -- it is
-    # somebody's real working tree and deleting their work would be far worse
-    # than an inconsistency -- so the harness says so instead.
+    # Unused since 1.6.0: it was stamped when a turn was edited or regenerated
+    # in an agent chat and read by nothing. Kept because the schema is additive
+    # -- dropping a column is a manual migration -- and an old row's value is
+    # harmless. The device is told of a rewind through the link instead.
     rewound_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Which message last carried the plan. A plain id and not a ForeignKey,
     # for the reason `compacted_through_id` below gives; validated on read. The
@@ -489,3 +489,59 @@ class Message(UUIDPrimaryKey, Timestamps, Base):
 
     def __repr__(self) -> str:
         return f"<Message {self.role} {self.content[:40]!r}>"
+
+
+# --- Background work a chat owns -----------------------------------------------
+# The states a job can be in, as the harness spec's `JobInfo` names them
+# (acp.md): running, or ended one of three ways. `lost` is the CLI's -- a job
+# that was running when its process died -- and does not occur here, where a
+# helper that outlives a restart is picked up by `services/jobs.py` instead.
+JOB_RUNNING = "running"
+JOB_DONE = "done"
+JOB_STOPPED = "stopped"
+JOB_ERROR = "error"
+JOB_STATES = (JOB_RUNNING, JOB_DONE, JOB_STOPPED, JOB_ERROR)
+
+JOB_SUBAGENT = "subagent"
+
+
+class ChatJob(UUIDPrimaryKey, Timestamps, Base):
+    """A background job of a chat: here, always a helper (`task`), running in a
+    hidden child chat (spec 2.0.0, `loop.json` jobs).
+
+    A row rather than a dict on the parent's `Generation`, because the thing a
+    job exists for is to outlive the reply that started it: `job_list` has to
+    answer on the next request and after a restart, and the strip above the
+    composer has to find the chat's running helpers from any page load. The
+    child chat holds the transcript; this row holds what the model and the
+    strip are told about it. Additive: a new table, nothing changed elsewhere.
+    """
+
+    __tablename__ = "chat_jobs"
+
+    # The chat the job belongs to -- the parent, whose model started it. A
+    # plain id and not a ForeignKey, for the reason every other reference in
+    # this module gives; validated on read.
+    chat_id: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    # `job1`, `job2`, ... -- one sequence per chat, as the spec says, so the
+    # model's `job_output job3` means the same thing it did last turn.
+    job_id: Mapped[str] = mapped_column(String(16), nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), default=JOB_SUBAGENT, nullable=False)
+    # The hidden chat the helper runs in. Kept while the row exists, because a
+    # finished helper can be started again with `job_send` -- its context is
+    # that chat. The temporary sweep takes both a day later.
+    child_chat_id: Mapped[str | None] = mapped_column(String(32))
+    description: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+    agent: Mapped[str] = mapped_column(String(60), default="", nullable=False)
+    # The model the helper runs on, as `connection/model` -- what `job_list`
+    # and the strip show, and what the capacity rule compares against.
+    model: Mapped[str] = mapped_column(String(300), default="", nullable=False)
+    state: Mapped[str] = mapped_column(String(16), default=JOB_RUNNING, nullable=False)
+    started: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ended: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Everything else about it, additively: `background`, `message_id` (the
+    # child's reply being awaited), `model_id`/`connection_id`, `report`,
+    # `reason`, `error`, `steps`, `tools`, `read_rows` (how far the model has
+    # read its output), `runs` (how many times it was started).
+    data_json: Mapped[dict[str, Any]] = mapped_column(JSONDict, default=dict)
+

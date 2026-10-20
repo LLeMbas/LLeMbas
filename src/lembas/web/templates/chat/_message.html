@@ -50,7 +50,11 @@
     {% set badged = machine or (message.role == "user" and message.origin == "terminal") %}
     {% if badged %}
     <header class="msg__meta">
-      {% if machine %}<span class="badge">{{ icon("terminal", "icon--sm") }} {{ t("Background job") }}</span>{% endif %}
+      {#- Which machine wrote it: a schedule firing into its task chat, the main
+          agent's task or message in a helper's chat, or -- everywhere else -- a
+          background job's or a helper's note, the harness's own turn. One badge
+          used to say "Background job" for all three. #}
+      {% if machine %}<span class="badge">{{ icon("terminal", "icon--sm") }} {% if chat.kind == "task" %}{{ t("Scheduled run") }}{% elif chat.parent_chat_id %}{{ t("From the main agent") }}{% else %}{{ t("Background job") }}{% endif %}</span>{% endif %}
       {% if message.role == "user" and message.origin == "terminal" %}
       {# Typed into the LLeMbas CLI's terminal on the linked device: the
          same session, shown here as it happens. #}
@@ -387,5 +391,8 @@
   {# A message taken into the reply: the frame deletes its queued
      bubble out of band; the reply's own steps show it where it went in. #}
   <div hidden sse-swap="steered" hx-swap="none"></div>
+  {# The background jobs: the frame carries the strip marked `hx-swap-oob`,
+     which lands above the composer; this is only where it arrives. #}
+  <div hidden sse-swap="jobs" hx-swap="none"></div>
   {% endif %}
 </article>

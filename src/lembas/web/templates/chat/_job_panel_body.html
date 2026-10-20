@@ -1,0 +1,46 @@
+{% from "_macros.html" import icon %}
+{#
+  What the helper panel holds for one job: its head, its transcript so far, and
+  the box to message it. Returned by `GET /api/chats/{id}/jobs/{job}`; the
+  transcript part alone by `?part=turns`, which the transcript polls for while
+  the job runs -- the whole body is never replaced under a half-typed message,
+  which is why the poll lives on the turns and not on the body.
+
+  Everything in `turns` is another model's words (a helper here) or came off a
+  device: the user turns are printed as text, the assistant text went through
+  `render_markdown`, and the tool lines are escaped by Jinja.
+#}
+{% set running = job.state == "running" %}
+<div class="jobpanel__head">
+  <div class="jobpanel__title">
+    <span class="jobs__id">{{ job.id }}</span>
+    <span class="jobs__agent">{{ job.agent or t("subagent") }}</span>
+    <span class="jobpanel__state">{{ job_state(job.state) }} · {{ job_duration(job.seconds) }}</span>
+  </div>
+  <p class="jobpanel__desc">{{ job.description }}</p>
+  {% if running %}
+  <button class="btn btn--sm" type="button"
+          hx-post="/api/chats/{{ chat.id }}/jobs/{{ job.id }}/stop"
+          hx-target="#jobs-strip" hx-swap="outerHTML">
+    {{ icon("stop-circle", "icon--sm") }} {{ t("Stop") }}
+  </button>
+  {% endif %}
+</div>
+
+<div class="jobpanel__turns" id="jobpanel-turns"
+     {% if running %}
+     hx-get="/api/chats/{{ chat.id }}/jobs/{{ job.id }}?part=turns" hx-trigger="every 5s"
+     hx-target="this" hx-swap="innerHTML" hx-sync="this:drop"
+     {% endif %}>
+  {% include "chat/_job_turns.html" %}
+</div>
+
+<form class="jobpanel__send" id="jobpanel-send"
+      hx-post="/api/chats/{{ chat.id }}/jobs/{{ job.id }}/send"
+      hx-target="#jobpanel-body" hx-swap="innerHTML"
+      hx-on::after-request="if (event.target === this && event.detail.successful) this.reset()">
+  <label class="visually-hidden" for="jobpanel-text">{{ t("A message to the helper") }}</label>
+  <textarea class="textarea" id="jobpanel-text" name="text" rows="2" required
+            placeholder="{{ t('Message the helper — it reads it at its next step; a finished one is started again with it') }}"></textarea>
+  <button class="btn btn--sm" type="submit">{{ icon("send", "icon--sm") }} {{ t("Send") }}</button>
+</form>

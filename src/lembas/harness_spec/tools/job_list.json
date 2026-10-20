@@ -1,0 +1,19 @@
+{
+  "name": "job_list",
+  "scope": "shared",
+  "risk": "read",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": false,
+  "aliases": {
+    "cli": [
+      "bash_list"
+    ],
+    "llembas": []
+  },
+  "description": "The background jobs of this session — commands started with bash `background: true` (or moved there when their timeout passed) and subagents started with task `background: true`: id, kind, state, how long each has run, whether it has output you have not read, and its command or description.",
+  "parameters": {
+    "type": "object",
+    "properties": {}
+  }
+}

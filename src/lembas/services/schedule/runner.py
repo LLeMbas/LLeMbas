@@ -2,24 +2,22 @@
 
 Every schedule fires the same way — a turn into a chat, answered by the ordinary
 generation loop — and the *target* decides only what becomes of the finished
-reply. One mechanism, three deliveries:
+reply. One mechanism, two deliveries:
 
 - `chat`     leave it there. The reply is the point, and it is already in the
              task chat where somebody will read it.
-- `report`   copy it into a `Report` and keep the chat out of the way.
-- `messages` copy it into the reader's Messages conversation, as an assistant
-             turn marked `machine`. Copied rather than moved: the task chat is
-             the working area and keeps the tool calls, the steps and the
-             metrics; Messages gets the answer.
+- `report`   copy it into a `Report` and keep the chat out of the way. Copied
+             rather than moved: the task chat is the working area and keeps the
+             tool calls, the steps and the metrics; the report gets the answer.
 
 The alternative — a one-shot `complete()` in the shape of `generate_title` — was
 rejected because it has no tools and no rounds, which is useless for the case
 this feature exists for. "Give me a daily news report" needs to search the web.
 
 **Nothing in `services/generation.py` changes.** The waiting happens here, in a
-task per firing, which is the shape `jobs._watch` already established. Making
-generation aware of schedules would mean a branch inside `_persist`, and that is
-the single writer with one rule.
+task per firing -- the same shape a background helper's watcher has
+(`services/subagent.py`). Making generation aware of schedules would mean a
+branch inside `_persist`, and that is the single writer with one rule.
 """
 
 from __future__ import annotations
@@ -266,7 +264,7 @@ async def fire(schedule_id: str, *, due_at: datetime | None = None) -> None:
 
 
 async def run_now(schedule_id: str) -> None:
-    """Fire a schedule because somebody pressed the button.
+    """Fire a schedule because somebody pressed the button, and follow it.
 
     **Deliberately does not advance `next_fire_at`.** Testing a schedule must
     not consume the run it was testing -- somebody who presses this at 14:00 to
@@ -274,3 +272,16 @@ async def run_now(schedule_id: str) -> None:
     and it is the only thing that does.
     """
     await fire(schedule_id)
+
+
+# The firings started by `fire_later`, held so the loop does not collect a task
+# nothing else refers to; each removes itself when it ends.
+_FIRINGS: set[asyncio.Task] = set()
+
+
+def fire_later(schedule_id: str) -> None:
+    """`run_now` without the wait: for the button, whose request must come
+    back at once. The run itself is `fire`'s, unchanged."""
+    task = asyncio.get_running_loop().create_task(run_now(schedule_id))
+    _FIRINGS.add(task)
+    task.add_done_callback(_FIRINGS.discard)

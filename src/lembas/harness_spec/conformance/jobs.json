@@ -1,0 +1,127 @@
+{
+  "about": "The message a session is given about its background work (loop.json jobs.marks), composed from a job's record: `kind` command or subagent; `id`; for a command its `command`, `exit` (a number, or null when it was stopped by a signal), `seconds` run and `unread` output (the last note_tail_chars of it, an ellipsis before a cut); for a subagent its `agent`, `description`, `report` (empty: \"(the subagent returned no report)\"), `steps`, `tools`, `reason` (stop, stopped, steps, budget, or error with `error` text), `seconds`, and `worktree` (a summary line, or absent); for a message from a subagent (`kind` message) its `agent`, `description` and `text`; for one to a subagent (`kind` to_subagent) the `text`. The result is `text`: the mark on the first line, then the note. Durations as both projects write them (\"5s\", \"1m 05s\", \"2h 03m\"). LLeMbas: services/jobs.py note; CLI: jobs/note.ts jobNote.",
+  "cases": [
+    {
+      "kind": "command",
+      "id": "job3",
+      "command": "npm test",
+      "exit": 0,
+      "seconds": 5,
+      "unread": "ok 12 tests\n",
+      "expect": {
+        "text": "[A background job you started has finished:]\njob3 (npm test) exited with 0 after 5s.\nOutput you had not read:\nok 12 tests"
+      }
+    },
+    {
+      "kind": "command",
+      "id": "job1",
+      "command": "python -m http.server 8000",
+      "exit": null,
+      "seconds": 125,
+      "unread": "",
+      "expect": {
+        "text": "[A background job you started has finished:]\njob1 (python -m http.server 8000) stopped (SIGTERM) after 2m 05s. It printed nothing you had not read."
+      }
+    },
+    {
+      "kind": "command",
+      "id": "job2",
+      "command": "make build\nmake test",
+      "exit": 2,
+      "seconds": 7325,
+      "unread": "…rror: missing semicolon\nmake: *** [test] Error 2\n",
+      "expect": {
+        "text": "[A background job you started has finished:]\njob2 (make build) exited with 2 after 2h 02m.\nOutput you had not read:\n…rror: missing semicolon\nmake: *** [test] Error 2"
+      }
+    },
+    {
+      "kind": "subagent",
+      "id": "job4",
+      "agent": "explore",
+      "description": "find the config loader",
+      "report": "The loader is `src/config/load.ts:40`; it is called from `src/app.ts:120`.",
+      "steps": 6,
+      "tools": 9,
+      "reason": "stop",
+      "seconds": 48,
+      "expect": {
+        "text": "[A subagent you started has finished:]\njob4 (explore: find the config loader) finished after 48s.\nThe loader is `src/config/load.ts:40`; it is called from `src/app.ts:120`.\n\n[explore subagent · 6 steps · 9 tool calls]"
+      }
+    },
+    {
+      "kind": "subagent",
+      "id": "job5",
+      "agent": "general",
+      "description": "add the migration",
+      "report": "",
+      "steps": 50,
+      "tools": 70,
+      "reason": "steps",
+      "seconds": 600,
+      "expect": {
+        "text": "[A subagent you started has finished:]\njob5 (general: add the migration) stopped at its step limit after 10m 00s.\n(the subagent returned no report)\n\n[general subagent · 50 steps · 70 tool calls · ended: steps]"
+      }
+    },
+    {
+      "kind": "subagent",
+      "id": "job6",
+      "agent": "general",
+      "description": "rename the module",
+      "report": "Renamed in 12 files.",
+      "steps": 8,
+      "tools": 14,
+      "reason": "stop",
+      "seconds": 90,
+      "worktree": "Branch lembas/general-rename-a1b2c3: 1 commit, 12 files changed. Merge it with `git merge lembas/general-rename-a1b2c3`, or drop it with `git branch -D lembas/general-rename-a1b2c3`.",
+      "expect": {
+        "text": "[A subagent you started has finished:]\njob6 (general: rename the module) finished after 1m 30s.\nRenamed in 12 files.\n\n[general subagent · 8 steps · 14 tool calls]\n[worktree] Branch lembas/general-rename-a1b2c3: 1 commit, 12 files changed. Merge it with `git merge lembas/general-rename-a1b2c3`, or drop it with `git branch -D lembas/general-rename-a1b2c3`."
+      }
+    },
+    {
+      "kind": "subagent",
+      "id": "job7",
+      "agent": "explore",
+      "description": "read the logs",
+      "report": "Partial: the error begins at 12:03.",
+      "steps": 3,
+      "tools": 4,
+      "reason": "stopped",
+      "seconds": 20,
+      "expect": {
+        "text": "[A subagent you started has finished:]\njob7 (explore: read the logs) was stopped after 20s.\nPartial: the error begins at 12:03.\n\n[explore subagent · 3 steps · 4 tool calls · ended: stopped]"
+      }
+    },
+    {
+      "kind": "subagent",
+      "id": "job8",
+      "agent": "explore",
+      "description": "check the API",
+      "report": "",
+      "steps": 1,
+      "tools": 0,
+      "reason": "error",
+      "error": "connection refused",
+      "seconds": 2,
+      "expect": {
+        "text": "[A subagent you started has finished:]\njob8 (explore: check the API) failed after 2s.\n(the subagent returned no report)\n\n[explore subagent · 1 step · 0 tool calls · ended: error — connection refused]"
+      }
+    },
+    {
+      "kind": "message",
+      "id": "job4",
+      "agent": "explore",
+      "description": "find the config loader",
+      "text": "There are two loaders; which one — the YAML one or the env one?",
+      "expect": {
+        "text": "[A message from a subagent you started:]\njob4 (explore: find the config loader):\nThere are two loaders; which one — the YAML one or the env one?"
+      }
+    },
+    {
+      "kind": "to_subagent",
+      "text": "The YAML one. Ignore the env loader.",
+      "expect": {
+        "text": "[The main agent sent this while you were working — take it into account from here:]\nThe YAML one. Ignore the env loader."
+      }
+    }
+  ]
+}

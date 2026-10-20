@@ -1,9 +1,11 @@
 """Starting a reply when nobody asked for one just now.
 
-Two things need this: a background job finishing on the far side, and a schedule
-coming due. Both are the same problem — put a turn into a chat from outside any
-request, and get it answered — and both depend on the same invariant, which is
-subtle enough that having two copies of it is how one of them drifts.
+Three things need this: a schedule coming due, a helper being given its task,
+and a background helper ending or reporting to the chat that started it
+(`services/subagent.py`, spec 2.0.0). All are the same problem — put a turn into
+a chat from outside any request, and get it answered — and all depend on the
+same invariant, which is subtle enough that having two copies of it is how one
+of them drifts.
 
 **The invariant.** A chat may have one generation running at a time. So the
 check and the writes happen under a per-chat lock with **no `await` between

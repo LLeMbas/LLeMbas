@@ -181,13 +181,38 @@ def narrow(parameters: Mapping[str, Any], rule: Mapping[str, Any] | None) -> dic
     return out
 
 
+def purpose() -> dict[str, Any]:
+    """`purpose.json`: the argument a call says what it is for in."""
+    return _json("purpose.json")
+
+
+def with_purpose(name: str, parameters: dict[str, Any]) -> dict[str, Any]:
+    """`parameters` with the spec's `purpose` property added when this tool's
+    spec says `purpose: "purpose"` -- the one sentence for the person, shown
+    beside the call; a tool naming a field of its own (`bash`'s
+    `description`) or none gets nothing added. Never required."""
+    spec = tools().get(name) or {}
+    if spec.get("purpose") != "purpose":
+        return parameters
+    shape = purpose()
+    out = dict(parameters)
+    props = dict(out.get("properties") or {})
+    props.setdefault(str(shape["name"]), dict(shape["schema"]))
+    out["properties"] = props
+    return out
+
+
 def offered_parameters(name: str, variables: Mapping[str, str]) -> dict[str, Any]:
-    """A shared tool's parameters as LLeMbas sends them: filled, then narrowed
-    by the tool's `narrow.llembas`."""
+    """A shared tool's parameters as LLeMbas sends them: filled, narrowed by
+    the tool's `narrow.llembas`, and with `purpose` added where the spec says
+    the tool takes one."""
     spec = tools()[name]
-    return narrow(
-        fill_parameters(spec["parameters"], variables),
-        (spec.get("narrow") or {}).get("llembas"),
+    return with_purpose(
+        name,
+        narrow(
+            fill_parameters(spec["parameters"], variables),
+            (spec.get("narrow") or {}).get("llembas"),
+        ),
     )
 
 
@@ -209,6 +234,8 @@ __all__ = [
     "offered_parameters",
     "prompt",
     "prompt_with",
+    "purpose",
     "tools",
     "version",
+    "with_purpose",
 ]

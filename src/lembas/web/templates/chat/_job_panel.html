@@ -1,0 +1,25 @@
+{% from "_macros.html" import icon %}
+{#
+  A helper's panel: a subagent running as a background job, followed beside
+  the conversation (spec 2.0.0). The LLeMbas CLI lets you enter a subagent
+  from `/jobs`; this is the same view, in the slot the inspector and the
+  canvas share -- a child of .shell, `hidden` until a row in the jobs strip
+  opens it, closed like the others.
+
+  Empty until a helper is chosen: the strip's Follow button fetches that job's
+  transcript into `#jobpanel-body`, and app.js opens the panel when the swap
+  lands. Nothing is fetched for a panel nobody opened.
+#}
+<aside class="jobpanel" id="jobpanel" hidden aria-label="{{ t('Helper') }}">
+  <div class="panel-head">
+    <h2 class="panel-head__title">{{ icon("sparkle", "icon--sm") }} {{ t("Helper") }}</h2>
+    <button class="btn btn--icon btn--sm" type="button" data-toggle="#jobpanel" data-toggle-group="side"
+            aria-label="{{ t('Close the helper panel') }}">
+      {{ icon("x", "icon--sm") }}
+    </button>
+  </div>
+
+  <div class="jobpanel__body" id="jobpanel-body">
+    <p class="jobpanel__empty">{{ t("Open a helper from the strip above the composer to follow it here.") }}</p>
+  </div>
+</aside>

@@ -154,15 +154,16 @@ async def test_the_helper_inherits_the_model_and_the_effort(db, monkeypatch):
     assert child.temporary is True
 
 
-async def test_the_task_is_the_whole_turn_and_names_itself(db, monkeypatch):
-    """The role stays `user`, because `build_messages` requires one there — so
-    the framing has to live in the words, the same rule `wake.py` sets out."""
+async def test_the_task_is_the_whole_turn(db, monkeypatch):
+    """The turn carries the task as the main agent wrote it and nothing else:
+    what being a helper means is in the system prompt (`core.subagent`, the
+    spec's preamble), not repeated in every turn. `subagent_run`'s former
+    `context` follows the task as a section."""
     seen = _spawn(monkeypatch)
 
     await _run(db, _chat(db), {"task": "Summarise X.", "context": "X is a library."})
 
-    assert "another model" in seen["turn"]
-    assert "Summarise X." in seen["turn"]
+    assert seen["turn"].startswith("Summarise X.")
     assert "X is a library." in seen["turn"]
 
 
@@ -229,7 +230,10 @@ async def test_the_parents_own_narrowing_is_carried_across(db, monkeypatch):
     child = db.get(Chat, seen["chat_id"])
     assert child.scope_json["families"]["notes"] is False
     assert child.scope_json["families"]["ask"] is False
-    assert child.scope_json["families"]["subagent"] is False
+    # The helper's family is not narrowed away: it keeps `report` (its one
+    # tool of it) and gets `task` from nowhere -- see `tools._subagent_defs`.
+    assert "subagent" not in child.scope_json["families"]
+    assert "task" not in _child_tools(db, seen)
 
 
 async def test_the_safe_list_cannot_be_extended_with_a_metacharacter(db):
@@ -305,8 +309,9 @@ async def test_a_writing_helper_is_allowed_outside_plan_mode(db, monkeypatch):
 
 
 async def test_the_spec_names_are_the_tools_own(db, monkeypatch):
-    """`task` with `prompt` and `description`, as the harness spec defines it;
-    `agent` and `worktree` are the CLI's and are said to be ignored."""
+    """`task` with `prompt`, `description` and `agent`, as the harness spec
+    defines it; `worktree` is the CLI's and is said to be ignored; an agent
+    that is not one of the two is refused with the two named."""
     seen = _spawn(monkeypatch)
     user = _user(db)
     chat = _chat(db)
@@ -318,6 +323,9 @@ async def test_the_spec_names_are_the_tools_own(db, monkeypatch):
     original = generation_service.running_for
     generation_service.running_for = lambda chat_id: fake if chat_id == chat.id else None
     try:
+        refused = await tools_service.run_tool(
+            context, "task", json.dumps({"description": "x", "prompt": "y", "agent": "reviewer"})
+        )
         outcome = await tools_service.run_tool(
             context,
             "task",
@@ -325,7 +333,7 @@ async def test_the_spec_names_are_the_tools_own(db, monkeypatch):
                 {
                     "description": "Read the tests",
                     "prompt": "Read the tests and say what they cover.",
-                    "agent": "reviewer",
+                    "agent": "explore",
                     "worktree": True,
                 }
             ),
@@ -333,9 +341,11 @@ async def test_the_spec_names_are_the_tools_own(db, monkeypatch):
     finally:
         generation_service.running_for = original
 
+    assert refused.event["status"] == "error"
+    assert "explore" in refused.content and "general" in refused.content
     assert outcome.event["name"] == "task"
     assert "Read the tests and say what they cover." in seen["turn"]
-    assert "reviewer" in outcome.content and "worktree" in outcome.content
+    assert "worktree" in outcome.content
 
 
 # --- Recursion and the caps -----------------------------------------------------
@@ -444,15 +454,15 @@ async def test_a_task_with_no_words_is_refused_before_anything_is_created(db, mo
     assert db.scalar(select(Chat).where(Chat.parent_chat_id.isnot(None))) is None
 
 
-async def _never_finishes(chat_id, message_id, deadline):
-    return False
+async def _never_finishes(chat_id, deadline, parent=None):
+    return subagent_service.TIMED_OUT
 
 
 async def test_the_wait_gives_up_at_its_deadline(db):
     """The deadline is absolute, so a wait that has already run out returns
     immediately rather than looking once more."""
-    finished = await subagent_service._await_reply("nothing", "nothing", -1.0)
-    assert finished is False
+    outcome = await subagent_service._await_reply("nothing", -1.0)
+    assert outcome == subagent_service.TIMED_OUT
 
 
 async def test_a_helper_that_runs_out_of_time_is_stopped_and_still_answers(db, monkeypatch):
@@ -468,14 +478,34 @@ async def test_a_helper_that_runs_out_of_time_is_stopped_and_still_answers(db, m
     # The wait itself is a clock, and a test that moved the clock would move it
     # for `asyncio.sleep` too. What is under test here is what happens *after*
     # it runs out, so the wait is what is replaced; `_await_reply`'s own
-    # deadline is covered by the test below.
+    # deadline is covered by the test below. The stop finds the child's reply
+    # still running the first time it looks, and gone the next.
     monkeypatch.setattr(subagent_service, "_await_reply", _never_finishes)
+    looked: list[str] = []
+
+    def still_running(chat_id):
+        if chat_id == seen.get("chat_id") and not looked:
+            looked.append(chat_id)
+            return _Fake_running(seen["message_id"])
+        return None
+
+    monkeypatch.setattr("lembas.services.generation.running_for", still_running)
 
     outcome = await _run(db, _chat(db), {"task": "x"})
 
     assert stopped == [seen["message_id"]]
     assert "Got half way." in outcome.content
     assert "ran out of time" in outcome.content
+    assert outcome.event["status"] == "stopped"
+    assert "stopped at the time limit" in outcome.event["detail"]
+
+
+class _Fake_running:
+    """A child's reply as `running_for` hands it back: the one field `_stop` reads."""
+
+    def __init__(self, message_id: str):
+        self.message_id = message_id
+        self.cancel = False
 
 
 # --- Nothing stops to ask ---------------------------------------------------------
@@ -511,7 +541,7 @@ async def test_an_unattended_chat_refuses_instead_of_waiting(db, monkeypatch):
 
     monkeypatch.setattr("lembas.services.interaction.build", refuse_to_wait)
 
-    decided, allowed, edited = await generation_service._authorise(
+    decided, edited = await generation_service._authorise(
         generation_service.Generation(chat_id=parent.id, message_id="m"),
         context,
         calls,
@@ -519,7 +549,7 @@ async def test_an_unattended_chat_refuses_instead_of_waiting(db, monkeypatch):
     )
 
     assert set(decided) == {0}
-    assert not allowed and not edited
+    assert not edited
     assert decided[0].event["status"] == "error"
     assert "nobody" in decided[0].content.lower()
 
@@ -593,9 +623,11 @@ async def test_a_helper_is_told_it_is_one_and_the_parent_is_not(db, monkeypatch)
     assert harness.context_variables(db, _user(db), [], parent)["subagent"] == ""
     assert harness.context_variables(db, _user(db), [], child)["subagent"] == "yes"
 
+    # The spec's preamble, with the agent's name and instructions in it.
     block = harness.compose(db, _user(db), [], child)
-    assert "one reply" in block
-    assert "one reply" not in harness.compose(db, _user(db), [], parent)
+    assert 'You are the "explore" subagent' in block
+    assert "You can read, search and fetch, but not change anything." in block
+    assert "subagent" not in harness.compose(db, _user(db), [], parent)
 
 
 def test_the_admin_card_saves_its_own_group(db, client, registered):

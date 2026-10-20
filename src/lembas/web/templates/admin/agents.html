@@ -113,7 +113,7 @@
 <form method="post" action="/admin/agents/subagents" class="form-grid">
   <section class="card">
     <h2 class="card__title">{{ t("Helpers") }}</h2>
-    <p class="field__hint">{{ t("A reply can hand a self-contained piece of work to a second model that runs on its own and reports back — several at once, which is what makes research fan out instead of queueing. This applies to ordinary chats as much as agent ones.") }}</p>
+    <p class="field__hint">{{ t("A reply can hand a self-contained piece of work to a second model that runs on its own and reports back — several at once, which is what makes research fan out instead of queueing, and in the background, so the reply carries on and is told when the helper is done. There are two kinds: explore, which reads and searches only, and general, which may also change things the chat itself may change. An agent chat's helpers run on its linked device instead, under the device's own limits.") }}</p>
     <p class="field__hint">
       {{ tm("<strong>Asking another model a question uses the same switch and the same allowance below</strong>, because it costs the same thing: one reply setting another reply going. Which people may do it is a separate permission — <strong>%(permission)s</strong> — and which models may is a switch on each model's own page.", permission=t("Ask another model")) }}
     </p>
@@ -121,7 +121,7 @@
     <div class="alert">
       {{ icon("shield", "icon--sm") }}
       <span>
-        {{ tm("A helper cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads, it searches, and on a machine it runs a short fixed list of read-only commands and nothing else, in every mode including <strong>%(mode)s</strong>. It cannot send helpers of its own.", mode=t("Auto")) }}
+        {{ tm("A helper cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads and searches the library and the web, and the general kind writes what the chat may write. It cannot send helpers of its own; it can message the main agent, and be messaged, while it works. <strong>%(mode)s</strong> is not inherited: a helper's task text can have come from a page it read.", mode=t("Auto")) }}
       </span>
     </div>
 

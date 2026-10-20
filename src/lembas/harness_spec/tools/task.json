@@ -11,7 +11,7 @@
       "subagent_run"
     ]
   },
-  "description": "Hand a self-contained piece of work to a subagent, which works on its own and returns only its final report — keeping the searching and reading out of your context.\n\n- Use it for broad research (\"where is X handled, and what calls it?\") or a separable job. For one file you already know, just read it.\n- `prompt` must stand on its own: the subagent sees nothing of this conversation. Say what to find or do, and what to report back.\n- Independent tasks can run in the same turn. Subagents that change files at the same time should each have `worktree: true`, so they work on separate branches.\n- Agents: {{agents}}",
+  "description": "Hand a self-contained piece of work to a subagent, which works on its own and returns only its final report — keeping the searching and reading out of your context.\n\n- Use it for broad research (\"where is X handled, and what calls it?\") or a separable job. For one file you already know, just read it.\n- `prompt` must stand on its own: the subagent sees nothing of this conversation. Say what to find or do, and what to report back.\n- `background: true` returns at once with a job id and you carry on; the report comes to you as a message when it ends. Meanwhile job_output shows its progress, job_send gives it a message, job_stop stops it. Without it, the call waits for the report.\n- Independent tasks can run in the same turn. Subagents that change files at the same time should each have `worktree: true`, so they work on separate branches.\n- Agents: {{agents}}",
   "parameters": {
     "type": "object",
     "properties": {
@@ -30,6 +30,10 @@
       },
       "worktree": {
         "description": "Work in a separate git checkout on a new branch, apart from yours — for changes made alongside other work; the result says how to merge it",
+        "type": "boolean"
+      },
+      "background": {
+        "description": "Run it as a background job: return its id at once, get its report as a message when it ends",
         "type": "boolean"
       },
       "model": {

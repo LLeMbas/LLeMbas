@@ -360,7 +360,11 @@ async def run_schedule(db: Db, user: RequiredUser, schedule_id: str) -> Response
     if schedule is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, t("That schedule is not available."))
     chat_id = schedule.chat_id
-    await runner.run_now(schedule_id)
+    # Fired, not awaited. `fire` follows the run to its delivery -- for a report
+    # schedule that is the whole reply, up to an hour -- and a browser request
+    # held open that long is a page that appears to hang. The reply is in the
+    # chat the redirect lands on, and the strip there says when it ran.
+    runner.fire_later(schedule_id)
     return RedirectResponse(f"/chat/{chat_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 

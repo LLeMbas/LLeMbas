@@ -19,7 +19,15 @@ from pathlib import Path
 
 import pytest
 
-from lembas.services import generation, harness_spec, plans, prompts, prototypes, reasoning
+from lembas.services import (
+    generation,
+    harness_spec,
+    jobs,
+    plans,
+    prompts,
+    prototypes,
+    reasoning,
+)
 from lembas.services import tools as tools_service
 from lembas.services.agent import policy, shell
 from lembas.services.library import chunks, documents
@@ -48,6 +56,9 @@ AREAS = {
     "fill": lambda c: _fill(c),
     "narrow": lambda c: _narrow(c),
     "memory": lambda c: _memory(c),
+    # The note a session is given about a job (spec 2.0.0): pure, from the
+    # job's record. `services/jobs.py note`.
+    "jobs": lambda c: jobs.note(c),
 }
 
 
@@ -169,6 +180,12 @@ def test_conformance(area, case):
         pytest.skip(f"{area}: {PENDING[area]}")
     if area not in AREAS:
         pytest.skip(f"{area}: not implemented in LLeMbas yet")
+    if "expect" not in case:
+        # A case the CLI has not recorded yet (`bun run harness record` writes
+        # the expected results from its own implementation): run, so a crash
+        # shows, but not compared. Skipped by name so the gap is visible.
+        AREAS[area](dict(case))
+        pytest.skip(f"{area}: the spec has not recorded this case's `expect` yet")
     want = case["expect"]
     given = {k: v for k, v in case.items() if k != "expect"}
     assert AREAS[area](given) == want, given
@@ -189,9 +206,6 @@ DEVICE_TOOLS = (
     "glob",
     "grep",
     "bash",
-    "bash_output",
-    "bash_list",
-    "bash_kill",
 )
 # Shared tools LLeMbas offers under the spec's own name, description and
 # parameters -- the definition a model is sent is the spec's, read from it.
@@ -212,6 +226,12 @@ SHARED_ADOPTED = (
     "skills_list",
     "skill_view",
     "skill_manage",
+    # Background jobs (spec 2.0.0), over the hidden chat a helper runs in.
+    "job_list",
+    "job_output",
+    "job_stop",
+    "job_send",
+    "report",
 )
 # Shared tools whose LLeMbas implementation keeps its own name or shape for now,
 # and why -- the parity page lists the same.
@@ -229,7 +249,7 @@ def _registry():
     from lembas.services import subagent
 
     book = dict(tools_service.REGISTRY)
-    for tool in subagent.tool_defs():
+    for tool in subagent.all_tool_defs():
         book.setdefault(tool.name, tool)
     return book
 
@@ -237,18 +257,20 @@ def _registry():
 @pytest.mark.parametrize("name", SHARED_ADOPTED)
 def test_an_adopted_tool_is_sent_exactly_as_the_spec_says(name):
     """Description and parameters word for word, with the spec's variables
-    filled the way LLeMbas fills them and the parameters narrowed by the
-    tool's `narrow.llembas` -- nothing else of LLeMbas's own."""
+    filled the way LLeMbas fills them, the parameters narrowed by the tool's
+    `narrow.llembas`, and the spec's `purpose` added where the tool takes one
+    -- nothing else of LLeMbas's own."""
     spec = harness_spec.tools()[name]
     tool = _registry()[name]
     variables = {**tools_service.SPEC_VARIABLES, **tools_service.LLEMBAS_VARS.get(name, {})}
     assert tool.description == harness_spec.fill(spec["description"], variables)
-    expected = harness_spec.narrow(
-        harness_spec.fill_parameters(spec["parameters"], variables),
-        (spec.get("narrow") or {}).get("llembas"),
-    )
-    assert tool.parameters == expected
+    assert tool.parameters == harness_spec.offered_parameters(name, variables)
     assert "{{" not in json.dumps(tool.parameters)
+    # `purpose` exactly where the spec says, with the spec's own words.
+    has_purpose = "purpose" in (tool.parameters.get("properties") or {})
+    assert has_purpose == (spec.get("purpose") == "purpose"), name
+    if has_purpose:
+        assert tool.parameters["properties"]["purpose"] == harness_spec.purpose()["schema"]
 
 
 def test_every_variable_of_an_adopted_tool_has_a_value_here():
@@ -314,6 +336,34 @@ def test_a_shared_text_marked_identical_is_the_fragment_default(path, key, entry
     }
     ours = re.sub(r"\n{3,}", "\n\n", prompts.substitute(fragment.default, values)).strip()
     assert ours == harness_spec.prompt_with(path, values)
+
+
+def test_a_renamed_job_tool_keeps_no_cli_only_name_here():
+    """`bash_list`, `bash_output` and `bash_kill` are the CLI's former names
+    (`aliases.cli`); they were never this server's, so nothing here answers to
+    them and the spec scopes their successors `shared`."""
+    tools = harness_spec.tools()
+    for name in ("job_list", "job_output", "job_stop"):
+        assert tools[name]["scope"] == "shared"
+    assert set(tools["job_output"]["aliases"]["cli"]) == {"bash_output"}
+    assert "report" in tools and tools["report"].get("offered") == "subagent"
+
+
+def test_the_subagent_texts_are_the_specs_word_for_word():
+    """`blocks/subagent.md` is `core.subagent`'s default now, and the two
+    built-in agents' instructions are what a helper is given -- the index can
+    be flipped to `identical` for all three."""
+    fragment = {f.key: f for f in prompts.BUILTIN}["core.subagent"]
+    assert fragment.default == harness_spec.prompt("blocks/subagent.md")
+    assert set(fragment.variables) == set(
+        harness_spec.index()["prompts"]["blocks/subagent.md"]["variables"]
+    )
+    values = {"name": "explore", "instructions": "Look.", "report": "", "read_only": ""}
+    assert prompts.substitute(fragment.default, values).strip() == harness_spec.prompt_with(
+        "blocks/subagent.md", values
+    )
+    for agent in ("explore", "general"):
+        assert harness_spec.prompt(f"agents/{agent}.md")
 
 
 def test_the_execution_tools_are_the_clis():

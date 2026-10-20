@@ -124,7 +124,6 @@ MESSAGES: dict[str, str] = {
     "Sent on its own after the first reply, not as part of any conversation.": "Az első válasz után, önállóan küldjük el, nem egy beszélgetés részeként.",
     "This is what the model would read back:": "Ezt olvasná vissza a modell:",
     "A backstop, as it is above. The clock and the token ceiling are what normally end one.": "Végső biztosíték, ahogy fent is. Rendesen az idő és a tokenkorlát vet véget neki.",
-    "A reply can hand a self-contained piece of work to a second model that runs on its own and reports back — several at once, which is what makes research fan out instead of queueing. This applies to ordinary chats as much as agent ones.": "Egy válasz átadhat egy önálló munkadarabot egy második modellnek, amely magától fut, és beszámol az eredményről – akár többnek egyszerre, így a kutatás szétágazik ahelyett, hogy sorban állna. Ez a hagyományos csevegésekre ugyanúgy vonatkozik, mint az ügynök-csevegésekre.",
     "Allow agent chats": "Ügynök-csevegések engedélyezése",
     "Allow the terminal panel": "A terminálpanel engedélyezése",
     "Ask another model": "Kérdés egy másik modellnek",
@@ -1195,7 +1194,6 @@ MESSAGES.update(
         "People also need the permission “%(permission)s” and a linked LLeMbas CLI (Settings → Devices).": "Ezen felül kell a(z) „%(permission)s” jogosultság és egy kapcsolt LLeMbas CLI (Beállítások → Eszközök).",
         "Seconds with nobody watching <em>and</em> nothing typed. Closing the panel does not end the session — a build carries on and is still there on the way back — so this is what eventually ends one.": "Másodperc, amíg senki sem figyel <em>és</em> semmit sem gépel. A panel bezárása nem fejezi be a munkamenetet – egy build tovább fut, és visszatéréskor is ott van –, így végül ez vet neki véget.",
         "<strong>Asking another model a question uses the same switch and the same allowance below</strong>, because it costs the same thing: one reply setting another reply going. Which people may do it is a separate permission — <strong>%(permission)s</strong> — and which models may is a switch on each model's own page.": "<strong>Egy másik modellnek feltett kérdés ugyanazt a kapcsolót és ugyanazt az alábbi keretet használja</strong>, mert ugyanannyiba kerül: egy válasz elindít egy másik választ. Hogy kik tehetik meg, az külön jogosultság – <strong>%(permission)s</strong> –, hogy mely modellek, az pedig egy kapcsoló az egyes modellek saját oldalán.",
-        "A helper cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads, it searches, and on a machine it runs a short fixed list of read-only commands and nothing else, in every mode including <strong>%(mode)s</strong>. It cannot send helpers of its own.": "Egy segéd senkitől sem kérdezhet semmit, így a csevegésében semmi sem állhat meg jóváhagyásra várva. Ezért csak azt kapja meg, amit ez a csevegés kérdezés <em>nélkül</em> is megtehetett: olvas, keres, és egy gépen egy rövid, rögzített listányi, csak olvasó parancsot futtat, semmi mást – minden módban, a <strong>%(mode)s</strong> módot is beleértve. Saját segédeket nem küldhet.",
         "People also need the <strong>%(permission)s</strong> permission, and the model needs the <strong>%(capability)s</strong> capability. Off by default: a reply that spawns helpers spends model time multiplicatively, and on one local endpoint four at once is four times the queue rather than four times the speed.": "Ezen felül kell a <strong>%(permission)s</strong> jogosultság, a modellnek pedig a <strong>%(capability)s</strong> képesség. Alapértelmezésként kikapcsolva: a segédeket indító válasz megsokszorozza a modellidőt, és egyetlen helyi végponton négy egyszerre négyszeres sort jelent, nem négyszeres sebességet.",
         "Seconds. Past it the helper is <em>stopped</em>, not abandoned: what it had written is kept and handed back with a note saying it is partial.": "Másodperc. Ezen túl a segéd <em>leáll</em>, nem marad magára: amit addig megírt, azt megtartjuk és visszaadjuk egy megjegyzéssel, hogy részleges.",
         "Where <code>/v1/audio/transcriptions</code> lives — whisper.cpp's <code>whisper-server</code>, Speaches, or anything else speaking it. With or without <code>/v1</code>; either is understood.": "Ahol a <code>/v1/audio/transcriptions</code> található – a whisper.cpp <code>whisper-server</code>-e, a Speaches vagy bármi más, ami ezt beszéli. <code>/v1</code> végződéssel vagy anélkül; mindkettőt megértjük.",
@@ -2278,3 +2276,33 @@ MESSAGES.update(
         "Keeping a plan": "Terv vezetése",
     }
 )
+
+# --- 1.6.0: background jobs, the helper panel, the subagent preamble ---
+MESSAGES["A reply can hand a self-contained piece of work to a second model that runs on its own and reports back — several at once, which is what makes research fan out instead of queueing, and in the background, so the reply carries on and is told when the helper is done. There are two kinds: explore, which reads and searches only, and general, which may also change things the chat itself may change. An agent chat's helpers run on its linked device instead, under the device's own limits."] = 'Egy válasz átadhat egy önálló munkát egy második modellnek, amely magában dolgozik és beszámol — több is egyszerre, ezért ágazik szét a kutatás, ahelyett hogy sorban állna; és a háttérben is, így a válasz folytatódik, és értesül, amikor a segítő elkészült. Két fajta van: az explore, amely csak olvas és keres, és a general, amely azt is módosíthatja, amit maga a beszélgetés módosíthat. Az ügynök-beszélgetés segítői helyette a csatolt eszközön futnak, annak saját korlátai között.'
+MESSAGES["A helper cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads and searches the library and the web, and the general kind writes what the chat may write. It cannot send helpers of its own; it can message the main agent, and be messaged, while it works. <strong>%(mode)s</strong> is not inherited: a helper's task text can have come from a page it read."] = 'A segítő senkitől nem kérdezhet semmit, így a beszélgetésében semmi nem állhat meg jóváhagyásra. Ezért csak azt kapja, amit ez a beszélgetés már kérdezés <em>nélkül</em> is megtehetett: olvas és keres a könyvtárban és a weben, a general fajta pedig írja, amit a beszélgetés írhat. Saját segítőket nem küldhet; munka közben írhat a főügynöknek, és az is neki. A(z) <strong>%(mode)s</strong> mód nem öröklődik: a segítő feladatának szövege egy általa olvasott oldalról is származhat.'
+MESSAGES['%(job)s asks:'] = '%(job)s kérdezi:'
+MESSAGES['Helper'] = 'Segítő'
+MESSAGES['Close the helper panel'] = 'Segítő-panel bezárása'
+MESSAGES['Open a helper from the strip above the composer to follow it here.'] = 'Nyisson meg egy segítőt az üzenetmező feletti sávból, hogy itt kövesse.'
+MESSAGES['subagent'] = 'alügynök'
+MESSAGES['Stop'] = 'Leállítás'
+MESSAGES['A message to the helper'] = 'Üzenet a segítőnek'
+MESSAGES['Message the helper — it reads it at its next step; a finished one is started again with it'] = 'Írjon a segítőnek — a következő lépésénél elolvassa; a befejezett ezzel újraindul'
+MESSAGES['From the main agent'] = 'A főügynöktől'
+MESSAGES['The task'] = 'A feladat'
+MESSAGES['Working…'] = 'Dolgozik…'
+MESSAGES['Background jobs'] = 'Háttérfeladatok'
+MESSAGES['Running for %(time)s'] = 'Fut: %(time)s'
+MESSAGES['Follow this helper'] = 'A segítő követése'
+MESSAGES['Follow this helper and message it'] = 'A segítő követése és üzenet neki'
+MESSAGES['Stop %(job)s'] = '%(job)s leállítása'
+MESSAGES['Stop this job'] = 'A feladat leállítása'
+MESSAGES['Scheduled run'] = 'Ütemezett futás'
+MESSAGES['The device did not answer in time.'] = 'Az eszköz nem válaszolt időben.'
+MESSAGES['Not done: %(error)s'] = 'Nem történt meg: %(error)s'
+MESSAGES['That job is not here any more.'] = 'Ez a feladat már nincs itt.'
+MESSAGES['Write something to send.'] = 'Írjon valamit az elküldéshez.'
+MESSAGES["That helper's conversation is gone, so it cannot be messaged."] = 'A segítő beszélgetése már nincs meg, így nem lehet neki írni.'
+MESSAGES['running'] = 'fut'
+MESSAGES['done'] = 'kész'
+MESSAGES['lost'] = 'elveszett'

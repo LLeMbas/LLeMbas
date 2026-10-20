@@ -34,5 +34,31 @@
     "about": "Calls in one step run together, at most 4; a call that waits on the user (ask_user, plan_submit) runs alone; two calls on one file run in order. A tool's error is its result, never the end of the prompt.",
     "max": 4
   },
-  "capacity": "A subagent (task) is not started on a model whose server cannot hold it beside the prompt's own model: another model of a connection that holds one model at a time, or the same model when it serves one request at a time (models/schema.json capacity)."
+  "capacity": "A subagent (task) is not started on a model whose server cannot hold it beside the prompt's own model — or beside the model of a subagent already running: another model of a connection that holds one model at a time, or the same model when it serves one request at a time (models/schema.json capacity).",
+  "jobs": {
+    "about": "Background work owned by a session: a command (bash `background: true`, or one still running when its timeout passed) or a subagent (task `background: true`). One id sequence per session (job1, job2, …), one list (job_list), one way to read (job_output), to stop (job_stop) and, for a subagent, to message (job_send); a subagent's own tools see only the jobs it started. A job that ends wakes the session that owns it: while a prompt runs, as a user message at the next step boundary; otherwise as a new turn of its own, marked `machine` so a UI shows it as the harness's, not the person's. A session that is not open keeps the note until it is resumed. Every such message begins with its mark, said rather than hidden: a model refuses an unmarked one as an injection (conformance/jobs.json gives the texts).",
+    "marks": {
+      "command": "[A background job you started has finished:]",
+      "subagent": "[A subagent you started has finished:]",
+      "message": "[A message from a subagent you started:]",
+      "to_subagent": "[The main agent sent this while you were working — take it into account from here:]"
+    },
+    "note_tail_chars": {
+      "about": "Of a finished command's unread output, how much the note carries (the end of it).",
+      "default": 4000
+    },
+    "finished_kept": {
+      "about": "Finished jobs kept per session, oldest forgotten first.",
+      "default": 50
+    },
+    "running_max": {
+      "about": "Background commands one session may have running at once; past it, bash refuses to start another.",
+      "default": 8
+    },
+    "subagent_steps": {
+      "about": "The step backstop of a subagent (the CLI: limits.subagent_steps).",
+      "default": 50
+    },
+    "lifecycle": "A subagent's own background commands stop when it ends, and its report says so. A session's jobs stop when the session is deleted. A front end asked to exit while jobs run asks the person first; one with nobody to ask waits for the jobs the prompt started, then stops the rest."
+  }
 }

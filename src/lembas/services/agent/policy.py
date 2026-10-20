@@ -20,7 +20,7 @@ from fnmatch import fnmatch
 
 from lembas.services import harness_spec, prompts
 from lembas.services.agent import shell
-from lembas.services.tools import RISK_ASK, RISK_EXECUTE, RISK_READ, RISK_WRITE
+from lembas.services.tools import RISK_ASK, RISK_EXECUTE, RISK_INTERACT, RISK_READ, RISK_WRITE
 from lembas.web.i18n import N_
 
 MODE_MANUAL = "manual"
@@ -70,12 +70,15 @@ DENY = "deny"
 SHELL_TOOLS = frozenset({"bash", "shell_run"})
 WRITE_TOOLS = frozenset({"write", "edit", "multiedit", "apply_patch", "file_write", "file_edit"})
 
-# The whole feature. Read across a row to see what a mode means.
+# The whole feature. Read across a row to see what a mode means. `interact`
+# (spec 2.0.0: `task`, `job_send`, `report`) is a message to somebody, not a
+# change to anything, so every mode lets it through -- a card in front of every
+# research fan-out in Manual would be the mode asking about a conversation.
 POLICY: dict[str, dict[str, str]] = {
-    MODE_MANUAL: {RISK_READ: ASK, RISK_WRITE: ASK, RISK_EXECUTE: ASK},
-    MODE_EDIT: {RISK_READ: ALLOW, RISK_WRITE: ALLOW, RISK_EXECUTE: ASK},
-    MODE_AUTO: {RISK_READ: ALLOW, RISK_WRITE: ALLOW, RISK_EXECUTE: ALLOW},
-    MODE_PLAN: {RISK_READ: ALLOW, RISK_WRITE: ASK, RISK_EXECUTE: ASK},
+    MODE_MANUAL: {RISK_READ: ASK, RISK_WRITE: ASK, RISK_EXECUTE: ASK, RISK_INTERACT: ALLOW},
+    MODE_EDIT: {RISK_READ: ALLOW, RISK_WRITE: ALLOW, RISK_EXECUTE: ASK, RISK_INTERACT: ALLOW},
+    MODE_AUTO: {RISK_READ: ALLOW, RISK_WRITE: ALLOW, RISK_EXECUTE: ALLOW, RISK_INTERACT: ALLOW},
+    MODE_PLAN: {RISK_READ: ALLOW, RISK_WRITE: ASK, RISK_EXECUTE: ASK, RISK_INTERACT: ALLOW},
 }
 
 # A shell metacharacter makes a command line unmatchable as a whole, so no
@@ -295,6 +298,7 @@ def _verb(risk: str) -> str:
         RISK_READ: "reads",
         RISK_WRITE: "changes a file",
         RISK_EXECUTE: "runs a command",
+        RISK_INTERACT: "sends a message",
     }.get(risk, "does this")
 
 

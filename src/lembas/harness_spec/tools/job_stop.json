@@ -1,17 +1,17 @@
 {
-  "name": "bash_kill",
-  "scope": "cli",
+  "name": "job_stop",
+  "scope": "shared",
   "risk": "execute",
   "exclusive": false,
   "block": "tool",
   "purpose": false,
   "aliases": {
-    "cli": [],
-    "llembas": [
-      "job_stop"
-    ]
+    "cli": [
+      "bash_kill"
+    ],
+    "llembas": []
   },
-  "description": "Stop a background job started with bash background: true.",
+  "description": "Stop a background job. A command is terminated; a subagent is stopped where it is, and what it had worked out comes to you as its report.",
   "parameters": {
     "type": "object",
     "properties": {

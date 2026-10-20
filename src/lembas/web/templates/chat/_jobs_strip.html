@@ -1,0 +1,65 @@
+{% from "_macros.html" import icon %}
+{#
+  The chat's background jobs, above the composer (spec 2.0.0): one row per
+  running job -- a helper this server started with `task background: true`,
+  or, on a device chat, a command or a subagent the LLeMbas CLI runs in the
+  background. What the LLeMbas CLI's `/jobs` shows, here.
+
+  The element is always there, empty or not, so the stream's out-of-band frame
+  (`oob`, carried by the `jobs` SSE event) always has somewhere to land -- the
+  same arrangement as the plan panel. While it has rows it polls itself every
+  ten seconds: the reply's stream ends at `done` and a device's later `job`
+  events reach no reply, so a job that ends after the turn would otherwise
+  stay on screen until the next page load. With no rows there is nothing to
+  poll for, and the attribute is left off rather than firing into a hidden
+  element.
+
+  Every row is a fixed grid: icon, what (the one column that gives), state and
+  time in a fixed-width column, then the buttons. The description is cut, not
+  wrapped, so twelve rows line up whatever each one says. Everything in a row
+  came from a model or off a device, and Jinja escapes it.
+
+  `hx-target="this"` on the poll is load-bearing: this sits near the composer
+  form, which carries `hx-target="#thread"`, and an inherited target put a
+  strip into the transcript once before.
+#}
+{% set running = jobs | selectattr("state", "equalto", "running") | list %}
+<div id="jobs-strip" class="jobs-strip"{% if oob %} hx-swap-oob="outerHTML"{% endif %}
+     {% if not running %} hidden{% endif %}
+     {% if running and chat %}
+     hx-get="/api/chats/{{ chat.id }}/jobs" hx-trigger="every 10s"
+     hx-target="this" hx-swap="outerHTML" hx-sync="this:drop"
+     {% endif %}
+     aria-live="polite" aria-label="{{ t('Background jobs') }}">
+  {% for job in running %}
+  <div class="jobs__row jobs__row--grid" data-job="{{ job.id }}">
+    {{ icon("sparkle" if job.kind == "subagent" else "terminal", "icon--sm jobs__icon") }}
+    <span class="jobs__what u-shrink">
+      <span class="jobs__id">{{ job.id }}</span>
+      {% if job.kind == "subagent" %}
+      <span class="jobs__agent">{{ job.agent or t("subagent") }}</span>
+      {% endif %}
+      <span class="jobs__desc">{{ job.description or job.command }}</span>
+    </span>
+    <span class="jobs__time" title="{{ t('Running for %(time)s', time=job_duration(job.seconds)) }}">{{ job_duration(job.seconds) }}</span>
+    <span class="jobs__actions">
+      {% if job.kind == "subagent" and chat %}
+      <button class="btn btn--icon btn--sm" type="button"
+              hx-get="/api/chats/{{ chat.id }}/jobs/{{ job.id }}"
+              hx-target="#jobpanel-body" hx-swap="innerHTML"
+              aria-label="{{ t('Follow this helper') }}" title="{{ t('Follow this helper and message it') }}">
+        {{ icon("eye", "icon--sm") }}
+      </button>
+      {% endif %}
+      {% if chat %}
+      <button class="btn btn--icon btn--sm" type="button"
+              hx-post="/api/chats/{{ chat.id }}/jobs/{{ job.id }}/stop"
+              hx-target="#jobs-strip" hx-swap="outerHTML"
+              aria-label="{{ t('Stop %(job)s', job=job.id) }}" title="{{ t('Stop this job') }}">
+        {{ icon("stop-circle", "icon--sm") }}
+      </button>
+      {% endif %}
+    </span>
+  </div>
+  {% endfor %}
+</div>

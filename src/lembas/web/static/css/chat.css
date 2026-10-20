@@ -1518,6 +1518,92 @@
   box-shadow: inset var(--border-w-thick) 0 0 var(--accent);
 }
 
+/* --- The background jobs, above the composer (spec 2.0.0) --------------------
+   The strip shares the plan panel's box: the composer's column, inside its
+   gutter. Each row is a grid with one column that gives -- the description --
+   and the rest known: the icon's own size, the time in a fixed track (a
+   duration is "1m 05s" or "2h 03m", never wider than a short field), the
+   buttons at their control height. So ten rows line up whatever each says,
+   and a long description is cut rather than wrapped. */
+.jobs-strip {
+  flex: none;
+  box-sizing: border-box;
+  margin: 0 auto calc(-1 * var(--sp-1));
+  width: calc(100% - 2 * var(--sp-5));
+  max-width: var(--thread-max-width);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  font-size: var(--text-sm);
+  overflow: hidden;
+}
+.jobs-strip[hidden] { display: none !important; }
+.jobs__row--grid {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) var(--w-field-xs) auto;
+  align-items: center;
+  gap: var(--sp-2);
+  padding-block: var(--sp-1);
+}
+.jobs__icon { color: var(--ink-muted); }
+.jobs__what {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.jobs__id { font-family: var(--font-mono); color: var(--ink-faint); white-space: nowrap; }
+.jobs__agent { color: var(--ink-muted); white-space: nowrap; }
+.jobs__desc { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jobs__time {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+  text-align: right;
+  white-space: nowrap;
+}
+.jobs__actions { display: flex; gap: var(--sp-1); }
+
+/* A helper's panel body: the head, the transcript (the one scroller), the box. */
+.jobpanel__body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  padding: var(--sp-3);
+  gap: var(--sp-3);
+}
+.jobpanel__empty { margin: 0; color: var(--ink-faint); font-size: var(--text-sm); }
+.jobpanel__head { display: flex; flex-direction: column; gap: var(--sp-1); align-items: flex-start; }
+.jobpanel__title { display: flex; gap: var(--sp-2); align-items: baseline; flex-wrap: wrap; font-size: var(--text-sm); }
+.jobpanel__state { color: var(--ink-faint); font-size: var(--text-xs); }
+.jobpanel__desc { margin: 0; font-size: var(--text-sm); overflow-wrap: anywhere; }
+.jobpanel__turns {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  font-size: var(--text-sm);
+}
+.jobpanel__turn { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
+.jobpanel__turn--user {
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bubble-user);
+  border-radius: var(--radius);
+}
+.jobpanel__text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.jobpanel__live { margin: 0; color: var(--ink-faint); font-size: var(--text-xs); }
+.jobpanel__send { display: flex; flex-direction: column; gap: var(--sp-2); flex: none; }
+.jobpanel__send .btn { align-self: flex-end; }
+
+/* A helper's tool calls under its task block, and the account it gives of
+   itself. Indented a step, as the CLI indents them under the task line. */
+.tool-children { display: flex; flex-direction: column; padding-inline-start: var(--sp-3); }
+.tool-line--child { margin: 0; }
+.tool-activity__detail { margin: 0; color: var(--ink-faint); font-size: var(--text-xs); }
+
 .composer__hint {
   margin: var(--sp-2) 0 0;
   font-size: var(--text-xs);

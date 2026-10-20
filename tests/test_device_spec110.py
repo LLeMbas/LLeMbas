@@ -436,7 +436,6 @@ def test_edit_and_regenerate_rewind_the_device_first(client, db, registered):
         rows = list(db.scalars(select(Message).where(Message.chat_id == chat.id)
                                .order_by(Message.created_at)))
         assert [r.content for r in rows] == ["Do it better", "Better."]
-        assert db.get(Chat, chat.id).rewound_at is not None
 
 
 def test_a_device_that_refuses_the_rewind_is_the_answer(client, db, registered):

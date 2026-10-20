@@ -39,7 +39,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
 from lembas.db.models import KIND_TASK, User
-from lembas.services import branding, plans, prompts, settings_store
+from lembas.services import branding, harness_spec, plans, prompts, settings_store
 from lembas.services import prototypes as prototypes_service
 from lembas.services.library import memories as memories_service
 from lembas.services.library import skills as skills_service
@@ -108,6 +108,27 @@ def _tool_names(tools: list[dict[str, Any]]) -> str:
         name for tool in tools if (name := (tool.get("function") or {}).get("name"))
     )
 
+
+# The two bullets of the shared system text that a helper does without (spec
+# 2.0.0, `prompts/index.json`: `plan_tools`, `ask_tool`): an ordinary chat has
+# the plan tools and somebody to ask, a helper has neither, and the bullet-drop
+# rule takes them out of its prompt. The same words the LLeMbas CLI fills
+# (`src/prompt/assemble.ts` PLAN_TOOLS, ASK_TOOL).
+PLAN_TOOLS = (
+    "For work with three or more steps, write a plan with plan_write from the start and keep "
+    "it current with plan_update as you go rather than at the end: mark a task doing when you "
+    "start it and done once you have checked it works, drop one that turns out to be "
+    "unnecessary, and add work the plan did not anticipate when you find it. The plan is what "
+    "somebody reads to see where you are, so a plan updated only at the end is a report rather "
+    "than a plan. If what you find makes the plan wrong rather than merely incomplete, say so "
+    "and ask with ask_user rather than quietly planning something else."
+)
+ASK_TOOL = (
+    "When a decision is genuinely the user's — a trade-off only they can weigh, a requirement "
+    "the request leaves open — ask with ask_user: everything you need in one call, with the "
+    "options you consider plausible and the one you would choose marked recommended. Do not "
+    "ask what you can find out yourself."
+)
 
 # The sentences the shared system text takes from this side. Module constants
 # rather than fragments: they are the facts the LLeMbas CLI differs in, not
@@ -285,6 +306,10 @@ def context_variables(
         "file_tools": "",
         "background": "",
         "git": "",
+        # Planning and asking: every chat but a helper's, which has no plan
+        # tools and nobody to ask (emptied below, and the bullets go with it).
+        "plan_tools": PLAN_TOOLS,
+        "ask_tool": ASK_TOOL,
         "memories": memories_service.block(db, user, group) if "memory" in families else "",
         "skills": (
             skills_service.index_block(
@@ -346,6 +371,15 @@ def context_variables(
         # though both mean "nobody is reading": the two say different things to
         # a model, and one fragment covering both would have to say neither.
         "subagent": "",
+        # The preamble's own variables (the spec's `blocks/subagent.md`): which
+        # agent the helper is, its instructions, whether it may report to the
+        # main agent, whether it may change anything. Empty everywhere else.
+        "name": "",
+        "instructions": "",
+        "report": "",
+        "read_only": "",
+        # Where `task` is offered: the models a helper may run on.
+        "helper_models": "",
     }
 
     if chat is not None:
@@ -395,7 +429,25 @@ def context_variables(
         # Not gated on a family either, and for the same reason: what has to
         # reach a helper is that it is one. A column read, no query.
         if chat.parent_chat_id:
+            from lembas.services import subagent as subagent_service
+
+            agent = subagent_service.agent_of(chat)
             values["subagent"] = "yes"
+            values["plan_tools"] = ""
+            values["ask_tool"] = ""
+            values["name"] = agent
+            values["instructions"] = harness_spec.prompt(f"agents/{agent}.md")
+            # The two sentences this side fills: `report` when the tool is
+            # offered (its family is its own, `subagent:report`), `read_only`
+            # when the chat may change nothing.
+            if tools_service.FAMILY_REPORT_BACK in families:
+                values["report"] = subagent_service.REPORT_SENTENCE
+            if tools_service.scoped_writes_off(chat):
+                values["read_only"] = subagent_service.READ_ONLY_SENTENCE
+        elif "subagent" in families and user is not None:
+            from lembas.services import subagent as subagent_service
+
+            values["helper_models"] = subagent_service.helper_models(db, user, chat)
 
     return values
 

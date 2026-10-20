@@ -15,14 +15,14 @@ page [Harness-parity](https://git.houmeres.sk/LLeMbas/LLeMbas-CLI/wiki/Harness-p
 |---|---|
 | `VERSION` | The spec's own version, apart from LLeMbas CLI's |
 | `purpose.json` | The `purpose` argument added to a tool whose calls say what they are for |
-| `tools/<name>.json` | One tool each: name, `scope`, `risk`, `exclusive`, `block` (how a call is shown: `shell`, `edit`, `read`, `search`, `web`, `task`, `plan` — not drawn, the plan card refreshes — `hidden`, `tool`), `purpose`, former names (`aliases`, per project), renamed arguments, `variables`, what a project offers of the parameters (`narrow`, per project), the description and the JSON Schema of its parameters — exactly what a model is sent |
+| `tools/<name>.json` | One tool each: name, `scope`, `risk`, `exclusive`, `block` (how a call is shown: `shell`, `edit`, `read`, `search`, `web`, `task`, `plan` — not drawn, the plan card refreshes — `hidden`, `tool`), `purpose`, former names (`aliases`, per project), renamed arguments, `variables`, what a project offers of the parameters (`narrow`, per project), `offered` (`subagent`: given to subagents only, never to the main agent — `report`), the description and the JSON Schema of its parameters — exactly what a model is sent |
 | `prompts/` | The prompt texts; `prompts/index.json` says which are shared, which LLeMbas fragment each one is, and what each `{{variable}}` in a text means. `prompts/personality/` holds the personality presets both offer |
 | `permission/hardline.json` | The floor: commands refused in every mode, protected paths, and how a command is spelled plainly before it is checked again |
 | `permission/arity.json` | How much of a command an "always allow" covers |
 | `permission/defaults.json` | The rules every session starts from |
 | `permission/modes.json` | The four modes — manual, edit, auto, plan — as what each does with each risk class |
 | `models/schema.json` | Model metadata: context, output limit, efforts, vision, tools, notes, capacity |
-| `loop.json` | How one prompt runs: the step backstop, budgets, wrap-up, nudges, parallel calls, capacity |
+| `loop.json` | How one prompt runs: the step backstop, budgets, wrap-up, nudges, parallel calls, capacity; `jobs` — background work, its marks and limits |
 | `quirks.json` | What real servers do, and how both harnesses cope |
 | `conformance/<area>.json` | Cases with their expected results, run by both test suites |
 | `acp.md` | The link between them: ACP plus every `_lembas/*` method, field and capability |
@@ -45,6 +45,23 @@ page [Harness-parity](https://git.houmeres.sk/LLeMbas/LLeMbas-CLI/wiki/Harness-p
   (`{{plan_context}}`) on every step while it exists. `plan_write` and `plan_update` are offered in
   every mode; `plan_submit` only in plan mode, where it is the approval. Their permission key is
   `plan` (`permission/defaults.json`), which a rule written for the former `todo` key still reaches.
+
+## 2.0.0
+
+Background work is one thing in both projects: a **job**, owned by a session, is a command run in
+the background (bash `background: true`, or one still running when its `timeout` passed — it is no
+longer killed) or a subagent run in the background (task `background: true`, new). One id sequence
+per session; `job_list`, `job_output`, `job_stop` (renamed from `bash_list`, `bash_output`,
+`bash_kill` — the CLI's former names, read for one minor) now cover both kinds and are shared;
+`job_send` (new, shared) messages a running subagent or starts a finished one again with its
+context; `report` (new, shared, `offered: subagent`) lets a subagent message the main agent before
+its final reply. A job that ends wakes the session that owns it with a marked message
+(`loop.json` `jobs.marks`, `conformance/jobs.json`): at the next step while a prompt runs, else as
+a turn of its own marked `machine`. The subagent's preamble and the two built-in agents' texts are
+prompt texts now (`blocks/subagent.md`, `agents/*.md`). `acp.md`: capability `jobs` — the `job` and
+`job_note` events, `_lembas/jobs`, `_lembas/job/output|stop|send|transcript`, `jobs` in `status`,
+`job` on an approval, `machine` on a `prompt`. The capacity rule counts the subagents already
+running.
 
 ## 1.2.0
 

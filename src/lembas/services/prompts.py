@@ -164,6 +164,51 @@ VARIABLES: tuple[Variable, ...] = (
         "gates itself and a flag has nowhere else to live.",
     ),
     Variable(
+        "name",
+        "The helper's agent",
+        "In a helper's chat: which kind of helper it is -- `explore` or `general`, "
+        "the harness spec's built-in agents. Empty everywhere else.",
+    ),
+    Variable(
+        "instructions",
+        "The helper's instructions",
+        "In a helper's chat: the agent's own instructions (the spec's "
+        "`prompts/agents/<name>.md`). Empty everywhere else.",
+    ),
+    Variable(
+        "report",
+        "The helper may report",
+        "In a helper's chat that has the `report` tool: the sentence saying a "
+        "finding or a question may be sent to the main agent before the final "
+        "reply, and that a message from it may arrive meanwhile. Empty otherwise.",
+    ),
+    Variable(
+        "read_only",
+        "The helper reads only",
+        "In the chat of a helper that may change nothing (the `explore` agent): "
+        "the sentence saying so. Empty otherwise.",
+    ),
+    Variable(
+        "plan_tools",
+        "The planning bullet",
+        "The shared system text's bullet about plan_write and plan_update: the same "
+        "words the LLeMbas CLI sends, and empty in a helper's chat, which has no plan "
+        "tools -- the bullet goes with it.",
+    ),
+    Variable(
+        "ask_tool",
+        "The asking bullet",
+        "The shared system text's bullet about ask_user, the same words the LLeMbas "
+        "CLI sends, and empty in a helper's chat, which has nobody to ask.",
+    ),
+    Variable(
+        "helper_models",
+        "Models a helper may run on",
+        "Where `task` is offered: the models this person may use in the chat's "
+        "data group, as `connection/model` -- what `task`'s `model` may name. "
+        "Empty where there is no helper tool.",
+    ),
+    Variable(
         "other_model",
         "The model being quoted",
         "In a chat whose model was changed: the name of the model whose earlier "
@@ -831,7 +876,9 @@ BUILTIN: tuple[Fragment, ...] = (
             "surface",
             "tool_list",
             "file_tools",
+            "plan_tools",
             "plan_context",
+            "ask_tool",
             "background",
             "git",
         ),
@@ -1273,12 +1320,15 @@ BUILTIN: tuple[Fragment, ...] = (
         group=GROUP_TOOLS,
         order=252,
         families=("subagent",),
+        variables=("helper_models",),
         hint="Appears when task is offered. Two things a model gets "
         "wrong about delegation and neither is in the schema. It under-uses it "
         "— answering four independent questions one after another when they "
         "could have run at once — and then over-uses it, sending a helper to "
         "do a single search. The dividing line is whether the pieces are "
-        "independent, so that is what the wording is built around.",
+        "independent, so that is what the wording is built around. The last "
+        "line is the list task's description promises: the models a helper may "
+        "run on, which only this instance knows.",
         default=(
             "- You can delegate. task hands one self-contained piece of work to "
             "another model that runs on its own and gives you its answer. Several calls "
@@ -1299,7 +1349,9 @@ BUILTIN: tuple[Fragment, ...] = (
             "the same answer twice, at twice the cost.\n"
             "- What comes back is another model's work. Read it, say where it disagrees "
             "with what you already had, and do not repeat a claim you cannot check just "
-            "because a helper made it."
+            "because a helper made it.\n"
+            "- Models a helper may run on, as `connection/model` for task's `model`: "
+            "{{helper_models}}"
         ),
     ),
     Fragment(
@@ -1308,27 +1360,17 @@ BUILTIN: tuple[Fragment, ...] = (
         group=GROUP_CORE,
         order=36,
         requires=("subagent",),
-        hint="Only inside a helper's own chat. The three things it cannot work "
-        "out for itself: nobody is reading, there is exactly one reply, and "
-        "the thing that asked is a model rather than a person — so the usual "
-        "moves of asking what was meant, or promising to carry on afterwards, "
-        "both end the run having done nothing. This is the prompt half; the "
-        "enforcement is that ask_user and subagent_run are not offered here at "
-        "all, and that everything which writes has been withdrawn unless the "
-        "task was sent as a writing one.",
-        default=(
-            "- You are answering a request from another model, and you get one reply. "
-            "Nobody is reading this: you cannot ask a question, and there is no next "
-            "turn to carry on in. Do the work now and put everything into this answer.\n"
-            "- Answer the task as asked and stop. Do not open questions beyond it, "
-            "propose next steps, or address the reader — the model that asked will "
-            "decide what happens next, and anything you write to a person here is read "
-            "by nobody.\n"
-            "- Say what you actually found, with the file, the page or the command it "
-            "came from. Where you could not find something, say so plainly rather than "
-            "filling the gap: the model reading this cannot tell a careful answer from "
-            "a confident one, and will act on either."
-        ),
+        variables=("name", "instructions", "report", "read_only"),
+        hint="Only inside a helper's own chat: the harness spec's subagent "
+        "preamble (blocks/subagent.md), the same words the LLeMbas CLI gives "
+        "its subagents, with the agent's name and instructions filled in. The "
+        "things a helper cannot work out for itself: it works for the main "
+        "agent rather than the person, it cannot ask anybody anything, and its "
+        "final reply is its whole report. This is the prompt half; the "
+        "enforcement is that ask_user and task are not offered here at all, "
+        "and that everything which writes has been withdrawn from the explore "
+        "agent.",
+        default=harness_spec.prompt("blocks/subagent.md"),
     ),
     Fragment(
         key="context.memories",

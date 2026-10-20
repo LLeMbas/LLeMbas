@@ -17,6 +17,7 @@ from lembas.services import chat as chat_service
 from lembas.services import harness as harness_service
 from lembas.services import prompts as prompts_service
 from lembas.services import settings_store
+from lembas.services import subagent as subagent_service
 from lembas.services import tools as tools_service
 from lembas.services.agent import policy
 from lembas.web.i18n import t
@@ -154,7 +155,13 @@ def _variables(
     if situation == SITUATION_TASK:
         values.update(SAMPLE_SCHEDULE)
     if situation == SITUATION_HELPER:
+        from lembas.services import harness_spec
+
         values["subagent"] = "yes"
+        values["name"] = subagent_service.AGENT_EXPLORE
+        values["instructions"] = harness_spec.prompt("agents/explore.md")
+        values["report"] = subagent_service.REPORT_SENTENCE
+        values["read_only"] = subagent_service.READ_ONLY_SENTENCE
     return values
 
 
@@ -208,6 +215,10 @@ async def prompts_page(request: Request, db: Db, user: AdminUser, saved: bool = 
                     situation=SITUATION_TASK,
                 ),
                 "subagent": "yes",
+                "name": "explore",
+                "helper_models": ", ".join(
+                    subagent_service.model_ref(m) for m in models[:3]
+                ),
             },
             "models": models,
             "families": families,

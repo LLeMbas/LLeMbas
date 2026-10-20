@@ -128,6 +128,11 @@ FAMILY_SCHEDULE = "schedule"
 # not this, and on a single local endpoint four helpers at once is four times
 # the queue rather than four times the speed.
 FAMILY_SUBAGENT = "subagent"
+# The family a helper's one tool, `report`, is in: gated as `subagent`
+# (`gate_of`), so the permission that let the parent delegate covers the reply;
+# its own name, so the guidance about *sending* helpers (`tool.subagent`) is
+# not admitted into a helper's prompt by the family it shares.
+FAMILY_REPORT_BACK = "subagent:report"
 
 # The built-in families, in the order they are offered.
 FAMILIES = (
@@ -162,8 +167,14 @@ RISK_EXECUTE = "execute"
 # Never resolves to "allowed", in any mode. `ask_user` is the only tool that
 # carries it: stopping to ask is the whole of what it does.
 RISK_ASK = "ask"
+# The spec's `interact` (2.0.0): a call whose effect is a message to somebody
+# -- `task` starts a helper, `job_send` and `report` carry words between a
+# helper and its main agent. Nothing on disk changes and nothing runs, so no
+# mode asks about it and Plan mode does not withhold it; it is its own class
+# rather than `read` so the table says what it is.
+RISK_INTERACT = "interact"
 
-RISKS = (RISK_READ, RISK_WRITE, RISK_EXECUTE, RISK_ASK)
+RISKS = (RISK_READ, RISK_WRITE, RISK_EXECUTE, RISK_ASK, RISK_INTERACT)
 
 # How much of a fetched page reaches the model in one call. `fetch()` returns up
 # to 120_000 characters, which is roughly thirty thousand tokens -- one call would
@@ -328,11 +339,28 @@ def _object(properties: dict[str, Any], required: list[str]) -> dict[str, Any]:
 
 _STRING = {"type": "string"}
 
+# The two kinds of helper a `task` may name, as the harness spec's built-in
+# agents (`prompts/agents/*.md`): the same names and descriptions the LLeMbas
+# CLI offers. `explore` is the default and reads only; `general` has the full
+# toolset the parent's chat allows and may write (the former `write: true`).
+HELPER_AGENTS: tuple[tuple[str, str], ...] = (
+    (
+        "explore",
+        "read-only research: find where things are, how they work, what a change would touch",
+    ),
+    (
+        "general",
+        "a self-contained piece of work with the full toolset, under the same permission mode",
+    ),
+)
+
 # What LLeMbas fills the harness spec's tool-description variables with. One
 # place, read by the definitions below and by the test that holds them equal
-# to the spec. `agents`: the subagents a `task` may name -- this instance has
-# one kind of helper.
-SPEC_VARIABLES: dict[str, str] = {"agents": "general (default)"}
+# to the spec. `agents`: the subagents a `task` may name, `name — description`
+# separated by "; " as the spec's variable says.
+SPEC_VARIABLES: dict[str, str] = {
+    "agents": "; ".join(f"{name} — {about}" for name, about in HELPER_AGENTS)
+}
 
 # This server's facts for the library tools' variables (spec 1.2.0), where the
 # CLI says its own: one memory about the person rather than files and
@@ -1817,17 +1845,34 @@ def _schedule_defs() -> list[ToolDef]:
 
 
 def _subagent_registry_defs() -> list[ToolDef]:
+    """Every helper tool, the helper's own `report` included: the registry maps
+    a name to its family, and `harness._families` has to find `report`'s or the
+    preamble never learns the helper may report."""
     from lembas.services import subagent as subagent_service
 
-    return subagent_service.tool_defs()
+    return subagent_service.all_tool_defs()
 
 
 def _subagent_defs(db: DBSession, chat: Chat, user: User | None) -> list[ToolDef]:
-    """The helper tool, or nothing when this chat's model cannot be its own
-    helper (it serves one request at a time) -- a tool every call of which is
-    refused is one a model finds out about one wasted round at a time."""
+    """The helper tools this chat gets.
+
+    A helper's own chat gets `report` and nothing else of the family: the one
+    way it may speak to the main agent before its final reply (spec 2.0.0,
+    `offered: subagent`), and no `task` -- a helper that could send helpers is
+    a fan-out with no bound anybody set. Any other unattended chat (a
+    scheduled task's) gets none: nobody is there to be told about a job.
+
+    An ordinary chat gets `task` and the job tools, unless its model cannot be
+    its own helper (it serves one request at a time and the spec's
+    `capacity` rule refuses every call) -- a tool every call of which is
+    refused is one a model finds out about one wasted round at a time.
+    """
     from lembas.services import subagent as subagent_service
 
+    if getattr(chat, "parent_chat_id", None):
+        return subagent_service.child_tool_defs()
+    if unattended(chat):
+        return []
     if subagent_service.capacity_refusal(db, chat):
         return []
     return subagent_service.tool_defs()
@@ -1888,7 +1933,10 @@ def registry(db: DBSession) -> dict[str, ToolDef]:
 def families(db: DBSession) -> tuple[str, ...]:
     """Every family that exists, the built-ins in their fixed order first."""
     rows = tuple(tool.family for tool in _row_defs(db, None, everything=True))
-    return (*FAMILIES, *rows)
+    # The helper's own family after the built-ins: not in FAMILIES, which is
+    # the list of gates a chat can switch, and this one is switched with
+    # `subagent`.
+    return (*FAMILIES, FAMILY_REPORT_BACK, *rows)
 
 
 def resolve_tools(
@@ -1980,10 +2028,11 @@ def resolve_tools(
     #
     # A subagent's chat is unattended for a different reason and arrives at the
     # same place, which is why the question asked is `unattended` and not the
-    # kind: it is also where the *recursion* stops. A helper that could spawn a
-    # helper is a fan-out with no bound anybody set.
+    # kind. The recursion stops in `_subagent_defs`, which hands a helper's
+    # chat `report` alone and never `task` -- the family stays, so the one
+    # tool a helper has in it can be offered.
     if unattended(chat):
-        off = off | {FAMILY_ASK, FAMILY_SUBAGENT}
+        off = off | {FAMILY_ASK}
     # A helper has one reply and nobody reading it, so a plan would be a plan
     # for no one; the same line prototypes draw.
     if getattr(chat, "parent_chat_id", None):
@@ -2338,14 +2387,29 @@ async def run_tool(
 
     if parsed is None:
         parsed = parse_arguments(tool, arguments)
+    # The spec's `purpose` (purpose.json): one sentence for the person, added
+    # to the parameters of every tool whose spec says `purpose: "purpose"`.
+    # Shown beside the call in the transcript; the tool itself never sees it.
+    purpose = ""
+    if isinstance(parsed, dict) and "purpose" in parsed and takes_purpose(name):
+        purpose = str(parsed.pop("purpose") or "").strip()[:300]
     try:
-        return await tool.run(context, parsed)
+        outcome = await tool.run(context, parsed)
     except Exception as exc:  # a tool must never kill the reply
         log.exception("tool %s failed", name)
-        return ToolOutcome(
+        outcome = ToolOutcome(
             f"The {name} tool failed: {exc}",
             {"name": name, "status": "error", "error": str(exc)[:200]},
         )
+    if purpose:
+        outcome.event["purpose"] = purpose
+    return outcome
+
+
+def takes_purpose(name: str) -> bool:
+    """Whether the spec adds `purpose` to this tool's parameters."""
+    spec = harness_spec.tools().get(name)
+    return bool(spec) and spec.get("purpose") == "purpose"
 
 
 

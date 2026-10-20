@@ -198,6 +198,12 @@
     {% else %}
       {% for item in ask.items %}
       <div class="interaction__question" x-data="{ editing: false }">
+        {% if item.job %}
+        {# A background subagent asks, not the conversation's own turn (spec
+           2.0.0, `_meta.lembas.job`): said first, because the card may appear
+           while the conversation itself is idle. #}
+        <p class="interaction__asker">{{ t("%(job)s asks:", job=item.job) }}</p>
+        {% endif %}
         <p class="interaction__title">{{ item.title }}</p>
         {% if item.purpose %}
         {# The model's own account of what this is for, above the thing itself.
