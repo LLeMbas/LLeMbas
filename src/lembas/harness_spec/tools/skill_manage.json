@@ -12,7 +12,13 @@
       "skill_edit"
     ]
   },
-  "description": "Create, change or delete skills — your procedural memory for kinds of task that come back. Send a list of operations; they apply together, and if one fails none is kept.\n\n- create: a new skill from description + instructions (or content: a whole SKILL.md). Global unless where: project.\n- patch: fix part of a skill with old_string/new_string (read it with skill_view first) — preferred over rewriting.\n- write_file / remove_file: supporting files under references/, templates/, scripts/ or assets/.\n- delete: remove a skill (alone in its call).\n- revert: put back the skill as it was before its last change (a deleted one too); the version it replaces is kept, so a second revert undoes the first. Alone in its call.\n\nWrite the description as its trigger, in about 60 characters — only that much shows in the skills list: \"Use when <situation>. <what it does>.\" Write lessons, not logs: an instruction and why, no dates or incident stories.",
+  "variables": {
+    "create_where": "where a new skill goes (\" Global unless where: project.\"), or empty",
+    "files": "the supporting-file actions (\"write_file / remove_file: supporting files under references/, templates/, scripts/ or assets/.\"), or empty — the line goes",
+    "revert_deleted": "\" (a deleted one too)\" where a deleted skill can be reverted, or empty",
+    "index_cut": "why the description is kept short (\" — only that much shows in the skills list\"), or empty"
+  },
+  "description": "Create, change or delete skills — your procedural memory for kinds of task that come back. Send a list of operations; they apply together, and if one fails none is kept.\n\n- create: a new skill from description + instructions (or content: a whole SKILL.md).{{create_where}}\n- patch: fix part of a skill with old_string/new_string (read it with skill_view first) — preferred over rewriting.\n- {{files}}\n- delete: remove a skill (alone in its call).\n- revert: put back the skill as it was before its last change{{revert_deleted}}; the version it replaces is kept, so a second revert undoes the first. Alone in its call.\n\nWrite the description as its trigger, in about 60 characters{{index_cut}}: \"Use when <situation>. <what it does>.\" Write lessons, not logs: an instruction and why, no dates or incident stories.",
   "parameters": {
     "type": "object",
     "properties": {
@@ -93,5 +99,23 @@
     "required": [
       "operations"
     ]
+  },
+  "narrow": {
+    "llembas": {
+      "drop": [
+        "operations[].category",
+        "operations[].where",
+        "operations[].file_path",
+        "operations[].file_content"
+      ],
+      "enum": {
+        "operations[].action": [
+          "create",
+          "patch",
+          "delete",
+          "revert"
+        ]
+      }
+    }
   }
 }

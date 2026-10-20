@@ -98,7 +98,7 @@ def by_name(
     """Look one up the way the model refers to it.
 
     Scoped to what this person can **see**, which is theirs plus anything
-    shared with them -- correct for `skill_get` and `skill_edit`, where a
+    shared with them -- correct for `skill_view` and `skill_manage`, where a
     skill somebody shared is exactly what the model is reaching for.
 
     It is the wrong question for "is this name taken?"; see `owned_by_name`.
@@ -161,9 +161,10 @@ def count_enabled(
 ) -> int:
     """How many skills are available here at all.
 
-    Zero is what withdraws `skill_get` and `skill_edit`: reading and improving
+    Zero is what withdraws `skills_list` and `skill_view`: listing and reading
     are meaningless with nothing to read, and a model told to "read one with
-    skill_get" above a list that is not there spends a round finding out.
+    skill_view" above a list that is not there spends a round finding out.
+    `skill_manage` stays, because creating the first skill is its point.
     """
     return len(enabled_for(db, user, exclude=exclude, group=group))
 

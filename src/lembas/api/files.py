@@ -244,7 +244,7 @@ async def attach_from_skill(
 ) -> Response:
     """Hand a skill over directly, rather than hoping the model fetches it.
 
-    The index of enabled skills is already in the harness and `skill_get` pulls
+    The index of enabled skills is already in the harness and `skill_view` pulls
     a body on demand -- but only if the model decides to. `@` is the reader
     saying "use this one", which is a different act and deserves a way to say it.
     """

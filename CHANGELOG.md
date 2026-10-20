@@ -3,6 +3,39 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## 1.5.0 — 2026-10-20
+
+Memory, notes and skills are the LLeMbas CLI's tools: one harness for both.
+
+### Changed
+
+- **The library's tools are the harness spec's.** A model is sent `memory`,
+  `notes_search`, `note_view`, `note_manage`, `skills_list`, `skill_view` and
+  `skill_manage` -- the same tools, words and shapes the LLeMbas CLI sends,
+  with this server's facts filled in where the two differ (one memory about
+  the person; notes without a scope; skills without supporting files or
+  categories). A CLI linked to this instance now sees these names too.
+- **Memory changes in one call.** `memory` takes one change or a list --
+  add, replace, remove -- applied together or not at all, with the size limit
+  (4,000 characters) checked on the result, so a full memory is made room in
+  and added to in the same call. An entry over 400 characters is refused with
+  the reason rather than cut short. A refused change shows the model what is
+  remembered, so it can consolidate. A replaced memory keeps its place.
+- **Skills change in one call** with `skill_manage`: create (from a
+  description and instructions, or a whole SKILL.md), patch part of one,
+  delete, or revert to the version before the last change -- a second revert
+  undoes the first. Every operation is checked before any is written, so if
+  one fails none is kept. `skills_list` lists them.
+- Calls under the former names -- `memory_add`, `memory_forget`, `notes_get`,
+  `notes_create`, `notes_edit`, `notes_delete`, `skill_get`, `skill_create`,
+  `skill_edit` -- still run, as the call they mean, in a chat and over `/mcp`.
+  Old transcripts keep their labels. The prompt texts name the new tools; an
+  administrator's own wording, where there is one, is kept as it is.
+- An approval card for a memory, note or skill change says what changes.
+- Harness spec 1.2.0 (LLeMbas CLI 1.4.0): note and document ids are strings
+  on both sides, and the conformance areas `fill`, `narrow` and `memory` run
+  here as they do in the CLI.
+
 ## 1.4.0 — 2026-10-20
 
 The web tools are the LLeMbas CLI's: the same names, words and behaviour.

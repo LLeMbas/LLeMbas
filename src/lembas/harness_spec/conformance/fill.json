@@ -1,0 +1,88 @@
+{
+  "about": "A tool description's or a prompt text's `{{variables}}` filled in (`vars`): a value replaces its variable where it stands; a line that is nothing but a bullet and a variable (`- {{name}}`) disappears when the value is empty or blank; a variable with no value at all is an error naming every one missing (`missing`, sorted). Applied to a tool's description and to every `description` inside its parameters. LLeMbas: services/harness_spec.py fill; CLI: prompt/fill.ts fillPrompt.",
+  "cases": [
+    {
+      "text": "Read a page{{files}}",
+      "vars": {
+        "files": "."
+      },
+      "expect": {
+        "text": "Read a page."
+      }
+    },
+    {
+      "text": "Kept across sessions{{kept}}.",
+      "vars": {
+        "kept": ""
+      },
+      "expect": {
+        "text": "Kept across sessions."
+      }
+    },
+    {
+      "text": "- create: one.\n- {{files}}\n- delete: two.",
+      "vars": {
+        "files": ""
+      },
+      "expect": {
+        "text": "- create: one.\n- delete: two."
+      }
+    },
+    {
+      "text": "- create: one.\n- {{files}}\n- delete: two.",
+      "vars": {
+        "files": "   "
+      },
+      "expect": {
+        "text": "- create: one.\n- delete: two."
+      }
+    },
+    {
+      "text": "- create: one.\n  * {{files}}\n- delete: two.",
+      "vars": {
+        "files": "write_file."
+      },
+      "expect": {
+        "text": "- create: one.\n  * write_file.\n- delete: two."
+      }
+    },
+    {
+      "text": "A {{a}} and a {{b}} and {{a}} again",
+      "vars": {
+        "a": "x",
+        "b": "y"
+      },
+      "expect": {
+        "text": "A x and a y and x again"
+      }
+    },
+    {
+      "text": "Only {{a}} and {{c}} and {{b}}",
+      "vars": {
+        "a": "x"
+      },
+      "expect": {
+        "missing": [
+          "b",
+          "c"
+        ]
+      }
+    },
+    {
+      "text": "No variables at all.",
+      "vars": {},
+      "expect": {
+        "text": "No variables at all."
+      }
+    },
+    {
+      "text": "- not only {{a}} on this line",
+      "vars": {
+        "a": ""
+      },
+      "expect": {
+        "text": "- not only  on this line"
+      }
+    }
+  ]
+}

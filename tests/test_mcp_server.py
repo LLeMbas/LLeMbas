@@ -37,7 +37,9 @@ def test_initialize_and_list(client, db, registered):
     init = _rpc(client, headers, "initialize", {"protocolVersion": "2025-06-18"}).json()
     assert init["result"]["serverInfo"]["name"] == "lembas"
     names = {t["name"] for t in _rpc(client, headers, "tools/list").json()["result"]["tools"]}
-    assert {"memory_add", "notes_search", "knowledge_search"} <= names
+    assert {"memory", "notes_search", "note_manage", "knowledge_search"} <= names
+    # The harness spec's library, as the LLeMbas CLI names its own.
+    assert not names & {"memory_add", "notes_create", "notes_get", "skill_get"}
     # Nothing that is not the library.
     assert not names & {
         "bash", "fetch", "web_fetch", "web_search", "image_generate", "schedule_create"
@@ -57,11 +59,28 @@ def test_a_call_writes_to_the_holders_library(client, db, registered):
         client,
         headers,
         "tools/call",
-        {"name": "memory_add", "arguments": {"content": "Prefers tabs."}},
+        {
+            "name": "memory",
+            "arguments": {"target": "user", "action": "add", "content": "Prefers tabs."},
+        },
     ).json()
     assert r["result"]["isError"] is False
     db.expire_all()
     assert db.scalar(select(Memory)).content == "Prefers tabs."
+
+
+def test_a_former_name_is_the_call_it_means(client, db, registered):
+    """A device that listed the tools before an update calls them by the names
+    it was given then: `memory_add` is `memory` adding."""
+    r = _rpc(
+        client,
+        _token(db),
+        "tools/call",
+        {"name": "memory_add", "arguments": {"content": "Prefers spaces."}},
+    ).json()
+    assert r["result"]["isError"] is False
+    db.expire_all()
+    assert db.scalar(select(Memory)).content == "Prefers spaces."
 
 
 def test_reading_a_note(client, db, registered):
@@ -104,8 +123,11 @@ def test_the_permissions_gate_it(client, db, registered):
         },
     )
     names = {t["name"] for t in _rpc(client, headers, "tools/list").json()["result"]["tools"]}
-    assert "memory_add" not in names and "notes_search" in names
+    assert "memory" not in names and "notes_search" in names
     r = _rpc(client, headers, "tools/call", {"name": "memory_add", "arguments": {"content": "x"}})
+    assert "error" in r.json()
+    arguments = {"target": "user", "action": "add", "content": "x"}
+    r = _rpc(client, headers, "tools/call", {"name": "memory", "arguments": arguments})
     assert "error" in r.json()
 
 
@@ -122,7 +144,10 @@ def test_notes_created_over_mcp_are_the_persons(client, db, registered):
         client,
         _token(db),
         "tools/call",
-        {"name": "notes_create", "arguments": {"title": "From device-1", "body": "Hello."}},
+        {
+            "name": "note_manage",
+            "arguments": {"action": "create", "title": "From device-1", "body": "Hello."},
+        },
     ).json()
     assert r["result"]["isError"] is False
     db.expire_all()

@@ -152,7 +152,7 @@ def test_plan_mode_withholds_what_changes_things_and_offers_plan_submit(db, user
     offered = tools_service.resolve_tools(db, normal, user).by_name
     assert {"plan_write", "plan_update"} <= set(offered)
     assert "plan_submit" not in offered
-    assert "memory_add" in offered
+    assert "memory" in offered
 
     planning = _chat_with_tools(db, user_id, agent_mode="plan")
     offered = tools_service.resolve_tools(db, planning, user).by_name
@@ -334,7 +334,7 @@ async def test_plan_submit_waits_on_the_card_and_approval_ends_plan_mode(db, use
         ),
     )
     # Plan mode withheld the writers for this request.
-    assert "memory_add" not in {
+    assert "memory" not in {
         t["function"]["name"]
         for t in tools_service.resolve_tools(db, chat, db.get(User, user_id)).schemas
     }
@@ -361,7 +361,7 @@ async def test_plan_submit_waits_on_the_card_and_approval_ends_plan_mode(db, use
     # The answer was the tool's result, and the next request had the writers.
     third = seen[2]
     assert "approved" in third["messages"][-1]["content"]
-    assert "memory_add" in {t["function"]["name"] for t in third["tools"]}
+    assert "memory" in {t["function"]["name"] for t in third["tools"]}
     assert "plan_submit" not in {t["function"]["name"] for t in third["tools"]}
 
 

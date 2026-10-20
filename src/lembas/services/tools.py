@@ -32,7 +32,15 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
-from lembas.db.models import AUTHOR_MODEL, DEFAULT_GROUP, KIND_TASK, SOURCE_CHAT, Chat, User
+from lembas.db.models import (
+    AUTHOR_MODEL,
+    DEFAULT_GROUP,
+    KIND_TASK,
+    SOURCE_CHAT,
+    Chat,
+    SkillRevision,
+    User,
+)
 from lembas.db.session import session_scope
 from lembas.services import harness_spec, plans, settings_store
 from lembas.services import prompts as prompts_service
@@ -326,15 +334,48 @@ _STRING = {"type": "string"}
 # one kind of helper.
 SPEC_VARIABLES: dict[str, str] = {"agents": "general (default)"}
 
+# This server's facts for the library tools' variables (spec 1.2.0), where the
+# CLI says its own: one memory about the person rather than files and
+# projects, notes without a scope, skills without categories, supporting files
+# or project skills, and a skills list that shows each description whole.
+LLEMBAS_VARS: dict[str, dict[str, str]] = {
+    "memory": {
+        "project_home": "",
+        "targets": (
+            "'user' — the person you are talking to: their name, what they do, their "
+            "preferences, how they like to work, and the standing facts about them worth "
+            "having in every conversation."
+        ),
+        "past_work": "",
+        "when_seen": "What you save is in your instructions from the person's next message.",
+        "target_values": "'user': what is remembered about the person you are talking to.",
+    },
+    "notes_search": {"kept": ""},
+    "note_manage": {"create_scope": "", "scope": "", "records": ""},
+    "skills_list": {"category": ""},
+    "skill_view": {
+        "files": (
+            ". Read it before following a skill: the skills list gives only its name and "
+            "what it is for."
+        )
+    },
+    "skill_manage": {"create_where": "", "files": "", "revert_deleted": "", "index_cut": ""},
+}
+
+
+def _variables(name: str) -> dict[str, str]:
+    return {**SPEC_VARIABLES, **LLEMBAS_VARS.get(name, {})}
+
 
 def spec_description(name: str) -> str:
     """A shared tool's description, as the spec writes it, variables filled."""
-    return harness_spec.fill(harness_spec.tools()[name]["description"], SPEC_VARIABLES)
+    return harness_spec.fill(harness_spec.tools()[name]["description"], _variables(name))
 
 
 def spec_parameters(name: str) -> dict[str, Any]:
-    """A shared tool's parameters, as the spec writes them (a deep copy)."""
-    return json.loads(json.dumps(harness_spec.tools()[name]["parameters"]))
+    """A shared tool's parameters as this server offers them: the spec's,
+    variables filled, narrowed by `narrow.llembas` (a new copy each time)."""
+    return harness_spec.offered_parameters(name, _variables(name))
 
 
 def spec_aliases() -> dict[str, str]:
@@ -353,18 +394,19 @@ def resolve_alias(
 
     The spec keeps each tool's old names per project (`aliases.llembas`), and a
     transcript or a model trained on the old name still uses it. Most aliases
-    take the same arguments; the two that do not are converted here: `todo`'s
+    take the same arguments; the ones that do not are converted here: `todo`'s
     list becomes one "Work" phase for `plan_write` (the spec's conversion,
     `plans.from_todos`), and `subagent_run`'s task, title, context and write
     become `task`'s prompt and description, with `write` kept as the helper's
     own extra. A name that is no alias comes back unchanged.
 
-    So does a name LLeMbas still has a tool by. The spec lists the server's
-    current names (`fetch`, `notes_get`, `memory_add`, ...) as former names of
-    spec tools LLeMbas has not taken on, and rewriting those turned every call
-    to them into "Unknown tool". `offered` is what this request was offered:
-    given it, the call keeps its name when that name is offered or the alias's
-    target is not. Without it, the registry stands in for the first check.
+    So does a name this request has a tool by. 1.3.0 rewrote every alias
+    regardless, while the spec already listed `fetch`, `notes_get`,
+    `memory_add` and the rest as former names of tools this server did not have
+    yet, and every call to them answered "Unknown tool". `offered` is what this
+    request was offered: given it, the call keeps its name when that name is
+    offered or the alias's target is not. Without it, the registry stands in
+    for the first check.
     """
     target = spec_aliases().get(name)
     if target is None:
@@ -376,6 +418,42 @@ def resolve_alias(
     if name == "todo":
         plan = plans.from_todos(args.get("todos"))
         return target, {k: v for k, v in plan.items() if k in ("title", "phases")} if plan else {}
+    # The library's former names (spec 1.2.0): each was one action of a tool
+    # that is now several, so the action is filled in from the name.
+    if name in ("memory_add", "memory_forget"):
+        content = args.get("content")
+        if name == "memory_add":
+            return target, {"target": "user", "action": "add", "content": content}
+        return target, {"target": "user", "action": "remove", "old_text": content}
+    if name in ("notes_create", "notes_edit", "notes_delete"):
+        action = name.split("_", 1)[1]
+        kept = {k: v for k, v in args.items() if k in ("id", "title", "body")}
+        return target, {"action": action, **kept}
+    if name == "skill_create":
+        return target, {
+            "operations": [
+                {
+                    "action": "create",
+                    "name": args.get("name"),
+                    "description": args.get("description"),
+                    "instructions": args.get("body"),
+                }
+            ]
+        }
+    if name == "skill_edit":
+        # Its description and body as they were sent, either one alone: the
+        # runner reads `_set` against the skill as it stands, since a patch
+        # would need the text this call never quoted.
+        return target, {
+            "operations": [
+                {
+                    "action": "patch",
+                    "name": args.get("name"),
+                    "reason": args.get("reason"),
+                    "_set": {"description": args.get("description"), "body": args.get("body")},
+                }
+            ]
+        }
     if name == "subagent_run":
         prompt = str(args.get("task") or "").strip()
         briefing = str(args.get("context") or "").strip()
@@ -646,23 +724,25 @@ async def _run_notes_search(context: ToolContext, args: dict[str, Any]) -> ToolO
         lines = ["Notes:"]
         for note in found:
             lines.append(f"\n[{note.id}] {note.title}\n{notes_service.snippet(note)}")
-        lines.append("\nUse notes_get with an id to read one in full.")
+        lines.append("\nRead one with note_view.")
         return ToolOutcome("\n".join(lines), event)
 
 
-async def _run_notes_get(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
+async def _run_note_view(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
     with session_scope() as db:
         user = db.get(User, context.owner_id)
-        note = notes_service.get(db, str(args.get("id") or ""), user, context.data_group)
+        note = notes_service.get(db, str(args.get("id") or "").strip(), user, context.data_group)
         if note is None:
             return ToolOutcome(
-                "There is no such note, or it is not available to you.",
-                {"name": "notes_get", "status": "error", "error": "Not found."},
+                f"There is no note {str(args.get('id') or '')!r} here. notes_search finds "
+                "the ids.",
+                {"name": "note_view", "status": "error", "error": "Not found."},
             )
+        updated = note.updated_at.strftime("%Y-%m-%d %H:%M") if note.updated_at else ""
         return ToolOutcome(
-            f"{note.title}\n\n{note.body}",
+            f"# {note.title}\n(updated {updated})\n\n{note.body}",
             {
-                "name": "notes_get",
+                "name": "note_view",
                 "query": note.title,
                 "status": "ok",
                 "results": [{"title": note.title, "id": note.id}],
@@ -670,76 +750,81 @@ async def _run_notes_get(context: ToolContext, args: dict[str, Any]) -> ToolOutc
         )
 
 
-async def _run_notes_create(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
-    title = str(args.get("title") or "").strip()
-    body = str(args.get("body") or "").strip()
-    if not body:
-        return ToolOutcome(
-            "A note needs a body.",
-            {"name": "notes_create", "status": "error", "error": "Empty body."},
-        )
+async def _run_note_manage(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
+    """The spec's `note_manage`: create, edit or delete one note.
+
+    Only a note of one's own can be changed: a note somebody shared can be
+    read and not written, the same rule the library pages keep.
+    """
+    action = str(args.get("action") or "").strip()
+
+    def refused(message: str, error: str) -> ToolOutcome:
+        return ToolOutcome(message, {"name": "note_manage", "status": "error", "error": error})
+
+    if action not in ("create", "edit", "delete"):
+        return refused("action is create, edit or delete.", "No action.")
     with session_scope() as db:
         user = db.get(User, context.owner_id)
-        note = notes_service.create(
-            db,
-            owner=user,
-            title=title,
-            body=body,
-            author=AUTHOR_MODEL,
-            group=context.data_group,
-        )
-        return ToolOutcome(
-            f"Saved note {note.id} — {note.title!r}.",
-            {
-                "name": "notes_create",
-                "query": note.title,
-                "status": "ok",
-                "results": [{"title": note.title, "id": note.id}],
-            },
-        )
-
-
-async def _run_notes_edit(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
-    with session_scope() as db:
-        user = db.get(User, context.owner_id)
-        note = notes_service.get(db, str(args.get("id") or ""), user, context.data_group)
-        if note is None or note.owner_id != context.owner_id:
-            return ToolOutcome(
-                "There is no such note, or it belongs to someone else. A note "
-                "shared with you can be read but not changed.",
-                {"name": "notes_edit", "status": "error", "error": "Not writable."},
+        if action == "create":
+            title = str(args.get("title") or "").strip()
+            body = str(args.get("body") or "").strip()
+            if not title or not body:
+                return refused("create needs a title and a body.", "Empty.")
+            if len(body) > notes_service.MAX_BODY_CHARS:
+                return refused(
+                    f"A note is at most {notes_service.MAX_BODY_CHARS:,} characters; this "
+                    f"one is {len(body):,}.",
+                    "Too long.",
+                )
+            note = notes_service.create(
+                db, owner=user, title=title, body=body, author=AUTHOR_MODEL,
+                group=context.data_group,
             )
-        notes_service.update(
-            db,
-            note,
-            title=args.get("title"),
-            body=args.get("body"),
-        )
-        return ToolOutcome(
-            f"Updated note {note.id}.",
-            {
-                "name": "notes_edit",
-                "query": note.title,
-                "status": "ok",
-                "results": [{"title": note.title, "id": note.id}],
-            },
-        )
-
-
-async def _run_notes_delete(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
-    with session_scope() as db:
-        user = db.get(User, context.owner_id)
-        note = notes_service.get(db, str(args.get("id") or ""), user, context.data_group)
-        if note is None or note.owner_id != context.owner_id:
             return ToolOutcome(
-                "There is no such note, or it belongs to someone else.",
-                {"name": "notes_delete", "status": "error", "error": "Not writable."},
+                f"Saved note {note.id}.",
+                {
+                    "name": "note_manage",
+                    "action": action,
+                    "query": note.title,
+                    "status": "ok",
+                    "results": [{"title": note.title, "id": note.id}],
+                },
+            )
+        wanted = str(args.get("id") or "").strip()
+        if not wanted:
+            return refused(f"{action} needs the note's id (notes_search finds it).", "No id.")
+        note = notes_service.get(db, wanted, user, context.data_group)
+        if note is None or note.owner_id != context.owner_id:
+            return refused(
+                f"There is no note {wanted!r} of yours here. A note shared with you can be "
+                "read but not changed.",
+                "Not writable.",
             )
         title = note.title
-        notes_service.delete(db, note)
+        if action == "delete":
+            notes_service.delete(db, note)
+            return ToolOutcome(
+                f"Deleted note {wanted}.",
+                {"name": "note_manage", "action": action, "query": title, "status": "ok",
+                 "results": []},
+            )
+        body = args.get("body")
+        if body is not None and len(str(body)) > notes_service.MAX_BODY_CHARS:
+            return refused(
+                f"A note is at most {notes_service.MAX_BODY_CHARS:,} characters.", "Too long."
+            )
+        notes_service.update(
+            db, note, title=args.get("title"), body=None if body is None else str(body)
+        )
         return ToolOutcome(
-            f"Deleted note {title!r}.",
-            {"name": "notes_delete", "query": title, "status": "ok", "results": []},
+            f"Changed note {note.id}.",
+            {
+                "name": "note_manage",
+                "action": action,
+                "query": note.title,
+                "status": "ok",
+                "results": [{"title": note.title, "id": note.id}],
+            },
         )
 
 
@@ -789,83 +874,62 @@ async def _run_scratch_write(context: ToolContext, args: dict[str, Any]) -> Tool
 
 
 # --- Memory ------------------------------------------------------------------
-async def _run_memory_add(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
-    content = str(args.get("content") or "").strip()
-    with session_scope() as db:
-        user = db.get(User, context.owner_id)
-        try:
-            memory = memories_service.add(
-                db, owner=user, content=content, author=AUTHOR_MODEL, group=context.data_group
-            )
-        except ValueError as exc:
-            return ToolOutcome(
-                str(exc), {"name": "memory_add", "status": "error", "error": str(exc)}
-            )
-
-        note = ""
-        if len(content) > memories_service.MAX_MEMORY_CHARS:
-            # Trimmed rather than refused, with the model told so -- it can then
-            # decide to put the long version in a note.
-            note = (
-                f" It was shortened to {memories_service.MAX_MEMORY_CHARS} characters; "
-                f"use notes for anything longer."
-            )
+async def _run_memory(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
+    """The spec's `memory`: one change or a list, applied together or not at
+    all (`memories.apply`, the CLI's semantics and messages). One target here,
+    `user` -- what is remembered about the person; the spec's other targets
+    are the CLI's files, and `narrow.llembas` does not offer them."""
+    target = str(args.get("target") or "user").strip()
+    if target != "user":
         return ToolOutcome(
-            f"Remembered: {memory.content}{note}",
+            "There is one memory here, about the person you are talking to: target 'user'.",
+            {"name": "memory", "status": "error", "error": "No such target."},
+        )
+    raw_ops = args.get("operations")
+    if isinstance(raw_ops, list) and raw_ops:
+        ops = [op for op in raw_ops if isinstance(op, dict)]
+    elif args.get("action"):
+        ops = [
             {
-                "name": "memory_add",
-                "query": memory.content,
-                "status": "ok",
-                "results": [],
-            },
-        )
-
-
-async def _run_memory_forget(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
-    """Remove one memory, or refuse and say why.
-
-    Exact match first, then substring, and an ambiguous substring removes
-    nothing. This used to be a case-insensitive substring FIRST-match delete
-    with nothing warning about it, so `memory_forget("coffee")` against "Drinks
-    coffee black" and "Allergic to coffee" silently deleted whichever was older
-    -- a wrong deletion nobody would ever find out about, from a tool whose
-    description invited exactly the short fragment that misfires.
-
-    Exact-first is not a nicety: without it, quoting a memory in full still
-    fails whenever that text happens to be a substring of another one.
-    """
-    wanted = str(args.get("content") or "").strip().lower()
+                "action": args.get("action"),
+                "content": args.get("content"),
+                "new_text": args.get("new_text"),
+                "old_text": args.get("old_text"),
+            }
+        ]
+    else:
+        ops = []
     with session_scope() as db:
         user = db.get(User, context.owner_id)
-        records = memories_service.all_for(db, user, context.data_group)
-        if not wanted:
-            return ToolOutcome(
-                "Say which memory to remove, quoting its text.",
-                {"name": "memory_forget", "status": "error", "error": "Nothing given."},
-            )
-
-        exact = [m for m in records if m.content.strip().lower() == wanted]
-        matches = exact or [m for m in records if wanted in m.content.lower()]
-
-        if not matches:
-            return ToolOutcome(
-                "No memory matches that. The full list is in the prompt already.",
-                {"name": "memory_forget", "status": "error", "error": "No match."},
-            )
-        if len(matches) > 1:
-            listed = "\n".join(f"- {m.content}" for m in matches[:10])
-            return ToolOutcome(
-                f"That matches {len(matches)} memories, so nothing was removed. "
-                f"Quote the whole text of the one you mean:\n{listed}",
-                {"name": "memory_forget", "status": "error", "error": "Ambiguous."},
-            )
-
-        content = matches[0].content
-        memories_service.delete(db, matches[0])
+        result = memories_service.apply(db, owner=user, ops=ops, group=context.data_group)
+    marks = "".join(
+        {"add": "+", "remove": "−"}.get(str(op.get("action")), "~") for op in ops
+    )
+    if not result["ok"]:
+        shown = result.get("entries")
+        if shown is not None:
+            listed = "\n".join(f"{i}. {entry}" for i, entry in enumerate(shown, 1)) or "(none)"
+            text = f"{result['message']}\n\nCurrent entries ({result['usage']}):\n{listed}"
+        else:
+            text = f"{result['message']}\n\nuser profile: {result['usage']}"
         return ToolOutcome(
-            f"Forgotten: {content}",
-            {"name": "memory_forget", "query": content, "status": "ok", "results": []},
+            text,
+            {"name": "memory", "query": marks, "status": "error", "error": result["message"]},
         )
+    return ToolOutcome(
+        f"{result['message']} user profile: {result['usage']}. Saved — this update is "
+        "complete; do not repeat it.",
+        {
+            "name": "memory",
+            "query": "; ".join(
+                str(op.get("content") or op.get("new_text") or op.get("old_text") or "")
+                for op in ops
+            )[:200],
+            "detail": marks,
+            "status": "ok",
+            "results": [],
+        },
+    )
 
 
 # --- Reports -----------------------------------------------------------------
@@ -960,27 +1024,54 @@ async def _run_report_get(context: ToolContext, args: dict[str, Any]) -> ToolOut
 
 
 # --- Skills ------------------------------------------------------------------
-async def _run_skill_get(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
+def _skill_hidden(context: ToolContext, skill: Any) -> bool:
+    """Switched off for this chat. Enforced in the runners and not only in the
+    listing: without it a model could name a skill it was never shown -- from
+    an earlier turn, from a note -- and be handed it."""
+    return skill is not None and skill.name in {
+        skills_service.slugify(off) for off in context.skills_off
+    }
+
+
+async def _run_skills_list(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
+    with session_scope() as db:
+        user = db.get(User, context.owner_id)
+        shown = skills_service.enabled_for(
+            db, user, exclude=context.skills_off, group=context.data_group
+        )
+        event = {
+            "name": "skills_list",
+            "status": "ok",
+            "results": [{"title": skill.name, "id": skill.id} for skill in shown],
+        }
+        if not shown:
+            return ToolOutcome("No skills yet.", event)
+        lines = [f"{skill.name} — {skill.description}" for skill in shown]
+        return ToolOutcome("\n".join(lines) + "\n\nLoad one with skill_view(name).", event)
+
+
+async def _run_skill_view(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
     name = str(args.get("name") or "").strip()
     with session_scope() as db:
         user = db.get(User, context.owner_id)
         skill = skills_service.by_name(db, name, user, context.data_group)
-        # Enforced here and not only in the listing. Without this the per-chat
-        # narrowing is advisory: a model can name a skill it was never shown --
-        # from an earlier turn, from a note -- and the runner would fetch it.
-        if skill is not None and skill.name in {
-            skills_service.slugify(off) for off in context.skills_off
-        }:
+        if _skill_hidden(context, skill):
             skill = None
         if skill is None:
+            listed = ", ".join(
+                s.name
+                for s in skills_service.enabled_for(
+                    db, user, exclude=context.skills_off, group=context.data_group
+                )
+            )
             return ToolOutcome(
-                f"There is no skill called {name!r}.",
-                {"name": "skill_get", "status": "error", "error": "Not found."},
+                f'There is no skill "{name}". Skills: {listed or "(none)"}',
+                {"name": "skill_view", "status": "error", "error": "Not found."},
             )
         return ToolOutcome(
-            f"Skill {skill.name}: {skill.description}\n\n{skill.body}",
+            f"# Skill: {skill.name}\n{skill.description}\n\n{skill.body}",
             {
-                "name": "skill_get",
+                "name": "skill_view",
                 "query": skill.name,
                 "status": "ok",
                 "results": [{"title": skill.name, "id": skill.id}],
@@ -988,63 +1079,270 @@ async def _run_skill_get(context: ToolContext, args: dict[str, Any]) -> ToolOutc
         )
 
 
-async def _run_skill_create(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
+def compose_skill(name: str, description: str, instructions: str) -> str:
+    """A SKILL.md from its parts, as the LLeMbas CLI writes one (`composeSkill`):
+    what `skill_manage`'s `content` and a patch's `old_string` are read against,
+    so a model moving between the two sees one shape."""
+    one_line = " ".join(description.split())
+    return (
+        f"---\nname: {name}\ndescription: {json.dumps(one_line, ensure_ascii=False)}\n---\n\n"
+        f"{instructions.strip()}\n"
+    )
+
+
+def parse_skill(text: str) -> tuple[dict[str, str], str] | None:
+    """(frontmatter, body) of a SKILL.md, or None when it has no frontmatter.
+    The values a skill needs are single lines -- a name and a description --
+    so this reads `key: value`, with the value as JSON when it is quoted."""
+    lines = text.replace("\r\n", "\n").lstrip("\ufeff").split("\n")
+    if not lines or lines[0].strip() != "---":
+        return None
+    try:
+        end = next(i for i in range(1, len(lines)) if lines[i].strip() == "---")
+    except StopIteration:
+        return None
+    meta: dict[str, str] = {}
+    for line in lines[1:end]:
+        key, sep, value = line.partition(":")
+        if not sep:
+            continue
+        value = value.strip()
+        if value[:1] == '"':
+            try:
+                value = str(json.loads(value))
+            except ValueError:
+                value = value.strip('"')
+        elif value[:1] == "'" and value[-1:] == "'":
+            value = value[1:-1].replace("''", "'")
+        meta[key.strip()] = value
+    return meta, "\n".join(lines[end + 1 :]).strip()
+
+
+_SKILL_SHAPE = (
+    "It must look like this:\n---\nname: {name}\ndescription: Use when …\n---\n\n"
+    "The instructions.\n(Or send description and instructions instead of content.)"
+)
+
+
+def _skill_from_text(text: str, name: str) -> tuple[str, str]:
+    """(description, body) of a whole SKILL.md for `name`, or ValueError saying
+    what is wrong with it -- the CLI's `validateSkill`, against this server's
+    limits."""
+    parsed = parse_skill(text)
+    if parsed is None:
+        raise ValueError(
+            "SKILL.md must start with frontmatter between two --- lines. "
+            + _SKILL_SHAPE.format(name=name)
+        )
+    meta, body = parsed
+    if skills_service.slugify(meta.get("name", "")) != name:
+        raise ValueError(f'The frontmatter name must be "{name}".')
+    description = meta.get("description", "").strip()
+    if not description:
+        raise ValueError(
+            "The frontmatter needs a description: one sentence saying when to use the "
+            "skill. " + _SKILL_SHAPE.format(name=name)
+        )
+    if len(description) > skills_service.MAX_DESCRIPTION_CHARS:
+        raise ValueError(
+            f"The description is {len(description)} characters; the limit is "
+            f"{skills_service.MAX_DESCRIPTION_CHARS}."
+        )
+    if not body:
+        raise ValueError(
+            "SKILL.md needs instructions after the closing --- line. "
+            + _SKILL_SHAPE.format(name=name)
+        )
+    if len(body) > skills_service.MAX_BODY_CHARS:
+        raise ValueError(
+            f"The instructions are {len(body):,} characters; the limit is "
+            f"{skills_service.MAX_BODY_CHARS:,}."
+        )
+    return description, body
+
+
+def _replace_once(text: str, old: str, new: str, replace_all: bool) -> str:
+    count = text.count(old) if old else 0
+    if count == 0:
+        raise ValueError("old_string was not found.")
+    if count > 1 and not replace_all:
+        raise ValueError(
+            f"old_string is there {count} times; give more of the text around it so it is "
+            "unique, or set replace_all."
+        )
+    return text.replace(old, new) if replace_all else text.replace(old, new, 1)
+
+
+async def _run_skill_manage(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
+    """The spec's `skill_manage`: a list of operations that apply together.
+
+    What this server offers of it (`narrow.llembas`): create, patch, delete and
+    revert, on the skill itself -- no supporting files, categories or project
+    skills. Every operation is checked against the skills as they would be
+    after the ones before it, and only then is anything written: the service
+    commits as it goes, so checking first is what keeps "if one fails none is
+    kept" true. A former `skill_edit` call arrives as a patch carrying `_set`
+    (`resolve_alias`), its description and body as they were sent.
+    """
+
+    def refused(message: str) -> ToolOutcome:
+        return ToolOutcome(
+            message, {"name": "skill_manage", "status": "error", "error": message[:200]}
+        )
+
+    ops = [op for op in (args.get("operations") or []) if isinstance(op, dict)]
+    if not ops:
+        return refused("operations is a list of at least one change.")
+    lone = next((op for op in ops if op.get("action") in ("delete", "revert")), None)
+    if lone is not None and len(ops) > 1:
+        return refused(f"{lone.get('action')} must be the only operation in its call.")
+
     with session_scope() as db:
         user = db.get(User, context.owner_id)
-        try:
-            skill = skills_service.create(
-                db,
-                owner=user,
-                name=str(args.get("name") or ""),
-                description=str(args.get("description") or ""),
-                body=str(args.get("body") or ""),
-                author=AUTHOR_MODEL,
-                group=context.data_group,
-            )
-        except skills_service.SkillError as exc:
-            return ToolOutcome(
-                str(exc), {"name": "skill_create", "status": "error", "error": str(exc)}
-            )
-        return ToolOutcome(
-            f"Created skill {skill.name!r}.",
-            {
-                "name": "skill_create",
-                "query": skill.name,
-                "status": "ok",
-                "results": [{"title": skill.name, "id": skill.id}],
-            },
-        )
+        # name -> (description, body) as it would stand, or None once deleted.
+        state: dict[str, tuple[str, str] | None] = {}
+        plan: list[tuple[str, str, Any]] = []
+        for i, op in enumerate(ops):
+            action = str(op.get("action") or "")
+            name = skills_service.slugify(str(op.get("name") or ""))
+            at = f"operation {i + 1} ({action} {name}): " if len(ops) > 1 else ""
+            if action not in ("create", "patch", "delete", "revert"):
+                return refused(f"{at}action is create, patch, delete or revert here.")
+            if not skills_service.SKILL_NAME_PATTERN.match(name):
+                return refused(
+                    f"{at}{str(op.get('name') or '')!r} is not a valid skill name: two or more "
+                    "lowercase letters, digits or hyphens, such as 'weekly-report'."
+                )
+            own = skills_service.owned_by_name(db, name, user)
+            if own is not None and (own.data_group_id or DEFAULT_GROUP) != (
+                context.data_group or DEFAULT_GROUP
+            ):
+                own_here = None
+                taken_elsewhere = True
+            else:
+                own_here, taken_elsewhere = own, False
+            stored = (own_here.description, own_here.body) if own_here is not None else None
+            current = state.get(name, stored)
+            exists = current is not None
+            try:
+                if action == "create":
+                    if exists or taken_elsewhere:
+                        where = " in another data group" if taken_elsewhere else ""
+                        return refused(f'{at}a skill "{name}" already exists{where}. Use patch.')
+                    if op.get("content") is not None:
+                        description, body = _skill_from_text(str(op["content"]), name)
+                    else:
+                        description = str(op.get("description") or "").strip()
+                        body = str(op.get("instructions") or "").strip()
+                        if not description or not body:
+                            return refused(
+                                f"{at}create needs description and instructions (or content: "
+                                "the whole SKILL.md)."
+                            )
+                        description, body = _skill_from_text(
+                            compose_skill(name, description, body), name
+                        )
+                    state[name] = (description, body)
+                    plan.append(("create", name, (description, body)))
+                    continue
+                if not exists or current is None:
+                    return refused(f'{at}there is no skill "{name}" of yours here.')
+                if action == "delete":
+                    state[name] = None
+                    plan.append(("delete", name, None))
+                    continue
+                if action == "revert":
+                    revision = db.scalars(
+                        select(SkillRevision)
+                        .where(SkillRevision.skill_id == own_here.id)
+                        .order_by(SkillRevision.created_at.desc())
+                    ).first()
+                    if revision is None:
+                        return refused(f'{at}"{name}" has no earlier version kept.')
+                    plan.append(("revert", name, revision))
+                    continue
+                # patch
+                setting = op.get("_set")
+                if isinstance(setting, dict):
+                    description = str(setting.get("description") or "").strip() or current[0]
+                    body = (
+                        current[1] if setting.get("body") is None else str(setting["body"]).strip()
+                    )
+                    description, body = _skill_from_text(
+                        compose_skill(name, description, body), name
+                    )
+                else:
+                    before = compose_skill(name, current[0], current[1])
+                    if op.get("old_string") is not None:
+                        try:
+                            after = _replace_once(
+                                before,
+                                str(op["old_string"]),
+                                str(op.get("new_string") or ""),
+                                bool(op.get("replace_all")),
+                            )
+                        except ValueError as exc:
+                            return refused(
+                                f"{at}{exc} old_string must be the exact text now in the "
+                                f"skill — read it with skill_view first. SKILL.md begins:\n"
+                                f"{before[:500]}"
+                            )
+                    elif op.get("content") is not None:
+                        after = str(op["content"])
+                    else:
+                        return refused(
+                            f"{at}patch needs old_string and new_string (or content: a whole "
+                            "new SKILL.md)."
+                        )
+                    try:
+                        description, body = _skill_from_text(after, name)
+                    except ValueError as exc:
+                        return refused(f"{at}the patch would break SKILL.md: {exc}")
+                state[name] = (description, body)
+                plan.append(("patch", name, (description, body, str(op.get("reason") or ""))))
+            except ValueError as exc:
+                return refused(f"{at}{exc}")
 
-
-async def _run_skill_edit(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
-    with session_scope() as db:
-        user = db.get(User, context.owner_id)
-        skill = skills_service.by_name(
-            db, str(args.get("name") or ""), user, context.data_group
-        )
-        if skill is None or skill.owner_id != context.owner_id:
-            return ToolOutcome(
-                "There is no such skill, or it belongs to someone else.",
-                {"name": "skill_edit", "status": "error", "error": "Not writable."},
-            )
-        skills_service.update(
-            db,
-            skill,
-            description=args.get("description"),
-            body=args.get("body"),
-            author=AUTHOR_MODEL,
-            note=str(args.get("reason") or "")[:200],
-        )
-        return ToolOutcome(
-            f"Updated skill {skill.name!r}. The previous version was kept and can "
-            f"be restored.",
-            {
-                "name": "skill_edit",
-                "query": skill.name,
-                "status": "ok",
-                "results": [{"title": skill.name, "id": skill.id}],
-            },
-        )
+        # Everything checked: now write.
+        done: list[str] = []
+        results = []
+        for action, name, value in plan:
+            if action == "create":
+                skill = skills_service.create(
+                    db, owner=user, name=name, description=value[0], body=value[1],
+                    author=AUTHOR_MODEL, group=context.data_group,
+                )
+            else:
+                skill = skills_service.owned_by_name(db, name, user)
+                if action == "delete":
+                    skills_service.delete(db, skill)
+                    done.append(f"delete {name}")
+                    continue
+                if action == "revert":
+                    skills_service.revert(db, skill, value, author=AUTHOR_MODEL)
+                else:
+                    skills_service.update(
+                        db, skill, description=value[0], body=value[1],
+                        author=AUTHOR_MODEL, note=value[2][:200],
+                    )
+            done.append(f"{action} {name}")
+            results.append({"title": skill.name, "id": skill.id})
+    summary = ", ".join(done)
+    tail = (
+        " The version it replaced is kept: revert again to undo this."
+        if plan[0][0] == "revert"
+        else ""
+    )
+    return ToolOutcome(
+        f"Done: {summary}.{tail}\nskill_view shows a skill as it is now; the skills list in "
+        "your instructions shows the change from your next message.",
+        {
+            "name": "skill_manage",
+            "query": summary[:80],
+            "status": "ok",
+            "results": results,
+        },
+    )
 
 
 # --- Asking the reader -------------------------------------------------------
@@ -1191,52 +1489,29 @@ REGISTRY: dict[str, ToolDef] = {
             },
             run=_run_knowledge_get,
         ),
+        # The library's tools are the harness spec's (1.2.0), filled with this
+        # server's facts (`LLEMBAS_VARS`) and narrowed to what it has
+        # (`narrow.llembas`) -- the same tools the LLeMbas CLI sends.
         ToolDef(
             name="notes_search",
             family=FAMILY_NOTES,
-            description=(
-                "Search your notes. These are things you or the user wrote down in "
-                "earlier conversations. With no query, returns the most recent."
-            ),
-            parameters=_object({"query": _STRING}, []),
+            description=spec_description("notes_search"),
+            parameters=spec_parameters("notes_search"),
             run=_run_notes_search,
         ),
         ToolDef(
-            name="notes_get",
+            name="note_view",
             family=FAMILY_NOTES,
-            description="Read one note in full, by the id a search returned.",
-            parameters=_object({"id": _STRING}, ["id"]),
-            run=_run_notes_get,
+            description=spec_description("note_view"),
+            parameters=spec_parameters("note_view"),
+            run=_run_note_view,
         ),
         ToolDef(
-            name="notes_create",
+            name="note_manage",
             family=FAMILY_NOTES,
-            description=(
-                "Write a note. Use this for something worth having in a later "
-                "conversation that is too long or too detailed for a memory: a "
-                "procedure, a summary, a set of preferences with reasons."
-            ),
-            parameters=_object(
-                {"title": _STRING, "body": {**_STRING, "description": "Markdown."}},
-                ["title", "body"],
-            ),
-            run=_run_notes_create,
-            risk=RISK_WRITE,
-        ),
-        ToolDef(
-            name="notes_edit",
-            family=FAMILY_NOTES,
-            description="Change a note you can write to. Omit a field to leave it alone.",
-            parameters=_object({"id": _STRING, "title": _STRING, "body": _STRING}, ["id"]),
-            run=_run_notes_edit,
-            risk=RISK_WRITE,
-        ),
-        ToolDef(
-            name="notes_delete",
-            family=FAMILY_NOTES,
-            description="Delete a note that is no longer true or useful.",
-            parameters=_object({"id": _STRING}, ["id"]),
-            run=_run_notes_delete,
+            description=spec_description("note_manage"),
+            parameters=spec_parameters("note_manage"),
+            run=_run_note_manage,
             risk=RISK_WRITE,
         ),
         ToolDef(
@@ -1271,40 +1546,11 @@ REGISTRY: dict[str, ToolDef] = {
             risk=RISK_READ,
         ),
         ToolDef(
-            name="memory_add",
+            name="memory",
             family=FAMILY_MEMORY,
-            description=(
-                "Remember one short, durable fact about the user — a preference, a "
-                "constraint, a name, how they like to be addressed. Every memory is "
-                "put in front of you on every turn, up to a budget, so keep them few "
-                "and keep them short; text over the limit is shortened rather than "
-                "refused, and you are told. Check what is already remembered before "
-                "adding: a fact you have stored already in slightly different words "
-                "costs the same again and makes both of them harder to remove. Never "
-                "store a password, a key or anything else secret."
-            ),
-            parameters=_object(
-                {"content": {**_STRING, "description": "One fact, in one sentence."}},
-                ["content"],
-            ),
-            run=_run_memory_add,
-            risk=RISK_WRITE,
-        ),
-        ToolDef(
-            name="memory_forget",
-            family=FAMILY_MEMORY,
-            description=(
-                "Remove a memory that is no longer true. Quote it in full — the "
-                "whole sentence as it appears in your prompt. A fragment that "
-                "matches more than one removes nothing and tells you which ones it "
-                "matched, because deleting the wrong memory is not something anyone "
-                "would find out about."
-            ),
-            parameters=_object(
-                {"content": {**_STRING, "description": "The memory's whole text."}},
-                ["content"],
-            ),
-            run=_run_memory_forget,
+            description=spec_description("memory"),
+            parameters=spec_parameters("memory"),
+            run=_run_memory,
             risk=RISK_WRITE,
         ),
         ToolDef(
@@ -1375,52 +1621,25 @@ REGISTRY: dict[str, ToolDef] = {
             run=_run_report_get,
         ),
         ToolDef(
-            name="skill_get",
+            name="skills_list",
             family=FAMILY_SKILLS,
-            description=(
-                "Read the full instructions for one of the skills listed in your "
-                "prompt. Do this before following a skill — the list gives only its "
-                "name and what it is for."
-            ),
-            parameters=_object({"name": _STRING}, ["name"]),
-            run=_run_skill_get,
+            description=spec_description("skills_list"),
+            parameters=spec_parameters("skills_list"),
+            run=_run_skills_list,
         ),
         ToolDef(
-            name="skill_create",
+            name="skill_view",
             family=FAMILY_SKILLS,
-            description=(
-                "Write a new skill: a reusable procedure for a task you expect to be "
-                "asked again. The description must say when to use it, since that is "
-                "all you will see next time."
-            ),
-            parameters=_object(
-                {
-                    "name": {**_STRING, "description": "Short slug, e.g. 'weekly-report'."},
-                    "description": {**_STRING, "description": "When to use this skill."},
-                    "body": {**_STRING, "description": "The instructions, in Markdown."},
-                },
-                ["name", "description", "body"],
-            ),
-            run=_run_skill_create,
-            risk=RISK_WRITE,
+            description=spec_description("skill_view"),
+            parameters=spec_parameters("skill_view"),
+            run=_run_skill_view,
         ),
         ToolDef(
-            name="skill_edit",
+            name="skill_manage",
             family=FAMILY_SKILLS,
-            description=(
-                "Improve one of your skills. The previous version is kept and can be "
-                "restored, so say why you changed it."
-            ),
-            parameters=_object(
-                {
-                    "name": _STRING,
-                    "description": _STRING,
-                    "body": _STRING,
-                    "reason": {**_STRING, "description": "Why the change was made."},
-                },
-                ["name"],
-            ),
-            run=_run_skill_edit,
+            description=spec_description("skill_manage"),
+            parameters=spec_parameters("skill_manage"),
+            run=_run_skill_manage,
             risk=RISK_WRITE,
         ),
         ToolDef(
@@ -1833,7 +2052,7 @@ def resolve_tools(
 
 
 # Skills tools that are meaningless with an empty library.
-_NEEDS_A_SKILL = frozenset({"skill_get", "skill_edit"})
+_NEEDS_A_SKILL = frozenset({"skills_list", "skill_view"})
 
 
 def unattended(chat: Chat | None) -> bool:

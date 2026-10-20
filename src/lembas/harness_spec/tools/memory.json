@@ -12,7 +12,14 @@
       "memory_forget"
     ]
   },
-  "description": "Save durable facts to persistent memory that survives across sessions. Memory goes into the system prompt of every future session, so keep entries short and worth their place.\n\nHOW: make all your changes in ONE call with an `operations` list ({action, content?, old_text?}). The list is applied together and the size limit is checked only on the result, so one call can remove or shorten stale entries AND add new ones. One call finishes the update; do not repeat it. Use the single action/content/old_text fields only for one lone change.\n\nWHEN: only for facts that hold in EVERY session, whatever the task: who the user is, stable facts about their machines and environment, standing conventions with no better home. How to do a kind of task — procedures, pitfalls, the user's corrections about that work — belongs in a skill (skill_manage), which loads only when relevant. Anything about this project belongs in its AGENTS.md or the project's decision log, not here.\n\nTARGETS: 'user' — who the user is: name, role, preferences, how they like to work. 'memory' — your own notes: environment, conventions, tool quirks, lessons.\n\nIF FULL: an add is refused and the current entries are shown. Send one call that removes or shortens enough stale entries and adds the new one.\n\nSKIP: the obvious, what is easy to find again, raw data, task progress, logs of finished work, temporary state (session_search finds past work).\n\nWhat you save now is in the files at once but appears in your system prompt only from the next session.",
+  "variables": {
+    "project_home": "where facts about the current project belong instead, as a sentence after the WHEN paragraph's last one (\" Anything about this project belongs in its AGENTS.md or the project's decision log, not here.\"), or empty",
+    "targets": "the targets this project offers and what each is for",
+    "past_work": "how past work is found again, in parentheses after the SKIP list (\" (session_search finds past work)\"), or empty",
+    "when_seen": "when a saved entry reaches the model's instructions",
+    "target_values": "the `target` parameter's values and what each holds"
+  },
+  "description": "Save durable facts to persistent memory that survives across sessions. Memory goes into the system prompt of every future session, so keep entries short and worth their place.\n\nHOW: make all your changes in ONE call with an `operations` list ({action, content?, old_text?}). The list is applied together and the size limit is checked only on the result, so one call can remove or shorten stale entries AND add new ones. One call finishes the update; do not repeat it. Use the single action/content/old_text fields only for one lone change.\n\nWHEN: only for facts that hold in EVERY session, whatever the task: who the user is, stable facts about their machines and environment, standing conventions with no better home. How to do a kind of task — procedures, pitfalls, the user's corrections about that work — belongs in a skill (skill_manage), which loads only when relevant.{{project_home}}\n\nTARGETS: {{targets}}\n\nIF FULL: an add is refused and the current entries are shown. Send one call that removes or shortens enough stale entries and adds the new one.\n\nSKIP: the obvious, what is easy to find again, raw data, task progress, logs of finished work, temporary state{{past_work}}.\n\n{{when_seen}}",
   "parameters": {
     "type": "object",
     "properties": {
@@ -23,7 +30,7 @@
           "user",
           "project"
         ],
-        "description": "'memory' for your notes, 'user' for the user profile, 'project' for facts about this project only (kept in its .agent/local, never committed)."
+        "description": "{{target_values}}"
       },
       "action": {
         "description": "A single change. Omit when using operations.",
@@ -82,5 +89,14 @@
     "required": [
       "target"
     ]
+  },
+  "narrow": {
+    "llembas": {
+      "enum": {
+        "target": [
+          "user"
+        ]
+      }
+    }
   }
 }

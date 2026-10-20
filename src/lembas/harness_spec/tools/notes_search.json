@@ -11,7 +11,10 @@
     ],
     "llembas": []
   },
-  "description": "Search your notes: things worth keeping that are longer than a memory entry and not a skill — findings, a design worked out with the user, a list to come back to. Kept across sessions, global or this project's; both are searched. An empty query lists the newest. Read one with note_view; write with note_manage.",
+  "variables": {
+    "kept": "where notes are kept and which are searched (\", global or this project's; both are searched\"), or empty"
+  },
+  "description": "Search your notes: things worth keeping that are longer than a memory entry and not a skill — findings, a design worked out with the user, a list to come back to. Kept across sessions{{kept}}. An empty query lists the newest. Read one with note_view; write with note_manage.",
   "parameters": {
     "type": "object",
     "properties": {

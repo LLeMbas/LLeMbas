@@ -195,7 +195,7 @@ async def test_a_tool_that_was_not_offered_is_refused(db, user_id):
     context = tools_service.context_for(db, owner, chat, tools=resolved)
 
     outcome = await tools_service.run_tool(
-        context, "notes_delete", json.dumps({"id": note.id})
+        context, "note_manage", json.dumps({"action": "delete", "id": note.id})
     )
     assert outcome.event["status"] == "error"
     assert notes_service.get(db, note.id, owner) is not None

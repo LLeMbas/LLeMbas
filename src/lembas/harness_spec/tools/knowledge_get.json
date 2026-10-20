@@ -14,7 +14,7 @@
     "type": "object",
     "properties": {
       "id": {
-        "type": "integer"
+        "type": "string"
       },
       "offset": {
         "description": "Characters to skip: to read past what the first call returned",

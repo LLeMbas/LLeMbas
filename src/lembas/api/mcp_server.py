@@ -134,6 +134,11 @@ async def mcp(request: Request, db: Db) -> Response:
         name = str(params.get("name") or "")
         arguments = params.get("arguments") or {}
         tools = library_tools(db, caller.user)
+        # A former name (`memory_add`, `notes_create`, ...) is the call it
+        # means, as in the chat loop: a device that listed the tools before an
+        # update still calls them by the names it was given then.
+        if isinstance(arguments, dict):
+            name, arguments = tools_service.resolve_alias(name, arguments, tools)
         if name not in tools:
             return _reply(
                 message_id, error=(-32602, f"There is no tool {name!r} for this account.")

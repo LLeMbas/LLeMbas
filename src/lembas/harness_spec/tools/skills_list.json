@@ -9,7 +9,10 @@
     "cli": [],
     "llembas": []
   },
-  "description": "List the available skills (name, category, description). Load one with skill_view(name).",
+  "variables": {
+    "category": "\", category\" where skills have categories, or empty"
+  },
+  "description": "List the available skills (name{{category}}, description). Load one with skill_view(name).",
   "parameters": {
     "type": "object",
     "properties": {
@@ -17,6 +20,13 @@
         "description": "Only this category",
         "type": "string"
       }
+    }
+  },
+  "narrow": {
+    "llembas": {
+      "drop": [
+        "category"
+      ]
     }
   }
 }

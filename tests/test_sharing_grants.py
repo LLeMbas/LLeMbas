@@ -311,10 +311,8 @@ def test_a_reader_can_search_notes_and_not_write_them(db, reader):
     offered = {tool.name for tool in tools_service.resolve_tools(db, chat, reader).defs}
 
     assert "notes_search" in offered
-    assert "notes_get" in offered
-    assert "notes_create" not in offered
-    assert "notes_edit" not in offered
-    assert "notes_delete" not in offered
+    assert "note_view" in offered
+    assert "note_manage" not in offered
 
 
 def test_the_write_half_defaults_on(db, reader):

@@ -1,0 +1,455 @@
+{
+  "about": "A shared tool's parameters as one project offers them (`narrow`, the tool's `narrow.<project>`): a project may offer a subset and nothing else — `drop` removes optional properties, `enum` keeps some of a property's values. A path names a property; `a.b` is b inside a, `a[].b` is b inside a's array items. Never adds, never retypes. Refused, with `error`: dropping a required property (`required`), a path that is not there (`unknown`), values that are not all among the property's own (`not_subset`). LLeMbas: services/harness_spec.py narrow; CLI: harness.ts narrowParameters.",
+  "cases": [
+    {
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "create",
+              "edit",
+              "delete"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "project",
+              "global"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "narrow": {},
+      "expect": {
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "create",
+                "edit",
+                "delete"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "scope": {
+              "type": "string",
+              "enum": [
+                "project",
+                "global"
+              ]
+            }
+          },
+          "required": [
+            "action"
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "create",
+              "edit",
+              "delete"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "project",
+              "global"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "narrow": {
+        "drop": [
+          "scope"
+        ]
+      },
+      "expect": {
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "create",
+                "edit",
+                "delete"
+              ]
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action"
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "create",
+              "edit",
+              "delete"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "project",
+              "global"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "narrow": {
+        "enum": {
+          "action": [
+            "create",
+            "delete"
+          ]
+        }
+      },
+      "expect": {
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "create",
+                "delete"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "scope": {
+              "type": "string",
+              "enum": [
+                "project",
+                "global"
+              ]
+            }
+          },
+          "required": [
+            "action"
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "operations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "enum": [
+                    "create",
+                    "patch",
+                    "write_file",
+                    "delete"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "file_path": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "action",
+                "name"
+              ]
+            }
+          }
+        },
+        "required": [
+          "operations"
+        ]
+      },
+      "narrow": {
+        "drop": [
+          "operations[].file_path"
+        ],
+        "enum": {
+          "operations[].action": [
+            "create",
+            "patch",
+            "delete"
+          ]
+        }
+      },
+      "expect": {
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "operations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "create",
+                      "patch",
+                      "delete"
+                    ]
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "action",
+                  "name"
+                ]
+              }
+            }
+          },
+          "required": [
+            "operations"
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "create",
+              "edit",
+              "delete"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "project",
+              "global"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "narrow": {
+        "drop": [
+          "action"
+        ]
+      },
+      "expect": {
+        "error": "required"
+      }
+    },
+    {
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "create",
+              "edit",
+              "delete"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "project",
+              "global"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "narrow": {
+        "drop": [
+          "nope"
+        ]
+      },
+      "expect": {
+        "error": "unknown"
+      }
+    },
+    {
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "operations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "enum": [
+                    "create",
+                    "patch",
+                    "write_file",
+                    "delete"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "file_path": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "action",
+                "name"
+              ]
+            }
+          }
+        },
+        "required": [
+          "operations"
+        ]
+      },
+      "narrow": {
+        "drop": [
+          "operations[].nope"
+        ]
+      },
+      "expect": {
+        "error": "unknown"
+      }
+    },
+    {
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "create",
+              "edit",
+              "delete"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "project",
+              "global"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "narrow": {
+        "enum": {
+          "action": [
+            "create",
+            "rename"
+          ]
+        }
+      },
+      "expect": {
+        "error": "not_subset"
+      }
+    },
+    {
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "create",
+              "edit",
+              "delete"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "project",
+              "global"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "narrow": {
+        "enum": {
+          "id": [
+            "a"
+          ]
+        }
+      },
+      "expect": {
+        "error": "not_subset"
+      }
+    }
+  ]
+}

@@ -11,7 +11,10 @@
       "skill_get"
     ]
   },
-  "description": "Load a skill: its full instructions, and the list of its supporting files (references, templates, scripts, assets). To read one of those, call again with file_path.",
+  "variables": {
+    "files": "what else a skill carries and how to read it (\", and the list of its supporting files (references, templates, scripts, assets). To read one of those, call again with file_path.\"), or \".\""
+  },
+  "description": "Load a skill: its full instructions{{files}}",
   "parameters": {
     "type": "object",
     "properties": {
@@ -27,5 +30,12 @@
     "required": [
       "name"
     ]
+  },
+  "narrow": {
+    "llembas": {
+      "drop": [
+        "file_path"
+      ]
+    }
   }
 }

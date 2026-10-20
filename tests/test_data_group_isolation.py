@@ -81,8 +81,8 @@ def test_a_model_is_handed_only_its_own_groups_memories(db, owner, chats):
     memories.add(db, owner=owner, content="Home fact.", group=DEFAULT_GROUP)
     memories.add(db, owner=owner, content="Hosted fact.", group=HOSTED)
 
-    at_home = harness.compose(db, owner, _tools("memory_add"), chat=home)
-    abroad = harness.compose(db, owner, _tools("memory_add"), chat=away)
+    at_home = harness.compose(db, owner, _tools("memory"), chat=home)
+    abroad = harness.compose(db, owner, _tools("memory"), chat=away)
     assert "Home fact." in at_home and "Hosted fact." not in at_home
     assert "Hosted fact." in abroad and "Home fact." not in abroad
 
@@ -93,7 +93,7 @@ def test_the_skill_index_is_one_groups(db, owner, chats):
     skills.create(
         db, owner=owner, name="away-skill", description="Away.", body="b", group=HOSTED
     )
-    abroad = harness.compose(db, owner, _tools("skill_get"), chat=away)
+    abroad = harness.compose(db, owner, _tools("skill_view"), chat=away)
     assert "away-skill" in abroad
     assert "home-skill" not in abroad
 
@@ -121,15 +121,17 @@ async def test_a_note_in_another_group_cannot_be_searched_or_fetched(db, owner, 
 
     found = await _run(context, "notes_search", query="mallorn")
     assert found.event["results"] == []
-    fetched = await _run(context, "notes_get", id=secret.id)
+    fetched = await _run(context, "note_view", id=secret.id)
     assert fetched.event["status"] == "error"
-    edited = await _run(context, "notes_edit", id=secret.id, body="gone")
+    edited = await _run(context, "note_manage", action="edit", id=secret.id, body="gone")
     assert edited.event["status"] == "error"
 
 
 async def test_a_note_a_model_writes_lands_in_its_group(db, owner, chats):
     home, away = chats
-    outcome = await _run(_context(db, owner, away), "notes_create", title="t", body="b")
+    outcome = await _run(
+        _context(db, owner, away), "note_manage", action="create", title="t", body="b"
+    )
     assert outcome.event["status"] == "ok"
     note = notes.get(db, outcome.event["results"][0]["id"], owner)
     assert note.data_group_id == HOSTED
@@ -138,16 +140,30 @@ async def test_a_note_a_model_writes_lands_in_its_group(db, owner, chats):
 async def test_a_memory_is_recorded_in_the_group_and_forgotten_only_there(db, owner, chats):
     home, away = chats
     memories.add(db, owner=owner, content="Keep this at home.", group=DEFAULT_GROUP)
-    await _run(_context(db, owner, away), "memory_add", content="Hosted fact.")
+    await _run(
+        _context(db, owner, away), "memory", target="user", action="add", content="Hosted fact."
+    )
     assert [m.content for m in memories.all_for(db, owner, HOSTED)] == ["Hosted fact."]
 
-    await _run(_context(db, owner, away), "memory_forget", content="Keep this at home.")
+    await _run(
+        _context(db, owner, away),
+        "memory",
+        target="user",
+        action="remove",
+        old_text="Keep this at home.",
+    )
     assert [m.content for m in memories.all_for(db, owner, DEFAULT_GROUP)] == [
         "Keep this at home."
     ]
     # The same call from the memory's own group does forget it, so the refusal
     # above is the group and not a mistyped argument.
-    await _run(_context(db, owner, home), "memory_forget", content="Keep this at home.")
+    await _run(
+        _context(db, owner, home),
+        "memory",
+        target="user",
+        action="remove",
+        old_text="Keep this at home.",
+    )
     db.expire_all()
     assert memories.all_for(db, owner, DEFAULT_GROUP) == []
 
@@ -179,7 +195,7 @@ async def test_a_report_in_another_group_cannot_be_read(db, owner, chats):
 async def test_a_skill_in_another_group_cannot_be_fetched(db, owner, chats):
     home, away = chats
     skills.create(db, owner=owner, name="home-skill", description="Home.", body="SECRET")
-    outcome = await _run(_context(db, owner, away), "skill_get", name="home-skill")
+    outcome = await _run(_context(db, owner, away), "skill_view", name="home-skill")
     assert "SECRET" not in outcome.content
 
 

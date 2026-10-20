@@ -74,6 +74,8 @@ LABELS: dict[str, str] = {
     "knowledge_search": "Knowledge searched",
     "knowledge_get": "Document read",
     "notes_search": "Notes searched",
+    "note_view": "Note read",
+    "note_manage": "Note written",
     "notes_get": "Note read",
     "notes_create": "Note written",
     "notes_edit": "Note updated",
@@ -92,8 +94,12 @@ LABELS: dict[str, str] = {
     # Work handed to a second model.
     "subagent_run": "Helper",
     # What a model keeps about the person it is talking to.
+    "memory": "Memory updated",
     "memory_add": "Memory saved",
     "memory_forget": "Memory removed",
+    "skills_list": "Skills listed",
+    "skill_view": "Skill read",
+    "skill_manage": "Skill written",
     "skill_get": "Skill read",
     "skill_create": "Skill written",
     "skill_edit": "Skill updated",
@@ -135,6 +141,8 @@ ICONS: dict[str, str] = {
     "knowledge_search": "archive",
     "knowledge_get": "file-text",
     "notes_search": "search",
+    "note_view": "file-text",
+    "note_manage": "pencil",
     "notes_get": "file-text",
     "notes_create": "pencil",
     "notes_edit": "pencil",
@@ -149,8 +157,12 @@ ICONS: dict[str, str] = {
     "schedule_update": "clock",
     "schedule_cancel": "stop-circle",
     "subagent_run": "sparkle",
+    "memory": "star",
     "memory_add": "star",
     "memory_forget": "trash",
+    "skills_list": "sparkle",
+    "skill_view": "sparkle",
+    "skill_manage": "sparkle",
     "skill_get": "sparkle",
     "skill_create": "sparkle",
     "skill_edit": "sparkle",
@@ -192,6 +204,8 @@ ACTIONS: dict[str, str] = {
     "knowledge_search": "Search the library",
     "knowledge_get": "Read a document",
     "notes_search": "Search notes",
+    "note_view": "Read a note",
+    "note_manage": "Change your notes",
     "notes_get": "Read a note",
     "notes_create": "Write a note",
     "notes_edit": "Change a note",
@@ -206,8 +220,12 @@ ACTIONS: dict[str, str] = {
     "schedule_cancel": "Stop a schedule",
     "subagent_run": "Send a helper",
     "task": "Send a helper",
+    "memory": "Change what is remembered",
     "memory_add": "Remember something",
     "memory_forget": "Forget something",
+    "skills_list": "List the skills",
+    "skill_view": "Read a skill",
+    "skill_manage": "Change your skills",
     "skill_get": "Read a skill",
     "skill_create": "Write a skill",
     "skill_edit": "Change a skill",
@@ -329,6 +347,26 @@ def describe(name: str, args: dict[str, Any]) -> tuple[str, str]:
     if name == "apply_patch":
         files = patch_files(str(args.get("patch") or "")) or [str(args.get("path") or "")]
         return ACTIONS[name], ", ".join(f for f in files if f)
+    # The library's spec tools carry what they change inside a list or behind
+    # an action, so no one argument says it: summarised the way the CLI titles
+    # the same calls.
+    if name == "memory":
+        ops = args.get("operations") if isinstance(args.get("operations"), list) else [args]
+        parts = []
+        for op in ops:
+            if not isinstance(op, dict):
+                continue
+            mark = {"add": "+", "remove": "−"}.get(str(op.get("action")), "~")
+            text = op.get("content") or op.get("new_text") or op.get("old_text") or ""
+            parts.append(f"{mark} {text}")
+        return ACTIONS[name], "\n".join(parts)[:400]
+    if name == "note_manage":
+        what = args.get("title") or args.get("id") or ""
+        return ACTIONS[name], f"{args.get('action') or ''} {what}".strip()[:400]
+    if name == "skill_manage":
+        ops = args.get("operations") if isinstance(args.get("operations"), list) else []
+        parts = [f"{op.get('action')} {op.get('name')}" for op in ops if isinstance(op, dict)]
+        return ACTIONS[name], ", ".join(parts)[:400]
     title = ACTIONS.get(name)
     key = DETAIL_KEYS.get(name)
     if title is not None:

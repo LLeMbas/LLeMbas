@@ -255,13 +255,9 @@ def test_the_builtins_that_change_things_say_so():
         name for name, tool in tools_service.REGISTRY.items() if tool.risk == RISK_WRITE
     }
     assert writing == {
-        "notes_create",
-        "notes_edit",
-        "notes_delete",
-        "memory_add",
-        "memory_forget",
-        "skill_create",
-        "skill_edit",
+        "note_manage",
+        "memory",
+        "skill_manage",
         # Filing a report writes a durable artefact of the reader's, the same
         # class as a note. Plan mode meaning "look but do not touch" has to mean
         # this too, even though what it touches is a page rather than a machine.

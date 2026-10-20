@@ -167,28 +167,28 @@ def test_a_skill_switched_off_cannot_be_fetched_anyway(db, chat, user_id, skill)
 
     context = tools_service.context_for(db, user, chat)
     outcome = asyncio.run(
-        tools_service.run_tool(context, "skill_get", '{"name": "weekly-report"}')
+        tools_service.run_tool(context, "skill_view", '{"name": "weekly-report"}')
     )
     assert outcome.event["status"] == "error"
 
 
-def test_the_last_skill_switched_off_withdraws_skill_get(db, chat, user_id, skill):
+def test_the_last_skill_switched_off_withdraws_skill_view(db, chat, user_id, skill):
     user = db.get(User, user_id)
-    assert "skill_get" in _names(db, chat, user)
+    assert {"skill_view", "skills_list"} <= _names(db, chat, user)
 
     chat.scope_json = {"skills": {"weekly-report": False}}
     db.commit()
 
     offered = _names(db, chat, user)
-    assert "skill_get" not in offered
-    assert "skill_create" in offered, "writing the first one is still possible"
+    assert "skill_view" not in offered and "skills_list" not in offered
+    assert "skill_manage" in offered, "writing the first one is still possible"
 
 
 # --- The zero-skills asymmetry --------------------------------------------------------
 def test_with_no_skills_nothing_tells_the_model_to_read_one(db, chat, user_id):
     """The complaint this fixes. `tool.skills` was gated on the family alone, so
-    a person with no skills got "read the full instructions with skill_get"
-    above a list that was not there -- and got skill_get in the tools array, so
+    a person with no skills got "read the full instructions with skill_view"
+    above a list that was not there -- and got skill_view in the tools array, so
     the model spent a round finding out."""
     from lembas.services import harness
 
@@ -196,11 +196,11 @@ def test_with_no_skills_nothing_tells_the_model_to_read_one(db, chat, user_id):
     offered = tools_service.resolve_tools(db, chat, user).schemas
     text = harness.compose(db, user, offered, chat)
 
-    assert "skill_get" not in _names(db, chat, user)
-    assert "skill_get" not in text
+    assert "skill_view" not in _names(db, chat, user)
+    assert "skill_view" not in text
     assert "Skills available" not in text
     # The half that is most useful with none: you can save the first one.
-    assert "save it with skill_create" in text
+    assert "save it with skill_manage" in text
 
 
 def test_with_a_skill_the_reading_guidance_comes_back(db, chat, user_id, skill):
@@ -210,9 +210,9 @@ def test_with_a_skill_the_reading_guidance_comes_back(db, chat, user_id, skill):
     offered = tools_service.resolve_tools(db, chat, user).schemas
     text = harness.compose(db, user, offered, chat)
 
-    assert "skill_get" in text
+    assert "skill_view" in text
     assert "weekly-report" in text
-    assert "save it with skill_create" in text
+    assert "save it with skill_manage" in text
 
 
 # --- The tool list --------------------------------------------------------------------

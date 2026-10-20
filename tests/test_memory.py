@@ -12,6 +12,8 @@ Both are asserted on the rows, not on the wording.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from sqlalchemy import func, select
 
@@ -39,7 +41,8 @@ def _forget(owner, text: str):
     import asyncio
 
     context = tools_service.ToolContext(owner_id=owner.id)
-    return asyncio.run(tools_service.run_tool(context, "memory_forget", f'{{"content": "{text}"}}'))
+    arguments = json.dumps({"target": "user", "action": "remove", "old_text": text})
+    return asyncio.run(tools_service.run_tool(context, "memory", arguments))
 
 
 # --- Forgetting ----------------------------------------------------------------

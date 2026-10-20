@@ -45,7 +45,38 @@ AREAS = {
     "prototype": lambda c: prototypes.info(c["info"], c["code"]),
     "library_scope": lambda c: documents.resolve_base(c["bases"], c["base"]),
     "toolcall_index": lambda c: _toolcalls(c),
+    "fill": lambda c: _fill(c),
+    "narrow": lambda c: _narrow(c),
+    "memory": lambda c: _memory(c),
 }
+
+
+def _fill(c):
+    try:
+        return {"text": harness_spec.fill(c["text"], c["vars"])}
+    except KeyError:
+        names = harness_spec.VARIABLE.findall(c["text"])
+        return {"missing": sorted({name for name in names if name not in c["vars"]})}
+
+
+def _narrow(c):
+    try:
+        return {"parameters": harness_spec.narrow(c["parameters"], c["narrow"])}
+    except harness_spec.NarrowError as exc:
+        return {"error": exc.code}
+
+
+def _memory(c):
+    from lembas.services.library import memories
+
+    r = memories.apply_ops(c["target"], c["entries"], c["ops"], c["limit"])
+    return {
+        "ok": r["ok"],
+        "entries": r["after"] if r["ok"] else c["entries"],
+        "message": r["message"],
+        "usage": r["usage"],
+        "shown": "entries" in r,
+    }
 
 
 def _toolcalls(c):
@@ -174,18 +205,17 @@ SHARED_ADOPTED = (
     "task",
     "web_search",
     "web_fetch",
+    "memory",
+    "notes_search",
+    "note_view",
+    "note_manage",
+    "skills_list",
+    "skill_view",
+    "skill_manage",
 )
 # Shared tools whose LLeMbas implementation keeps its own name or shape for now,
 # and why -- the parity page lists the same.
-TOOLS_PENDING = {
-    "memory": "memory_add / memory_forget",
-    "notes_search": "LLeMbas's notes tools, five",
-    "note_view": "notes_get",
-    "note_manage": "notes_create / notes_edit / notes_delete",
-    "skills_list": "the skill index is in the prompt",
-    "skill_view": "skill_get",
-    "skill_manage": "skill_create / skill_edit",
-}
+TOOLS_PENDING: dict[str, str] = {}
 
 
 def test_every_shared_tool_is_adopted_or_named_as_pending():
@@ -206,20 +236,28 @@ def _registry():
 
 @pytest.mark.parametrize("name", SHARED_ADOPTED)
 def test_an_adopted_tool_is_sent_exactly_as_the_spec_says(name):
-    """Description and parameters word for word, with the spec's own variables
-    filled the way LLeMbas fills them. The one declared difference: a knowledge
-    document's id is a string here (`Document.id`), where the spec says
-    integer -- the CLI's library numbers its documents."""
+    """Description and parameters word for word, with the spec's variables
+    filled the way LLeMbas fills them and the parameters narrowed by the
+    tool's `narrow.llembas` -- nothing else of LLeMbas's own."""
     spec = harness_spec.tools()[name]
     tool = _registry()[name]
-    expected = harness_spec.fill(spec["description"], tools_service.SPEC_VARIABLES)
-    assert tool.description == expected
-    parameters = tool.parameters
-    if name == "knowledge_get":
-        parameters = json.loads(json.dumps(parameters))
-        assert parameters["properties"]["id"]["type"] == "string"
-        parameters["properties"]["id"]["type"] = "integer"
-    assert parameters == spec["parameters"]
+    variables = {**tools_service.SPEC_VARIABLES, **tools_service.LLEMBAS_VARS.get(name, {})}
+    assert tool.description == harness_spec.fill(spec["description"], variables)
+    expected = harness_spec.narrow(
+        harness_spec.fill_parameters(spec["parameters"], variables),
+        (spec.get("narrow") or {}).get("llembas"),
+    )
+    assert tool.parameters == expected
+    assert "{{" not in json.dumps(tool.parameters)
+
+
+def test_every_variable_of_an_adopted_tool_has_a_value_here():
+    """A variable the CLI fills and LLeMbas does not would be an error at the
+    first request; caught here instead."""
+    for name in SHARED_ADOPTED:
+        declared = set(harness_spec.tools()[name].get("variables") or {})
+        given = set(tools_service.SPEC_VARIABLES) | set(tools_service.LLEMBAS_VARS.get(name, {}))
+        assert declared <= given, (name, sorted(declared - given))
 
 
 def test_a_former_name_still_runs_as_the_tool():

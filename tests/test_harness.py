@@ -108,7 +108,7 @@ def test_a_custom_tools_guidance_appears_only_when_it_is_offered(db, owner):
 
 def test_the_memory_block_is_included_when_memory_is_offered(db, owner):
     memories_service.add(db, owner=owner, content="Prefers metric units.")
-    text = harness.compose(db, owner, _tools("memory_add"))
+    text = harness.compose(db, owner, _tools("memory"))
     assert "What you know about this person" in text
     assert "Prefers metric units." in text
 
@@ -124,7 +124,7 @@ def test_the_skill_index_is_names_and_descriptions_only(db, owner):
     skills_service.create(
         db, owner=owner, name="weekly-report", description="When asked.", body="SECRET"
     )
-    text = harness.compose(db, owner, _tools("skill_get"))
+    text = harness.compose(db, owner, _tools("skill_view"))
     assert "weekly-report: When asked." in text
     assert "SECRET" not in text
 
@@ -132,7 +132,7 @@ def test_the_skill_index_is_names_and_descriptions_only(db, owner):
 def test_an_empty_store_contributes_no_heading(db, owner):
     """And the guidance must not point at a heading that is not there: telling a
     model to consult an absent section is a good way to make it invent one."""
-    text = harness.compose(db, owner, _tools("memory_add", "skill_get"))
+    text = harness.compose(db, owner, _tools("memory", "skill_view"))
     assert "### What you know about this person" not in text
     assert "### Skills available" not in text
     assert "was remembered earlier" not in text
@@ -145,7 +145,7 @@ def test_the_harness_is_capped(db, owner, monkeypatch):
         skills_service.create(
             db, owner=owner, name=f"skill-{index}", description="x" * 200, body="y"
         )
-    assert len(harness.compose(db, owner, _tools("skill_get"))) <= 202
+    assert len(harness.compose(db, owner, _tools("skill_view"))) <= 202
 
 
 # --- Joining -----------------------------------------------------------------

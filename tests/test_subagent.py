@@ -199,9 +199,8 @@ async def test_a_helper_writes_nothing_by_default(db, monkeypatch):
     await _run(db, _chat(db), {"task": "Look something up."})
 
     offered = _child_tools(db, seen)
-    assert "notes_create" not in offered
-    assert "notes_edit" not in offered
-    assert "memory_add" not in offered
+    assert "note_manage" not in offered
+    assert "memory" not in offered
     # And the reading half is untouched: a helper that cannot look things up is
     # a slower way of asking the same model the same question.
     assert "notes_search" in offered
@@ -216,7 +215,7 @@ async def test_a_writing_helper_keeps_the_writing_tools(db, monkeypatch):
 
     await _run(db, _chat(db), {"task": "Write it down.", "write": True})
 
-    assert "notes_create" in _child_tools(db, seen)
+    assert "note_manage" in _child_tools(db, seen)
 
 
 async def test_the_parents_own_narrowing_is_carried_across(db, monkeypatch):

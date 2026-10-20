@@ -15,7 +15,7 @@ page [Harness-parity](https://git.houmeres.sk/LLeMbas/LLeMbas-CLI/wiki/Harness-p
 |---|---|
 | `VERSION` | The spec's own version, apart from LLeMbas CLI's |
 | `purpose.json` | The `purpose` argument added to a tool whose calls say what they are for |
-| `tools/<name>.json` | One tool each: name, `scope`, `risk`, `exclusive`, `block` (how a call is shown: `shell`, `edit`, `read`, `search`, `web`, `task`, `plan` — not drawn, the plan card refreshes — `hidden`, `tool`), `purpose`, former names (`aliases`, per project), renamed arguments, the description and the JSON Schema of its parameters — exactly what a model is sent |
+| `tools/<name>.json` | One tool each: name, `scope`, `risk`, `exclusive`, `block` (how a call is shown: `shell`, `edit`, `read`, `search`, `web`, `task`, `plan` — not drawn, the plan card refreshes — `hidden`, `tool`), `purpose`, former names (`aliases`, per project), renamed arguments, `variables`, what a project offers of the parameters (`narrow`, per project), the description and the JSON Schema of its parameters — exactly what a model is sent |
 | `prompts/` | The prompt texts; `prompts/index.json` says which are shared, which LLeMbas fragment each one is, and what each `{{variable}}` in a text means. `prompts/personality/` holds the personality presets both offer |
 | `permission/hardline.json` | The floor: commands refused in every mode, protected paths, and how a command is spelled plainly before it is checked again |
 | `permission/arity.json` | How much of a command an "always allow" covers |
@@ -46,6 +46,18 @@ page [Harness-parity](https://git.houmeres.sk/LLeMbas/LLeMbas-CLI/wiki/Harness-p
   every mode; `plan_submit` only in plan mode, where it is the approval. Their permission key is
   `plan` (`permission/defaults.json`), which a rule written for the former `todo` key still reaches.
 
+## 1.2.0
+
+The library's tools fit both projects: `memory`, `notes_search`, `note_view`, `note_manage`,
+`skills_list`, `skill_view` and `skill_manage` say the CLI's facts (files, projects, supporting files,
+sessions) through `variables`, so LLeMbas sends the same tools with its own facts; filled with the
+CLI's values, every description is word for word what 1.1.0 said. Tool descriptions are filled by
+the prompt texts' rules, including the descriptions inside the parameters. A tool's `narrow` says
+what a project offers of its parameters where it offers less (LLeMbas: one memory target, no note
+scope, no skill categories, supporting files or project skills). Note and knowledge-document ids are
+strings on both sides. Three conformance areas: `fill`, `narrow`, `memory` (one change or a batch,
+applied together, against the size limit).
+
 ## 1.1.0
 
 Planning as one shared structure: `plan_write` and `plan_update` (new, shared, in every mode) and
@@ -75,13 +87,24 @@ feature beyond protocol 1 gated on its capability string).
 ## Variables in a description, and in a prompt text
 
 A description may hold `{{name}}` where the two projects differ in a fact, not in design — a
-timeout's default, whether commands may run in the background, which subagents exist. The tool's
-`variables` says what each one means; each project fills them before sending the description, and
-none may reach a model unfilled.
+timeout's default, whether commands may run in the background, which subagents exist, where a
+skill's supporting files are. The tool's `variables` says what each one means; each project fills
+them before sending the description — and the `description` of every parameter, which may hold
+them too — and none may reach a model unfilled.
 
-A prompt text may hold them too, declared in `prompts/index.json` under its entry. The same rule,
-and one more: **a line that is nothing but a bullet and a variable (`- {{name}}`) disappears when the
-variable is empty**, so one text serves a project that has the fact and one that does not.
+A prompt text may hold them too, declared in `prompts/index.json` under its entry. The same rules
+for both, and one more: **a line that is nothing but a bullet and a variable (`- {{name}}`)
+disappears when the variable is empty**, so one text serves a project that has the fact and one that
+does not (`conformance/fill.json`).
+
+## Offering less of a shared tool
+
+A project that does not have part of a shared tool says so in the tool's `narrow.<project>` rather
+than in a different tool: `drop` leaves out optional properties, `enum` keeps some of a property's
+values (`a.b` is b inside a; `a[].b` is b inside the items of the array a). It offers a subset and
+nothing else — never a property the spec does not have, never another type — so a call valid for the
+narrower tool is valid for the whole one (`conformance/narrow.json`). The description says the
+narrower tool's facts through its `variables`.
 
 ## Changing it
 

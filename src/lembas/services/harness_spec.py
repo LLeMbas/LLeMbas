@@ -112,18 +112,101 @@ def prompt_with(relative: str, variables: Mapping[str, str]) -> str:
     return fill(prompt(relative), variables)
 
 
+def fill_parameters(parameters: Mapping[str, Any], variables: Mapping[str, str]) -> dict[str, Any]:
+    """A tool's parameters with every `description` in them filled -- the
+    spec's variables may stand in a parameter's description as well as the
+    tool's own (spec 1.2.0)."""
+
+    def walk(node: Any) -> Any:
+        if isinstance(node, list):
+            return [walk(item) for item in node]
+        if isinstance(node, Mapping):
+            return {
+                key: fill(value, variables)
+                if key == "description" and isinstance(value, str)
+                else walk(value)
+                for key, value in node.items()
+            }
+        return node
+
+    return walk(parameters)
+
+
+class NarrowError(ValueError):
+    """A `narrow` the spec's rule refuses: `required`, `unknown` or `not_subset`."""
+
+    def __init__(self, code: str, path: str) -> None:
+        super().__init__(f"cannot narrow {path}: {code}")
+        self.code = code
+
+
+def narrow(parameters: Mapping[str, Any], rule: Mapping[str, Any] | None) -> dict[str, Any]:
+    """The parameters as one project offers them: a subset and nothing else.
+
+    `drop` leaves out optional properties and `enum` keeps some of a
+    property's values; `a.b` is b inside a, `a[].b` b inside the items of the
+    array a. Never adds a property and never retypes one -- a call valid for
+    the narrower tool is valid for the whole one (conformance: narrow).
+    """
+    out = json.loads(json.dumps(parameters))
+    rule = rule or {}
+
+    def locate(path: str) -> tuple[dict[str, Any], str]:
+        node = out
+        steps = path.split(".")
+        for i, raw in enumerate(steps):
+            items = raw.endswith("[]")
+            key = raw[:-2] if items else raw
+            props = node.get("properties")
+            if not isinstance(props, dict) or key not in props:
+                raise NarrowError("unknown", path)
+            if i == len(steps) - 1 and not items:
+                return node, key
+            node = props[key].get("items") if items else props[key]
+            if not isinstance(node, dict):
+                raise NarrowError("unknown", path)
+        raise NarrowError("unknown", path)
+
+    for path in rule.get("drop") or []:
+        parent, key = locate(path)
+        if key in (parent.get("required") or []):
+            raise NarrowError("required", path)
+        del parent["properties"][key]
+    for path, values in (rule.get("enum") or {}).items():
+        parent, key = locate(path)
+        own = parent["properties"][key].get("enum")
+        if not isinstance(own, list) or not all(value in own for value in values):
+            raise NarrowError("not_subset", path)
+        parent["properties"][key]["enum"] = [value for value in own if value in values]
+    return out
+
+
+def offered_parameters(name: str, variables: Mapping[str, str]) -> dict[str, Any]:
+    """A shared tool's parameters as LLeMbas sends them: filled, then narrowed
+    by the tool's `narrow.llembas`."""
+    spec = tools()[name]
+    return narrow(
+        fill_parameters(spec["parameters"], variables),
+        (spec.get("narrow") or {}).get("llembas"),
+    )
+
+
 def conformance_dir() -> Path:
     return SPEC_DIR / "conformance"
 
 
 __all__ = [
     "SPEC_DIR",
+    "NarrowError",
     "arity",
     "conformance_dir",
     "fill",
+    "fill_parameters",
     "hardline",
     "index",
     "loop",
+    "narrow",
+    "offered_parameters",
     "prompt",
     "prompt_with",
     "tools",

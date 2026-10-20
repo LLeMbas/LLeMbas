@@ -1,0 +1,499 @@
+{
+  "about": "The memory tool's changes to one target's entries (`entries`, in order) with a size limit (`limit`, characters of the entries joined by \"\\n§\\n\"): one change or a list (`ops`, each `action` add/replace/remove with `content` — or `new_text` — and `old_text`), applied together or not at all; the limit is checked on the result only, and a change that does not grow the entries always goes through. An entry is one fact, at most 400 characters; `old_text` finds an exact entry first, else the one entry containing it. `ok`, the entries after, `message`, `usage`, and `shown` — whether the entries as they were are shown with a refusal, so the model can consolidate. LLeMbas: services/library/memories.py apply_ops; CLI: memory/store.ts applyOps.",
+  "cases": [
+    {
+      "target": "user",
+      "entries": [],
+      "limit": 1375,
+      "ops": [
+        {
+          "action": "add",
+          "content": "Prefers tea."
+        }
+      ],
+      "expect": {
+        "ok": true,
+        "entries": [
+          "Prefers tea."
+        ],
+        "message": "Entry added.",
+        "usage": "0% — 12/1,375 chars",
+        "shown": false
+      }
+    },
+    {
+      "target": "user",
+      "entries": [
+        "Prefers tea.",
+        "Works in Rust and Python.",
+        "Lives in Trenčín."
+      ],
+      "limit": 1375,
+      "ops": [
+        {
+          "action": "add",
+          "content": "  Prefers tea.  "
+        }
+      ],
+      "expect": {
+        "ok": true,
+        "entries": [
+          "Prefers tea.",
+          "Works in Rust and Python.",
+          "Lives in Trenčín."
+        ],
+        "message": "That entry already exists; nothing added.",
+        "usage": "4% — 60/1,375 chars",
+        "shown": false
+      }
+    },
+    {
+      "target": "memory",
+      "entries": [
+        "Prefers tea.",
+        "Works in Rust and Python.",
+        "Lives in Trenčín."
+      ],
+      "limit": 2200,
+      "ops": [
+        {
+          "action": "add",
+          "new_text": "Uses Debian."
+        }
+      ],
+      "expect": {
+        "ok": true,
+        "entries": [
+          "Prefers tea.",
+          "Works in Rust and Python.",
+          "Lives in Trenčín.",
+          "Uses Debian."
+        ],
+        "message": "Entry added.",
+        "usage": "3% — 75/2,200 chars",
+        "shown": false
+      }
+    },
+    {
+      "target": "user",
+      "entries": [
+        "Prefers tea.",
+        "Works in Rust and Python.",
+        "Lives in Trenčín."
+      ],
+      "limit": 1375,
+      "ops": [
+        {
+          "action": "add",
+          "content": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "entries": [
+          "Prefers tea.",
+          "Works in Rust and Python.",
+          "Lives in Trenčín."
+        ],
+        "message": "an entry is one fact, under 400 characters; this one is 401. Split it into facts, or keep only what will still matter.",
+        "usage": "4% — 60/1,375 chars",
+        "shown": false
+      }
+    },
+    {
+      "target": "user",
+      "entries": [
+        "Prefers tea.",
+        "Works in Rust and Python.",
+        "Lives in Trenčín."
+      ],
+      "limit": 1375,
+      "ops": [
+        {
+          "action": "add",
+          "content": "one\n§\ntwo"
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "entries": [
+          "Prefers tea.",
+          "Works in Rust and Python.",
+          "Lives in Trenčín."
+        ],
+        "message": "a line holding only \"§\" separates entries; it cannot be inside one.",
+        "usage": "4% — 60/1,375 chars",
+        "shown": false
+      }
+    },
+    {
+      "target": "user",
+      "entries": [
+        "Prefers tea.",
+        "Works in Rust and Python.",
+        "Lives in Trenčín."
+      ],
+      "limit": 1375,
+      "ops": [
+        {
+          "action": "add",
+          "content": "   "
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "entries": [
+          "Prefers tea.",
+          "Works in Rust and Python.",
+          "Lives in Trenčín."
+        ],
+        "message": "add needs content.",
+        "usage": "4% — 60/1,375 chars",
+        "shown": false
+      }
+    },
+    {
+      "target": "user",
+      "entries": [
+        "Prefers tea.",
+        "Works in Rust and Python.",
+        "Lives in Trenčín."
+      ],
+      "limit": 1375,
+      "ops": [
+        {
+          "action": "replace",
+          "old_text": "Rust",
+          "content": "Works in Rust, Python and Go."
+        }
+      ],
+      "expect": {
+        "ok": true,
+        "entries": [
+          "Prefers tea.",
+          "Works in Rust, Python and Go.",
+          "Lives in Trenčín."
+        ],
+        "message": "Entry replaced.",
+        "usage": "4% — 64/1,375 chars",
+        "shown": false
+      }
+    },
+    {
+      "target": "user",
+      "entries": [
+        "Prefers tea.",
+        "Works in Rust and Python.",
+        "Lives in Trenčín."
+      ],
+      "limit": 1375,
+      "ops": [
+        {
+          "action": "replace",
+          "old_text": "in",
+          "content": "x"
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "entries": [
+          "Prefers tea.",
+          "Works in Rust and Python.",
+          "Lives in Trenčín."
+        ],
+        "message": "\"in\" matches more than one entry — use a longer, unique part.",
+        "usage": "4% — 60/1,375 chars",
+        "shown": true
+      }
+    },
+    {
+      "target": "user",
+      "entries": [
+        "Prefers tea.",
+        "Works in Rust and Python.",
+        "Lives in Trenčín."
+      ],
+      "limit": 1375,
+      "ops": [
+        {
+          "action": "remove",
+          "old_text": "coffee"
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "entries": [
+          "Prefers tea.",
+          "Works in Rust and Python.",
+          "Lives in Trenčín."
+        ],
+        "message": "no entry contains \"coffee\".",
+        "usage": "4% — 60/1,375 chars",
+        "shown": true
+      }
+    },
+    {
+      "target": "user",
+      "entries": [
+        "Prefers tea.",
+        "Works in Rust and Python.",
+        "Lives in Trenčín."
+      ],
+      "limit": 1375,
+      "ops": [
+        {
+          "action": "remove"
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "entries": [
+          "Prefers tea.",
+          "Works in Rust and Python.",
+          "Lives in Trenčín."
+        ],
+        "message": "remove needs old_text: a short unique part of the entry to remove.",
+        "usage": "4% — 60/1,375 chars",
+        "shown": true
+      }
+    },
+    {
+      "target": "user",
+      "entries": [
+        "Prefers tea.",
+        "Works in Rust and Python.",
+        "Lives in Trenčín."
+      ],
+      "limit": 1375,
+      "ops": [
+        {
+          "action": "replace",
+          "old_text": "tea",
+          "content": ""
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "entries": [
+          "Prefers tea.",
+          "Works in Rust and Python.",
+          "Lives in Trenčín."
+        ],
+        "message": "replace needs content — the complete new entry.",
+        "usage": "4% — 60/1,375 chars",
+        "shown": false
+      }
+    },
+    {
+      "target": "user",
+      "entries": [
+        "coffee",
+        "Drinks coffee black."
+      ],
+      "limit": 1375,
+      "ops": [
+        {
+          "action": "remove",
+          "old_text": "coffee"
+        }
+      ],
+      "expect": {
+        "ok": true,
+        "entries": [
+          "Drinks coffee black."
+        ],
+        "message": "Entry removed.",
+        "usage": "1% — 20/1,375 chars",
+        "shown": false
+      }
+    },
+    {
+      "target": "user",
+      "entries": [
+        "Prefers tea.",
+        "Works in Rust and Python.",
+        "Lives in Trenčín."
+      ],
+      "limit": 60,
+      "ops": [
+        {
+          "action": "add",
+          "content": "Has two cats."
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "entries": [
+          "Prefers tea.",
+          "Works in Rust and Python.",
+          "Lives in Trenčín."
+        ],
+        "message": "The user profile would be 76/60 chars. Consolidate in the same call: replace overlapping entries with one shorter entry, or remove stale ones, together with the add.",
+        "usage": "100% — 60/60 chars",
+        "shown": true
+      }
+    },
+    {
+      "target": "memory",
+      "entries": [
+        "Prefers tea.",
+        "Works in Rust and Python.",
+        "Lives in Trenčín."
+      ],
+      "limit": 60,
+      "ops": [
+        {
+          "action": "add",
+          "content": "Has two cats."
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "entries": [
+          "Prefers tea.",
+          "Works in Rust and Python.",
+          "Lives in Trenčín."
+        ],
+        "message": "Memory would be 76/60 chars. Consolidate in the same call: replace overlapping entries with one shorter entry, or remove stale ones, together with the add.",
+        "usage": "100% — 60/60 chars",
+        "shown": true
+      }
+    },
+    {
+      "target": "user",
+      "entries": [
+        "Prefers tea.",
+        "Works in Rust and Python.",
+        "Lives in Trenčín."
+      ],
+      "limit": 60,
+      "ops": [
+        {
+          "action": "remove",
+          "old_text": "Rust"
+        },
+        {
+          "action": "add",
+          "content": "Has two cats."
+        }
+      ],
+      "expect": {
+        "ok": true,
+        "entries": [
+          "Prefers tea.",
+          "Lives in Trenčín.",
+          "Has two cats."
+        ],
+        "message": "Applied 2 operations.",
+        "usage": "80% — 48/60 chars",
+        "shown": false
+      }
+    },
+    {
+      "target": "user",
+      "entries": [
+        "Prefers tea.",
+        "Works in Rust and Python.",
+        "Lives in Trenčín."
+      ],
+      "limit": 30,
+      "ops": [
+        {
+          "action": "remove",
+          "old_text": "tea"
+        }
+      ],
+      "expect": {
+        "ok": true,
+        "entries": [
+          "Works in Rust and Python.",
+          "Lives in Trenčín."
+        ],
+        "message": "Entry removed.",
+        "usage": "100% — 45/30 chars",
+        "shown": false
+      }
+    },
+    {
+      "target": "user",
+      "entries": [
+        "Prefers tea.",
+        "Works in Rust and Python.",
+        "Lives in Trenčín."
+      ],
+      "limit": 1375,
+      "ops": [
+        {
+          "action": "add",
+          "content": "Has two cats."
+        },
+        {
+          "action": "remove",
+          "old_text": "coffee"
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "entries": [
+          "Prefers tea.",
+          "Works in Rust and Python.",
+          "Lives in Trenčín."
+        ],
+        "message": "operation 2: no entry contains \"coffee\". Nothing was changed (the operations go together or not at all).",
+        "usage": "4% — 60/1,375 chars",
+        "shown": true
+      }
+    },
+    {
+      "target": "user",
+      "entries": [
+        "Prefers tea.",
+        "Works in Rust and Python.",
+        "Lives in Trenčín."
+      ],
+      "limit": 1375,
+      "ops": [],
+      "expect": {
+        "ok": false,
+        "entries": [
+          "Prefers tea.",
+          "Works in Rust and Python.",
+          "Lives in Trenčín."
+        ],
+        "message": "Nothing to do: give action (with content and/or old_text), or operations.",
+        "usage": "4% — 60/1,375 chars",
+        "shown": false
+      }
+    },
+    {
+      "target": "user",
+      "entries": [
+        "Prefers tea.",
+        "Works in Rust and Python.",
+        "Lives in Trenčín."
+      ],
+      "limit": 1375,
+      "ops": [
+        {
+          "action": "remove",
+          "old_text": "Prefers tea."
+        },
+        {
+          "action": "add",
+          "content": "Prefers green tea."
+        }
+      ],
+      "expect": {
+        "ok": true,
+        "entries": [
+          "Works in Rust and Python.",
+          "Lives in Trenčín.",
+          "Prefers green tea."
+        ],
+        "message": "Applied 2 operations.",
+        "usage": "4% — 66/1,375 chars",
+        "shown": false
+      }
+    }
+  ]
+}

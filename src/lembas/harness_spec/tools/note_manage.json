@@ -15,7 +15,12 @@
       "notes_delete"
     ]
   },
-  "description": "Write your notes: things worth keeping that are longer than a memory entry and not a skill — findings, a design worked out with the user, a list to come back to.\n\n- create (title, body, scope); edit (id, title and/or body — body replaces the whole text); delete (id).\n- scope: \"project\" (default, when there is a project) or \"global\".\n- Not for facts that hold in every session (memory), procedures (skills), or the project's own records (tasks, decisions).",
+  "variables": {
+    "create_scope": "\", scope\" where notes have a scope, or empty",
+    "scope": "what `scope` means (\"scope: \\\"project\\\" (default, when there is a project) or \\\"global\\\".\"), or empty — the line goes",
+    "records": "other records a note is not for (\", or the project's own records (tasks, decisions)\"), or empty"
+  },
+  "description": "Write your notes: things worth keeping that are longer than a memory entry and not a skill — findings, a design worked out with the user, a list to come back to.\n\n- create (title, body{{create_scope}}); edit (id, title and/or body — body replaces the whole text); delete (id).\n- {{scope}}\n- Not for facts that hold in every session (memory), procedures (skills){{records}}.",
   "parameters": {
     "type": "object",
     "properties": {
@@ -28,7 +33,7 @@
         ]
       },
       "id": {
-        "type": "integer"
+        "type": "string"
       },
       "title": {
         "type": "string",
@@ -48,5 +53,12 @@
     "required": [
       "action"
     ]
+  },
+  "narrow": {
+    "llembas": {
+      "drop": [
+        "scope"
+      ]
+    }
   }
 }

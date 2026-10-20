@@ -56,7 +56,7 @@ def _reads(db, chat: Chat, user_id: str) -> set[str]:
 # --- Read yes, write no --------------------------------------------------------
 def test_an_ordinary_chat_may_write(db, user_id):
     chat = _chat(db, user_id, temporary=False)
-    assert "memory_add" in _writes(db, chat, user_id)
+    assert "memory" in _writes(db, chat, user_id)
 
 
 def test_a_temporary_chat_is_offered_no_write_tool(db, user_id):
@@ -71,7 +71,7 @@ def test_keeping_the_chat_gives_writing_back(client, db, registered, user_id):
     chat = _chat(db, user_id)
     assert client.post(f"/api/chats/{chat.id}/keep").status_code == 204
     db.refresh(chat)
-    assert "memory_add" in _writes(db, chat, user_id)
+    assert "memory" in _writes(db, chat, user_id)
 
 
 def test_a_helpers_chat_is_governed_by_its_own_scope(db, user_id):
@@ -80,7 +80,7 @@ def test_a_helpers_chat_is_governed_by_its_own_scope(db, user_id):
     parent = _chat(db, user_id, temporary=False)
     child = _chat(db, user_id, parent_chat_id=parent.id, scope_json={"write": True})
     assert not chat_service.read_only_temporary(child)
-    assert "memory_add" in _writes(db, child, user_id)
+    assert "memory" in _writes(db, child, user_id)
 
 
 def test_a_temporary_chat_cannot_send_a_writing_helper(db, user_id):

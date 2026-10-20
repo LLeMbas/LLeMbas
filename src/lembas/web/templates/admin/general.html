@@ -99,7 +99,7 @@
       <input class="input" id="max-chat-rounds" name="max_chat_rounds" type="number"
              min="0" max="100" value="{{ values.max_chat_rounds }}">
       <p class="field__hint">
-        {{ tm("Several tools can be called in one round, so this is not a count of tools. Leave room for at least two: <code>knowledge_get</code> and <code>notes_get</code> read a document by an id a <em>search</em> returned, so a ceiling of one leaves the library searchable and not readable. <code>0</code> means no ceiling, which is how an agent chat already works — those are bounded under <a href=\"/admin/agents\">Agents</a> by time and tokens instead.") }}
+        {{ tm("Several tools can be called in one round, so this is not a count of tools. Leave room for at least two: <code>knowledge_get</code> and <code>note_view</code> read a document by an id a <em>search</em> returned, so a ceiling of one leaves the library searchable and not readable. <code>0</code> means no ceiling, which is how an agent chat already works — those are bounded under <a href=\"/admin/agents\">Agents</a> by time and tokens instead.") }}
       </p>
     </div>
   </section>

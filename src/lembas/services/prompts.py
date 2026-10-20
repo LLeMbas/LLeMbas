@@ -988,10 +988,10 @@ BUILTIN: tuple[Fragment, ...] = (
         default=(
             "- You keep notes across conversations. Search them with notes_search when a "
             "task sounds like one you have done before, and read one in full with "
-            "notes_get. Write one with notes_create when you work something out that "
+            "note_view. Write one with note_manage when you work something out that "
             "would be tedious to work out again: a procedure, a decision and its reasons, "
-            "a summary of a long document. Correct one with notes_edit when it turns out "
-            "to be wrong, and remove it with notes_delete when it is no longer true — a "
+            "a summary of a long document. Correct one with note_manage when it turns out "
+            "to be wrong, and delete it when it is no longer true — a "
             "stale note is worse than no note. Anything short and durable about the "
             "person themselves is a memory rather than a note, and anything that should "
             "*happen* at a time — later, tomorrow, every week — is a schedule rather than "
@@ -1005,23 +1005,23 @@ BUILTIN: tuple[Fragment, ...] = (
         order=230,
         families=("memory",),
         variables=("memory_limit",),
-        hint="Appears when memory_add and memory_forget are offered. What is "
+        hint="Appears when the memory tool is offered. What is "
         "remembered costs tokens on every request forever, which is why the "
         "wording is about restraint — and why it says to read what is already "
         "there first: the same fact stored twice in different words costs the "
         "window twice and makes either one ambiguous to remove afterwards.",
         default=(
             "- You can remember durable facts about this person — a preference, a "
-            "constraint, a name, how they like to be addressed. Use memory_add for those: "
-            "one fact each, under {{memory_limit}} characters. Everything remembered is "
-            "already in this message, so read it before adding: saying the same thing "
-            "again in different words costs the window twice and makes either one hard "
+            "constraint, a name, how they like to be addressed. Use the memory tool for "
+            "those: one fact per entry, under {{memory_limit}} characters. Everything "
+            "remembered is already in this message, so read it before adding: saying the "
+            "same thing again in different words costs the window twice and makes either one hard "
             "to remove afterwards. Do not remember the details of a single task, anything "
             "that will be untrue next month, or anything secret — keys, passwords, or "
             "health details they have not asked you to keep. Anything longer than a "
             "sentence, or about the work rather than about them, does not belong here. "
-            "When something you remembered turns out to be wrong, remove it with "
-            "memory_forget, quoting it in full, rather than adding a correction beside it. "
+            "When something you remembered turns out to be wrong, replace or remove it "
+            "with the memory tool rather than adding a correction beside it. "
             "“Remind me to…” is not a memory: remembering that something should happen "
             "does not make it happen, and a schedule does."
         ),
@@ -1035,15 +1035,15 @@ BUILTIN: tuple[Fragment, ...] = (
         requires=("skills",),
         hint="Only once there is at least one skill. Gated on the family alone, "
         "a person with no skills would get 'the list below gives each one's "
-        "name' above no list, and skill_get in the tools array — which is "
+        "name' above no list, and skill_view in the tools array — which is "
         "exactly why models hunt for skills that do not exist. The writing half "
         "is its own fragment below, because that half is most useful precisely "
         "when there are none.",
         default=(
             "- Skills are procedures you have saved. The list below gives only each one's "
-            "name and when to use it; read the full instructions with skill_get before "
+            "name and when to use it; read the full instructions with skill_view before "
             "following one. If following one shows it to be wrong or incomplete, improve it "
-            "with skill_edit and say why — the previous version is kept and can be restored."
+            "with a skill_manage patch — the previous version is kept and revert restores it."
         ),
     ),
     Fragment(
@@ -1057,7 +1057,7 @@ BUILTIN: tuple[Fragment, ...] = (
         "save the first one.",
         default=(
             "- If you work out a repeatable way to do something you expect to be asked for "
-            "again, save it with skill_create. The description has to say when to use it, "
+            "again, save it with skill_manage. The description has to say when to use it, "
             "since that is all you will see next time."
         ),
     ),
@@ -1346,8 +1346,8 @@ BUILTIN: tuple[Fragment, ...] = (
             "### What you know about this person\n"
             "\n"
             "These were remembered in earlier conversations. If something here is "
-            "contradicted by what they say now, believe them and remove it with "
-            "memory_forget.\n"
+            "contradicted by what they say now, believe them and change it with the "
+            "memory tool.\n"
             "\n"
             "{{memories}}"
         ),
@@ -1361,13 +1361,13 @@ BUILTIN: tuple[Fragment, ...] = (
         variables=("skills",),
         requires=("skills",),
         hint="Names and descriptions only. The body of a skill is fetched with "
-        "skill_get, so a large library costs almost nothing here.",
+        "skill_view, so a large library costs almost nothing here.",
         default=(
             "### Skills available\n"
             "\n"
             "{{skills}}\n"
             "\n"
-            "Read one with skill_get before following it."
+            "Read one with skill_view before following it."
         ),
     ),
     Fragment(
