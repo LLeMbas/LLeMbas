@@ -5,8 +5,12 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
+## 1.7.0 — 2026-10-21
+
 A third door for a native app: the chats as JSON (`/api/v2`), behind a bearer
-token with the new `app` scope.
+token with the new `app` scope -- what LLeMbas for Android signs in to. And four
+fixes from a review: downloads of non-Latin-1 filenames, client addresses behind
+Docker, `/v1` streams left early, and upload chat tags.
 
 ### Added
 
