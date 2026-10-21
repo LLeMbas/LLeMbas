@@ -2306,3 +2306,9 @@ MESSAGES["That helper's conversation is gone, so it cannot be messaged."] = 'La 
 MESSAGES['running'] = 'en marcha'
 MESSAGES['done'] = 'terminado'
 MESSAGES['lost'] = 'perdido'
+
+# The app's door (/api/v2) and its notifications.
+MESSAGES['Read and write your chats, as the web interface does'] = 'Leer y escribir tus chats, como hace la interfaz web'
+MESSAGES['A reply is waiting'] = 'Una respuesta está esperando'
+MESSAGES['A reply is waiting for your answer.'] = 'Una respuesta espera tu contestación.'
+MESSAGES['That push address cannot be used: it must be https and reachable from here.'] = 'No se puede usar esa dirección de notificaciones: debe ser https y accesible desde aquí.'

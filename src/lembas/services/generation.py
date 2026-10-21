@@ -2422,6 +2422,7 @@ def _persist(generation: Generation, title: str, elapsed: float) -> None:
                     body=i18n.t("Your reply is ready."),
                     url=f"/chat/{chat.id}",
                     kind="chat",
+                    extra={"chat_id": chat.id, "message_id": message.id},
                 )
 
             db.commit()

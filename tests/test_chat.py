@@ -1368,10 +1368,16 @@ def test_the_reply_limit_covers_every_way_of_starting_one(db):
 
     from lembas.api import chats as chats_api
 
-    source = inspect.getsource(chats_api)
-    for route in ("start_chat", "edit_message", "send_queued_now", "regenerate", "_send"):
-        body = source.split(f"def {route}(", 1)[1].split("\n@router", 1)[0]
-        assert "_refuse_extra_reply" in body, route
+    # The cores, since the app's JSON door (`api/v2`) shares them with the
+    # page routes: a guard in a route alone would be one door in two.
+    for core in (
+        chats_api.start_new_chat,
+        chats_api.rewind_to,
+        chats_api.send_queued_now,
+        chats_api.regenerate_reply,
+        chats_api.write_turn,
+    ):
+        assert "_refuse_extra_reply" in inspect.getsource(core), core.__name__
 
 
 def test_a_new_chat_is_not_written_before_the_limit_is_checked(db):
@@ -1381,5 +1387,5 @@ def test_a_new_chat_is_not_written_before_the_limit_is_checked(db):
 
     from lembas.api import chats as chats_api
 
-    body = inspect.getsource(chats_api.start_chat)
-    assert body.index("_refuse_extra_reply") < body.index("_new_chat(")
+    body = inspect.getsource(chats_api.start_new_chat)
+    assert body.index("_refuse_extra_reply") < body.index("= _new_chat(")

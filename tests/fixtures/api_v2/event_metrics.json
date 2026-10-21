@@ -1,0 +1,13 @@
+{
+  "prompt_tokens": 120,
+  "completion_tokens": 40,
+  "total_tokens": 160,
+  "context_tokens": 160,
+  "context_limit": 8192,
+  "estimated": false,
+  "elapsed_ms": 4000,
+  "rounds": 2,
+  "thinking_ms": 1200,
+  "percent": 2,
+  "tok_s": 10.0
+}

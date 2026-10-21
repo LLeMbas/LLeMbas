@@ -1,0 +1,14 @@
+{
+  "id": "msg1",
+  "role": "user",
+  "created_at": "2026-01-02T03:04:05+00:00",
+  "complete": true,
+  "stopped": false,
+  "error": null,
+  "queued": false,
+  "machine": false,
+  "origin": "",
+  "model": null,
+  "attachments": [],
+  "text": "How is lembas made?"
+}

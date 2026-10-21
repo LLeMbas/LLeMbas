@@ -1,0 +1,127 @@
+{
+  "cards": [
+    {
+      "id": "card1",
+      "kind": "question",
+      "why": "",
+      "dismissable": false,
+      "expires_in": null,
+      "items": [
+        {
+          "index": 0,
+          "key": "q0",
+          "kind": "question",
+          "tool": "ask_user",
+          "title": "Honey or not?",
+          "header": "Taste",
+          "detail": "",
+          "reason": "",
+          "purpose": "",
+          "options": [
+            {
+              "label": "Honey",
+              "description": "",
+              "recommended": true
+            },
+            {
+              "label": "Plain",
+              "description": "As the elves have it",
+              "recommended": false
+            }
+          ],
+          "multiple": false,
+          "free_text": true,
+          "editable": false,
+          "plan": null,
+          "mode_choice": true,
+          "job": ""
+        }
+      ]
+    },
+    {
+      "id": "card2",
+      "kind": "approval",
+      "why": "explore (job1) asks",
+      "dismissable": false,
+      "expires_in": null,
+      "items": [
+        {
+          "index": 0,
+          "key": "a0",
+          "kind": "approval",
+          "tool": "bash",
+          "title": "rm -rf build",
+          "header": "",
+          "detail": "Removes the build directory.",
+          "reason": "",
+          "purpose": "Start clean",
+          "options": [],
+          "multiple": false,
+          "free_text": true,
+          "editable": true,
+          "plan": null,
+          "mode_choice": true,
+          "job": ""
+        }
+      ]
+    },
+    {
+      "id": "card3",
+      "kind": "plan",
+      "why": "",
+      "dismissable": true,
+      "expires_in": null,
+      "items": [
+        {
+          "index": 0,
+          "key": "p0",
+          "kind": "plan",
+          "tool": "plan_submit",
+          "title": "Bake lembas",
+          "header": "",
+          "detail": "",
+          "reason": "",
+          "purpose": "",
+          "options": [],
+          "multiple": false,
+          "free_text": true,
+          "editable": false,
+          "plan": {
+            "version": 2,
+            "title": "Bake lembas",
+            "summary": "",
+            "findings": [],
+            "objectives": [],
+            "phases": [
+              {
+                "id": "p1",
+                "title": "Plan",
+                "status": "pending",
+                "tasks": [
+                  {
+                    "id": "t1",
+                    "text": "Gather mallorn leaves",
+                    "status": "todo",
+                    "note": ""
+                  },
+                  {
+                    "id": "t2",
+                    "text": "Bake slowly",
+                    "status": "todo",
+                    "note": ""
+                  }
+                ]
+              }
+            ],
+            "steps": [
+              "Gather mallorn leaves",
+              "Bake slowly"
+            ]
+          },
+          "mode_choice": true,
+          "job": ""
+        }
+      ]
+    }
+  ]
+}

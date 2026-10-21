@@ -121,7 +121,7 @@ def is_https(request) -> bool:
 UNSAFE = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 # Routes a program reaches with a bearer token or no credential at all: no cookie
 # is read there, so there is nothing for a foreign page to ride.
-EXEMPT_PREFIXES = ("/v1/", "/api/v1/", "/api/device/", "/mcp")
+EXEMPT_PREFIXES = ("/v1/", "/api/v1/", "/api/v2/", "/api/device/", "/mcp")
 
 
 def _hosts(request: Request) -> set[str]:

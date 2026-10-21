@@ -354,15 +354,11 @@ async def start_chat(
     if not content and not file_ids:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-    # Before `_new_chat`, not after: a refusal that has already written the row
-    # leaves an empty chat in the sidebar as the visible result of being told
-    # no. There is no chat yet to exclude from the count, and none is needed --
-    # nothing can be running for a chat that does not exist.
-    _refuse_extra_reply(db, None, user)
-
-    chat = _new_chat(
+    chat, _, _ = start_new_chat(
         db,
         user,
+        content,
+        file_ids=file_ids,
         folder_id=folder_id,
         model_id=model_id,
         temporary=temporary,
@@ -376,7 +372,30 @@ async def start_chat(
         skills_off=frozenset(scope_skill_all) - frozenset(scope_skill_on),
     )
 
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
+    response.headers["HX-Redirect"] = f"/chat/{chat.id}"
+    return response
 
+
+def start_new_chat(
+    db: DBSession,
+    user: User,
+    content: str,
+    *,
+    file_ids: list[str] | None = None,
+    **settings,
+) -> tuple[Chat, Message, Message]:
+    """Make a chat from its first message and start the reply: `(chat, the
+    person's row, the reply's row)`. `settings` are `_new_chat`'s.
+
+    The core of `start_chat`, shared with the app's JSON door. The quota is
+    checked *before* `_new_chat`, not after: a refusal that has already written
+    the row leaves an empty chat in the sidebar as the visible result of being
+    told no. There is no chat yet to exclude from the count, and none is needed
+    -- nothing can be running for a chat that does not exist.
+    """
+    _refuse_extra_reply(db, None, user)
+    chat = _new_chat(db, user, **settings)
     user_message = chat_service.create_message(db, chat, ROLE_USER, content)
     if file_ids:
         files_service.claim(db, ids=file_ids, user_id=user.id, message_id=user_message.id)
@@ -384,10 +403,7 @@ async def start_chat(
         db, chat, ROLE_ASSISTANT, "", complete_=False, model_id=chat.model_id
     )
     generation_service.ensure(chat.id, assistant.id)
-
-    response = Response(status_code=status.HTTP_204_NO_CONTENT)
-    response.headers["HX-Redirect"] = f"/chat/{chat.id}"
-    return response
+    return chat, user_message, assistant
 
 
 def _device_target(db: DBSession, user: User, kind: str, value: str) -> tuple[str, str] | None:
@@ -1164,17 +1180,20 @@ def _refuse_extra_reply(db: DBSession, chat: Chat | None, user: User) -> None:
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, busy)
 
 
-def _send(
-    request: Request,
-    db: Db,
+def write_turn(
+    db: DBSession,
     chat: Chat,
     user: User,
     content: str,
     *,
     file_ids: list[str] | None = None,
     force_tool: str = "",
-) -> Response:
-    """Write a turn, start the reply, and hand back the pair of bubbles.
+) -> tuple[Message, Message | None]:
+    """Write a turn and start the reply: `(the person's row, the reply's row)`,
+    the second None when the turn was queued behind a reply already running.
+
+    The core of `_send`, without the HTML: the app's JSON door
+    (`api/v2/chats.py`) sends through this too, so the two cannot drift.
 
     Shared by the composer and by anything else that puts words into a
     conversation on somebody's behalf -- carrying out a plan, for one. One path
@@ -1222,6 +1241,35 @@ def _send(
             # So a reply between two rounds of tool calls notices it, and so
             # anybody following sees the status change.
             live.touch()
+        return user_message, None
+
+    assistant_message = chat_service.create_message(
+        db, chat, ROLE_ASSISTANT, "", complete_=False, model_id=chat.model_id
+    )
+    generation_service.ensure(chat.id, assistant_message.id, force_tool=force_tool)
+    return user_message, assistant_message
+
+
+def _send(
+    request: Request,
+    db: Db,
+    chat: Chat,
+    user: User,
+    content: str,
+    *,
+    file_ids: list[str] | None = None,
+    force_tool: str = "",
+) -> Response:
+    """Write a turn, start the reply, and hand back the pair of bubbles.
+
+    Shared by the composer and by anything else that puts words into a
+    conversation on somebody's behalf -- carrying out a plan, for one. The
+    writing is `write_turn`; this is the page's rendering of it.
+    """
+    user_message, assistant_message = write_turn(
+        db, chat, user, content, file_ids=file_ids, force_tool=force_tool
+    )
+    if assistant_message is None:
         return templates.TemplateResponse(
             request,
             "chat/_message.html",
@@ -1236,11 +1284,6 @@ def _send(
                 **audio_service.template_flags(db, user),
             },
         )
-
-    assistant_message = chat_service.create_message(
-        db, chat, ROLE_ASSISTANT, "", complete_=False, model_id=chat.model_id
-    )
-    generation_service.ensure(chat.id, assistant_message.id, force_tool=force_tool)
 
     # `user` is required by the shared message template, which renders both
     # roles; without it the user bubble's initial blows up.
@@ -1876,6 +1919,18 @@ async def edit_message(
     also the one people expect from every other chat client.
     """
     chat = _owned_chat(db, chat_id, user.id)
+    await rewind_to(db, chat, user, message_id, content)
+    return templates.TemplateResponse(
+        request, "chat/_thread.html", {"request": request, **_thread_context(db, chat, user)}
+    )
+
+
+async def rewind_to(
+    db: DBSession, chat: Chat, user: User, message_id: str, content: str
+) -> Message:
+    """Rewrite one of the person's turns, drop everything after it, and start
+    the reply again: the new reply's row. The core of `edit_message`, shared
+    with the app's JSON door."""
     message = db.get(Message, message_id)
     if message is None or message.chat_id != chat.id or message.role != ROLE_USER:
         raise HTTPException(status.HTTP_404_NOT_FOUND, t("That message no longer exists."))
@@ -1935,10 +1990,7 @@ async def edit_message(
     )
     generation_service.ensure(chat.id, assistant.id)
     log.info("chat %s rewound to a message, %d discarded", chat.id, len(discarded))
-
-    return templates.TemplateResponse(
-        request, "chat/_thread.html", {"request": request, **_thread_context(db, chat, user)}
-    )
+    return assistant
 
 
 @router.post("/{chat_id}/messages/{message_id}/execute-plan")
@@ -1965,6 +2017,15 @@ async def execute_plan(
     injected instruction would like to arrive.
     """
     chat = _owned_chat(db, chat_id, user.id)
+    content = plan_prompt(db, chat, message_id)
+    log.info("%s executing a plan in chat %s", user.email, chat.id)
+    return _send(request, db, chat, user, content)
+
+
+def plan_prompt(db: DBSession, chat: Chat, message_id: str) -> str:
+    """Make a plan the chat's, switch the mode the way carrying it out needs,
+    and return the turn that asks for it (see `execute_plan`). Shared with the
+    app's JSON door, which sends the turn through `write_turn`."""
     if message_id == "current":
         plan = chat.plan
         if not plan:
@@ -1990,15 +2051,13 @@ async def execute_plan(
     chat.agent_mode = agent_policy.MODE_EDIT if chat.kind == KIND_AGENT else ""
     db.commit()
 
-    content = (
+    return (
         "Carry out the plan you proposed above:\n\n"
         f"> **{plan.get('title') or 'The plan'}**\n"
         + "\n".join(f"> {line}" for line in body.splitlines())
         + "\n\nWork through it in order. If a step turns out to be wrong, stop "
         "and say so rather than improvising around it."
     )
-    log.info("%s executing a plan in chat %s", user.email, chat.id)
-    return _send(request, db, chat, user, content)
 
 
 @router.post("/{chat_id}/messages/{message_id}/stop")
@@ -2205,7 +2264,59 @@ async def answer_interaction(
     being told plainly.
     """
     chat = _owned_chat(db, chat_id, user.id)
-    form = await request.form()
+    answered, remembered, unmatchable = answer_card(
+        db, chat, interaction_id, await request.form()
+    )
+
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
+    if not answered:
+        response.headers["HX-Trigger"] = json.dumps(
+            {"lembas:notify": {"message": t("That question is no longer waiting for an answer.")}}
+        )
+    elif remembered:
+        response.headers["HX-Trigger"] = json.dumps(
+            {
+                "lembas:notify": {
+                    "message": (
+                        t(
+                            "This chat will not ask about 1 more action. Clear that from "
+                            "the menu beside the composer."
+                        )
+                        if remembered == 1
+                        else t(
+                            "This chat will not ask about %(n)s more actions. Clear that "
+                            "from the menu beside the composer.",
+                            n=remembered,
+                        )
+                    )
+                }
+            }
+        )
+    elif unmatchable:
+        # Otherwise this is a button that silently did nothing, which is the
+        # failure the rest of this feature was arranged to avoid. It is allowed
+        # to store nothing -- a composed command line must never become a
+        # standing permission -- but it is not allowed to say nothing.
+        response.headers["HX-Trigger"] = json.dumps(
+            {
+                "lembas:notify": {
+                    "message": t(
+                        "Allowed once. A command line that runs more than one thing "
+                        "cannot be stored as a rule, so this chat will ask again."
+                    )
+                }
+            }
+        )
+    return response
+
+
+def answer_card(db: DBSession, chat: Chat, interaction_id: str, form) -> tuple[bool, int, int]:
+    """Answer a card from its form: `(answered, remembered, unmatchable)`.
+
+    `form` is anything with `get` and `multi_items` -- the browser's
+    `FormData`, or the one the app's JSON door builds from its body, so both
+    answer through exactly these lines. See `answer_interaction` for the rules.
+    """
     verdict = str(form.get("verdict") or "").strip()
 
     # Why they refused, in their own words. A card-level field rather than a
@@ -2294,47 +2405,7 @@ async def answer_interaction(
         reason=reason,
         picks=picks,
     )
-
-    response = Response(status_code=status.HTTP_204_NO_CONTENT)
-    if not answered:
-        response.headers["HX-Trigger"] = json.dumps(
-            {"lembas:notify": {"message": t("That question is no longer waiting for an answer.")}}
-        )
-    elif remembered:
-        response.headers["HX-Trigger"] = json.dumps(
-            {
-                "lembas:notify": {
-                    "message": (
-                        t(
-                            "This chat will not ask about 1 more action. Clear that from "
-                            "the menu beside the composer."
-                        )
-                        if remembered == 1
-                        else t(
-                            "This chat will not ask about %(n)s more actions. Clear that "
-                            "from the menu beside the composer.",
-                            n=remembered,
-                        )
-                    )
-                }
-            }
-        )
-    elif unmatchable:
-        # Otherwise this is a button that silently did nothing, which is the
-        # failure the rest of this feature was arranged to avoid. It is allowed
-        # to store nothing -- a composed command line must never become a
-        # standing permission -- but it is not allowed to say nothing.
-        response.headers["HX-Trigger"] = json.dumps(
-            {
-                "lembas:notify": {
-                    "message": t(
-                        "Allowed once. A command line that runs more than one thing "
-                        "cannot be stored as a rule, so this chat will ask again."
-                    )
-                }
-            }
-        )
-    return response
+    return answered, remembered, unmatchable
 
 
 def _remember_always(
@@ -2424,8 +2495,46 @@ async def update_chat(request: Request, db: Db, user: RequiredUser, chat_id: str
     temperature means *clear it*, not *leave it alone*.
     """
     chat = _owned_chat(db, chat_id, user.id)
+    renamed, archived_changed = apply_chat_update(db, user, chat, await request.form())
+
+    if renamed:
+        # The two out-of-band spans the `done` frame already uses, so one
+        # response updates the heading *and* the sidebar row. Renaming used to
+        # be the `/title` command alone, which set the heading and left the
+        # sidebar showing the old name until the next reload -- a rename that
+        # looks half-applied is one people do twice.
+        return HTMLResponse(
+            templates.get_template("chat/_title_oob.html").render({"chat": chat})
+        )
+
+    # Archiving moves a row out of one group and into another, so the sidebar
+    # has to be re-rendered -- and it cannot be, from a 204. htmx's own config
+    # is `{code: "204", swap: false}`, so a control aimed at `#sidebar-tree`
+    # with this endpoint's usual answer sets the column and then does visibly
+    # nothing at all, which is this codebase's signature failure rather than a
+    # new one. The same fragment and the same `oob` the sidebar switch returns,
+    # for the same reason: New chat lives above the tree and comes along out of
+    # band.
+    if archived_changed:
+        from lembas.api.pages import sidebar_context
+
+        return templates.TemplateResponse(
+            request,
+            "partials/_sidebar_tree.html",
+            {"chat": None, "user": user, "oob": True, **sidebar_context(db, user)},
+        )
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+def apply_chat_update(db: DBSession, user: User, chat: Chat, form) -> tuple[bool, bool]:
+    """Apply a partial update from its form: `(renamed, archived_changed)`.
+
+    `form` is anything with `get`, `getlist` and `in` -- the browser's
+    `FormData`, or the one the app's JSON door builds from its body, so a
+    field means the same thing through either door. See `update_chat`.
+    """
     allowed = permissions.resolve(db, user)
-    form = await request.form()
 
     renamed = False
     if "title" in form:
@@ -2599,35 +2708,7 @@ async def update_chat(request: Request, db: Db, user: RequiredUser, chat_id: str
             chat.params_json = {**(chat.params_json or {}), "reasoning_effort": seeded}
 
     db.commit()
-
-    if renamed:
-        # The two out-of-band spans the `done` frame already uses, so one
-        # response updates the heading *and* the sidebar row. Renaming used to
-        # be the `/title` command alone, which set the heading and left the
-        # sidebar showing the old name until the next reload -- a rename that
-        # looks half-applied is one people do twice.
-        return HTMLResponse(
-            templates.get_template("chat/_title_oob.html").render({"chat": chat})
-        )
-
-    # Archiving moves a row out of one group and into another, so the sidebar
-    # has to be re-rendered -- and it cannot be, from a 204. htmx's own config
-    # is `{code: "204", swap: false}`, so a control aimed at `#sidebar-tree`
-    # with this endpoint's usual answer sets the column and then does visibly
-    # nothing at all, which is this codebase's signature failure rather than a
-    # new one. The same fragment and the same `oob` the sidebar switch returns,
-    # for the same reason: New chat lives above the tree and comes along out of
-    # band.
-    if archived_changed:
-        from lembas.api.pages import sidebar_context
-
-        return templates.TemplateResponse(
-            request,
-            "partials/_sidebar_tree.html",
-            {"chat": None, "user": user, "oob": True, **sidebar_context(db, user)},
-        )
-
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return renamed, archived_changed
 
 
 # Bounds are the ones every provider agrees on. Out-of-range values are
@@ -2666,6 +2747,16 @@ def _clean_params(**submitted: str | None) -> dict[str, float | int | None]:
 @router.delete("/{chat_id}", dependencies=[Depends(require_permission("chat.delete"))])
 async def delete_chat(db: Db, user: RequiredUser, chat_id: str) -> Response:
     chat = _owned_chat(db, chat_id, user.id)
+    await delete_chat_now(db, chat)
+
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
+    response.headers["HX-Redirect"] = "/chat"
+    return response
+
+
+async def delete_chat_now(db: DBSession, chat: Chat) -> None:
+    """Everything deleting a chat involves; shared with the app's JSON door."""
+    chat_id = chat.id
     # Before the row goes: a terminal is keyed on the chat id, so afterwards
     # there would be nothing left to find it by and a shell would sit open on
     # somebody's machine until the idle timeout noticed.
@@ -2681,10 +2772,6 @@ async def delete_chat(db: Db, user: RequiredUser, chat_id: str) -> Response:
     chat_service.delete_chats(db, [chat])
     db.commit()
 
-    response = Response(status_code=status.HTTP_204_NO_CONTENT)
-    response.headers["HX-Redirect"] = "/chat"
-    return response
-
 
 @router.post("/{chat_id}/messages/{message_id}/regenerate")
 async def regenerate(
@@ -2696,6 +2783,27 @@ async def regenerate(
 ) -> Response:
     """Discard an assistant reply and produce a fresh one in its place."""
     chat = _owned_chat(db, chat_id, user.id)
+    message = await regenerate_reply(db, chat, user, message_id)
+
+    return templates.TemplateResponse(
+        request,
+        "chat/_message.html",
+        {
+            "request": request,
+            "message": message,
+            "chat": chat,
+            "user": user,
+            "models_by_id": {
+                m.model_id: m for m in chat_service.available_models(db, user)
+            },
+            **audio_service.template_flags(db, user),
+        },
+    )
+
+
+async def regenerate_reply(db: DBSession, chat: Chat, user: User, message_id: str) -> Message:
+    """Blank a reply and produce it again: the row, reused. The core of
+    `regenerate`, shared with the app's JSON door."""
     message = db.get(Message, message_id)
     if message is None or message.chat_id != chat.id or message.role != ROLE_ASSISTANT:
         raise HTTPException(status.HTTP_404_NOT_FOUND, t("That reply no longer exists."))
@@ -2735,21 +2843,7 @@ async def regenerate(
     # restart, not ensure: this is the one caller that reuses a Message row, and
     # the finished generation for it is still registered.
     generation_service.restart(chat.id, message.id)
-
-    return templates.TemplateResponse(
-        request,
-        "chat/_message.html",
-        {
-            "request": request,
-            "message": message,
-            "chat": chat,
-            "user": user,
-            "models_by_id": {
-                m.model_id: m for m in chat_service.available_models(db, user)
-            },
-            **audio_service.template_flags(db, user),
-        },
-    )
+    return message
 
 
 __all__ = ["render", "router"]

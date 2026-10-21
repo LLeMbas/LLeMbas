@@ -55,13 +55,41 @@ async def subscribe(request: Request, db: Db, user: RequiredUser) -> Response:
     well.
     """
     payload = await request.json()
-    endpoint = str(payload.get("endpoint") or "").strip()[:MAX_ENDPOINT]
     keys = payload.get("keys") or {}
-    p256dh = str(keys.get("p256dh") or "").strip()[:MAX_KEY]
-    auth = str(keys.get("auth") or "").strip()[:MAX_KEY]
+    stored = register(
+        db,
+        user,
+        endpoint=str(payload.get("endpoint") or ""),
+        p256dh=str(keys.get("p256dh") or ""),
+        auth=str(keys.get("auth") or ""),
+        label=str(request.headers.get("user-agent") or ""),
+    )
+    if not stored:
+        return Response(status_code=status.HTTP_400_BAD_REQUEST)
+    log.info("%s registered a browser for notifications", user.email)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+def register(
+    db,
+    user,
+    *,
+    endpoint: str,
+    p256dh: str,
+    auth: str,
+    label: str = "",
+    token_id: str | None = None,
+) -> bool:
+    """Store a registration; False when it is refused. The core of `subscribe`,
+    shared with the app's door (`/api/v2/push`), which registers a UnifiedPush
+    endpoint -- the same Web Push, encrypted and signed the same way -- under
+    the token it signed in with."""
+    endpoint = endpoint.strip()[:MAX_ENDPOINT]
+    p256dh = p256dh.strip()[:MAX_KEY]
+    auth = auth.strip()[:MAX_KEY]
 
     if not endpoint.startswith("https://") or not p256dh or not auth:
-        return Response(status_code=status.HTTP_400_BAD_REQUEST)
+        return False
 
     # The endpoint is a URL the browser hands us and the server later POSTs to,
     # which makes it the same shape as every other URL a request can name --
@@ -76,7 +104,7 @@ async def subscribe(request: Request, db: Db, user: RequiredUser) -> Response:
         fetch_service.check_url(endpoint)
     except FetchError as exc:
         log.warning("refused a push endpoint from %s: %s", user.email, exc.message)
-        return Response(status_code=status.HTTP_400_BAD_REQUEST)
+        return False
 
     existing = db.scalars(
         select(PushSubscription).where(PushSubscription.endpoint == endpoint)
@@ -86,6 +114,7 @@ async def subscribe(request: Request, db: Db, user: RequiredUser) -> Response:
         existing.p256dh = p256dh
         existing.auth_secret = auth
         existing.last_error = ""
+        existing.token_id = token_id
     else:
         db.add(
             PushSubscription(
@@ -93,12 +122,12 @@ async def subscribe(request: Request, db: Db, user: RequiredUser) -> Response:
                 endpoint=endpoint,
                 p256dh=p256dh,
                 auth_secret=auth,
-                label=str(request.headers.get("user-agent") or "")[:200],
+                label=label[:200],
+                token_id=token_id,
             )
         )
     db.commit()
-    log.info("%s registered a browser for notifications", user.email)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return True
 
 
 @router.post("/unsubscribe")

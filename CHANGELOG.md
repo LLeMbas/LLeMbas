@@ -5,6 +5,43 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
+A third door for a native app: the chats as JSON (`/api/v2`), behind a bearer
+token with the new `app` scope.
+
+### Added
+
+- **`/api/v2`, the app's API.** The chat list, a chat with its settings and its
+  messages (paged by id), sending, stop, edit, regenerate, continue, carrying
+  out a plan, answering a card, changing and deleting a chat, attachments,
+  models, folders, linked devices and the account -- JSON in and out. Every
+  route calls the core its page twin calls, so sending, queueing, the reply
+  limit, model access, data groups and the card rules hold through either door
+  alike. A token never reaches what its holder could not do in a browser.
+- **The reply as JSON server-sent events**
+  (`/api/v2/chats/{id}/messages/{id}/stream`): the same `Generation` the page
+  follows, under the same rules -- every frame carries the whole block, a
+  frame is sent only when it changed, a round closes in one frame -- so an app
+  that reattaches late gets the whole state at once. Steps carry the model's
+  markdown as written, never HTML.
+- **The `app` scope**, grantable through device login like `models`, and
+  `app_api` in `/.well-known/lembas.json`.
+- **Push for the app.** `/api/v2/push` registers a UnifiedPush endpoint --
+  the same Web Push the browsers get, sent by the same code -- under the
+  app's token; signing the token out removes it (a new nullable
+  `push_subscriptions.token_id` column).
+- **A card waiting with nobody watching is announced**, as a finished reply
+  already is. The notification carries the chat and the card, so the app can
+  answer an approval from it.
+- **The contract as files**: `tests/fixtures/api_v2/` holds one example of
+  every shape and every stream frame, written by the serialisers themselves;
+  the app pins them and parses each in its own tests.
+
+### Changed
+
+- The page's chat routes now call shared cores (`write_turn`,
+  `start_new_chat`, `rewind_to`, `regenerate_reply`, `plan_prompt`,
+  `answer_card`, `apply_chat_update`, `delete_chat_now`). No behaviour changed.
+
 ## 1.6.0 — 2026-10-20
 
 Background helpers and a device's jobs, shown and controllable: one registry of

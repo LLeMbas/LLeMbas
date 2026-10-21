@@ -1,0 +1,87 @@
+{
+  "id": "msg2",
+  "role": "assistant",
+  "created_at": "2026-01-02T03:04:05+00:00",
+  "complete": true,
+  "stopped": false,
+  "error": null,
+  "queued": false,
+  "machine": false,
+  "origin": "",
+  "model": "qwen",
+  "attachments": [],
+  "steps": [
+    {
+      "index": 0,
+      "kind": "thinking",
+      "open": false,
+      "text": "The reader wants a recipe.",
+      "label": "for 1 second · 6 tokens"
+    },
+    {
+      "index": 0,
+      "kind": "text",
+      "open": false,
+      "markdown": "Here is how it is made:\n\n```sh\nbake --slow\n```\n"
+    },
+    {
+      "index": 0,
+      "kind": "tools",
+      "open": false,
+      "calls": [
+        {
+          "id": "call1",
+          "name": "bash",
+          "kind": "shell",
+          "status": "ok",
+          "args": {
+            "command": "bake --slow"
+          },
+          "purpose": "Bake one loaf",
+          "text": "baked\n",
+          "exit": 0,
+          "block": {
+            "kind": "shell",
+            "title": "bake --slow",
+            "chips": [
+              "exit 0"
+            ],
+            "added": 0,
+            "removed": 0
+          }
+        }
+      ]
+    },
+    {
+      "index": 0,
+      "kind": "steer",
+      "open": false,
+      "messages": [
+        {
+          "id": "msg9",
+          "text": "and add honey"
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "kind": "text",
+      "open": false,
+      "markdown": "Done. *Wrap it in a leaf.*"
+    }
+  ],
+  "plan": null,
+  "metrics": {
+    "prompt_tokens": 120,
+    "completion_tokens": 40,
+    "total_tokens": 160,
+    "context_tokens": 160,
+    "context_limit": 8192,
+    "estimated": false,
+    "elapsed_ms": 4000,
+    "rounds": 2,
+    "thinking_ms": 1200,
+    "percent": 2,
+    "tok_s": 10.0
+  }
+}

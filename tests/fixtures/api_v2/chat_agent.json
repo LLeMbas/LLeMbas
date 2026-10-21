@@ -1,0 +1,21 @@
+{
+  "id": "chat2",
+  "kind": "agent",
+  "title": "Waybread",
+  "model": "qwen",
+  "folder_id": null,
+  "pinned": false,
+  "archived": false,
+  "temporary": false,
+  "unread": true,
+  "running": true,
+  "mode": "edit",
+  "effort": "low",
+  "device": {
+    "token_id": "token1",
+    "directory": "/home/dev/project"
+  },
+  "parent_chat_id": null,
+  "created_at": "2026-01-02T03:04:05+00:00",
+  "updated_at": "2026-01-02T03:04:05+00:00"
+}

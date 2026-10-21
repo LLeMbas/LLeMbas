@@ -329,7 +329,14 @@ def subscriptions_for(db: DBSession, user: User | None) -> list[PushSubscription
 
 
 async def announce(
-    db: DBSession, user: User | None, *, title: str, body: str, url: str = "", kind: str = ""
+    db: DBSession,
+    user: User | None,
+    *,
+    title: str,
+    body: str,
+    url: str = "",
+    kind: str = "",
+    extra: dict[str, Any] | None = None,
 ) -> int:
     """Tell every device this person has registered. Returns how many took it.
 
@@ -343,7 +350,9 @@ async def announce(
     if not subscriptions:
         return 0
 
-    payload = {"title": title, "body": body, "url": url, "kind": kind}
+    # `extra` is what the app reads and a browser ignores: the chat's id, and
+    # for a card the interaction's, so a notification can answer it.
+    payload = {**(extra or {}), "title": title, "body": body, "url": url, "kind": kind}
     delivered = 0
     for subscription in list(subscriptions):
         if await send_one(db, subscription, payload):
@@ -357,7 +366,15 @@ async def announce(
 _TASKS: set[Any] = set()
 
 
-def announce_later(user_id: str, *, title: str, body: str, url: str = "", kind: str = "") -> None:
+def announce_later(
+    user_id: str,
+    *,
+    title: str,
+    body: str,
+    url: str = "",
+    kind: str = "",
+    extra: dict[str, Any] | None = None,
+) -> None:
     """Announce from a path that must not wait for it, and must not fail with it.
 
     Called where something *arrives* -- a reply finishing with nobody watching,
@@ -395,7 +412,9 @@ def announce_later(user_id: str, *, title: str, body: str, url: str = "", kind: 
                 user = db.get(User, user_id)
                 if user is None:
                     return
-                await announce(db, user, title=title, body=body, url=url, kind=kind)
+                await announce(
+                    db, user, title=title, body=body, url=url, kind=kind, extra=extra
+                )
         except Exception:  # nothing upstream can act on this
             log.exception("could not announce to %s", user_id)
 
@@ -404,8 +423,64 @@ def announce_later(user_id: str, *, title: str, body: str, url: str = "", kind: 
     task.add_done_callback(_TASKS.discard)
 
 
+def announce_ask_later(chat_id: str, interruption: Any) -> None:
+    """A reply is stopped on a card and nobody is watching: say so.
+
+    Called from `interaction.wait_for`, which knows the generation and the card
+    but not whose chat it is; this finds out inside the task, in its own
+    session, for the reason `announce_later` gives. The payload carries the
+    card's id and kind, so the app can answer an approval from the
+    notification; a browser shows the title and body and opens the chat.
+    """
+    import asyncio
+
+    from lembas.db.models import Chat
+    from lembas.db.session import session_scope
+    from lembas.web import i18n
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return
+
+    items = list(getattr(interruption, "items", ()) or ())
+    first = items[0] if items else None
+    kind = str(getattr(first, "kind", "") or "")
+    detail = str(getattr(first, "title", "") or "")[:200]
+
+    async def run() -> None:
+        try:
+            with session_scope() as db:
+                chat = db.get(Chat, chat_id)
+                if chat is None or chat.temporary:
+                    return
+                user = db.get(User, chat.user_id)
+                if user is None:
+                    return
+                await announce(
+                    db,
+                    user,
+                    title=chat.title or i18n.t("A reply is waiting"),
+                    body=detail or i18n.t("A reply is waiting for your answer."),
+                    url=f"/chat/{chat.id}",
+                    kind="ask",
+                    extra={
+                        "chat_id": chat.id,
+                        "interaction_id": str(getattr(interruption, "id", "") or ""),
+                        "ask": kind,
+                    },
+                )
+        except Exception:  # nothing upstream can act on this
+            log.exception("could not announce a waiting card in %s", chat_id)
+
+    task = asyncio.create_task(run())
+    _TASKS.add(task)
+    task.add_done_callback(_TASKS.discard)
+
+
 __all__ = [
     "announce",
+    "announce_ask_later",
     "announce_later",
     "encrypt_payload",
     "keys",

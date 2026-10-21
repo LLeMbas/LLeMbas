@@ -2306,3 +2306,9 @@ MESSAGES["That helper's conversation is gone, so it cannot be messaged."] = 'Kon
 MESSAGES['running'] = 'běží'
 MESSAGES['done'] = 'hotovo'
 MESSAGES['lost'] = 'ztracená'
+
+# The app's door (/api/v2) and its notifications.
+MESSAGES['Read and write your chats, as the web interface does'] = 'Číst a zapisovat vaše chaty, jako to dělá webové rozhraní'
+MESSAGES['A reply is waiting'] = 'Odpověď čeká'
+MESSAGES['A reply is waiting for your answer.'] = 'Odpověď čeká na vaši reakci.'
+MESSAGES['That push address cannot be used: it must be https and reachable from here.'] = 'Tuto adresu pro oznámení nelze použít: musí být https a dosažitelná odsud.'

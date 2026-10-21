@@ -1,0 +1,18 @@
+{
+  "id": "chat1",
+  "kind": "chat",
+  "title": "Waybread",
+  "model": "qwen",
+  "folder_id": null,
+  "pinned": false,
+  "archived": false,
+  "temporary": false,
+  "unread": true,
+  "running": false,
+  "mode": "",
+  "effort": "low",
+  "device": null,
+  "parent_chat_id": null,
+  "created_at": "2026-01-02T03:04:05+00:00",
+  "updated_at": "2026-01-02T03:04:05+00:00"
+}

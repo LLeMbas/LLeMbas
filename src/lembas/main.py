@@ -56,6 +56,7 @@ from lembas.api.v1 import images as api_images
 from lembas.api.v1 import me as api_me
 from lembas.api.v1 import openai as api_openai
 from lembas.api.v1 import services as api_services
+from lembas.api.v2 import router as app_api_router
 from lembas.config import settings
 from lembas.db.session import init_db
 from lembas.services import local_device
@@ -258,6 +259,8 @@ def create_app() -> FastAPI:
     # Pictures, and the file a picture is fetched from.
     app.include_router(api_images.router)
     app.include_router(api_admin.router)
+    # The app's door: the chats as JSON, bearer token with the `app` scope.
+    app.include_router(app_api_router)
 
     # Added last, so they wrap everything above: the Origin check refuses a
     # foreign request before any route sees it, and every admin change is

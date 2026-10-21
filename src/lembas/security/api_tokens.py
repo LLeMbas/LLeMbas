@@ -14,6 +14,7 @@ administrator.
 | `models` | `/v1`: list the holder's models, chat with them, embeddings | `api.use` |
 | `library` | `/mcp`: the holder's memory, notes, skills and knowledge | `api.use` |
 | `link` | being driven from this instance as a linked device | `api.use` |
+| `app` | `/api/v2`: the holder's chats, as the web UI shows them -- the app's door | `api.use` |
 | `admin:read` | users and usage, read only | administrator |
 | `admin:audit` | the audit log | administrator, or `audit.read` |
 | `admin:credits` | top-ups, adjustments and plans | administrator, or `credits.grant` |
@@ -43,11 +44,12 @@ SHOWN_PREFIX = 10  # "lmb_" + six characters
 SCOPE_MODELS = "models"
 SCOPE_LIBRARY = "library"
 SCOPE_LINK = "link"
+SCOPE_APP = "app"
 SCOPE_ADMIN_READ = "admin:read"
 SCOPE_ADMIN_AUDIT = "admin:audit"
 SCOPE_ADMIN_CREDITS = "admin:credits"
 
-USER_SCOPES = (SCOPE_MODELS, SCOPE_LIBRARY, SCOPE_LINK)
+USER_SCOPES = (SCOPE_MODELS, SCOPE_LIBRARY, SCOPE_LINK, SCOPE_APP)
 ADMIN_SCOPES = (SCOPE_ADMIN_READ, SCOPE_ADMIN_AUDIT, SCOPE_ADMIN_CREDITS)
 SCOPES = (*USER_SCOPES, *ADMIN_SCOPES)
 
@@ -60,6 +62,7 @@ def scope_label(scope: str) -> str:
         SCOPE_MODELS: t("Use your models, and spend your usage"),
         SCOPE_LIBRARY: t("Read and write your memory, notes, skills and knowledge"),
         SCOPE_LINK: t("Accept work from this instance as a linked device"),
+        SCOPE_APP: t("Read and write your chats, as the web interface does"),
         SCOPE_ADMIN_READ: t("Read every account and its usage"),
         SCOPE_ADMIN_AUDIT: t("Read the audit log"),
         SCOPE_ADMIN_CREDITS: t("Top up and adjust credits, and choose plans"),
@@ -144,13 +147,15 @@ def revoke(db: DBSession, token: ApiToken) -> None:
 def forget_device(db: DBSession, token_ids: list[str]) -> None:
     """A device token going: the deletes still waiting for that device go with
     it -- it will never link again to be told, and the table has no
-    foreign key to cascade them (`DeviceSessionDelete`)."""
+    foreign key to cascade them (`DeviceSessionDelete`). So does any push
+    registration the app made under it: a signed-out phone is not told."""
     from sqlalchemy import delete
 
-    from lembas.db.models import DeviceSessionDelete
+    from lembas.db.models import DeviceSessionDelete, PushSubscription
 
     if token_ids:
         db.execute(delete(DeviceSessionDelete).where(DeviceSessionDelete.token_id.in_(token_ids)))
+        db.execute(delete(PushSubscription).where(PushSubscription.token_id.in_(token_ids)))
 
 
 def live(token: ApiToken | None, *, now: datetime | None = None) -> bool:
@@ -311,6 +316,7 @@ def require_live_token():
 
 LiveCaller = Annotated[Caller, Depends(require_live_token())]
 ModelsCaller = Annotated[Caller, Depends(require_token(SCOPE_MODELS))]
+AppCaller = Annotated[Caller, Depends(require_token(SCOPE_APP))]
 AdminReadCaller = Annotated[Caller, Depends(require_token(SCOPE_ADMIN_READ))]
 AuditCaller = Annotated[Caller, Depends(require_token(SCOPE_ADMIN_AUDIT))]
 CreditsCaller = Annotated[Caller, Depends(require_token(SCOPE_ADMIN_CREDITS))]
@@ -322,11 +328,13 @@ __all__ = [
     "SCOPES",
     "SCOPE_ADMIN_AUDIT",
     "SCOPE_ADMIN_READ",
+    "SCOPE_APP",
     "SCOPE_LIBRARY",
     "SCOPE_LINK",
     "SCOPE_MODELS",
     "USER_SCOPES",
     "AdminReadCaller",
+    "AppCaller",
     "LiveCaller",
     "AuditCaller",
     "CreditsCaller",

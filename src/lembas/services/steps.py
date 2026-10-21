@@ -59,6 +59,10 @@ class Step:
     open: bool = False
     text: str = ""
     html: str = ""
+    # A text step's markdown as the model wrote it, fence reopener included --
+    # what `html` was rendered from. The app's JSON door sends this and never
+    # the HTML; the app renders and sanitises it itself.
+    markdown: str = ""
     events: tuple[dict, ...] = field(default_factory=tuple)
     # How long this block thought for and roughly how much it produced. Only on
     # a thinking step, and only where there is something to say -- a block whose
@@ -246,7 +250,13 @@ def _build(
             steps.append(Step(index=0, kind=KIND_TOOLS, events=_shown(events)))
         if text:
             steps.append(
-                Step(index=0, kind=KIND_TEXT, open=live, html=render_markdown(text))
+                Step(
+                    index=0,
+                    kind=KIND_TEXT,
+                    open=live,
+                    html=render_markdown(text),
+                    markdown=text,
+                )
             )
         return steps
 
@@ -289,7 +299,11 @@ def _build(
                     )
                 )
             if said:
-                steps.append(Step(index=index, kind=KIND_TEXT, html=render_markdown(source)))
+                steps.append(
+                    Step(
+                        index=index, kind=KIND_TEXT, html=render_markdown(source), markdown=source
+                    )
+                )
             if _shown(ran):
                 steps.append(Step(index=index, kind=KIND_TOOLS, events=_shown(ran)))
             if steered := _steered(mark):
@@ -329,7 +343,13 @@ def _build(
     if trailing_text := text[text_from:]:
         source = f"{carry}\n{trailing_text}" if carry else trailing_text
         steps.append(
-            Step(index=index, kind=KIND_TEXT, open=live, html=render_markdown(source))
+            Step(
+                index=index,
+                kind=KIND_TEXT,
+                open=live,
+                html=render_markdown(source),
+                markdown=source,
+            )
         )
     if trailing_events := _shown(events[tools_from:]):
         steps.append(Step(index=index, kind=KIND_TOOLS, events=trailing_events))

@@ -1,0 +1,21 @@
+{
+  "jobs": [
+    {
+      "id": "job1",
+      "kind": "subagent",
+      "state": "running",
+      "description": "Find the recipe",
+      "agent": "explore",
+      "model": "qwen",
+      "started": "2026-01-02T03:04:05+00:00",
+      "ended": null,
+      "seconds": 12,
+      "unread": 0,
+      "steps": 3,
+      "tools": 2,
+      "background": true,
+      "exit": null,
+      "command": ""
+    }
+  ]
+}

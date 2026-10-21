@@ -2306,3 +2306,9 @@ MESSAGES["That helper's conversation is gone, so it cannot be messaged."] = 'A s
 MESSAGES['running'] = 'fut'
 MESSAGES['done'] = 'kész'
 MESSAGES['lost'] = 'elveszett'
+
+# The app's door (/api/v2) and its notifications.
+MESSAGES['Read and write your chats, as the web interface does'] = 'A csevegéseid olvasása és írása, ahogy a webes felület teszi'
+MESSAGES['A reply is waiting'] = 'Egy válasz vár'
+MESSAGES['A reply is waiting for your answer.'] = 'Egy válasz a te válaszodra vár.'
+MESSAGES['That push address cannot be used: it must be https and reachable from here.'] = 'Ez az értesítési cím nem használható: https-nek és innen elérhetőnek kell lennie.'

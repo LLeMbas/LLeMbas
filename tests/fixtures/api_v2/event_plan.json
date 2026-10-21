@@ -1,0 +1,32 @@
+{
+  "version": 2,
+  "title": "Bake lembas",
+  "summary": "",
+  "findings": [],
+  "objectives": [],
+  "phases": [
+    {
+      "id": "p1",
+      "title": "Plan",
+      "status": "pending",
+      "tasks": [
+        {
+          "id": "t1",
+          "text": "Gather mallorn leaves",
+          "status": "todo",
+          "note": ""
+        },
+        {
+          "id": "t2",
+          "text": "Bake slowly",
+          "status": "todo",
+          "note": ""
+        }
+      ]
+    }
+  ],
+  "steps": [
+    "Gather mallorn leaves",
+    "Bake slowly"
+  ]
+}

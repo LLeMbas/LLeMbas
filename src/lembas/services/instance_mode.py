@@ -68,6 +68,7 @@ PAGE_PREFIXES = (
 
 # APIs behind those pages. Each prefix covers everything under it.
 API_PREFIXES = (
+    "/api/v2",  # the app's door: chats, the stream, cards, attachments, push
     "/api/chats",  # messaging, the stream, canvas, prototypes, the terminal panel and its WebSocket
     "/api/files",  # the composer's uploads and @-mentions
     "/api/folders",

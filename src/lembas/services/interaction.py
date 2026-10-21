@@ -288,6 +288,12 @@ async def wait_for(
     """
     generation.waiting.append(interruption)
     generation.touch()
+    # Nobody is watching this reply, so nobody will see the card: tell the
+    # person's devices, as a finished reply with nobody watching does.
+    if getattr(generation, "followers", 1) == 0:
+        from lembas.services import push
+
+        push.announce_ask_later(generation.chat_id, interruption)
     started = time.monotonic()
     try:
         return await asyncio.wait_for(asyncio.shield(interruption._future), timeout)

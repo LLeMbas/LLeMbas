@@ -53,6 +53,7 @@ def public_base(request: Request) -> str:
 @router.get("/.well-known/lembas.json")
 async def discovery(request: Request) -> JSONResponse:
     from lembas.api.v1.services import connection_name
+    from lembas.api.v2 import APP_API
     from lembas.services import branding, device_link
 
     base = public_base(request)
@@ -77,7 +78,11 @@ async def discovery(request: Request) -> JSONResponse:
                 "openai": f"{base}/v1",
                 "admin": f"{base}/api/v1/admin",
                 "instance": f"{base}/api/v1/instance",
+                # The app's door (JSON chats), and its version: a client
+                # compares `app_api` and says plainly when it is too new.
+                "app": f"{base}/api/v2",
             },
+            "app_api": APP_API,
             "login": {
                 "device": {
                     "code": f"{base}/api/device/code",

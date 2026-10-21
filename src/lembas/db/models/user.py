@@ -171,6 +171,12 @@ class PushSubscription(UUIDPrimaryKey, Timestamps, Base):
     # stopped working says why rather than being silently useless. A 404 or 410
     # deletes the row instead -- that is the end of its life, not a fault.
     last_error: Mapped[str] = mapped_column(Text, default="")
+    # The app's token this registration came in under (UnifiedPush through
+    # `/api/v2/push`), or None for a browser's. Signing that token out takes the
+    # registration with it (`api_tokens.forget_device`): a phone that signed
+    # out must stop being told. No foreign key, as `DeviceSessionDelete` has
+    # none -- the schema is additive, and the revoke path is the one writer.
+    token_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     user: Mapped[User] = relationship()
 
