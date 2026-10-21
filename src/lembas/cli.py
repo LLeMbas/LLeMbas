@@ -31,6 +31,8 @@ def serve(
         port=port or settings.port,
         reload=settings.reload if reload is None else reload,
         log_level=settings.log_level,
+        proxy_headers=True,
+        forwarded_allow_ips=settings.forwarded_allow_ips,
         # Access logs duplicate what the application already logs and drown out
         # anything useful during development.
         access_log=settings.log_level == "debug",

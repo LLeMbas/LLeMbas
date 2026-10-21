@@ -421,6 +421,41 @@ def safe_display_name(filename: str) -> str:
     return cleaned[:300]
 
 
+def content_disposition(kind: str, filename: str) -> str:
+    """A `Content-Disposition` header for a name a person chose.
+
+    Built by hand it was `filename="<name>"`, and a header is Latin-1: a file
+    called `Žiadosť.pdf` raised `UnicodeEncodeError` on the way out, so it could
+    be uploaded and never downloaded again, and a `"` in a name broke the header.
+    RFC 6266: an ASCII `filename` for old clients -- anything outside printable
+    ASCII, and the quote and backslash, become `_` -- and `filename*` (RFC 5987)
+    with the real name, percent-encoded UTF-8, which every current client reads.
+    """
+    from urllib.parse import quote
+
+    name = (filename or "file").replace("\r", " ").replace("\n", " ")
+    fallback = "".join(c if 32 <= ord(c) < 127 and c not in '"\\' else "_" for c in name)
+    return f"{kind}; filename=\"{fallback}\"; filename*=UTF-8''{quote(name, safe='')}"
+
+
+def owned_chat_id(db: DBSession, user_id: str, chat_id: str | None) -> str | None:
+    """`chat_id` if that chat is this person's, else None.
+
+    Every store path takes a chat id from the request, and an attachment's chat
+    is read later by things that trust it: the harness lists the filenames of
+    every file in a chat into its agent's prompt, and the sweeps delete by chat.
+    An id naming somebody else's chat would put a name of the uploader's choosing
+    into that prompt. So the file is simply not tagged with a chat that is not
+    theirs -- it still uploads, and binds to a message as before.
+    """
+    if not chat_id:
+        return None
+    from lembas.db.models import Chat
+
+    chat = db.get(Chat, chat_id)
+    return chat_id if chat is not None and chat.user_id == user_id else None
+
+
 def store(
     db: DBSession,
     *,
@@ -447,7 +482,7 @@ def store(
 
     attachment = Attachment(
         user_id=user_id,
-        chat_id=chat_id,
+        chat_id=owned_chat_id(db, user_id, chat_id),
         message_id=message_id,
         filename=safe_display_name(filename),
         stored_name=stored_name,
@@ -507,7 +542,7 @@ def store_text(
 
     attachment = Attachment(
         user_id=user_id,
-        chat_id=chat_id,
+        chat_id=owned_chat_id(db, user_id, chat_id),
         filename=safe_display_name(filename),
         stored_name=stored_name,
         media_type="text/plain",
@@ -542,7 +577,7 @@ def copy_attachment(
 
     copy = Attachment(
         user_id=user_id,
-        chat_id=chat_id,
+        chat_id=owned_chat_id(db, user_id, chat_id),
         filename=attachment.filename,
         stored_name=stored_name,
         media_type=attachment.media_type,
@@ -582,7 +617,7 @@ def copy_document(
 
     attachment = Attachment(
         user_id=user_id,
-        chat_id=chat_id,
+        chat_id=owned_chat_id(db, user_id, chat_id),
         filename=document.filename or f"{document.title}.txt",
         stored_name=stored_name,
         media_type=document.media_type,

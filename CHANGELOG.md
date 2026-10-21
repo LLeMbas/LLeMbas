@@ -41,6 +41,28 @@ token with the new `app` scope.
 - The page's chat routes now call shared cores (`write_turn`,
   `start_new_chat`, `rewind_to`, `regenerate_reply`, `plan_prompt`,
   `answer_card`, `apply_chat_update`, `delete_chat_now`). No behaviour changed.
+- **`LEMBAS_FORWARDED_ALLOW_IPS`** names the reverse proxy whose
+  `X-Forwarded-For` is believed (addresses or networks; default `127.0.0.1`).
+  `docker-compose.yml` sets it to the Docker bridge, so a proxy on the host is
+  believed there too.
+
+### Fixed
+
+- **A file whose name is not Latin-1 can be downloaded.** `Žiadosť.pdf` was
+  stored and then answered every download with a 500 -- in the web UI, the
+  library, `/v1/files` and the app. The header now carries an ASCII name and
+  the real one (`filename*`, RFC 6266), and a `"` in a name no longer breaks it.
+- **Behind Docker, clients no longer share one address.** The proxy's
+  connection came from the bridge's gateway and its forwarded headers were
+  ignored, so every client looked alike: twenty failed sign-ins from anyone
+  throttled sign-in for everybody, and a few device logins anywhere blocked
+  every CLI, Desktop and app login for ten minutes.
+- **A `/v1` stream the client left before its first byte is released.** Its
+  in-flight count stayed up -- toward the account's reply limit -- until a
+  restart, and the upstream connection stayed open.
+- **An upload is tagged only with the uploader's own chat.** A chat id from
+  the request naming somebody else's chat is dropped, and the agent prompt's
+  list of a chat's files names only its owner's.
 
 ## 1.6.0 — 2026-10-20
 

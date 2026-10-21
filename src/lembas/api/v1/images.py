@@ -252,8 +252,9 @@ async def file_content(db: Db, caller: ModelsCaller, attachment_id: str) -> Resp
         path,
         media_type=attachment.media_type if attachment.is_image else "application/octet-stream",
         headers={
-            "Content-Disposition": f'{"inline" if attachment.is_image else "attachment"}; '
-            f'filename="{attachment.filename}"',
+            "Content-Disposition": files_service.content_disposition(
+                "inline" if attachment.is_image else "attachment", attachment.filename
+            ),
             "Cache-Control": "private, max-age=86400",
             "X-Content-Type-Options": "nosniff",
         },

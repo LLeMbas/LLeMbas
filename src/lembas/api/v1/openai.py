@@ -39,8 +39,9 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
+from functools import partial
 from typing import Any
 
 import httpx
@@ -455,6 +456,8 @@ async def chat_completions(request: Request, db: Db, caller: ModelsCaller):
                 upstream_response.status_code, describe_http_error(exc), "upstream_error"
             )
 
+    cleanup = _once(upstream_response.aclose, client.aclose, partial(_release, user_id))
+
     async def relay() -> AsyncIterator[bytes]:
         usage: dict[str, Any] | None = None
         try:
@@ -485,20 +488,58 @@ async def chat_completions(request: Request, db: Db, caller: ModelsCaller):
                         continue
                 yield f"data: {data}\n\n".encode()
         finally:
-            await upstream_response.aclose()
-            await client.aclose()
-            _IN_FLIGHT[user_id] = max(0, _IN_FLIGHT.get(user_id, 1) - 1)
+            await cleanup()
             await asyncio.to_thread(_record, user_id, usage, 1, model_row_id, token_id)
 
-    return StreamingResponse(
-        relay(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    return _Relay(relay(), cleanup)
 
 
 def _release(user_id: str) -> None:
     _IN_FLIGHT[user_id] = max(0, _IN_FLIGHT.get(user_id, 1) - 1)
+
+
+def _once(*steps: Callable[[], Awaitable[None] | None]) -> Callable[[], Awaitable[None]]:
+    """A cleanup that runs its steps at most once, however many paths call it."""
+    done = False
+
+    async def run() -> None:
+        nonlocal done
+        if done:
+            return
+        done = True
+        for step in steps:
+            result = step()
+            if result is not None:
+                await result
+
+    return run
+
+
+class _Relay(StreamingResponse):
+    """A stream whose cleanup runs even if its body is never read.
+
+    The relay's own `finally` is not enough. A generator that never started has
+    no `finally` to run, and Starlette never starts it when the client is gone
+    before the first byte: the disconnect listener cancels `stream_response`
+    while it waits on `http.response.start`, or (ASGI 2.4) that first `send`
+    raises. The account's in-flight count then stayed up until a restart, and
+    the upstream connection stayed open with it. So the response runs the same
+    idempotent cleanup when it is done, whichever way that happened.
+    """
+
+    def __init__(self, body: AsyncIterator[bytes], cleanup: Callable[[], Awaitable[None]]) -> None:
+        super().__init__(
+            body,
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+        self._cleanup = cleanup
+
+    async def __call__(self, scope, receive, send) -> None:
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            await self._cleanup()
 
 
 async def _anthropic(
@@ -541,6 +582,8 @@ async def _anthropic(
         _release(user_id)
         return error_response(exc.status_code or 502, exc.message, "upstream_error")
 
+    cleanup = _once(stream.aclose, partial(_release, user_id))
+
     async def relay() -> AsyncIterator[bytes]:
         usage: dict[str, Any] | None = None
 
@@ -565,15 +608,10 @@ async def _anthropic(
                 yield f"data: {json.dumps(failure)}\n\n".encode()
             yield b"data: [DONE]\n\n"
         finally:
-            await stream.aclose()
-            _release(user_id)
+            await cleanup()
             await asyncio.to_thread(_record, user_id, usage, 1, model_row_id, token_id)
 
-    return StreamingResponse(
-        relay(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    return _Relay(relay(), cleanup)
 
 
 @router.post("/embeddings")

@@ -407,7 +407,9 @@ async def document_content(db: Db, user: RequiredUser, document_id: str) -> Resp
 
     headers = {"X-Content-Type-Options": "nosniff"}
     if not document.is_image:
-        headers["Content-Disposition"] = f'attachment; filename="{document.filename}"'
+        headers["Content-Disposition"] = files_service.content_disposition(
+            "attachment", document.filename
+        )
     return FileResponse(path, media_type=document.media_type, headers=headers)
 
 

@@ -469,7 +469,9 @@ async def content(db: Db, user: RequiredUser, attachment_id: str) -> Response:
         path,
         media_type=attachment.media_type if attachment.is_image else "application/octet-stream",
         headers={
-            "Content-Disposition": f'{disposition}; filename="{attachment.filename}"',
+            "Content-Disposition": files_service.content_disposition(
+                disposition, attachment.filename
+            ),
             "Cache-Control": "private, max-age=604800",
             # Belt and braces: even for images, never let a browser sniff its
             # way to treating the bytes as something executable.

@@ -30,6 +30,15 @@ class Settings(BaseSettings):
 
     host: str = "127.0.0.1"
     port: int = 8080
+    # The peers whose X-Forwarded-For / -Proto is believed: the reverse proxy in
+    # front, and nobody else. Comma-separated addresses or networks. The default
+    # is a proxy on the same host. Behind Docker the proxy's connection arrives
+    # from the bridge's gateway, not from 127.0.0.1 -- without naming it, every
+    # client had that one address, so twenty failed logins from anyone
+    # throttled sign-in for everybody, and ten device logins an hour apart
+    # anywhere blocked every CLI, Desktop and Android sign-in. `*` trusts any
+    # peer, which is only right when nothing but the proxy can reach the port.
+    forwarded_allow_ips: str = "127.0.0.1"
     reload: bool = False
     log_level: Literal["debug", "info", "warning", "error"] = "info"
 

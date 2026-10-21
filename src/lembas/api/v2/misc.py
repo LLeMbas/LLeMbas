@@ -173,7 +173,7 @@ async def content(caller: Me, db: Db, attachment_id: str) -> FileResponse:
         path,
         media_type=row.media_type if row.is_image else "application/octet-stream",
         headers={
-            "Content-Disposition": f'attachment; filename="{row.filename}"',
+            "Content-Disposition": files_service.content_disposition("attachment", row.filename),
             "Cache-Control": "private, max-age=604800",
             "X-Content-Type-Options": "nosniff",
         },

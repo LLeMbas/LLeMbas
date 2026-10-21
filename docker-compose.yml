@@ -30,12 +30,19 @@ services:
       LEMBAS_PORT: 8080
       LEMBAS_LOG_LEVEL: ${LEMBAS_LOG_LEVEL:-info}
       LEMBAS_ALLOW_SIGNUP: ${LEMBAS_ALLOW_SIGNUP:-true}
+      # The proxy on the host reaches the container from the Docker bridge's
+      # gateway, so that is whose X-Forwarded-For is believed. 172.16.0.0/12
+      # holds Docker's default bridge networks; a network of your own, or a
+      # proxy in another container, needs its address here instead. Safe only
+      # because the port below is published on loopback.
+      LEMBAS_FORWARDED_ALLOW_IPS: ${LEMBAS_FORWARDED_ALLOW_IPS:-127.0.0.1,172.16.0.0/12}
 
-    # 127.0.0.1 rather than 0.0.0.0: the session cookie is deliberately not
-    # marked `secure` so a localhost install can sign anybody in at all, which
-    # means a network attacker on plain http could steal a session. Publishing
-    # this on a LAN interface without a proxy in front is the one configuration
-    # that turns that from a note into a problem.
+    # 127.0.0.1 rather than 0.0.0.0. The session cookie is marked `Secure`
+    # whenever the browser came in over HTTPS (through the proxy, which says
+    # so), but over plain http it cannot be -- a localhost install must still
+    # sign anybody in -- so a network attacker on plain http could steal a
+    # session. Publishing this on a LAN interface without a proxy in front is
+    # the one configuration that turns that from a note into a problem.
     ports:
       - "127.0.0.1:8080:8080"
 

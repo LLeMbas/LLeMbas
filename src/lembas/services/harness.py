@@ -210,7 +210,13 @@ def _document_names(db: DBSession, chat) -> str:
     rows = list(
         db.scalars(
             select(Attachment.filename)
-            .where(Attachment.chat_id == chat.id, Attachment.kind != "image")
+            # The chat's owner's files only: a name is model input, and the
+            # chat id on an attachment came from a request.
+            .where(
+                Attachment.chat_id == chat.id,
+                Attachment.user_id == chat.user_id,
+                Attachment.kind != "image",
+            )
             .order_by(Attachment.created_at)
             .limit(MAX_NAMED_DOCUMENTS + 1)
         ).all()
