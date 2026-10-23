@@ -790,6 +790,12 @@
 /* --- Stop, notes and editing ---------------------------------------------- */
 .msg__status { font-size: var(--text-xs); color: var(--ink-faint); font-style: italic; }
 .msg__status:empty { display: none; }
+/* Stop was pressed and the reply has not ended yet (ui.js marks the article).
+   "Stopping…" takes the status row; the live status the stream keeps sending
+   is hidden rather than overwritten, because it is an `sse-swap` target and
+   the next frame would put it back. The `done` frame replaces the article and
+   takes the mark with it. */
+.msg[data-stopping] .msg__status:not(.msg__status--stopping) { display: none; }
 
 .msg__waiting {
   display: flex;
@@ -1181,10 +1187,18 @@
 /*
   The text, and the mirror behind it.
 
-  Every property that affects where a character lands is declared once, on both
-  -- font, size, line height, padding, wrapping. A single difference and the
-  rectangles slide off the words they are marking. `font: inherit` on the
-  textarea is not enough: a textarea's default font is not the page's.
+  What you see is the mirror: the same text, every character once and in
+  place, with the Markdown coloured. The textarea sits in front and keeps the
+  caret, the selection and the typing, its own glyphs made transparent -- but
+  only once composer.js has painted (`.is-painted`), so without JavaScript the
+  box is an ordinary textarea showing its own text.
+
+  That only works if both lay every character out in exactly the same place.
+  Every property that decides where one lands is declared once, here, on both
+  -- font, size, line height, padding, wrapping, tab width, the scrollbar's
+  gutter, ligatures. A single difference and the caret drifts away from the
+  letters it is between, by more on every line. `font: inherit` on the textarea
+  is not enough: a textarea's default font is not the page's.
 */
 .composer__field { position: relative; }
 
@@ -1196,8 +1210,8 @@
   padding: var(--sp-2) var(--sp-2) var(--sp-1);
   border: 0;
   /* The prompt is typed in the chrome's face. Set here, on both, and
-     only here: the mirror behind the text must match it character for
-     character or the marks slide off the words. */
+     only here: the mirror under the caret must match it character for
+     character. */
   font-family: var(--font-ui);
   font-size: var(--text-base);
   line-height: var(--leading-normal);
@@ -1206,6 +1220,21 @@
   overflow-wrap: break-word;
   word-break: normal;
   max-height: 20rem;
+  /* JetBrains Mono's contextual alternates merge `...`, `###`, `->`, `==`
+     into single glyphs: the first dot of `...` vanished as the third was
+     typed. Off on both, so a character is always one character wide. The
+     textarea needs it said again even though body says it: a form control's
+     own font does not inherit it. No synthetic bold either -- a weight the
+     face lacks would be faked by widening the glyph. */
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "calt" 0;
+  font-synthesis: none;
+  font-kerning: none;
+  tab-size: 4;
+  /* Past its maximum height the textarea grows a scrollbar, which narrows its
+     text and not the mirror's, and every line from there on wraps in a
+     different place. The gutter is reserved on both from the start. */
+  scrollbar-gutter: stable;
 }
 
 .composer__input {
@@ -1214,32 +1243,39 @@
   background: none;
   resize: none;
   color: var(--ink);
+  caret-color: var(--ink);
   overflow-y: auto;
 }
 .composer__input:focus { outline: none; }
+/* Said outright: Firefox's default placeholder colour is the element's own,
+   which is transparent once the mirror is showing the text. */
+.composer__input::placeholder { color: var(--ink-faint); opacity: 1; }
+/* The selection's highlight is the textarea's, and its glyphs would be drawn
+   over the mirror's in the selection colour -- doubled, and a pixel off. Only
+   the band is drawn; the mirror's text shows through it. */
+.composer__input::selection { color: transparent; background: var(--selection); }
+.composer__field.is-painted .composer__input { color: transparent; }
 
-/* Behind, and contributing nothing but background rectangles: its own text is
-   transparent, so the glyphs on screen are always the textarea's. That is what
-   makes a pixel of drift invisible rather than a doubled letter. */
+/* Under the textarea, showing the text. It takes no pointer and no selection:
+   everything a person does lands on the textarea in front. */
 .composer__mirror {
   position: absolute;
   inset: 0;
   z-index: 0;
   overflow: hidden;
-  color: transparent;
+  color: var(--ink);
   pointer-events: none;
   user-select: none;
 }
 .composer__mirror .tok-mention,
 .composer__mirror .tok-command {
   border-radius: var(--radius-sm);
-  /* Restated rather than inherited. `color: transparent` on the mirror is an
-     inherited value, and a colour the span declares itself beats it -- which is
-     exactly what the transcript's rule below used to do from across the file,
-     painting the token in accent-coloured mono at 0.95em on top of the
-     textarea's own text. Doubled, and shifted from there on, because the
-     metrics differ. The font must be restated for the same reason. */
-  color: transparent;
+  /* Restated rather than inherited, because a colour or a font the span
+     declares itself beats the mirror's -- which is exactly what the
+     transcript's rule below used to do from across the file, painting the
+     token in accent-coloured mono at 0.95em, shifted from there on because the
+     metrics differ. */
+  color: inherit;
   font: inherit;
   /* Bled sideways by a shadow, not by padding: a rectangle that spreads cannot
      move a glyph, and the negative margin that used to do this was the only
@@ -1255,6 +1291,30 @@
   background: var(--leaf-soft);
   box-shadow: 0 0 0 var(--sp-half) var(--leaf-soft);
 }
+
+/* Markdown, coloured and never rendered: `# x` stays `# x`, with the `#`
+   dimmed and the line in the heading's colour. Only colour, background,
+   shadow, underline and weight -- nothing that changes where a glyph sits.
+   Weight is safe because the face is monospaced at every weight and
+   `font-synthesis: none` stops a fake bold from widening it; size, family,
+   style, spacing, padding, margin, border and display are not, and there is
+   a test. No italic face is vendored, so emphasis is a colour. */
+.composer__mirror .md-mark { color: var(--ink-faint); }
+.composer__mirror .md-heading { color: var(--accent); font-weight: 700; }
+.composer__mirror .md-strong { font-weight: 700; }
+.composer__mirror .md-em { color: var(--leaf); }
+.composer__mirror .md-strike { text-decoration: line-through; }
+.composer__mirror .md-code,
+.composer__mirror .md-pre {
+  background: var(--code-bg);
+  box-shadow: 0 0 0 var(--sp-half) var(--code-bg);
+  border-radius: var(--radius-sm);
+}
+.composer__mirror .md-link { color: var(--accent); text-decoration: underline; }
+.composer__mirror .md-url { color: var(--ink-muted); text-decoration: underline; }
+.composer__mirror .md-quote { color: var(--ink-muted); }
+.composer__mirror .md-info { color: var(--ink-muted); }
+.composer__mirror .md-bullet { color: var(--accent); font-weight: 700; }
 
 /* The same two in a sent message, where they are text rather than a backdrop --
    and scoped to it, because unscoped they also matched the mirror's spans. */

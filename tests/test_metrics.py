@@ -236,14 +236,15 @@ def test_the_estimate_is_about_four_characters_a_token():
     assert tokens.estimate("x" * 400) == 100
 
 
-def test_typed_content_parts_are_counted_and_images_are_not():
-    """An image's cost depends on the model's tiling. A number invented here
-    would be worse than the omission."""
+def test_typed_content_parts_are_counted_and_an_image_by_its_size():
+    """An image counts by its dimensions, never by its base64 (2026-10-23: it
+    counted nothing, so a chat of pictures read nearly empty). One whose size
+    cannot be read has a flat cost."""
     content = [
         {"type": "text", "text": "x" * 40},
         {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA" * 500}},
     ]
-    assert tokens.estimate_content(content) == 10
+    assert tokens.estimate_content(content) == 10 + tokens.IMAGE_FALLBACK_TOKENS
 
 
 def test_a_request_estimate_includes_the_tools_array():

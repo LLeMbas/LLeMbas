@@ -233,7 +233,10 @@
 
         `hx-sync="this:drop"` because a poll fires whether or not the last one
         has come back, and two answers computed from the same cursor are two
-        copies of one bubble.
+        copies of one bubble. The composer's POST is the other writer, and
+        `hx-sync` cannot order two elements: app.js keeps the poll quiet while
+        the composer sends, aborts one already out when it starts, and removes
+        any bubble the page already has from whatever lands in `#thread`.
       #}
       <div hidden id="thread-tail"
            hx-get="/api/chats/{{ chat.id }}/tail"

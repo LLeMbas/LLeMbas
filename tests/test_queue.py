@@ -355,12 +355,13 @@ def test_neither_route_reaches_another_readers_chat(
 
 
 # --- Everything else that touches the thread ---------------------------------
-def test_editing_is_refused_while_a_reply_is_running(
+def test_editing_while_a_reply_is_running_stops_it_and_goes_ahead(
     client: TestClient, db, registered, make_chat, no_upstream
 ):
-    """Editing rewinds and then starts a reply unconditionally. Pressing it
-    mid-stream was a second concurrent generation behind a pencil icon, and was
-    reachable before the queue existed too."""
+    """An edit pressed mid-stream means "not that -- this": the running reply
+    is stopped and the edit goes ahead (owner, 2026-10-23). It used to be
+    refused with a 409; two generations at once is still impossible, because
+    the old one is ended before the new one starts."""
     _connection(db)
     chat_id = make_chat()
     _mid_reply(db, chat_id)
@@ -370,9 +371,9 @@ def test_editing_is_refused_while_a_reply_is_running(
         f"/api/chats/{chat_id}/messages/{first.id}/edit", data={"content": "rewritten"}
     )
 
-    assert response.status_code == 409
-    db.refresh(first)
-    assert first.content == "what is lembas?"
+    assert response.status_code == 200
+    db.expire_all()
+    assert _messages(db, chat_id)[0].content == "rewritten"
     assert len([m for m in _messages(db, chat_id) if not m.complete]) == 1
 
 

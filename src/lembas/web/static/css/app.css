@@ -71,6 +71,15 @@ body {
   color: var(--ink);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
+  /* No ligatures, anywhere. The chrome and every code block are set in
+     JetBrains Mono, whose contextual alternates are on by default and turn
+     `==`, `->`, `...`, `###` into single merged glyphs -- in the composer the
+     first dot of `...` vanished as the third was typed, and in a model's code
+     `!=` read as `≠`. What a person reads must be the characters that are
+     there. Inherited, so this one place covers the page; the composer states
+     it again on its own pair, where a difference would also move the caret. */
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "calt" 0;
 }
 
 h1, h2, h3, h4, h5, h6 {

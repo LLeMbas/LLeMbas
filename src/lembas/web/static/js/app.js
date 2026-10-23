@@ -145,6 +145,47 @@
     document.body.removeChild(scratch);
   }
 
+  /* --- A frame of a reply still being written ----------------------------
+     A streaming reply swaps something into its bubble a dozen times a second,
+     and every one of those swaps fires `htmx:afterSwap` and `htmx:afterSettle`
+     on the element it landed in -- which bubble to the document, where half a
+     dozen handlers that were written for *page* swaps used to run on each one:
+     the composer repainting its mirror (a forced layout, which is why typing
+     lagged while a reply streamed), every section toggle re-applied, every
+     steps box restored, the notification buttons repainted, the read-aloud
+     scan. None of that can have changed inside a bubble that is still being
+     written.
+
+     The test is where the swap landed: inside an article that still carries
+     `sse-connect`. The `done` frame is the one stream swap that is not a frame
+     in this sense, and it needs no special case -- it replaces the article
+     with the finished one, which has no `sse-connect`, and the events fire on
+     the new element. So everything that used to happen after a reply finished
+     still does, exactly once. Shared on `window.lembas` so the other scripts
+     ask the same question the same way. */
+  function isStreamFrame(event) {
+    var el = event && event.target;
+    return !!(el && el.closest && el.closest(".msg[sse-connect]"));
+  }
+
+  /* The element nodes a batch of mutation records added, once each: a node
+     that is no longer in the page (a later frame in the same batch replaced it)
+     or that sits inside another node in the list is dropped, because whatever
+     walks the list walks each root's subtree anyway. Without this a stream
+     frame that replaced a step's contents handed the observer every child
+     separately, and each was searched in full. */
+  function addedRoots(records) {
+    var roots = [];
+    records.forEach(function (record) {
+      record.addedNodes.forEach(function (node) {
+        if (node.nodeType === 1 && node.isConnected) roots.push(node);
+      });
+    });
+    return roots.filter(function (node) {
+      return !roots.some(function (other) { return other !== node && other.contains(node); });
+    });
+  }
+
   /* --- Copying a code block ---------------------------------------
      Every .code-block gets a copy button in its label bar, cloned from the
      <template id="code-copy"> in base.html. A block written without a language
@@ -912,7 +953,8 @@
     autosize: autosize,
     uploadFiles: uploadFiles,
     chooseDirectory: chooseDirectory,
-    promptInstall: promptInstall
+    promptInstall: promptInstall,
+    isStreamFrame: isStreamFrame
   };
 
   /* --- Wiring ------------------------------------------------------------ */
@@ -1066,8 +1108,15 @@
     }).catch(function () { /* already applied on screen */ });
   });
 
-  document.addEventListener("htmx:afterSettle", function () { reapply(document); });
-  document.addEventListener("htmx:oobAfterSwap", function () { reapply(document); });
+  /* Not on a stream frame: a reply being written carries no section toggles,
+     and walking every one on the page a dozen times a second was work for
+     nothing (`isStreamFrame`). */
+  document.addEventListener("htmx:afterSettle", function (event) {
+    if (!isStreamFrame(event)) reapply(document);
+  });
+  document.addEventListener("htmx:oobAfterSwap", function (event) {
+    if (!isStreamFrame(event)) reapply(document);
+  });
 
   document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll("[data-autosize]").forEach(autosize);
@@ -1092,12 +1141,13 @@
        the thread by htmx -- so one observer rather than a hook per path. Cheap:
        it only looks inside added element nodes. */
     addCodeCopy(document);
+    /* Only what this batch added, each subtree once (`addedRoots`), and never
+       the document: a stream frame re-renders the live step's blocks a dozen
+       times a second, and those are new blocks that do need their button --
+       but nothing else on the page does. `addCodeCopy` skips a block that
+       already has one, so a node seen twice costs a query and no write. */
     new MutationObserver(function (records) {
-      records.forEach(function (record) {
-        record.addedNodes.forEach(function (node) {
-          if (node.nodeType === 1) addCodeCopy(node);
-        });
-      });
+      addedRoots(records).forEach(addCodeCopy);
     }).observe(document.body, { childList: true, subtree: true });
   });
 
@@ -1142,6 +1192,10 @@
   function quiet(event) {
     var el = event.detail && event.detail.elt;
     if (!el || !el.getAttribute) return false;
+    /* By element as well as by path: the composer cancels the tail with an
+       `htmx:abort` that carries no path, and counted here it would switch the
+       bar off under the send that caused it. */
+    if (el.id === "thread-tail") return true;
     var url = (event.detail.pathInfo && event.detail.pathInfo.requestPath) || "";
     return url.indexOf("/unread") !== -1 || url.indexOf("/tail") !== -1;
   }
@@ -1269,6 +1323,8 @@
      doing that for the composer on every stream frame that swapped something
      else entirely was a reflow of the whole shell twelve times a second. */
   document.body.addEventListener("htmx:afterSwap", function (event) {
+    /* A stream frame scrolls from `htmx:sseMessage` below. */
+    if (isStreamFrame(event)) return;
     var target = (event.detail && event.detail.target) || event.target;
     if (target && target.querySelectorAll) {
       if (target.matches && target.matches("[data-autosize]")) autosize(target);
@@ -1326,6 +1382,16 @@
        `_message.html` documents. */
     if (thread.querySelector("[sse-connect]")) return event.preventDefault();
 
+    /* Quiet while the composer is sending, too. Its answer is the new bubbles,
+       and a cursor read now is read from a page that has not got them yet --
+       so the poll's answer would be those same bubbles, racing the composer's
+       to the transcript. htmx puts `htmx-request` on the form for exactly as
+       long as its request is out. */
+    var composer = document.getElementById("composer-form");
+    if (composer && composer.classList.contains("htmx-request")) {
+      return event.preventDefault();
+    }
+
     /* Deliberately not `article.msg:last-of-type`. That is per-parent, and
        `querySelector` returns the first match in document order -- so on a
        compacted chat it answers with the last article inside
@@ -1338,29 +1404,165 @@
     event.detail.parameters.after = last.id.slice(4);
   });
 
-  /* Whatever the reason -- the composer's POST committing between this request
-     going out and its answer coming back, a `done` frame landing first -- if any
-     bubble in the answer is already on the page then the page has moved on since
-     the question was asked, and swapping would duplicate it. A duplicate here is
-     not cosmetic: it would carry a second `sse-connect` for one message.
+  /* And the other way round: a poll already out when the composer sends is
+     abandoned rather than raced. Its cursor predates the message being sent,
+     so the best it can answer is something the composer's own answer is about
+     to bring. `htmx:abort` is how htmx is asked to drop a request it is making;
+     the next poll, five seconds on, asks again from a settled page.
 
-     This is the race `hx-sync` cannot reach, since the two requests come from
-     different elements. The whole answer is dropped rather than filtered: the
-     next poll is five seconds away and recomputes its cursor from a DOM that has
-     settled, which is a correct page one tick late instead of a wrong one now. */
-  document.body.addEventListener("htmx:beforeSwap", function (event) {
+     The form's own request only -- the scope switches and selects inside it
+     make requests of their own, and their events bubble through it. */
+  document.body.addEventListener("htmx:beforeRequest", function (event) {
     var elt = (event.detail && event.detail.elt) || event.target;
-    if (!elt || elt.id !== "thread-tail" || !event.detail) return;
+    if (!elt || elt.id !== "composer-form") return;
+    var tail = document.getElementById("thread-tail");
+    if (tail && window.htmx) window.htmx.trigger(tail, "htmx:abort");
+  });
 
-    var seen = /\bid="(msg-[^"]+)"/g;
-    var body = event.detail.serverResponse || "";
-    var match;
-    while ((match = seen.exec(body)) !== null) {
-      if (document.getElementById(match[1])) {
-        event.detail.shouldSwap = false;
+  /* --- One bubble per message, whichever request brings it -----------------
+     Two requests append to the transcript: the composer's POST and the tail
+     poll, from different elements, so `hx-sync` cannot order them -- and the
+     `done` frame adds a third path, out of band. The guards above make an
+     overlap rare; this makes a duplicate impossible, whichever order they land
+     in. Every swap that touches `#thread` has each `<article id="msg-…">` it
+     carries checked against the page, and one the page already has -- outside
+     whatever the swap is about to replace -- is taken out of the answer before
+     htmx sees it.
+
+     A duplicate here was not cosmetic: it carried a second `sse-connect` for one
+     message, so the reply streamed into two bubbles at once. That is what this
+     section is for.
+
+     (The comment that stood here before said "whatever the reason", but the
+     guard only ever ran on the tail's own answer -- so a composer answer that
+     landed *after* a poll had appended the same bubbles was swapped in whole.) */
+
+  /* Whether `el` is in the part of the page a swap of `style` into `target`
+     removes. An innerHTML swap replaces the target's contents and an outerHTML
+     one the target itself; the rest (beforeend, afterbegin, …) remove nothing.
+     A bubble that is about to be replaced is not a duplicate of its
+     replacement -- that is how a rewind re-renders the thread, and how a queued
+     bubble is re-rendered in place. */
+  function replacedBy(el, target, style) {
+    if (style === "outerHTML") return target.contains(el);
+    if (style === "innerHTML") return el !== target && target.contains(el);
+    return false;
+  }
+
+  function touchesThread(target) {
+    var thread = document.getElementById("thread");
+    return !!(thread && target && target.contains &&
+      (target === thread || thread.contains(target) || target.contains(thread)));
+  }
+
+  /* The bubbles in `root` that would be second copies. Elements marked
+     `hx-swap-oob`, and everything inside one, are left alone: htmx swaps those
+     separately (`htmx:oobBeforeSwap` below), and an
+     `<article id="msg-…" hx-swap-oob="delete">` is the server removing a bubble
+     the page has, which is the opposite of a duplicate. */
+  function duplicates(root, target, style) {
+    var found = [];
+    root.querySelectorAll('article[id^="msg-"]').forEach(function (article) {
+      if (article.closest("[hx-swap-oob], [data-hx-swap-oob]")) return;
+      var existing = document.getElementById(article.id);
+      if (existing && !replacedBy(existing, target, style)) found.push(article);
+    });
+    return found;
+  }
+
+  /* The swap style the requesting element asked for, as htmx resolves it: a
+     response header's override first, then the nearest `hx-swap` (it is
+     inherited), then the configured default. Only the style word matters
+     here, not modifiers such as `scroll:bottom`. */
+  function swapStyleOf(detail, elt) {
+    var spec = detail.swapOverride;
+    if (!spec && elt && elt.closest) {
+      var owner = elt.closest("[hx-swap], [data-hx-swap]");
+      if (owner) spec = owner.getAttribute("hx-swap") || owner.getAttribute("data-hx-swap");
+    }
+    if (!spec) spec = (window.htmx && window.htmx.config.defaultSwapStyle) || "innerHTML";
+    return spec.trim().split(/\s+/)[0];
+  }
+
+  /* The ordinary swap: the composer's answer, the tail's, a rewind's. The
+     response is parsed, the duplicates removed, and the rest handed back
+     through `serverResponse`, which htmx reads again after this event (2.0.10,
+     vendored: `g=m.serverResponse` after dispatching `htmx:beforeSwap`). The
+     string is only rewritten when something was taken out.
+
+     The tail is stricter: any bubble already on the page and its whole answer
+     is dropped, not filtered. Its answer was computed from a cursor the page
+     has since moved past, so the *order* of what is left cannot be trusted
+     either; the next poll recomputes from a settled DOM, which is a correct
+     page one tick late instead of a wrong one now. */
+  document.body.addEventListener("htmx:beforeSwap", function (event) {
+    var detail = event.detail;
+    if (!detail || !detail.shouldSwap || typeof detail.serverResponse !== "string") return;
+    if (!touchesThread(detail.target)) return;
+    if (detail.serverResponse.indexOf("msg-") === -1) return;
+
+    var elt = detail.requestConfig && detail.requestConfig.elt;
+    elt = elt || detail.elt || event.target;
+    var parsed = document.createElement("template");
+    parsed.innerHTML = detail.serverResponse;
+    var extra = duplicates(parsed.content, detail.target, swapStyleOf(detail, elt));
+    if (!extra.length) return;
+
+    if (elt && elt.id === "thread-tail") {
+      detail.shouldSwap = false;
+      return;
+    }
+    extra.forEach(function (article) { article.remove(); });
+    detail.serverResponse = parsed.innerHTML;
+  });
+
+  /* The out-of-band path, where the `done` frame brings the next reply after a
+     queued turn (`beforeend:#thread`). htmx hands over the fragment it is
+     about to insert, so the duplicates are removed from it directly.
+
+     This event does not say which swap style it is for. A fragment holding
+     the target's own id is a replacement of the target (`outerHTML`, the form
+     every in-place re-render here takes); anything else into the thread is an
+     append, because nothing sends an out-of-band `innerHTML` into `#thread`
+     (there is a test). */
+  document.body.addEventListener("htmx:oobBeforeSwap", function (event) {
+    var detail = event.detail;
+    if (!detail || !detail.shouldSwap || !detail.fragment) return;
+    var target = detail.target;
+    if (!touchesThread(target)) return;
+    var fragment = detail.fragment;
+    var replacing = !!(target.id && fragment.querySelector &&
+      fragment.querySelector("#" + CSS.escape(target.id)));
+    duplicates(fragment, target, replacing ? "outerHTML" : "beforeend").forEach(
+      function (article) { article.remove(); }
+    );
+  });
+
+  /* The belt to all of the above. Should two bubbles for one message ever both
+     carry `sse-connect`, the second to be processed is not connected: the SSE
+     extension opens its stream from `htmx:afterProcessNode`, and htmx only
+     tells an extension about an event no listener cancelled. The copy is then
+     removed, so one message is one bubble and one stream.
+
+     "Second to be processed", not "second in the document": a copy can land
+     above the original as easily as below it, and the original is the one
+     whose stream is already open. `streaming` remembers which elements were
+     let through -- a WeakSet and not an attribute, because htmx hashes an
+     element's attributes to decide whether to process it again. */
+  var streaming = new WeakSet();
+
+  document.addEventListener("htmx:afterProcessNode", function (event) {
+    var el = event.target;
+    if (!el || !el.id || el.id.indexOf("msg-") !== 0 || !el.hasAttribute("sse-connect")) return;
+    var live = document.querySelectorAll(".msg[sse-connect]");
+    for (var i = 0; i < live.length; i++) {
+      if (live[i] !== el && live[i].id === el.id && streaming.has(live[i])) {
+        event.preventDefault();
+        el.remove();
         return;
       }
     }
+    streaming.add(el);
   });
 
   /* Tokens arriving over SSE are appended outside the normal swap cycle.

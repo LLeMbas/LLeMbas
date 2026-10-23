@@ -192,6 +192,11 @@ class Generation:
     followers: int = 0
     finished_at: datetime | None = None
     cancel: bool = False
+    # Set with `cancel` by Stop, for the waits that have no chunk to read it
+    # between: a prefill that has not produced a token yet, a tool running, a
+    # compaction. `_until_stopped` and `_stoppable` wait on it alongside the
+    # work and abandon the work the moment it is set.
+    stop_event: asyncio.Event = field(default_factory=asyncio.Event, repr=False)
 
     # Every card the reply is stopped on -- an approval, or a question the model
     # asked. Empty at every other moment. Read by `_follow`, which sends the
@@ -271,6 +276,10 @@ class Generation:
     # reasoning arrives and closed by what follows -- `_thought_at`'s span, kept
     # here because the device's events reach `apply_event` one at a time.
     device_think_span: tuple[float, float] | None = None
+    # How many marks there were when the device's current step began: a retry
+    # (`retract`) drops back to here, including a mark the step wrote where its
+    # thinking ended.
+    device_step_marks: int = 0
     # The former `todo` list as a linked device last sent it; None while it has
     # not. Read by `_persist` as a plan (`plans.from_todos`) when the reply
     # wrote no plan of its own, until the device link sends the structure.
@@ -375,6 +384,7 @@ def request_stop(message_id: str) -> bool:
     if generation is None or generation.done:
         return False
     generation.cancel = True
+    generation.stop_event.set()
     # A paused reply produces no chunks, and the chunk loop is the only place
     # `cancel` is ever read -- so without this, Stop does nothing at all while
     # an approval card is on screen. Resolving the pause is the wakeup; `_run`
@@ -722,6 +732,59 @@ async def _stream_once(endpoint, payload, generation, model_id: str):
         yield chunk
 
 
+async def _until_stopped(generation: Generation, stream):
+    """`stream`'s chunks, until it ends or Stop is pressed -- whichever is first.
+
+    Stop used to be read only between chunks, so it did nothing while there
+    were none: a long prompt still being processed upstream (tens of seconds on
+    a big context) went on to its first token before the reply noticed. Here
+    the next chunk and the stop are awaited together; on a stop the pending
+    read is cancelled, which closes the upstream connection -- and llama.cpp
+    and vLLM abort a request whose connection has gone.
+    """
+    chunks = stream.__aiter__()
+    stopping = asyncio.ensure_future(generation.stop_event.wait())
+    try:
+        while True:
+            reading = asyncio.ensure_future(anext(chunks))
+            await asyncio.wait({reading, stopping}, return_when=asyncio.FIRST_COMPLETED)
+            if not reading.done():
+                reading.cancel()
+                with contextlib.suppress(BaseException):
+                    await reading
+                generation.stopped = True
+                return
+            try:
+                chunk = reading.result()
+            except StopAsyncIteration:
+                return
+            yield chunk
+    finally:
+        stopping.cancel()
+        with contextlib.suppress(BaseException):
+            await chunks.aclose()
+
+
+async def _stoppable(generation: Generation, work):
+    """Await `work` unless Stop is pressed first: then cancel it, mark the reply
+    stopped and return None. For the waits inside a reply that read no chunks
+    -- the tools running, a compaction -- each of which used to hold Stop back
+    for as long as it took (a picture: minutes)."""
+    task = asyncio.ensure_future(work)
+    stopping = asyncio.ensure_future(generation.stop_event.wait())
+    try:
+        await asyncio.wait({task, stopping}, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        stopping.cancel()
+    if task.done():
+        return task.result()
+    task.cancel()
+    with contextlib.suppress(BaseException):
+        await task
+    generation.stopped = True
+    return None
+
+
 async def _run(generation: Generation) -> None:
     """Produce one reply, then persist it. Never raises into the task.
 
@@ -788,7 +851,8 @@ async def _run(generation: Generation) -> None:
             await device_link.run(generation, **device)
             return
 
-        await _maybe_compact(generation)
+        # A summary of a long chat is a completion of its own; Stop reaches it.
+        await _stoppable(generation, _maybe_compact(generation))
 
         with session_scope() as db:
             chat = db.get(Chat, generation.chat_id)
@@ -954,6 +1018,12 @@ async def _run(generation: Generation) -> None:
             # cannot say how long round seven thought for. `None` until the
             # round thinks at all -- plenty of rounds do not.
             round_thinking: tuple[float, float] | None = None
+            # Whether the round thought at all, kept past the moment its thinking
+            # is settled (below): the nudge after the loop asks about it.
+            thought_this_round = False
+            # The tool names the "Preparing …" status last showed, so it is
+            # re-sent only when a new call is named, not per argument fragment.
+            preparing: tuple[str, ...] = ()
             # The round in the endpoint's own words, when it sends them
             # (Anthropic's thinking blocks with their signatures, which a tool
             # loop has to hand back unchanged with the calls they led to).
@@ -962,7 +1032,16 @@ async def _run(generation: Generation) -> None:
             # reply cut off at the output limit, which is asked again below.
             round_finish = ""
 
-            async for chunk in _stream_once(endpoint, payload, generation, model_id):
+            # Stopped between rounds -- while the last round's tools ran, or the
+            # moment before this request -- is stopped now, before another
+            # request is spent (it used to wait out a whole new prefill).
+            if generation.cancel:
+                generation.stopped = True
+                break
+
+            async for chunk in _until_stopped(
+                generation, _stream_once(endpoint, payload, generation, model_id)
+            ):
                 if native := assistant_blocks(chunk):
                     round_blocks = native
                 if reason := finish_reason(chunk):
@@ -992,7 +1071,18 @@ async def _run(generation: Generation) -> None:
                 if offered:
                     fragments = delta_tool_calls(chunk)
                     if fragments:
+                        # The model has stopped thinking and started writing a
+                        # call: the thinking block ends here, not when the
+                        # call runs (the CLI's rule).
+                        if round_thinking is not None:
+                            thought_this_round = True
+                            round_thinking = _settle_thinking(generation, round_thinking)
                         accumulator.feed(fragments)
+                        named = tuple(call["name"] for call in accumulator.calls)
+                        if named and named != preparing:
+                            preparing = named
+                            generation.status = _preparing_status(named)
+                            generation.touch()
 
                 text = delta_text(chunk)
                 if text:
@@ -1007,6 +1097,12 @@ async def _run(generation: Generation) -> None:
                                 generation.reasoning_ms = int(
                                     (time.monotonic() - reasoning_started) * 1000
                                 )
+                            # Prose has started: the thinking before it is done,
+                            # and says "Thought for …" now rather than at the
+                            # end of the reply.
+                            if round_thinking is not None:
+                                thought_this_round = True
+                                round_thinking = _settle_thinking(generation, round_thinking)
                             generation.content.append(piece)
                             round_text.append(piece)
                     generation.touch()
@@ -1030,6 +1126,10 @@ async def _run(generation: Generation) -> None:
                 else:
                     generation.content.append(piece)
                     round_text.append(piece)
+            # "Preparing …" belonged to the stream; what happens next says its own.
+            if preparing:
+                generation.status = ""
+            generation.touch()
 
             # Here, and not where the usage chunk was read. The usage block
             # arrives while the splitter is still holding this round's last few
@@ -1042,7 +1142,7 @@ async def _run(generation: Generation) -> None:
             # Before `close_step` below, which stamps the total this adds to.
             # Whether the round thought at all is kept: the nudge below asks
             # about it after the span has been closed.
-            thought_this_round = round_thinking is not None
+            thought_this_round = thought_this_round or round_thinking is not None
             round_thinking = _close_thinking(generation, round_thinking)
 
             calls = accumulator.calls
@@ -1167,10 +1267,26 @@ async def _run(generation: Generation) -> None:
             generation.status = _tool_status(calls)
             generation.touch()
             try:
-                outcomes = await _run_calls(tool_context, calls, arguments, decided=decided)
+                outcomes = await _stoppable(
+                    generation, _run_calls(tool_context, calls, arguments, decided=decided)
+                )
             finally:
                 generation.status = ""
                 generation.touch()
+            if outcomes is None:
+                # Stopped while the tools ran. The calls are still shown, so the
+                # transcript says what was under way when it was stopped.
+                for call, parsed in zip(calls, arguments, strict=False):
+                    generation.tool_events.append(
+                        {
+                            "name": call["name"],
+                            "args": parsed if isinstance(parsed, dict) else {},
+                            "status": "error",
+                            "results": [],
+                            "error": "Stopped before it finished.",
+                        }
+                    )
+                break
 
             for index, (call, outcome) in enumerate(zip(calls, outcomes, strict=True)):
                 if index in edited:
@@ -1299,7 +1415,11 @@ async def _run(generation: Generation) -> None:
         # a chat title is never worth surfacing an error for.
         title = ""
         if needs_title and question:
-            if title_from_prompt or generation.error or endpoint is None:
+            # Not after a Stop: somebody who pressed it is waiting for the
+            # reply to end, and a second completion -- seconds on a reasoning
+            # model, queued behind the one just abandoned on a one-slot server
+            # -- was the "sometimes" in "Stop takes long".
+            if title_from_prompt or generation.error or endpoint is None or generation.stopped:
                 title = chat_service.fallback_title(question)
             else:
                 with contextlib.suppress(Exception):
@@ -1739,6 +1859,33 @@ def _close_thinking(
         generation.thinking_ms += int((span[1] - span[0]) * 1000)
     generation.round_thinking_ms = 0
     return None
+
+
+def _settle_thinking(generation: Generation, span: tuple[float, float]) -> None:
+    """The model moved on from thinking -- to prose or to a call -- mid-round.
+
+    The thinking ends as a step of its own at once, so the live block closes and
+    says "Thought for 6 seconds · 214 tokens" while the reply goes on, exactly as
+    it will read after a reload. It used to stay animated until the round ended
+    -- in the last round, until the whole reply had. Returns None: the round's
+    span is closed, and thinking that resumes opens a new one.
+    """
+    # Until now, the moment it moved on: the last reasoning delta is earlier,
+    # and a one-delta block would otherwise say it took no time at all.
+    _close_thinking(generation, _thought_at(generation, span))
+    generation.close_step()
+    generation.touch()
+
+
+def _preparing_status(names: tuple[str, ...]) -> str:
+    """What to show while a call's arguments stream: the CLI's "preparing".
+
+    A long `file_write` streams its whole file as arguments before anything
+    runs, which looked like a hang.
+    """
+    if len(names) == 1:
+        return f"Preparing {tool_labels.label_for(names[0])}…"
+    return f"Preparing {len(names)} tools…"
 
 
 def _mark_counted(generation: Generation) -> None:

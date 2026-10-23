@@ -137,8 +137,26 @@ def test_the_mirror_repaints_after_the_request_as_well_as_after_the_swap():
     assert "paint" in deferred
 
     # The early ones stay: a swap that brings a new composer in has to paint it.
+    # Through a gate, though -- see the test below.
     for event in ("htmx:afterSwap", "htmx:afterSettle"):
-        assert re.search(rf'addEventListener\("{event}",\s*paint\)', CODE), event
+        assert re.search(rf'addEventListener\("{event}",\s*paintAfterSwap\)', CODE), event
+    assert "paint()" in js_function(SOURCE, "paintAfterSwap")
+
+
+def test_a_swap_elsewhere_does_not_repaint_the_mirror():
+    """`paint` rebuilds the mirror and reads the textarea's geometry -- a forced
+    layout -- and it ran after every swap anywhere, twice, so on every frame of
+    a streaming reply. That was the lag in typing while a reply was written.
+    Only a swap inside the composer, or one that replaces something holding it,
+    repaints now."""
+    gate = js_function(SOURCE, "paintAfterSwap")
+    assert js_says(gate, "if (involvesComposer(event))", "paint()")
+    involves = js_function(SOURCE, "involvesComposer")
+    assert 'closest(".composer")' in involves
+    assert "contains(input)" in involves
+    # Both the element the event fired on and the request's target: an
+    # out-of-band swap into the composer carries the request's own target.
+    assert "event.target" in involves and "event.detail.target" in involves
 
 
 # --- What may become markup ---------------------------------------------------
@@ -154,8 +172,14 @@ def test_nothing_typed_into_the_box_can_become_markup():
     paint = js_function(SOURCE, "paint")
     assert "innerHTML" not in paint
     assert "replaceChildren" in paint
-    assert "createTextNode" in paint
-    assert "textContent" in js_function(SOURCE, "token")
+    # The Markdown colouring is four more functions between the box and the
+    # mirror, and every one of them is held to the same rule.
+    for name in ("paint", "line", "inline", "piece", "add", "wrap"):
+        assert "innerHTML" not in js_function(SOURCE, name), name
+        assert "insertAdjacentHTML" not in js_function(SOURCE, name), name
+    add = js_function(SOURCE, "add")
+    assert "createTextNode" in add
+    assert "textContent" in add
 
 
 # --- The mirror and the box are one shape -------------------------------------
@@ -169,6 +193,14 @@ METRICS = (
     "overflow-wrap",
     "word-break",
     "width",
+    # A ligature makes three characters one glyph; a tab's width and a
+    # scrollbar's gutter move every character after them. Each on both or the
+    # caret drifts off the text.
+    "font-variant-ligatures",
+    "font-feature-settings",
+    "font-synthesis",
+    "tab-size",
+    "scrollbar-gutter",
 )
 
 
@@ -195,13 +227,13 @@ def test_the_mirror_and_the_box_are_sized_by_one_rule():
 
 
 def test_a_token_restates_what_it_would_otherwise_inherit():
-    """`color: transparent` on the mirror is an inherited value, and any colour
-    a span declares itself beats it. The transcript's rule used to do exactly
-    that from across the file, painting the token in accent-coloured monospace
-    at 0.95em on top of the textarea's own text: doubled, and shifted from that
-    point on because the metrics differ."""
+    """The mirror's colour and font are inherited values, and any a span
+    declares itself beats them. The transcript's rule used to do exactly that
+    from across the file, painting the token in accent-coloured monospace at
+    0.95em: shifted from that point on, because the metrics differ. The mirror
+    is the visible text now, so the token keeps the text's colour."""
     tokens = _rule(CSS, ".composer__mirror .tok-mention,\n.composer__mirror .tok-command {")
-    assert "color: transparent" in tokens
+    assert "color: inherit" in tokens
     assert "font: inherit" in tokens
 
 
@@ -315,3 +347,120 @@ def test_a_device_path_is_escaped_the_way_the_cli_reads_it():
 def test_a_device_command_that_takes_an_argument_is_completed_not_sent():
     choose = js_function(SOURCE, "choose")
     assert 'option.hasAttribute("data-command-input")' in choose
+
+
+# --- The mirror is the visible text -------------------------------------------
+def _mirror_rules() -> list[tuple[str, str]]:
+    """Every rule whose selector styles something inside the mirror."""
+    rules = []
+    for found in re.finditer(r"([^{}]+)\{([^}]*)\}", CSS):
+        selector, body = found.group(1), found.group(2)
+        selector = re.sub(r"/\*[\s\S]*?\*/", "", selector).strip()
+        if ".composer__mirror ." in selector:
+            rules.append((selector, body))
+    return rules
+
+
+def test_nothing_in_the_mirror_moves_a_glyph():
+    """The textarea's caret sits over the mirror's characters. A span that
+    changes a glyph's size, face, slant, spacing or box puts every character
+    after it somewhere the caret is not -- the doubled-letter failure, back.
+    Colour, background, shadow, underline and weight only (the face is
+    monospaced at every weight, and `font-synthesis: none` stops a fake bold)."""
+    rules = _mirror_rules()
+    assert any(".md-heading" in selector for selector, _ in rules), "no Markdown styles found"
+    forbidden = re.compile(
+        r"(?:^|;|\s)(font-size|font-family|font-style|letter-spacing|word-spacing|"
+        r"display|position|line-height|border(?:-(?:top|right|bottom|left|width))?)\s*:"
+    )
+    for selector, body in rules:
+        declarations = re.sub(r"/\*[\s\S]*?\*/", "", body)
+        found = forbidden.search(declarations)
+        assert not found, f"{selector} sets {found.group(1)}"
+        for box in ("padding", "margin"):
+            for value in re.findall(rf"(?:^|;|\s){box}\s*:\s*([^;]+)", declarations):
+                assert value.strip() == "0", f"{selector} sets {box}: {value}"
+        for value in re.findall(r"(?:^|;|\s)font\s*:\s*([^;]+)", declarations):
+            assert value.strip() == "inherit", f"{selector} sets font: {value}"
+
+
+def test_the_box_hides_its_own_text_only_once_the_mirror_shows_it():
+    """Without JavaScript the mirror is empty, and a transparent textarea would
+    be a box nobody can read. So the only `color: transparent` on the textarea
+    is behind `.is-painted`, and `paint` is what sets it."""
+    rules = [
+        (re.sub(r"/\*[\s\S]*?\*/", "", m.group(1)).strip(), m.group(2))
+        for m in re.finditer(r"([^{}]+)\{([^}]*)\}", CSS)
+    ]
+    hiding = [
+        selector
+        for selector, body in rules
+        if ".composer__input" in selector
+        and "::selection" not in selector
+        and re.search(r"(?:^|;|\s)color\s*:\s*transparent", body)
+    ]
+    assert hiding == [".composer__field.is-painted .composer__input"], hiding
+    assert js_says(js_function(SOURCE, "paint"), 'classList.add("is-painted")')
+
+
+def test_selection_and_placeholder_survive_a_transparent_box():
+    """The selection's glyphs would be drawn over the mirror's in another
+    colour, doubled; Firefox's placeholder takes the element's colour, which is
+    transparent once painted."""
+    selection = _rule(CSS, ".composer__input::selection {")
+    assert "color: transparent" in selection
+    assert "background: var(--" in selection
+    placeholder = _rule(CSS, ".composer__input::placeholder {")
+    assert "color: var(--" in placeholder
+    assert "opacity: 1" in placeholder
+    assert "caret-color: var(--" in _rule(CSS, "\n.composer__input {")
+
+
+def test_no_regex_in_the_composer_uses_a_lookbehind():
+    """An older Safari refuses to parse one, and a regex that does not parse is
+    a SyntaxError that takes the whole file down -- the menu, the mirror, the
+    commands."""
+    assert "(?<" not in CODE
+
+
+def test_every_write_to_the_box_repaints_it():
+    """The mirror is what is on screen, so a write that skips the repaint shows
+    the old text over the new caret. Several paths assign `input.value`
+    directly; rather than trusting each to call `paint`, the instance's own
+    `value` setter does it, and `paint` installs that on whichever box it finds
+    (a swap can bring a new one)."""
+    watch = js_function(SOURCE, "watchValue")
+    assert "Object.defineProperty(input, \"value\"" in watch
+    assert js_says(watch, "set:", "NATIVE_VALUE.set.call(this, text)", "paint()")
+    assert "NATIVE_VALUE.get.call(this)" in watch
+    assert 'getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")' in CODE
+    assert "watchValue(input)" in js_function(SOURCE, "paint")
+    # And the writes that do not go through the property.
+    assert re.search(r'addEventListener\("reset",\s*repaintSoon\)', CODE)
+    assert re.search(r'addEventListener\("pageshow",\s*paint\)', CODE)
+
+
+def test_the_mirror_keeps_every_character_once():
+    """Markdown is coloured, never rendered: each line goes through `line`, the
+    newlines between them are added back one for one, and a trailing one keeps
+    the last empty line as tall as the textarea's."""
+    paint = js_function(SOURCE, "paint")
+    assert 'split("\\n")' in paint
+    assert js_says(paint, "if (i) add(mirror, \"\\n\")", "line(mirror, lines[i]")
+    assert 'add(mirror, "\\n");' in paint
+    assert "mirror.scrollTop = input.scrollTop" in paint
+    inline = js_function(SOURCE, "inline")
+    # Every rule consumes something, or the scan never ends.
+    assert "at += 1" in inline
+    assert "add(parent, text.slice(at))" in inline
+
+
+def test_the_whole_interface_turns_ligatures_off():
+    """JetBrains Mono's contextual alternates merge `==`, `->`, `...` into one
+    glyph. On body, so every code block and every label inherits it."""
+    app = (Path(lembas.__file__).parent / "web/static/css/app.css").read_text(encoding="utf-8")
+    body = _rule(app, "\nbody {")
+    assert "font-variant-ligatures: none" in body
+    assert 'font-feature-settings: "liga" 0, "calt" 0' in body
+    shared = _rule(CSS, ".composer__input,\n.composer__mirror {")
+    assert "font-variant-ligatures: none" in shared

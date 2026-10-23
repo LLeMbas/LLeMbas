@@ -433,13 +433,22 @@
     openFinished(document);
     restoreView();
 
+    /* Only what this batch added, each subtree once, and only nodes still in
+       the page: a stream frame replaces the live step a dozen times a second,
+       and a node a later frame has already replaced has nothing to mount.
+       Never the document -- the cards already on the page are mounted, and
+       `mountOne` marks each one so a second look writes nothing. */
     new MutationObserver(function (records) {
+      var roots = [];
       records.forEach(function (record) {
         record.addedNodes.forEach(function (node) {
-          if (node.nodeType !== 1) return;
-          mount(node);
-          openFinished(node);
+          if (node.nodeType === 1 && node.isConnected) roots.push(node);
         });
+      });
+      roots.forEach(function (node) {
+        if (roots.some(function (other) { return other !== node && other.contains(node); })) return;
+        mount(node);
+        openFinished(node);
       });
     }).observe(document.body, { childList: true, subtree: true });
 

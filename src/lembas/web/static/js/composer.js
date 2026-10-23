@@ -358,12 +358,18 @@
       });
   }
 
-  /* --- Marking the tokens as they are typed --------------------------------
-     Backgrounds only. The mirror's text is transparent and exists purely to
-     put a rectangle in the right place; the visible glyphs are still the
-     textarea's own. Everything here is set as textContent or built with
-     createElement -- what is in the box is the one string a person controls
-     exactly, and it must never become markup. */
+  /* --- Marking the text as it is typed -------------------------------------
+     The mirror holds the composer's text, every character of it, once, in
+     order, and is what you see: the textarea in front keeps its own glyphs
+     transparent and contributes the caret, the selection and the input
+     handling. So nothing here may add, drop, merge or reorder a character --
+     `…` for `...` or a consumed `#` is a line out of step with its caret.
+     Markdown is *coloured*, never rendered: `# x` stays `# x`, with the `#`
+     dimmed and the line in the heading's colour.
+
+     Everything is built with createTextNode and textContent -- what is in the
+     box is the one string a person controls exactly, and it must never become
+     markup. */
   function mirrorEl() {
     return document.querySelector("[data-composer-mirror]");
   }
@@ -372,10 +378,178 @@
      after whitespace, so an email address is not a file reference. */
   var MENTION = /(^|\s)(@[^\s@]+)/g;
 
+  /* Line kinds. Anchored, and run on one line at a time. */
+  var FENCE = /^ {0,3}(\x60{3,}|~{3,})/;
+  var RULE_LINE = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
+  var HEADING = /^( {0,3}#{1,6})(?=[ \t]|$)/;
+  var QUOTE = /^ {0,3}(?:>[ \t]?)+/;
+  var LIST = /^([ \t]*(?:[-*+]|\d{1,9}[.)]))(?=[ \t]|$)/;
+  var TASK = /^([ \t]+)(\[[ xX]\])(?=[ \t]|$)/;
+
+  /* Backticks and quotes inside these patterns are written as `\x60`, `\x22`
+     and `\x27`. The same characters, to the regex engine; but a test helper
+     that reads this file (`js_code`) cannot tell a regex literal from a
+     division, and a bare quote in one opened a "string" that swallowed the rest
+     of the file.
+
+     Inline kinds, in priority order: where two start at the same character
+     the earlier one wins. An escape first, so `\*` is never emphasis; code
+     before emphasis, so a `*` inside backticks is code. Each `g`, and none
+     uses a lookbehind -- an older Safari refuses to parse one, and a regex
+     that does not parse takes the whole file down with it. */
+  var INLINE = [
+    { re: /\\[\\\x60*_{}\[\]()#+\-.!~>|@]/g, kind: "escape" },
+    { re: /(\x60+)([^\n]*?[^\x60\n]|)\1(?!\x60)/g, kind: "code" },
+    { re: /(\*\*|__)(?=\S)([^\n]*?\S)\1/g, kind: "strong" },
+    { re: /(~~)(?=\S)([^\n]*?\S)~~/g, kind: "strike" },
+    { re: /(\*)(?=[^\s*])([^\n]*?[^\s*\\])\*(?!\*)/g, kind: "em" },
+    { re: /(^|[^A-Za-z0-9_])(_)(?=[^\s_])([^\n]*?[^\s_\\])_(?![A-Za-z0-9_])/g, kind: "em_" },
+    { re: /(!?\[)([^\]\n]*)(\]\()([^)\s]*)(\))/g, kind: "link" },
+    { re: /https?:\/\/[^\s<>]*[^\s<>.,;:!?)\x22\x27\]]/g, kind: "url" },
+    { re: MENTION, kind: "mention" }
+  ];
+
+  function add(parent, text, cls) {
+    if (!text) return;
+    if (!cls) {
+      parent.appendChild(document.createTextNode(text));
+      return;
+    }
+    var span = document.createElement("span");
+    span.className = cls;
+    span.textContent = text;
+    parent.appendChild(span);
+  }
+
+  function wrap(parent, cls) {
+    var span = document.createElement("span");
+    span.className = cls;
+    parent.appendChild(span);
+    return span;
+  }
+
+  /* One line, or part of one, with no line kinds left in it. Every character
+     of `text` lands in `parent` exactly once: the gaps between matches as
+     plain text, each match as the pieces it is made of. */
+  function inline(parent, text) {
+    var next = INLINE.map(function () { return null; });
+    var at = 0;
+    while (at < text.length) {
+      var best = -1;
+      for (var i = 0; i < INLINE.length; i++) {
+        /* A rule's next match is remembered until the scan passes it, so a
+           long paste costs one walk per rule rather than one per match. */
+        if (next[i] === null || (next[i] !== false && next[i].index < at)) {
+          INLINE[i].re.lastIndex = at;
+          next[i] = INLINE[i].re.exec(text) || false;
+        }
+        if (next[i] && (best === -1 || next[i].index < next[best].index)) best = i;
+      }
+      if (best === -1) break;
+      var match = next[best];
+      add(parent, text.slice(at, match.index));
+      piece(parent, INLINE[best].kind, match);
+      at = match.index + match[0].length;
+      /* Every rule must consume something, or this never ends. */
+      if (!match[0].length) at += 1;
+    }
+    add(parent, text.slice(at));
+  }
+
+  function piece(parent, kind, m) {
+    var inner;
+    if (kind === "escape") {
+      add(parent, m[0].charAt(0), "md-mark");
+      add(parent, m[0].slice(1));
+    } else if (kind === "code") {
+      inner = wrap(parent, "md-code");
+      add(inner, m[1], "md-mark");
+      add(inner, m[2]);
+      add(inner, m[1], "md-mark");
+    } else if (kind === "strong" || kind === "strike" || kind === "em") {
+      inner = wrap(parent, "md-" + kind);
+      add(inner, m[1], "md-mark");
+      inline(inner, m[2]);
+      add(inner, kind === "strike" ? "~~" : m[1], "md-mark");
+    } else if (kind === "em_") {
+      add(parent, m[1]);
+      inner = wrap(parent, "md-em");
+      add(inner, "_", "md-mark");
+      inline(inner, m[3]);
+      add(inner, "_", "md-mark");
+    } else if (kind === "link") {
+      inner = wrap(parent, "md-link");
+      add(inner, m[1], "md-mark");
+      inline(inner, m[2]);
+      add(inner, m[3], "md-mark");
+      add(inner, m[4], "md-url");
+      add(inner, m[5], "md-mark");
+    } else if (kind === "url") {
+      add(parent, m[0], "md-url");
+    } else if (kind === "mention") {
+      add(parent, m[1]);
+      add(parent, m[2], "tok-mention");
+    }
+  }
+
+  /* One line of the message, without its newline. `fence` is the fence the
+     line is inside, or "" -- returned, so the next line knows. */
+  function line(parent, text, fence, start) {
+    var m;
+    if (fence) {
+      m = FENCE.exec(text);
+      var closes = m && m[1].charAt(0) === fence.charAt(0) &&
+        m[1].length >= fence.length && !text.slice(m[0].length).trim();
+      add(parent, text, closes ? "md-mark" : "md-pre");
+      return closes ? "" : fence;
+    }
+    /* After a command on the first line the text does not start a line. */
+    if (!start) {
+      inline(parent, text);
+      return "";
+    }
+    if ((m = FENCE.exec(text))) {
+      add(parent, m[0], "md-mark");
+      add(parent, text.slice(m[0].length), "md-info");
+      return m[1];
+    }
+    if (RULE_LINE.test(text)) {
+      add(parent, text, "md-mark");
+      return "";
+    }
+    if ((m = HEADING.exec(text))) {
+      var heading = wrap(parent, "md-heading");
+      add(heading, m[1], "md-mark");
+      inline(heading, text.slice(m[1].length));
+      return "";
+    }
+    if ((m = QUOTE.exec(text))) {
+      var quote = wrap(parent, "md-quote");
+      add(quote, m[0], "md-mark");
+      inline(quote, text.slice(m[0].length));
+      return "";
+    }
+    if ((m = LIST.exec(text))) {
+      add(parent, m[1], "md-bullet");
+      var rest = text.slice(m[1].length);
+      var task = TASK.exec(rest);
+      if (task) {
+        add(parent, task[1]);
+        add(parent, task[2], "md-bullet");
+        rest = rest.slice(task[0].length);
+      }
+      inline(parent, rest);
+      return "";
+    }
+    inline(parent, text);
+    return "";
+  }
+
   function paint() {
     var mirror = mirrorEl();
     var input = composer();
     if (!mirror || !input) return;
+    watchValue(input);
 
     var value = input.value;
     mirror.replaceChildren();
@@ -387,28 +561,48 @@
     var command = commandIn(value);
     if (command) {
       var head = "/" + command.name;
-      mirror.appendChild(token(head, "tok-command"));
+      add(mirror, head, "tok-command");
       rest = value.slice(head.length);
     }
 
-    var last = 0;
-    var match;
-    MENTION.lastIndex = 0;
-    while ((match = MENTION.exec(rest)) !== null) {
-      mirror.appendChild(document.createTextNode(rest.slice(last, match.index) + match[1]));
-      mirror.appendChild(token(match[2], "tok-mention"));
-      last = match.index + match[0].length;
+    var lines = rest.split("\n");
+    var fence = "";
+    for (var i = 0; i < lines.length; i++) {
+      if (i) add(mirror, "\n");
+      fence = line(mirror, lines[i], fence, i > 0 || !command);
     }
-    // A trailing newline collapses in a div; the space keeps the last line.
-    mirror.appendChild(document.createTextNode(rest.slice(last) + "\n"));
+    /* A newline at the very end of a block does not make a line, and in the
+       textarea it does: one more keeps the last, empty line the same height
+       in both. */
+    add(mirror, "\n");
+    mirror.parentNode.classList.add("is-painted");
     mirror.scrollTop = input.scrollTop;
   }
 
-  function token(text, cls) {
-    var span = document.createElement("span");
-    span.className = cls;
-    span.textContent = text;
-    return span;
+  /* Every write to the box repaints it -- by construction, not by every
+     writer remembering to. The mirror is what is on screen, so a write that
+     skipped the repaint would show the old text over the new caret. Several
+     paths assign `input.value` directly (choosing from the menu, a command
+     run with Enter, a device command sent as a message, dictation, the
+     terminal's Send, a suggestion card); some called `paintComposer` and some
+     did not. So the instance's own `value` is wrapped: the browser's setter,
+     then a repaint. `form.reset()` does not go through the property, which is
+     why the late repaint below exists.
+
+     Defined on the element, from the prototype's own accessor, so reading is
+     unchanged and htmx serialises the form exactly as before. */
+  var NATIVE_VALUE = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value");
+
+  function watchValue(input) {
+    if (!NATIVE_VALUE || Object.prototype.hasOwnProperty.call(input, "value")) return;
+    Object.defineProperty(input, "value", {
+      configurable: true,
+      get: function () { return NATIVE_VALUE.get.call(this); },
+      set: function (text) {
+        NATIVE_VALUE.set.call(this, text);
+        if (this === composer()) paint();
+      }
+    });
   }
 
   /* --- Keys --------------------------------------------------------------- */
@@ -483,11 +677,41 @@
   );
 
   /* Sending, resetting, dictating and pasting all change the value without an
-     `input` event that reaches here, so the mirror is repainted after any htmx
-     swap and once at load. */
+     `input` event that reaches here, so the mirror is repainted after a swap
+     that involves the composer, and once at load.
+
+     Only a swap that involves it. `paint` rebuilds the mirror and reads the
+     textarea's geometry, which forces a layout -- and it used to run on every
+     swap anywhere, twice (afterSwap and afterSettle), so on every frame of a
+     streaming reply: twenty-odd forced layouts a second, which is what made
+     typing lag while a reply was being written. A swap involves the composer
+     when it lands inside it (an attachment chip, the scope menu) or replaces
+     something that contains it (a whole page section). The transcript is
+     neither, which is why sending is covered by the late repaint below and not
+     here. */
+  function involvesComposer(event) {
+    /* Both the element the event fired on and the request's target: htmx
+       fires these on every element a response swapped, out-of-band ones
+       included, each carrying the request's own target in `detail`. */
+    var input = composer();
+    var places = [event.target, event.detail && event.detail.target];
+    return places.some(function (place) {
+      if (!place || !place.closest) return false;
+      return !!place.closest(".composer") || !!(input && place.contains(input));
+    });
+  }
+
+  function paintAfterSwap(event) {
+    if (involvesComposer(event)) paint();
+  }
+
   document.addEventListener("DOMContentLoaded", paint);
-  document.addEventListener("htmx:afterSwap", paint);
-  document.addEventListener("htmx:afterSettle", paint);
+  /* A page restored from the back/forward cache, or a reload where the browser
+     puts back what was typed, fills the box without an `input` event or a
+     write through `value`. */
+  window.addEventListener("pageshow", paint);
+  document.addEventListener("htmx:afterSwap", paintAfterSwap);
+  document.addEventListener("htmx:afterSettle", paintAfterSwap);
 
   /* And after the *request*, a frame later, which is the one that matters on
      send. htmx fires afterSwap and afterSettle before afterRequest, and the

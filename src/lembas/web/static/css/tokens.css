@@ -377,6 +377,10 @@
   --accent-hover: #B4E6F1;
   --accent-ink: #061418;
   --accent-soft: rgba(143, 216, 232, 0.12);
+  /* Selected text where the glyphs are drawn by something other than the
+     selection -- the composer, whose visible text is its mirror. Stronger
+     than --accent-soft, which is a tint for a background nobody has to find. */
+  --selection: rgba(143, 216, 232, 0.32);
 
   /* Mallorn: the brand, the assistant's mark, the leaf badges -- phosphor
      green on the dark, the colour of an old terminal's text. */
@@ -520,6 +524,7 @@
   --accent-hover: #1F4D30;
   --accent-ink: #F8F3E5;
   --accent-soft: rgba(40, 95, 60, 0.1);
+  --selection: rgba(40, 95, 60, 0.24);
 
   /* The same mallorn as moss, dark enough to be text on parchment. */
   --leaf: #3D6B1C;

@@ -324,9 +324,13 @@ def test_a_bubble_the_page_already_has_is_never_swapped_in():
     import lembas
 
     source = (Path(lembas.__file__).parent / "web/static/js/app.js").read_text(encoding="utf-8")
-    block = source[source.index("htmx:beforeSwap") :]
+    block = source[source.index('addEventListener("htmx:beforeSwap"') :]
     assert "shouldSwap = false" in block
-    assert "getElementById" in block
+    # Checked against the page by `duplicates`, which every swap into the
+    # thread goes through (test_stream_browser_js.py has the rest).
+    assert "duplicates(" in block
+    dupes = source[source.index("function duplicates(") :]
+    assert "getElementById" in dupes[: dupes.index("\n  }\n")]
 
 
 def test_no_template_hands_htmx_a_string_to_evaluate():

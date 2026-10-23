@@ -111,7 +111,8 @@ def test_a_refused_microphone_is_reported():
     the promise. Left uncaught it is a button press that does nothing."""
     start = js_function(SOURCE, "startRecording")
     assert ".catch(" in start
-    assert "Permission" in start[start.index(".catch(") :]
+    assert "microphoneError(error)" in start[start.index(".catch(") :]
+    # Which refusal it was is test_stream_browser_js.py's business.
 
 
 def test_dictation_audio_is_never_stored():

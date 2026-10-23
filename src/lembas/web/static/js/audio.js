@@ -135,12 +135,33 @@
 
       recorder.start();
       setMicState(button, "recording");
-    }).catch(function () {
+    }).catch(function (error) {
       // Back to idle, or a refused permission leaves a button nothing can press
       // again -- including the reader who has just gone and allowed it.
       setMicState(button, "idle");
-      notify(t("The microphone could not be opened. Permission may be blocked."), "error");
+      notify(microphoneError(error), "error");
     });
+  }
+
+  /* Why the microphone did not open, in words that say what to do about it.
+     Every rejection used to read "Permission may be blocked", which sent people
+     to the browser's site settings when the real answer was that another
+     application held the device, or that the machine had no microphone at
+     all. The names are the DOMException names `getUserMedia` rejects with;
+     anything else is passed through by name, because "something went wrong"
+     is not a thing anybody can search for. */
+  function microphoneError(error) {
+    var name = (error && error.name) || "";
+    if (name === "NotAllowedError" || name === "SecurityError") {
+      return t("Microphone access was refused. Allow it for this site in the browser's address bar or site settings, then try again.");
+    }
+    if (name === "NotFoundError" || name === "OverconstrainedError") {
+      return t("No microphone was found. Connect one, or check that the system can see it, then try again.");
+    }
+    if (name === "NotReadableError") {
+      return t("The microphone is in use by another application, or the system would not let the browser open it.");
+    }
+    return t("The microphone could not be opened (%(error)s).", { error: name || "Error" });
   }
 
   function stopRecording() {
@@ -219,7 +240,15 @@
   }
 
   document.addEventListener("DOMContentLoaded", playArrivals);
+  /* Not after a stream frame: `data-speak-auto` arrives on the finished
+     bubble, which the `done` frame swaps in -- and that swap is not a frame in
+     this sense (`isStreamFrame` in app.js), so it is still heard here. The
+     dozen frames a second before it each searched the whole page for nothing. */
   if (document.body) {
-    document.body.addEventListener("htmx:afterSettle", playArrivals);
+    document.body.addEventListener("htmx:afterSettle", function (event) {
+      var lembas = window.lembas;
+      if (lembas && lembas.isStreamFrame && lembas.isStreamFrame(event)) return;
+      playArrivals();
+    });
   }
 })();

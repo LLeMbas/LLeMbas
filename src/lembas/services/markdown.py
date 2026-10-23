@@ -87,6 +87,12 @@ def _render_fence(tokens, idx, _options, env) -> str:
     language = (token.info or "").strip().split()[0] if token.info else ""
 
     lexer = None
+    if env.get("live"):
+        # A reply still being written: plain, escaped code. Highlighting --
+        # and above all guessing a language -- re-ran on the whole tail many
+        # times a second and was most of what made a long reply lag; the
+        # finished bubble is rendered again, highlighted, at the end.
+        return _code_block(nh3.clean_text(code), language)
     if language:
         try:
             lexer = get_lexer_by_name(language, stripall=False)
@@ -273,13 +279,16 @@ def _attribute_filter(element: str, attribute: str, value: str) -> str | None:
     return value
 
 
-def render_markdown(text: str) -> str:
-    """Markdown to safe HTML, ready to drop into a message bubble."""
+def render_markdown(text: str, *, live: bool = False) -> str:
+    """Markdown to safe HTML, ready to drop into a message bubble.
+
+    `live` is a reply still being written: code is not highlighted (see
+    `_render_fence`)."""
     if not text:
         return ""
 
     src, lines = _source(text)
-    html = _parser().render(src, {"lines": lines})
+    html = _parser().render(src, {"lines": lines, "live": live})
     return nh3.clean(
         html,
         tags=ALLOWED_TAGS,
@@ -297,6 +306,47 @@ def render_markdown(text: str) -> str:
 # it does not know about lists, block quotes or indented code, and it does not
 # have to. See `open_fence`.
 _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})[ \t]*(.*)$")
+
+
+class LiveRender:
+    """The markdown of a text that only grows, at the cost of what is new.
+
+    A reply's open tail was rendered whole on every frame -- 60 ms at 20k
+    characters, ten times a second, on the one event loop that also serves
+    Stop and every other page: O(n²) over a long answer. Here the text is cut
+    after its last finished block (a blank line, outside any open code fence);
+    what is before the cut is rendered once and kept, and only the block still
+    being written is rendered again. Blocks are rendered on their own, so a
+    loose list can show as two until the reply's final render joins it -- the
+    live view only, which the `done` frame replaces.
+
+    One per follower and per tail: a tail that does not start with what was
+    kept (a round closed, the tail began again) starts over.
+    """
+
+    def __init__(self) -> None:
+        self._kept = ""
+        self._html = ""
+
+    def render(self, text: str) -> str:
+        if not text.startswith(self._kept):
+            self._kept, self._html = "", ""
+        cut = self._settled(text)
+        if cut > len(self._kept):
+            self._html += render_markdown(text[len(self._kept) : cut], live=True)
+            self._kept = text[:cut]
+        rest = text[len(self._kept) :]
+        return self._html + (render_markdown(rest, live=True) if rest.strip() else "")
+
+    def _settled(self, text: str) -> int:
+        """The end of the last finished block after what is kept, or what is kept."""
+        at = text.rfind("\n\n")
+        while at >= len(self._kept):
+            cut = at + 2
+            if not open_fence(text[:cut])[0]:
+                return cut
+            at = text.rfind("\n\n", 0, at)
+        return len(self._kept)
 
 
 def open_fence(text: str) -> tuple[str, str]:

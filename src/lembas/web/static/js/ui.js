@@ -833,7 +833,11 @@
 
   document.addEventListener("DOMContentLoaded", start);
   document.body && start();
-  document.addEventListener("htmx:afterSettle", scan);
+  /* Not on a stream frame (`isStreamFrame` in app.js): a reply being written
+     brings no notification toggle with it. */
+  document.addEventListener("htmx:afterSettle", function (event) {
+    if (!(window.lembas && window.lembas.isStreamFrame && window.lembas.isStreamFrame(event))) scan();
+  });
 })();
 
 /*
@@ -914,19 +918,65 @@ document.addEventListener("lembas:notify", function (event) {
     return !!(box && box.value.trim());
   }
 
+  /* A stop that has been asked for and not yet answered. The `done` frame
+     answers it: it replaces the article with the finished one, which has
+     neither `sse-connect` nor this mark, so nothing has to clear it. */
+  function stopping() {
+    return !!document.querySelector(".msg[data-stopping][sse-connect]");
+  }
+
+  /* Written only when it differs. This runs on every mutation of the thread
+     the observer below lets through, and setting an attribute to the value it
+     already holds still invalidates style on some engines. */
+  function put(button, name, value) {
+    if (button.getAttribute(name) !== value) button.setAttribute(name, value);
+  }
+
   function sync() {
     var button = document.querySelector("[data-composer-action]");
     if (!button) return;
     var active = streamingMessage() && !typed();
+    var halting = active && stopping();
 
-    button.dataset.composerAction = active ? "stop" : "send";
+    put(button, "data-composer-action", active ? "stop" : "send");
     // As a submit button the form sends; as a plain button the click handler
     // below stops. Nothing else distinguishes the two states.
-    button.type = active ? "button" : "submit";
+    put(button, "type", active ? "button" : "submit");
     var queues = !active && streamingMessage();
-    button.setAttribute("aria-label", active ? t("Stop generating") : queues ? t("Send — it waits for its turn") : t("Send"));
-    button.title = active ? t("Stop generating") : queues ? t("Sent now, taken in at the reply's next step or after it") : "";
-    button.disabled = false;
+    var label = halting ? t("Stopping…") : active ? t("Stop generating") : queues ? t("Send — it waits for its turn") : t("Send");
+    put(button, "aria-label", label);
+    put(button, "title", halting ? label : active ? t("Stop generating") : queues ? t("Sent now, taken in at the reply's next step or after it") : "");
+    /* Stop stays pressed while a stop is under way. This line used to say
+       `false` unconditionally, and since every stream frame runs it, the button
+       came back a twelfth of a second after it was pressed -- with nothing to
+       say the press had registered, Stop felt dead and got pressed again.
+       Something typed makes it Send, which is a different request and is not
+       held back by a stop. */
+    if (button.disabled !== halting) button.disabled = halting;
+  }
+
+  /* What the bubble says while it stops: "Stopping…" in its status row, in a
+     span of its own beside `.msg__status` rather than in it. That span is an
+     `sse-swap` target, so the next status frame would overwrite the words; the
+     row around it is not, and chat.css hides the live status while the mark
+     is on. */
+  function markStopping(article, on) {
+    var row = article.querySelector(".msg__waiting");
+    var note = article.querySelector("[data-stopping-note]");
+    if (on) {
+      article.setAttribute("data-stopping", "");
+      if (row && !note) {
+        note = document.createElement("span");
+        note.className = "msg__status msg__status--stopping";
+        note.setAttribute("data-stopping-note", "");
+        note.setAttribute("role", "status");
+        note.textContent = t("Stopping…");
+        row.appendChild(note);
+      }
+    } else {
+      article.removeAttribute("data-stopping");
+      if (note) note.remove();
+    }
   }
 
   document.addEventListener("click", function (event) {
@@ -936,25 +986,60 @@ document.addEventListener("lembas:notify", function (event) {
 
     var target = streamingMessage();
     if (!target) return;
-    // Disabled until the next sync, so a second click cannot fire a second
-    // request at a generation that is already stopping.
-    button.disabled = true;
+    var article = document.getElementById("msg-" + target.messageId);
+    if (!article || article.hasAttribute("data-stopping")) return;
+    // Marked before the request, so the reader sees the press at once and a
+    // second click has nothing to fire: sync() keeps the button disabled for
+    // as long as the mark is on a streaming bubble.
+    markStopping(article, true);
+    sync();
+
+    /* A stop that did not land puts everything back -- the mark, the button --
+       and says so, rather than leaving a bubble that claims to be stopping and
+       a button nobody can press again. A 404 is a failure as much as a dropped
+       connection: `fetch` resolves on any status. */
+    function failed() {
+      markStopping(article, false);
+      sync();
+      if (window.lembas && window.lembas.notify) {
+        window.lembas.notify(t("The reply could not be stopped. Try again."), { kind: "error" });
+      }
+    }
     fetch(
       "/api/chats/" + target.chatId + "/messages/" + target.messageId + "/stop",
       { method: "POST", credentials: "same-origin" }
-    ).catch(function () { button.disabled = false; });
+    ).then(function (response) {
+      if (!response.ok) failed();
+    }).catch(failed);
   });
+
+  /* Every mutation of the thread, except the ones a stream frame makes inside
+     the bubble it is writing: those cannot change whether a reply is
+     streaming, and they arrive a dozen times a second. A bubble arriving,
+     leaving or being replaced (the `done` frame) is a mutation of its parent,
+     which is not inside a streaming bubble, so it still counts. */
+  function relevant(records) {
+    for (var i = 0; i < records.length; i++) {
+      var node = records[i].target;
+      if (!(node.closest && node.closest(".msg[sse-connect]"))) return true;
+    }
+    return false;
+  }
 
   function watch() {
     var thread = document.getElementById("thread");
     if (thread) {
-      new MutationObserver(sync).observe(thread, { childList: true, subtree: true });
+      new MutationObserver(function (records) {
+        if (relevant(records)) sync();
+      }).observe(thread, { childList: true, subtree: true });
     }
     sync();
   }
 
   document.addEventListener("DOMContentLoaded", watch);
-  document.body && document.body.addEventListener("htmx:afterSettle", sync);
+  document.body && document.body.addEventListener("htmx:afterSettle", function (event) {
+    if (!(window.lembas && window.lembas.isStreamFrame && window.lembas.isStreamFrame(event))) sync();
+  });
   document.addEventListener("input", function (event) {
     if (event.target && event.target.classList && event.target.classList.contains("composer__input")) sync();
   });

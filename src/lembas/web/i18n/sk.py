@@ -2863,7 +2863,6 @@ MESSAGES.update(
         "Transcription failed.": "Prepis zlyhal.",
         "Nothing was heard in that recording.": "V tej nahrávke nebolo nič počuť.",
         "The microphone needs HTTPS or localhost. This page is served over plain HTTP, so the browser will not grant it.": "Mikrofón vyžaduje HTTPS alebo localhost. Táto stránka sa podáva cez obyčajné HTTP, takže ho prehliadač nepovolí.",
-        "The microphone could not be opened. Permission may be blocked.": "Mikrofón sa nepodarilo otvoriť. Povolenie môže byť zablokované.",
         "That reply could not be read out.": "Tú odpoveď sa nepodarilo prečítať nahlas.",
         "Summarising the earlier messages…": "Zhŕňam staršie správy…",
         "Could not compact.": "Zhutnenie zlyhalo.",
@@ -3063,3 +3062,11 @@ MESSAGES['Read and write your chats, as the web interface does'] = 'Čítať a z
 MESSAGES['A reply is waiting'] = 'Odpoveď čaká'
 MESSAGES['A reply is waiting for your answer.'] = 'Odpoveď čaká na vašu reakciu.'
 MESSAGES['That push address cannot be used: it must be https and reachable from here.'] = 'Túto adresu pre oznámenia nemožno použiť: musí byť https a dosiahnuteľná odtiaľto.'
+
+# Stopping a reply, and why the microphone did not open.
+MESSAGES['Stopping…'] = 'Zastavuje sa…'
+MESSAGES['The reply could not be stopped. Try again.'] = 'Odpoveď sa nepodarilo zastaviť. Skúste to znova.'
+MESSAGES["Microphone access was refused. Allow it for this site in the browser's address bar or site settings, then try again."] = 'Prístup k mikrofónu bol odmietnutý. Povoľte ho pre túto stránku v paneli s adresou alebo v nastaveniach stránky v prehliadači a skúste to znova.'
+MESSAGES['No microphone was found. Connect one, or check that the system can see it, then try again.'] = 'Nenašiel sa žiadny mikrofón. Pripojte ho alebo overte, či ho systém vidí, a skúste to znova.'
+MESSAGES['The microphone is in use by another application, or the system would not let the browser open it.'] = 'Mikrofón používa iná aplikácia alebo systém nedovolil prehliadaču ho otvoriť.'
+MESSAGES['The microphone could not be opened (%(error)s).'] = 'Mikrofón sa nepodarilo otvoriť (%(error)s).'

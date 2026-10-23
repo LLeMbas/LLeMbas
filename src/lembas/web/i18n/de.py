@@ -2053,7 +2053,6 @@ MESSAGES.update(
         "Transcription failed.": "Transkription fehlgeschlagen.",
         "Nothing was heard in that recording.": "In dieser Aufnahme war nichts zu hören.",
         "The microphone needs HTTPS or localhost. This page is served over plain HTTP, so the browser will not grant it.": "Das Mikrofon braucht HTTPS oder localhost. Diese Seite wird über einfaches HTTP ausgeliefert, daher gibt der Browser es nicht frei.",
-        "The microphone could not be opened. Permission may be blocked.": "Das Mikrofon konnte nicht geöffnet werden. Möglicherweise ist die Berechtigung blockiert.",
         "That reply could not be read out.": "Diese Antwort konnte nicht vorgelesen werden.",
         "Open the command menu": "Befehlsmenü öffnen",
         "Send, from anywhere on the page": "Senden, von überall auf der Seite",
@@ -2312,3 +2311,11 @@ MESSAGES['Read and write your chats, as the web interface does'] = 'Ihre Chats l
 MESSAGES['A reply is waiting'] = 'Eine Antwort wartet'
 MESSAGES['A reply is waiting for your answer.'] = 'Eine Antwort wartet auf Ihre Rückmeldung.'
 MESSAGES['That push address cannot be used: it must be https and reachable from here.'] = 'Diese Push-Adresse ist nicht verwendbar: Sie muss https sein und von hier erreichbar.'
+
+# Stopping a reply, and why the microphone did not open.
+MESSAGES['Stopping…'] = 'Wird angehalten…'
+MESSAGES['The reply could not be stopped. Try again.'] = 'Die Antwort konnte nicht angehalten werden. Versuchen Sie es erneut.'
+MESSAGES["Microphone access was refused. Allow it for this site in the browser's address bar or site settings, then try again."] = 'Der Zugriff auf das Mikrofon wurde verweigert. Erlauben Sie ihn für diese Website in der Adressleiste oder in den Website-Einstellungen des Browsers und versuchen Sie es erneut.'
+MESSAGES['No microphone was found. Connect one, or check that the system can see it, then try again.'] = 'Es wurde kein Mikrofon gefunden. Schließen Sie eines an oder prüfen Sie, ob das System es erkennt, und versuchen Sie es erneut.'
+MESSAGES['The microphone is in use by another application, or the system would not let the browser open it.'] = 'Das Mikrofon wird von einer anderen Anwendung verwendet, oder das System hat dem Browser das Öffnen nicht erlaubt.'
+MESSAGES['The microphone could not be opened (%(error)s).'] = 'Das Mikrofon konnte nicht geöffnet werden (%(error)s).'

@@ -5,6 +5,70 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
+## 1.7.1 — 2026-10-23
+
+The chat window, fixed where it was felt: thinking that closes when it ends,
+text that is not held back, a Stop that stops, a page that keeps up with a long
+reply, and a message box that shows what is typed.
+
+### Added
+
+- **Markdown is highlighted as you type**: headings, emphasis, code, links,
+  lists and quotes are coloured in the message box, every character kept
+  where it is.
+
+### Fixed
+
+- **A thinking block closes when the model moves on.** It stayed animated --
+  "Thinking…" -- until the round ended, and in the last round until the whole
+  reply had; only then did it say "Thought for …". It now becomes a step of its
+  own the moment the model starts writing prose or a tool call, and says how
+  long it thought there and then. The same on a linked device's chats.
+- **The last words before a tool call are no longer held back.** The text was
+  complete, but its last few characters waited in a buffer -- against a
+  `<think>` tag that was never coming -- until the tool call appeared. Only a
+  tail that could really start a tag is held now (the LLeMbas CLI's rule).
+- **"Preparing …" while a tool call is written.** A long `file_write` streams
+  its whole file before anything runs, which looked like a hang; the status
+  line now says which tool is being prepared, as the CLI does.
+- **Stop stops at once.** It was read only between streamed chunks, so it did
+  nothing while there were none: a long prompt still being processed upstream,
+  a tool running (a picture: minutes), a compaction -- and after a tool round it
+  even started the next request first. Stop now cancels whatever the reply is
+  waiting on and closes the upstream connection, and the chat's title is not
+  asked of the model after a Stop. A linked device is waited on for two seconds,
+  not ten.
+- **Editing or regenerating while a reply is written stops it and goes ahead**,
+  instead of refusing with "wait for it to finish, or stop it".
+- **A long reply no longer lags the page.** The text still being written was
+  rendered whole -- code highlighted, languages guessed -- many times a second,
+  on the one event loop that also answers Stop. Finished paragraphs are now
+  rendered once, code is highlighted when the reply ends, and a busy follower
+  backs off.
+- **A sent message can no longer appear twice.** The transcript's five-second
+  check for new messages could cross a send and add the same message and its
+  streaming reply a second time -- both copies animating. Every swap into the
+  thread now drops a message already on the page, the check stands down while a
+  message is being sent, and a double submit is dropped.
+- **Stop shows it is stopping.** The button stayed live and nothing changed
+  until the reply ended; now it says "Stopping…" at once, and says so if the
+  stop could not be sent.
+- **The page does less on every streamed frame.** Handlers meant for whole
+  page changes -- the composer's repaint, code-copy buttons, the steps' open
+  state, read-aloud -- ran many times a second during a reply. Typing while a
+  reply streams no longer lags.
+- **The message box shows what is typed.** The interface font draws
+  programming ligatures, so `...`, `###`, `->`, `==` and others turned into
+  single merged glyphs as they were typed -- the first dot seemed to vanish.
+  Ligatures are off everywhere: what you read is what is there.
+- **The microphone says what went wrong**: permission refused, no microphone,
+  or the microphone in use by another program, instead of one sentence for all.
+
+- **An image counts by its dimensions** in every estimate the server makes. It
+  counted nothing in the context estimate, and on an Anthropic connection its
+  base64 counted as text -- a large picture left no room for the answer, which
+  was cut off at a thousand tokens.
+
 ## 1.7.0 — 2026-10-21
 
 A third door for a native app: the chats as JSON (`/api/v2`), behind a bearer

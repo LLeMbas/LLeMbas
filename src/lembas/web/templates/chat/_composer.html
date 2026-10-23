@@ -73,7 +73,14 @@
           }"
           {% else %}
           hx-post="/api/chats/start" hx-swap="none"
-          {% endif %}>
+          {% endif %}
+          {# One send at a time: a second submit while the first is still out --
+             a double Enter, a double tap -- is dropped, not queued, because it
+             is the same message twice. `hx-sync` is inherited, and the controls
+             inside this form make requests of their own (the scope switches,
+             the mode and effort selects); `hx-disinherit` keeps them out of it,
+             or flipping a switch would swallow the send that followed it. #}
+          hx-sync="this:drop" hx-disinherit="hx-sync">
 
       <div class="composer__attachments" id="attachments"></div>
 
@@ -93,15 +100,19 @@
       {#
         The text, with a mirror behind it.
 
-        A textarea cannot style its own contents, so the mirror holds the same
-        text with every character transparent and contributes nothing but a
-        rounded rectangle behind each recognised token. The real text stays in
-        the textarea, where it is native and selectable -- the other way round,
-        showing the mirror's text and hiding the textarea's, means any style
-        drift renders as doubled or blurred glyphs instead of a rectangle a
-        pixel out of place.
+        A textarea cannot style its own contents, so the text you see is the
+        mirror's: the same string, every character once and in place, with the
+        Markdown coloured (never rendered -- `**x**` keeps its asterisks) and a
+        backdrop behind a resolved /command or an @mention. The textarea sits in
+        front and does everything else -- the caret, the selection, typing, IME,
+        spell-check -- with its own glyphs transparent.
 
-        composer.js fills it. Without JavaScript there is simply no mirror.
+        That is safe only because both lay the text out identically: chat.css
+        declares every property that moves a character once, for both, and the
+        mirror's styles may change colour and weight and nothing else. And only
+        once composer.js has painted (`is-painted` on this field): without
+        JavaScript the mirror stays empty and the textarea shows its own text,
+        as an ordinary textarea does.
       #}
       <div class="composer__field">
         <div class="composer__mirror" data-composer-mirror aria-hidden="true"></div>

@@ -2053,7 +2053,6 @@ MESSAGES.update(
         "Transcription failed.": "Az átírás sikertelen.",
         "Nothing was heard in that recording.": "A felvételen semmi sem hallatszott.",
         "The microphone needs HTTPS or localhost. This page is served over plain HTTP, so the browser will not grant it.": "A mikrofonhoz HTTPS vagy localhost szükséges. Ez az oldal sima HTTP-n érkezik, így a böngésző nem engedélyezi.",
-        "The microphone could not be opened. Permission may be blocked.": "A mikrofont nem sikerült megnyitni. Lehet, hogy az engedély le van tiltva.",
         "That reply could not be read out.": "Ezt a választ nem sikerült felolvasni.",
         "Open the command menu": "A parancsmenü megnyitása",
         "Send, from anywhere on the page": "Küldés, az oldal bármely pontjáról",
@@ -2312,3 +2311,11 @@ MESSAGES['Read and write your chats, as the web interface does'] = 'A csevegése
 MESSAGES['A reply is waiting'] = 'Egy válasz vár'
 MESSAGES['A reply is waiting for your answer.'] = 'Egy válasz a te válaszodra vár.'
 MESSAGES['That push address cannot be used: it must be https and reachable from here.'] = 'Ez az értesítési cím nem használható: https-nek és innen elérhetőnek kell lennie.'
+
+# Stopping a reply, and why the microphone did not open.
+MESSAGES['Stopping…'] = 'Leállítás…'
+MESSAGES['The reply could not be stopped. Try again.'] = 'A választ nem sikerült leállítani. Próbálja újra.'
+MESSAGES["Microphone access was refused. Allow it for this site in the browser's address bar or site settings, then try again."] = 'A mikrofonhoz való hozzáférést elutasították. Engedélyezze ennél a webhelynél a böngésző címsorában vagy a webhely beállításaiban, majd próbálja újra.'
+MESSAGES['No microphone was found. Connect one, or check that the system can see it, then try again.'] = 'Nem található mikrofon. Csatlakoztasson egyet, vagy ellenőrizze, hogy a rendszer látja-e, majd próbálja újra.'
+MESSAGES['The microphone is in use by another application, or the system would not let the browser open it.'] = 'A mikrofont egy másik alkalmazás használja, vagy a rendszer nem engedte, hogy a böngésző megnyissa.'
+MESSAGES['The microphone could not be opened (%(error)s).'] = 'A mikrofont nem sikerült megnyitni (%(error)s).'

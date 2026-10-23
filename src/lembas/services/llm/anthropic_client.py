@@ -393,8 +393,13 @@ def _number(value: Any) -> float | None:
 
 
 def _estimate(*parts: Any) -> int:
-    """Tokens, roughly: characters over four, as `services/tokens.py` counts."""
-    return len(json.dumps(parts, ensure_ascii=False, default=str)) // 4
+    """Tokens, roughly, as `services/tokens.py` counts: characters over four,
+    and an image by its dimensions. Measuring the base64 of an image block as
+    text left a 1.5 MB picture "512k tokens" and the reply's room negative, so
+    `max_tokens` fell to the floor and the answer was cut off."""
+    from lembas.services import tokens
+
+    return tokens.estimate_value(parts)
 
 
 def _lacks_thinking(messages: list[dict[str, Any]]) -> bool:

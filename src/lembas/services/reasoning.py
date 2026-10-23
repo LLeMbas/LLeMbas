@@ -9,9 +9,8 @@ Endpoints do this two different ways and LLeMbas has to cope with both:
    so the text has to be scanned as a stream rather than with a regex at the
    end.
 
-The splitter below handles the second case. It buffers only as much as a
-partial tag could occupy, so latency is unaffected in the overwhelmingly common
-case where no tag is present at all.
+The splitter below handles the second case. It holds back only a tail that
+could really be the start of a tag, so ordinary text is never delayed.
 """
 
 from __future__ import annotations
@@ -29,9 +28,26 @@ _TAGS: tuple[tuple[str, str], ...] = (
 REASONING = "reasoning"
 CONTENT = "content"
 
-# Longest opening tag, minus one: the most that can ever need holding back
-# while waiting to see whether a partial "<thi" turns into a real tag.
-_MAX_PARTIAL = max(len(open_tag) for open_tag, _ in _TAGS) - 1
+_OPENINGS = tuple(opening for opening, _ in _TAGS)
+
+
+def _partial_suffix(text: str, tags: tuple[str, ...]) -> int:
+    """How many trailing characters of `text` could be the start of one of `tags`.
+
+    Only that much is held back. It used to be the longest tag's length on every
+    chunk, whatever the text said -- invisible while text kept streaming, but
+    when a reply moved from prose to a tool call the last ten characters of the
+    prose stayed in the buffer through the whole call and appeared only with
+    "Running …". The LLeMbas CLI's port (`provider/think.ts`) already held back
+    only a real prefix; this is that rule brought back.
+    """
+    best = 0
+    for tag in tags:
+        for size in range(min(len(tag) - 1, len(text)), best, -1):
+            if text.endswith(tag[:size]):
+                best = size
+                break
+    return best
 
 
 class ReasoningSplitter:
@@ -60,7 +76,7 @@ class ReasoningSplitter:
                 if index == -1:
                     # Hold back enough that a closing tag split across chunks is
                     # still recognised once the rest arrives.
-                    keep = 0 if final else len(self._closing) - 1
+                    keep = 0 if final else _partial_suffix(self._buffer, (self._closing,))
                     emit, self._buffer = self._split(keep)
                     if emit:
                         yield (REASONING, emit)
@@ -74,7 +90,7 @@ class ReasoningSplitter:
 
             opening_at, opening, closing = self._find_opening()
             if opening_at == -1:
-                keep = 0 if final else _MAX_PARTIAL
+                keep = 0 if final else _partial_suffix(self._buffer, _OPENINGS)
                 emit, self._buffer = self._split(keep)
                 if emit:
                     yield (CONTENT, emit)

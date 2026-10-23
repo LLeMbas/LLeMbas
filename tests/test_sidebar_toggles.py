@@ -225,8 +225,13 @@ def test_the_unread_poll_tree_keeps_what_was_folded(client: TestClient, db, regi
 def test_app_js_reapplies_this_tabs_choices_after_a_swap():
     js = (WEB / "static/js/app.js").read_text(encoding="utf-8")
     at = js.index("function reapply(")
-    assert 'addEventListener("htmx:afterSettle", function () { reapply(document); })' in js
-    assert 'addEventListener("htmx:oobAfterSwap", function () { reapply(document); })' in js
+    # Every settle and out-of-band swap except a reply's stream frames, which
+    # carry no section toggles (and come a dozen times a second).
+    for event in ("htmx:afterSettle", "htmx:oobAfterSwap"):
+        assert (
+            f'addEventListener("{event}", function (event) {{\n'
+            "    if (!isStreamFrame(event)) reapply(document);"
+        ) in js
     assert "folded[key]" in js[at:]
 
 

@@ -2053,7 +2053,6 @@ MESSAGES.update(
         "Transcription failed.": "Přepis selhal.",
         "Nothing was heard in that recording.": "V té nahrávce nebylo nic slyšet.",
         "The microphone needs HTTPS or localhost. This page is served over plain HTTP, so the browser will not grant it.": "Mikrofon potřebuje HTTPS nebo localhost. Tato stránka se poskytuje přes obyčejné HTTP, takže ho prohlížeč nepovolí.",
-        "The microphone could not be opened. Permission may be blocked.": "Mikrofon se nepodařilo otevřít. Povolení může být zablokované.",
         "That reply could not be read out.": "Tuto odpověď se nepodařilo přečíst nahlas.",
         "Open the command menu": "Otevřít nabídku příkazů",
         "Send, from anywhere on the page": "Odeslat odkudkoli na stránce",
@@ -2312,3 +2311,11 @@ MESSAGES['Read and write your chats, as the web interface does'] = 'Číst a zap
 MESSAGES['A reply is waiting'] = 'Odpověď čeká'
 MESSAGES['A reply is waiting for your answer.'] = 'Odpověď čeká na vaši reakci.'
 MESSAGES['That push address cannot be used: it must be https and reachable from here.'] = 'Tuto adresu pro oznámení nelze použít: musí být https a dosažitelná odsud.'
+
+# Stopping a reply, and why the microphone did not open.
+MESSAGES['Stopping…'] = 'Zastavuje se…'
+MESSAGES['The reply could not be stopped. Try again.'] = 'Odpověď se nepodařilo zastavit. Zkuste to znovu.'
+MESSAGES["Microphone access was refused. Allow it for this site in the browser's address bar or site settings, then try again."] = 'Přístup k mikrofonu byl odmítnut. Povolte ho pro tento web v adresním řádku prohlížeče nebo v nastavení webu a zkuste to znovu.'
+MESSAGES['No microphone was found. Connect one, or check that the system can see it, then try again.'] = 'Nebyl nalezen žádný mikrofon. Připojte ho nebo ověřte, že ho systém vidí, a zkuste to znovu.'
+MESSAGES['The microphone is in use by another application, or the system would not let the browser open it.'] = 'Mikrofon používá jiná aplikace, nebo systém prohlížeči nedovolil jej otevřít.'
+MESSAGES['The microphone could not be opened (%(error)s).'] = 'Mikrofon se nepodařilo otevřít (%(error)s).'

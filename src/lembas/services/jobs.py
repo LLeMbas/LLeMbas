@@ -374,7 +374,12 @@ def counts(db, child_chat_id: str) -> tuple[int, int]:
             continue
         events = [e for e in (row.tool_calls_json or []) if isinstance(e, dict)]
         tools += len([e for e in events if e.get("kind") != "agent" or e.get("name") != "budget"])
-        steps += max(1, len(row.steps_json or []) + (1 if (row.content or "").strip() else 0))
+        # Rounds, not marks: a round now writes a second mark where its
+        # thinking ends, and that is one step of work, not two. Marks written
+        # before "round" was stamped count one each, as they always did.
+        marks = [m for m in (row.steps_json or []) if isinstance(m, dict)]
+        rounds = len({m.get("round", i) for i, m in enumerate(marks)})
+        steps += max(1, rounds + (1 if (row.content or "").strip() else 0))
     return steps, tools
 
 

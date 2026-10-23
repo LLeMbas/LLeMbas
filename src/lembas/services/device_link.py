@@ -1100,6 +1100,12 @@ def _close_thinking(generation) -> None:
 # How much of a job's note the transcript keeps where it went in, and how many
 # of a subagent's tool lines are kept under its task block or in its panel.
 MAX_NOTE_CHARS = 8000
+
+# How long a stopped reply waits for the device to say it has stopped, before it
+# ends here regardless. Was ten seconds; the device's own tool or prefill is no
+# reason for the person here to keep watching a reply they stopped. Anything
+# the device sends after this is not written into the reply.
+DEVICE_STOP_GRACE = 2.0
 MAX_SUB_TOOLS = 50
 MAX_RECENT_SUB_TOOLS = 8
 
@@ -1108,6 +1114,8 @@ def _retract(generation) -> None:
     """Drop what the current step streamed: the text and thinking appended
     since the last mark. The marks are cumulative lengths, so everything up to
     the last one is kept whole and the open tail alone goes."""
+    # Marks the retried step wrote itself (where its thinking ended) go with it.
+    del generation.steps[getattr(generation, "device_step_marks", 0) :]
     last = generation.steps[-1] if generation.steps else {}
     text_to = int(last.get("text_to") or 0)
     thinking_to = int(last.get("thinking_to") or 0)
@@ -1146,7 +1154,13 @@ def apply_event(generation, event: dict[str, Any]) -> None:
     # a device chat's thinking block said only how many tokens it held.
     if kind == "reasoning":
         _think(generation)
-    elif kind in ("text", "tool_call_delta", "tool_start", "step", "usage", "task", "done"):
+    elif kind in ("text", "tool_call_delta", "tool_start") and generation.device_think_span:
+        # The model moved on to prose or a call: the thinking ends here as a
+        # step of its own, so the block says "Thought for …" now and not when
+        # the step or the reply ends (the server's own replies, and the CLI).
+        _close_thinking(generation)
+        generation.close_step()
+    elif kind in ("step", "usage", "task", "done"):
         _close_thinking(generation)
     if kind == "text":
         text = str(event.get("text") or "")
@@ -1159,6 +1173,7 @@ def apply_event(generation, event: dict[str, Any]) -> None:
     elif kind == "step" and int(event.get("n") or 0) > 1:
         generation.rounds += 1
         generation.close_step()
+        generation.device_step_marks = len(generation.steps)
     elif kind == "done" and event.get("reason") == "cancelled":
         generation.stopped = True
     elif kind == "todos":
@@ -1191,8 +1206,14 @@ def apply_event(generation, event: dict[str, Any]) -> None:
         generation.mark_steer([{"id": "", "text": str(event.get("text") or "")[:MAX_NOTE_CHARS]}])
     elif kind == "sub_tool":
         _sub_tool(generation, event)
+    elif kind == "tool_call_delta" and event.get("name"):
+        from lembas.services.generation import _preparing_status
+
+        generation.status = _preparing_status((str(event["name"]),))
     elif kind == "tool_start":
-        generation.status = f"{event.get('name') or 'tool'}…"
+        from lembas.services import tool_labels
+
+        generation.status = f"Running {tool_labels.label_for(str(event.get('name') or 'tool'))}…"
         # What it was called with, for the block it ends as: the
         # command a shell block shows, the path an edit or a read shows.
         generation.device_args[str(event.get("id") or "")] = _bounded_args(event.get("args"))
@@ -1405,17 +1426,20 @@ async def _prompt(
     meta.update(session_context(link, chat_id))
     if meta:
         params["_meta"] = {"lembas": meta}
+    stopping = asyncio.ensure_future(generation.stop_event.wait())
     try:
         task = asyncio.create_task(link.request("session/prompt", params, timeout=None))
         while not task.done():
-            done, _ = await asyncio.wait({task}, timeout=0.5)
+            # Stop is waited on with the answer, not found by the next poll.
+            done, _ = await asyncio.wait({task, stopping}, timeout=0.5)
+            done.discard(stopping)
             if not done and not generation.cancel and link.can("steer"):
                 await _pass_on_queued(link, generation, chat_id, session_id)
             if not done and generation.cancel:
                 await link.notify("session/cancel", {"sessionId": session_id})
                 generation.stopped = True
                 with contextlib.suppress(Exception):
-                    await asyncio.wait_for(asyncio.shield(task), 10)
+                    await asyncio.wait_for(asyncio.shield(task), DEVICE_STOP_GRACE)
                 break
         if task.done() and not task.cancelled():
             result = task.result() or {}
@@ -1438,6 +1462,7 @@ async def _prompt(
                 # deduped it. Its answer is in the device's history.
                 await _import_turn(link, generation, session_id, device_name, turn, strict=True)
     finally:
+        stopping.cancel()
         if turn and link.turn_writers.get((session_id, turn)) is generation:
             link.turn_writers.pop((session_id, turn), None)
 
@@ -1637,18 +1662,22 @@ async def _follow(link: Link, generation, chat_id: str, session_id: str) -> None
         if session_id not in link.busy and not done.done():
             # It ended between the question and now.
             done.set_result(None)
-        while not done.done():
-            await asyncio.wait({done}, timeout=0.5)
-            if done.done():
-                break
-            if generation.cancel:
-                generation.stopped = True
-                await link.notify("session/cancel", {"sessionId": session_id})
-                with contextlib.suppress(Exception):
-                    await asyncio.wait_for(asyncio.shield(done), 10)
-                break
-            if link.can("steer"):
-                await _pass_on_queued(link, generation, chat_id, session_id)
+        stopping = asyncio.ensure_future(generation.stop_event.wait())
+        try:
+            while not done.done():
+                await asyncio.wait({done, stopping}, timeout=0.5)
+                if done.done():
+                    break
+                if generation.cancel:
+                    generation.stopped = True
+                    await link.notify("session/cancel", {"sessionId": session_id})
+                    with contextlib.suppress(Exception):
+                        await asyncio.wait_for(asyncio.shield(done), DEVICE_STOP_GRACE)
+                    break
+                if link.can("steer"):
+                    await _pass_on_queued(link, generation, chat_id, session_id)
+        finally:
+            stopping.cancel()
         if done.done() and not done.cancelled() and done.exception() is not None:
             generation.error = str(done.exception())
     finally:

@@ -117,7 +117,15 @@
     if (box) remember(box);
   });
 
-  document.body.addEventListener("htmx:afterSwap", function () {
+  /* Not after a stream frame: that frame's own box was put back on
+     `htmx:sseMessage` above, and no other box on the page can have changed.
+     Walking every container on the page after each of a dozen frames a second
+     was the cost of this listener and bought nothing (`isStreamFrame` in
+     app.js says which swaps those are). The `done` frame is not one of them,
+     so the finished bubble is restored here exactly as before. */
+  document.body.addEventListener("htmx:afterSwap", function (event) {
+    var lembas = window.lembas;
+    if (lembas && lembas.isStreamFrame && lembas.isStreamFrame(event)) return;
     document.querySelectorAll("[data-steps]").forEach(restore);
   });
 

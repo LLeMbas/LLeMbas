@@ -47,7 +47,7 @@ from lembas.services import tools as tools_service
 from lembas.services.agent import policy as agent_policy
 from lembas.services.agent import terminal as terminal_service
 from lembas.services.llm.openai_client import LLMError
-from lembas.services.markdown import escape_text, render_markdown
+from lembas.services.markdown import LiveRender, escape_text, render_markdown
 from lembas.web.i18n import t
 from lembas.web.templating import render, templates
 
@@ -1112,6 +1112,34 @@ def _reply_in_flight(db: DBSession, chat: Chat) -> bool:
     return unfinished is not None or generation_service.running_for(chat.id) is not None
 
 
+# How long an edit or a regenerate waits for the reply it stopped to end. Stop
+# lands within a second now (`generation._until_stopped`); a device gets its own
+# grace (`device_link.DEVICE_STOP_GRACE`) inside this.
+STOP_WAIT_SECONDS = 8.0
+
+
+async def _stop_running(db: DBSession, chat: Chat) -> None:
+    """Stop the reply this chat is writing, if any, and wait for it to end.
+
+    For a rewind: an edit or a regenerate pressed while a reply runs means "not
+    that -- this", which is Stop and then the new turn. Refused with a 409 only
+    if the reply will not end in time, which leaves nothing half-done.
+    """
+    running = generation_service.running_for(chat.id)
+    if running is None:
+        return
+    generation_service.request_stop(running.message_id)
+    deadline = time.monotonic() + STOP_WAIT_SECONDS
+    while time.monotonic() < deadline:
+        if generation_service.running_for(chat.id) is None:
+            db.expire_all()
+            return
+        await asyncio.sleep(0.1)
+    raise HTTPException(
+        status.HTTP_409_CONFLICT, t("Wait for the current reply to finish, or stop it.")
+    )
+
+
 def _note_rewind(chat: Chat) -> None:
     """An agent chat's transcript went back and the machine did not.
 
@@ -1384,7 +1412,7 @@ async def chat_jobs(db: DBSession, chat: Chat) -> list[dict]:
     return [jobs_service.info(db, job) for job in jobs_service.for_chat(db, chat.id)]
 
 
-def _tail_oob(message_id: str, thinking_tail: str, think_label: str, text_tail: str) -> str:
+def _tail_oob(message_id: str, thinking_tail: str, think_label: str, tail_html: str) -> str:
     """The open tail, as out-of-band swaps riding on a `steps` frame.
 
     A round closing moves the text being written out of the tail and into a
@@ -1398,7 +1426,7 @@ def _tail_oob(message_id: str, thinking_tail: str, think_label: str, text_tail: 
     """
     return (
         f'<div id="stream-{message_id}" hx-swap-oob="innerHTML">'
-        f"{render_markdown(text_tail) if text_tail else ''}</div>"
+        f"{tail_html}</div>"
         f'<div id="reasoning-body-{message_id}" hx-swap-oob="innerHTML">'
         f"{escape_text(thinking_tail)}</div>"
         f'<span id="think-stats-{message_id}" hx-swap-oob="innerHTML">'
@@ -1532,6 +1560,10 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
     # streaming shell renders their containers: a first pass that finds them
     # empty has nothing to say about them.
     sent: dict[str, str] = {"reasoning": "", "think": "", "render": "", "status": "", "ask": ""}
+    # The tail's markdown, rendered at the cost of what is new each pass and
+    # rendered once a pass -- it used to be rendered whole, twice at a round's
+    # close, ten times a second. See `markdown.LiveRender`.
+    live = LiveRender()
 
     def changed(name: str, payload: str) -> bool:
         if sent.get(name) == payload:
@@ -1541,10 +1573,12 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
 
     try:
         while True:
+            pass_started = time.monotonic()
             if generation.version != seen:
                 seen = generation.version
                 thinking_tail, text_tail = steps_service.tail(generation)
                 think_label = _think_label(generation, thinking_tail)
+                tail_html = live.render(text_tail) if text_tail else ""
                 if len(generation.steps) > marks_done:
                     for step in steps_service.closed_from(generation, since=marks_done):
                         rendered.append(_step_html(message_id, step))
@@ -1553,11 +1587,11 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
                     # `_tail_oob` for why it is one frame and not two.
                     sent["reasoning"] = escape_text(thinking_tail)
                     sent["think"] = escape_text(think_label)
-                    sent["render"] = render_markdown(text_tail) if text_tail else ""
+                    sent["render"] = tail_html
                     yield sse.event(
                         "steps",
                         "".join(rendered)
-                        + _tail_oob(message_id, thinking_tail, think_label, text_tail),
+                        + _tail_oob(message_id, thinking_tail, think_label, tail_html),
                     )
                     # A message taken in just now is shown in the reply; its
                     # bubble at the bottom of the thread goes.
@@ -1579,7 +1613,7 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
                     yield sse.event("reasoning", sent["reasoning"])
                 if changed("think", escape_text(think_label)):
                     yield sse.event("think", sent["think"])
-                if changed("render", render_markdown(text_tail) if text_tail else ""):
+                if changed("render", tail_html):
                     yield sse.event("render", sent["render"])
                 # Guarded on truthiness, which puts this in the
                 # reasoning/tools/render group and not the
@@ -1645,8 +1679,11 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
 
             # Polling rather than per-follower wakeups: the producer already
             # works in RENDER_INTERVAL steps, so a short sleep is simpler and
-            # cannot drop a notification.
-            await asyncio.sleep(generation_service.RENDER_INTERVAL * 0.8)
+            # cannot drop a notification. Never less than twice what this pass
+            # cost: a follower whose rendering got expensive backs off rather
+            # than taking the event loop from everything else.
+            spent = time.monotonic() - pass_started
+            await asyncio.sleep(max(generation_service.RENDER_INTERVAL * 0.8, 2 * spent))
     finally:
         generation.followers = max(0, generation.followers - 1)
 
@@ -1946,15 +1983,12 @@ async def rewind_to(
     if not content and not message.attachments:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, t("A message cannot be empty."))
 
-    # Editing rewinds and then starts a reply, unconditionally. Doing that while
-    # one is already being written is a second concurrent generation -- the
-    # thing the queue exists to prevent -- reachable here by a button that is on
-    # screen throughout. It was reachable before the queue too; nothing made it
-    # obvious.
-    if _reply_in_flight(db, chat):
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, t("Wait for the current reply to finish, or stop it.")
-        )
+    # Editing rewinds and then starts a reply. Doing that while one is being
+    # written would be two generations answering one chat -- so the running
+    # one is stopped first, as Stop would, and the edit goes ahead once it has.
+    # It used to refuse ("wait for it to finish, or stop it"), which is the
+    # same thing with a step for the person to do.
+    await _stop_running(db, chat)
     # `_reply_in_flight` is about *this* chat; the quota is about the account.
     _refuse_extra_reply(db, chat, user)
 
@@ -2803,7 +2837,9 @@ async def regenerate(
 
 async def regenerate_reply(db: DBSession, chat: Chat, user: User, message_id: str) -> Message:
     """Blank a reply and produce it again: the row, reused. The core of
-    `regenerate`, shared with the app's JSON door."""
+    `regenerate`, shared with the app's JSON door. A reply still being
+    written is stopped first, as for an edit."""
+    await _stop_running(db, chat)
     message = db.get(Message, message_id)
     if message is None or message.chat_id != chat.id or message.role != ROLE_ASSISTANT:
         raise HTTPException(status.HTTP_404_NOT_FOUND, t("That reply no longer exists."))
