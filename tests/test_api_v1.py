@@ -14,7 +14,17 @@ import httpx
 import pytest
 from sqlalchemy import select
 
-from lembas.db.models import ApiToken, AuditEvent, Connection, Model, Usage, User
+from lembas.db.models import (
+    TOKEN_DEVICE,
+    ApiToken,
+    AuditEvent,
+    Chat,
+    Connection,
+    DeviceSessionDelete,
+    Model,
+    Usage,
+    User,
+)
 from lembas.security import api_tokens
 from lembas.services import settings_store
 from lembas.services.crypto import encrypt
@@ -316,6 +326,52 @@ def test_a_device_signs_itself_out(client, db, registered):
     raw = _token(db)
     assert client.delete("/api/v1/token", headers=_bearer(raw)).status_code == 204
     assert client.get("/v1/models", headers=_bearer(raw)).status_code == 401
+
+
+def _device(db, user, host="device-1") -> tuple[ApiToken, str]:
+    name = f"LLeMbas CLI on {host}"
+    scopes = ["models", "link"]
+    kind = TOKEN_DEVICE
+    return api_tokens.create(db, user, name=name, scopes=scopes, kind=kind, device_host=host)
+
+
+def _sign_out(client, raw: str, body: dict) -> int:
+    return client.request("DELETE", "/api/v1/token", headers=_bearer(raw), json=body).status_code
+
+
+def test_a_device_logging_in_again_hands_its_chats_to_the_new_token(client, db, registered):
+    user = db.scalar(select(User))
+    old, old_raw = _device(db, user)
+    new, new_raw = _device(db, user)
+    old_id, new_id = old.id, new.id
+    chat = Chat(user_id=user.id, model_id="", device_token_id=old_id, device_session_id="ses_1")
+    db.add(chat)
+    db.add(DeviceSessionDelete(token_id=old_id, session_id="ses_gone"))
+    db.commit()
+    assert _sign_out(client, old_raw, {"replaced_by": new_raw}) == 204
+    db.expire_all()
+    assert db.get(Chat, chat.id).device_token_id == new_id
+    assert db.scalar(select(DeviceSessionDelete)).token_id == new_id
+    assert db.get(ApiToken, old_id) is None
+    assert client.get("/v1/models", headers=_bearer(new_raw)).status_code == 200
+    assert any("agent chat" in e.summary for e in db.scalars(select(AuditEvent)))
+
+
+def test_chats_never_go_to_another_accounts_token(client, db, registered):
+    user = db.scalar(select(User))
+    sam = User(email="sam@shire.test", name="Sam", password_hash="x", role="user")
+    db.add(sam)
+    db.commit()
+    _, sams_raw = _device(db, sam)
+    for successor in (sams_raw, "lmb_not_a_token", 7):
+        old, old_raw = _device(db, user)
+        old_id = old.id
+        chat = Chat(user_id=user.id, model_id="", device_token_id=old_id, device_session_id="s")
+        db.add(chat)
+        db.commit()
+        assert _sign_out(client, old_raw, {"replaced_by": successor}) == 204
+        db.expire_all()
+        assert db.get(Chat, chat.id).device_token_id == old_id
 
 
 def test_a_device_cannot_be_approved_without_the_permission(client, db, registered):

@@ -144,6 +144,25 @@ def revoke(db: DBSession, token: ApiToken) -> None:
     db.commit()
 
 
+def hand_over(db: DBSession, old: ApiToken, new: ApiToken) -> int:
+    """A device logged in again and is replacing its old token with `new`: the
+    old one's agent chats, and the deletes still waiting for it, become the new
+    one's. The sessions are the device's, on its disk, so the new token's link
+    holds them. Only between two tokens of one account; the number of chats moved."""
+    from sqlalchemy import update
+
+    from lembas.db.models import Chat, DeviceSessionDelete
+
+    if old.id == new.id or old.user_id != new.user_id:
+        return 0
+    chats = update(Chat).where(Chat.device_token_id == old.id).values(device_token_id=new.id)
+    moved = db.execute(chats).rowcount
+    deletes = update(DeviceSessionDelete).where(DeviceSessionDelete.token_id == old.id)
+    db.execute(deletes.values(token_id=new.id))
+    db.commit()
+    return moved or 0
+
+
 def forget_device(db: DBSession, token_ids: list[str]) -> None:
     """A device token going: the deletes still waiting for that device go with
     it -- it will never link again to be told, and the table has no

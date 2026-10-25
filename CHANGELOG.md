@@ -5,6 +5,18 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
+## 1.7.2 — 2026-10-25
+
+A device that logs in again stays one device.
+
+### Fixed
+
+- **Logging a device in again left an offline twin holding its agent chats.** A device signing
+  its old token out may now name the new one (`DELETE /api/v1/token` with
+  `{"replaced_by": "<new token>"}`): when that is a live token of the same account, the old
+  device's agent chats, and any deletes still waiting for it, move to the new one before the old is
+  revoked, and the audit log says how many. LLeMbas CLI 1.5.2 does this on every login again.
+
 ## 1.7.1 — 2026-10-23
 
 The chat window, fixed where it was felt: thinking that closes when it ends,

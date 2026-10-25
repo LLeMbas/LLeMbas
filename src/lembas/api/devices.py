@@ -209,13 +209,22 @@ async def device_token(request: Request, db: Db) -> JSONResponse:
 @router.delete("/api/v1/token")
 async def sign_out(request: Request, db: Db) -> Response:
     """The token presented revokes itself: `lembas logout`. Any live token may,
-    whatever its scopes -- giving up access needs none."""
+    whatever its scopes -- giving up access needs none.
+
+    A device that has just logged in again signs its old token out with
+    `{"replaced_by": "<the new token>"}`: when that is a live token of the same
+    account, the old one's agent chats go to the new one first, so a login
+    again leaves one device, not an offline twin holding the chats."""
     header = request.headers.get("authorization", "")
     scheme, _, raw = header.partition(" ")
     found = api_tokens.resolve(db, raw.strip()) if scheme.lower() == "bearer" else None
     if found is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "That token is not valid.")
     token, user = found
+    moved = 0
+    successor = await _replaced_by(request, db)
+    if successor is not None and successor[1].id == user.id:
+        moved = api_tokens.hand_over(db, token, successor[0])
     api_tokens.revoke(db, token)
     from lembas.api.tokens import _drop_link
 
@@ -227,9 +236,21 @@ async def sign_out(request: Request, db: Db) -> Response:
         request=request,
         target_kind="token",
         target_id=token.id,
-        summary=f"{token.name!r} ({token.prefix}…) signed itself out",
+        summary=f"{token.name!r} ({token.prefix}…) signed itself out"
+        + (f", its {moved} agent chat(s) to {successor[0].prefix}…" if moved and successor else ""),
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+async def _replaced_by(request: Request, db: Db):
+    """The live token a sign-out names as its successor, with its owner, or None.
+    No body, a body that is not JSON, or a token that is not live: None."""
+    try:
+        body = await request.json()
+    except Exception:
+        return None
+    raw = body.get("replaced_by") if isinstance(body, dict) else None
+    return api_tokens.resolve(db, raw.strip()) if isinstance(raw, str) and raw.strip() else None
 
 
 @router.websocket("/api/devices/link")
