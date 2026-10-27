@@ -15,6 +15,7 @@ from fastapi.responses import RedirectResponse
 from lembas import __version__
 from lembas.api.deps import AdminUser, Db
 from lembas.services import audit, harness_spec, settings_store, updates_auto
+from lembas.services import export as export_service
 from lembas.services import updates as updates_service
 from lembas.web import i18n
 from lembas.web.templating import render
@@ -33,7 +34,9 @@ def _seen(db, user) -> None:
         db.commit()
 
 
-def _page(request: Request, state, saved: str = "", *, db=None) -> Response:
+def _page(
+    request: Request, state, saved: str = "", *, db=None, export_error: str = ""
+) -> Response:
     values = settings_store.updates(db) if db is not None else {}
     return render(
         request,
@@ -48,12 +51,15 @@ def _page(request: Request, state, saved: str = "", *, db=None) -> Response:
             # Only asked when the helper is installed: no helper, no copy to read.
             "helper_guarded": (not state.helper) or updates_service.helper_guarded(),
             "saved": saved,
+            "export_error": export_error,
         },
     )
 
 
 @router.get("")
-async def updates_page(request: Request, db: Db, user: AdminUser, saved: str = ""):
+async def updates_page(
+    request: Request, db: Db, user: AdminUser, saved: str = "", export_error: str = ""
+):
     """No network on a page load.
 
     `read(fetch=False)` compares against whatever the last fetch left behind, so
@@ -61,7 +67,50 @@ async def updates_page(request: Request, db: Db, user: AdminUser, saved: str = "
     remote every time it was rendered would be one somebody stops opening.
     """
     _seen(db, user)
-    return _page(request, updates_service.read(), saved, db=db)
+    return _page(request, updates_service.read(), saved, db=db, export_error=export_error)
+
+
+@router.post("/export")
+async def export_admin(
+    request: Request,
+    db: Db,
+    user: AdminUser,
+    passphrase: str = Form(""),
+    passphrase_confirm: str = Form(""),
+) -> Response:
+    """The instance's configuration as a file, for the next major version.
+
+    A plain form POST answered with an attachment, not htmx: the browser saves
+    the file and the page stays where it is. Keys go into it only encrypted
+    with the passphrase given here, and without one they are left out -- the
+    file is meant to be carried around, and rule 5 holds for it as for a page.
+    The passphrase is not kept, logged or audited: the audit middleware records
+    the path and never a form's values.
+    """
+    if passphrase != passphrase_confirm:
+        return RedirectResponse(
+            "/admin/updates?export_error="
+            + quote(i18n.t("The two passphrases are not the same. Nothing was exported."))
+            + "#export",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    document = export_service.admin(db, passphrase=passphrase)
+    log.info(
+        "%s exported the instance's configuration (%s items, secrets %s)",
+        user.email,
+        len(document["items"]),
+        "encrypted" if passphrase else "left out",
+    )
+    return Response(
+        content=export_service.dumps(document),
+        media_type="application/json",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{export_service.filename(export_service.KIND_ADMIN)}"'
+            ),
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @router.post("/check")

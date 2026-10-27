@@ -53,6 +53,67 @@ def backup(
     typer.echo(str(path))
 
 
+export_app = typer.Typer(
+    help="Export what this instance holds, for the next major version.",
+    no_args_is_help=True,
+)
+app.add_typer(export_app, name="export")
+
+
+def _write_export(document: dict, out: str) -> None:
+    """The file, written owner-only: an admin export names every endpoint and,
+    with a passphrase, carries its keys. `-` is standard output."""
+    import os
+
+    from lembas.services import export as export_service
+
+    text = export_service.dumps(document)
+    if out == "-":
+        typer.echo(text, nl=False)
+        return
+    descriptor = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        handle.write(text)
+    typer.echo(f"{out}: {len(document['items'])} items", err=True)
+
+
+@export_app.command("admin")
+def export_admin(
+    out: str = typer.Option(..., "--out", help="The file to write; - for standard output."),
+    passphrase_env: str = typer.Option(
+        "",
+        "--passphrase-env",
+        help="The environment variable holding the passphrase that encrypts the keys. "
+        "Without it the keys are left out of the file.",
+    ),
+) -> None:
+    """Connections, models, data groups, services, image workflows and tools."""
+    import os
+
+    from lembas.db.session import init_db, session_scope
+    from lembas.services import export as export_service
+
+    passphrase = ""
+    if passphrase_env:
+        passphrase = os.environ.get(passphrase_env, "")
+        if not passphrase:
+            # Named but empty is a mistake, not a choice: writing the file
+            # without its keys would look like success.
+            typer.secho(f"{passphrase_env} is not set or is empty.", fg=typer.colors.RED, err=True)
+            raise typer.Exit(1)
+    init_db()
+    with session_scope() as db:
+        document = export_service.admin(db, passphrase=passphrase)
+    _write_export(document, out)
+    omitted = [s for s in document["secrets"] if s["state"] == "omitted"]
+    for secret in omitted:
+        typer.echo(
+            f"  left out: {secret['type']} {secret['name']!r} {secret['field']} "
+            f"({secret['reason']})",
+            err=True,
+        )
+
+
 @app.command("create-admin")
 def create_admin(
     email: str = typer.Option(..., prompt=True),

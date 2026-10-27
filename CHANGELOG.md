@@ -15,6 +15,12 @@ line, and its patches may carry the tools for exporting what you want to keep; n
   name -- so an importer can report exactly what it took and what it could not. Keys and other
   secrets are never in the file in clear: with a passphrase they are encrypted (scrypt and Fernet,
   a new salt per file); without one they are left out, and the file lists each one left out.
+- **Export the configuration** (Admin → Updates → *Export the configuration*): connections and
+  their models (with prices, kinds and every per-model setting), data groups, speech-to-text,
+  text-to-speech, web search, image generation and the other service settings, image workflows,
+  custom tools and MCP servers, as one file. Give a passphrase to take the keys along. The same from
+  a shell: `lembas-server export admin --out FILE [--passphrase-env VARIABLE]`, which writes the
+  file readable by its owner only and names every key it left out.
 
 ### Fixed
 
