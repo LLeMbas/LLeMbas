@@ -99,6 +99,18 @@ from lembas.db.models.library import (
     SkillRevision,
     chat_knowledge_bases,
 )
+from lembas.db.models.organisation import (
+    DEFAULT_ORG,
+    DEFAULT_ORG_NAME,
+    ORG_ADMIN,
+    ORG_MANAGERS,
+    ORG_MEMBER,
+    ORG_OWNER,
+    ORG_ROLES,
+    Invite,
+    Organisation,
+    org_models,
+)
 from lembas.db.models.report import (
     SOURCE_CHAT,
     SOURCE_MANUAL,
@@ -145,6 +157,16 @@ from lembas.db.models.user import (
 )
 
 __all__ = [
+    "DEFAULT_ORG",
+    "DEFAULT_ORG_NAME",
+    "ORG_ADMIN",
+    "ORG_MANAGERS",
+    "ORG_MEMBER",
+    "ORG_OWNER",
+    "ORG_ROLES",
+    "Invite",
+    "Organisation",
+    "org_models",
     "JOB_DONE",
     "JOB_ERROR",
     "JOB_RUNNING",

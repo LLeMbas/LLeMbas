@@ -21,6 +21,7 @@ from lembas.db.models import ROLE_ASSISTANT, ROLE_USER, Chat, Connection, Messag
 from lembas.services import chat as chat_service
 from lembas.services import generation as generation_service
 from lembas.services.crypto import encrypt
+from tests.conftest import join
 
 
 @pytest.fixture(autouse=True)
@@ -343,8 +344,7 @@ def test_neither_route_reaches_another_readers_chat(
     waiting = chat_service.create_message(db, chat, ROLE_USER, "mine", queued=True)
 
     client.post("/auth/logout", follow_redirects=False)
-    client.post(
-        "/auth/register",
+    join(client,
         data={"name": "Sam", "email": "sam@shire.test", "password": "potatoes-po-ta-toes"},
         follow_redirects=False,
     )

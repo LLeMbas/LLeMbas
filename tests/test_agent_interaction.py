@@ -16,6 +16,7 @@ from sqlalchemy import select
 from lembas.db.models import ROLE_ASSISTANT, Chat, Connection, Message, Model
 from lembas.services import generation as generation_service
 from lembas.services import interaction, settings_store
+from tests.conftest import join
 
 
 def _chat_that_can_ask(db, user_id):
@@ -342,8 +343,7 @@ def test_another_account_cannot_answer_your_question(client, db, registered, use
     generation_service._RUNNING[message_id] = generation
     try:
         client.post("/auth/logout")
-        client.post(
-            "/auth/register",
+        join(client,
             data={"name": "Sam", "email": "sam@shire.test", "password": "correct horse battery"},
             follow_redirects=False,
         )

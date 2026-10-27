@@ -42,6 +42,7 @@ from lembas.services.library import documents as documents_service
 from lembas.services.library import memories as memories_service
 from lembas.services.library import notes as notes_service
 from lembas.services.library import skills as skills_service
+from tests.conftest import join
 
 STRANGER = {"name": "Sam", "email": "sam@shire.test", "password": "gardening-is-hard"}
 
@@ -62,7 +63,7 @@ def stranger(client, registered) -> TestClient:
     be asked of somebody who does not.
     """
     other = TestClient(client.app)
-    response = other.post("/auth/register", data=STRANGER, follow_redirects=False)
+    response = join(other, STRANGER)
     assert response.status_code == 303, response.text
     return other
 

@@ -11,14 +11,14 @@ from sqlalchemy import select
 from lembas.db.models import User
 from lembas.services import harness, prompts, settings_store
 from lembas.services.library import memories as memories_service
+from tests.conftest import join
 
 
 @pytest.fixture
 def plain_user(client: TestClient, db, registered) -> User:
     """A second, non-admin account. Leaves the client signed in as them."""
     client.post("/auth/logout", follow_redirects=False)
-    client.post(
-        "/auth/register",
+    join(client,
         data={"name": "Sam", "email": "sam@shire.test", "password": "potatoes-po-ta-toes"},
         follow_redirects=False,
     )

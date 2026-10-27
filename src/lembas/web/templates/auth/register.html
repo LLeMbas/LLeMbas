@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "_macros.html" import icon, mark, wordmark %}
 
-{% block title %}{% if first_run %}{{ t("Set up %(name)s", name=brand.name) }}{% else %}{{ t("Create an account") }}{% endif %}{% endblock %}
+{% block title %}{{ t("Set up %(name)s", name=brand.name) }}{% endblock %}
 
 {% block body %}
 <main class="auth">
@@ -9,11 +9,7 @@
     <div class="auth__brand">
       {{ mark(cls="brand-mark", uid="auth") }}
       <h1 class="auth__title">{{ wordmark() }}</h1>
-      {% if first_run %}
       <p class="auth__subtitle">{{ t("Nobody has claimed this instance yet. The first account becomes its administrator.") }}</p>
-      {% else %}
-      <p class="auth__subtitle">{{ t("Create your account.") }}</p>
-      {% endif %}
     </div>
 
     {% if error %}
@@ -44,15 +40,10 @@
       </div>
 
       <button class="btn btn--primary btn--block" type="submit">
-        {% if first_run %}{{ t("Create administrator account") }}{% else %}{{ t("Create account") }}{% endif %}
+        {{ t("Create administrator account") }}
       </button>
     </form>
 
-    {% if not first_run %}
-    <p class="auth__footer">
-      {{ tm('Already have an account? <a href="/auth/login">Sign in</a>.') }}
-    </p>
-    {% endif %}
   </div>
 </main>
 {% endblock %}

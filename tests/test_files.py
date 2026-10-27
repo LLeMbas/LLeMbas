@@ -15,6 +15,7 @@ from lembas.services import chat as chat_service
 from lembas.services import files as files_service
 from lembas.services import settings_store
 from lembas.services.crypto import encrypt
+from tests.conftest import join
 
 
 def turns(body: dict) -> list[dict]:
@@ -243,8 +244,7 @@ def test_a_rejected_upload_returns_a_readable_error(client: TestClient, db, regi
 
 def test_uploading_needs_permission(client: TestClient, db, registered):
     client.post("/auth/logout", follow_redirects=False)
-    client.post(
-        "/auth/register",
+    join(client,
         data={"name": "Sam", "email": "sam@shire.test", "password": "potatoes-po-ta-toes"},
         follow_redirects=False,
     )
@@ -258,8 +258,7 @@ def test_you_cannot_fetch_someone_elses_file(client: TestClient, db, registered)
     attachment = db.scalar(select(Attachment))
 
     client.post("/auth/logout", follow_redirects=False)
-    client.post(
-        "/auth/register",
+    join(client,
         data={"name": "Sam", "email": "sam@shire.test", "password": "potatoes-po-ta-toes"},
         follow_redirects=False,
     )
@@ -346,8 +345,7 @@ def test_you_cannot_attach_someone_elses_file(
     stolen = db.scalar(select(Attachment))
 
     client.post("/auth/logout", follow_redirects=False)
-    client.post(
-        "/auth/register",
+    join(client,
         data={"name": "Sam", "email": "sam@shire.test", "password": "potatoes-po-ta-toes"},
         follow_redirects=False,
     )
@@ -675,8 +673,7 @@ def test_the_snapshot_is_dropped_when_the_page_saves(db, client, registered):
 
 def test_only_an_administrator_may_change_extraction(client, registered):
     client.post("/auth/logout", follow_redirects=False)
-    client.post(
-        "/auth/register",
+    join(client,
         data={"name": "Sam", "email": "sam@shire.test", "password": "potatoes-po-ta-toes"},
         follow_redirects=False,
     )

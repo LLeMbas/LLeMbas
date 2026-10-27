@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from lembas.db.models import ROLE_ADMIN, ROLE_USER, User
+from tests.conftest import join
 
 
 def test_empty_instance_sends_you_to_registration(client: TestClient):
@@ -21,8 +23,7 @@ def test_first_account_becomes_admin(client: TestClient, db, registered):
 
 def test_second_account_is_an_ordinary_user(client: TestClient, db, registered):
     client.post("/auth/logout", follow_redirects=False)
-    client.post(
-        "/auth/register",
+    join(client,
         data={"name": "Sam", "email": "sam@shire.test", "password": "potatoes-po-ta-toes"},
         follow_redirects=False,
     )
@@ -34,11 +35,35 @@ def test_registration_signs_you_in(client: TestClient, registered):
     assert client.get("/chat").status_code == 200
 
 
-def test_duplicate_email_is_rejected(client: TestClient, registered):
+def test_duplicate_email_is_rejected(client: TestClient, db, registered):
+    from lembas.services import organisations
+
+    with pytest.raises(organisations.AccountError, match="already exists"):
+        organisations.create_account(
+            db, name="Again", email=registered["email"].upper(), password="long-enough-pass"
+        )
+
+
+def test_registration_is_only_the_first_run(client: TestClient, db, registered):
+    """No open sign-up: once the instance is set up, the form is closed."""
     client.post("/auth/logout", follow_redirects=False)
-    response = client.post("/auth/register", data=registered, follow_redirects=False)
-    assert response.status_code == 400
-    assert "already exists" in response.text
+    assert client.get("/auth/register").status_code == 403
+    response = client.post(
+        "/auth/register",
+        data={"name": "Uninvited", "email": "no@thanks.test", "password": "let-me-in-please"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 403
+    assert "Registration is closed" in response.text
+    assert db.scalar(select(User).where(User.email == "no@thanks.test")) is None
+    assert "/auth/register" not in client.get("/auth/login").text
+
+
+def test_the_first_account_owns_the_first_organisation(db, registered):
+    from lembas.db.models import DEFAULT_ORG, ORG_OWNER
+
+    user = db.scalar(select(User).where(User.email == registered["email"]))
+    assert (user.org_id, user.org_role) == (DEFAULT_ORG, ORG_OWNER)
 
 
 def test_short_password_is_rejected(client: TestClient):
@@ -110,8 +135,7 @@ def test_htmx_requests_get_a_redirect_header_not_a_login_page(
 
 def test_admin_area_is_closed_to_ordinary_users(client: TestClient, registered):
     client.post("/auth/logout", follow_redirects=False)
-    client.post(
-        "/auth/register",
+    join(client,
         data={"name": "Sam", "email": "sam@shire.test", "password": "potatoes-po-ta-toes"},
         follow_redirects=False,
     )

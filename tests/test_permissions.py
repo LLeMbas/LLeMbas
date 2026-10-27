@@ -11,6 +11,7 @@ from lembas.security import permissions
 from lembas.services import chat as chat_service
 from lembas.services import settings_store
 from lembas.services.crypto import encrypt
+from tests.conftest import join
 
 
 @pytest.fixture
@@ -23,8 +24,7 @@ def admin(client: TestClient, registered) -> None:
 def plain_user(client: TestClient, db, registered) -> User:
     """A second, non-admin account. Leaves the client signed in as them."""
     client.post("/auth/logout", follow_redirects=False)
-    client.post(
-        "/auth/register",
+    join(client,
         data={"name": "Sam", "email": "sam@shire.test", "password": "potatoes-po-ta-toes"},
         follow_redirects=False,
     )
@@ -337,8 +337,7 @@ def test_you_cannot_delete_your_own_account(client: TestClient, db, registered):
 def test_deactivating_a_user_revokes_their_sessions(client: TestClient, db, registered):
     """Otherwise the change only lands when their cookie happens to expire."""
     other = TestClient(client.app)
-    other.post(
-        "/auth/register",
+    join(other,
         data={"name": "Sam", "email": "sam@shire.test", "password": "potatoes-po-ta-toes"},
         follow_redirects=False,
     )

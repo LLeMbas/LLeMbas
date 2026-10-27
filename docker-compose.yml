@@ -29,7 +29,6 @@ services:
       LEMBAS_HOST: 0.0.0.0
       LEMBAS_PORT: 8080
       LEMBAS_LOG_LEVEL: ${LEMBAS_LOG_LEVEL:-info}
-      LEMBAS_ALLOW_SIGNUP: ${LEMBAS_ALLOW_SIGNUP:-true}
       # The proxy on the host reaches the container from the Docker bridge's
       # gateway, so that is whose X-Forwarded-For is believed. 172.16.0.0/12
       # holds Docker's default bridge networks; a network of your own, or a

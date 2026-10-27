@@ -37,11 +37,6 @@
       <button class="btn btn--primary btn--block" type="submit">{{ t("Sign in") }}</button>
     </form>
 
-    {% if allow_signup %}
-    <p class="auth__footer">
-      {{ tm('No account yet? <a href="/auth/register">Create one</a>.') }}
-    </p>
-    {% endif %}
   </div>
 </main>
 {% endblock %}

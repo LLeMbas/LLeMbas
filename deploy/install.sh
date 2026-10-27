@@ -150,7 +150,6 @@ LEMBAS_DATA_DIR=$PREFIX/data
 LEMBAS_HOST=127.0.0.1
 LEMBAS_PORT=$APP_PORT
 LEMBAS_LOG_LEVEL=info
-LEMBAS_ALLOW_SIGNUP=true
 LEMBAS_DEFAULT_THEME=moria
 # Which branch /admin/updates compares against. Deployment configuration, not
 # an instance setting: it decides what code runs here, and a value a web

@@ -5,6 +5,20 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
+### 2.0 (in progress)
+
+2.0 is a new major on `dev`, released as `2.0.0-beta.N`. What is listed here is on `dev` and in no
+release yet.
+
+- **Organisations.** Every account belongs to one organisation, with a role there (owner, admin or
+  member) beside its role on the instance. An existing account, and one made without saying
+  otherwise, is in the first organisation; whoever sets an empty instance up runs the instance and
+  owns that organisation.
+- **No open sign-up.** The *Registration* switch and `LEMBAS_ALLOW_SIGNUP` are gone, and so is the
+  *Create one* link on the sign-in page. Past the first run, an account is made by an
+  administrator or from an invite: a single-use link into an organisation that expires (a week by
+  default) and can be tied to one email address. (The invite screens come later in the beta.)
+
 ## 1.7.2 — 2026-10-25
 
 A device that logs in again stays one device.

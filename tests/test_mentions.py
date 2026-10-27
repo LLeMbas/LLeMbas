@@ -13,6 +13,7 @@ from sqlalchemy import select
 
 from lembas.db.models import Attachment, Message, User
 from lembas.services import chat as chat_service
+from tests.conftest import join
 
 
 # --- The picker --------------------------------------------------------------
@@ -268,8 +269,7 @@ def test_usage_is_owner_only(client: TestClient, db, registered, make_chat):
     chat_id = make_chat()
 
     client.post("/auth/logout", follow_redirects=False)
-    client.post(
-        "/auth/register",
+    join(client,
         data={"name": "Sam", "email": "sam@shire.test", "password": "potatoes-po-ta-toes"},
         follow_redirects=False,
     )

@@ -17,6 +17,7 @@ from sqlalchemy import select
 from lembas.db.models import Attachment, Chat, User
 from lembas.security import api_tokens
 from lembas.services import files as files_service
+from tests.conftest import join
 
 NAME = 'Žiadosť "č.1".txt'
 # What survives a multipart upload intact: httpx sends a `"` in a filename as `%22`.
@@ -137,8 +138,7 @@ def test_the_cleanup_runs_once_whoever_calls_it():
 # --- 4. An upload and somebody else's chat ------------------------------------------------
 def _sams_chat(client, db, make_chat) -> str:
     client.post("/auth/logout", follow_redirects=False)
-    client.post(
-        "/auth/register",
+    join(client,
         data={"name": "Sam", "email": "sam@shire.test", "password": "potatoes-po-ta-toes"},
         follow_redirects=False,
     )

@@ -111,7 +111,6 @@ def info() -> None:
     typer.echo(f"  database       : {settings.db_path.resolve()}")
     typer.echo(f"  bind           : {settings.host}:{settings.port}")
     typer.echo(f"  default theme  : {settings.default_theme}")
-    typer.echo(f"  signup open    : {settings.allow_signup}")
     if settings.secret_key_is_ephemeral:
         typer.secho(
             "  secret key     : GENERATED (set LEMBAS_SECRET_KEY for a real install)",

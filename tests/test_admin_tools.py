@@ -12,14 +12,14 @@ from sqlalchemy import select
 from lembas.db.models import CustomTool, Group, User
 from lembas.security.passwords import hash_password
 from lembas.services.crypto import UNCHANGED_SENTINEL, decrypt, encrypt
+from tests.conftest import join
 
 
 @pytest.fixture
 def plain_user(client: TestClient, db, registered):
     """A second account, which is never an administrator."""
     client.post("/auth/logout")
-    client.post(
-        "/auth/register",
+    join(client,
         data={"name": "Sam", "email": "sam@shire.test", "password": "correct horse battery"},
         follow_redirects=False,
     )

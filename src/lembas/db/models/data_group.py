@@ -23,6 +23,7 @@ from sqlalchemy import ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from lembas.db.base import Base, Timestamps, new_id
+from lembas.db.models.organisation import DEFAULT_ORG
 
 # The group every instance has, every connection is in until somebody says
 # otherwise, and every row written before data groups existed is backfilled to.
@@ -48,6 +49,13 @@ class DataGroup(Timestamps, Base):
     __tablename__ = "data_groups"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    org_id: Mapped[str] = mapped_column(
+        String(32),
+        ForeignKey("organisations.id", ondelete="CASCADE"),
+        default=DEFAULT_ORG,
+        nullable=False,
+        index=True,
+    )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     description: Mapped[str] = mapped_column(Text, default="")
     position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -84,3 +92,4 @@ class InDataGroup:
     """
 
     data_group_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+

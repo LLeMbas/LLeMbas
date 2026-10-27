@@ -42,7 +42,6 @@ class Settings(BaseSettings):
     reload: bool = False
     log_level: Literal["debug", "info", "warning", "error"] = "info"
 
-    allow_signup: bool = True
     default_theme: Literal["moria", "shire"] = "moria"
     session_ttl: int = 60 * 60 * 24 * 30
     request_timeout: float = 300.0

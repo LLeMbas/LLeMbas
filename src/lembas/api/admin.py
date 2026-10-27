@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DBSession
 
 from lembas.api.deps import AdminUser, Db
-from lembas.db.models import Connection, Model, User, guess_kind
+from lembas.db.models import Connection, Model, guess_kind
 from lembas.db.models.connection import KIND_OPENAI, KINDS, PROVIDER_PATTERN
 from lembas.services import chat as chat_service
 from lembas.services import data_groups, settings_store
@@ -52,7 +52,6 @@ async def general_page(request: Request, db: Db, user: AdminUser, saved: bool = 
             "values": settings_store.get_group(db),
             "languages": i18n.LANGUAGES,
             "saved": saved,
-            "user_count": db.scalar(select(func.count()).select_from(User)),
         },
     )
 
@@ -61,7 +60,6 @@ async def general_page(request: Request, db: Db, user: AdminUser, saved: bool = 
 async def save_general(
     db: Db,
     user: AdminUser,
-    allow_signup: bool = Form(False),
     instance_name: str = Form(""),
     personalization_enabled: bool = Form(False),
     language: str = Form(""),
@@ -75,8 +73,8 @@ async def save_general(
 ) -> Response:
     """Save instance settings.
 
-    Unchecked checkboxes are simply absent from a form post, which is why
-    allow_signup defaults to False here -- that absence *is* the "off" signal.
+    Unchecked checkboxes are simply absent from a form post, which is why the
+    booleans default to False here -- that absence *is* the "off" signal.
     """
     # Validated rather than trusted, and an empty or unknown value keeps what is
     # stored: a form that predates the field, or a typo in a scripted POST, must
@@ -88,7 +86,6 @@ async def save_general(
         db,
         {
             "instance_mode": mode,
-            "allow_signup": allow_signup,
             "instance_name": " ".join(instance_name.split())[:60],
             "personalization_enabled": personalization_enabled,
             # Validated rather than trusted: a code this release does not have
@@ -117,7 +114,7 @@ async def save_general(
     from lembas.services import branding
 
     branding.forget()
-    log.info("registration %s by %s", "opened" if allow_signup else "closed", user.email)
+    log.info("general settings saved by %s", user.email)
     return RedirectResponse("/admin/general?saved=1", status_code=status.HTTP_303_SEE_OTHER)
 
 

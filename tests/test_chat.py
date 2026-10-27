@@ -14,6 +14,7 @@ from lembas.services import chat as chat_service
 from lembas.services.crypto import encrypt
 from lembas.services.llm.openai_client import Endpoint, LLMError, delta_text, list_models
 from lembas.services.sse import event
+from tests.conftest import join
 
 
 # --- SSE framing -------------------------------------------------------------
@@ -327,8 +328,7 @@ def test_starting_a_chat_ignores_a_model_you_cannot_reach(client: TestClient, db
     db.commit()
 
     client.post("/auth/logout", follow_redirects=False)
-    client.post(
-        "/auth/register",
+    join(client,
         data={"name": "Sam", "email": "sam@shire.test", "password": "potatoes-po-ta-toes"},
         follow_redirects=False,
     )
@@ -382,8 +382,7 @@ def test_a_chat_belonging_to_someone_else_is_not_found(
     chat_id = make_chat()
 
     client.post("/auth/logout", follow_redirects=False)
-    client.post(
-        "/auth/register",
+    join(client,
         data={"name": "Sam", "email": "sam@shire.test", "password": "potatoes-po-ta-toes"},
         follow_redirects=False,
     )
@@ -571,8 +570,7 @@ def test_stopping_someone_elses_message_is_refused(client: TestClient, db, regis
     message = db.scalar(select(Message).where(Message.role == "assistant"))
 
     client.post("/auth/logout", follow_redirects=False)
-    client.post(
-        "/auth/register",
+    join(client,
         data={"name": "Sam", "email": "sam@shire.test", "password": "potatoes-po-ta-toes"},
         follow_redirects=False,
     )
@@ -946,8 +944,7 @@ def test_the_unread_poll_only_sees_your_own_chats(client: TestClient, db, regist
     mine = make_chat()
 
     client.post("/auth/logout", follow_redirects=False)
-    client.post(
-        "/auth/register",
+    join(client,
         data={"name": "Sam", "email": "sam@shire.test", "password": "potatoes-po-ta-toes"},
         follow_redirects=False,
     )

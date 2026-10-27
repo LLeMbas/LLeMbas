@@ -20,7 +20,6 @@ os.environ.update(
     {
         "LEMBAS_SECRET_KEY": "test-secret-key-not-for-real-use",
         "LEMBAS_DATA_DIR": _TMP,
-        "LEMBAS_ALLOW_SIGNUP": "true",
         "LEMBAS_LOG_LEVEL": "warning",
     }
 )
@@ -182,6 +181,33 @@ def registered(client: TestClient) -> dict[str, str]:
     response = client.post("/auth/register", data=credentials, follow_redirects=False)
     assert response.status_code == 303, response.text
     return credentials
+
+
+def join(client: TestClient, data: dict[str, str], **kwargs):
+    """Add a member to the first organisation and sign them in on `client`.
+
+    There is no open sign-up any more: past the first run an account comes
+    from an administrator or an invite. This takes the invite path
+    (`services/organisations.py`) and then signs in through the real form, so
+    a test that used to register a second person reads the same. Returns the
+    sign-in response.
+    """
+    from lembas.db.models import DEFAULT_ORG
+    from lembas.services import organisations
+
+    with get_session_factory()() as session:
+        made = organisations.create_invite(session, DEFAULT_ORG, created_by=None)
+        organisations.accept_invite(
+            session,
+            made.token,
+            name=data.get("name", "Someone"),
+            email=data["email"],
+            password=data["password"],
+        )
+    kwargs.setdefault("follow_redirects", False)
+    return client.post(
+        "/auth/login", data={"email": data["email"], "password": data["password"]}, **kwargs
+    )
 
 
 @pytest.fixture

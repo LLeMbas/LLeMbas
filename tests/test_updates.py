@@ -12,6 +12,7 @@ import pytest
 
 from lembas.config import settings
 from lembas.services import updates
+from tests.conftest import join
 
 # Stands up something real -- see the `slow` marker in pyproject.toml.
 pytestmark = pytest.mark.slow
@@ -353,8 +354,7 @@ def test_the_page_says_what_is_running(db, client, registered):
 
 def test_only_an_administrator_may_update(db, client, registered):
     client.post("/auth/logout", follow_redirects=False)
-    client.post(
-        "/auth/register",
+    join(client,
         data={"name": "Sam", "email": "sam@shire.test", "password": "potatoes-po-ta-toes"},
         follow_redirects=False,
     )

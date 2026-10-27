@@ -9,6 +9,7 @@ from sqlalchemy import select
 from lembas.db.models import Chat, Connection, Message, Model, User
 from lembas.services import settings_store
 from lembas.services.crypto import encrypt
+from tests.conftest import join
 
 
 def _connection(db, **model_kwargs) -> None:
@@ -25,8 +26,7 @@ def _connection(db, **model_kwargs) -> None:
 def plain_user(client: TestClient, db, registered) -> User:
     """A second, non-admin account, left signed in."""
     client.post("/auth/logout", follow_redirects=False)
-    client.post(
-        "/auth/register",
+    join(client,
         data={"name": "Sam", "email": "sam@shire.test", "password": "potatoes-po-ta-toes"},
         follow_redirects=False,
     )

@@ -10,6 +10,7 @@ from lembas.db.models import Connection, Model, Suggestion, User
 from lembas.services import settings_store
 from lembas.services import suggestions as suggestions_service
 from lembas.services.crypto import encrypt
+from tests.conftest import join
 
 
 @pytest.fixture
@@ -28,8 +29,7 @@ def clean(client: TestClient, db, registered):
 @pytest.fixture
 def plain_user(client: TestClient, db, registered) -> User:
     client.post("/auth/logout", follow_redirects=False)
-    client.post(
-        "/auth/register",
+    join(client,
         data={"name": "Sam", "email": "sam@shire.test", "password": "potatoes-po-ta-toes"},
         follow_redirects=False,
     )

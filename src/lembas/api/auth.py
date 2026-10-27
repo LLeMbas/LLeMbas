@@ -10,11 +10,10 @@ from sqlalchemy import func, select
 
 from lembas.api.deps import CurrentUser, Db
 from lembas.config import settings
-from lembas.db.models import ROLE_ADMIN, ROLE_USER, User
+from lembas.db.models import ORG_OWNER, ROLE_ADMIN, User
 from lembas.security import hardening
-from lembas.security.passwords import hash_password, validate_password
 from lembas.security.sessions import COOKIE_NAME, create_session, resolve_session, revoke_session
-from lembas.services import audit, settings_store
+from lembas.services import audit
 from lembas.web.i18n import t
 from lembas.web.templating import render
 
@@ -66,15 +65,8 @@ def _safe_next(raw: str | None) -> str:
 
 
 def _login_page(request: Request, db: Db, *, status_code: int = 200, **context):
-    """Render the sign-in page.
-
-    Always goes through here so `allow_signup` reflects the *stored* setting
-    rather than the environment default baked in by render(). Otherwise the
-    "Create one" link would keep appearing after an administrator closed
-    registration, offering a link that only leads to a refusal.
-    """
+    """Render the sign-in page."""
     context.setdefault("next", "/")
-    context["allow_signup"] = settings_store.signup_allowed(db)
     return render(request, "auth/login.html", context, status_code=status_code)
 
 
@@ -169,19 +161,27 @@ async def login(
     return response
 
 
+def _closed(request: Request, db: Db) -> Response:
+    return _login_page(
+        request,
+        db,
+        status_code=status.HTTP_403_FORBIDDEN,
+        error=t("Registration is closed. Ask an administrator for an account."),
+    )
+
+
 @router.get("/register")
 async def register_form(request: Request, db: Db, user: CurrentUser):
+    """The first run only: whoever opens an empty instance sets it up.
+
+    There is no open sign-up. After the first account, people are added by an
+    administrator or join from an invite (`services/organisations.py`).
+    """
     if user is not None:
         return RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
-    first_run = _no_users_yet(db)
-    if not first_run and not settings_store.signup_allowed(db):
-        return _login_page(
-            request,
-            db,
-            status_code=status.HTTP_403_FORBIDDEN,
-            error=t("Registration is closed. Ask an administrator for an account."),
-        )
-    return render(request, "auth/register.html", {"first_run": first_run})
+    if not _no_users_yet(db):
+        return _closed(request, db)
+    return render(request, "auth/register.html", {"first_run": True})
 
 
 @router.post("/register")
@@ -192,48 +192,40 @@ async def register(
     email: str = Form(...),
     password: str = Form(...),
 ):
-    first_run = _no_users_yet(db)
-    if not first_run and not settings_store.signup_allowed(db):
-        return _login_page(
-            request,
+    if not _no_users_yet(db):
+        return _closed(request, db)
+
+    from lembas.services import organisations
+
+    try:
+        # Whoever sets the instance up runs it: the instance admin, and the
+        # owner of the first organisation.
+        user = organisations.create_account(
             db,
-            status_code=status.HTTP_403_FORBIDDEN,
-            error=t("Registration is closed. Ask an administrator for an account."),
+            name=name,
+            email=email,
+            password=password,
+            org_id=organisations.default(db).id,
+            org_role=ORG_OWNER,
+            role=ROLE_ADMIN,
         )
-
-    name = name.strip()
-    email = email.strip().lower()
-
-    def fail(message: str) -> Response:
+    except organisations.AccountError as problem:
+        db.rollback()
         return render(
             request,
             "auth/register.html",
-            {"error": message, "name": name, "email": email, "first_run": first_run},
+            {
+                "error": str(problem),
+                "name": name.strip(),
+                "email": email.strip().lower(),
+                "first_run": True,
+            },
             status_code=status.HTTP_400_BAD_REQUEST,
         )
-
-    if not name:
-        return fail(t("Please enter a name."))
-    if "@" not in email or "." not in email.split("@")[-1]:
-        return fail(t("Please enter a valid email address."))
-    if (problem := validate_password(password)) is not None:
-        return fail(problem)
-    if db.scalar(select(User).where(User.email == email)) is not None:
-        return fail(t("An account with that email already exists."))
-
-    # Whoever sets the instance up owns it. Everyone after that is a plain user
-    # until an admin says otherwise.
-    user = User(
-        name=name,
-        email=email,
-        password_hash=hash_password(password),
-        role=ROLE_ADMIN if first_run else ROLE_USER,
-    )
-    db.add(user)
     db.commit()
-    log.info("registered %s as %s", email, user.role)
+    log.info("set up by %s", user.email)
     audit.record(
-        "auth.register", user=user, request=request, summary=f"{email} registered as {user.role}"
+        "auth.register", user=user, request=request, summary=f"{user.email} set the instance up"
     )
 
     token = create_session(

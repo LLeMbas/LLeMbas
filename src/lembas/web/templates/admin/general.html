@@ -136,43 +136,6 @@
     </div>
   </section>
 
-  <section class="card">
-    <h2 class="card__title">
-      {{ t("Registration") }}
-      {% if values.allow_signup %}
-      <span class="badge badge--success">{{ t("open") }}</span>
-      {% else %}
-      <span class="badge badge--danger">{{ t("closed") }}</span>
-      {% endif %}
-    </h2>
-
-    <div class="field">
-      <label class="checkbox">
-        <input type="checkbox" name="allow_signup" value="true"
-               {{ 'checked' if values.allow_signup }}>
-        <span>{{ t("Anyone who can reach this instance may create an account") }}</span>
-      </label>
-      <p class="field__hint">{{ t('Turn this off once your users exist. Sign-in is unaffected — existing accounts keep working, and the "Create one" link disappears from the sign-in page.') }}</p>
-    </div>
-
-    {% if values.allow_signup and user_count > 0 %}
-    <div class="alert alert--warning">
-      {{ icon("warning", "alert__icon") }}
-      <div>
-        <strong>{{ t("Registration is open.") }}</strong>
-        <div class="text-sm u-mt-1">
-          {{ t("This instance has 1 account.") if user_count == 1 else t("This instance has %(n)s accounts.", n=user_count) }}
-          {{ t("Anyone who can reach it can add another, and every account can use your configured models and API keys.") }}
-        </div>
-      </div>
-    </div>
-    {% endif %}
-
-    <p class="field__hint">
-      {{ tm("<code>LEMBAS_ALLOW_SIGNUP</code> in the environment sets only the starting value. Once saved here, this setting wins.") }}
-    </p>
-  </section>
-
   <div class="form-actions"><button class="btn btn--primary" type="submit">{{ t("Save settings") }}</button></div>
 </form>
 {% endblock %}

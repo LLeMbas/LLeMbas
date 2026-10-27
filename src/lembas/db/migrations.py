@@ -125,7 +125,8 @@ def _add_column_sql(table: Table, column: Column, dialect) -> str | None:
         )
         return None
 
-    parts = [f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {type_sql}']
+    prefix = f'"{table.schema}".' if table.schema else ""
+    parts = [f'ALTER TABLE {prefix}"{table.name}" ADD COLUMN "{column.name}" {type_sql}']
     if not column.nullable:
         # SQLite refuses a NOT NULL column with no default, so existing rows
         # have to be given something. That is the only reason a default is
@@ -438,6 +439,32 @@ def infer_model_kinds(engine: Engine) -> list[str]:
     return done
 
 
+def ensure_default_org(engine: Engine) -> list[str]:
+    """The first organisation (`organisation.DEFAULT_ORG`), made once.
+
+    Accounts, groups and data groups created without naming an organisation
+    belong to it, so it has to exist before the first of them is inserted.
+    In SQL, because this runs before anything may load an ORM row.
+    """
+    from lembas.db.models.organisation import DEFAULT_ORG, DEFAULT_ORG_NAME
+
+    with engine.begin() as connection:
+        found = connection.execute(
+            text("SELECT 1 FROM organisations WHERE id = :i"), {"i": DEFAULT_ORG}
+        ).first()
+        if found:
+            return []
+        connection.execute(
+            text(
+                "INSERT INTO organisations (id, name, slug, created_at, updated_at) "
+                "VALUES (:i, :n, :s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+            ),
+            {"i": DEFAULT_ORG, "n": DEFAULT_ORG_NAME, "s": DEFAULT_ORG},
+        )
+    log.info("migration: created the default organisation")
+    return ["create the default organisation"]
+
+
 def sync_schema(engine: Engine) -> list[str]:
     """Bring the database up to the declared schema. Returns what it changed."""
     import lembas.db.models  # noqa: F401  (registers every table on the metadata)
@@ -445,10 +472,15 @@ def sync_schema(engine: Engine) -> list[str]:
     changes: list[str] = []
 
     inspector = inspect(engine)
-    known_tables = set(inspector.get_table_names())
+    # The blob store's tables live in the attached schema (`db/models/blob.py`).
+    known_tables = {
+        (schema, name)
+        for schema in {table.schema for table in Base.metadata.sorted_tables}
+        for name in inspector.get_table_names(schema=schema)
+    }
     for table in Base.metadata.sorted_tables:
-        if table.name not in known_tables:
-            changes.append(f"create table {table.name}")
+        if (table.schema, table.name) not in known_tables:
+            changes.append(f"create table {table.fullname}")
 
     # Creates anything missing; existing tables are left alone.
     Base.metadata.create_all(bind=engine)
@@ -456,7 +488,9 @@ def sync_schema(engine: Engine) -> list[str]:
     inspector = inspect(engine)
     with engine.begin() as connection:
         for table in Base.metadata.sorted_tables:
-            existing = {col["name"] for col in inspector.get_columns(table.name)}
+            existing = {
+                col["name"] for col in inspector.get_columns(table.name, schema=table.schema)
+            }
             for column in table.columns:
                 if column.name in existing:
                     continue
@@ -464,8 +498,14 @@ def sync_schema(engine: Engine) -> list[str]:
                 if statement is None:
                     continue
                 connection.execute(text(statement))
-                changes.append(f"add column {table.name}.{column.name}")
+                changes.append(f"add column {table.fullname}.{column.name}")
                 log.info("schema: %s", statement)
+
+    # The first organisation, before anything can insert an account into it.
+    try:
+        changes.extend(ensure_default_org(engine))
+    except Exception:  # pragma: no cover - logged, and the next start retries
+        log.exception("could not create the default organisation")
 
     # Prices become money, usage entries learn their cost, and the models this
     # instance embeds with say so. Each converges on its own and

@@ -36,7 +36,6 @@ MESSAGES.update(
         "Password": "Heslo",
         "Sign in": "Prihlásiť sa",
         "Sign out": "Odhlásiť sa",
-        "Create your account.": "Vytvorte si účet.",
         "Nobody has claimed this instance yet. The first account becomes its administrator.": (
             "Túto instanciu si ešte nikto nepriradil. Prvý účet sa stáva jej správcom."
         ),
@@ -684,9 +683,6 @@ MESSAGES.update(
             "Nastavenia pre celú instanciu. Ukladajú sa do databázy a platia okamžite "
             "— bez restartu, a restart prežijú."
         ),
-        "Anyone who can reach this instance may create an account": (
-            "Účet si môže vytvoriť každý, kto sa dostane k tejto instancii"
-        ),
         "Default system prompt": "Predvolený systémový pokyn",
         "Applied to every chat that does not have a prompt of its own. A model's prompt overrides this, and a chat's prompt overrides both — most specific wins outright rather than the three being stacked together.": (
             "Použije sa na každú konverzáciu, ktorá nemá vlastný pokyn. Pokyn modelu "
@@ -1003,7 +999,6 @@ MESSAGES.update(
         "Reasoning": "Uvažovanie",
         "Reasoning efforts this model accepts": "Náročnosti uvažovania, ktoré tento model prijíma",
         "Required.": "Povinné.",
-        "Registration is open.": "Registrácia je otvorená.",
         "Timeout (seconds)": "Časový limit (sekundy)",
         "The answer": "Odpoveď",
         "The call": "Volanie",
@@ -1052,11 +1047,6 @@ MESSAGES.update(
         ),
         "Turning this off signs them out everywhere at once, rather than waiting for a cookie to expire.": (
             "Vypnutím ich odhlásite všade naraz, namiesto čakania na vypršanie cookie."
-        ),
-        "Turn this off once your users exist. Sign-in is unaffected — existing accounts keep working, and the \"Create one\" link disappears from the sign-in page.": (
-            "Vypnite to, keď už máte používateľov. Prihlasovanie to neovplyvní — "
-            "existujúce účty fungujú ďalej a odkaz „Vytvorte si ho“ zmizne z "
-            "prihlasovacej stránky."
         ),
         "Their chats, folders and library go too, and every share naming them or naming anything of theirs.": (
             "Zmiznú aj ich konverzácie, zložky a knižnica a každé zdieľanie, ktoré "
@@ -1414,7 +1404,6 @@ MESSAGES.update(
         "already in the baseline": "už v základe",
         "and": "a",
         "below the cut": "pod hranicou",
-        "closed": "zatvorené",
         "default": "predvolené",
         "detect": "zistiť",
         "disabled": "vypnuté",
@@ -1431,7 +1420,6 @@ MESSAGES.update(
         "off": "vypnuté",
         "on": "zapnuté",
         "only in the title request": "len v požiadavke na názov",
-        "open": "otvorené",
         "pending": "čaká",
         "pinned": "pripnuté",
         "private network": "privátna sieť",
@@ -2162,11 +2150,6 @@ MESSAGES.update(
         "This is the interface only. Models answer in whatever language you write to them in, which is a line you can edit under <a href=\"/admin/prompts\">Prompts</a>.": "Týka sa to len rozhrania. Modely odpovedajú v jazyku, ktorým im píšete — to je riadok, ktorý môžete upraviť v časti <a href=\"/admin/prompts\">Pokyny</a>.",
         "Percent of the model's context length. <code>0</code> turns automatic compaction off; the button in each chat still works. Nothing happens for a model whose context length is unset under <a href=\"/admin/models\">Models</a> — that is \"unknown\", not \"small\", and this will not act on a number nobody supplied. The wording of the summary is under <a href=\"/admin/prompts\">Prompts</a>.": "Percento dĺžky kontextu modelu. <code>0</code> automatické zhrnutie vypne; tlačidlo v každej konverzácii funguje ďalej. Pri modeli, ktorý nemá v časti <a href=\"/admin/models\">Modely</a> nastavenú dĺžku kontextu, sa nestane nič — to znamená „neznáma“, nie „malá“, a podľa čísla, ktoré nikto nezadal, sa nekoná. Znenie zhrnutia je v časti <a href=\"/admin/prompts\">Pokyny</a>.",
         "Several tools can be called in one round, so this is not a count of tools. Leave room for at least two: <code>knowledge_get</code> and <code>note_view</code> read a document by an id a <em>search</em> returned, so a ceiling of one leaves the library searchable and not readable. <code>0</code> means no ceiling, which is how an agent chat already works — those are bounded under <a href=\"/admin/agents\">Agents</a> by time and tokens instead.": "V jednom kole sa dá zavolať niekoľko nástrojov, takže to nie je počet nástrojov. Nechajte priestor aspoň na dve: <code>knowledge_get</code> a <code>note_view</code> čítajú dokument podľa ID, ktoré vrátilo <em>vyhľadávanie</em>, takže strop jedna nechá knižnicu prehľadávateľnú, ale nečitateľnú. <code>0</code> znamená bez stropu, tak už funguje konverzácia s agentom — tie sú namiesto toho obmedzené časom a tokenmi v časti <a href=\"/admin/agents\">Agenti</a>.",
-        "Registration": "Registrácia",
-        "This instance has 1 account.": "Táto inštancia má 1 účet.",
-        "This instance has %(n)s accounts.": "Účty v tejto inštancii: %(n)s.",
-        "Anyone who can reach it can add another, and every account can use your configured models and API keys.": "Ktokoľvek, kto sa k nej dostane, môže pridať ďalší a každý účet môže používať vaše nastavené modely a kľúče API.",
-        "<code>LEMBAS_ALLOW_SIGNUP</code> in the environment sets only the starting value. Once saved here, this setting wins.": "<code>LEMBAS_ALLOW_SIGNUP</code> v prostredí nastavuje len počiatočnú hodnotu. Po uložení tu má prednosť toto nastavenie.",
         "All groups": "Všetky skupiny",
         "A group only ever <em>adds</em>. Anything already in the baseline is shown below as such, so a tick here that changes nothing looks like one.": "Skupina vždy len <em>pridáva</em>. Čokoľvek, čo už je v základe, je nižšie tak aj označené, aby zaškrtnutie, ktoré nič nemení, tak aj vyzeralo.",
         "Resolved across a person's groups by <strong>maximum</strong> — the union rule applied to numbers, so a second group can only grant more.": "Naprieč skupinami človeka sa určuje podľa <strong>maxima</strong> — pravidlo zjednotenia použité na čísla, takže ďalšia skupina môže len pridať.",
@@ -2452,11 +2435,8 @@ MESSAGES.update(
         "Work it out": "Vyhodnotiť",
         "This will run <strong>%(summary)s</strong>. Check it below and change anything that is not what you meant.": "Toto pobeží <strong>%(summary)s</strong>. Skontrolujte to nižšie a zmeňte všetko, čo nie je tak, ako ste mysleli.",
         "Schedule it": "Naplánovať",
-        "No account yet? <a href=\"/auth/register\">Create one</a>.": "Ešte nemáte účet? <a href=\"/auth/register\">Vytvorte si ho</a>.",
         "Set up %(name)s": "Nastavenie %(name)s",
-        "Create an account": "Vytvorenie účtu",
         "Create administrator account": "Vytvoriť účet správcu",
-        "Already have an account? <a href=\"/auth/login\">Sign in</a>.": "Už máte účet? <a href=\"/auth/login\">Prihláste sa</a>.",
         "Back to your chats": "Späť na vaše konverzácie",
         "Offline": "Offline",
         "%(name)s answers from your server, so there is nothing to read until it can be reached again.": "%(name)s odpovedá z vášho servera, takže kým nebude opäť dostupný, nie je tu čo čítať.",

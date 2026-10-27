@@ -19,6 +19,7 @@ from lembas.security import api_tokens
 from lembas.services import generation as generation_service
 from lembas.services import interaction
 from lembas.services.crypto import encrypt
+from tests.conftest import join
 
 
 @pytest.fixture(autouse=True)
@@ -241,8 +242,7 @@ def test_opening_a_chat_marks_it_read(client, db, registered, make_chat):
 def test_someone_elses_chat_is_not_found(client, db, registered, make_chat):
     _models(db)
     client.post("/auth/logout", follow_redirects=False)
-    client.post(
-        "/auth/register",
+    join(client,
         data={"name": "Sam", "email": "sam@shire.test", "password": "potatoes-po-ta-toes"},
         follow_redirects=False,
     )

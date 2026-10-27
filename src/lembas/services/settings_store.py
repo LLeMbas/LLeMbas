@@ -16,7 +16,6 @@ from typing import Any
 
 from sqlalchemy.orm import Session as DBSession
 
-from lembas.config import settings as env_settings
 from lembas.db.models import Setting
 
 GENERAL = "general"
@@ -38,7 +37,6 @@ UPDATES = "updates"
 
 def _general_defaults() -> dict[str, Any]:
     return {
-        "allow_signup": env_settings.allow_signup,
         # What the interface is rendered in when a person has not chosen. Empty
         # and "en" mean the same thing; `web/i18n.known` is what decides, so a
         # value from a release that offered more languages than this one cannot
@@ -582,10 +580,6 @@ def api_only(db: DBSession) -> bool:
     library, reports, schedules or `/mcp`, and nothing in the background starts a
     reply."""
     return instance_mode(db) == "api"
-
-
-def signup_allowed(db: DBSession) -> bool:
-    return bool(get(db, "allow_signup"))
 
 
 def audio(db: DBSession) -> dict[str, Any]:

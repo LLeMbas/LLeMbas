@@ -10,6 +10,7 @@ from lembas.services import audio as audio_service
 from lembas.services import settings_store
 from lembas.services.llm.openai_client import Endpoint, LLMError
 from lembas.services.markdown import speakable_text
+from tests.conftest import join
 
 
 # --- What gets read out ------------------------------------------------------
@@ -275,8 +276,7 @@ def test_speech_404s_on_someone_elses_chat(client: TestClient, db, registered, m
         data={"tts_enabled": "true", "tts_base_url": "http://tts"},
         follow_redirects=False,
     )
-    client.post(
-        "/auth/register",
+    join(client,
         data={"name": "Sam", "email": "sam@shire.test", "password": "potatoes-and-more"},
         follow_redirects=False,
     )

@@ -25,6 +25,7 @@ from lembas.security import permissions
 from lembas.services import reports as reports_service
 from lembas.services import sharing
 from lembas.services.library import notes as notes_service
+from tests.conftest import join
 
 
 @pytest.fixture
@@ -262,8 +263,7 @@ def test_somebody_it_was_shared_with_cannot_share_it_on(db, client, registered, 
     sharing.set_grants(db, note, user_ids=[reader.id], group_ids=[])
 
     other = TestClient(client.app)
-    other.post(
-        "/auth/register",
+    join(other,
         data={"name": "Merry", "email": "merry@shire.test", "password": "a-fine-second-breakfast"},
         follow_redirects=False,
     )

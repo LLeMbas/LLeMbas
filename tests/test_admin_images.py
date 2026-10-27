@@ -13,6 +13,7 @@ import lembas
 from lembas.db.models import ImageWorkflow
 from lembas.services import settings_store
 from lembas.services.crypto import UNCHANGED_SENTINEL, decrypt
+from tests.conftest import join
 
 BASE_TEXT = (Path(lembas.__file__).parent / "services/images/base_workflow.json").read_text(
     encoding="utf-8"
@@ -253,8 +254,7 @@ def test_only_an_administrator_can_reach_it(client: TestClient, db, registered):
     from lembas.db.models import User
 
     client.post("/auth/logout")
-    client.post(
-        "/auth/register",
+    join(client,
         data={"name": "Sam", "email": "sam@shire.test", "password": "correct horse battery"},
         follow_redirects=False,
     )

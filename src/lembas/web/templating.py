@@ -357,7 +357,6 @@ def render(
         "theme": resolve_theme(user),
         "layout": resolve_layout(user),
         "version": __version__,
-        "allow_signup": settings.allow_signup,
     }
     payload.update(context or {})
     return templates.TemplateResponse(request, template, payload, **kwargs)

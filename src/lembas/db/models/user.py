@@ -20,6 +20,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from lembas.db.base import Base, Timestamps, UUIDPrimaryKey
+from lembas.db.models.organisation import DEFAULT_ORG, ORG_MANAGERS, ORG_MEMBER
 from lembas.db.types import JSONDict, JSONList
 
 if TYPE_CHECKING:
@@ -54,6 +55,20 @@ class User(UUIDPrimaryKey, Timestamps, Base):
     # Per-user preferences: theme, default model, composer behaviour, etc.
     settings_json: Mapped[dict[str, Any]] = mapped_column(JSONDict, default=dict)
 
+    # The one organisation this account belongs to, and its role there.
+    # `role` above is the *instance* role: an instance admin runs connections,
+    # models, services, updates, backups and organisations, and gets no
+    # implicit access to anybody's files. `org_role` is what this person may
+    # do inside their organisation (`organisation.ORG_ROLES`).
+    org_id: Mapped[str] = mapped_column(
+        String(32),
+        ForeignKey("organisations.id", ondelete="CASCADE"),
+        default=DEFAULT_ORG,
+        nullable=False,
+        index=True,
+    )
+    org_role: Mapped[str] = mapped_column(String(16), default=ORG_MEMBER, nullable=False)
+
     # Credits: the plan this person is on and when it next renews. Plain
     # ids, validated on read, like the other references added to a table that
     # already had rows (see db/migrations.py).
@@ -69,6 +84,11 @@ class User(UUIDPrimaryKey, Timestamps, Base):
     def is_admin(self) -> bool:
         return self.role == ROLE_ADMIN
 
+    @property
+    def manages_org(self) -> bool:
+        """An owner or admin of their organisation (not the instance)."""
+        return self.org_role in ORG_MANAGERS
+
     def __repr__(self) -> str:
         return f"<User {self.email} role={self.role}>"
 
@@ -77,8 +97,17 @@ class Group(UUIDPrimaryKey, Timestamps, Base):
     """A named set of users. Permissions are enforced once the RBAC pass lands."""
 
     __tablename__ = "groups"
+    # A name is unique within its organisation, not across the instance.
+    __table_args__ = (UniqueConstraint("org_id", "name", name="uq_groups_org_name"),)
 
-    name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    org_id: Mapped[str] = mapped_column(
+        String(32),
+        ForeignKey("organisations.id", ondelete="CASCADE"),
+        default=DEFAULT_ORG,
+        nullable=False,
+        index=True,
+    )
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
     description: Mapped[str] = mapped_column(Text, default="")
 
     # Only the granted keys need be present. Absent means "no opinion", not

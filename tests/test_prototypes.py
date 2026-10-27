@@ -20,6 +20,7 @@ from types import SimpleNamespace
 import pytest
 
 from lembas.services import markdown, prototypes, settings_store
+from tests.conftest import join
 
 ROOT = Path(__file__).resolve().parent.parent / "src/lembas"
 JS = (ROOT / "web/static/js/prototypes.js").read_text()
@@ -209,8 +210,7 @@ def test_a_digest_that_is_not_in_the_message_is_not_served(client, stored):
 
 def test_somebody_elses_chat_is_not_served(client, stored):
     client.post("/auth/logout")
-    client.post(
-        "/auth/register",
+    join(client,
         data={"name": "Sam", "email": "sam@shire.test", "password": "po-tay-toes-boil"},
     )
     assert client.get(_address(stored, PAGE)).status_code == 404
