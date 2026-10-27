@@ -3,7 +3,9 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
-## Unreleased
+## 1.7.3 — 2026-10-27
+
+The first long-term-support patch: export what you want to keep before 2.0, and updates that stay on 1.x.
 
 ### Added — for the move to 2.0
 
@@ -38,7 +40,6 @@ line, and its patches may carry the tools for exporting what you want to keep; n
   release whatever its major. The Updates page now says when the copy is an older one, and nothing
   is requested through it while a newer major exists. Re-run the installer with
   `INSTALL_UPDATE_HELPER=1` to replace it.
-
 - **An agent chat no longer says the device "answered on its own model" when it did not.** The
   notice compared the model this server sent with the one the device reported, letter for letter
   and only in one form; a LLeMbas CLI that names the model another way -- without its connection
