@@ -5,6 +5,15 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
+### Fixed
+
+- **An agent chat no longer says the device "answered on its own model" when it did not.** The
+  notice compared the model this server sent with the one the device reported, letter for letter
+  and only in one form; a LLeMbas CLI that names the model another way -- without its connection
+  prefix, without the provider, or in another case -- got the notice on every new session although
+  it was running the chat's model. The two are now compared by the model's own name, and the notice
+  appears only when the device really runs something else.
+
 ## 1.7.2 — 2026-10-25
 
 A device that logs in again stays one device.

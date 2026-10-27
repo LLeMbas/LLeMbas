@@ -1692,6 +1692,35 @@ async def _follow(link: Link, generation, chat_id: str, session_id: str) -> None
         generation.touch()
 
 
+def _served_name(ref: str) -> str:
+    """The model's own name in a reference, whoever wrote it: the last segment,
+    lowercased. `webui/llama/Qwen3-8B`, `llama/qwen3-8b` and `qwen3-8b` all
+    answer `qwen3-8b`."""
+    return (ref or "").strip().rsplit("/", 1)[-1].strip().lower()
+
+
+def same_model(model: str, running: str, *, instance: Any = None) -> bool:
+    """Whether the model a device says its session runs on is the chat's.
+
+    The two sides name it differently, and neither form is wrong: this instance
+    sends its served id (`<provider>/<model>`), and a device answers with its
+    own reference -- `<its name for this instance>/<served id>`, the served id
+    alone, or a form it canonicalised (case, a provider prefix dropped). A
+    suffix test said "its own model" for every one of those but the first, so
+    the reply carried a notice that was not true. Compared here by the served
+    model's own name on both sides, case-insensitively.
+
+    Nothing to compare -- no model sent, or none reported -- is the same: a
+    notice needs a reason. A device that says outright that the model is not
+    this instance's (`instance: false`) is believed.
+    """
+    if not model or not running:
+        return True
+    if instance is False:
+        return False
+    return _served_name(model) == _served_name(running)
+
+
 async def _open(
     link: Link,
     generation,
@@ -1721,8 +1750,9 @@ async def _open(
     # What the device actually started on. One that does not take the
     # chat's model uses its own default: said in the reply
     # rather than shown under a name that is not true.
-    running = str(((opened.get("_meta") or {}).get("lembas") or {}).get("model") or "")
-    if model and running and not running.endswith("/" + model):
+    said = (opened.get("_meta") or {}).get("lembas") or {}
+    running = str(said.get("model") or "")
+    if not same_model(model, running, instance=said.get("instance")):
         generation.content.append(
             f"*({device_name} answered on its own model, {running}: its LLeMbas CLI "
             "does not take the chat's model. Update it there.)*\n\n"

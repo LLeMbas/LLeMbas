@@ -541,3 +541,51 @@ def test_an_older_device_on_its_own_model_is_said_so(client, db, registered):
                           "_meta": {"lembas": {"model": "local/bonsai-abl"}}})
         reply = _reply(db, chat.id)
         assert "answered on its own model, local/bonsai-abl" in reply.content
+
+
+@pytest.mark.parametrize(
+    "running",
+    [
+        "c/m",  # the served id itself, no device prefix
+        "webui/c/m",  # the device's name for this instance, then the served id
+        "m",  # the served model's name alone
+        "WebUI/C/M",  # canonicalised to another case
+        "webui/m",  # the provider prefix dropped
+    ],
+)
+def test_the_chats_own_model_in_another_form_is_no_notice(client, db, registered, running):
+    """The notice fired for every form of the chat's model but one; a reply on
+    the right model carried a note saying it was not."""
+    token_id, raw = _device(db)
+    with client.websocket_connect(
+        "/api/devices/link", headers={"Authorization": f"Bearer {raw}"}
+    ) as ws:
+        _hello(ws)
+        _wait_linked(token_id)
+        client.post("/api/chats/start", data={
+            "content": "One", "kind": "agent", "ssh_profile_id": f"device:{token_id}",
+            "project_dir": "/srv/work", "agent_mode": "edit", "model_id": "m",
+        })
+        chat = db.scalar(select(Chat))
+        _answer_turn(ws, {"sessionId": "s1", "_meta": {"lembas": {"model": running}}})
+        reply = _reply(db, chat.id)
+        assert "answered on its own model" not in reply.content
+
+
+def test_same_model_compares_the_served_name():
+    from lembas.services.device_link import same_model
+
+    # The same model, however it is spelled.
+    assert same_model("c/m", "c/m")
+    assert same_model("llama/Qwen3-8B", "webui/llama/qwen3-8b")
+    assert same_model("llama/qwen3-8b", "qwen3-8b")
+    assert same_model("vllm/meta-llama/Llama-3-8B", "webui/llama-3-8b")
+    # Nothing to compare is no reason for a notice.
+    assert same_model("", "local/bonsai")
+    assert same_model("c/m", "")
+    # Really another model.
+    assert not same_model("c/m", "local/bonsai-abl")
+    assert not same_model("llama/qwen3-8b", "webui/llama/qwen3-32b")
+    # The device says outright the model is its own.
+    assert not same_model("llama/qwen3", "ollama/qwen3", instance=False)
+    assert same_model("llama/qwen3", "llama/qwen3", instance=True)
