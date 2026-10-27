@@ -1,0 +1,372 @@
+{
+  "format": "lembas-export",
+  "format_version": 1,
+  "kind": "admin",
+  "app_version": "1.7.2",
+  "created_at": "2000-01-01T00:00:00Z",
+  "encryption": {
+    "scheme": "scrypt+fernet",
+    "kdf": "scrypt",
+    "salt": "1byZsDhoKZMZlsPxCUD4Dw==",
+    "n": 32768,
+    "r": 8,
+    "p": 1,
+    "length": 32,
+    "check": "gAAAAAA4bUOACpSayL5Tu56gRB6CZV2SX-6YDProK6npk2qeJ-JA5M1ipYW9gO9vFlBNGc9ZU5s90gm3eKkVYUzu7Sw70Yv3Zg=="
+  },
+  "secrets": [
+    {
+      "type": "connection",
+      "ref": "conn1",
+      "name": "Example Cloud",
+      "field": "api_key",
+      "state": "encrypted"
+    },
+    {
+      "type": "settings",
+      "ref": "audio",
+      "name": "Speech (speech-to-text and text-to-speech)",
+      "field": "stt_api_key",
+      "state": "encrypted"
+    },
+    {
+      "type": "custom_tool",
+      "ref": "tool1",
+      "name": "Weather",
+      "field": "secret",
+      "state": "encrypted"
+    },
+    {
+      "type": "mcp_server",
+      "ref": "mcp1",
+      "name": "Docs",
+      "field": "headers.Authorization",
+      "state": "encrypted"
+    }
+  ],
+  "counts": {
+    "data_group": 2,
+    "connection": 2,
+    "model": 3,
+    "settings": 4,
+    "image_workflow": 1,
+    "custom_tool": 1,
+    "mcp_server": 1
+  },
+  "items": [
+    {
+      "type": "data_group",
+      "ref": "default",
+      "name": "Default",
+      "data": {
+        "name": "Default",
+        "description": "",
+        "position": 0,
+        "default": true,
+        "embedding_model_id": "",
+        "embedding_connection": null,
+        "review_model_id": "",
+        "review_connection": null
+      }
+    },
+    {
+      "type": "data_group",
+      "ref": "work",
+      "name": "Work",
+      "data": {
+        "name": "Work",
+        "description": "Kept apart from the rest",
+        "position": 0,
+        "default": false,
+        "embedding_model_id": "",
+        "embedding_connection": null,
+        "review_model_id": "",
+        "review_connection": null
+      }
+    },
+    {
+      "type": "connection",
+      "ref": "conn1",
+      "name": "Example Cloud",
+      "data": {
+        "name": "Example Cloud",
+        "kind": "openai",
+        "provider": "example-cloud",
+        "base_url": "https://api.example.com/v1",
+        "api_key": {
+          "$secret": "gAAAAAA4bUOAc-eEY0eQ-KhWMV9tUi3KlrHfUXA23N_ekVTNeE_9dOU27hisWxGPN83jecPGZbQRBgGmW1zkU85HHRmUwxwd8QoZZh2M6SFPUbtb1IfrHZs="
+        },
+        "extra_headers": {
+          "HTTP-Referer": "https://chat.example.com",
+          "X-Title": "LLeMbas"
+        },
+        "enabled": true,
+        "position": 0,
+        "unload_url": "",
+        "unload_method": "POST",
+        "one_model_at_a_time": false,
+        "data_group": null
+      }
+    },
+    {
+      "type": "model",
+      "ref": "model1",
+      "name": "example-cloud/example-large",
+      "data": {
+        "connection": "conn1",
+        "model_id": "example-large",
+        "display_name": "Example Large",
+        "description": "",
+        "notes": "A large hosted model.",
+        "kind": "chat",
+        "enabled": true,
+        "position": 0,
+        "pinned": true,
+        "single_session": false,
+        "public": false,
+        "groups": [
+          "Team"
+        ],
+        "system_prompt": "",
+        "capabilities": {
+          "vision": true,
+          "tools": true,
+          "reasoning": true
+        },
+        "params": {
+          "temperature": 0.7
+        },
+        "pricing": {
+          "unit": "money",
+          "input": 3.0,
+          "output": 15.0,
+          "cached_input": 0.3
+        },
+        "context_length": 200000,
+        "output_limit": 32000,
+        "reasoning_efforts": [
+          "low",
+          "medium",
+          "high"
+        ]
+      }
+    },
+    {
+      "type": "connection",
+      "ref": "conn2",
+      "name": "Local llama",
+      "data": {
+        "name": "Local llama",
+        "kind": "openai",
+        "provider": "local-llama",
+        "base_url": "http://127.0.0.1:8081/v1",
+        "api_key": null,
+        "extra_headers": {},
+        "enabled": true,
+        "position": 0,
+        "unload_url": "http://127.0.0.1:8081/unload",
+        "unload_method": "GET",
+        "one_model_at_a_time": true,
+        "data_group": "work"
+      }
+    },
+    {
+      "type": "model",
+      "ref": "model3",
+      "name": "local-llama/embed-small",
+      "data": {
+        "connection": "conn2",
+        "model_id": "embed-small",
+        "display_name": "",
+        "description": "",
+        "notes": "",
+        "kind": "embedding",
+        "enabled": true,
+        "position": 0,
+        "pinned": false,
+        "single_session": false,
+        "public": true,
+        "groups": [],
+        "system_prompt": "",
+        "capabilities": {},
+        "params": {},
+        "pricing": {},
+        "context_length": 0,
+        "output_limit": 0,
+        "reasoning_efforts": []
+      }
+    },
+    {
+      "type": "model",
+      "ref": "model2",
+      "name": "local-llama/small-local-8b",
+      "data": {
+        "connection": "conn2",
+        "model_id": "small-local-8b",
+        "display_name": "",
+        "description": "",
+        "notes": "",
+        "kind": "chat",
+        "enabled": true,
+        "position": 0,
+        "pinned": false,
+        "single_session": false,
+        "public": true,
+        "groups": [],
+        "system_prompt": "",
+        "capabilities": {},
+        "params": {},
+        "pricing": {},
+        "context_length": 32768,
+        "output_limit": 0,
+        "reasoning_efforts": []
+      }
+    },
+    {
+      "type": "settings",
+      "ref": "audio",
+      "name": "Speech (speech-to-text and text-to-speech)",
+      "data": {
+        "group": "audio",
+        "values": {
+          "stt_api_key": {
+            "$secret": "gAAAAAA4bUOAOzvSIz8yPl56tfgewwPPj9FXTxIr4OfxIECypSRg4bmpzokc0OUSWCB1HzCQrKM_iPDCRanarZutNRUg5QPu8edlV6hn-zTLKmuWQuK5miI="
+          },
+          "stt_base_url": "http://127.0.0.1:8082/v1",
+          "stt_enabled": true,
+          "tts_base_url": "http://127.0.0.1:8083/v1",
+          "tts_enabled": true,
+          "tts_voice": "af_heart"
+        }
+      }
+    },
+    {
+      "type": "settings",
+      "ref": "general",
+      "name": "General",
+      "data": {
+        "group": "general",
+        "values": {
+          "allow_signup": false,
+          "instance_name": "Example"
+        }
+      }
+    },
+    {
+      "type": "settings",
+      "ref": "images",
+      "name": "Image generation",
+      "data": {
+        "group": "images",
+        "values": {
+          "base_url": "http://127.0.0.1:8188",
+          "default_steps": "24",
+          "enabled": true
+        }
+      }
+    },
+    {
+      "type": "settings",
+      "ref": "search",
+      "name": "Web search and fetching pages",
+      "data": {
+        "group": "search",
+        "values": {
+          "enabled": true,
+          "provider": "searxng",
+          "searxng_base_url": "http://127.0.0.1:8084"
+        }
+      }
+    },
+    {
+      "type": "image_workflow",
+      "ref": "wf1",
+      "name": "Square picture",
+      "data": {
+        "slug": "square",
+        "name": "Square picture",
+        "description": "",
+        "workflow": {
+          "3": {
+            "class_type": "KSampler",
+            "inputs": {
+              "steps": "{steps}"
+            }
+          }
+        },
+        "enabled": true,
+        "position": 0
+      }
+    },
+    {
+      "type": "custom_tool",
+      "ref": "tool1",
+      "name": "Weather",
+      "data": {
+        "slug": "weather",
+        "name": "Weather",
+        "description": "Current weather for a city.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "city"
+          ]
+        },
+        "guidance": "",
+        "method": "GET",
+        "url_template": "https://weather.example.com/v1/{city}",
+        "body_template": "",
+        "headers": {
+          "Accept": "application/json"
+        },
+        "secret": {
+          "$secret": "gAAAAAA4bUOA5t-5ExR7WymEnllzrNrqpntJAqFPHsul1djhrfMWZ1UqwOYtotCJxaIFwwjceiQ36pApPLyBY2HeSyRPpzo-dAcC72J2ilruFYOfwTF0lsk="
+        },
+        "secret_placement": "bearer",
+        "secret_name": "Authorization",
+        "response_mode": "text",
+        "response_path": "",
+        "max_chars": 8000,
+        "timeout": 20,
+        "allow_private": false,
+        "enabled": true,
+        "public": true,
+        "position": 0,
+        "groups": []
+      }
+    },
+    {
+      "type": "mcp_server",
+      "ref": "mcp1",
+      "name": "Docs",
+      "data": {
+        "slug": "docs",
+        "name": "Docs",
+        "url": "https://mcp.example.com/",
+        "guidance": "",
+        "headers": {
+          "Authorization": {
+            "$secret": "gAAAAAA4bUOAde285exzCF44_agrI0iWH1zO2aEJiIvRZMxGkV_vtib8yA_cSiKbqCfJZIomuBY0vEkPiRETjIDaYYSdO9R9JJ-Xf25HDejHiKuvNkvMQXQ="
+          },
+          "X-Client": "lembas"
+        },
+        "secret": null,
+        "secret_placement": "bearer",
+        "secret_name": "Authorization",
+        "timeout": 30,
+        "max_chars": 8000,
+        "allow_private": false,
+        "tool_overrides": {},
+        "enabled": true,
+        "public": true,
+        "position": 0,
+        "groups": []
+      }
+    }
+  ]
+}

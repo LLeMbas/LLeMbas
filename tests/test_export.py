@@ -10,6 +10,7 @@ every item has a stable type and a name it can report.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from sqlalchemy import select
@@ -313,3 +314,60 @@ def test_an_unknown_item_type_is_kept_for_the_importer_to_name():
         "items": [{"type": "from-the-future", "ref": "x", "name": "Something", "data": {}}],
     })
     assert export_service.load(text)["items"][0]["type"] == "from-the-future"
+
+
+# --- The sample files --------------------------------------------------------------------
+# tests/fixtures/export/: files this format writes, made from fake data (example.com
+# hosts, keys that were never real). An importer is written and tested against them;
+# here they hold the format still: the writer must keep producing every field they have.
+FIXTURES = Path(__file__).resolve().parent / "fixtures" / "export"
+# The passphrase admin-encrypted.json was made with.
+FIXTURE_PASSPHRASE = "fixture passphrase, not a real one"
+
+
+def _fixture(name: str) -> dict:
+    return export_service.load((FIXTURES / name).read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("name", ["admin-plain.json", "admin-encrypted.json", "memory.json"])
+def test_every_sample_file_reads_and_names_its_items(name):
+    document = _fixture(name)
+    assert document["format_version"] == export_service.FORMAT_VERSION
+    for item in document["items"]:
+        assert item["type"] in export_service.TYPES and item["name"] and item["ref"]
+
+
+def test_the_encrypted_sample_opens_with_its_passphrase():
+    document = _fixture("admin-encrypted.json")
+    assert export_service.check_passphrase(document, FIXTURE_PASSPHRASE)
+    assert not export_service.check_passphrase(document, "not it")
+    connection = next(i for i in document["items"] if i["ref"] == "conn1")["data"]
+    assert (
+        export_service.open_secret(document, FIXTURE_PASSPHRASE, connection["api_key"])
+        == "sk-example-not-a-real-key"
+    )
+    for entry in document["secrets"]:
+        assert entry["state"] == "encrypted"
+
+
+def test_the_plain_sample_holds_no_secret():
+    text = (FIXTURES / "admin-plain.json").read_text(encoding="utf-8")
+    assert "not-a-real" not in text and "not-real" not in text
+    document = export_service.load(text)
+    assert document["encryption"] is None
+    assert {e["reason"] for e in document["secrets"]} == {"no-passphrase"}
+
+
+def test_the_writer_still_writes_every_field_the_samples_have(db, configured, remembered):
+    """A field an importer was written against must not quietly disappear from
+    format 1. Adding one is fine; losing one is a new format version."""
+    written = export_service.admin(db)
+    owner, _ = remembered
+    written["items"] += export_service.memory(db, owner)["items"]
+    fields: dict[str, set[str]] = {}
+    for item in written["items"]:
+        fields.setdefault(item["type"], set()).update(item["data"])
+    for name in ("admin-plain.json", "memory.json"):
+        for item in _fixture(name)["items"]:
+            missing = set(item["data"]) - fields.get(item["type"], set())
+            assert not missing, (item["type"], missing)
