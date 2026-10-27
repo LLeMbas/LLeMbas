@@ -75,14 +75,14 @@ def _check(fetch_harness, monkeypatch, tmp_path, pinned, tags):
     asked = []
 
     def get(url):
-        if url.endswith("/tags?limit=50"):
+        if url.endswith("/tags?per_page=100"):
             return json.dumps([{"name": t} for t in tags]).encode()
         asked.append(url)
         return b"9.9.9"
 
     monkeypatch.setattr(fetch_harness, "_get", get)
     fetch_harness.check()
-    return asked[0].split("/raw/tag/")[1].split("/")[0]
+    return asked[0].split("/LLeMbas-CLI/")[1].split("/")[0]
 
 
 def test_check_offers_a_stable_pin_no_beta(fetch_harness, monkeypatch, tmp_path):

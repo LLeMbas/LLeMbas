@@ -36,8 +36,16 @@ ROOT = Path(__file__).resolve().parent.parent
 SPEC_DIR = ROOT / "src" / "lembas" / "harness_spec"
 LOCKFILE = Path(__file__).resolve().parent / "harness.lock.json"
 
-FORGE = "https://git.houmeres.sk"
+# The CLI's public mirror. What is fetched is checked against the hashes in
+# the lockfile, so where it comes from decides availability, not trust.
 REPO = "LLeMbas/LLeMbas-CLI"
+SOURCE = f"https://github.com/{REPO}"
+API = f"https://api.github.com/repos/{REPO}"
+
+
+def _raw(ref: str, path: str) -> str:
+    return f"https://raw.githubusercontent.com/{REPO}/{ref}/harness/{path}"
+
 # A release tag, stable (`vX.Y.Z`) or pre-release (`vX.Y.Z-beta.N`). A beta is
 # pinnable: the next major is built against the CLI's betas before either side
 # has a stable release. `--check` looks at betas only when the pin is one, so a
@@ -47,7 +55,7 @@ RELEASE_TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)(?:-beta\.(\d+))?$")
 
 def _get(url: str) -> bytes:
     request = urllib.request.Request(url, headers={"User-Agent": "lembas-fetch-harness"})
-    with urllib.request.urlopen(request, timeout=60) as response:  # a fixed https forge
+    with urllib.request.urlopen(request, timeout=60) as response:  # fixed https hosts
         return response.read()
 
 
@@ -57,7 +65,7 @@ def _sha256(data: bytes) -> str:
 
 def _remote_files(ref: str) -> list[str]:
     tree = json.loads(
-        _get(f"{FORGE}/api/v1/repos/{REPO}/git/trees/{ref}?recursive=true&per_page=10000")
+        _get(f"{API}/git/trees/{ref}?recursive=1")
     )
     if tree.get("truncated"):
         raise SystemExit(
@@ -115,7 +123,7 @@ def update(ref: str) -> int:
             f"fetch_harness: {ref!r} is not a release tag (vX.Y.Z or vX.Y.Z-beta.N)"
         )
     files = _remote_files(ref)
-    fetched = {p: _get(f"{FORGE}/{REPO}/raw/tag/{ref}/harness/{p}") for p in files}
+    fetched = {p: _get(_raw(ref, p)) for p in files}
     tmp = SPEC_DIR.with_name(SPEC_DIR.name + ".new")
     shutil.rmtree(tmp, ignore_errors=True)
     for p, data in fetched.items():
@@ -126,7 +134,7 @@ def update(ref: str) -> int:
     tmp.rename(SPEC_DIR)
     version = fetched["VERSION"].decode().strip()
     lock = {
-        "source": f"{FORGE}/{REPO}",
+        "source": SOURCE,
         "ref": ref,
         "version": version,
         "files": {p: _sha256(d) for p, d in fetched.items()},
@@ -155,7 +163,7 @@ def _semver(tag: str) -> tuple[int, ...]:
 
 def check() -> int:
     lock = json.loads(LOCKFILE.read_text())
-    tags = json.loads(_get(f"{FORGE}/api/v1/repos/{REPO}/tags?limit=50"))
+    tags = json.loads(_get(f"{API}/tags?per_page=100"))
     betas = _is_beta(lock["ref"])
     releases = sorted(
         (
@@ -170,7 +178,7 @@ def check() -> int:
         return 1
     newest = releases[-1]
     try:
-        version = _get(f"{FORGE}/{REPO}/raw/tag/{newest}/harness/VERSION").decode().strip()
+        version = _get(_raw(newest, "VERSION")).decode().strip()
     except urllib.error.HTTPError:
         version = "?"
     if version == lock["version"]:
