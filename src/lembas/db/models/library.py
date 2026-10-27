@@ -273,7 +273,10 @@ class Share(UUIDPrimaryKey, Timestamps, Base):
     who cannot see a resource simply has no row here.
     """
 
-    __tablename__ = "shares"
+    # `library_shares` since 2.0: `shares` is the file tree's (`NodeShare`).
+    # This one goes with the library stores themselves when the file tools
+    # replace them.
+    __tablename__ = "library_shares"
     __table_args__ = (
         UniqueConstraint(
             "resource_type", "resource_id", "principal_type", "principal_id"

@@ -19,10 +19,10 @@ lookup. See services/data_groups.py for how a group is resolved.
 
 from __future__ import annotations
 
-from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy import ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from lembas.db.base import Base, Timestamps, new_id
+from lembas.db.base import Base, Timestamps, UUIDPrimaryKey, new_id
 from lembas.db.models.organisation import DEFAULT_ORG
 
 # The group every instance has, every connection is in until somebody says
@@ -93,3 +93,33 @@ class InDataGroup:
 
     data_group_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
+
+# How a data group's access rules apply (`security/access.py`):
+RULE_PRESET = "preset"  # what a new chat in the group starts with, editable per chat
+RULE_FLOOR = "floor"  # the most a chat in the group may ever have there
+RULE_MODES = (RULE_PRESET, RULE_FLOOR)
+
+
+class DataGroupRule(UUIDPrimaryKey, Timestamps, Base):
+    """One path and level in a data group's access preset or floor.
+
+    A preset rule is a grant a new chat starts from (`level` none, ro, stage or
+    commit, covering everything below `path`; the most specific wins). A floor
+    rule is a ceiling no chat in the group can widen past, the most specific
+    applying; no floor rule at all means no cap.
+    """
+
+    __tablename__ = "data_group_rules"
+
+    data_group_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("data_groups.id", ondelete="CASCADE"), nullable=False
+    )
+    path: Mapped[str] = mapped_column(Text, nullable=False)
+    level: Mapped[str] = mapped_column(String(8), nullable=False)
+    mode: Mapped[str] = mapped_column(String(8), default=RULE_PRESET, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<DataGroupRule {self.mode} {self.path} {self.level}>"
+
+
+Index("ix_data_group_rules_group", DataGroupRule.data_group_id, DataGroupRule.mode)

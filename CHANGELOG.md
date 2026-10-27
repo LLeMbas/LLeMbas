@@ -22,6 +22,16 @@ release yet.
   `lembas-blobs.db`, by content hash and in parts of about 4 MB, so the same file stored twice is
   kept once and nothing reads a large file whole. `lembas-server backup` (and the backup before an
   update) copies it beside the main database as `…db-blobs`; keep the two together.
+- **A file tree per organisation**, kept in the database: `/home/<you>/` for each person (private
+  to them), `/skills/` readable by everyone in the organisation, and directories the
+  organisation's admins make. Every write is a version recording the chat and message that made
+  it; deleting moves to a trash that can be restored from; a rename moves everything below it.
+- **Access to the tree is decided in one place**, at four levels — none, read-only, read/write
+  (stage), read/write (commit). A person has what they own and what is shared with them, a person,
+  a group or the whole organisation; an instance administrator gets nothing for being one. A chat
+  can be narrowed further by its data group's preset and floor and its own grants, and a directory
+  granted under one that is not is reached only by its full path. Refusals use the wording of the
+  harness spec's file system contract, so the server and the CLI say the same thing.
 
 ## 1.7.2 — 2026-10-25
 

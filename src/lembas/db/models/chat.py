@@ -246,6 +246,15 @@ class Chat(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
     # representations of "on" makes "why is this off?" unanswerable.
     scope_json: Mapped[dict[str, Any]] = mapped_column(JSONDict, default=dict)
 
+    # The file tree as this chat sees it (`security/access.py`). `boundary` is
+    # what it may see at all (`/`, a directory, one repository) and `start_dir`
+    # the directory relative paths resolve against ("" reads as the boundary).
+    # `grants_customised` false means the chat's grants are its data group's
+    # preset rules; true means its own `session_grants` rows.
+    boundary: Mapped[str] = mapped_column(Text, default="/", nullable=False)
+    start_dir: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    grants_customised: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     # What this chat generates pictures with when the model names neither. A
     # preference rather than a constraint -- the model may still choose another
     # template or checkpoint for a particular image, and the harness lists what

@@ -1,0 +1,876 @@
+{
+  "about": "The file system as one session sees it (filesystem.md): `tree` (paths; a directory ends with `/`, parents are implied), `mounts` (directories that are forge repositories), `grants` (path → level none/ro/stage/commit, covering everything below; the most specific wins; none by default), `floor` (path → the most a session may have there; the most specific applies), `cwd` (the start directory, default `/`), and one `op` on `path`: `level` (the session's level there, and whether it is a passage: at none with something granted below), `list` (the entries the session sees: directories and mounts with `/`, a mount ` [mount]`, an entry at ro in a writable directory ` [read-only]`; directories first, then by name), `read`, `write` (a file), `mkdir`, `rm`, `commit`. Answers `{ok: true}`, `{entries}`, `{level, passage}` or `{error}` with the exact text, naming the resolved absolute path. A path the session cannot see is answered by what the model already knows: by its nearest ancestor that is visible (No such file or directory) or a passage (Access denied) — so a hidden entry and a missing one read the same; creating a name taken by an entry at none is denied. LLeMbas: services/files/view.py (to be written); CLI: not run until it has a view of its own (an agent's disk is one level for the whole working directory).",
+  "cases": [
+    {
+      "tree": [
+        "/AGENTS.md",
+        "/Dir1/",
+        "/Dir1/FILE1.txt",
+        "/Dir1/AGENTS.md",
+        "/Dir1/Dir3/",
+        "/Dir1/Dir3/a.md",
+        "/Dir2/",
+        "/Dir2/b.md"
+      ],
+      "grants": {
+        "/AGENTS.md": "ro",
+        "/Dir1/Dir3": "stage"
+      },
+      "op": "level",
+      "path": "/Dir1",
+      "expect": {
+        "level": "none",
+        "passage": true
+      }
+    },
+    {
+      "tree": [
+        "/AGENTS.md",
+        "/Dir1/",
+        "/Dir1/FILE1.txt",
+        "/Dir1/AGENTS.md",
+        "/Dir1/Dir3/",
+        "/Dir1/Dir3/a.md",
+        "/Dir2/",
+        "/Dir2/b.md"
+      ],
+      "grants": {
+        "/AGENTS.md": "ro",
+        "/Dir1/Dir3": "stage"
+      },
+      "op": "level",
+      "path": "/Dir2",
+      "expect": {
+        "level": "none",
+        "passage": false
+      }
+    },
+    {
+      "tree": [
+        "/AGENTS.md",
+        "/Dir1/",
+        "/Dir1/FILE1.txt",
+        "/Dir1/AGENTS.md",
+        "/Dir1/Dir3/",
+        "/Dir1/Dir3/a.md",
+        "/Dir2/",
+        "/Dir2/b.md"
+      ],
+      "grants": {
+        "/AGENTS.md": "ro",
+        "/Dir1/Dir3": "stage"
+      },
+      "op": "level",
+      "path": "/Dir1/Dir3/a.md",
+      "expect": {
+        "level": "stage",
+        "passage": false
+      }
+    },
+    {
+      "tree": [
+        "/AGENTS.md",
+        "/Dir1/",
+        "/Dir1/FILE1.txt",
+        "/Dir1/AGENTS.md",
+        "/Dir1/Dir3/",
+        "/Dir1/Dir3/a.md",
+        "/Dir2/",
+        "/Dir2/b.md"
+      ],
+      "grants": {
+        "/AGENTS.md": "ro",
+        "/Dir1/Dir3": "stage"
+      },
+      "op": "list",
+      "path": "/Dir1",
+      "expect": {
+        "error": "Access denied: /Dir1 is not open to this session."
+      }
+    },
+    {
+      "tree": [
+        "/AGENTS.md",
+        "/Dir1/",
+        "/Dir1/FILE1.txt",
+        "/Dir1/AGENTS.md",
+        "/Dir1/Dir3/",
+        "/Dir1/Dir3/a.md",
+        "/Dir2/",
+        "/Dir2/b.md"
+      ],
+      "grants": {
+        "/AGENTS.md": "ro",
+        "/Dir1/Dir3": "stage"
+      },
+      "op": "list",
+      "path": "/",
+      "expect": {
+        "error": "Access denied: / is not open to this session."
+      }
+    },
+    {
+      "tree": [
+        "/AGENTS.md",
+        "/Dir1/",
+        "/Dir1/FILE1.txt",
+        "/Dir1/AGENTS.md",
+        "/Dir1/Dir3/",
+        "/Dir1/Dir3/a.md",
+        "/Dir2/",
+        "/Dir2/b.md"
+      ],
+      "grants": {
+        "/AGENTS.md": "ro",
+        "/Dir1/Dir3": "stage"
+      },
+      "op": "read",
+      "path": "/Dir1/FILE1.txt",
+      "expect": {
+        "error": "Access denied: /Dir1/FILE1.txt is not open to this session."
+      }
+    },
+    {
+      "tree": [
+        "/AGENTS.md",
+        "/Dir1/",
+        "/Dir1/FILE1.txt",
+        "/Dir1/AGENTS.md",
+        "/Dir1/Dir3/",
+        "/Dir1/Dir3/a.md",
+        "/Dir2/",
+        "/Dir2/b.md"
+      ],
+      "grants": {
+        "/AGENTS.md": "ro",
+        "/Dir1/Dir3": "stage"
+      },
+      "op": "write",
+      "path": "/Dir1/new.txt",
+      "expect": {
+        "error": "Access denied: /Dir1/new.txt is not open to this session."
+      }
+    },
+    {
+      "tree": [
+        "/AGENTS.md",
+        "/Dir1/",
+        "/Dir1/FILE1.txt",
+        "/Dir1/AGENTS.md",
+        "/Dir1/Dir3/",
+        "/Dir1/Dir3/a.md",
+        "/Dir2/",
+        "/Dir2/b.md"
+      ],
+      "grants": {
+        "/AGENTS.md": "ro",
+        "/Dir1/Dir3": "stage"
+      },
+      "op": "mkdir",
+      "path": "/Dir1/x",
+      "expect": {
+        "error": "Access denied: /Dir1/x is not open to this session."
+      }
+    },
+    {
+      "tree": [
+        "/AGENTS.md",
+        "/Dir1/",
+        "/Dir1/FILE1.txt",
+        "/Dir1/AGENTS.md",
+        "/Dir1/Dir3/",
+        "/Dir1/Dir3/a.md",
+        "/Dir2/",
+        "/Dir2/b.md"
+      ],
+      "grants": {
+        "/AGENTS.md": "ro",
+        "/Dir1/Dir3": "stage"
+      },
+      "op": "read",
+      "path": "/Dir2/b.md",
+      "expect": {
+        "error": "Access denied: /Dir2/b.md is not open to this session."
+      }
+    },
+    {
+      "tree": [
+        "/AGENTS.md",
+        "/Dir1/",
+        "/Dir1/FILE1.txt",
+        "/Dir1/AGENTS.md",
+        "/Dir1/Dir3/",
+        "/Dir1/Dir3/a.md",
+        "/Dir2/",
+        "/Dir2/b.md"
+      ],
+      "grants": {
+        "/AGENTS.md": "ro",
+        "/Dir1/Dir3": "stage"
+      },
+      "op": "read",
+      "path": "/Dir2",
+      "expect": {
+        "error": "Access denied: /Dir2 is not open to this session."
+      }
+    },
+    {
+      "tree": [
+        "/AGENTS.md",
+        "/Dir1/",
+        "/Dir1/FILE1.txt",
+        "/Dir1/AGENTS.md",
+        "/Dir1/Dir3/",
+        "/Dir1/Dir3/a.md",
+        "/Dir2/",
+        "/Dir2/b.md"
+      ],
+      "grants": {
+        "/AGENTS.md": "ro",
+        "/Dir1/Dir3": "stage"
+      },
+      "op": "read",
+      "path": "/Nope.md",
+      "expect": {
+        "error": "Access denied: /Nope.md is not open to this session."
+      }
+    },
+    {
+      "tree": [
+        "/AGENTS.md",
+        "/Dir1/",
+        "/Dir1/FILE1.txt",
+        "/Dir1/AGENTS.md",
+        "/Dir1/Dir3/",
+        "/Dir1/Dir3/a.md",
+        "/Dir2/",
+        "/Dir2/b.md"
+      ],
+      "grants": {
+        "/AGENTS.md": "ro",
+        "/Dir1/Dir3": "stage"
+      },
+      "op": "read",
+      "path": "/Dir1/Dir3/missing.md",
+      "expect": {
+        "error": "No such file or directory: /Dir1/Dir3/missing.md"
+      }
+    },
+    {
+      "tree": [
+        "/AGENTS.md",
+        "/Dir1/",
+        "/Dir1/FILE1.txt",
+        "/Dir1/AGENTS.md",
+        "/Dir1/Dir3/",
+        "/Dir1/Dir3/a.md",
+        "/Dir2/",
+        "/Dir2/b.md"
+      ],
+      "grants": {
+        "/AGENTS.md": "ro",
+        "/Dir1/Dir3": "stage"
+      },
+      "op": "write",
+      "path": "/Dir2/x.md",
+      "expect": {
+        "error": "Access denied: /Dir2/x.md is not open to this session."
+      }
+    },
+    {
+      "tree": [
+        "/AGENTS.md",
+        "/Dir1/",
+        "/Dir1/FILE1.txt",
+        "/Dir1/AGENTS.md",
+        "/Dir1/Dir3/",
+        "/Dir1/Dir3/a.md",
+        "/Dir2/",
+        "/Dir2/b.md"
+      ],
+      "grants": {
+        "/AGENTS.md": "ro",
+        "/Dir1/Dir3": "stage"
+      },
+      "op": "list",
+      "path": "/Dir1/Dir3",
+      "expect": {
+        "entries": [
+          "a.md"
+        ]
+      }
+    },
+    {
+      "tree": [
+        "/AGENTS.md",
+        "/Dir1/",
+        "/Dir1/FILE1.txt",
+        "/Dir1/AGENTS.md",
+        "/Dir1/Dir3/",
+        "/Dir1/Dir3/a.md",
+        "/Dir2/",
+        "/Dir2/b.md"
+      ],
+      "grants": {
+        "/AGENTS.md": "ro",
+        "/Dir1/Dir3": "stage"
+      },
+      "op": "read",
+      "path": "/AGENTS.md",
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "tree": [
+        "/AGENTS.md",
+        "/Dir1/",
+        "/Dir1/FILE1.txt",
+        "/Dir1/AGENTS.md",
+        "/Dir1/Dir3/",
+        "/Dir1/Dir3/a.md",
+        "/Dir2/",
+        "/Dir2/b.md"
+      ],
+      "grants": {
+        "/AGENTS.md": "ro",
+        "/Dir1/Dir3": "stage"
+      },
+      "op": "write",
+      "path": "/AGENTS.md",
+      "expect": {
+        "error": "Read-only: /AGENTS.md can be read in this session but not changed."
+      }
+    },
+    {
+      "tree": [
+        "/AGENTS.md",
+        "/Dir1/",
+        "/Dir1/FILE1.txt",
+        "/Dir1/AGENTS.md",
+        "/Dir1/Dir3/",
+        "/Dir1/Dir3/a.md",
+        "/Dir2/",
+        "/Dir2/b.md"
+      ],
+      "grants": {
+        "/AGENTS.md": "ro",
+        "/Dir1/Dir3": "stage"
+      },
+      "op": "write",
+      "path": "/Dir1/Dir3/new.md",
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "tree": [
+        "/AGENTS.md",
+        "/Dir1/",
+        "/Dir1/FILE1.txt",
+        "/Dir1/AGENTS.md",
+        "/Dir1/Dir3/",
+        "/Dir1/Dir3/a.md",
+        "/Dir2/",
+        "/Dir2/b.md"
+      ],
+      "grants": {
+        "/AGENTS.md": "ro",
+        "/Dir1/Dir3": "stage"
+      },
+      "op": "write",
+      "path": "new.md",
+      "cwd": "/Dir1/Dir3",
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "tree": [
+        "/AGENTS.md",
+        "/Dir1/",
+        "/Dir1/FILE1.txt",
+        "/Dir1/AGENTS.md",
+        "/Dir1/Dir3/",
+        "/Dir1/Dir3/a.md",
+        "/Dir2/",
+        "/Dir2/b.md"
+      ],
+      "grants": {
+        "/AGENTS.md": "ro",
+        "/Dir1/Dir3": "stage"
+      },
+      "op": "read",
+      "path": "../FILE1.txt",
+      "cwd": "/Dir1/Dir3",
+      "expect": {
+        "error": "Access denied: /Dir1/FILE1.txt is not open to this session."
+      }
+    },
+    {
+      "tree": [
+        "/AGENTS.md",
+        "/Dir1/",
+        "/Dir1/FILE1.txt",
+        "/Dir1/AGENTS.md",
+        "/Dir1/Dir3/",
+        "/Dir1/Dir3/a.md",
+        "/Dir2/",
+        "/Dir2/b.md"
+      ],
+      "grants": {
+        "/AGENTS.md": "ro",
+        "/Dir1/Dir3": "stage"
+      },
+      "op": "list",
+      "path": "/Dir1/Dir3/../../Dir1//Dir3/",
+      "expect": {
+        "entries": [
+          "a.md"
+        ]
+      }
+    },
+    {
+      "tree": [
+        "/Notes/",
+        "/Notes/a.md",
+        "/Notes/Private/",
+        "/Notes/Private/p.md",
+        "/Ref/",
+        "/Ref/r.md"
+      ],
+      "grants": {
+        "/": "stage",
+        "/Notes/Private": "none",
+        "/Ref": "ro"
+      },
+      "op": "list",
+      "path": "/",
+      "expect": {
+        "entries": [
+          "Notes/",
+          "Ref/ [read-only]"
+        ]
+      }
+    },
+    {
+      "tree": [
+        "/Notes/",
+        "/Notes/a.md",
+        "/Notes/Private/",
+        "/Notes/Private/p.md",
+        "/Ref/",
+        "/Ref/r.md"
+      ],
+      "grants": {
+        "/": "stage",
+        "/Notes/Private": "none",
+        "/Ref": "ro"
+      },
+      "op": "list",
+      "path": "/Notes",
+      "expect": {
+        "entries": [
+          "a.md"
+        ]
+      }
+    },
+    {
+      "tree": [
+        "/Notes/",
+        "/Notes/a.md",
+        "/Notes/Private/",
+        "/Notes/Private/p.md",
+        "/Ref/",
+        "/Ref/r.md"
+      ],
+      "grants": {
+        "/": "stage",
+        "/Notes/Private": "none",
+        "/Ref": "ro"
+      },
+      "op": "read",
+      "path": "/Notes/Private/p.md",
+      "expect": {
+        "error": "No such file or directory: /Notes/Private/p.md"
+      }
+    },
+    {
+      "tree": [
+        "/Notes/",
+        "/Notes/a.md",
+        "/Notes/Private/",
+        "/Notes/Private/p.md",
+        "/Ref/",
+        "/Ref/r.md"
+      ],
+      "grants": {
+        "/": "stage",
+        "/Notes/Private": "none",
+        "/Ref": "ro"
+      },
+      "op": "mkdir",
+      "path": "/Notes/Private",
+      "expect": {
+        "error": "Access denied: /Notes/Private is not open to this session."
+      }
+    },
+    {
+      "tree": [
+        "/Notes/",
+        "/Notes/a.md",
+        "/Notes/Private/",
+        "/Notes/Private/p.md",
+        "/Ref/",
+        "/Ref/r.md"
+      ],
+      "grants": {
+        "/": "stage",
+        "/Notes/Private": "none",
+        "/Ref": "ro"
+      },
+      "op": "write",
+      "path": "/Notes/Private/x.md",
+      "expect": {
+        "error": "Access denied: /Notes/Private/x.md is not open to this session."
+      }
+    },
+    {
+      "tree": [
+        "/Notes/",
+        "/Notes/a.md",
+        "/Notes/Private/",
+        "/Notes/Private/p.md",
+        "/Ref/",
+        "/Ref/r.md"
+      ],
+      "grants": {
+        "/": "stage",
+        "/Notes/Private": "none",
+        "/Ref": "ro"
+      },
+      "op": "rm",
+      "path": "/Notes/Private",
+      "expect": {
+        "error": "No such file or directory: /Notes/Private"
+      }
+    },
+    {
+      "tree": [
+        "/Notes/",
+        "/Notes/a.md",
+        "/Notes/Private/",
+        "/Notes/Private/p.md",
+        "/Ref/",
+        "/Ref/r.md"
+      ],
+      "grants": {
+        "/": "stage",
+        "/Notes/Private": "none",
+        "/Ref": "ro"
+      },
+      "op": "rm",
+      "path": "/Notes/gone.md",
+      "expect": {
+        "error": "No such file or directory: /Notes/gone.md"
+      }
+    },
+    {
+      "tree": [
+        "/Notes/",
+        "/Notes/a.md",
+        "/Notes/Private/",
+        "/Notes/Private/p.md",
+        "/Ref/",
+        "/Ref/r.md"
+      ],
+      "grants": {
+        "/": "stage",
+        "/Notes/Private": "none",
+        "/Ref": "ro"
+      },
+      "op": "write",
+      "path": "/Ref/r.md",
+      "expect": {
+        "error": "Read-only: /Ref/r.md can be read in this session but not changed."
+      }
+    },
+    {
+      "tree": [
+        "/Notes/",
+        "/Notes/a.md",
+        "/Notes/Private/",
+        "/Notes/Private/p.md",
+        "/Ref/",
+        "/Ref/r.md"
+      ],
+      "grants": {
+        "/": "stage",
+        "/Notes/Private": "none",
+        "/Ref": "ro"
+      },
+      "op": "write",
+      "path": "/Ref/new.md",
+      "expect": {
+        "error": "Read-only: /Ref/new.md can be read in this session but not changed."
+      }
+    },
+    {
+      "tree": [
+        "/Notes/",
+        "/Notes/a.md",
+        "/Notes/Private/",
+        "/Notes/Private/p.md",
+        "/Ref/",
+        "/Ref/r.md"
+      ],
+      "grants": {
+        "/": "stage",
+        "/Notes/Private": "none",
+        "/Ref": "ro"
+      },
+      "op": "rm",
+      "path": "/Notes/a.md",
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "tree": [
+        "/Notes/",
+        "/Notes/a.md",
+        "/Notes/Private/",
+        "/Notes/Private/p.md",
+        "/Ref/",
+        "/Ref/r.md"
+      ],
+      "grants": {
+        "/": "commit"
+      },
+      "floor": {
+        "/Ref": "ro"
+      },
+      "op": "level",
+      "path": "/Ref/r.md",
+      "expect": {
+        "level": "ro",
+        "passage": false
+      }
+    },
+    {
+      "tree": [
+        "/Notes/",
+        "/Notes/a.md",
+        "/Notes/Private/",
+        "/Notes/Private/p.md",
+        "/Ref/",
+        "/Ref/r.md"
+      ],
+      "grants": {
+        "/": "commit"
+      },
+      "floor": {
+        "/Ref": "ro"
+      },
+      "op": "write",
+      "path": "/Ref/r.md",
+      "expect": {
+        "error": "Read-only: /Ref/r.md can be read in this session but not changed."
+      }
+    },
+    {
+      "tree": [
+        "/repo/",
+        "/repo/README.md",
+        "/repo/src/",
+        "/repo/src/x.ts",
+        "/home/",
+        "/home/n.md"
+      ],
+      "mounts": [
+        "/repo"
+      ],
+      "grants": {
+        "/": "commit",
+        "/repo": "stage"
+      },
+      "op": "list",
+      "path": "/",
+      "expect": {
+        "entries": [
+          "home/",
+          "repo/ [mount]"
+        ]
+      }
+    },
+    {
+      "tree": [
+        "/repo/",
+        "/repo/README.md",
+        "/repo/src/",
+        "/repo/src/x.ts",
+        "/home/",
+        "/home/n.md"
+      ],
+      "mounts": [
+        "/repo"
+      ],
+      "grants": {
+        "/": "commit",
+        "/repo": "stage"
+      },
+      "op": "commit",
+      "path": "/repo/src/x.ts",
+      "expect": {
+        "error": "Not committed: this session may change /repo/src/x.ts but not commit it; the change stays staged."
+      }
+    },
+    {
+      "tree": [
+        "/repo/",
+        "/repo/README.md",
+        "/repo/src/",
+        "/repo/src/x.ts",
+        "/home/",
+        "/home/n.md"
+      ],
+      "mounts": [
+        "/repo"
+      ],
+      "grants": {
+        "/": "commit"
+      },
+      "op": "commit",
+      "path": "/home/n.md",
+      "expect": {
+        "error": "Nothing to commit: /home/n.md is not in a repository."
+      }
+    },
+    {
+      "tree": [
+        "/repo/",
+        "/repo/README.md",
+        "/repo/src/",
+        "/repo/src/x.ts",
+        "/home/",
+        "/home/n.md"
+      ],
+      "mounts": [
+        "/repo"
+      ],
+      "grants": {
+        "/repo": "commit"
+      },
+      "op": "commit",
+      "path": "/repo/README.md",
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "tree": [
+        "/repo/",
+        "/repo/README.md",
+        "/repo/src/",
+        "/repo/src/x.ts",
+        "/home/",
+        "/home/n.md"
+      ],
+      "mounts": [
+        "/repo"
+      ],
+      "grants": {
+        "/repo": "ro"
+      },
+      "op": "commit",
+      "path": "/repo/README.md",
+      "expect": {
+        "error": "Read-only: /repo/README.md can be read in this session but not changed."
+      }
+    },
+    {
+      "tree": [
+        "/repo/",
+        "/repo/README.md",
+        "/repo/src/",
+        "/repo/src/x.ts",
+        "/home/",
+        "/home/n.md"
+      ],
+      "mounts": [
+        "/repo"
+      ],
+      "grants": {
+        "/": "commit"
+      },
+      "op": "write",
+      "path": "/repo/src",
+      "expect": {
+        "error": "Is a directory: /repo/src"
+      }
+    },
+    {
+      "tree": [
+        "/repo/",
+        "/repo/README.md",
+        "/repo/src/",
+        "/repo/src/x.ts",
+        "/home/",
+        "/home/n.md"
+      ],
+      "mounts": [
+        "/repo"
+      ],
+      "grants": {
+        "/": "commit"
+      },
+      "op": "write",
+      "path": "/home/n.md/x",
+      "expect": {
+        "error": "Not a directory: /home/n.md"
+      }
+    },
+    {
+      "tree": [
+        "/repo/",
+        "/repo/README.md",
+        "/repo/src/",
+        "/repo/src/x.ts",
+        "/home/",
+        "/home/n.md"
+      ],
+      "mounts": [
+        "/repo"
+      ],
+      "grants": {
+        "/": "commit"
+      },
+      "op": "mkdir",
+      "path": "/home/n.md",
+      "expect": {
+        "error": "Already exists: /home/n.md"
+      }
+    },
+    {
+      "tree": [
+        "/repo/",
+        "/repo/README.md",
+        "/repo/src/",
+        "/repo/src/x.ts",
+        "/home/",
+        "/home/n.md"
+      ],
+      "mounts": [
+        "/repo"
+      ],
+      "grants": {
+        "/": "commit"
+      },
+      "op": "mkdir",
+      "path": "/home",
+      "expect": {
+        "ok": true
+      }
+    }
+  ]
+}

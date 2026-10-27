@@ -24,7 +24,7 @@ import uuid
 from collections.abc import Iterable, Iterator
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete, func, insert, select, update
+from sqlalchemy import delete, func, insert, select, text, update
 from sqlalchemy.orm import Session as DBSession
 
 from lembas.db.models.blob import blob_parts, blobs
@@ -173,6 +173,26 @@ def sweep(db: DBSession, *, now: datetime | None = None, grace: timedelta = SWEE
     return len(doomed)
 
 
+def recount(db: DBSession) -> int:
+    """Recompute every refcount from the rows that name blobs. Returns how
+    many changed. A repair, and what the tests check the counting against."""
+    counted: dict[str, int] = {}
+    for statement in (
+        "SELECT blob_hash FROM nodes WHERE blob_hash IS NOT NULL",
+        "SELECT blob_hash FROM node_versions WHERE blob_hash IS NOT NULL",
+        "SELECT logo_blob_hash FROM organisations WHERE logo_blob_hash IS NOT NULL",
+    ):
+        for (digest,) in db.execute(text(statement)):
+            counted[digest] = counted.get(digest, 0) + 1
+    changed = 0
+    for digest, current in list(db.execute(select(blobs.c.hash, blobs.c.refcount))):
+        want = counted.get(digest, 0)
+        if want != current:
+            db.execute(update(blobs).where(blobs.c.hash == digest).values(refcount=want))
+            changed += 1
+    return changed
+
+
 __all__ = [
     "EMPTY_HASH",
     "PART_SIZE",
@@ -185,6 +205,7 @@ __all__ = [
     "put_bytes",
     "put_stream",
     "read_bytes",
+    "recount",
     "refcount",
     "size",
     "sweep",

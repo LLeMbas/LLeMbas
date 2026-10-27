@@ -117,6 +117,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             sweep_chunks(db)
             # Three starting points on the empty screen, written once ever.
             seed_suggestions(db)
+            # Every organisation's `/home/` and `/skills/`, and a home for every
+            # account that has none yet (services/fs.py).
+            from lembas.services import fs
+
+            fs.ensure_layout(db)
     except Exception:  # housekeeping must never block startup
         log.exception("orphaned upload sweep failed")
 

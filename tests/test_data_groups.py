@@ -232,8 +232,12 @@ def _rollback_to_before_data_groups(engine) -> None:
 def test_the_recorded_shape_is_still_real():
     from lembas.db.base import Base
 
+    # A group's own rules point at it by a real foreign key; they are part of
+    # the group, not data filed into one.
     grouped = {
-        table.name for table in Base.metadata.sorted_tables if "data_group_id" in table.columns
+        table.name
+        for table in Base.metadata.sorted_tables
+        if "data_group_id" in table.columns and not table.columns["data_group_id"].foreign_keys
     }
     assert grouped == set(GROUPED_TABLES)
 

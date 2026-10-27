@@ -70,7 +70,7 @@ def default(db: DBSession) -> Organisation:
 
 
 def create(db: DBSession, name: str, *, slug: str = "") -> Organisation:
-    """A new organisation."""
+    """A new organisation, with its tree's layout (`/home/`, `/skills/`)."""
     name = name.strip()[:120]
     if not name:
         raise ValueError("An organisation needs a name.")
@@ -82,6 +82,9 @@ def create(db: DBSession, name: str, *, slug: str = "") -> Organisation:
     org = Organisation(name=name, slug=candidate)
     db.add(org)
     db.flush()
+    from lembas.services import fs
+
+    fs.seed_org(db, org.id)
     return org
 
 
@@ -127,6 +130,9 @@ def create_account(
     )
     db.add(user)
     db.flush()
+    from lembas.services import fs
+
+    fs.ensure_home(db, user)
     return user
 
 
