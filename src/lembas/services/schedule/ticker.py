@@ -195,6 +195,11 @@ def tidy(*, force: bool = False) -> None:
             # hour past their life. Both one indexed DELETE.
             audit.sweep(db)
             devices.sweep(db)
+            # File contents nothing names any more, an hour after the last
+            # name went (services/blobs.py).
+            from lembas.services import blobs
+
+            blobs.sweep(db)
             # Plans whose month is up.
             from lembas.services import credits
 

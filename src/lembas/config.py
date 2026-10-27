@@ -77,6 +77,11 @@ class Settings(BaseSettings):
         return self.data_dir / "lembas.db"
 
     @property
+    def blobs_path(self) -> Path:
+        """The blob store beside the database (`db/models/blob.py`)."""
+        return self.data_dir / "lembas-blobs.db"
+
+    @property
     def uploads_dir(self) -> Path:
         return self.data_dir / "uploads"
 

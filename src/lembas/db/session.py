@@ -5,11 +5,13 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
+from pathlib import Path
 
 from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from lembas.config import settings
+from lembas.db.models.blob import BLOB_SCHEMA
 
 log = logging.getLogger(__name__)
 
@@ -32,7 +34,32 @@ def _configure_sqlite(dbapi_connection, connection_record) -> None:
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.execute("PRAGMA busy_timeout=5000")
     cursor.execute("PRAGMA synchronous=NORMAL")
+    # The blob store (`db/models/blob.py`) beside the main file, attached as
+    # the schema `blobs` with the same journal settings, so one transaction can
+    # write a node and its contents. `foreign_keys` and `busy_timeout` are per
+    # connection and already cover it.
+    cursor.execute(
+        "ATTACH DATABASE ? AS " + BLOB_SCHEMA, (blobs_path_for(_main_file(cursor)),)
+    )
+    cursor.execute(f"PRAGMA {BLOB_SCHEMA}.journal_mode=WAL")
+    cursor.execute(f"PRAGMA {BLOB_SCHEMA}.synchronous=NORMAL")
     cursor.close()
+
+
+def _main_file(cursor) -> str:
+    for _seq, name, file in cursor.execute("PRAGMA database_list").fetchall():
+        if name == "main":
+            return file or ""
+    return ""
+
+
+def blobs_path_for(main: str | Path) -> str:
+    """`lembas.db` -> `lembas-blobs.db`, beside it. In memory stays in memory."""
+    main = str(main)
+    if not main or main == ":memory:":
+        return ":memory:"
+    path = Path(main)
+    return str(path.with_name(f"{path.stem}-blobs{path.suffix}"))
 
 
 def get_engine() -> Engine:

@@ -24,6 +24,7 @@ from lembas.db.models.attachment import (
     KIND_TEXT,
     Attachment,
 )
+from lembas.db.models.blob import BLOB_SCHEMA, blob_parts, blobs
 from lembas.db.models.canvas import ScratchDoc
 from lembas.db.models.chat import (
     ALL_KINDS,
@@ -157,6 +158,9 @@ from lembas.db.models.user import (
 )
 
 __all__ = [
+    "BLOB_SCHEMA",
+    "blob_parts",
+    "blobs",
     "DEFAULT_ORG",
     "DEFAULT_ORG_NAME",
     "ORG_ADMIN",

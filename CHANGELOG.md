@@ -18,6 +18,10 @@ release yet.
   *Create one* link on the sign-in page. Past the first run, an account is made by an
   administrator or from an invite: a single-use link into an organisation that expires (a week by
   default) and can be tied to one email address. (The invite screens come later in the beta.)
+- **A blob store.** File contents live in a second database beside the first,
+  `lembas-blobs.db`, by content hash and in parts of about 4 MB, so the same file stored twice is
+  kept once and nothing reads a large file whole. `lembas-server backup` (and the backup before an
+  update) copies it beside the main database as `…db-blobs`; keep the two together.
 
 ## 1.7.2 — 2026-10-25
 
