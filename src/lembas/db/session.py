@@ -45,6 +45,11 @@ def _configure_sqlite(dbapi_connection, connection_record) -> None:
     cursor.execute(f"PRAGMA {BLOB_SCHEMA}.journal_mode=WAL")
     cursor.execute(f"PRAGMA {BLOB_SCHEMA}.synchronous=NORMAL")
     cursor.close()
+    # The search index's vectors, when the optional extension is installed
+    # (`db/vec.py`). Without it the search is keywords only.
+    from lembas.db import vec
+
+    vec.load(dbapi_connection)
 
 
 def _main_file(cursor) -> str:

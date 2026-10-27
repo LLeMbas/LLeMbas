@@ -448,6 +448,15 @@ def sync_schema(engine: Engine) -> list[str]:
     except Exception:  # search is not worth refusing to start over
         log.exception("could not create the full-text search indexes")
 
+    # The file and chat index's own full-text table (services/index/schema.py).
+    try:
+        from lembas.services.index import schema as index_schema
+
+        for index in index_schema.ensure(engine):
+            changes.append(f"create search index {index}")
+    except Exception:  # search is not worth refusing to start over
+        log.exception("could not create the file index's full-text table")
+
     if changes:
         log.info("schema synchronised: %d change(s)", len(changes))
     for step in MANUAL_STEPS:

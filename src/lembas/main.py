@@ -164,6 +164,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         asyncio.sleep(0) if api_only else resume_interrupted()
     )
 
+    # The file and chat search index (services/index/): reconciles everything
+    # once, then follows the tree and the chats as they change.
+    try:
+        from lembas.services import index as index_service
+
+        index_service.start()
+    except Exception:  # search must not block startup
+        log.exception("could not start the search indexer")
+
     log.info("LLeMbas %s starting on http://%s:%s", __version__, settings.host, settings.port)
     log.info("data directory: %s", settings.data_dir.resolve())
     yield
@@ -186,6 +195,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # A chunk set is written whole or not at all, so cancelling loses nothing
     # a rebuild does not pick up again.
     await indexing.shutdown()
+    from lembas.services import index as index_service
+
+    await index_service.shutdown()
     log.info("LLeMbas stopped")
 
 
@@ -218,6 +230,10 @@ def create_app() -> FastAPI:
     # each of the ten writers that touch those tables. Idempotent, because the
     # factory is called per test. See services/library/indexing.py:install.
     indexing.install()
+    # The same for the file tree and chats: services/index/worker.py:install.
+    from lembas.services import index as index_service
+
+    index_service.install()
 
     app.include_router(pages.router)
     app.include_router(auth.router)

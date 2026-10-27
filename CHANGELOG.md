@@ -52,6 +52,19 @@ release yet.
   chat's usage panel shows the total. Usage is counted per person, month and model — tokens in,
   cached and out, requests, pictures, speech and cost — for the usage figures; `/v1/usage` reports
   the month's tokens and `cost_money`, with the old credit fields null.
+- **A search index over the file tree and your chats.** Files are indexed when they are written —
+  text, Markdown, code, JSON, and the text of PDFs and Word (`.docx`) documents, up to 25 MB — and
+  chat messages when they are complete. Content is indexed once per content hash, so a copy, a
+  rename or a move costs nothing. A `.lembasignore` in a directory leaves paths out the way a
+  `.gitignore` does (`*` alone switches a directory off). Text is cut into pieces of at most 480
+  tokens by the harness spec's rules, so an embedder that refuses long input no longer loses a
+  document; a piece it still refuses is cut in two, never dropped.
+- **Search fuses keywords and meaning, then asks access.** Keyword matches and, with an embedding
+  model, the nearest pieces by meaning are fused by rank; only then is each hit checked against
+  what the person, or the chat, may read, so a file outside a chat's grants is never found from it,
+  not even as a count. A chat is found by its owner. The meaning half needs `sqlite-vec` (pinned
+  to 0.1.9 in the `search` extra, which a standard install has); without it, or without an
+  embedding model, search is keywords only and no vectors are written.
 
 ## 1.7.2 — 2026-10-25
 

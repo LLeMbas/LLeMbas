@@ -51,7 +51,12 @@ dev = [
 # XML parser with it, and the other two search providers need only httpx, which
 # is already a core dependency. Without this the provider is offered in the
 # admin UI with an install hint rather than silently missing.
-search = ["ddgs>=9.0"]
+#
+# sqlite-vec is the file index's vector half (services/index/): a one-bit scan
+# for candidates and an exact cosine rerank, all inside SQLite. Pinned, because
+# it is pre-1.0 and its SQL functions are what the queries call. Without it the
+# index is keywords only and no vectors are ever written (db/vec.py).
+search = ["ddgs>=9.0", "sqlite-vec==0.1.9"]
 
 [project.scripts]
 # `lembas-server`, not `lembas`: the bare name is the LLeMbas CLI's command, and

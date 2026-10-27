@@ -66,6 +66,17 @@ from lembas.db.models.data_group import (
     InDataGroup,
 )
 from lembas.db.models.image import ImageWorkflow
+from lembas.db.models.index import (
+    INDEX_DONE,
+    INDEX_ERROR,
+    INDEX_PENDING,
+    INDEX_SKIPPED,
+    INDEXED_CHAT,
+    INDEXED_FILE,
+    IndexChunk,
+    IndexText,
+    PathHash,
+)
 from lembas.db.models.library import (
     AUTHOR_MODEL,
     AUTHOR_USER,
@@ -195,6 +206,15 @@ __all__ = [
     "RULE_PRESET",
     "DataGroupRule",
     "Invite",
+    "INDEX_DONE",
+    "INDEX_ERROR",
+    "INDEX_PENDING",
+    "INDEX_SKIPPED",
+    "INDEXED_CHAT",
+    "INDEXED_FILE",
+    "IndexChunk",
+    "IndexText",
+    "PathHash",
     "Node",
     "NodeShare",
     "NodeVersion",

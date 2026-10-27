@@ -1,0 +1,77 @@
+{
+  "about": "Text → the pieces a file is cut into for search, measured in tokens (filesystem.md, Indexing, by tokens): at most `size` tokens each (raised to 16 when smaller), the next one beginning at the start of the token `overlap` tokens (at most half the size) before the cut; the cut just after a paragraph break, else a line break, else a sentence's \". \", looked for in the window's last third (by characters), else at the end of the window's last token; CRLF read as LF, the text trimmed, every piece trimmed; pieces under 40 characters dropped; a text of at most `size` tokens is one piece. `tokenizer: words` is the stand-in for an embedder's: a token is a run of non-whitespace characters. LLeMbas: services/library/chunks.py (to be written); CLI: library/chunks.ts (to be written).",
+  "cases": [
+    {
+      "tokenizer": "words",
+      "size": 480,
+      "overlap": 64,
+      "text": "One short paragraph that fits in a single piece.",
+      "expect": [
+        "One short paragraph that fits in a single piece."
+      ]
+    },
+    {
+      "tokenizer": "words",
+      "size": 16,
+      "overlap": 4,
+      "text": "The first paragraph is here, with nine words in it.\n\nThe second paragraph follows it and has ten words in total.\n\nA third one closes the text with a few more words.",
+      "expect": [
+        "The first paragraph is here, with nine words in it.\n\nThe second paragraph follows it and",
+        "paragraph follows it and has ten words in total.\n\nA third one closes the text with"
+      ]
+    },
+    {
+      "tokenizer": "words",
+      "size": 20,
+      "overlap": 5,
+      "text": "Alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega. Alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega.",
+      "expect": [
+        "Alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau upsilon",
+        "pi rho sigma tau upsilon phi chi psi omega. Alpha beta gamma delta epsilon zeta eta theta iota kappa lambda",
+        "eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega."
+      ]
+    },
+    {
+      "tokenizer": "words",
+      "size": 16,
+      "overlap": 4,
+      "text": "line one has four\nline two has four\nline three has five words\nline four has five words\nline five is the last one here\n",
+      "expect": [
+        "line one has four\nline two has four\nline three has five words",
+        "three has five words\nline four has five words\nline five is the last one here"
+      ]
+    },
+    {
+      "tokenizer": "words",
+      "size": 16,
+      "overlap": 40,
+      "text": "w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w10 w11 w12 w13 w14 w15 w16 w17 w18 w19 w20 w21 w22 w23 w24 w25 w26 w27 w28 w29 w30 w31 w32 w33 w34 w35 w36 w37 w38 w39 w40 w41 w42 w43 w44 w45 w46 w47 w48 w49 w50 w51 w52 w53 w54 w55 w56 w57 w58 w59",
+      "expect": [
+        "w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w10 w11 w12 w13 w14 w15",
+        "w8 w9 w10 w11 w12 w13 w14 w15 w16 w17 w18 w19 w20 w21 w22 w23",
+        "w16 w17 w18 w19 w20 w21 w22 w23 w24 w25 w26 w27 w28 w29 w30 w31",
+        "w24 w25 w26 w27 w28 w29 w30 w31 w32 w33 w34 w35 w36 w37 w38 w39",
+        "w32 w33 w34 w35 w36 w37 w38 w39 w40 w41 w42 w43 w44 w45 w46 w47",
+        "w40 w41 w42 w43 w44 w45 w46 w47 w48 w49 w50 w51 w52 w53 w54 w55",
+        "w48 w49 w50 w51 w52 w53 w54 w55 w56 w57 w58 w59"
+      ]
+    },
+    {
+      "tokenizer": "words",
+      "size": 16,
+      "overlap": 4,
+      "text": "a3f29c0e1b7d 9d8e7f6a5b4c 0011aabbccdd a3f29c0e1b7d 9d8e7f6a5b4c 0011aabbccdd a3f29c0e1b7d 9d8e7f6a5b4c 0011aabbccdd a3f29c0e1b7d 9d8e7f6a5b4c 0011aabbccdd a3f29c0e1b7d 9d8e7f6a5b4c 0011aabbccdd a3f29c0e1b7d 9d8e7f6a5b4c 0011aabbccdd a3f29c0e1b7d 9d8e7f6a5b4c 0011aabbccdd a3f29c0e1b7d 9d8e7f6a5b4c 0011aabbccdd ",
+      "expect": [
+        "a3f29c0e1b7d 9d8e7f6a5b4c 0011aabbccdd a3f29c0e1b7d 9d8e7f6a5b4c 0011aabbccdd a3f29c0e1b7d 9d8e7f6a5b4c 0011aabbccdd a3f29c0e1b7d 9d8e7f6a5b4c 0011aabbccdd a3f29c0e1b7d 9d8e7f6a5b4c 0011aabbccdd a3f29c0e1b7d",
+        "a3f29c0e1b7d 9d8e7f6a5b4c 0011aabbccdd a3f29c0e1b7d 9d8e7f6a5b4c 0011aabbccdd a3f29c0e1b7d 9d8e7f6a5b4c 0011aabbccdd a3f29c0e1b7d 9d8e7f6a5b4c 0011aabbccdd"
+      ]
+    },
+    {
+      "tokenizer": "words",
+      "size": 16,
+      "overlap": 4,
+      "text": "   \r\n  ",
+      "expect": []
+    }
+  ]
+}
