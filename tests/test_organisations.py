@@ -134,3 +134,33 @@ def test_group_names_are_unique_per_organisation_only(db):
     db.add_all([Group(name="Rangers"), Group(name="Rangers", org_id=other.id)])
     db.commit()
     assert len(list(db.scalars(select(Group).where(Group.name == "Rangers")))) == 2
+
+
+def test_an_organisation_s_model_list_narrows_what_its_people_see(db):
+    from lembas.db.models import Connection, Model, org_models
+    from lembas.security import permissions
+
+    connection = Connection(name="c", base_url="http://up.test/v1", api_key_encrypted="")
+    db.add(connection)
+    db.flush()
+    db.add_all(
+        [
+            Model(connection_id=connection.id, model_id=name, public=True, position=n)
+            for n, name in enumerate(("a", "b", "c"))
+        ]
+    )
+    other = organisations.create(db, "Lothlorien")
+    elf = User(name="E", email="e@lorien.test", password_hash="x", org_id=other.id)
+    hobbit = User(name="H", email="h@shire.test", password_hash="x")
+    db.add_all([elf, hobbit])
+    db.execute(
+        org_models.insert(),
+        [
+            {"org_id": other.id, "model_id": "a", "connection_id": connection.id},
+            {"org_id": other.id, "model_id": "c", "connection_id": ""},
+        ],
+    )
+    db.commit()
+    assert [m.model_id for m in permissions.models_visible_to(db, elf)] == ["a", "c"]
+    # An organisation with no list sees everything the instance offers.
+    assert [m.model_id for m in permissions.models_visible_to(db, hobbit)] == ["a", "b", "c"]

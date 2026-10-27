@@ -593,8 +593,9 @@ def limit(db: DBSession, user: User | None, key: str) -> int:
 def models_visible_to(db: DBSession, user: User | None) -> list[Model]:
     """Models a user may start a chat with, in display order.
 
-    A model is visible when it is enabled, its connection is enabled, and
-    either it is public or the user belongs to one of its groups.
+    A model is visible when it is enabled, its connection is enabled, it is
+    on the person's organisation's list (when it has one), and either it is
+    public or the user belongs to one of its groups.
     """
     query = (
         select(Model)
@@ -610,12 +611,40 @@ def models_visible_to(db: DBSession, user: User | None) -> list[Model]:
     if user is None:
         return []
 
+    # The organisation's own list, when its admins have made one: empty is
+    # every model the instance offers (`organisation.org_models`).
+    narrowed = org_model_keys(db, user.org_id)
+    if narrowed:
+        candidates = [
+            model
+            for model in candidates
+            if (model.model_id, model.connection_id) in narrowed
+            or (model.model_id, "") in narrowed
+        ]
+
     member_of = {group.id for group in user.groups}
     return [
         model
         for model in candidates
         if model.public or member_of.intersection({g.id for g in model.groups})
     ]
+
+
+def org_model_keys(db: DBSession, org_id: str | None) -> set[tuple[str, str]]:
+    """(model_id, connection_id) pairs an organisation is narrowed to; a
+    connection of "" matches the model id on any connection. Empty: no list."""
+    from lembas.db.models import org_models
+
+    if not org_id:
+        return set()
+    return {
+        (row.model_id, row.connection_id or "")
+        for row in db.execute(
+            select(org_models.c.model_id, org_models.c.connection_id).where(
+                org_models.c.org_id == org_id
+            )
+        )
+    }
 
 
 def can_use_model(db: DBSession, user: User | None, model_id: str) -> bool:

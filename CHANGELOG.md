@@ -14,6 +14,9 @@ release yet.
   member) beside its role on the instance. An existing account, and one made without saying
   otherwise, is in the first organisation; whoever sets an empty instance up runs the instance and
   owns that organisation.
+- **An organisation can be narrowed to some of the instance's models.** With no list, it sees every
+  model the instance offers, as before; with one, its people see only those (and still only the
+  ones their groups may use). (The screen for it comes later in the beta.)
 - **No open sign-up.** The *Registration* switch and `LEMBAS_ALLOW_SIGNUP` are gone, and so is the
   *Create one* link on the sign-in page. Past the first run, an account is made by an
   administrator or from an invite: a single-use link into an organisation that expires (a week by
