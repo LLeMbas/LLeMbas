@@ -60,12 +60,20 @@ with `Permission denied (publickey)` from an account you were not thinking about
 
 | | follows | for |
 |---|---|---|
-| `stable` (default) | the newest `vX.Y.Z` tag | anybody running this |
+| `stable` (default) | the newest `vX.Y.Z` tag of the running major version | anybody running this |
 | `edge` | the tip of `LEMBAS_BRANCH` | whoever is building it |
 
 **A branch tip is not a release.** Following `main` means deploying whatever was
 pushed five minutes ago, possibly mid-feature — right for development and wrong
 for a machine somebody depends on. Stable is the default for that reason.
+
+**Stable never crosses a major version.** A 1.x host is offered 1.x releases
+only, however new a 2.0 is: a new major may change what lies underneath (2.0
+starts on a new database), so moving to one is done by hand, after exporting
+what you want to keep. The Updates page says when a newer major is out. Root's
+copy of `update.sh` holds the same line; a copy installed by an older release
+does not, and the Updates page says so — re-run the installer with
+`INSTALL_UPDATE_HELPER=1` to replace it.
 
 A tag with a suffix (`v1.1.0-rc1`) is deliberately **not** a release: git's
 version sort puts it *above* `v1.1.0`, so accepting one would step a stable host
@@ -135,7 +143,8 @@ sudo /srv/lembas/app/deploy/update.sh
 ```
 
 `update.sh` fetches, moves the deployment checkout to what the channel offers
-(the newest release tag, or the tip of the branch on `edge`), reinstalls
+(the newest release tag of the running major, or the tip of the branch on
+`edge`), reinstalls
 dependencies and restarts, printing the commits it pulled. The checkout is
 reset rather than merged on purpose: nothing is ever edited in place there, so
 there is no local work to preserve and no conflicts to resolve.
