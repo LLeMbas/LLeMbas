@@ -5,6 +5,17 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
+### Added — for the move to 2.0
+
+LLeMbas 2.0 starts on a new database and does not carry a 1.x one over. 1.7 is a long-term-support
+line, and its patches may carry the tools for exporting what you want to keep; nothing else new.
+
+- **One export format.** Every export is a JSON file that says what it is (`lembas-export`, format
+  version 1), which LLeMbas version wrote it and when, and lists its items each with a type and a
+  name -- so an importer can report exactly what it took and what it could not. Keys and other
+  secrets are never in the file in clear: with a passphrase they are encrypted (scrypt and Fernet,
+  a new salt per file); without one they are left out, and the file lists each one left out.
+
 ### Fixed
 
 - **Updates stay on the major version that is running.** The stable channel, the Update button,
