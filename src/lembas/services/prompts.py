@@ -209,6 +209,36 @@ VARIABLES: tuple[Variable, ...] = (
         "Empty where there is no helper tool.",
     ),
     Variable(
+        "start",
+        "Where relative paths start",
+        "In a chat with the file tools: its start directory, as a code span.",
+    ),
+    Variable(
+        "view",
+        "What the chat can reach",
+        "In a chat with the file tools: every path it can reach with its level "
+        "(read-only, stage, commit), in one sentence. The gate on the files "
+        "guidance: empty, and it is not sent.",
+    ),
+    Variable(
+        "repositories",
+        "The repository sentence",
+        "When the chat can reach a repository from a forge: how changes there are "
+        "staged and committed. Empty otherwise.",
+    ),
+    Variable(
+        "show",
+        "The show sentence",
+        "When show is offered: to open a file the person should see rather than "
+        "paste it. Empty otherwise.",
+    ),
+    Variable(
+        "python",
+        "The python sentence",
+        "When python is offered: that Python runs in the person's browser, and "
+        "only while a page of the chat is open. Empty otherwise.",
+    ),
+    Variable(
         "other_model",
         "The model being quoted",
         "In a chat whose model was changed: the name of the model whose earlier "
@@ -1411,6 +1441,35 @@ BUILTIN: tuple[Fragment, ...] = (
             "\n"
             "Read one with skill_view before following it."
         ),
+    ),
+    Fragment(
+        key="tool.workspace",
+        label="The files a chat works in",
+        group=GROUP_TOOLS,
+        order=206,
+        families=("files",),
+        variables=("start", "view", "repositories", "show", "python"),
+        requires=("view",),
+        hint="Appears when the file tools are offered. The harness spec's text "
+        "(blocks/workspace.md): where relative paths start, every path this "
+        "chat can reach with its level -- a granted directory under one that is "
+        "not is reached only by its full path, so the model has to be told it "
+        "-- and the sentences for a repository, show and python, each gone when "
+        "that does not apply.",
+        default=harness_spec.prompt("blocks/workspace.md"),
+    ),
+    Fragment(
+        key="tool.context",
+        label="Tool results: ids, stubs and recall",
+        group=GROUP_TOOLS,
+        order=254,
+        families=("recall",),
+        hint="Appears when recall is offered. The harness spec's text "
+        "(blocks/context.md), shared with the LLeMbas CLI: every result has an "
+        "id, an unchanged re-read and a repeated listing are stubs, long output "
+        "is shortened, and recall shows any result again. Without it a model "
+        "reads a stub as an empty file.",
+        default=harness_spec.prompt("blocks/context.md"),
     ),
     Fragment(
         key="tool.ask",

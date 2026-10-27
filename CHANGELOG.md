@@ -27,6 +27,10 @@ release yet.
   and end; an edit answers with its diff. Every result is stored with the chat, whole, and the
   new `recall` tool shows any of them again. Nothing already sent to the model is ever changed, so
   the prompt cache keeps working. Compacting a chat adds a table of the files read before it.
+- **A chat reads its instruction files.** `AGENTS.md` (or `CLAUDE.md`) files are collected from the
+  top of what the chat may see down to its starting directory, outermost first, and sent with the
+  system prompt — only ones the chat can read. The model is also told which paths it can reach and
+  how, and where relative paths start.
 - **Organisations.** Every account belongs to one organisation, with a role there (owner, admin or
   member) beside its role on the instance. An existing account, and one made without saying
   otherwise, is in the first organisation; whoever sets an empty instance up runs the instance and

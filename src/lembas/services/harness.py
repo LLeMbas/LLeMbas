@@ -135,6 +135,14 @@ ASK_TOOL = (
 # guidance an administrator tunes -- that is `core.shared` itself.
 SURFACE = "Your output is rendered as Markdown in a web page."
 
+# `{{file_tools}}` in a chat with the file tools (spec 3.0.0, `prompts/index.json`):
+# there is no shell here, so the bullet says the tools are the way to the files.
+FILE_TOOLS = (
+    "The person's files are reached through the file tools alone — read, edit and write, "
+    "list, glob and grep; there is no shell here. Read a file before changing it, and change "
+    "part of one with edit rather than writing it whole."
+)
+
 
 def tool_list_sentence(names: str) -> str:
     """`{{tool_list}}`: exactly what is offered, so the model does not spend a
@@ -309,7 +317,7 @@ def context_variables(
         "intro": intro_sentence((user.name or "") if user is not None else ""),
         "surface": SURFACE,
         "tool_list": tool_list_sentence(_tool_names(offered)),
-        "file_tools": "",
+        "file_tools": FILE_TOOLS if "files" in families else "",
         "background": "",
         "git": "",
         # Planning and asking: every chat but a helper's, which has no plan
@@ -386,6 +394,15 @@ def context_variables(
         "read_only": "",
         # Where `task` is offered: the models a helper may run on.
         "helper_models": "",
+        # The files a chat works in (`blocks/workspace.md`): where relative
+        # paths start, every path it can reach with its level, and the
+        # sentences for a repository, `show` and `python`. Filled below for a
+        # chat with the file tools; empty otherwise, and the block goes.
+        "start": "",
+        "view": "",
+        "repositories": "",
+        "show": "",
+        "python": "",
     }
 
     if chat is not None:
@@ -455,7 +472,24 @@ def context_variables(
 
             values["helper_models"] = subagent_service.helper_models(db, user, chat)
 
+        if "files" in families and user is not None:
+            from lembas.services import fs, workspace
+
+            names = set(_tool_names(offered).split(", "))
+            values.update(workspace.variables(fs.view(db, user, chat), names))
+
     return values
+
+
+def instructions_block(db: DBSession, user: User | None, tools, chat=None) -> str:
+    """The chat's stacked instruction files (`services/workspace.py`), for a chat
+    with the file tools: what its session can read of AGENTS.md / CLAUDE.md from
+    the boundary down to the start directory, outermost first."""
+    if chat is None or user is None or "files" not in _families(db, tools or []):
+        return ""
+    from lembas.services import fs, workspace
+
+    return workspace.instructions_block(fs.view(db, user, chat))
 
 
 def _prototype_sources(db: DBSession) -> str:
@@ -533,12 +567,18 @@ def compose(
 ) -> str:
     """The operational preamble for this request, or "" when there is nothing to say."""
     offered = tools or []
-    return compose_from(
+    block = compose_from(
         db,
         variables=context_variables(db, user, offered, chat, speaker),
         families=_families(db, offered),
         has_tools=bool(offered),
     )
+    # The instruction files are the person's text, not the harness's: after the
+    # fragments, and outside the fragments' ceiling, each bounded on its own.
+    files = instructions_block(db, user, offered, chat)
+    if files:
+        block = f"{block}\n\n{files}" if block else files
+    return block
 
 
 def join(harness: str, authored: str, *, lead: str = "") -> str:

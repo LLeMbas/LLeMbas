@@ -1,0 +1,129 @@
+{
+  "about": "The instruction files a session starts with (filesystem.md, Instruction files, stacked): `files` that exist, the `boundary` and the `start` directory (outside the boundary: read as the boundary), and `grants` as in fs_access (absent: everything readable). From the boundary down to the start directory, outermost first, each directory gives the first of AGENTS.md, CLAUDE.md that is a file the session can read — never both; a file at none (in a passage, or taken away) is not loaded and the walk goes on below it. The answer is the loaded paths, in order. The CLI's global AGENTS.md, before the chain, and its configured `instructions`, after it, are not part of these cases. LLeMbas: services/files/instructions.py (to be written); CLI: prompt/assemble.ts instructionFiles (today: the nearest file only — 3.0.0 changes it).",
+  "cases": [
+    {
+      "files": [
+        "/AGENTS.md",
+        "/sec/AGENTS.md",
+        "/sec/repo/CLAUDE.md",
+        "/sec/repo/src/AGENTS.md"
+      ],
+      "boundary": "/",
+      "start": "/sec/repo",
+      "expect": [
+        "/AGENTS.md",
+        "/sec/AGENTS.md",
+        "/sec/repo/CLAUDE.md"
+      ]
+    },
+    {
+      "files": [
+        "/AGENTS.md",
+        "/sec/AGENTS.md",
+        "/sec/repo/CLAUDE.md",
+        "/sec/repo/src/AGENTS.md"
+      ],
+      "boundary": "/",
+      "start": "/sec/repo/src",
+      "expect": [
+        "/AGENTS.md",
+        "/sec/AGENTS.md",
+        "/sec/repo/CLAUDE.md",
+        "/sec/repo/src/AGENTS.md"
+      ]
+    },
+    {
+      "files": [
+        "/AGENTS.md",
+        "/sec/AGENTS.md",
+        "/sec/repo/CLAUDE.md",
+        "/sec/repo/src/AGENTS.md"
+      ],
+      "boundary": "/sec",
+      "start": "/sec/repo",
+      "expect": [
+        "/sec/AGENTS.md",
+        "/sec/repo/CLAUDE.md"
+      ]
+    },
+    {
+      "files": [
+        "/AGENTS.md",
+        "/sec/AGENTS.md",
+        "/sec/repo/CLAUDE.md",
+        "/sec/repo/src/AGENTS.md"
+      ],
+      "boundary": "/sec",
+      "start": "/other",
+      "expect": [
+        "/sec/AGENTS.md"
+      ]
+    },
+    {
+      "files": [
+        "/x/AGENTS.md",
+        "/x/CLAUDE.md"
+      ],
+      "boundary": "/",
+      "start": "/x",
+      "expect": [
+        "/x/AGENTS.md"
+      ]
+    },
+    {
+      "files": [
+        "/AGENTS.md",
+        "/Dir1/AGENTS.md",
+        "/Dir1/Dir3/AGENTS.md"
+      ],
+      "grants": {
+        "/AGENTS.md": "ro",
+        "/Dir1/Dir3": "stage"
+      },
+      "boundary": "/",
+      "start": "/Dir1/Dir3",
+      "expect": [
+        "/AGENTS.md",
+        "/Dir1/Dir3/AGENTS.md"
+      ]
+    },
+    {
+      "files": [
+        "/x/AGENTS.md",
+        "/x/CLAUDE.md"
+      ],
+      "grants": {
+        "/": "ro",
+        "/x/AGENTS.md": "none"
+      },
+      "boundary": "/",
+      "start": "/x",
+      "expect": [
+        "/x/CLAUDE.md"
+      ]
+    },
+    {
+      "files": [
+        "/AGENTS.md",
+        "/a/AGENTS.md",
+        "/a/b/AGENTS.md"
+      ],
+      "grants": {
+        "/a/b": "ro"
+      },
+      "boundary": "/",
+      "start": "/a/b",
+      "expect": [
+        "/a/b/AGENTS.md"
+      ]
+    },
+    {
+      "files": [
+        "/README.md"
+      ],
+      "boundary": "/",
+      "start": "/",
+      "expect": []
+    }
+  ]
+}
