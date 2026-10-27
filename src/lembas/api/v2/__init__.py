@@ -14,7 +14,7 @@ reader of the same `Generation` `_follow` reads, under the same rules.
 
 A token never reaches what its holder could not do in a browser: the scope is
 re-checked per request (`security/api_tokens.py`), and every route applies the
-permission, model-access, data-group, quota and credit checks its page twin
+permission, model-access, data-group and quota checks its page twin
 does. Errors are `{"detail": "…"}`, as on every JSON answer this server gives.
 
 `APP_API` is the contract's version. A change to what a route returns or a

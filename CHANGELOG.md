@@ -38,6 +38,17 @@ release yet.
   are not touched, so going back is installing 1.7.x and renaming the file back. If
   `lembas.db.old` already exists and the database is still 1.x, the server refuses to start and
   says why, rather than overwrite either.
+- **Credits, plans and the monthly token budget are gone.** So are the *Credits* admin page, the
+  balance in the chat header and in Settings, the *Grant credits* permission, the `admin:credits`
+  token scope, the *Tokens a month* group limit, and every refusal that came from them — in a chat,
+  through `/v1` (no more 429 for a used-up month) and for speech and pictures. Nothing is refused
+  for what it costs.
+- **What a reply cost is kept on the reply.** A model's prices (Admin → Models) are plain money in
+  the instance's currency (USD unless set; one setting for now); when a reply is written, its cost
+  and the price applied are stored with it, so changing a price never rewrites old replies. A
+  chat's usage panel shows the total. Usage is counted per person, month and model — tokens in,
+  cached and out, requests, pictures, speech and cost — for the usage figures; `/v1/usage` reports
+  the month's tokens and `cost_money`, with the old credit fields null.
 
 ## 1.7.2 — 2026-10-25
 

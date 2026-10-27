@@ -88,14 +88,6 @@
         </a>
         {% endif %}
 
-        {% if credit_chip %}
-        {# What is left to spend, where credits are in use: in
-           credits and in money; "Unlimited" for an administrator. #}
-        <a class="badge mono" href="/settings" title="{{ t('Your credit balance') }}">
-          {% if credit_chip.unlimited %}{{ t("Unlimited") }}{% else %}{{ t("%(credits)s cr · %(money)s", credits=credit_chip.credits, money=credit_chip.money) }}{% endif %}
-        </a>
-        {% endif %}
-
         {% if models %}
           {% if can.get("chat.model_select") or not chat %}
             {% include "chat/_model_picker.html" %}

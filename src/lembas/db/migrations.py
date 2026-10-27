@@ -285,87 +285,6 @@ def _setting(connection, key: str) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def prices_to_money(engine: Engine) -> list[str]:
-    """Model prices from credits to money, once per price list.
-
-    `Model.pricing_json` holds money per million tokens, and a credit is worth
-    `credits.credit_value` of it; a list without the money mark holds credits,
-    as price lists once did. Each such list is multiplied by the credit's value
-    as it stands now -- one cent unless an administrator has set it -- so every
-    model costs exactly as many credits after the conversion as before. The
-    `"unit": "money"` mark is what makes it once: a marked list is never
-    touched again, so a second start (or a second run of this) cannot scale
-    anything twice, and an unmarked list that this has not reached yet is still
-    read correctly as credits (`services/credits.prices`). An empty list is
-    free in either unit and is left alone.
-    """
-    from lembas.services.credits import DEFAULT_CREDIT_VALUE, PRICE_KEYS, UNIT_MONEY
-
-    done: list[str] = []
-    with engine.begin() as connection:
-        existing = set(inspect(connection).get_table_names())
-        if "models" not in existing:
-            return done
-        value = DEFAULT_CREDIT_VALUE
-        if "settings" in existing:
-            try:
-                stored = float(_setting(connection, "credits").get("credit_value") or 0)
-            except (TypeError, ValueError):
-                stored = 0.0
-            if stored > 0:
-                value = stored
-        converted = 0
-        for row_id, raw in list(connection.execute(text("SELECT id, pricing_json FROM models"))):
-            try:
-                pricing = json.loads(raw) if isinstance(raw, str) else (raw or {})
-            except ValueError:
-                continue
-            if not isinstance(pricing, dict) or not pricing or pricing.get("unit") == UNIT_MONEY:
-                continue
-            money: dict[str, Any] = {}
-            for key in PRICE_KEYS:
-                try:
-                    price = float(pricing.get(key) or 0)
-                except (TypeError, ValueError):
-                    continue
-                if price > 0:
-                    # Twelve places: enough for a fraction of a cent per
-                    # million tokens, and no float dust in what the form shows.
-                    money[key] = round(price * value, 12)
-            money["unit"] = UNIT_MONEY
-            connection.execute(
-                text("UPDATE models SET pricing_json = :p WHERE id = :i"),
-                {"p": json.dumps(money), "i": row_id},
-            )
-            converted += 1
-        if converted:
-            done.append(f"convert the prices of {converted} model(s) to money at {value:g}")
-    for line in done:
-        log.info("migration: %s", line)
-    return done
-
-
-def backfill_entry_costs(engine: Engine) -> list[str]:
-    """`CreditEntry.cost_micro` for usage entries written without it: what
-    they cost is what they took. Idempotent -- only a row still
-    at 0 that took something is written."""
-    done: list[str] = []
-    with engine.begin() as connection:
-        if "credit_entries" not in set(inspect(connection).get_table_names()):
-            return done
-        filled = connection.execute(
-            text(
-                "UPDATE credit_entries SET cost_micro = -delta "
-                "WHERE kind = 'usage' AND cost_micro = 0 AND delta < 0"
-            )
-        ).rowcount
-        if filled:
-            done.append(f"record the cost of {filled} usage entr(y/ies)")
-    for line in done:
-        log.info("migration: %s", line)
-    return done
-
-
 def infer_model_kinds(engine: Engine) -> list[str]:
     """Mark the models this instance already embeds with as `embedding`.
 
@@ -507,10 +426,9 @@ def sync_schema(engine: Engine) -> list[str]:
     except Exception:  # pragma: no cover - logged, and the next start retries
         log.exception("could not create the default organisation")
 
-    # Prices become money, usage entries learn their cost, and the models this
-    # instance embeds with say so. Each converges on its own and
-    # one failing must not stop the others or the start.
-    for step in (prices_to_money, backfill_entry_costs, infer_model_kinds):
+    # The models this instance embeds with say so. Converges on its own, and
+    # failing must not stop the start.
+    for step in (infer_model_kinds,):
         try:
             changes.extend(step(engine))
         except Exception:  # a conversion that fails must not stop a start

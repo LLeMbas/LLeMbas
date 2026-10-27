@@ -190,59 +190,6 @@
               </dl>
             </div>
 
-            {% if credit and credit.visible %}
-            {# Credits: the balance, the plan, and how much of each of
-               the plan's windows is spent, as a bar of three shades;
-               every figure in credits and in money, the month's spend per
-               model, and what each ledger row cost -- taken or, for an
-               administrator, only recorded. #}
-            <div class="card">
-              <h2 class="card__title">{{ t("Credits") }}</h2>
-              <dl class="detail-list">
-                <dt>{{ t("Balance") }}</dt>
-                <dd class="mono">{% if credit.admin %}{{ t("Unlimited") }}{% else %}{{ credit.show(credit.balance) }} · {{ credit.money(credit.balance) }}{% endif %}</dd>
-                <dt>{{ t("Plan") }}</dt>
-                <dd>{% if credit.plan %}{{ credit.plan.name }}{% if credit.renews_at %} · <span class="faint">{{ t("renews %(when)s", when=credit.renews_at.strftime("%Y-%m-%d")) }}</span>{% endif %}{% else %}<span class="faint">{{ t("None") }}</span>{% endif %}</dd>
-                {% for w in credit.windows %}
-                <dt>{{ t("Last %(span)s", span=w.label) }}</dt>
-                <dd><span class="mono meter" aria-hidden="true">{% set filled = ((w.spent / w.limit * 10) | round(0, 'ceil') | int) if w.limit else 0 %}{{ "▓" * ([filled, 10] | min) }}{{ "░" * (10 - ([filled, 10] | min)) }}</span>
-                  {{ credit.show(w.spent) }} / {{ credit.show(w.limit) }}</dd>
-                {% endfor %}
-                <dt>{{ t("This month") }}</dt>
-                <dd class="mono">{{ credit.show(credit.month_spent) }} · {{ credit.money(credit.month_spent) }}</dd>
-              </dl>
-              {% if credit.month_by_model %}
-              <div class="table-scroll">
-              <table class="data-table">
-                <thead><tr><th>{{ t("Model or service") }}</th><th>{{ t("Credits") }}</th><th>{{ t("Money") }}</th></tr></thead>
-                <tbody>
-                  {% for name, spent in credit.month_by_model %}
-                  <tr><td class="text-xs mono">{{ name or "—" }}</td>
-                      <td class="mono">{{ credit.show(spent) }}</td>
-                      <td class="mono">{{ credit.money(spent) }}</td></tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-              </div>
-              {% endif %}
-              {% if credit.ledger %}
-              <div class="table-scroll">
-              <table class="data-table">
-                <thead><tr><th>{{ t("When") }}</th><th>{{ t("What") }}</th><th>{{ t("Credits") }}</th><th>{{ t("Cost") }}</th></tr></thead>
-                <tbody>
-                  {% for e in credit.ledger %}
-                  <tr><td class="text-xs mono">{{ e.at.strftime("%Y-%m-%d %H:%M") }}</td>
-                      <td class="text-xs">{{ e.kind }}{% if e.model_id %} · {{ e.model_id }}{% endif %}{% if e.note %} · {{ e.note }}{% endif %}</td>
-                      <td class="mono">{{ credit.show(e.delta) }}</td>
-                      <td class="mono">{% if e.cost_micro %}{{ credit.show(e.cost_micro) }}<br><span class="text-xs faint">{{ credit.money(e.cost_micro) }}</span>{% else %}—{% endif %}</td></tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-              </div>
-              {% endif %}
-            </div>
-            {% endif %}
-
             <div class="card">
               <h2 class="card__title">{{ t("What you can do") }}</h2>
               <p class="card__lede">

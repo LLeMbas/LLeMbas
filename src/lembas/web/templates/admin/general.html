@@ -25,6 +25,18 @@
     </div>
   </section>
 
+  {#- What prices are in (services/pricing.py). Per connection later. -#}
+  <section class="card">
+    <h2 class="card__title">{{ t("Prices") }}</h2>
+    <div class="field">
+      <label class="field__label" for="currency">{{ t("Currency") }}</label>
+      <select class="select" id="currency" name="currency">
+        {% for code in currencies %}<option value="{{ code }}" {{ 'selected' if currency == code }}>{{ code }}</option>{% endfor %}
+      </select>
+      <p class="field__hint">{{ t("What model, speech and picture prices are typed in, and what a reply's cost is shown in. A reply keeps the currency it was priced in.") }}</p>
+    </div>
+  </section>
+
   {#- An instance that is only an API front. The gate is
       services/instance_mode.py. -#}
   <section class="card">

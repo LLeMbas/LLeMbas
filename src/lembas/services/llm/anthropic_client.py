@@ -18,7 +18,7 @@ stream chunks; nothing outside this module knows a second dialect exists.
 Plain httpx, like the OpenAI client beside it, for the same reason: the
 translation is the whole job, and it has to be visible to be tested.
 
-Spending: the owner's credits are spent sparingly, so the system prompt and the
+Spending: the owner's money is spent sparingly, so the system prompt and the
 newest user turn carry a prompt-caching breakpoint (`cache_control`), and a
 request's `max_tokens` never exceeds what the model is recorded to produce.
 

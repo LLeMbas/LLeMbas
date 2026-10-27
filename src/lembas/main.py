@@ -32,7 +32,6 @@ from lembas.api import (
     auth,
     canvas,
     chats,
-    credits,
     devices,
     files,
     folders,
@@ -254,7 +253,6 @@ def create_app() -> FastAPI:
     # The program's door: bearer tokens only, never the cookie.
     app.include_router(devices.router)
     app.include_router(tokens.router)
-    app.include_router(credits.router)
     app.include_router(mcp_server.router)
     # Before `/v1`'s own router, whose paths it does not share: `/v1/usage` and
     # `/v1/me/*`.

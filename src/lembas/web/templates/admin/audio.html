@@ -160,11 +160,10 @@
     <div id="audio-test-tts"></div>
   </section>
 
-  {# What speech costs when credits are on -- in money, like a model's
-     prices, and turned into credits at the credit's value. #}
+  {# What speech costs, in money, like a model's prices. #}
   <section class="card">
     <h2 class="card__title">{{ t("Price") }}</h2>
-    <p class="card__lede">{{ t("What speech costs, in %(currency)s, when credits are on (Admin → Credits) — in the browser and through the API alike. 0 is free, which is what a server of your own usually is.", currency=currency_sign) }}</p>
+    <p class="card__lede">{{ t("What speech costs, in %(currency)s — in the browser and through the API alike. 0 is free, which is what a server of your own usually is.", currency=currency_sign) }}</p>
     <div class="grid grid--2">
       <div class="field">
         <label class="field__label" for="stt-price">{{ t("Speech to text, per minute") }} ({{ currency_sign }})</label>

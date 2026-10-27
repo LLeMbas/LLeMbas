@@ -95,9 +95,6 @@ async def transcribe(
         )
     if not data:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, t("The recording was empty."))
-    # Credits: a priced transcription is gated like a priced reply.
-    if short := audio_service.refusal(db, user, "stt"):
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, short)
 
     language = (_user_audio(user).get("language") or config.get("stt_language") or "").strip()
 
@@ -114,7 +111,7 @@ async def transcribe(
         log.info("transcription failed: %s", exc.message)
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
 
-    # Counted and charged once it has worked: a failed transcription cost the
+    # Counted and priced once it has worked: a failed transcription cost the
     # person nothing they could use.
     audio_service.record_transcription(db, user.id, seconds)
     return PlainTextResponse(text)
@@ -136,8 +133,6 @@ async def speech(db: Db, user: RequiredUser, chat_id: str, message_id: str) -> R
     text = speakable_text(message.content)
     if not text:
         raise HTTPException(status.HTTP_404_NOT_FOUND, t("There is nothing to read out."))
-    if short := audio_service.refusal(db, user, "tts"):
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, short)
 
     try:
         media_type, stream = await audio_service.speak(
@@ -152,7 +147,7 @@ async def speech(db: Db, user: RequiredUser, chat_id: str, message_id: str) -> R
         log.info("speech failed: %s", exc.message)
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
 
-    # The server has accepted the text, so it is read: counted and charged by
+    # The server has accepted the text, so it is read: counted and priced by
     # the character, before the first byte of audio goes out.
     audio_service.record_speech(db, user.id, len(text))
     return StreamingResponse(

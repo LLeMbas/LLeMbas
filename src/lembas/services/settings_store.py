@@ -31,12 +31,14 @@ IMAGES = "images"
 SCHEDULES = "schedules"
 SUBAGENTS = "subagents"
 EXTRACTION = "extraction"
-CREDITS = "credits"
 UPDATES = "updates"
 
 
 def _general_defaults() -> dict[str, Any]:
     return {
+        # What model, speech and picture prices are typed in, and so what a
+        # reply's cost is shown in (services/pricing.py).
+        "currency": "USD",
         # What the interface is rendered in when a person has not chosen. Empty
         # and "en" mean the same thing; `web/i18n.known` is what decides, so a
         # value from a release that offered more languages than this one cannot
@@ -178,7 +180,7 @@ def _audio_defaults() -> dict[str, Any]:
         # The instance-wide starting point for the per-user toggle, not a
         # setting that forces anything on anyone.
         "tts_autoplay": False,
-        # What speech costs when credits are on, in money, like a
+        # What speech costs, in money, like a
         # model's prices: per minute of recording transcribed, and per million
         # characters read aloud -- the units the speech services themselves
         # bill in. 0 is free, which is what a local whisper.cpp or Kokoro is.
@@ -287,7 +289,7 @@ def _images_defaults() -> dict[str, Any]:
         # Instance-wide guidance, injected into the harness beside the tool's
         # own. Where "always add these words to the negative prompt" lives.
         "instructions": "",
-        # What one picture costs when credits are on, in money; 0 is
+        # What one picture costs, in money; 0 is
         # free. Per image kept, whether a chat's tool or the API asked for it.
         "per_image": 0.0,
         # The most pictures one `POST /v1/images/generations` may ask for.
@@ -376,7 +378,6 @@ _DEFAULTS: dict[str, Any] = {
     # Lambdas: both factories are defined below this table, which is where the
     # accessor that reads each group lives.
     EXTRACTION: lambda: _extraction_defaults(),
-    CREDITS: lambda: _credits_defaults(),
     UPDATES: lambda: _updates_defaults(),
 }
 
@@ -391,28 +392,6 @@ def _updates_defaults() -> dict[str, Any]:
         "window": "",
         "idle_minutes": 10,
         "drain_after_minutes": 60,
-    }
-
-
-def _credits_defaults() -> dict[str, Any]:
-    """Credits. Off: nothing is checked or charged, and turning them on
-    starts every account at `starting_grant` the first time credits touch it."""
-    return {
-        "enabled": False,
-        # Credits a new account starts with; a number, not micro-credits.
-        "starting_grant": 0,
-        # The plan an account is put on when credits first touch it; "" = none.
-        "default_plan_id": "",
-        # Whether people see their own balance and meters.
-        "show_balance": True,
-        # What one credit is worth, and in what. Prices are typed in as
-        # money -- a provider's price list as it is -- and turned into credits
-        # by this value, so changing it changes what everything costs in
-        # credits: that is the lever, not a side effect. One cent a credit
-        # makes a credit read like a small coin and a balance like a number of
-        # them.
-        "currency": "EUR",
-        "credit_value": 0.01,
     }
 
 
@@ -690,8 +669,9 @@ def images_ready(db: DBSession) -> bool:
     return bool(values["enabled"] and values["base_url"] and values["checkpoints"])
 
 
-# The currencies a credit can be worth something in, and their signs.
+# The currencies prices are typed in, and their signs.
 CURRENCIES = {"EUR": "€", "USD": "$", "GBP": "£"}
+DEFAULT_CURRENCY = "USD"
 
 
 def money_amount(value: Any, default: float = 0.0) -> float:
@@ -704,16 +684,11 @@ def money_amount(value: Any, default: float = 0.0) -> float:
     return number if number >= 0 and number == number and number < 1e12 else default
 
 
-def credits(db: DBSession) -> dict[str, Any]:
-    """Credit settings, merged over the defaults, the money ones clamped on read
-    for the reason `agents` gives: a currency nobody offers is the
-    default one, and a credit worth nothing would make every price infinite."""
-    values = {**_credits_defaults(), **(get_group(db, CREDITS) or {})}
-    currency = str(values.get("currency") or "").upper()
-    values["currency"] = currency if currency in CURRENCIES else "EUR"
-    worth = money_amount(values.get("credit_value"), 0.01)
-    values["credit_value"] = worth if worth > 0 else 0.01
-    return values
+def currency(db: DBSession) -> str:
+    """The currency model prices are in, and so what a reply's cost is in
+    (services/pricing.py). One of `CURRENCIES`; anything else reads as USD."""
+    value = str(get(db, "currency") or "").upper()
+    return value if value in CURRENCIES else DEFAULT_CURRENCY
 
 
 def updates(db: DBSession) -> dict[str, Any]:

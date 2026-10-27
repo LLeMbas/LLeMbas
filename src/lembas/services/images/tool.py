@@ -442,19 +442,13 @@ def _over_quota(context: ToolContext) -> str:
     """
     from lembas.db.models import User
     from lembas.db.session import session_scope
-    from lembas.services import credits as credits_service
     from lembas.services import usage as usage_service
 
     if not context.owner_id:
         return ""
     with session_scope() as db:
         owner = db.get(User, context.owner_id)
-        if over := usage_service.over_image_budget(db, owner):
-            return over
-        # And credits, where a picture has a price: the same gate a
-        # reply goes through, an administrator unlimited.
-        price = float((context.image_config or {}).get("per_image") or 0)
-        return credits_service.service_refusal(db, owner, price)
+        return usage_service.over_image_budget(db, owner)
 
 
 async def run(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
@@ -613,19 +607,18 @@ async def run(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
             )
             attachment_id = attachment.id
             width, height = attachment.width, attachment.height
-            # The picture's price, charged to the chat's owner as the
-            # reply's tokens are -- once, for the image kept, not per attempt:
-            # the rejected ones were this instance's own judgement, not the
-            # person's request.
-            from lembas.services import credits as credits_service
+            # Counted and priced for the chat's owner, as the reply's tokens
+            # are -- once, for the image kept, not per attempt: the rejected
+            # ones were this instance's own judgement, not the person's request.
+            from lembas.services import pricing
+            from lembas.services import usage as usage_service
 
-            credits_service.charge_service(
+            usage_service.record(
                 db,
                 context.owner_id,
-                service=f"comfyui/{checkpoint}",
-                price=float(values.get("per_image") or 0),
-                quantity=1,
-                note="image: 1 picture(s)",
+                model_id=f"comfyui/{checkpoint}",
+                cost_micro=pricing.service_cost_micro(float(values.get("per_image") or 0), 1),
+                images=1,
             )
     except Exception as exc:
         log.exception("could not store a generated image")

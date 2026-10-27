@@ -122,6 +122,7 @@ def test_a_1x_database_is_set_aside_and_2x_starts_empty(instance: Path):
     tables = set(inspect(db_session.get_engine()).get_table_names())
     assert {"nodes", "organisations", "invites", "shares"} <= tables
     assert _rows(new, "chats") == 0 and _rows(new, "users") == 0
+    assert "credit_entries" not in tables
 
     # What the old database needs, untouched.
     assert (instance / "uploads" / "doc.pdf").read_bytes() == b"%PDF original"

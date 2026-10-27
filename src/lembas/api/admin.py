@@ -51,6 +51,8 @@ async def general_page(request: Request, db: Db, user: AdminUser, saved: bool = 
         {
             "values": settings_store.get_group(db),
             "languages": i18n.LANGUAGES,
+            "currencies": tuple(settings_store.CURRENCIES),
+            "currency": settings_store.currency(db),
             "saved": saved,
         },
     )
@@ -70,6 +72,7 @@ async def save_general(
     prototypes_network: bool = Form(False),
     temporary_lifetime_minutes: int = Form(60),
     instance_mode: str = Form(""),
+    currency: str = Form(""),
 ) -> Response:
     """Save instance settings.
 
@@ -86,6 +89,12 @@ async def save_general(
         db,
         {
             "instance_mode": mode,
+            # Absent or unknown keeps what is stored, as the mode does.
+            "currency": (
+                currency.upper()
+                if currency.upper() in settings_store.CURRENCIES
+                else settings_store.currency(db)
+            ),
             "instance_name": " ".join(instance_name.split())[:60],
             "personalization_enabled": personalization_enabled,
             # Validated rather than trusted: a code this release does not have

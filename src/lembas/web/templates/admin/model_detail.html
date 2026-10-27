@@ -356,13 +356,12 @@
     </div>
   </section>
 
-  {# Credits. Always on the form, so a price can be set before credits
-     are switched on; empty everywhere is free. In money, the
-     instance's currency -- a provider's price list typed in as it is -- and
-     turned into credits at the credit's value when a reply is costed. #}
+  {# The price, in money in the instance's currency -- a provider's price
+     list typed in as it is. Empty everywhere is free. A reply's cost is
+     worked out when it is written and kept with it (services/pricing.py). #}
   <section class="card">
     <h2 class="card__title">{{ t("Price") }}</h2>
-    <p class="card__lede">{{ t("What a reply on this model costs, in %(currency)s, when credits are on (Admin → Credits). Per million tokens, except per reply. In credits it is this divided by what a credit is worth — %(value)s now — so changing that value changes what every model costs in credits. Leave everything empty to make it free — a local model, say.", currency=currency_sign, value=credit_value) }}</p>
+    <p class="card__lede">{{ t("What a reply on this model costs, in %(currency)s. Per million tokens, except per reply. Each reply's cost is worked out when it is written and kept with it, so a new price does not change old replies. Leave everything empty to make it free — a local model, say.", currency=currency_sign) }}</p>
     <div class="price-grid">
       {% for key, label, hint in price_fields %}
       <div class="field">

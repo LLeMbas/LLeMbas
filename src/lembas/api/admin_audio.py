@@ -33,7 +33,7 @@ def _page_context(db: Db) -> dict:
             "tts": mask(decrypt(config.get("tts_api_key_encrypted") or "")),
         },
         "unchanged": UNCHANGED_SENTINEL,
-        "currency_sign": settings_store.CURRENCIES.get(settings_store.credits(db)["currency"], ""),
+        "currency_sign": settings_store.CURRENCIES.get(settings_store.currency(db), ""),
     }
 
 

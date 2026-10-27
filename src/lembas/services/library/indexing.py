@@ -36,8 +36,7 @@ maintaining its own search -- fired by a save, re-run by a rebuild an
 administrator starts, repeated whenever the embedding model changes -- not
 something the person asked a model for. Charging it would bill somebody for
 the administrator's choice of model, and twice over for a rebuild they never
-saw; and a save cannot be refused for want of credits, so a charge here could
-only overdraw. The cost of keeping the index is the instance's.
+saw. The cost of keeping the index is the instance's.
 
 ## The rebuild is restartable and reports itself
 

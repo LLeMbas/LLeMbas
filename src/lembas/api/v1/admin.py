@@ -2,8 +2,7 @@
 
 Read-only. Every route takes a bearer token with an admin scope
 -- `admin:read` for accounts and usage, `admin:audit` for the log -- and never
-the cookie, so a page open in a browser cannot reach it. Credits and plans are
-reached with an `Idempotency-Key` on everything that changes a balance.
+the cookie, so a page open in a browser cannot reach it.
 """
 
 from __future__ import annotations
@@ -52,24 +51,33 @@ async def get_user(db: Db, caller: AdminReadCaller, user_id: str) -> dict[str, A
 
 @router.get("/usage")
 async def usage(db: Db, caller: AdminReadCaller, period: str = "") -> dict[str, Any]:
-    """Tokens, replies and images per account, for one month (`YYYY-MM`) or all."""
+    """Tokens, replies, images and cost per account and model, for one month
+    (`YYYY-MM`) or all. `cost_money` is in `currency`."""
+    from lembas.services import pricing, settings_store
+
     query = select(Usage, User.email).join(User, User.id == Usage.user_id)
     if period:
         query = query.where(Usage.period == period)
-    rows = db.execute(query.order_by(Usage.period.desc(), User.email)).all()
+    rows = db.execute(
+        query.order_by(Usage.period.desc(), User.email, Usage.model_id)
+    ).all()
     return {
+        "currency": settings_store.currency(db),
         "data": [
             {
                 "user_id": row.Usage.user_id,
                 "email": row.email,
                 "period": row.Usage.period,
-                "prompt_tokens": row.Usage.prompt_tokens,
-                "completion_tokens": row.Usage.completion_tokens,
-                "replies": row.Usage.replies,
+                "model_id": row.Usage.model_id,
+                "prompt_tokens": row.Usage.tokens_in,
+                "cached_tokens": row.Usage.tokens_cached,
+                "completion_tokens": row.Usage.tokens_out,
+                "replies": row.Usage.requests,
                 "images": row.Usage.images,
+                "cost_money": round(pricing.micro_to_money(row.Usage.cost_micro), 6),
             }
             for row in rows
-        ]
+        ],
     }
 
 

@@ -200,10 +200,6 @@ def tidy(*, force: bool = False) -> None:
             from lembas.services import blobs
 
             blobs.sweep(db)
-            # Plans whose month is up.
-            from lembas.services import credits
-
-            credits.renew_due(db)
     except Exception:  # housekeeping must never stop the ticker
         log.exception("the ticker's housekeeping raised")
 

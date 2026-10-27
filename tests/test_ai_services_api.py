@@ -16,11 +16,9 @@ from sqlalchemy import select, text
 
 import lembas
 from lembas.db.models import (
-    MICRO,
     Attachment,
     Chat,
     Connection,
-    CreditEntry,
     DataGroup,
     ImageWorkflow,
     Message,
@@ -72,13 +70,9 @@ def _bearer(db, user: User | None = None) -> dict[str, str]:
     return {"Authorization": f"Bearer {raw}"}
 
 
-def _credits(db, grant: float = 0, value: float = 0.01) -> None:
-    settings_store.replace(
-        db,
-        {"enabled": True, "starting_grant": grant, "default_plan_id": "", "show_balance": True,
-         "credit_value": value},
-        key=settings_store.CREDITS,
-    )
+def _usage(db, model_id: str) -> Usage:
+    db.expire_all()
+    return db.scalar(select(Usage).where(Usage.model_id == model_id))
 
 
 def _models(db) -> dict[str, Model]:
@@ -260,9 +254,8 @@ def test_a_wav_is_measured_by_its_header_and_anything_else_by_its_size():
     assert audio_service.measure_seconds(b"RIFF....WAVE") > 0
 
 
-def test_a_transcription_is_counted_and_charged_by_the_minute(client, db, registered, mock_http):
-    _credits(db, grant=100)
-    _voice(db, stt_per_minute=0.06)  # 6 credits a minute at a cent each
+def test_a_transcription_is_counted_and_priced_by_the_minute(client, db, registered, mock_http):
+    _voice(db, stt_per_minute=0.06)
     user = _plain(db)
     settings_store.update(db, {"default_permissions": {"api.use": True,
                                                        "audio.transcribe": True}})
@@ -272,67 +265,49 @@ def test_a_transcription_is_counted_and_charged_by_the_minute(client, db, regist
         files={"file": ("a.wav", _wav(30), "audio/wav")},
     )
     assert response.status_code == 200, response.text
-    entry = db.scalar(select(CreditEntry).where(CreditEntry.kind == "usage"))
-    assert entry.model_id == "stt/whisper-1" and entry.note == "stt: 30 s"
-    assert entry.delta == -3 * MICRO and entry.cost_micro == 3 * MICRO
-    assert entry.token_id is not None
-    assert db.scalar(select(Usage)).audio_seconds == 30
+    row = _usage(db, "stt/whisper-1")
+    assert row.audio_seconds == 30 and row.requests == 1
+    assert row.cost_micro == 30_000  # half a minute at 0.06
 
 
 def test_the_server_s_own_duration_wins(client, db, registered, mock_http):
-    _credits(db, grant=100)
     _voice(db, stt_per_minute=0.01)
     mock_http(lambda _r: httpx.Response(200, json={"text": "hi", "duration": 120.0}))
     client.post(
         "/v1/audio/transcriptions", headers=_bearer(db),
         files={"file": ("a.webm", b"x" * 100, "audio/webm")},
     )
-    entry = db.scalar(select(CreditEntry).where(CreditEntry.kind == "usage"))
-    assert entry.note == "stt: 120 s" and entry.cost_micro == 2 * MICRO
-    assert entry.delta == 0  # an administrator: recorded, not taken
+    row = _usage(db, "stt/whisper-1")
+    assert row.audio_seconds == 120 and row.cost_micro == 20_000
 
 
-def test_speech_is_charged_by_the_character_and_refused_without_credits(
-    client, db, registered, mock_http
-):
-    _credits(db, grant=0)
-    _voice(db, tts_per_1m_chars=10.0)  # 1,000 credits a million characters
+def test_speech_is_priced_by_the_character_and_never_refused(client, db, registered, mock_http):
+    _voice(db, tts_per_1m_chars=10.0)
     user = _plain(db)
     settings_store.update(db, {"default_permissions": {"api.use": True, "audio.listen": True}})
     mock_http(
         lambda _r: httpx.Response(200, content=b"RIFF", headers={"content-type": "audio/wav"})
     )
-    headers = _bearer(db, user)
-    refused = client.post("/v1/audio/speech", headers=headers, json={"input": "Mellon."})
-    assert refused.status_code == 429 and "credits" in refused.json()["error"]["message"]
-
-    from lembas.services import credits as credits_service
-
-    credits_service.add(db, user.id, 5 * MICRO, "topup")
-    spoken = client.post("/v1/audio/speech", headers=headers, json={"input": "Mellon."})
+    spoken = client.post("/v1/audio/speech", headers=_bearer(db, user), json={"input": "Mellon."})
     assert spoken.status_code == 200
-    entry = db.scalar(select(CreditEntry).where(CreditEntry.kind == "usage"))
-    assert entry.model_id == "tts/kokoro" and entry.note == "tts: 7 characters"
-    assert entry.cost_micro == 7_000  # 7 characters at 1,000 credits a million
-    assert db.scalar(select(Usage)).speech_chars == 7
+    row = _usage(db, "tts/kokoro")
+    assert row.speech_chars == 7 and row.cost_micro == 70  # 7 characters at 10 a million
 
 
-def test_free_speech_is_counted_and_not_charged(client, db, registered, mock_http):
-    _credits(db, grant=0)
+def test_free_speech_is_counted_and_not_priced(client, db, registered, mock_http):
     _voice(db)
     mock_http(lambda _r: httpx.Response(200, json={"text": "hi"}))
     client.post(
         "/v1/audio/transcriptions", headers=_bearer(db),
         files={"file": ("a.wav", _wav(3), "audio/wav")},
     )
-    assert db.scalar(select(CreditEntry).where(CreditEntry.kind == "usage")) is None
-    assert db.scalar(select(Usage)).audio_seconds == 3
+    row = db.scalar(select(Usage))
+    assert row.audio_seconds == 3 and row.cost_micro == 0
 
 
-def test_the_web_s_own_dictation_and_read_aloud_go_through_the_same_gate(
+def test_the_web_s_own_dictation_and_read_aloud_are_counted_the_same_way(
     client, db, registered, mock_http
 ):
-    _credits(db, grant=0)
     _voice(db, stt_per_minute=1.0, tts_per_1m_chars=1.0)
     user = _plain(db)
     settings_store.update(
@@ -347,25 +322,13 @@ def test_the_web_s_own_dictation_and_read_aloud_go_through_the_same_gate(
     mock_http(lambda r: httpx.Response(200, json={"text": "hi"})
               if r.url.path.endswith("transcriptions")
               else httpx.Response(200, content=b"RIFF", headers={"content-type": "audio/wav"}))
-    dictated = client.post(
-        "/api/audio/transcribe", files={"file": ("a.wav", _wav(1), "audio/wav")}
-    )
-    assert dictated.status_code == 429
-    assert client.get(f"/api/audio/speech/{chat.id}/{reply.id}").status_code == 429
-
-    from lembas.services import credits as credits_service
-
-    credits_service.add(db, user.id, 1000 * MICRO, "topup")
     assert client.post(
         "/api/audio/transcribe", files={"file": ("a.wav", _wav(60), "audio/wav")}
     ).status_code == 200
     assert client.get(f"/api/audio/speech/{chat.id}/{reply.id}").status_code == 200
-    db.expire_all()
-    notes = sorted(e.note for e in db.scalars(select(CreditEntry).where(
-        CreditEntry.kind == "usage")))
-    assert notes == ["stt: 60 s", "tts: 14 characters"]
-    stt = db.scalar(select(CreditEntry).where(CreditEntry.note == "stt: 60 s"))
-    assert stt.cost_micro == 100 * MICRO and stt.token_id is None
+    stt = _usage(db, "stt/whisper-1")
+    assert stt.audio_seconds == 60 and stt.cost_micro == 1_000_000
+    assert _usage(db, "tts/kokoro").speech_chars == 14
 
 
 # --- Pictures ---------------------------------------------------------------------
@@ -484,25 +447,16 @@ def test_pictures_need_the_permission_and_a_ready_instance(client, db, registere
     assert fake.submits == []
 
 
-def test_pictures_are_charged_and_gated_by_credits_and_the_daily_budget(
-    client, db, registered, fake
-):
+def test_pictures_are_priced_and_gated_only_by_the_daily_limit(client, db, registered, fake):
     from lembas.db.models import Group
-    from lembas.services import credits as credits_service
 
-    _drawing(db, per_image=0.05)  # 5 credits a picture
-    _credits(db, grant=0)
+    _drawing(db, per_image=0.05)
     user = _plain(db)
     headers = _bearer(db, user)
-    refused = client.post("/v1/images/generations", headers=headers, json={"prompt": "x"})
-    assert refused.status_code == 429 and fake.submits == []
-
-    credits_service.add(db, user.id, 20 * MICRO, "topup")
     made = client.post("/v1/images/generations", headers=headers, json={"prompt": "x", "n": 2})
     assert made.status_code == 200
-    entry = db.scalar(select(CreditEntry).where(CreditEntry.kind == "usage"))
-    assert entry.model_id == "comfyui/sd.safetensors" and entry.delta == -10 * MICRO
-    assert entry.note == "image: 2 picture(s)"
+    row = _usage(db, "comfyui/sd.safetensors")
+    assert row.images == 2 and row.cost_micro == 100_000
 
     group = Group(name="Two a day", limits_json={"images_per_day": 3})
     db.add(group)
@@ -512,13 +466,11 @@ def test_pictures_are_charged_and_gated_by_credits_and_the_daily_budget(
     assert over.status_code == 429 and "for today" in over.text
 
 
-async def test_the_chat_tool_charges_its_picture(db, registered, fake):
-    from lembas.services import credits as credits_service
+async def test_the_chat_tool_prices_its_picture(db, registered, fake):
     from lembas.services import tools as tools_service
     from lembas.services.images import tool as image_tool
 
     _drawing(db, per_image=0.02)
-    _credits(db, grant=10)
     user = _plain(db)
     connection = Connection(name="c", base_url="http://127.0.0.1:1", api_key_encrypted="")
     db.add(connection)
@@ -531,17 +483,8 @@ async def test_the_chat_tool_charges_its_picture(db, registered, fake):
     context = tools_service.context_for(db, user, chat)
     outcome = await image_tool.run(context, {"prompt": "a bicycle"})
     assert outcome.event["status"] == "ok"
-    entry = db.scalar(select(CreditEntry).where(CreditEntry.kind == "usage"))
-    assert entry.model_id == "comfyui/sd.safetensors" and entry.cost_micro == 2 * MICRO
-
-    # Out of credits, the tool says so before anything is drawn.
-    db.expire_all()
-    owner = db.get(User, user.id)
-    credits_service.add(db, owner.id, -credits_service.balance(db, owner), "adjust", note="x")
-    before = len(fake.submits)
-    refused = await image_tool.run(tools_service.context_for(db, owner, chat), {"prompt": "y"})
-    assert refused.event["status"] == "error" and "credits" in refused.event["error"]
-    assert len(fake.submits) == before
+    row = _usage(db, "comfyui/sd.safetensors")
+    assert row.images == 1 and row.cost_micro == 20_000
 
 
 # --- Where the prices are set ---------------------------------------------------------
@@ -553,7 +496,7 @@ def test_the_admin_pages_save_the_service_prices(client, db, registered):
     audio = settings_store.audio(db)
     assert audio["stt_per_minute"] == 0.006 and audio["tts_per_1m_chars"] == 0.0
     page = client.get("/admin/audio").text
-    assert 'name="stt_per_minute"' in page and "(€)" in page
+    assert 'name="stt_per_minute"' in page and "($)" in page
 
     client.post("/admin/images", data={"per_image": "0.04", "api_max_images": "99"})
     images = settings_store.images(db)

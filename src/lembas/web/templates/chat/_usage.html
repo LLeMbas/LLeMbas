@@ -65,11 +65,10 @@
     </tr>
 
     {% if cost %}
-    {# What the replies cost, from their ledger entries, where credits
-       are in use. #}
+    {# What the replies cost, as stored on each when it was written. #}
     <tr>
       <td>{{ t("Cost") }}</td>
-      <td>{{ t("%(credits)s credits · %(money)s", credits=cost.credits, money=cost.money) }}</td>
+      <td>{{ cost.money }}</td>
     </tr>
     {% endif %}
 

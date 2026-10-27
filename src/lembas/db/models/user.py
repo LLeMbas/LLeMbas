@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     Column,
     DateTime,
@@ -69,12 +70,6 @@ class User(UUIDPrimaryKey, Timestamps, Base):
     )
     org_role: Mapped[str] = mapped_column(String(16), default=ORG_MEMBER, nullable=False)
 
-    # Credits: the plan this person is on and when it next renews. Plain
-    # ids, validated on read, like the other references added to a table that
-    # already had rows (see db/migrations.py).
-    plan_id: Mapped[str | None] = mapped_column(String(32))
-    plan_renews_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
     groups: Mapped[list[Group]] = relationship(secondary=user_groups, back_populates="users")
     sessions: Mapped[list[Session]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
@@ -115,7 +110,7 @@ class Group(UUIDPrimaryKey, Timestamps, Base):
     # lembas.security.permissions.
     permissions_json: Mapped[dict[str, Any]] = mapped_column(JSONDict, default=dict)
 
-    # What members of this group may spend. Resolved across a user's groups by
+    # What members of this group may use at once. Resolved across a user's groups by
     # **maximum**, which is the union rule applied to numbers: being in a second
     # group can only ever grant more. Zero means "no limit" and therefore wins
     # outright, because a group that says "unlimited" saying less than one that
@@ -213,49 +208,43 @@ class PushSubscription(UUIDPrimaryKey, Timestamps, Base):
 Index("ix_push_subscriptions_user_id", PushSubscription.user_id)
 
 
-class Usage(UUIDPrimaryKey, Timestamps, Base):
-    """What one account spent in one period.
+class Usage(Base):
+    """What one account used of one model in one month. Counting only.
 
-    A row per user per period rather than a row per reply. A per-reply ledger is
-    what somebody eventually wants for a bill; this exists to answer one
-    question on the request path -- "has this account used its month?" -- and
-    that question wants one indexed lookup, not a sum over ten thousand rows.
+    A row per user, period and model rather than a row per reply: the usage
+    page wants totals, and a reply's own cost is on its message
+    (`Message.cost_micro`). **Never a quota** -- nothing reads this to refuse
+    anything; LLeMbas counts and prices, it does not ration.
 
-    `period` is a plain "YYYY-MM" string in **UTC**. Not the reader's timezone:
-    a quota that resets at a different instant for each member of a group is a
-    quota nobody can reason about, and the month boundary is not something
-    anybody experiences to the hour.
+    `period` is "YYYY-MM" in UTC. `model_id` is the model's text id ("" when
+    nothing names one); speech and pictures are recorded under the service's
+    own name (`stt/whisper-1`, `image/sdxl`). `cost_micro` is micro-units of the
+    instance's currency (`services/pricing.py`).
 
-    Written by `generation._persist`, which is the single writer for everything
-    a reply produced, so a reply that is stopped or errors still records what it
-    spent -- an endpoint charges for tokens it generated whether or not the
-    reply was wanted.
+    Written by `generation._persist` for a reply (finished, stopped or failed
+    alike -- an endpoint charges for what it generated), by the `/v1` routes
+    for a call, and by the speech and picture services.
     """
 
     __tablename__ = "usage"
-    __table_args__ = (UniqueConstraint("user_id", "period", name="uq_usage_user_period"),)
 
     user_id: Mapped[str] = mapped_column(
-        String(32), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+        String(32), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
-    period: Mapped[str] = mapped_column(String(7), nullable=False)
+    period: Mapped[str] = mapped_column(String(7), primary_key=True)
+    model_id: Mapped[str] = mapped_column(String(300), primary_key=True, default="")
 
-    prompt_tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    completion_tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    replies: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    # Counted separately because it is its own quota: one picture is a minute of
-    # somebody's GPU and no tokens at all, so a token budget says nothing about
-    # it. `images_today` on the resolved limits is the daily half; this is the
-    # month's running total, for the admin screen.
+    tokens_in: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    tokens_cached: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    tokens_out: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    requests: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    cost_micro: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     images: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    # Speech, counted in the units it is priced in: seconds of
-    # recording transcribed, and characters read aloud. Neither is tokens, so
-    # neither touches the token budget.
     audio_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     speech_chars: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     def __repr__(self) -> str:
-        return f"<Usage {self.user_id} {self.period}>"
+        return f"<Usage {self.user_id} {self.period} {self.model_id}>"
 
 
 class UserModelSetting(UUIDPrimaryKey, Timestamps, Base):

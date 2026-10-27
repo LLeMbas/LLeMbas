@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session as DBSession
 from lembas.api.deps import AdminUser, Db, RequiredUser
 from lembas.db.models import MODEL_CHAT, MODEL_EMBEDDING, MODEL_KINDS, Connection, Group, Model
 from lembas.services import chat as chat_service
-from lembas.services import credits as credits_service
+from lembas.services import pricing as pricing_service
 from lembas.services import settings_store, uploads
 from lembas.services.llm.openai_client import MAX_CONTEXT
 from lembas.web import i18n
@@ -180,16 +180,12 @@ async def models_page(
 
 def _money_prices(db: DBSession, model: Model) -> dict[str, str]:
     """The model's prices as the form shows them: money, in the instance's
-    currency, whatever unit they are stored in."""
-    stored = credits_service.prices(model)
-    if credits_service.price_unit(model) != credits_service.UNIT_MONEY:
-        value = credits_service.credit_value(db)
-        stored = {key: round(price * value, 12) for key, price in stored.items()}
-    return {key: f"{price:.12g}" for key, price in stored.items()}
+    currency."""
+    return {key: f"{price:.12g}" for key, price in pricing_service.prices(model).items()}
 
 
 def _currency_sign(db: DBSession) -> str:
-    return settings_store.CURRENCIES.get(credits_service.currency(db), "")
+    return settings_store.CURRENCIES.get(settings_store.currency(db), "")
 
 
 @router.get("/admin/models/{model_id}/edit")
@@ -231,12 +227,8 @@ async def model_detail(
                     i18n.t("Added to every reply, whatever its length."),
                 ),
             ),
-            # Prices are money. A list still stored in credits is shown as
-            # what it is worth now, so saving the form unchanged
-            # changes nothing.
             "price_values": _money_prices(db, model),
             "currency_sign": _currency_sign(db),
-            "credit_value": credits_service.credit_value(db),
             "model_kinds": (
                 (MODEL_CHAT, i18n.t("Chat")),
                 (MODEL_EMBEDDING, i18n.t("Embedding")),
@@ -330,9 +322,8 @@ async def update_model(
     model = _model(db, model_id)
 
     # Money per million tokens (per reply for per_request), in the instance's
-    # currency -- marked so, which is what tells `credits.prices` the list is
-    # not an older one in credits. Junk and zero are
-    # absent, so an empty form is a free model rather than a 422.
+    # currency. Junk and zero are absent, so an empty form is a free model
+    # rather than a 422.
     pricing: dict[str, float | str] = {}
     for key, raw in (
         ("input", price_input),
@@ -345,8 +336,6 @@ async def update_model(
             value = float(raw.strip()) if raw.strip() else 0.0
             if 0 < value < 1e9:
                 pricing[key] = value
-    if pricing:
-        pricing["unit"] = credits_service.UNIT_MONEY
     model.pricing_json = pricing
     # Chat or embedding. Absent from the post (an older form) keeps
     # what is stored rather than resetting it.

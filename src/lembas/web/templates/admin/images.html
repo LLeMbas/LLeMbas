@@ -286,7 +286,7 @@
         <label class="field__label" for="per-image">{{ t("Per picture") }} ({{ currency_sign }})</label>
         <input class="input" id="per-image" name="per_image" type="number" min="0" step="any"
                value="{{ values.per_image or '' }}" placeholder="0">
-        <p class="field__hint">{{ t("What one picture costs when credits are on, in a chat or through the API. 0 is free.") }}</p>
+        <p class="field__hint">{{ t("What one picture costs, in a chat or through the API. 0 is free.") }}</p>
       </div>
       <div class="field">
         <label class="field__label" for="api-max-images">{{ t("Most pictures per API request") }}</label>

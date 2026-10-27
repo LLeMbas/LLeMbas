@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     DateTime,
     ForeignKey,
@@ -419,6 +420,14 @@ class Message(UUIDPrimaryKey, Timestamps, Base):
     steps_json: Mapped[list[Any] | None] = mapped_column(JSONList, nullable=True, default=list)
 
     usage_json: Mapped[dict[str, Any]] = mapped_column(JSONDict, default=dict)
+
+    # What this reply cost, worked out when it was written (services/pricing.py)
+    # and kept, so a later price change never rewrites it: micro-units of
+    # `currency`, and the price that was applied. NULL is unpriced -- a free
+    # model, or a reply written on a device.
+    cost_micro: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    priced_json: Mapped[dict[str, Any] | None] = mapped_column(JSONDict, nullable=True)
 
     # A plan produced in Plan mode, or the state of one being carried out. See
     # services/plans.py for the shape. Marked on the row rather than parsed back

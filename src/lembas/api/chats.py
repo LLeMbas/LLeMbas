@@ -540,20 +540,25 @@ async def chat_usage(request: Request, db: Db, user: RequiredUser, chat_id: str)
 
 
 def _chat_cost(db: DBSession, reply_ids: list[str]) -> dict | None:
-    """What this chat's replies cost in credits and money, summed from
-    their usage entries -- what was charged when each was written, not a price
-    applied now. None where credits are off."""
-    from lembas.services import credits as credits_service
+    """What this chat's replies cost, summed from what was stored on each when
+    it was written -- not a price applied now. None when none was priced."""
+    from lembas.services import pricing
 
-    values = settings_store.credits(db)
-    if not values.get("enabled"):
+    if not reply_ids:
         return None
-    micro = credits_service.spent_on(db, reply_ids)
+    rows = db.execute(
+        select(Message.currency, func.sum(Message.cost_micro))
+        .where(Message.id.in_(reply_ids), Message.cost_micro.is_not(None))
+        .group_by(Message.currency)
+    ).all()
+    if not rows:
+        return None
+    # One line per currency, should the instance's have changed in between.
     return {
-        "credits": credits_service.format_credits(micro),
-        "money": credits_service.format_money(
-            credits_service.micro_to_money(micro, values["credit_value"]), values["currency"]
-        ),
+        "money": " + ".join(
+            pricing.format_money(int(total or 0), currency or settings_store.currency(db))
+            for currency, total in rows
+        )
     }
 
 

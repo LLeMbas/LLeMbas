@@ -174,7 +174,7 @@ def test_the_api_keeps_working(client, db, registered):
     response = client.get("/v1/models", headers=headers)
     assert response.status_code == 200
     assert [m["id"] for m in response.json()["data"]] == ["local/qwen"]
-    assert client.get("/api/v1/me/credits", headers=headers).status_code != 404
+    assert client.get("/v1/usage", headers=headers).status_code != 404
     assert client.get("/.well-known/lembas.json").status_code == 200
 
 

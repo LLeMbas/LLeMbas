@@ -335,14 +335,6 @@ PERMISSION_DEFS: tuple[PermissionDef, ...] = (
         "API",
     ),
     PermissionDef(
-        "credits.grant",
-        N_("Grant credits"),
-        N_("Top up and adjust other people's credits and choose their plans -- for "
-        "a team lead, say. Every change is in the audit log."),
-        False,
-        "API",
-    ),
-    PermissionDef(
         "audit.read",
         N_("Read the audit log"),
         N_("See who signed in, who changed what and which devices were signed in, "
@@ -417,7 +409,6 @@ FOR_PEOPLE: dict[str, tuple[str, str]] = {
     "data.manage": (
         LIBRARY, N_("Make your own data groups and choose what each connection reads.")
     ),
-    "credits.grant": (OTHERS, N_("Top up and adjust other people's credits.")),
     "audit.read": (OTHERS, N_("Read the instance's audit log.")),
 }
 
@@ -519,17 +510,10 @@ def explain(db: DBSession, user: User | None) -> dict[str, dict]:
 # **zero for no limit**, which is the convention `max_completion_tokens` already
 # uses, and it is what makes "unlimited" sayable at all.
 #
-# Five axes rather than one, because they fail differently and a single "budget"
-# would have to pick an exchange rate between a token and a minute of somebody's
-# GPU. There isn't one.
+# Four axes rather than one, because they fail differently. None of them is a
+# budget: there is no monthly token allowance, and nothing is refused for what
+# it costs -- these limit how much one person can hold at once.
 LIMIT_DEFS: tuple[tuple[str, str, str], ...] = (
-    (
-        "monthly_tokens",
-        "Tokens a month",
-        "Prompt and completion together, across every chat, reset on the first "
-        "of the month. Reached, a reply says so before it spends anything "
-        "rather than stopping half way through.",
-    ),
     (
         "concurrent_replies",
         "Replies at once",
@@ -547,8 +531,7 @@ LIMIT_DEFS: tuple[tuple[str, str, str], ...] = (
     (
         "images_per_day",
         "Images a day",
-        "Each one is a minute of somebody's GPU and no tokens at all, so a "
-        "token budget says nothing about it.",
+        "Each one is a minute of somebody's GPU and no tokens at all.",
     ),
     (
         "helpers_per_reply",

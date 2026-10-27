@@ -1772,7 +1772,7 @@ document.addEventListener("lembas:notify", function (event) {
 
   On a desktop, any link to /settings -- the reader's entry at the foot of the
   sidebar, the composer's "Your defaults per model", the agents tree's
-  "Settings → Devices", a credit badge, the admin area's own entry -- opens
+  "Settings → Devices", the admin area's own entry -- opens
   Settings in a dialog over the page instead of navigating away from it, and
   closing it puts the reader back exactly where they were. It exists
   because Settings is visited mid-task: change a default, come back to the

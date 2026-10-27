@@ -1,22 +1,19 @@
-"""What an account has spent, and whether it may spend more.
+"""What an account used: counting only, per user, month and model.
 
-A row per user per period, not per reply. A per-reply ledger is what somebody
-eventually wants for a bill; this exists to answer one question on the request
-path — "has this account used its month?" — and that wants one indexed lookup
-rather than a sum over ten thousand rows.
+A row per user, period and model (`db/models/user.py:Usage`) for the usage
+page; a reply's own cost is on its message. **Never a quota**: nothing here
+refuses anything, and there is no monthly token budget -- LLeMbas counts and
+prices, it does not ration. (The one limit left that reads a count is the
+pictures-a-day permission, and it counts `Attachment` rows, not this.)
 
 **Recorded even when the reply failed.** `generation._persist` is the single
 writer for everything a reply produced, and it calls this whether the reply
 finished, was stopped or errored: an endpoint charges for tokens it generated
-regardless of whether anybody wanted them, and a quota that only counted happy
-paths would be one somebody could avoid by pressing Stop.
+regardless of whether anybody wanted them.
 
-**Never raises.** A quota that broke a reply because its own bookkeeping failed
-would be worse than no quota. Everything here is best-effort and logs.
+**Never raises.** Bookkeeping that broke a reply would be worse than none.
 
-The period is UTC and the boundary is not the reader's midnight. A quota that
-reset at a different instant for each member of a group is one nobody can reason
-about, and nobody experiences a monthly allowance to the hour.
+The period is UTC.
 """
 
 from __future__ import annotations
@@ -37,12 +34,17 @@ def period_of(moment: datetime | None = None) -> str:
     return (moment or datetime.now(tz=UTC)).astimezone(UTC).strftime("%Y-%m")
 
 
-def row_for(db: DBSession, user_id: str, *, period: str = "") -> Usage:
-    """This account's row for a period, made if it is not there yet."""
+def row_for(db: DBSession, user_id: str, model_id: str = "", *, period: str = "") -> Usage:
+    """This account's row for a model and a period, made if it is not there."""
     period = period or period_of()
-    row = db.scalar(select(Usage).where(Usage.user_id == user_id, Usage.period == period))
+    row = db.get(Usage, (user_id, period, model_id or ""))
     if row is None:
-        row = Usage(user_id=user_id, period=period)
+        row = Usage(user_id=user_id, period=period, model_id=model_id or "")
+        for name in (
+            "tokens_in", "tokens_cached", "tokens_out", "requests", "cost_micro", "images",
+            "audio_seconds", "speech_chars",
+        ):
+            setattr(row, name, 0)
         db.add(row)
         db.flush()
     return row
@@ -52,25 +54,29 @@ def record(
     db: DBSession,
     user_id: str,
     *,
+    model_id: str = "",
     prompt_tokens: int = 0,
+    cached_tokens: int = 0,
     completion_tokens: int = 0,
+    requests: int = 1,
+    cost_micro: int | None = 0,
     images: int = 0,
-    replies: int = 1,
     audio_seconds: float = 0,
     speech_chars: int = 0,
 ) -> None:
-    """Add what one reply spent -- or one use of speech or of
-    pictures through the API, with `replies=0`. Best-effort, and never raises."""
+    """Add one reply, call or use of a service. Best-effort; never raises."""
     if not user_id:
         return
     try:
-        row = row_for(db, user_id)
-        row.prompt_tokens += max(0, int(prompt_tokens))
-        row.completion_tokens += max(0, int(completion_tokens))
+        row = row_for(db, user_id, model_id)
+        row.tokens_in += max(0, int(prompt_tokens))
+        row.tokens_cached += max(0, int(cached_tokens))
+        row.tokens_out += max(0, int(completion_tokens))
+        row.requests += max(0, int(requests))
+        row.cost_micro += max(0, int(cost_micro or 0))
         row.images += max(0, int(images))
-        row.replies += max(0, int(replies))
-        row.audio_seconds = (row.audio_seconds or 0) + max(0, math.ceil(audio_seconds))
-        row.speech_chars = (row.speech_chars or 0) + max(0, int(speech_chars))
+        row.audio_seconds += max(0, math.ceil(audio_seconds))
+        row.speech_chars += max(0, int(speech_chars))
     except Exception:  # bookkeeping must never break a reply
         log.debug("could not record usage for %s", user_id, exc_info=True)
 
@@ -97,11 +103,6 @@ def record_token(
         log.debug("could not record usage for token %s", token_id, exc_info=True)
 
 
-def month_tokens(db: DBSession, user_id: str) -> int:
-    row = db.scalar(select(Usage).where(Usage.user_id == user_id, Usage.period == period_of()))
-    return int((row.prompt_tokens if row else 0) + (row.completion_tokens if row else 0))
-
-
 def images_today(db: DBSession, user_id: str) -> int:
     """Pictures this account has made since midnight UTC.
 
@@ -126,30 +127,6 @@ def images_today(db: DBSession, user_id: str) -> int:
 
 
 # --- Asking permission ----------------------------------------------------------
-def over_token_budget(db: DBSession, user: User | None) -> str:
-    """Why this account may not start another reply, or "".
-
-    Checked **before** a reply is built rather than while it streams. A quota
-    that stopped a reply half way through would leave the reader with an answer
-    that trails off, which is exactly what `_wrap_up` exists to prevent for every
-    other budget here -- and unlike those, this one is knowable in advance.
-    """
-    from lembas.security import permissions
-
-    if user is None:
-        return ""
-    ceiling = permissions.limit(db, user, "monthly_tokens")
-    if ceiling <= 0:
-        return ""
-    spent = month_tokens(db, user.id)
-    if spent < ceiling:
-        return ""
-    return (
-        f"This account has used its {ceiling:,} tokens for the month "
-        f"({spent:,} so far). It will reset on the first."
-    )
-
-
 def over_image_budget(db: DBSession, user: User | None) -> str:
     from lembas.security import permissions
 
@@ -164,24 +141,37 @@ def over_image_budget(db: DBSession, user: User | None) -> str:
     return f"This account has made its {ceiling} image(s) for today."
 
 
+def by_model(db: DBSession, user_id: str, *, period: str = "") -> list[Usage]:
+    """This account's rows for a month, the most used first."""
+    return list(
+        db.scalars(
+            select(Usage)
+            .where(Usage.user_id == user_id, Usage.period == (period or period_of()))
+            .order_by((Usage.tokens_in + Usage.tokens_out).desc(), Usage.model_id)
+        )
+    )
+
+
 def summary(db: DBSession, user: User) -> dict[str, int]:
-    """This month's figures, for the admin screen."""
-    row = db.scalar(select(Usage).where(Usage.user_id == user.id, Usage.period == period_of()))
+    """This month's figures across every model, for the admin screen."""
+    rows = by_model(db, user.id)
+    prompt = sum(r.tokens_in for r in rows)
+    completion = sum(r.tokens_out for r in rows)
     return {
-        "prompt_tokens": int(row.prompt_tokens if row else 0),
-        "completion_tokens": int(row.completion_tokens if row else 0),
-        "tokens": month_tokens(db, user.id),
-        "replies": int(row.replies if row else 0),
-        "images": int(row.images if row else 0),
+        "prompt_tokens": prompt,
+        "completion_tokens": completion,
+        "tokens": prompt + completion,
+        "replies": sum(r.requests for r in rows),
+        "images": sum(r.images for r in rows),
         "images_today": images_today(db, user.id),
+        "cost_micro": sum(r.cost_micro for r in rows),
     }
 
 
 __all__ = [
+    "by_model",
     "images_today",
-    "month_tokens",
     "over_image_budget",
-    "over_token_budget",
     "period_of",
     "record",
     "record_token",

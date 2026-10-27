@@ -272,14 +272,8 @@ async def list_models(db: Db, caller: ModelsCaller) -> dict[str, Any]:
 
 def _refusal(db: DBSession, user: User, model: Model | None = None) -> str:
     from lembas.security import permissions
-    from lembas.services import credits as credits_service
     from lembas.services import generation as generation_service
-    from lembas.services import usage as usage_service
 
-    if reason := usage_service.over_token_budget(db, user):
-        return reason
-    if reason := credits_service.refusal(db, user, model):
-        return reason
     ceiling = permissions.limit(db, user, "concurrent_replies")
     if ceiling > 0:
         from sqlalchemy import select
@@ -317,10 +311,10 @@ def _record(
     model_row_id: str = "",
     token_id: str | None = None,
 ) -> None:
-    """Usage, and credits when the instance uses them -- the same two things a
-    reply in the web UI records."""
+    """Usage and what the call cost -- what a reply in the web UI records.
+    Counting only: nothing here refuses the next call."""
     from lembas.db.session import session_scope
-    from lembas.services import credits as credits_service
+    from lembas.services import pricing
     from lembas.services import usage as usage_service
 
     usage = usage or {}
@@ -334,18 +328,18 @@ def _record(
         "cache_write_tokens": int(written or 0),
     }
     with session_scope() as db:
+        model = db.get(Model, model_row_id) if model_row_id else None
+        priced = pricing.price_reply(db, model, counts) if replies else None
         usage_service.record(
             db,
             user_id,
+            model_id=model.model_id if model is not None else "",
             prompt_tokens=counts["prompt_tokens"],
+            cached_tokens=counts["cached_tokens"],
             completion_tokens=counts["completion_tokens"],
-            replies=replies,
+            requests=replies,
+            cost_micro=priced["cost_micro"] if priced else 0,
         )
-        if model_row_id:
-            credits_service.charge(
-                db, user_id, db.get(Model, model_row_id), usage=counts, token_id=token_id,
-                commit=False,
-            )
         if token_id:
             usage_service.record_token(
                 db, token_id,

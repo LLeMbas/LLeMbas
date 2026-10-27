@@ -59,32 +59,6 @@ def _instance_colour(brand) -> str:
     return THEME_COLOUR.get(theme.base, THEME_COLOUR["moria"])
 
 
-def _credit_chip(db: DBSession, user: User) -> dict | None:
-    """The balance for the chat header, or None -- shown only where
-    credits are in use and the administrator lets people see their balance.
-
-    In both units, `123.45 cr · €1.23`, each written the way the
-    reader's language writes numbers; an administrator, who is never charged,
-    sees "Unlimited" instead. Shown at a balance of nothing too: with credits
-    on, an empty account is refused on every priced model, and the header is
-    where it finds out why."""
-    from lembas.services import credits as credits_service
-
-    values = settings_store.credits(db)
-    if not values.get("enabled") or not values.get("show_balance"):
-        return None
-    if user.is_admin:
-        return {"unlimited": True}
-    micro = credits_service.balance(db, user)
-    return {
-        "unlimited": False,
-        "credits": credits_service.format_credits(micro),
-        "money": credits_service.format_money(
-            credits_service.micro_to_money(micro, values["credit_value"]), values["currency"]
-        ),
-    }
-
-
 def _chat_context(db: DBSession, user: User, chat: Chat | None) -> dict:
     """Model lists and permissions every chat page needs.
 
@@ -101,7 +75,6 @@ def _chat_context(db: DBSession, user: User, chat: Chat | None) -> dict:
     in_group = chat_service.available_models(db, user, group) if group is not None else models
     in_group_ids = {m.id for m in in_group}
     return {
-        "credit_chip": _credit_chip(db, user),
         "models": in_group,
         "models_elsewhere": [m for m in models if m.id not in in_group_ids],
         "chat_group_name": data_groups.name_of(db, group) if group is not None else "",
@@ -1124,31 +1097,6 @@ def _schedule_context(db: DBSession, user: User, chat: Chat) -> dict:
     }
 
 
-def _credit_settings(db: DBSession, user: User) -> dict | None:
-    """The usage card in Settings: the balance in credits and money, the plan
-    and when it renews, its windows, this month's spend per model, and the last
-    ledger rows with what each cost."""
-    from lembas.services import credits as credits_service
-
-    values = settings_store.credits(db)
-    if not values.get("enabled") or not values.get("show_balance"):
-        return None
-    summary = credits_service.summary(db, user)
-
-    def money(micro: int) -> str:
-        return credits_service.format_money(
-            credits_service.micro_to_money(micro, summary["credit_value"]), summary["currency"]
-        )
-
-    return {
-        **summary,
-        "visible": True,
-        "show": credits_service.format_credits,
-        "money": money,
-        "ledger": credits_service.ledger(db, user.id, limit=10),
-    }
-
-
 def _api_settings(db: DBSession, user: User) -> dict:
     """This person's tokens and devices, and what a new token may be given."""
     from lembas.db.models import TOKEN_PERSONAL, ApiToken
@@ -1257,9 +1205,6 @@ async def settings_page(
             ],
             # What `lembas login` is pointed at, as this page was reached.
             "instance_url": str(request.base_url).rstrip("/"),
-            # Credits, in the Account tab, when the instance uses them
-            # and lets people see their own.
-            "credit": _credit_settings(db, user),
             **_data_group_settings(db, user),
             # Sorted rather than left in set order, because a list of six
             # hundred zones that is not alphabetical is one nobody can use.

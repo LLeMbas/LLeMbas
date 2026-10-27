@@ -109,8 +109,7 @@
     <div class="mode-list__row">
       <dt><strong>{{ t("Tokens") }}</strong></dt>
       <dd>
-        {% if limits.monthly_tokens %}{{ t("%(used)s of %(limit)s", used="{:,}".format(usage.tokens), limit="{:,}".format(limits.monthly_tokens)) }}
-        {% else %}{{ "{:,}".format(usage.tokens) }}{% endif %}
+        {{ "{:,}".format(usage.tokens) }}
         <span class="faint text-xs">
           ({{ t("%(prompt)s prompt, %(written)s written", prompt="{:,}".format(usage.prompt_tokens), written="{:,}".format(usage.completion_tokens)) }})
         </span>

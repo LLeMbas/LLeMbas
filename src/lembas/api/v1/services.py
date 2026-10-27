@@ -13,10 +13,10 @@ every device uses them. A device that has none of its own needs none.
 - `POST /api/v1/search` and `POST /api/v1/fetch` -- the web search and page
   fetch a chat's model has, with the same switches and the same SSRF guard.
 
-Speech is counted and, where credits are on, charged -- per minute
-transcribed and per million characters read, at the prices in the audio
-settings -- through the same gate and ledger as a reply (`audio.refusal`,
-`audio.record_transcription`, `audio.record_speech`). Pictures have their own
+Speech is counted and priced -- per minute transcribed and per million
+characters read, at the prices in the audio settings -- into the same usage
+as a reply (`audio.record_transcription`, `audio.record_speech`). Nothing is
+refused for what it costs. Pictures have their own
 module, `api/v1/images.py`.
 
 All of it needs the `models` scope and the same permission the web UI asks for:
@@ -137,9 +137,6 @@ async def transcriptions(request: Request, db: Db, caller: ModelsCaller):
         return error_response(413, "That recording is too long.")
     if not data:
         return error_response(400, "The recording was empty.")
-    # Credits, as a reply's: a priced transcription is gated first.
-    if short := audio_service.refusal(db, caller.user, "stt"):
-        return error_response(429, short, "rate_limit_error")
     config = settings_store.audio(db)
     asked = form.get("language")
     language = (
@@ -184,8 +181,6 @@ async def speech(request: Request, db: Db, caller: ModelsCaller):
         return error_response(400, "`input` is required: the text to speak.")
     if len(text) > MAX_SPEECH_CHARS:
         return error_response(413, f"That is more than {MAX_SPEECH_CHARS} characters.")
-    if short := audio_service.refusal(db, caller.user, "tts"):
-        return error_response(429, short, "rate_limit_error")
     config = settings_store.audio(db)
     voice = str(body.get("voice") or "").strip() or resolve_voice(config, caller.user)
     try:

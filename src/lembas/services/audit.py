@@ -267,7 +267,7 @@ class AdminAuditMiddleware:
             request = Request(scope)
             path = request.url.path
             # The token and audit pages write their own, more specific event.
-            if path.startswith(("/admin/tokens/", "/admin/credits/")):
+            if path.startswith("/admin/tokens/"):
                 return
             with session_scope() as db:
                 user = resolve_session(db, request.cookies.get(COOKIE_NAME))

@@ -112,9 +112,7 @@ def _page(request: Request, db: Db, **extra) -> Response:
             "checkpoints_text": "\n".join(values.get("checkpoints") or []),
             "masked": mask(decrypt(values.get("api_key_encrypted") or "")),
             "unchanged": UNCHANGED_SENTINEL,
-            "currency_sign": settings_store.CURRENCIES.get(
-                settings_store.credits(db)["currency"], ""
-            ),
+            "currency_sign": settings_store.CURRENCIES.get(settings_store.currency(db), ""),
             **extra,
         },
     )

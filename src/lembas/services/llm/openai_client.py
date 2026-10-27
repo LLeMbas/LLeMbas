@@ -633,8 +633,8 @@ def chunk_usage(chunk: dict[str, Any]) -> dict[str, int] | None:
     counts.setdefault(
         "total_tokens", counts.get("prompt_tokens", 0) + counts.get("completion_tokens", 0)
     )
-    # How much of the prompt the server answered from its cache, which credits
-    # price apart: OpenAI's `prompt_tokens_details.cached_tokens`, and
+    # How much of the prompt the server answered from its cache, which is
+    # priced apart: OpenAI's `prompt_tokens_details.cached_tokens`, and
     # the same figure some servers put at the top level. llama.cpp says it in
     # `timings.cache_n` beside the usage.
     details = raw.get("prompt_tokens_details")

@@ -38,6 +38,7 @@ from lembas.services import (
     harness_spec,
     interaction,
     plans,
+    pricing,
     settings_store,
     tokens,
     tool_labels,
@@ -137,10 +138,10 @@ class Generation:
     prompt_tokens: int = 0
     completion_tokens: int = 0
     # Of `prompt_tokens`, how many the server answered from its cache; priced
-    # apart by credits.
+    # apart (services/pricing.py).
     cached_tokens: int = 0
     # Of `prompt_tokens`, how many were written to the cache (Anthropic),
-    # which credits price above ordinary input.
+    # which is priced above ordinary input.
     cache_write_tokens: int = 0
     context_tokens: int = 0
     context_limit: int = 0
@@ -877,27 +878,6 @@ async def _run(generation: Generation) -> None:
                 generation.error = moved
                 return
             endpoint, model_id = chat_service.resolve_endpoint(db, chat, speaker)
-
-            # Before the request is built, not while it streams. Every other
-            # budget here can only be noticed part way through and so ends with
-            # `_wrap_up` asking for a final answer; this one is knowable in
-            # advance, and a reply that trails off because a month ran out mid
-            # sentence would be the failure `_wrap_up` exists to prevent.
-            over = usage_service.over_token_budget(db, owner)
-            if over:
-                generation.error = over
-                return
-            # And credits, when the instance uses them: a positive
-            # balance and every plan window under its limit, for a model that
-            # costs anything. Same place, same reason.
-            from lembas.services import credits as credits_service
-
-            short = credits_service.refusal(
-                db, owner, chat_service.model_row(db, speaker or chat_service.speaker_for(db, chat))
-            )
-            if short:
-                generation.error = short
-                return
 
             # Read while the session is open: everything below outlives it.
             # Resolved once, so that what the loop is allowed to *run* is the
@@ -2504,46 +2484,42 @@ def _persist(generation: Generation, title: str, elapsed: float) -> None:
             if message.origin == ORIGIN_ATTACH:
                 message.origin = ""
 
-            # What this reply cost, against the account's month. Here because
-            # this is the single writer and it runs for a reply that finished, a
-            # reply that was stopped and a reply that errored alike -- an
-            # endpoint charges for tokens it generated whether or not anybody
-            # wanted them, and a quota that only counted happy paths is one a
-            # Stop button can walk past. `metrics.from_generation` is the one
-            # place the three figures are worked out, so this is the same
-            # arithmetic the bubble shows.
+            # What this reply used and cost. Here because this is the single
+            # writer and it runs for a reply that finished, a reply that was
+            # stopped and a reply that errored alike -- an endpoint charges for
+            # tokens it generated whether or not anybody wanted them.
+            # `metrics.from_generation` is the one place the figures are worked
+            # out, so this is the same arithmetic the bubble shows. The cost is
+            # kept on the message with the price applied (services/pricing.py),
+            # so a later price change does not rewrite it.
             spent = metrics_service.from_generation(generation)
             # A device chat's tokens were spent by the device on its own model --
             # through this instance's /v1 when it is logged in here, where they
-            # were already counted and charged. Counting them again is the one
-            # thing this must not do.
+            # were already counted. Counting them again is the one thing this
+            # must not do.
             on_device = bool(getattr(chat, "device_token_id", None))
+            counted = {
+                "prompt_tokens": spent.prompt_tokens,
+                "completion_tokens": spent.completion_tokens,
+                "cached_tokens": generation.cached_tokens,
+                "cache_write_tokens": generation.cache_write_tokens,
+            }
+            spoke = None
+            if not on_device:
+                spoke = chat_service.model_row(db, chat_service.speaker_for(db, chat, message))
+                priced = pricing.price_reply(db, spoke, counted)
+                if priced is not None:
+                    message.cost_micro = priced["cost_micro"]
+                    message.currency = priced["currency"]
+                    message.priced_json = priced["priced_json"]
             usage_service.record(
                 db,
                 chat.user_id if not on_device else "",
+                model_id=(spoke.model_id if spoke is not None else message.model_id) or "",
                 prompt_tokens=spent.prompt_tokens,
+                cached_tokens=generation.cached_tokens,
                 completion_tokens=spent.completion_tokens,
-                images=len(generation.attachment_ids),
-            )
-            # Credits, charged to the chat's owner -- a helper's reply to the
-            # person whose reply sent it, since the helper's chat is theirs -- on
-            # the model that spoke. Nothing when credits are off or it is free.
-            from lembas.services import credits as credits_service
-
-            credits_service.charge(
-                db,
-                chat.user_id,
-                None if on_device else chat_service.model_row(
-                    db, chat_service.speaker_for(db, chat, message)
-                ),
-                usage={
-                    "prompt_tokens": spent.prompt_tokens,
-                    "completion_tokens": spent.completion_tokens,
-                    "cached_tokens": generation.cached_tokens,
-                    "cache_write_tokens": generation.cache_write_tokens,
-                },
-                message_id=message.id,
-                commit=False,
+                cost_micro=message.cost_micro,
             )
 
             if title and not chat.title_generated:

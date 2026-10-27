@@ -186,7 +186,7 @@ def test_a_completion_goes_to_the_models_connection_and_is_counted(
     # The connection's key, which never left this server.
     assert seen["auth"] == "Bearer upstream-key"
     usage = db.scalar(select(Usage))
-    assert (usage.prompt_tokens, usage.completion_tokens) == (7, 3)
+    assert (usage.tokens_in, usage.tokens_out) == (7, 3)
 
 
 def test_a_streamed_completion_is_relayed_and_counted(client, db, registered, mock_http):
@@ -213,7 +213,7 @@ def test_a_streamed_completion_is_relayed_and_counted(client, db, registered, mo
     text = response.text
     assert '"Lem"' in text and '"bas"' in text and "[DONE]" in text
     usage = db.scalar(select(Usage))
-    assert (usage.prompt_tokens, usage.completion_tokens) == (5, 2)
+    assert (usage.tokens_in, usage.tokens_out) == (5, 2)
 
 
 def test_an_unknown_model_is_a_404_in_openais_shape(client, db, registered):

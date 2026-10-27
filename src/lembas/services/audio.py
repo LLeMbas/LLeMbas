@@ -15,7 +15,6 @@ could not be configured at all.
 from __future__ import annotations
 
 import logging
-import math
 import time
 from collections.abc import AsyncIterator
 from typing import Any
@@ -332,57 +331,44 @@ def price_of(config: dict[str, Any], side: str) -> float:
     return float(config.get("stt_per_minute" if side == "stt" else "tts_per_1m_chars") or 0)
 
 
-def refusal(db, user, side: str) -> str:
-    """Why this person may not use this side of speech now, or "" -- the credit
-    gate, for a service with a price (`credits.service_refusal`)."""
-    from lembas.services import credits as credits_service
-    from lembas.services import settings_store
-
-    return credits_service.service_refusal(db, user, price_of(settings_store.audio(db), side))
-
-
 def record_transcription(db, user_id: str, seconds: float, *, token_id: str | None = None) -> int:
-    """Count and charge one transcription of `seconds`. Never raises; commits."""
-    from lembas.services import credits as credits_service
-    from lembas.services import settings_store
+    """Count and price one transcription of `seconds`. Returns what it cost
+    in micro-units of the currency. Never raises; commits."""
+    from lembas.services import pricing, settings_store
     from lembas.services import usage as usage_service
 
     config = settings_store.audio(db)
-    usage_service.record(db, user_id, replies=0, audio_seconds=seconds)
-    charged = credits_service.charge_service(
+    cost = pricing.service_cost_micro(price_of(config, "stt"), seconds / 60)
+    usage_service.record(
         db,
         user_id,
-        service=service_id(config, "stt"),
-        price=price_of(config, "stt"),
-        quantity=seconds / 60,
-        note=f"stt: {math.ceil(seconds)} s",
-        token_id=token_id,
-        commit=False,
+        model_id=service_id(config, "stt"),
+        requests=1,
+        cost_micro=cost,
+        audio_seconds=seconds,
     )
     _commit(db)
-    return charged
+    return cost
 
 
 def record_speech(db, user_id: str, characters: int, *, token_id: str | None = None) -> int:
-    """Count and charge one reading aloud of `characters`. Never raises; commits."""
-    from lembas.services import credits as credits_service
-    from lembas.services import settings_store
+    """Count and price one reading aloud of `characters`. Returns what it
+    cost in micro-units of the currency. Never raises; commits."""
+    from lembas.services import pricing, settings_store
     from lembas.services import usage as usage_service
 
     config = settings_store.audio(db)
-    usage_service.record(db, user_id, replies=0, speech_chars=characters)
-    charged = credits_service.charge_service(
+    cost = pricing.service_cost_micro(price_of(config, "tts"), characters / 1_000_000)
+    usage_service.record(
         db,
         user_id,
-        service=service_id(config, "tts"),
-        price=price_of(config, "tts"),
-        quantity=characters / 1_000_000,
-        note=f"tts: {characters} characters",
-        token_id=token_id,
-        commit=False,
+        model_id=service_id(config, "tts"),
+        requests=1,
+        cost_micro=cost,
+        speech_chars=characters,
     )
     _commit(db)
-    return charged
+    return cost
 
 
 def _commit(db) -> None:

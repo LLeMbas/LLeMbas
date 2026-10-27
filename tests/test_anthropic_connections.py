@@ -578,7 +578,7 @@ def test_a_v1_completion_on_an_anthropic_model_is_translated(client, db, registe
     assert data["choices"][0]["message"]["content"] == "On it."
     assert data["choices"][0]["finish_reason"] == "stop"
     usage = db.scalar(select(Usage))
-    assert (usage.prompt_tokens, usage.completion_tokens) == (1320, 42)
+    assert (usage.tokens_in, usage.tokens_out) == (1320, 42)
 
 
 def test_a_streamed_v1_completion_on_an_anthropic_model(client, db, registered, mock_http):
@@ -828,7 +828,7 @@ def test_a_v1_client_without_blocks_turns_budget_thinking_off_for_that_request()
 
 
 def test_cache_writes_reach_usage_and_are_billed_above_input(db):
-    from lembas.services import credits
+    from lembas.services import pricing
 
     translator = anthropic_client._Translator(OPUS)
     translator.feed({"type": "message_start", "message": {"id": "m", "usage": {
@@ -837,12 +837,14 @@ def test_cache_writes_reach_usage_and_are_billed_above_input(db):
                            "usage": {"cache_creation_input_tokens": 1000, "output_tokens": 5}})
     counts = chunk_usage(out[-1])
     assert counts["cache_write_tokens"] == 1000 and counts["prompt_tokens"] == 1010
-    model = Model(model_id=OPUS, pricing_json={"input": 1.0, "cached_input": 0.1, "output": 0})
-    plain = credits.cost(model, prompt_tokens=1010)
-    written = credits.cost(model, prompt_tokens=1010, cache_write_tokens=1000)
+    price = pricing.prices(
+        Model(model_id=OPUS, pricing_json={"input": 1.0, "cached_input": 0.1, "output": 0})
+    )
+    plain = pricing.cost_micro(price, prompt_tokens=1010)
+    written = pricing.cost_micro(price, prompt_tokens=1010, cache_write_tokens=1000)
     assert plain == 1010 and written == 10 + 1250
     # Reads keep the cached rate.
-    assert credits.cost(model, prompt_tokens=1010, cached_tokens=1000) == 10 + 100
+    assert pricing.cost_micro(price, prompt_tokens=1010, cached_tokens=1000) == 10 + 100
 
 
 def test_an_empty_tool_input_is_json_in_a_whole_response(mock_http):

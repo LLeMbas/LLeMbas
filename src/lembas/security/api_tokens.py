@@ -17,7 +17,6 @@ administrator.
 | `app` | `/api/v2`: the holder's chats, as the web UI shows them -- the app's door | `api.use` |
 | `admin:read` | users and usage, read only | administrator |
 | `admin:audit` | the audit log | administrator, or `audit.read` |
-| `admin:credits` | top-ups, adjustments and plans | administrator, or `credits.grant` |
 """
 
 from __future__ import annotations
@@ -47,10 +46,9 @@ SCOPE_LINK = "link"
 SCOPE_APP = "app"
 SCOPE_ADMIN_READ = "admin:read"
 SCOPE_ADMIN_AUDIT = "admin:audit"
-SCOPE_ADMIN_CREDITS = "admin:credits"
 
 USER_SCOPES = (SCOPE_MODELS, SCOPE_LIBRARY, SCOPE_LINK, SCOPE_APP)
-ADMIN_SCOPES = (SCOPE_ADMIN_READ, SCOPE_ADMIN_AUDIT, SCOPE_ADMIN_CREDITS)
+ADMIN_SCOPES = (SCOPE_ADMIN_READ, SCOPE_ADMIN_AUDIT)
 SCOPES = (*USER_SCOPES, *ADMIN_SCOPES)
 
 def scope_label(scope: str) -> str:
@@ -65,7 +63,6 @@ def scope_label(scope: str) -> str:
         SCOPE_APP: t("Read and write your chats, as the web interface does"),
         SCOPE_ADMIN_READ: t("Read every account and its usage"),
         SCOPE_ADMIN_AUDIT: t("Read the audit log"),
-        SCOPE_ADMIN_CREDITS: t("Top up and adjust credits, and choose plans"),
     }.get(scope, scope)
 
 
@@ -87,8 +84,6 @@ def may_hold(db: DBSession, user: User, scope: str) -> bool:
         return permissions.has(db, user, "api.use")
     if scope == SCOPE_ADMIN_AUDIT:
         return user.is_admin or permissions.has(db, user, "audit.read")
-    if scope == SCOPE_ADMIN_CREDITS:
-        return user.is_admin or permissions.has(db, user, "credits.grant")
     if scope == SCOPE_ADMIN_READ:
         return user.is_admin
     return False
@@ -338,7 +333,6 @@ ModelsCaller = Annotated[Caller, Depends(require_token(SCOPE_MODELS))]
 AppCaller = Annotated[Caller, Depends(require_token(SCOPE_APP))]
 AdminReadCaller = Annotated[Caller, Depends(require_token(SCOPE_ADMIN_READ))]
 AuditCaller = Annotated[Caller, Depends(require_token(SCOPE_ADMIN_AUDIT))]
-CreditsCaller = Annotated[Caller, Depends(require_token(SCOPE_ADMIN_CREDITS))]
 
 
 __all__ = [
@@ -356,8 +350,6 @@ __all__ = [
     "AppCaller",
     "LiveCaller",
     "AuditCaller",
-    "CreditsCaller",
-    "SCOPE_ADMIN_CREDITS",
     "Caller",
     "ModelsCaller",
     "create",

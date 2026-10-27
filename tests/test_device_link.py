@@ -312,7 +312,7 @@ def test_a_device_chat_is_not_charged_twice(client, db, registered):
             json.dumps({"jsonrpc": "2.0", "id": prompt["id"], "result": {"stopReason": "end_turn"}})
         )
         _reply(db, chat.id)
-        assert db.scalar(select(Usage)) is None or db.scalar(select(Usage)).prompt_tokens == 0
+        assert db.scalar(select(Usage)) is None or db.scalar(select(Usage)).tokens_in == 0
 
 
 def test_a_mode_changed_in_the_composer_reaches_the_device(client, db, registered):

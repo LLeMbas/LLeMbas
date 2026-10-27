@@ -9,8 +9,9 @@ loop, because there is no conversation to judge the picture against, and `n` is
 capped by the image settings (`api_max_images`) rather than trusted.
 
 **Gated as a chat's tool is**: the `models` scope, the *Draw pictures*
-permission (`tools.image`), the daily image budget, and -- where credits are on
--- the credit gate for `per_image`, an administrator unlimited.
+permission (`tools.image`) and the daily image limit. Each picture kept is
+counted and priced at `per_image` into the caller's usage; nothing is refused
+for what it costs.
 
 **`url` by default, `b64_json` on request.** Every picture is stored as the
 caller's own file whichever is asked for: that is what makes it count against
@@ -97,8 +98,8 @@ def _checkpoint(wanted: str, values: dict[str, Any]) -> tuple[str | None, bool]:
 @router.post("/v1/images/generations")
 async def generations(request: Request, db: Db, caller: ModelsCaller):
     from lembas.db.session import session_scope
-    from lembas.services import credits as credits_service
     from lembas.services import files as files_service
+    from lembas.services import pricing
     from lembas.services import usage as usage_service
     from lembas.services.images import comfy, workflow
     from lembas.services.images.tool import _choices, _pick
@@ -135,12 +136,10 @@ async def generations(request: Request, db: Db, caller: ModelsCaller):
     if checkpoint is None:
         return error_response(404, "No checkpoint is listed on this instance.")
 
-    # The two budgets, before a minute of somebody's GPU is spent.
+    # The daily limit, before a minute of somebody's GPU is spent.
     if over := usage_service.over_image_budget(db, user):
         return error_response(429, over, "rate_limit_error")
     price = float(values["per_image"])
-    if short := credits_service.service_refusal(db, user, price):
-        return error_response(429, short, "rate_limit_error")
     ceiling = permissions.limit(db, user, "images_per_day")
     if ceiling and usage_service.images_today(db, user.id) + count > ceiling:
         return error_response(
@@ -157,7 +156,7 @@ async def generations(request: Request, db: Db, caller: ModelsCaller):
     given: dict[str, Any] = {"prompt": prompt, "model": checkpoint}
     if size := nearest_size(body.get("size")):
         given["width"], given["height"] = size
-    user_id, token_id = user.id, caller.token.id
+    user_id = user.id
 
     from lembas.services.images.tool import config_of
 
@@ -209,16 +208,12 @@ async def generations(request: Request, db: Db, caller: ModelsCaller):
                 item["b64_json"] = base64.b64encode(payload).decode("ascii")
             data.append(item)
         kept = len(data)
-        usage_service.record(session, user_id, images=kept, replies=0)
-        credits_service.charge_service(
+        usage_service.record(
             session,
             user_id,
-            service=service_id(checkpoint),
-            price=price,
-            quantity=kept,
-            note=f"image: {kept} picture(s)",
-            token_id=token_id,
-            commit=False,
+            model_id=service_id(checkpoint),
+            cost_micro=pricing.service_cost_micro(price, kept),
+            images=kept,
         )
         session.commit()
     if not data:

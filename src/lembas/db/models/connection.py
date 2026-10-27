@@ -257,11 +257,9 @@ class Model(UUIDPrimaryKey, Timestamps, Base):
     # which is how a local model stays free beside priced ones. A column, not a
     # key in capabilities_json, for the reason context_length is one.
     #
-    # The prices are **money** per million tokens (and per request), in
-    # the instance's currency, marked `"unit": "money"`; what that is in credits
-    # follows `credits.credit_value`. A dict with no mark is an older one
-    # and holds credits -- `services/credits.prices` reads it as such, so it is
-    # right whether or not `migrations.prices_to_money` has run yet.
+    # The prices are **money** per million tokens (and per request), in the
+    # instance's currency (`services/pricing.py`); a reply's cost is worked out
+    # from them when it is written and kept on the message.
     pricing_json: Mapped[dict[str, Any]] = mapped_column(JSONDict, default=dict)
 
     # Chat or embedding (`MODEL_KINDS`): what `/v1/models` says the model

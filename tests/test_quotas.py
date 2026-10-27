@@ -1,4 +1,5 @@
-"""What an account may spend, and the arithmetic that decides.
+"""What an account may hold at once, and the arithmetic that decides. (There is
+no monthly token budget any more: usage is counted, never rationed.)
 
 The rule to hold is the one the permissions already hold, applied to numbers:
 **a second group can only ever grant more.** Its awkward corner is zero, which
@@ -42,32 +43,32 @@ def test_nobody_is_limited_until_somebody_says_so(db, reader):
 
 
 def test_a_second_group_can_only_grant_more(db, reader):
-    _group(db, reader, monthly_tokens=1000)
-    _group(db, reader, monthly_tokens=5000)
+    _group(db, reader, concurrent_replies=1000)
+    _group(db, reader, concurrent_replies=5000)
     db.refresh(reader)
 
-    assert permissions.limit(db, reader, "monthly_tokens") == 5000
+    assert permissions.limit(db, reader, "concurrent_replies") == 5000
 
 
 def test_zero_means_no_limit_and_wins_outright(db, reader):
     """The union rule's awkward corner. A plain maximum would make "unlimited"
     count for less than "a million", which is the rule inverted for exactly the
     value somebody sets when they mean *stop limiting this person*."""
-    _group(db, reader, monthly_tokens=1000)
-    _group(db, reader, monthly_tokens=0)
+    _group(db, reader, concurrent_replies=1000)
+    _group(db, reader, concurrent_replies=0)
     db.refresh(reader)
 
-    assert permissions.limit(db, reader, "monthly_tokens") == 0
+    assert permissions.limit(db, reader, "concurrent_replies") == 0
 
 
 def test_a_group_with_no_opinion_contributes_nothing(db, reader):
     """Absent is not zero. If it were, adding a group that says nothing about
     tokens would silently make somebody unlimited."""
-    _group(db, reader, monthly_tokens=1000)
+    _group(db, reader, concurrent_replies=1000)
     _group(db, reader, images_per_day=5)
     db.refresh(reader)
 
-    assert permissions.limit(db, reader, "monthly_tokens") == 1000
+    assert permissions.limit(db, reader, "concurrent_replies") == 1000
     assert permissions.limit(db, reader, "images_per_day") == 5
 
 
@@ -75,16 +76,16 @@ def test_nonsense_in_the_column_is_ignored(db, reader):
     """A row can be written by hand or by an older version, and a limit nobody
     can parse must not become a limit of zero — which is *unlimited* here, the
     opposite of failing safe."""
-    _group(db, reader, monthly_tokens="lots")
-    _group(db, reader, monthly_tokens=1000)
+    _group(db, reader, concurrent_replies="lots")
+    _group(db, reader, concurrent_replies=1000)
     db.refresh(reader)
 
-    assert permissions.limit(db, reader, "monthly_tokens") == 1000
+    assert permissions.limit(db, reader, "concurrent_replies") == 1000
 
 
 def test_an_administrator_is_unlimited(db, registered):
     admin = db.scalars(select(User).order_by(User.created_at)).first()
-    group = Group(name="tight", limits_json={"monthly_tokens": 1})
+    group = Group(name="tight", limits_json={"concurrent_replies": 1})
     group.users.append(admin)
     db.add(group)
     db.commit()
@@ -93,17 +94,16 @@ def test_an_administrator_is_unlimited(db, registered):
 
 
 # --- Recording ------------------------------------------------------------------
-def test_usage_accumulates_into_one_row_per_month(db, reader):
-    usage_service.record(db, reader.id, prompt_tokens=100, completion_tokens=50)
-    usage_service.record(db, reader.id, prompt_tokens=10, completion_tokens=5)
+def test_usage_accumulates_into_one_row_per_month_and_model(db, reader):
+    usage_service.record(db, reader.id, model_id="m", prompt_tokens=100, completion_tokens=50)
+    usage_service.record(db, reader.id, model_id="m", prompt_tokens=10, completion_tokens=5)
+    usage_service.record(db, reader.id, model_id="other", prompt_tokens=1)
     db.commit()
 
-    rows = list(db.scalars(select(Usage).where(Usage.user_id == reader.id)))
-    assert len(rows) == 1
-    assert rows[0].prompt_tokens == 110
-    assert rows[0].completion_tokens == 55
-    assert rows[0].replies == 2
-    assert usage_service.month_tokens(db, reader.id) == 165
+    rows = {r.model_id: r for r in db.scalars(select(Usage).where(Usage.user_id == reader.id))}
+    assert set(rows) == {"m", "other"}
+    assert (rows["m"].tokens_in, rows["m"].tokens_out, rows["m"].requests) == (110, 55, 2)
+    assert usage_service.summary(db, reader)["tokens"] == 166
 
 
 def test_recording_never_raises(db):
@@ -112,24 +112,13 @@ def test_recording_never_raises(db):
     usage_service.record(db, "nobody-at-all", prompt_tokens=10)
 
 
-def test_the_token_gate_answers_before_anything_is_spent(db, reader):
+def test_there_is_no_token_budget(db, reader):
     _group(db, reader, monthly_tokens=100)
     db.refresh(reader)
-    assert usage_service.over_token_budget(db, reader) == ""
-
-    usage_service.record(db, reader.id, prompt_tokens=60, completion_tokens=60)
-    db.commit()
-
-    reason = usage_service.over_token_budget(db, reader)
-    assert "month" in reason
-    assert "100" in reason
-
-
-def test_an_unlimited_account_is_never_over(db, reader):
     usage_service.record(db, reader.id, prompt_tokens=10**9)
     db.commit()
-
-    assert usage_service.over_token_budget(db, reader) == ""
+    assert "monthly_tokens" not in permissions.limits_for(db, reader)
+    assert not hasattr(usage_service, "over_token_budget")
 
 
 # --- The screens ----------------------------------------------------------------
@@ -142,15 +131,15 @@ def test_a_group_stores_only_the_boxes_that_were_filled(db, client, registered, 
         f"/admin/groups/{group.id}",
         data={
             "name": "team",
-            "limit_monthly_tokens": "5000",
+            "limit_concurrent_replies": "3",
             "limit_images_per_day": "",
-            "limit_concurrent_replies": "not a number",
+            "limit_agent_seconds": "not a number",
         },
         follow_redirects=False,
     )
 
     db.refresh(group)
-    assert group.limits_json == {"monthly_tokens": 5000}
+    assert group.limits_json == {"concurrent_replies": 3}
 
 
 def test_the_user_page_says_where_each_permission_came_from(db, client, registered, reader):

@@ -1,6 +1,5 @@
 """What a program signed in as a person asks about that person:
-`GET /v1/usage`, `GET`/`PUT /v1/me/personalization`, and the credit chip in the
-chat header."""
+`GET /v1/usage` and `GET`/`PUT /v1/me/personalization`."""
 
 from __future__ import annotations
 
@@ -9,11 +8,10 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy import select
 
-from lembas.db.models import MICRO, TOKEN_DEVICE, Plan, User
+from lembas.db.models import TOKEN_DEVICE, User
 from lembas.security import api_tokens
-from lembas.services import credits, settings_store
+from lembas.services import settings_store
 from lembas.services import usage as usage_service
-from tests.test_credits import _model, _on
 
 
 @pytest.fixture(autouse=True)
@@ -32,51 +30,31 @@ def _token(db, *, scopes=("link",), kind=TOKEN_DEVICE):
     return token, {"Authorization": f"Bearer {raw}"}
 
 
-def test_usage_without_credits_has_tokens_and_nulls(client, db, registered):
+def test_usage_counts_tokens_and_cost_and_keeps_the_old_keys_null(client, db, registered):
     token, auth = _token(db)
     other, _ = _token(db, scopes=("models",))
-    usage_service.record(db, _me(db).id, prompt_tokens=100, completion_tokens=20)
+    me = _me(db)
+    usage_service.record(db, me.id, model_id="a", prompt_tokens=60, completion_tokens=20,
+                         cost_micro=1_250_000)
+    usage_service.record(db, me.id, model_id="b", prompt_tokens=40)
     usage_service.record_token(db, token.id, prompt_tokens=60, completion_tokens=5)
     usage_service.record_token(db, other.id, prompt_tokens=40, completion_tokens=15)
     db.commit()
     body = client.get("/v1/usage", headers=auth).json()
     now = datetime.now(UTC)
     assert body == {
+        # Credits are gone; a 1.x client reads these as "nothing to show".
         "plan": None,
         "balance": None,
-        "month": {"from": datetime(now.year, now.month, 1, tzinfo=UTC).isoformat(),
-                  "tokens_in": 100, "tokens_out": 20, "cost": None, "cost_money": None},
-        "device": {"tokens_in": 60, "tokens_out": 5, "cost": None, "cost_money": None},
-        # Added beside the older fields, which keep their meaning.
         "balance_money": None,
         "windows": [],
-        "currency": "EUR",
-        "credit_value": 0.01,
+        "month": {"from": datetime(now.year, now.month, 1, tzinfo=UTC).isoformat(),
+                  "tokens_in": 100, "tokens_out": 20, "cost": None, "cost_money": 1.25},
+        "device": {"tokens_in": 60, "tokens_out": 5, "cost": None, "cost_money": None},
+        "currency": "USD",
         "admin": True,
-        "unit": "credits",
+        "unit": "money",
     }
-
-
-def test_usage_with_a_plan_says_the_balance_and_this_token_s_share(client, db, registered):
-    _on(db)
-    model = _model(db)
-    user = _me(db)
-    user.role = "user"  # an administrator is never deducted
-    db.commit()
-    plan = Plan(name="Basic", monthly=10 * MICRO, renewal="reset")
-    db.add(plan)
-    db.commit()
-    credits.assign(db, user, plan.id)
-    token, auth = _token(db)
-    other, _ = _token(db, scopes=("models",))
-    usage = {"prompt_tokens": 1_000_000, "completion_tokens": 0}
-    credits.charge(db, user.id, model, usage=usage, token_id=token.id)  # 2 credits
-    credits.charge(db, user.id, model, usage=usage, token_id=other.id)  # 2 more
-    body = client.get("/v1/usage", headers=auth).json()
-    assert body["plan"] == {"name": "Basic", "credits_per_month": 10.0}
-    assert body["balance"] == 6.0
-    assert body["month"]["cost"] == 4.0
-    assert body["device"]["cost"] == 2.0
 
 
 def test_usage_needs_a_token_of_the_person(client, db, registered):
@@ -149,18 +127,6 @@ def test_personalization_takes_a_partial_body_and_keeps_the_rest(client, db, reg
                         json={"enabled": True, "personality": "stoic-v2"}).json()
     assert answer["personality"] == "stoic-v2" and answer["instructions"] == "Be brief."
     assert client.get("/v1/me/personalization", headers=auth).json() == answer
-
-
-def test_the_chat_header_shows_the_balance_only_where_credits_are_used(client, db, registered):
-    _model(db)
-    assert "credits</a>" not in client.get("/chat").text.replace("\n", "").replace("  ", "")
-    _on(db, grant=5)
-    _me(db).role = "user"
-    db.commit()
-    credits.ensure_started(db, _me(db))
-    page = client.get("/chat").text
-    # Both units, as the reader's language writes them.
-    assert "5.00 cr · €0.05" in page
 
 
 def test_only_a_cli_writes_personalization_and_enabled_is_strict(client, db, registered):
