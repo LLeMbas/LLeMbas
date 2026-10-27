@@ -186,7 +186,7 @@ def test_every_builtin_tool_has_a_label_and_an_icon(db):
 def test_every_icon_named_exists_in_the_sprite():
     """A typo'd symbol id renders an empty box and says nothing. This is the
     only thing that catches it."""
-    sprite = Path(tools_service.__file__).parents[1] / "web/templates/partials/icons.html"
+    sprite = Path(tools_service.__file__).parents[2] / "web/templates/partials/icons.html"
     available = set(re.findall(r'id="i-([a-z-]+)"', sprite.read_text()))
     wanted = set(tool_labels.ICONS.values()) | set(tool_labels.KIND_ICONS.values())
     wanted.add(tool_labels.FALLBACK_ICON)

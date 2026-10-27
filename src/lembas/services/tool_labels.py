@@ -37,7 +37,7 @@ from __future__ import annotations
 from typing import Any
 
 # What the transcript calls each tool. Kept in the same order as the families
-# in `services/tools.py` so that adding one has an obvious home.
+# in `services/tools/core.py` so that adding one has an obvious home.
 LABELS: dict[str, str] = {
     # Acting on the machine an agent chat is pointed at: the harness spec's names,
     # then the names they had before, which stored transcripts carry.

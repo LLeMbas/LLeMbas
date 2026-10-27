@@ -15,7 +15,7 @@ def extra_source():
     leaks into every test after it.
 
     Restored to **what was there**, not to `[_builtin_source]`. Resetting to the
-    builtin alone also threw away `services/tools.py:_row_source`, registered at
+    builtin alone also threw away `services/tools:_row_source`, registered at
     import -- so after the first test using this fixture, no custom tool or MCP
     server contributed a fragment for the rest of the process, and
     `test_a_custom_tools_guidance_appears_only_when_it_is_offered` passed or

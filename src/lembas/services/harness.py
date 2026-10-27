@@ -389,7 +389,7 @@ def context_variables(
     }
 
     if chat is not None:
-        # Imported here rather than at the top: `services/tools.py` imports
+        # Imported here rather than at the top: `services/tools` imports
         # this module, and a top-level import back is a cycle.
         from lembas.services import chat as chat_service
 

@@ -93,7 +93,7 @@ RULE_HELP = (
 
 
 def _outcome(text: str, event: dict[str, Any]) -> ToolOutcome:
-    """Imported here rather than at module scope: `services/tools.py` imports
+    """Imported here rather than at module scope: `services/tools` imports
     this module to build the definitions, so a top-level import back is a cycle.
     """
     from lembas.services.tools import ToolOutcome
@@ -285,7 +285,7 @@ async def _run_cancel(context: ToolContext, args: dict[str, Any]) -> ToolOutcome
 
 
 def tool_defs() -> list[ToolDef]:
-    """The four, built here so `services/tools.py` need not know the wording."""
+    """The four, built here so `services/tools` need not know the wording."""
     from lembas.services.tools import FAMILY_SCHEDULE, RISK_READ, RISK_WRITE, ToolDef
 
     return [

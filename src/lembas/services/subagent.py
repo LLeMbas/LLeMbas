@@ -557,7 +557,7 @@ async def _abandon(job_row_id: str, child_id: str) -> None:
 
 # --- The tool ------------------------------------------------------------------
 def _outcome(text: str, event: dict[str, Any]) -> ToolOutcome:
-    """Imported inside the call: `services/tools.py` imports this module to build
+    """Imported inside the call: `services/tools` imports this module to build
     the definition, so a top-level import back is a cycle."""
     from lembas.services.tools import ToolOutcome
 
