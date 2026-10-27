@@ -1,0 +1,403 @@
+{
+  "about": "Context hygiene (context.md, loop.json `context`): what is inserted into the conversation for each step of a session, in order. Steps: `read` (`path`, the file's whole `content`, `offset`, `limit` — the read tool's body: `<n>: ` lines, the note when lines remain), `edit` / `write` (`path`, `before` — absent for a new file — and `after`), `output` (any other tool's result: `tool`, `args`, `text`), `recall` (`target`, `offset`, `limit`) and `compact` (the table added after a summary; the dedupe table is emptied). Each step but `compact` carries the `id` the session gives its result. `limits` overrides loop.json's `cap` for the case. The answer is the text each step inserts: a read headed by path, lines, length and the first 8 hex digits of the content's SHA-256, a stub for an unchanged re-read inside an earlier full read, a diff for an edit, a capped output with its elided line, a stub for a repeated listing or search with the same result. LLeMbas: services/context.py (to be written); CLI: session/results.ts.",
+  "cases": [
+    {
+      "steps": [
+        {
+          "op": "read",
+          "id": "#a001",
+          "path": "src/a.ts",
+          "content": "const a = 1\nexport { a }\n"
+        },
+        {
+          "op": "read",
+          "id": "#a002",
+          "path": "src/a.ts",
+          "content": "const a = 1\nexport { a }\n"
+        }
+      ],
+      "expect": [
+        "[#a001 src/a.ts lines 1-2 of 2 sha 583e86b4]\n1: const a = 1\n2: export { a }",
+        "[#a002 src/a.ts lines 1-2 of 2 sha 583e86b4] Unchanged since #a001, which already shows lines 1-2."
+      ]
+    },
+    {
+      "steps": [
+        {
+          "op": "read",
+          "id": "#b001",
+          "path": "notes.md",
+          "content": "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10\n",
+          "limit": 5
+        },
+        {
+          "op": "read",
+          "id": "#b002",
+          "path": "notes.md",
+          "content": "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10\n",
+          "offset": 2,
+          "limit": 3
+        },
+        {
+          "op": "read",
+          "id": "#b003",
+          "path": "notes.md",
+          "content": "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10\n",
+          "offset": 4,
+          "limit": 5
+        },
+        {
+          "op": "read",
+          "id": "#b004",
+          "path": "notes.md",
+          "content": "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10\n",
+          "offset": 5,
+          "limit": 2
+        }
+      ],
+      "expect": [
+        "[#b001 notes.md lines 1-5 of 10 sha e71d970d]\n1: line 1\n2: line 2\n3: line 3\n4: line 4\n5: line 5\n\n(5 more lines — read again with offset 6)",
+        "[#b002 notes.md lines 2-4 of 10 sha e71d970d] Unchanged since #b001, which already shows lines 1-5.",
+        "[#b003 notes.md lines 4-8 of 10 sha e71d970d]\n4: line 4\n5: line 5\n6: line 6\n7: line 7\n8: line 8\n\n(2 more lines — read again with offset 9)",
+        "[#b004 notes.md lines 5-6 of 10 sha e71d970d] Unchanged since #b003, which already shows lines 4-8."
+      ]
+    },
+    {
+      "steps": [
+        {
+          "op": "read",
+          "id": "#c001",
+          "path": "a.py",
+          "content": "x = 1\ny = 2\nz = 3\n"
+        },
+        {
+          "op": "edit",
+          "id": "#c002",
+          "path": "a.py",
+          "before": "x = 1\ny = 2\nz = 3\n",
+          "after": "x = 1\ny = 20\nz = 3\n"
+        },
+        {
+          "op": "read",
+          "id": "#c003",
+          "path": "a.py",
+          "content": "x = 1\ny = 20\nz = 3\n"
+        },
+        {
+          "op": "read",
+          "id": "#c004",
+          "path": "a.py",
+          "content": "x = 1\ny = 20\nz = 3\n"
+        }
+      ],
+      "expect": [
+        "[#c001 a.py lines 1-3 of 3 sha af198c55]\n1: x = 1\n2: y = 2\n3: z = 3",
+        "[#c002 a.py sha a6a8e52b]\n@@ -1,3 +1,3 @@\n x = 1\n-y = 2\n+y = 20\n z = 3",
+        "[#c003 a.py lines 1-3 of 3 sha a6a8e52b]\n1: x = 1\n2: y = 20\n3: z = 3",
+        "[#c004 a.py lines 1-3 of 3 sha a6a8e52b] Unchanged since #c003, which already shows lines 1-3."
+      ]
+    },
+    {
+      "steps": [
+        {
+          "op": "read",
+          "id": "#d001",
+          "path": "a.txt",
+          "content": "one\n"
+        },
+        {
+          "op": "read",
+          "id": "#d002",
+          "path": "a.txt",
+          "content": "one\ntwo\n"
+        },
+        {
+          "op": "read",
+          "id": "#d003",
+          "path": "b.txt",
+          "content": "one\n"
+        }
+      ],
+      "expect": [
+        "[#d001 a.txt lines 1-1 of 1 sha 2c8b08da]\n1: one",
+        "[#d002 a.txt lines 1-2 of 2 sha c3f9c8c2]\n1: one\n2: two",
+        "[#d003 b.txt lines 1-1 of 1 sha 2c8b08da]\n1: one"
+      ]
+    },
+    {
+      "limits": {
+        "max_lines": 6,
+        "max_chars": 40000,
+        "head_lines": 2,
+        "head_chars": 20000,
+        "tail_lines": 2,
+        "tail_chars": 10000
+      },
+      "steps": [
+        {
+          "op": "output",
+          "id": "#e001",
+          "tool": "bash",
+          "args": {
+            "command": "seq 10"
+          },
+          "text": "1\n2\n3\n4\n5\n6\n7\n8\n9\n10"
+        },
+        {
+          "op": "recall",
+          "id": "#e002",
+          "target": "#e001",
+          "offset": 3,
+          "limit": 2
+        },
+        {
+          "op": "recall",
+          "id": "#e003",
+          "target": "e001"
+        }
+      ],
+      "expect": [
+        "[#e001]\n1\n2\n[6 lines elided, full output #e001]\n9\n10",
+        "[#e002 recall #e001 lines 3-4 of 10]\n3\n4",
+        "[#e003 recall #e001 lines 1-10 of 10]\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10"
+      ]
+    },
+    {
+      "steps": [
+        {
+          "op": "output",
+          "id": "#f001",
+          "tool": "list",
+          "args": {
+            "path": "src"
+          },
+          "text": "src/\n  a.ts\n  b.ts"
+        },
+        {
+          "op": "output",
+          "id": "#f002",
+          "tool": "list",
+          "args": {
+            "path": "src"
+          },
+          "text": "src/\n  a.ts\n  b.ts"
+        },
+        {
+          "op": "output",
+          "id": "#f003",
+          "tool": "list",
+          "args": {
+            "path": "src",
+            "depth": 1
+          },
+          "text": "src/\n  a.ts\n  b.ts"
+        },
+        {
+          "op": "output",
+          "id": "#f004",
+          "tool": "list",
+          "args": {
+            "path": "src"
+          },
+          "text": "src/\n  a.ts\n  b.ts\n  c.ts"
+        },
+        {
+          "op": "output",
+          "id": "#f005",
+          "tool": "list",
+          "args": {
+            "path": "src"
+          },
+          "text": "src/\n  a.ts\n  b.ts\n  c.ts"
+        }
+      ],
+      "expect": [
+        "[#f001]\nsrc/\n  a.ts\n  b.ts",
+        "[#f002] Same result as #f001.",
+        "[#f003]\nsrc/\n  a.ts\n  b.ts",
+        "[#f004]\nsrc/\n  a.ts\n  b.ts\n  c.ts",
+        "[#f005] Same result as #f004."
+      ]
+    },
+    {
+      "steps": [
+        {
+          "op": "output",
+          "id": "#1001",
+          "tool": "bash",
+          "args": {
+            "command": "git status"
+          },
+          "text": "nothing to commit"
+        },
+        {
+          "op": "output",
+          "id": "#1002",
+          "tool": "bash",
+          "args": {
+            "command": "git status"
+          },
+          "text": "nothing to commit"
+        },
+        {
+          "op": "output",
+          "id": "#1003",
+          "tool": "grep",
+          "args": {
+            "pattern": "TODO"
+          },
+          "text": "a.ts:3: // TODO"
+        },
+        {
+          "op": "output",
+          "id": "#1004",
+          "tool": "grep",
+          "args": {
+            "pattern": "TODO"
+          },
+          "text": "a.ts:3: // TODO"
+        }
+      ],
+      "expect": [
+        "[#1001]\nnothing to commit",
+        "[#1002]\nnothing to commit",
+        "[#1003]\na.ts:3: // TODO",
+        "[#1004] Same result as #1003."
+      ]
+    },
+    {
+      "steps": [
+        {
+          "op": "read",
+          "id": "#2001",
+          "path": "a.md",
+          "content": "alpha\n"
+        },
+        {
+          "op": "read",
+          "id": "#2002",
+          "path": "b.md",
+          "content": "beta\n"
+        },
+        {
+          "op": "read",
+          "id": "#2003",
+          "path": "a.md",
+          "content": "alpha\n"
+        },
+        {
+          "op": "output",
+          "id": "#2004",
+          "tool": "glob",
+          "args": {
+            "pattern": "*.md"
+          },
+          "text": "a.md\nb.md"
+        },
+        {
+          "op": "compact"
+        },
+        {
+          "op": "read",
+          "id": "#2005",
+          "path": "a.md",
+          "content": "alpha\n"
+        },
+        {
+          "op": "output",
+          "id": "#2006",
+          "tool": "glob",
+          "args": {
+            "pattern": "*.md"
+          },
+          "text": "a.md\nb.md"
+        },
+        {
+          "op": "recall",
+          "id": "#2007",
+          "target": "#2002"
+        }
+      ],
+      "expect": [
+        "[#2001 a.md lines 1-1 of 1 sha b6a98d9c]\n1: alpha",
+        "[#2002 b.md lines 1-1 of 1 sha f2c82dec]\n1: beta",
+        "[#2003 a.md lines 1-1 of 1 sha b6a98d9c] Unchanged since #2001, which already shows lines 1-1.",
+        "[#2004]\na.md\nb.md",
+        "## Files read before this summary\n\nRead a file again for its content; recall shows a result by its id.\n\n| Path | Lines | sha | Result |\n|---|---|---|---|\n| a.md | 1-1 of 1 | b6a98d9c | #2001 |\n| b.md | 1-1 of 1 | f2c82dec | #2002 |",
+        "[#2005 a.md lines 1-1 of 1 sha b6a98d9c]\n1: alpha",
+        "[#2006]\na.md\nb.md",
+        "[#2007 recall #2002 lines 1-1 of 1]\n1: beta"
+      ]
+    },
+    {
+      "steps": [
+        {
+          "op": "compact"
+        },
+        {
+          "op": "recall",
+          "id": "#3001",
+          "target": "#ffff"
+        }
+      ],
+      "expect": [
+        "",
+        "[#3001] No stored result #ffff in this session."
+      ]
+    },
+    {
+      "steps": [
+        {
+          "op": "write",
+          "id": "#4001",
+          "path": "new.md",
+          "after": "# Title\n\nText.\n"
+        },
+        {
+          "op": "read",
+          "id": "#4002",
+          "path": "empty.txt",
+          "content": ""
+        }
+      ],
+      "expect": [
+        "[#4001 new.md sha fd9dba9b] Created, 3 lines.",
+        "[#4002 empty.txt empty sha e3b0c442]\n(empty file)"
+      ]
+    },
+    {
+      "limits": {
+        "max_lines": 400,
+        "max_chars": 50,
+        "head_lines": 200,
+        "head_chars": 20,
+        "tail_lines": 100,
+        "tail_chars": 10
+      },
+      "steps": [
+        {
+          "op": "output",
+          "id": "#5001",
+          "tool": "bash",
+          "args": {
+            "command": "cat min.js"
+          },
+          "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "op": "output",
+          "id": "#5002",
+          "tool": "bash",
+          "args": {
+            "command": "cat log"
+          },
+          "text": "first line\nyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\nlast"
+        }
+      ],
+      "expect": [
+        "[#5001]\nxxxxxxxxxxxxxxxxxxxx […cut]\n[0 lines elided, full output #5001]",
+        "[#5002]\nfirst line\n[1 lines elided, full output #5002]\nlast"
+      ]
+    }
+  ]
+}

@@ -942,7 +942,7 @@ BUILTIN: tuple[Fragment, ...] = (
             "Tool results are not kept after this reply. What a tool returns is visible "
             "to you now and will be gone by the next message, so put anything worth "
             "keeping into the answer itself — the fact, the figure, the URL. If it is "
-            "worth having in a later conversation, write a note or a memory."
+            "worth having in a later conversation, write it to a file or a memory."
         ),
     ),
     Fragment(

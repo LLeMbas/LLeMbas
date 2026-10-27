@@ -506,7 +506,8 @@ async def test_a_custom_tool_runs_inside_the_loop(db, user_id, monkeypatch, mock
     assert "weather" in offered
 
     tool_turns = [m for m in payloads[1]["messages"] if m.get("role") == "tool"]
-    assert tool_turns[0]["content"] == "Sunny in Minas Tirith."
+    # Under its id (harness spec 3.0.0, context.md): `[#0001]`, then the result.
+    assert tool_turns[0]["content"] == "[#0001]\nSunny in Minas Tirith."
     assert generation.tool_events[0]["kind"] == "custom"
     assert generation.tool_events[0]["label"] == "Weather"
 

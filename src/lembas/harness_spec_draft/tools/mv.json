@@ -1,0 +1,31 @@
+{
+  "name": "mv",
+  "scope": "llembas",
+  "sessions": "chat",
+  "risk": "write",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": "purpose",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Move or rename a file or directory. A directory moves with everything in it.\n\n- `from` and `to` may be absolute or relative to the working directory; `to` must not exist yet.\n- Inside one repository (a mount) the move is staged like any other change. Between a repository and the rest of the file system, or between two repositories, it is refused: read the file and write it where it should go instead.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "from": {
+        "type": "string",
+        "description": "What to move"
+      },
+      "to": {
+        "type": "string",
+        "description": "The new path, including the name"
+      }
+    },
+    "required": [
+      "from",
+      "to"
+    ]
+  }
+}

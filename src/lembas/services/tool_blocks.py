@@ -27,7 +27,6 @@ transcripts already carry. Pure: no database, called once per rendered event.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from functools import cache
 from typing import Any
@@ -66,28 +65,27 @@ PREVIEW_LINES = 12
 
 @cache
 def _spec_kinds() -> dict[str, str]:
-    """`block` of every tool in the vendored harness spec, by name and alias."""
-    from importlib import resources
+    """`block` of every tool in the harness spec, by name and alias -- the
+    vendored copy, with the 3.0.0 draft's tools while it is read
+    (`harness_spec.tools`)."""
+    from lembas.services import harness_spec
 
     kinds: dict[str, str] = {}
     try:
-        folder = resources.files("lembas.harness_spec") / "tools"
-        for entry in folder.iterdir():
-            if not entry.name.endswith(".json"):
-                continue
-            data = json.loads(entry.read_text(encoding="utf-8"))
-            block = data.get("block")
-            if block == "plan":
-                block = HIDDEN
-            if block not in KINDS:
-                continue
-            kinds[str(data.get("name") or entry.name[:-5])] = block
-            for names in (data.get("aliases") or {}).values():
-                for alias in names if isinstance(names, list) else [names]:
-                    if isinstance(alias, str) and alias:
-                        kinds.setdefault(alias, block)
+        specs = harness_spec.tools()
     except (FileNotFoundError, OSError, ValueError):
-        pass
+        return kinds
+    for name, data in specs.items():
+        block = data.get("block")
+        if block == "plan":
+            block = HIDDEN
+        if block not in KINDS:
+            continue
+        kinds[str(data.get("name") or name)] = block
+        for names in (data.get("aliases") or {}).values():
+            for alias in names if isinstance(names, list) else [names]:
+                if isinstance(alias, str) and alias:
+                    kinds.setdefault(alias, block)
     return kinds
 
 

@@ -1,0 +1,30 @@
+{
+  "name": "list",
+  "scope": "shared",
+  "sessions": "both",
+  "risk": "read",
+  "exclusive": false,
+  "block": "search",
+  "purpose": "purpose",
+  "aliases": {
+    "cli": [],
+    "llembas": [
+      "file_list"
+    ]
+  },
+  "description": "Show a directory tree (default depth 2), skipping ignored and build directories. Good for a first look at a project.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "description": "Directory (default: working directory)",
+        "type": "string"
+      },
+      "depth": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 6
+      }
+    }
+  }
+}

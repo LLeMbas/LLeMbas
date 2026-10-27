@@ -1,0 +1,36 @@
+{
+  "name": "recall",
+  "scope": "shared",
+  "sessions": "both",
+  "risk": "read",
+  "exclusive": false,
+  "block": "read",
+  "purpose": false,
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Show a stored tool result again, in full, by its id (`#a3f2`): the lines a shortened output left out, or a result from before the conversation was summarised. Every result of this session is kept, so nothing is lost.\n\n- Returns up to 2000 lines from `offset` (1-indexed); call again with a larger offset for more.\n- An unchanged file is not worth recalling when its earlier result is still above: that result is the content.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "The result's id, e.g. #a3f2"
+      },
+      "offset": {
+        "type": "integer",
+        "minimum": 1,
+        "description": "First line to return, 1-indexed"
+      },
+      "limit": {
+        "type": "integer",
+        "minimum": 1,
+        "description": "How many lines (default 2000)"
+      }
+    },
+    "required": [
+      "id"
+    ]
+  }
+}

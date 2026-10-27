@@ -1,0 +1,38 @@
+{
+  "name": "read",
+  "scope": "shared",
+  "sessions": "both",
+  "risk": "read",
+  "exclusive": false,
+  "block": "read",
+  "purpose": "purpose",
+  "aliases": {
+    "cli": [],
+    "llembas": [
+      "file_read"
+    ]
+  },
+  "description": "Read a file or list a directory.\n\n- `path` may be absolute or relative to the working directory.\n- Returns up to 2000 lines from `offset` (1-indexed). Each line is prefixed `<n>: `; that prefix is not part of the file — never copy it into an edit.\n- For a later section, call again with a larger offset. Prefer one large read over many 30-line slices.\n- Lines over 2000 characters are cut. Use grep to find content in large files.\n- Directories come back one entry per line, subdirectories with a trailing `/`.\n- Read several files in parallel when you already know you need them.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "File or directory to read"
+      },
+      "offset": {
+        "description": "First line to return, 1-indexed",
+        "type": "integer",
+        "minimum": 1
+      },
+      "limit": {
+        "description": "How many lines (default 2000)",
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "required": [
+      "path"
+    ]
+  }
+}

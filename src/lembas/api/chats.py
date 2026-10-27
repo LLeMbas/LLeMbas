@@ -638,7 +638,7 @@ async def compact_chat(request: Request, db: Db, user: RequiredUser, chat_id: st
             raise HTTPException(
                 status.HTTP_409_CONFLICT, t("The device returned no summary, so nothing changed.")
             )
-        compaction_service.apply(chat, summary=summary, upto=upto)
+        compaction_service.apply(chat, summary=summary, upto=upto, db=db)
         db.commit()
         return templates.TemplateResponse(
             request, "chat/_thread.html", {"request": request, **_thread_context(db, chat, user)}
@@ -685,7 +685,7 @@ async def compact_chat(request: Request, db: Db, user: RequiredUser, chat_id: st
             status.HTTP_409_CONFLICT, t("The model returned no summary, so nothing changed.")
         )
 
-    compaction_service.apply(chat, summary=summary, upto=upto)
+    compaction_service.apply(chat, summary=summary, upto=upto, db=db)
     db.commit()
     log.info("chat %s compacted through %s", chat.id, upto.id)
 

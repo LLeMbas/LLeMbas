@@ -10,6 +10,23 @@ at <https://llembas.eu/changelog.html>.
 2.0 is a new major on `dev`, released as `2.0.0-beta.N`. What is listed here is on `dev` and in no
 release yet.
 
+- **A chat works with files.** In an ordinary chat the model has the file tools of the harness
+  spec (3.0.0), over the organisation's file tree: `read`, `write`, `edit`, `list`, `glob`,
+  `grep`, `search` (by meaning and words, over the search index), `mkdir`, `mv` and `rm` (to the
+  trash), with the same names, descriptions and answers as the LLeMbas CLI's — `edit` matches the
+  way the CLI's does, forgiving whitespace and indentation.
+  Every one goes through the chat's access, so it reaches only what the chat was granted, and a
+  refusal says why in the spec's words. An existing file is changed only after the chat has read
+  it, and not if it changed since. `show` opens a file for you beside the conversation, and
+  `python` will run Python in your browser once the page can (not yet: it is never offered).
+  An agent chat keeps its device's own tools.
+- **Tool results are kept short without losing anything.** Every tool result the model gets
+  starts with an id (`[#0001]`); a read says its lines and a short hash of the file; reading an
+  unchanged file again, or repeating a listing or a search with the same answer, gives a one-line
+  pointer to the earlier result instead of the content twice; a long output keeps its beginning
+  and end; an edit answers with its diff. Every result is stored with the chat, whole, and the
+  new `recall` tool shows any of them again. Nothing already sent to the model is ever changed, so
+  the prompt cache keeps working. Compacting a chat adds a table of the files read before it.
 - **Organisations.** Every account belongs to one organisation, with a role there (owner, admin or
   member) beside its role on the instance. An existing account, and one made without saying
   otherwise, is in the first organisation; whoever sets an empty instance up runs the instance and

@@ -1,0 +1,26 @@
+{
+  "name": "rm",
+  "scope": "llembas",
+  "sessions": "chat",
+  "risk": "write",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": "purpose",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Delete a file or directory by moving it to the trash, from which the user can restore it. A directory goes with everything in it: list it first.\n\n- `path` may be absolute or relative to the working directory.\n- In a repository (a mount) the deletion is staged in this session's working copy and reaches the repository only with a commit.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "File or directory to delete"
+      }
+    },
+    "required": [
+      "path"
+    ]
+  }
+}

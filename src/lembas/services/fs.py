@@ -355,6 +355,30 @@ def list_dir(v: View, raw: str) -> list[Entry]:
     return out
 
 
+def below(v: View, raw: str) -> list[Node]:
+    """Everything under a directory the session can read that it can see,
+    by path -- however it is reached: a node under a passage below the
+    directory is found, the passage itself is not (filesystem.md, *A search*).
+    What `glob`, `grep` and a search walk."""
+    path = v.path(raw)
+    node = _visible_node(v, path)
+    if node is not None and node.kind == KIND_FILE:
+        raise not_a_directory(path)
+    query = select(Node).where(
+        Node.org_id == v.org_id,
+        Node.trashed_at.is_(None),
+        Node.path.like(access.like_prefix(path), escape="\\"),
+    )
+    found = list(v.db.scalars(query.order_by(Node.path)))
+    v.resolver.remember(found)
+    return [n for n in found if v.resolver.visible(n.path)]
+
+
+def check_writable(v: View, raw: str) -> str:
+    """The level at a path the session may change, or the refusal in the spec's words."""
+    return _writable(v, v.path(raw))
+
+
 def read_stream(v: View, raw: str) -> Iterator[bytes]:
     path = v.path(raw)
     node = _visible_node(v, path)
@@ -711,7 +735,9 @@ __all__ = [
     "Entry",
     "FsError",
     "View",
+    "below",
     "check_commit",
+    "check_writable",
     "children",
     "count",
     "ensure_home",

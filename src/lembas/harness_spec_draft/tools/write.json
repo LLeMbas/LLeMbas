@@ -1,0 +1,33 @@
+{
+  "name": "write",
+  "scope": "shared",
+  "sessions": "both",
+  "risk": "write",
+  "exclusive": false,
+  "block": "edit",
+  "purpose": "purpose",
+  "aliases": {
+    "cli": [],
+    "llembas": [
+      "file_write"
+    ]
+  },
+  "description": "Create a file, or replace one completely.\n\n- An existing file must have been read first; this fails otherwise.\n- To change part of a file, use edit — never rewrite a whole file to change a few lines.\n- Do not create documentation or README files unless asked. (AGENTS.md is the exception, when your instructions say to make or update it.)",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "File to write"
+      },
+      "content": {
+        "type": "string",
+        "description": "The complete new content"
+      }
+    },
+    "required": [
+      "path",
+      "content"
+    ]
+  }
+}

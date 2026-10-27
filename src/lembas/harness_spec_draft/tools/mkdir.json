@@ -1,0 +1,26 @@
+{
+  "name": "mkdir",
+  "scope": "llembas",
+  "sessions": "chat",
+  "risk": "write",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": "purpose",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Make a directory, and any missing directories above it. Making one that already exists is not an error.\n\n- `path` may be absolute or relative to the working directory.\n- In a repository (a mount), an empty directory stays in this session's working copy; a commit leaves empty directories out.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Directory to make"
+      }
+    },
+    "required": [
+      "path"
+    ]
+  }
+}

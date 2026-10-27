@@ -26,6 +26,17 @@ FAMILY_KNOWLEDGE = "knowledge"
 FAMILY_NOTES = "notes"
 FAMILY_MEMORY = "memory"
 FAMILY_SKILLS = "skills"
+# The chat's file tools over the organisation's tree (harness spec 3.0.0,
+# `sessions: chat`): read, write, edit, list, glob, grep, mkdir, mv, rm and
+# show. No permission of its own: what a session may reach is the access
+# resolver's (`security/access.py`) -- the person's own right, the chat's
+# grants and the data group's floor -- and an agent chat has its device's.
+FAMILY_FILES = "files"
+# Python in the person's browser (`requires: page`): its own family because
+# its risk is `execute` and a chat may want files without it.
+FAMILY_PYTHON = "python"
+# `recall`: any stored result of this chat again. Offered with any tools.
+FAMILY_RECALL = "recall"
 
 # A tool that is a database row gets a family of its own, so that it can carry
 # its own guidance -- "custom:weather", "mcp:github". Everything before the
@@ -91,6 +102,9 @@ FAMILY_REPORT_BACK = "subagent:report"
 
 # The built-in families, in the order they are offered.
 FAMILIES = (
+    FAMILY_FILES,
+    FAMILY_PYTHON,
+    FAMILY_RECALL,
     FAMILY_SEARCH,
     FAMILY_FETCH,
     FAMILY_KNOWLEDGE,
@@ -220,6 +234,18 @@ class ToolContext:
     # search *and* by id, since a model that learned an id from somewhere else
     # must not be able to fetch the record past the filter.
     data_group: str = DEFAULT_GROUP
+    # The reply this call belongs to: a file written by it records the message
+    # in its version (`services/fs.py`), which is what undoing one session's
+    # changes reads. Set by the generation loop; empty elsewhere.
+    message_id: str = ""
+    # The directories whose instruction file a `read` has already handed the
+    # model in this reply (filesystem.md, "nearby" files): once each. Per
+    # reply, because an earlier reply's tool results are not in front of the
+    # model any more.
+    instructions_seen: set[str] = field(default_factory=set)
+    # Whether the session is shown somewhere a file can be opened (`show`'s
+    # `requires: display`): every chat a person reads, not a helper's hidden one.
+    display: bool = False
 
 
 @dataclass
@@ -233,6 +259,10 @@ class ToolOutcome:
 
     content: str
     event: dict[str, Any] = field(default_factory=dict)
+    # What the result is, for its insertion (`services/context.py`): a read's
+    # path, lines and hash, an edit's files and hunks, a recall's target. None
+    # is any other output, inserted under the call's name and arguments.
+    context: dict[str, Any] | None = None
 
 
 Runner = Callable[[ToolContext, dict[str, Any]], Awaitable[ToolOutcome]]
@@ -343,6 +373,14 @@ LLEMBAS_VARS: dict[str, dict[str, str]] = {
         )
     },
     "skill_manage": {"create_where": "", "files": "", "revert_deleted": "", "index_cut": ""},
+    # Pyodide in the person's browser: the standard library only, and the
+    # limits the page's runner holds a call to (`tools/files.py`).
+    "python": {
+        "packages": "none",
+        "seconds": "30",
+        "memory": "512 MB",
+        "output": "20,000 characters",
+    },
 }
 
 

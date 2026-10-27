@@ -1,0 +1,48 @@
+{
+  "context": {
+    "about": "Context hygiene (spec 3.0.0, context.md): every measure acts when a result is inserted, and nothing already sent to the model is ever rewritten — changing earlier context throws away the prompt cache from that point. conformance/context.json gives the texts.",
+    "ids": {
+      "about": "Every tool result gets an id: `#` and lowercase hex, at least 4 digits, unique in the session and never reused (not after a compaction either), so `recall` finds any of them. It is the first thing in the result, in brackets.",
+      "digits": 4
+    },
+    "read_header": "[{{id}} {{path}} lines {{from}}-{{to}} of {{of}} sha {{sha}}]",
+    "read_header_empty": "[{{id}} {{path}} empty sha {{sha}}]",
+    "edit_header": "[{{id}} {{path}} sha {{sha}}]",
+    "header": "[{{id}}]",
+    "unchanged": "Unchanged since {{earlier}}, which already shows lines {{from}}-{{to}}.",
+    "same_result": "Same result as {{earlier}}.",
+    "elided": "[{{n}} lines elided, full output {{id}}]",
+    "created": "Created, {{n}} lines.",
+    "no_result": "No stored result {{target}} in this session.",
+    "recall_header": "[{{id}} recall {{target}} lines {{from}}-{{to}} of {{of}}]",
+    "sha_digits": 8,
+    "cap": {
+      "about": "A result over max_lines lines or max_chars characters keeps its head (as many whole lines as fit both head limits) and its tail (likewise, from what is left), with the elided line between. When even the first line does not fit head_chars, it is cut to it and ends ` […cut]`, and the elided line follows however many whole lines it counts (0 included): it is there whenever anything was left out. Not applied to read (its own window: 2000 lines from an offset) or recall (likewise). The full output is stored with the session.",
+      "max_lines": 400,
+      "max_chars": 40000,
+      "head_lines": 200,
+      "head_chars": 20000,
+      "tail_lines": 100,
+      "tail_chars": 10000
+    },
+    "dedupe": {
+      "about": "by_hash: a read whose file has the same content hash as an earlier full read in the table, and whose lines lie wholly inside that read's, is answered with `unchanged`. by_result: a call with the same arguments as an earlier one in the table, whose result is the same text, is answered with `same_result`. Stubs point at the full result, never at another stub. The table is per session, and compaction empties it.",
+      "by_hash": [
+        "read"
+      ],
+      "by_result": [
+        "list",
+        "glob",
+        "grep",
+        "search"
+      ]
+    },
+    "compaction": {
+      "about": "The one deliberate break of the cache. After the summary the harness adds the table of reads still in the dedupe table — the newest full read of each path, newest last, at most `rows` — and then empties the dedupe table, so no stub ever points at content that is gone from the context. No reads: no table.",
+      "heading": "## Files read before this summary",
+      "line": "Read a file again for its content; recall shows a result by its id.",
+      "rows": 50
+    },
+    "reasoning": "Earlier turns' reasoning is left to the model's chat template: the harness sends the history as it does, neither stripping reasoning the template keeps nor adding what it drops."
+  }
+}

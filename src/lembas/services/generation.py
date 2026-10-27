@@ -33,6 +33,7 @@ from lembas.db.session import session_scope
 from lembas.services import canvas as canvas_service
 from lembas.services import chat as chat_service
 from lembas.services import compaction as compaction_service
+from lembas.services import context as context_service
 from lembas.services import (
     data_groups,
     harness_spec,
@@ -918,6 +919,12 @@ async def _run(generation: Generation) -> None:
             tool_context = tools_service.context_for(
                 db, owner, chat, tools=toolset, speaker=speaker
             )
+            tool_context.message_id = generation.message_id
+            # Every result of this reply is given an id and stored whole with
+            # the chat, and inserted the spec's way (`services/context.py`).
+            results = context_service.ResultContext(
+                context_service.DbStore(chat.id, generation.message_id)
+            )
 
             # The answering model's window, not the chat's. `_too_big` is the one
             # budget that stops a reply dead rather than asking it to wrap up, so
@@ -1289,8 +1296,9 @@ async def _run(generation: Generation) -> None:
                         if generation.stopped:
                             break
                 generation.tool_events.append(outcome.event)
-                generation.output_bytes += len(outcome.content.encode("utf-8"))
-                messages.append(tools_service.tool_turn(call, outcome.content))
+                content = _inserted(results, call, arguments[index], outcome, messages)
+                generation.output_bytes += len(content.encode("utf-8"))
+                messages.append(tools_service.tool_turn(call, content))
                 if opened := outcome.event.get("canvas"):
                     # A runner cannot write the message row, so the loop carries
                     # this exactly as it carries a merged plan. Never activated:
@@ -1556,7 +1564,7 @@ async def _maybe_compact(generation: Generation) -> None:
             upto = db.get(Message, upto_id)
             if chat is None or upto is None:
                 return
-            compaction_service.apply(chat, summary=summary, upto=upto)
+            compaction_service.apply(chat, summary=summary, upto=upto, db=db)
             db.commit()
             log.info("chat %s compacted automatically through %s", chat.id, upto_id)
     except Exception:  # the reply matters more than the tidy-up
@@ -1763,6 +1771,7 @@ async def _settle_plan(
                 context = tools_service.context_for(
                     db, owner, chat, tools=toolset, speaker=speaker
                 )
+                context.message_id = generation.message_id
                 offered = toolset.schemas
                 payload = {**payload, "tools": offered} if offered else {
                     k: v for k, v in payload.items() if k != "tools"
@@ -2187,6 +2196,43 @@ def _answered(items: list[interaction.Item], reply: interaction.Reply) -> ToolOu
 
     body = "\n\n".join(lines)
     return ToolOutcome(f"They answered:\n\n{body}", {**event, "status": "ok", "text": body})
+
+
+def _inserted(
+    results: context_service.ResultContext,
+    call: dict,
+    arguments: dict,
+    outcome: ToolOutcome,
+    messages: list[dict],
+) -> str:
+    """What the model is given for one result: its id, a read's header, a stub
+    for something already in front of it, a capped output, an edit's diff
+    (harness spec 3.0.0, `context.md`). Decided here, as the result goes in,
+    and never afterwards: nothing already sent is rewritten.
+
+    A stub may name only a result still in this request (`present_ids` of the
+    turns being built). A failure to store falls back to the plain result --
+    a reply must never die for want of an id."""
+    results.present = lambda: context_service.present_ids(messages)
+    entry = outcome.context
+    failed = outcome.event.get("status") == "error"
+    try:
+        if entry and not failed:
+            if entry.get("kind") == "read":
+                entry = {**entry, "body": outcome.content}
+            return results.insert(entry)
+        return results.insert(
+            {
+                "kind": "output",
+                "tool": call["name"],
+                "args": arguments if isinstance(arguments, dict) else {},
+                "text": outcome.content,
+                "error": failed,
+            }
+        )
+    except Exception:  # pragma: no cover - storage trouble must not end a reply
+        log.exception("could not store a tool result for chat %s", results.store)
+        return outcome.content
 
 
 async def _run_calls(

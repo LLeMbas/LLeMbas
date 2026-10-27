@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy.orm import Session as DBSession
 
 from lembas.db.models import (
+    KIND_AGENT,
     KIND_TASK,
     Chat,
     User,
@@ -20,9 +21,12 @@ from lembas.services.tools.core import (
     FAMILY_ASK,
     FAMILY_CUSTOM,
     FAMILY_FETCH,
+    FAMILY_FILES,
     FAMILY_IMAGE,
     FAMILY_MCP,
     FAMILY_PLAN,
+    FAMILY_PYTHON,
+    FAMILY_RECALL,
     FAMILY_REPORT,
     FAMILY_REPORT_BACK,
     FAMILY_SCHEDULE,
@@ -106,8 +110,11 @@ def _family_allowed(
         # rather than read here so that the whole gate is answered from the
         # snapshot `resolve_tools` already took.
         return bool(allowed.get("tools.subagent") and subagents)
-    if gate == FAMILY_PLAN:
-        # No permission and no switch of its own: a chat with tools has a plan.
+    if gate in (FAMILY_PLAN, FAMILY_FILES, FAMILY_PYTHON, FAMILY_RECALL):
+        # No permission and no switch of its own: a chat with tools has a plan,
+        # its stored results, and its files -- what a session may reach in the
+        # tree is the access resolver's to say, path by path, not a switch's.
+        # Whether a chat can have them at all is `_offered_in` below.
         return True
     if gate in (
         FAMILY_CUSTOM,
@@ -414,8 +421,43 @@ def resolve_tools(
             # list that is not there. `skill_create` stays: writing the first
             # one is exactly what somebody with none needs.
             and not (empty_library and tool.name in _NEEDS_A_SKILL)
+            and _offered_in(tool, chat)
         )
     )
+
+# The families a chat on this server works with itself (harness spec 3.0.0,
+# `sessions: chat`): an agent chat works on its device's disk with the
+# device's own tools and results, and is offered none of them here.
+_CHAT_ONLY = frozenset({FAMILY_FILES, FAMILY_PYTHON, FAMILY_RECALL})
+
+
+def has_display(chat: Chat | None) -> bool:
+    """`show`'s `requires: display`: the chat is one a person reads in the web
+    UI -- not a helper's hidden chat, not an agent chat (whose device shows
+    files through the link, `acp.md` `_lembas/show`)."""
+    return (
+        chat is not None
+        and chat.kind != KIND_AGENT
+        and not getattr(chat, "parent_chat_id", None)
+    )
+
+
+def _offered_in(tool: ToolDef, chat: Chat) -> bool:
+    """Whether this chat can have the tool at all, beyond the gates: the
+    spec's `sessions` and `requires`."""
+    if tool.family not in _CHAT_ONLY:
+        return True
+    if chat.kind == KIND_AGENT:
+        return False
+    if tool.name == "show":
+        return has_display(chat)
+    if tool.family == FAMILY_PYTHON:
+        # `requires: page`: a browser page of this chat that has said it can run
+        # Python (`services/pages.py`). Never a schedule's or a helper's chat.
+        from lembas.services import pages
+
+        return not unattended(chat) and pages.attached(getattr(chat, "id", "") or "")
+    return True
 
 
 # Skills tools that are meaningless with an empty library.
@@ -498,6 +540,9 @@ def effective_off(db: DBSession, chat: Chat | None, user: User | None) -> frozen
 # What a gate is called in a menu. A gate covers several tools, so no single
 # tool's label is the right name for it. Marked here, translated where shown.
 GATE_LABELS = {
+    "files": N_("Working with files"),
+    "python": N_("Running Python"),
+    "recall": N_("Recalling earlier results"),
     "web_search": N_("Web search"),
     "fetch": N_("Fetching pages"),
     "knowledge": N_("Your knowledge library"),

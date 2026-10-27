@@ -255,6 +255,12 @@ def test_the_builtins_that_change_things_say_so():
         name for name, tool in tools_service.REGISTRY.items() if tool.risk == RISK_WRITE
     }
     assert writing == {
+        # The chat's file tools (spec 3.0.0): every one changes the tree.
+        "write",
+        "edit",
+        "mkdir",
+        "mv",
+        "rm",
         "note_manage",
         "memory",
         "skill_manage",

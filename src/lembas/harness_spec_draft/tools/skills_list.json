@@ -1,0 +1,33 @@
+{
+  "name": "skills_list",
+  "scope": "shared",
+  "sessions": "both",
+  "risk": "read",
+  "exclusive": false,
+  "block": "search",
+  "purpose": false,
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "variables": {
+    "category": "\", category\" where skills have categories, or empty"
+  },
+  "description": "List the available skills (name{{category}}, description). Load one with skill_view(name).",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "category": {
+        "description": "Only this category",
+        "type": "string"
+      }
+    }
+  },
+  "narrow": {
+    "llembas": {
+      "drop": [
+        "category"
+      ]
+    }
+  }
+}

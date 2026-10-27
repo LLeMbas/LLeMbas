@@ -1,0 +1,30 @@
+{
+  "name": "knowledge_get",
+  "scope": "cli",
+  "sessions": "agent",
+  "risk": "read",
+  "exclusive": false,
+  "block": "read",
+  "purpose": false,
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Read a document from the knowledge bases by its [id] (from knowledge_search): up to 40,000 characters at a time; offset reads further.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "offset": {
+        "description": "Characters to skip: to read past what the first call returned",
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "required": [
+      "id"
+    ]
+  }
+}

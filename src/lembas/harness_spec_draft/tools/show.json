@@ -1,0 +1,35 @@
+{
+  "name": "show",
+  "scope": "shared",
+  "sessions": "both",
+  "risk": "interact",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": "purpose",
+  "requires": [
+    "display"
+  ],
+  "unavailable": "Nothing can be shown now: this session has no screen to show a file on. Give the user the path instead.",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Open a file in the user's viewer, beside the conversation, without them having to look for it: Markdown rendered, code highlighted, plain text as it is, and HTML as a page in a sandboxed frame that cannot reach this app, the user's data or anything the instance does not allow. Use it when the user should see the file itself — a page or a chart you made, a document you wrote — not for files you only read.\n\n- `path` may be absolute or relative to the working directory. The file must exist and be readable in this session: write it first.\n- `line` scrolls a text file to that line.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "File to show"
+      },
+      "line": {
+        "type": "integer",
+        "minimum": 1,
+        "description": "Line to scroll to (text files)"
+      }
+    },
+    "required": [
+      "path"
+    ]
+  }
+}

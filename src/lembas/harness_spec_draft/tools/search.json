@@ -1,0 +1,36 @@
+{
+  "name": "search",
+  "scope": "llembas",
+  "sessions": "chat",
+  "risk": "read",
+  "exclusive": false,
+  "block": "search",
+  "purpose": "purpose",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Search the files this session can see, by meaning and by words together: the best passages first, each with its path and line range. Use it to find where something is discussed or answered when you do not know the exact words; use grep for exact text or a pattern, glob for file names.\n\n- `path` limits the search to a directory (default: everything this session can see).\n- A passage is an extract. Read the file around it before answering from it when the answer turns on detail, and cite the path.\n- Only indexed files are searched: text, Markdown, code, JSON and the text of PDF and DOCX files, up to a size limit. A file just written is found once it has been indexed.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "description": "What to look for, in words: a question or the topic"
+      },
+      "path": {
+        "type": "string",
+        "description": "Directory to search (default: everything this session can see)"
+      },
+      "limit": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 50,
+        "description": "How many passages (default 10)"
+      }
+    },
+    "required": [
+      "query"
+    ]
+  }
+}

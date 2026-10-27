@@ -1,0 +1,29 @@
+{
+  "name": "note_view",
+  "scope": "cli",
+  "sessions": "agent",
+  "risk": "read",
+  "exclusive": false,
+  "block": "read",
+  "purpose": false,
+  "aliases": {
+    "cli": [
+      "notes"
+    ],
+    "llembas": [
+      "notes_get"
+    ]
+  },
+  "description": "Read one of your notes by its [id] (from notes_search).",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id"
+    ]
+  }
+}

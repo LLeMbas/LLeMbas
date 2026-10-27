@@ -12,7 +12,7 @@ from lembas.db.models import (
 from lembas.services import settings_store
 from lembas.services.library import documents as documents_service
 from lembas.services.tools.core import ToolContext, ToolSet
-from lembas.services.tools.resolve import scoped_skills_off, unattended
+from lembas.services.tools.resolve import has_display, scoped_skills_off, unattended
 
 
 def context_for(
@@ -56,6 +56,7 @@ def context_for(
         tools=tools.by_name if tools is not None else None,
         interaction_timeout=float(settings_store.agents(db)["approval_timeout"]),
         unattended=unattended(chat),
+        display=has_display(chat),
     )
 
 

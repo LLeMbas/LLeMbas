@@ -141,6 +141,14 @@ from lembas.db.models.report import (
     SOURCES,
     Report,
 )
+from lembas.db.models.result import (
+    RESULT_EDIT,
+    RESULT_KINDS,
+    RESULT_OUTPUT,
+    RESULT_READ,
+    RESULT_RECALL,
+    ToolResult,
+)
 from lembas.db.models.schedule import (
     ORIGIN_MODEL,
     ORIGIN_USER,
@@ -288,6 +296,12 @@ __all__ = [
     "TARGET_CHAT",
     "TARGET_REPORT",
     "Report",
+    "RESULT_EDIT",
+    "RESULT_KINDS",
+    "RESULT_OUTPUT",
+    "RESULT_READ",
+    "RESULT_RECALL",
+    "ToolResult",
     "Schedule",
     "Chat",
     "ChatJob",

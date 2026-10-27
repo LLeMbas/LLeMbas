@@ -23,6 +23,15 @@ from typing import Any
 
 SPEC_DIR = Path(__file__).resolve().parent.parent / "harness_spec"
 
+# The parts of the CLI's spec 3.0.0 draft this server implements ahead of the
+# pin: tools a chat is offered over the file tree, the context-hygiene texts and
+# numbers (`loop.json` `context`), and the `context`/`workspace` prompt blocks.
+# Copied verbatim from the CLI's `harness/` (`3.0.0-draft`, CLI dev eacf84f)
+# and read only while the vendored spec is older than 3: `fetch_harness.py
+# --update` to a 3.x tag makes it dead, and it is deleted then. Never edited
+# here, exactly like the vendored copy.
+DRAFT_DIR = Path(__file__).resolve().parent.parent / "harness_spec_draft"
+
 # `{{name}}` in a prompt text or a tool description: the facts the two projects
 # differ in. The grammar is the one `services/prompts.py` substitutes, so a
 # text's JSON, shell and Markdown are never candidates.
@@ -44,13 +53,27 @@ def _json(relative: str) -> Any:
     return json.loads((SPEC_DIR / relative).read_text(encoding="utf-8"))
 
 
+def _major(text: str) -> int:
+    match = re.match(r"\s*v?(\d+)", text)
+    return int(match.group(1)) if match else 0
+
+
+@cache
+def draft_active() -> bool:
+    """Whether the 3.0.0 draft overlay is read: only while the vendored spec is
+    older than 3, so pinning a 3.x spec retires it without a code change."""
+    return DRAFT_DIR.is_dir() and _major(version()) < 3
+
+
 @cache
 def tools() -> dict[str, dict[str, Any]]:
-    """Every tool of the spec, by name."""
+    """Every tool of the spec, by name (the draft's where it has one)."""
     out: dict[str, dict[str, Any]] = {}
-    for path in sorted((SPEC_DIR / "tools").glob("*.json")):
-        spec = json.loads(path.read_text(encoding="utf-8"))
-        out[spec["name"]] = spec
+    dirs = [SPEC_DIR / "tools"] + ([DRAFT_DIR / "tools"] if draft_active() else [])
+    for directory in dirs:
+        for path in sorted(directory.glob("*.json")):
+            spec = json.loads(path.read_text(encoding="utf-8"))
+            out[spec["name"]] = spec
     return out
 
 
@@ -62,9 +85,15 @@ def arity() -> dict[str, Any]:
     return _json("permission/arity.json")
 
 
+@cache
 def loop() -> dict[str, Any]:
-    """How one prompt runs: the step backstop, the budgets, the wrap-up, the nudges."""
-    return _json("loop.json")
+    """How one prompt runs: the step backstop, the budgets, the wrap-up, the
+    nudges, and (spec 3.0.0) `context`, the context-hygiene texts and numbers."""
+    out = dict(_json("loop.json"))
+    if draft_active() and "context" not in out:
+        draft = json.loads((DRAFT_DIR / "loop.json").read_text(encoding="utf-8"))
+        out["context"] = draft["context"]
+    return out
 
 
 def index() -> dict[str, Any]:
@@ -74,7 +103,10 @@ def index() -> dict[str, Any]:
 
 def prompt(relative: str) -> str:
     """A prompt text, with its provenance comments taken out (as the LLeMbas CLI sends it)."""
-    raw = (SPEC_DIR / "prompts" / relative).read_text(encoding="utf-8")
+    path = SPEC_DIR / "prompts" / relative
+    if not path.exists() and draft_active():
+        path = DRAFT_DIR / "prompts" / relative
+    raw = path.read_text(encoding="utf-8")
     return re.sub(r"<!--[\s\S]*?-->\n?", "", raw).strip()
 
 
@@ -225,6 +257,7 @@ __all__ = [
     "NarrowError",
     "arity",
     "conformance_dir",
+    "draft_active",
     "fill",
     "fill_parameters",
     "hardline",

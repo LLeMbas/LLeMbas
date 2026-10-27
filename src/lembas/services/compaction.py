@@ -82,11 +82,42 @@ def reset(chat: Chat) -> None:
     chat.compacted_at = None
 
 
-def apply(chat: Chat, *, summary: str, upto: Message) -> None:
-    """Record a summary and move the boundary. Caller commits."""
-    chat.compact_summary = summary.strip()
+def apply(chat: Chat, *, summary: str, upto: Message, db: DBSession | None = None) -> None:
+    """Record a summary and move the boundary. Caller commits.
+
+    With `db`, the summary is followed by the table of what was read in the
+    turns it covers (harness spec 3.0.0, `context.md` 7): the newest full read
+    of each path since the last compaction, with its result id, so the model
+    knows what it had read and that `recall` still shows it. Added by the
+    harness, not the summariser. The spec builds it from the reads still in
+    front of the model; a chat compacts between replies, when none is (a
+    reply's tool results are not sent again), so it is drawn from the reads
+    made since the previous compaction instead. The dedupe table it empties is
+    already empty for the same reason: a stub only ever names a result in the
+    request being built (`services/context.py`).
+    """
+    text = summary.strip()
+    if db is not None:
+        from lembas.services import context as context_service
+
+        reads = context_service.reads_since(db, chat.id, chat.compacted_at)
+        table = context_service.ResultContext(context_service.MemoryStore()).compaction_table(
+            reads
+        )
+        if table:
+            text = f"{text}\n\n{table}"
+    chat.compact_summary = text
     chat.compacted_through_id = upto.id
     chat.compacted_at = datetime.now(UTC)
+
+
+def _without_reads_table(summary: str) -> str:
+    """A summary without the reads table the harness added after it."""
+    from lembas.services import context as context_service
+
+    heading = context_service.spec()["compaction"]["heading"]
+    at = summary.find(f"\n\n{heading}")
+    return summary[:at] if at >= 0 else summary
 
 
 def split(
@@ -166,9 +197,10 @@ def previous_summary_block(chat: Chat) -> str:
     that held a known variable and expanded to nothing, so the prompt does not
     end up with a hole where a heading was.
     """
-    if not chat.compact_summary.strip():
+    earlier = _without_reads_table(chat.compact_summary).strip()
+    if not earlier:
         return ""
-    return "## Summary of even earlier turns\n\n" + chat.compact_summary.strip()
+    return "## Summary of even earlier turns\n\n" + earlier
 
 
 def should_compact(db: DBSession, chat: Chat, *, pending: str = "") -> bool:

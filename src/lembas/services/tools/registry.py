@@ -6,7 +6,19 @@ from collections.abc import Mapping
 from typing import Any
 
 from lembas.services import plans
-from lembas.services.tools import ask, knowledge, memory, notes, plan, reports, scratch, skills, web
+from lembas.services.tools import (
+    ask,
+    files,
+    knowledge,
+    memory,
+    notes,
+    plan,
+    recall,
+    reports,
+    scratch,
+    skills,
+    web,
+)
 from lembas.services.tools.core import ToolDef, spec_aliases
 
 # Every built-in tool, in the order they are offered: each module's `TOOLS`, one
@@ -14,6 +26,8 @@ from lembas.services.tools.core import ToolDef, spec_aliases
 REGISTRY: dict[str, ToolDef] = {
     tool.name: tool
     for tool in (
+        *files.TOOLS,
+        *recall.TOOLS,
         *web.TOOLS,
         *knowledge.TOOLS,
         *notes.TOOLS,

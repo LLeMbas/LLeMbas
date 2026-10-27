@@ -121,15 +121,16 @@ def _think(c):
     return out
 
 
-# The file tools are not LLeMbas's: an agent chat runs on a linked LLeMbas CLI,
-# which edits the files and runs these cases itself.
-_ON_THE_DEVICE = "the file tools run on the linked LLeMbas CLI, not in LLeMbas"
+# The patch tools are not LLeMbas's: an agent chat runs on a linked LLeMbas CLI,
+# which applies patches and runs these cases itself. `edit` is run here now, in
+# tests/test_chat_files.py, against the chat's own edit tool.
+_ON_THE_DEVICE = "the patch tools run on the linked LLeMbas CLI, not in LLeMbas"
 
 # Areas of the spec LLeMbas does not run yet, or no longer runs, and why.
 PENDING = {
     "permission": "LLeMbas's modes are still its own table (agent/policy.py POLICY); the spec's "
     "modes.json and default rules are adopted later -- see the LLeMbas CLI's harness-parity notes",
-    "edit": _ON_THE_DEVICE,
+    "edit": "run in tests/test_chat_files.py against the chat's edit tool",
     "unidiff": _ON_THE_DEVICE,
     "envelope": _ON_THE_DEVICE,
 }
@@ -193,36 +194,35 @@ def test_conformance(area, case):
 
 # --- The tools ----------------------------------------------------------------
 
-# The tools an agent chat uses, offered by the linked LLeMbas CLI under the
+# The tools only an agent chat has, offered by the linked LLeMbas CLI under the
 # spec's own name, description and parameters. LLeMbas itself offers none of
-# them, and the spec scopes them `cli`.
+# them, and the spec scopes them `cli`. (Since spec 3.0.0 the file tools are
+# `shared`: a chat has its own over the server's tree.)
 DEVICE_TOOLS = (
-    "read",
-    "write",
-    "edit",
     "multiedit",
     "apply_patch",
-    "list",
-    "glob",
-    "grep",
     "bash",
 )
 # Shared tools LLeMbas offers under the spec's own name, description and
 # parameters -- the definition a model is sent is the spec's, read from it.
 SHARED_ADOPTED = (
+    # The file tools over the chat's tree (spec 3.0.0), and `show` and `recall`.
+    "read",
+    "write",
+    "edit",
+    "list",
+    "glob",
+    "grep",
+    "show",
+    "recall",
     "plan_write",
     "plan_update",
     "plan_submit",
-    "knowledge_search",
-    "knowledge_get",
     "ask_user",
     "task",
     "web_search",
     "web_fetch",
     "memory",
-    "notes_search",
-    "note_view",
-    "note_manage",
     "skills_list",
     "skill_view",
     "skill_manage",
