@@ -12,6 +12,7 @@ file. Nothing is fetched at runtime.
 
     python scripts/fetch_harness.py               # verify the vendored copy against the lock
     python scripts/fetch_harness.py --update v1.0.0    # fetch that tag's harness/, re-pin
+    python scripts/fetch_harness.py --update v2.0.0-beta.1  # a pre-release tag works the same
     python scripts/fetch_harness.py --check       # is there a newer spec than the pinned one?
 
 `--update` is how a new spec version arrives: review the diff, run the tests
@@ -37,8 +38,11 @@ LOCKFILE = Path(__file__).resolve().parent / "harness.lock.json"
 
 FORGE = "https://git.houmeres.sk"
 REPO = "LLeMbas/LLeMbas-CLI"
-# Stable releases only: a `-beta.N` tag is not a spec LLeMbas pins.
-RELEASE_TAG = re.compile(r"^v\d+\.\d+\.\d+$")
+# A release tag, stable (`vX.Y.Z`) or pre-release (`vX.Y.Z-beta.N`). A beta is
+# pinnable: the next major is built against the CLI's betas before either side
+# has a stable release. `--check` looks at betas only when the pin is one, so a
+# stable pin is never offered a pre-release.
+RELEASE_TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)(?:-beta\.(\d+))?$")
 
 
 def _get(url: str) -> bytes:
@@ -107,7 +111,9 @@ def verify() -> int:
 
 def update(ref: str) -> int:
     if not RELEASE_TAG.match(ref):
-        raise SystemExit(f"fetch_harness: {ref!r} is not a release tag (vX.Y.Z)")
+        raise SystemExit(
+            f"fetch_harness: {ref!r} is not a release tag (vX.Y.Z or vX.Y.Z-beta.N)"
+        )
     files = _remote_files(ref)
     fetched = {p: _get(f"{FORGE}/{REPO}/raw/tag/{ref}/harness/{p}") for p in files}
     tmp = SPEC_DIR.with_name(SPEC_DIR.name + ".new")
@@ -130,18 +136,39 @@ def update(ref: str) -> int:
     return 0
 
 
+def _is_beta(tag: str) -> bool:
+    match = RELEASE_TAG.match(tag)
+    return bool(match and match.group(4) is not None)
+
+
 def _semver(tag: str) -> tuple[int, ...]:
-    return tuple(int(x) for x in tag.lstrip("v").split("."))
+    """A release tag's sort key, SemVer's order: `v2.0.0-beta.2` sorts above
+    `v2.0.0-beta.1` and below `v2.0.0`. Git's own version sort puts the beta
+    above the release, which is why this is not left to it."""
+    match = RELEASE_TAG.match(tag)
+    if match is None:
+        raise ValueError(f"not a release tag: {tag!r}")
+    major, minor, patch, beta = match.groups()
+    pre = (0, int(beta)) if beta is not None else (1, 0)
+    return (int(major), int(minor), int(patch), *pre)
 
 
 def check() -> int:
     lock = json.loads(LOCKFILE.read_text())
     tags = json.loads(_get(f"{FORGE}/api/v1/repos/{REPO}/tags?limit=50"))
-    stable = sorted((t["name"] for t in tags if RELEASE_TAG.match(t["name"])), key=_semver)
-    if not stable:
+    betas = _is_beta(lock["ref"])
+    releases = sorted(
+        (
+            t["name"]
+            for t in tags
+            if RELEASE_TAG.match(t["name"]) and (betas or not _is_beta(t["name"]))
+        ),
+        key=_semver,
+    )
+    if not releases:
         print("fetch_harness: no release tags found", file=sys.stderr)
         return 1
-    newest = stable[-1]
+    newest = releases[-1]
     try:
         version = _get(f"{FORGE}/{REPO}/raw/tag/{newest}/harness/VERSION").decode().strip()
     except urllib.error.HTTPError:
