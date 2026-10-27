@@ -31,6 +31,11 @@ release yet.
   top of what the chat may see down to its starting directory, outermost first, and sent with the
   system prompt — only ones the chat can read. The model is also told which paths it can reach and
   how, and where relative paths start.
+- **Skills are files.** A skill is `skills/<name>/SKILL.md` in the file tree — in your
+  `/home/<you>/skills/`, the organisation's `/skills/`, or a `skills/` directory on the way to the
+  chat's starting directory, the nearest winning a name. `skills_list`, `skill_view` and
+  `skill_manage` work on those files (a new skill goes to your own skills directory; revert puts
+  back the file's previous version), and editing the file works too.
 - **Organisations.** Every account belongs to one organisation, with a role there (owner, admin or
   member) beside its role on the instance. An existing account, and one made without saying
   otherwise, is in the first organisation; whoever sets an empty instance up runs the instance and

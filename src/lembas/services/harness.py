@@ -42,7 +42,6 @@ from lembas.db.models import KIND_TASK, User
 from lembas.services import branding, harness_spec, plans, prompts, settings_store
 from lembas.services import prototypes as prototypes_service
 from lembas.services.library import memories as memories_service
-from lembas.services.library import skills as skills_service
 from lembas.services.schedule import clock
 
 log = logging.getLogger(__name__)
@@ -325,13 +324,7 @@ def context_variables(
         "plan_tools": PLAN_TOOLS,
         "ask_tool": ASK_TOOL,
         "memories": memories_service.block(db, user, group) if "memory" in families else "",
-        "skills": (
-            skills_service.index_block(
-                db, user, exclude=tools_service.scoped_skills_off(chat), group=group
-            )
-            if "skills" in families
-            else ""
-        ),
+        "skills": _skills_index(db, user, chat) if "skills" in families else "",
         # What can be drawn, and with what. Guarded by family for the reason the
         # memory block is: an instance with no ComfyUI must not pay a settings
         # read and a table scan to tell a model about a tool it was not offered.
@@ -524,6 +517,18 @@ def _schedule_values(db: DBSession, chat, user) -> dict[str, str]:
         "schedule_instruction": schedule.instruction or schedule.request or "",
         "schedule_summary": schedules_service.describe(schedule, owner=user),
     }
+
+
+def _skills_index(db: DBSession, user: User | None, chat) -> str:
+    """The skills this chat can read, one line each (`services/skill_files.py`)."""
+    if user is None:
+        return ""
+    from lembas.services import fs, skill_files
+    from lembas.services import tools as tools_service
+
+    return skill_files.index_block(
+        fs.view(db, user, chat), exclude=tools_service.scoped_skills_off(chat)
+    )
 
 
 def limit_for(db: DBSession) -> int:

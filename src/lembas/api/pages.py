@@ -146,8 +146,8 @@ def _scope_context(db: DBSession, user: User, chat: Chat | None) -> dict:
     unchanged. `scope_json` is set explicitly because it is a *column* default,
     applied at flush, and this one is never flushed.
     """
+    from lembas.services import fs, skill_files
     from lembas.services import tools as tools_service
-    from lembas.services.library import skills as skills_service
 
     prospective = chat is None
     if prospective:
@@ -197,7 +197,7 @@ def _scope_context(db: DBSession, user: User, chat: Chat | None) -> dict:
                 "description": skill.description,
                 "on": skill.name not in skills_off,
             }
-            for skill in skills_service.enabled_for(db, user)
+            for skill in skill_files.all_skills(fs.view(db, user, chat))
         ]
         for name in sorted(skills_off):
             if name not in {s["name"] for s in skills}:

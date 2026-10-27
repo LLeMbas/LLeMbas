@@ -7,10 +7,10 @@ import pytest
 from lembas.db.models import Chat, Connection, Model, User
 from lembas.security.passwords import hash_password
 from lembas.services import chat as chat_service
-from lembas.services import harness, prompts, settings_store
+from lembas.services import fs, harness, prompts, settings_store
+from lembas.services import skill_format as fmt
 from lembas.services import tools as tools_service
 from lembas.services.library import memories as memories_service
-from lembas.services.library import skills as skills_service
 
 
 @pytest.fixture
@@ -120,10 +120,15 @@ def test_memories_are_absent_without_the_memory_tool(db, owner):
     assert "Prefers metric units." not in text
 
 
+def _skill(db, owner, name: str, description: str, body: str) -> None:
+    home = fs.ensure_home(db, owner).path
+    fs.write(fs.view(db, owner), f"{home}/skills/{name}/SKILL.md",
+             fmt.compose(name, description, body).encode())
+    db.commit()
+
+
 def test_the_skill_index_is_names_and_descriptions_only(db, owner):
-    skills_service.create(
-        db, owner=owner, name="weekly-report", description="When asked.", body="SECRET"
-    )
+    _skill(db, owner, "weekly-report", "When asked.", "SECRET")
     text = harness.compose(db, owner, _tools("skill_view"))
     assert "weekly-report: When asked." in text
     assert "SECRET" not in text
@@ -142,9 +147,7 @@ def test_an_empty_store_contributes_no_heading(db, owner):
 def test_the_harness_is_capped(db, owner, monkeypatch):
     monkeypatch.setattr(harness, "MAX_HARNESS_CHARS", 200)
     for index in range(50):
-        skills_service.create(
-            db, owner=owner, name=f"skill-{index}", description="x" * 200, body="y"
-        )
+        _skill(db, owner, f"skill-{index}", "x" * 200, "y")
     assert len(harness.compose(db, owner, _tools("skill_view"))) <= 202
 
 

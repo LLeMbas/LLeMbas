@@ -15,7 +15,6 @@ from lembas.db.models import (
 )
 from lembas.services import search as search_service
 from lembas.services import settings_store
-from lembas.services.library import skills as skills_service
 from lembas.services.tools.core import (
     FAMILIES,
     FAMILY_ASK,
@@ -332,15 +331,13 @@ def resolve_tools(
         from lembas.services import model_prefs
 
         off = off | (model_prefs.tools_off(db, user, model.model_id) - scoped_on(chat))
-    # Counted in the answering model's own data group: skills in another group
-    # are not readable here, so they must not keep `skill_get` on offer.
-    from lembas.services import data_groups
+    # The skills this chat can read, as files in its view of the tree
+    # (`services/skill_files.py`): none, and listing and reading them are
+    # withdrawn below.
+    from lembas.services import fs, skill_files
 
-    empty_library = not skills_service.count_enabled(
-        db,
-        user,
-        exclude=scoped_skills_off(chat),
-        group=data_groups.for_speaker(db, user, chat, speaker),
+    empty_library = user is None or not skill_files.count(
+        fs.view(db, user, chat), exclude=scoped_skills_off(chat)
     )
 
     # A scheduled task runs with nobody present, so `ask_user` cannot work here:
@@ -425,6 +422,10 @@ def resolve_tools(
         )
     )
 
+
+# Skills tools that are meaningless with an empty library.
+_NEEDS_A_SKILL = frozenset({"skills_list", "skill_view"})
+
 # The families a chat on this server works with itself (harness spec 3.0.0,
 # `sessions: chat`): an agent chat works on its device's disk with the
 # device's own tools and results, and is offered none of them here.
@@ -458,10 +459,6 @@ def _offered_in(tool: ToolDef, chat: Chat) -> bool:
 
         return not unattended(chat) and pages.attached(getattr(chat, "id", "") or "")
     return True
-
-
-# Skills tools that are meaningless with an empty library.
-_NEEDS_A_SKILL = frozenset({"skills_list", "skill_view"})
 
 
 def unattended(chat: Chat | None) -> bool:

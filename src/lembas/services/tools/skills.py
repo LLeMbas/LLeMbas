@@ -1,20 +1,21 @@
-"""`skills_list`, `skill_view` and `skill_manage`, and the skill text format."""
+"""`skills_list`, `skill_view` and `skill_manage`, over skill files (spec 3.0.0).
+
+A skill is `<skills dir>/<name>/SKILL.md` in the tree (`services/skill_files.py`
+finds them, `services/skill_format.py` checks them). Every read and write goes
+through the chat's view of the tree, so a skill the chat cannot read does not
+exist for it, one it can only read cannot be changed, and every change is a
+file version -- which is what `revert` puts back.
+"""
 
 from __future__ import annotations
 
-import json
+import posixpath
 from typing import Any
 
-from sqlalchemy import select
-
-from lembas.db.models import (
-    AUTHOR_MODEL,
-    DEFAULT_GROUP,
-    SkillRevision,
-    User,
-)
+from lembas.db.models import Chat, User
 from lembas.db.session import session_scope
-from lembas.services.library import skills as skills_service
+from lembas.services import blobs, fs, skill_files
+from lembas.services import skill_format as fmt
 from lembas.services.tools.core import (
     FAMILY_SKILLS,
     RISK_WRITE,
@@ -25,27 +26,27 @@ from lembas.services.tools.core import (
     spec_parameters,
 )
 
+# Kept for callers that composed and parsed skills through this module.
+compose_skill = fmt.compose
+parse_skill = fmt.parse
 
-# --- Skills ------------------------------------------------------------------
-def _skill_hidden(context: ToolContext, skill: Any) -> bool:
-    """Switched off for this chat. Enforced in the runners and not only in the
-    listing: without it a model could name a skill it was never shown -- from
-    an earlier turn, from a note -- and be handed it."""
-    return skill is not None and skill.name in {
-        skills_service.slugify(off) for off in context.skills_off
-    }
+
+def _view(db, context: ToolContext) -> fs.View | None:
+    user = db.get(User, context.owner_id) if context.owner_id else None
+    if user is None:
+        return None
+    chat = db.get(Chat, context.chat_id) if context.chat_id else None
+    return fs.view(db, user, chat, message_id=context.message_id or None)
 
 
 async def _run_skills_list(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
     with session_scope() as db:
-        user = db.get(User, context.owner_id)
-        shown = skills_service.enabled_for(
-            db, user, exclude=context.skills_off, group=context.data_group
-        )
+        v = _view(db, context)
+        shown = skill_files.all_skills(v, exclude=context.skills_off) if v is not None else []
         event = {
             "name": "skills_list",
             "status": "ok",
-            "results": [{"title": skill.name, "id": skill.id} for skill in shown],
+            "results": [{"title": skill.name, "path": skill.path} for skill in shown],
         }
         if not shown:
             return ToolOutcome("No skills yet.", event)
@@ -56,112 +57,29 @@ async def _run_skills_list(context: ToolContext, args: dict[str, Any]) -> ToolOu
 async def _run_skill_view(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
     name = str(args.get("name") or "").strip()
     with session_scope() as db:
-        user = db.get(User, context.owner_id)
-        skill = skills_service.by_name(db, name, user, context.data_group)
-        if _skill_hidden(context, skill):
-            skill = None
+        v = _view(db, context)
+        skill = skill_files.find(v, name, exclude=context.skills_off) if v is not None else None
         if skill is None:
             listed = ", ".join(
-                s.name
-                for s in skills_service.enabled_for(
-                    db, user, exclude=context.skills_off, group=context.data_group
-                )
-            )
+                s.name for s in skill_files.all_skills(v, exclude=context.skills_off)
+            ) if v is not None else ""
             return ToolOutcome(
                 f'There is no skill "{name}". Skills: {listed or "(none)"}',
                 {"name": "skill_view", "status": "error", "error": "Not found."},
             )
+        text = fs.read(v, skill.path).decode("utf-8", errors="replace")
+        parsed = fmt.parse(text)
+        body = parsed[1] if parsed else text
         return ToolOutcome(
-            f"# Skill: {skill.name}\n{skill.description}\n\n{skill.body}",
+            f"# Skill: {skill.name}\n{skill.description}\nFile: {skill.path}\n\n{body}",
             {
                 "name": "skill_view",
                 "query": skill.name,
                 "status": "ok",
-                "results": [{"title": skill.name, "id": skill.id}],
+                "path": skill.path,
+                "results": [{"title": skill.name, "path": skill.path}],
             },
         )
-
-
-def compose_skill(name: str, description: str, instructions: str) -> str:
-    """A SKILL.md from its parts, as the LLeMbas CLI writes one (`composeSkill`):
-    what `skill_manage`'s `content` and a patch's `old_string` are read against,
-    so a model moving between the two sees one shape."""
-    one_line = " ".join(description.split())
-    return (
-        f"---\nname: {name}\ndescription: {json.dumps(one_line, ensure_ascii=False)}\n---\n\n"
-        f"{instructions.strip()}\n"
-    )
-
-
-def parse_skill(text: str) -> tuple[dict[str, str], str] | None:
-    """(frontmatter, body) of a SKILL.md, or None when it has no frontmatter.
-    The values a skill needs are single lines -- a name and a description --
-    so this reads `key: value`, with the value as JSON when it is quoted."""
-    lines = text.replace("\r\n", "\n").lstrip("\ufeff").split("\n")
-    if not lines or lines[0].strip() != "---":
-        return None
-    try:
-        end = next(i for i in range(1, len(lines)) if lines[i].strip() == "---")
-    except StopIteration:
-        return None
-    meta: dict[str, str] = {}
-    for line in lines[1:end]:
-        key, sep, value = line.partition(":")
-        if not sep:
-            continue
-        value = value.strip()
-        if value[:1] == '"':
-            try:
-                value = str(json.loads(value))
-            except ValueError:
-                value = value.strip('"')
-        elif value[:1] == "'" and value[-1:] == "'":
-            value = value[1:-1].replace("''", "'")
-        meta[key.strip()] = value
-    return meta, "\n".join(lines[end + 1 :]).strip()
-
-
-_SKILL_SHAPE = (
-    "It must look like this:\n---\nname: {name}\ndescription: Use when …\n---\n\n"
-    "The instructions.\n(Or send description and instructions instead of content.)"
-)
-
-
-def _skill_from_text(text: str, name: str) -> tuple[str, str]:
-    """(description, body) of a whole SKILL.md for `name`, or ValueError saying
-    what is wrong with it -- the CLI's `validateSkill`, against this server's
-    limits."""
-    parsed = parse_skill(text)
-    if parsed is None:
-        raise ValueError(
-            "SKILL.md must start with frontmatter between two --- lines. "
-            + _SKILL_SHAPE.format(name=name)
-        )
-    meta, body = parsed
-    if skills_service.slugify(meta.get("name", "")) != name:
-        raise ValueError(f'The frontmatter name must be "{name}".')
-    description = meta.get("description", "").strip()
-    if not description:
-        raise ValueError(
-            "The frontmatter needs a description: one sentence saying when to use the "
-            "skill. " + _SKILL_SHAPE.format(name=name)
-        )
-    if len(description) > skills_service.MAX_DESCRIPTION_CHARS:
-        raise ValueError(
-            f"The description is {len(description)} characters; the limit is "
-            f"{skills_service.MAX_DESCRIPTION_CHARS}."
-        )
-    if not body:
-        raise ValueError(
-            "SKILL.md needs instructions after the closing --- line. "
-            + _SKILL_SHAPE.format(name=name)
-        )
-    if len(body) > skills_service.MAX_BODY_CHARS:
-        raise ValueError(
-            f"The instructions are {len(body):,} characters; the limit is "
-            f"{skills_service.MAX_BODY_CHARS:,}."
-        )
-    return description, body
 
 
 def _replace_once(text: str, old: str, new: str, replace_all: bool) -> str:
@@ -176,16 +94,27 @@ def _replace_once(text: str, old: str, new: str, replace_all: bool) -> str:
     return text.replace(old, new) if replace_all else text.replace(old, new, 1)
 
 
+class _Refused(Exception):
+    """A refusal raised inside `skill_manage`'s transaction, which it rolls back."""
+
+
+def _previous(v: fs.View, path: str) -> bytes | None:
+    """The content a skill's file had before its last change, or None."""
+    versions = fs.versions(v, path)
+    if len(versions) < 2:
+        return None
+    return b"".join(blobs.iter_parts(v.db, versions[1].blob_hash))
+
+
 async def _run_skill_manage(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
     """The spec's `skill_manage`: a list of operations that apply together.
 
     What this server offers of it (`narrow.llembas`): create, patch, delete and
-    revert, on the skill itself -- no supporting files, categories or project
-    skills. Every operation is checked against the skills as they would be
-    after the ones before it, and only then is anything written: the service
-    commits as it goes, so checking first is what keeps "if one fails none is
-    kept" true. A former `skill_edit` call arrives as a patch carrying `_set`
-    (`resolve_alias`), its description and body as they were sent.
+    revert, on the skill's SKILL.md -- no supporting files, categories or
+    project skills. Every operation is checked against the skills as they would
+    be after the ones before it; the writes then happen in one transaction, so
+    "if one fails none is kept" holds. A former `skill_edit` call arrives as a
+    patch carrying `_set` (`resolve_alias`).
     """
 
     def refused(message: str) -> ToolOutcome:
@@ -200,151 +129,130 @@ async def _run_skill_manage(context: ToolContext, args: dict[str, Any]) -> ToolO
     if lone is not None and len(ops) > 1:
         return refused(f"{lone.get('action')} must be the only operation in its call.")
 
-    with session_scope() as db:
-        user = db.get(User, context.owner_id)
-        # name -> (description, body) as it would stand, or None once deleted.
-        state: dict[str, tuple[str, str] | None] = {}
-        plan: list[tuple[str, str, Any]] = []
-        for i, op in enumerate(ops):
-            action = str(op.get("action") or "")
-            name = skills_service.slugify(str(op.get("name") or ""))
-            at = f"operation {i + 1} ({action} {name}): " if len(ops) > 1 else ""
-            if action not in ("create", "patch", "delete", "revert"):
-                return refused(f"{at}action is create, patch, delete or revert here.")
-            if not skills_service.SKILL_NAME_PATTERN.match(name):
-                return refused(
-                    f"{at}{str(op.get('name') or '')!r} is not a valid skill name: two or more "
-                    "lowercase letters, digits or hyphens, such as 'weekly-report'."
-                )
-            own = skills_service.owned_by_name(db, name, user)
-            if own is not None and (own.data_group_id or DEFAULT_GROUP) != (
-                context.data_group or DEFAULT_GROUP
-            ):
-                own_here = None
-                taken_elsewhere = True
-            else:
-                own_here, taken_elsewhere = own, False
-            stored = (own_here.description, own_here.body) if own_here is not None else None
-            current = state.get(name, stored)
-            exists = current is not None
-            try:
-                if action == "create":
-                    if exists or taken_elsewhere:
-                        where = " in another data group" if taken_elsewhere else ""
-                        return refused(f'{at}a skill "{name}" already exists{where}. Use patch.')
-                    if op.get("content") is not None:
-                        description, body = _skill_from_text(str(op["content"]), name)
-                    else:
-                        description = str(op.get("description") or "").strip()
-                        body = str(op.get("instructions") or "").strip()
-                        if not description or not body:
-                            return refused(
-                                f"{at}create needs description and instructions (or content: "
-                                "the whole SKILL.md)."
-                            )
-                        description, body = _skill_from_text(
-                            compose_skill(name, description, body), name
-                        )
-                    state[name] = (description, body)
-                    plan.append(("create", name, (description, body)))
-                    continue
-                if not exists or current is None:
-                    return refused(f'{at}there is no skill "{name}" of yours here.')
-                if action == "delete":
-                    state[name] = None
-                    plan.append(("delete", name, None))
-                    continue
-                if action == "revert":
-                    revision = db.scalars(
-                        select(SkillRevision)
-                        .where(SkillRevision.skill_id == own_here.id)
-                        .order_by(SkillRevision.created_at.desc())
-                    ).first()
-                    if revision is None:
-                        return refused(f'{at}"{name}" has no earlier version kept.')
-                    plan.append(("revert", name, revision))
-                    continue
-                # patch
-                setting = op.get("_set")
-                if isinstance(setting, dict):
-                    description = str(setting.get("description") or "").strip() or current[0]
-                    body = (
-                        current[1] if setting.get("body") is None else str(setting["body"]).strip()
-                    )
-                    description, body = _skill_from_text(
-                        compose_skill(name, description, body), name
-                    )
+    done: list[str] = []
+    results: list[dict[str, str]] = []
+    try:
+        with session_scope() as db:
+            v = _view(db, context)
+            if v is None:
+                raise _Refused("Skills can be changed only by a person's chat.")
+            # name -> SKILL.md text as it would stand, or None once deleted.
+            state: dict[str, str | None] = {}
+            for i, op in enumerate(ops):
+                action = str(op.get("action") or "")
+                label = f"{action} {op.get('name') or ''}"
+                at = f"operation {i + 1} ({label}): " if len(ops) > 1 else ""
+                if action not in ("create", "patch", "delete", "revert"):
+                    raise _Refused(f"{at}action is create, patch, delete or revert here.")
+                try:
+                    name = fmt.check_name(str(op.get("name") or ""))
+                except ValueError as exc:
+                    raise _Refused(f"{at}{exc}") from exc
+                existing = skill_files.find(v, name)
+                if name in state:
+                    current = state[name]
+                elif existing is not None:
+                    current = fs.read(v, existing.path).decode("utf-8", errors="replace")
                 else:
-                    before = compose_skill(name, current[0], current[1])
-                    if op.get("old_string") is not None:
+                    current = None
+                path = (
+                    existing.path
+                    if existing is not None
+                    else posixpath.join(skill_files.home_root(v), name, fmt.FILE_NAME)
+                )
+                try:
+                    if action == "create":
+                        if current is not None:
+                            raise _Refused(
+                                f'{at}a skill "{name}" already exists ({path}). Use patch.'
+                            )
+                        if op.get("content") is not None:
+                            text = str(op["content"])
+                        else:
+                            description = str(op.get("description") or "").strip()
+                            body = str(op.get("instructions") or "").strip()
+                            if not description or not body:
+                                raise _Refused(
+                                    f"{at}create needs description and instructions (or "
+                                    "content: the whole SKILL.md)."
+                                )
+                            text = fmt.compose(name, description, body)
+                        fmt.validate(text, name)
+                        fs.write(v, path, text.encode("utf-8"), mime="text/markdown")
+                        state[name] = text
+                    elif current is None:
+                        raise _Refused(f'{at}there is no skill "{name}" here.')
+                    elif action == "delete":
+                        fs.rm(v, posixpath.dirname(path))
+                        state[name] = None
+                    elif action == "revert":
+                        before = _previous(v, path)
+                        if before is None:
+                            raise _Refused(f'{at}"{name}" has no earlier version kept.')
+                        fs.write(v, path, before, mime="text/markdown")
+                        state[name] = before.decode("utf-8", errors="replace")
+                    else:  # patch
+                        setting = op.get("_set")
+                        if isinstance(setting, dict):
+                            parsed = fmt.parse(current) or ({}, current)
+                            description = (
+                                str(setting.get("description") or "").strip()
+                                or parsed[0].get("description", "")
+                            )
+                            body = (
+                                parsed[1]
+                                if setting.get("body") is None
+                                else str(setting["body"]).strip()
+                            )
+                            after = fmt.compose(name, description, body)
+                        elif op.get("old_string") is not None:
+                            try:
+                                after = _replace_once(
+                                    current,
+                                    str(op["old_string"]),
+                                    str(op.get("new_string") or ""),
+                                    bool(op.get("replace_all")),
+                                )
+                            except ValueError as exc:
+                                raise _Refused(
+                                    f"{at}{exc} old_string must be the exact text now in the "
+                                    f"skill — read it with skill_view first. SKILL.md "
+                                    f"begins:\n{current[:500]}"
+                                ) from exc
+                        elif op.get("content") is not None:
+                            after = str(op["content"])
+                        else:
+                            raise _Refused(
+                                f"{at}patch needs old_string and new_string (or content: a "
+                                "whole new SKILL.md)."
+                            )
                         try:
-                            after = _replace_once(
-                                before,
-                                str(op["old_string"]),
-                                str(op.get("new_string") or ""),
-                                bool(op.get("replace_all")),
-                            )
+                            fmt.validate(after, name)
                         except ValueError as exc:
-                            return refused(
-                                f"{at}{exc} old_string must be the exact text now in the "
-                                f"skill — read it with skill_view first. SKILL.md begins:\n"
-                                f"{before[:500]}"
-                            )
-                    elif op.get("content") is not None:
-                        after = str(op["content"])
-                    else:
-                        return refused(
-                            f"{at}patch needs old_string and new_string (or content: a whole "
-                            "new SKILL.md)."
-                        )
-                    try:
-                        description, body = _skill_from_text(after, name)
-                    except ValueError as exc:
-                        return refused(f"{at}the patch would break SKILL.md: {exc}")
-                state[name] = (description, body)
-                plan.append(("patch", name, (description, body, str(op.get("reason") or ""))))
-            except ValueError as exc:
-                return refused(f"{at}{exc}")
-
-        # Everything checked: now write.
-        done: list[str] = []
-        results = []
-        for action, name, value in plan:
-            if action == "create":
-                skill = skills_service.create(
-                    db, owner=user, name=name, description=value[0], body=value[1],
-                    author=AUTHOR_MODEL, group=context.data_group,
-                )
-            else:
-                skill = skills_service.owned_by_name(db, name, user)
-                if action == "delete":
-                    skills_service.delete(db, skill)
-                    done.append(f"delete {name}")
-                    continue
-                if action == "revert":
-                    skills_service.revert(db, skill, value, author=AUTHOR_MODEL)
-                else:
-                    skills_service.update(
-                        db, skill, description=value[0], body=value[1],
-                        author=AUTHOR_MODEL, note=value[2][:200],
-                    )
-            done.append(f"{action} {name}")
-            results.append({"title": skill.name, "id": skill.id})
+                            raise _Refused(f"{at}the patch would break SKILL.md: {exc}") from exc
+                        fs.write(v, path, after.encode("utf-8"), mime="text/markdown")
+                        state[name] = after
+                except ValueError as exc:
+                    raise _Refused(f"{at}{exc}") from exc
+                v.refresh()
+                done.append(f"{action} {name}")
+                if action != "delete":
+                    results.append({"title": name, "path": path})
+    except _Refused as exc:
+        # Raised inside the transaction: nothing of this call is kept.
+        return refused(str(exc))
+    except fs.FsError as exc:
+        return refused(exc.message)
     summary = ", ".join(done)
     tail = (
         " The version it replaced is kept: revert again to undo this."
-        if plan[0][0] == "revert"
+        if ops[0].get("action") == "revert"
         else ""
     )
     return ToolOutcome(
         f"Done: {summary}.{tail}\nskill_view shows a skill as it is now; the skills list in "
         "your instructions shows the change from your next message.",
-        {
-            "name": "skill_manage",
-            "query": summary[:80],
-            "status": "ok",
-            "results": results,
-        },
+        {"name": "skill_manage", "query": summary[:80], "status": "ok", "results": results},
     )
 
 

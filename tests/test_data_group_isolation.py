@@ -87,17 +87,6 @@ def test_a_model_is_handed_only_its_own_groups_memories(db, owner, chats):
     assert "Hosted fact." in abroad and "Home fact." not in abroad
 
 
-def test_the_skill_index_is_one_groups(db, owner, chats):
-    home, away = chats
-    skills.create(db, owner=owner, name="home-skill", description="Home.", body="b")
-    skills.create(
-        db, owner=owner, name="away-skill", description="Away.", body="b", group=HOSTED
-    )
-    abroad = harness.compose(db, owner, _tools("skill_view"), chat=away)
-    assert "away-skill" in abroad
-    assert "home-skill" not in abroad
-
-
 def test_a_base_in_another_group_is_not_named(db, owner, chats):
     home, away = chats
     base = documents.create_base(db, owner=owner, name="Home contracts")

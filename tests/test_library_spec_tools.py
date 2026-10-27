@@ -13,11 +13,12 @@ import json
 
 import pytest
 
-from lembas.db.models import Memory, Note, SkillRevision, User
+from lembas.db.models import Memory, Note, User
 from lembas.security.passwords import hash_password
-from lembas.services import tool_labels
+from lembas.services import fs, tool_labels
+from lembas.services import skill_format as fmt
 from lembas.services import tools as tools_service
-from lembas.services.library import memories, notes, skills
+from lembas.services.library import memories, notes
 
 
 @pytest.fixture
@@ -33,9 +34,29 @@ async def _run(owner, tool, **args):
     return await tools_service.run_tool(context, tool, json.dumps(args))
 
 
+class _Skill:
+    def __init__(self, description: str, body: str, path: str) -> None:
+        self.description, self.body, self.path = description, body, path
+
+
+def _path(db, owner, name: str) -> str:
+    return f"{fs.ensure_home(db, owner).path}/skills/{name}/SKILL.md"
+
+
 def _skill(db, owner, name):
+    """The skill file as it stands (skills are files since spec 3.0.0), or None."""
     db.expire_all()
-    return skills.owned_by_name(db, name, owner)
+    path = _path(db, owner, name)
+    if fs.lookup(db, owner.org_id, path) is None:
+        return None
+    meta, body = fmt.parse(fs.read(fs.view(db, owner), path).decode())
+    return _Skill(meta["description"], body, path)
+
+
+def _make(db, owner, *, name, description, body):
+    text = fmt.compose(name, description, body)
+    fs.write(fs.view(db, owner), _path(db, owner, name), text.encode())
+    db.commit()
 
 
 # --- skill_manage ---------------------------------------------------------------
@@ -59,18 +80,19 @@ async def test_a_skill_is_created_from_a_whole_skill_md(db, owner):
 
 
 async def test_a_patch_changes_part_of_a_skill_and_keeps_what_it_was(db, owner):
-    skills.create(db, owner=owner, name="tea", description="Use when tea.", body="Boil water.")
+    _make(db, owner, name="tea", description="Use when tea.", body="Boil water.")
     op = {"action": "patch", "name": "tea", "old_string": "Boil water.",
           "new_string": "Boil water, then wait a minute."}
     outcome = await _run(owner, "skill_manage", operations=[op])
     assert outcome.event["status"] == "ok", outcome.content
     skill = _skill(db, owner, "tea")
     assert skill.body == "Boil water, then wait a minute."
-    assert db.query(SkillRevision).filter_by(skill_id=skill.id).count() == 1
+    # What it was is the file's previous version.
+    assert len(fs.versions(fs.view(db, owner), skill.path)) == 2
 
 
 async def test_a_patch_that_is_not_there_quotes_the_skill(db, owner):
-    skills.create(db, owner=owner, name="tea", description="Use when tea.", body="Boil water.")
+    _make(db, owner, name="tea", description="Use when tea.", body="Boil water.")
     op = {"action": "patch", "name": "tea", "old_string": "Steep.", "new_string": "x"}
     outcome = await _run(owner, "skill_manage", operations=[op])
     assert outcome.event["status"] == "error"
@@ -78,7 +100,7 @@ async def test_a_patch_that_is_not_there_quotes_the_skill(db, owner):
 
 
 async def test_a_patch_may_not_break_the_frontmatter(db, owner):
-    skills.create(db, owner=owner, name="tea", description="Use when tea.", body="Boil.")
+    _make(db, owner, name="tea", description="Use when tea.", body="Boil.")
     op = {"action": "patch", "name": "tea", "old_string": "name: tea", "new_string": "name: x"}
     outcome = await _run(owner, "skill_manage", operations=[op])
     assert outcome.event["status"] == "error"
@@ -112,7 +134,7 @@ async def test_a_skill_made_in_the_call_can_be_patched_in_it(db, owner):
 
 
 async def test_revert_puts_back_the_last_version_and_twice_undoes_it(db, owner):
-    skills.create(db, owner=owner, name="tea", description="Use when tea.", body="Boil.")
+    _make(db, owner, name="tea", description="Use when tea.", body="Boil.")
     await _run(owner, "skill_manage", operations=[
         {"action": "patch", "name": "tea", "old_string": "Boil.", "new_string": "Steep."}
     ])
@@ -123,7 +145,7 @@ async def test_revert_puts_back_the_last_version_and_twice_undoes_it(db, owner):
 
 
 async def test_delete_and_revert_go_alone(db, owner):
-    skills.create(db, owner=owner, name="tea", description="Use when tea.", body="Boil.")
+    _make(db, owner, name="tea", description="Use when tea.", body="Boil.")
     ops = [{"action": "delete", "name": "tea"},
            {"action": "create", "name": "coffee", "description": "Use when coffee.",
             "instructions": "Grind."}]
@@ -136,7 +158,7 @@ async def test_delete_and_revert_go_alone(db, owner):
 
 
 async def test_what_this_server_does_not_offer_is_refused(db, owner):
-    skills.create(db, owner=owner, name="tea", description="Use when tea.", body="Boil.")
+    _make(db, owner, name="tea", description="Use when tea.", body="Boil.")
     op = {"action": "write_file", "name": "tea", "file_path": "references/a.md",
           "file_content": "x"}
     outcome = await _run(owner, "skill_manage", operations=[op])
@@ -145,11 +167,13 @@ async def test_what_this_server_does_not_offer_is_refused(db, owner):
 
 
 async def test_skills_list_and_skill_view(db, owner):
-    skills.create(db, owner=owner, name="tea", description="Use when tea.", body="Boil.")
+    _make(db, owner, name="tea", description="Use when tea.", body="Boil.")
     listed = await _run(owner, "skills_list")
     assert "tea — Use when tea." in listed.content
     viewed = await _run(owner, "skill_view", name="tea")
-    assert viewed.content == "# Skill: tea\nUse when tea.\n\nBoil."
+    assert viewed.content == (
+        f"# Skill: tea\nUse when tea.\nFile: {_path(db, owner, 'tea')}\n\nBoil."
+    )
 
 
 def test_a_skill_md_round_trips():
@@ -254,7 +278,7 @@ def test_a_former_name_is_converted(old, args, new, expected):
 
 
 async def test_a_former_skill_edit_sets_what_it_sent(db, owner):
-    skills.create(db, owner=owner, name="tea", description="Use when tea.", body="Boil.")
+    _make(db, owner, name="tea", description="Use when tea.", body="Boil.")
     name, args = tools_service.resolve_alias("skill_edit", {"name": "tea", "body": "Steep."})
     outcome = await _run(owner, name, **args)
     assert outcome.event["status"] == "ok", outcome.content

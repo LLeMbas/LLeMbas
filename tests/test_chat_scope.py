@@ -15,9 +15,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from lembas.db.models import Chat, Connection, Model, User
-from lembas.services import settings_store
+from lembas.services import fs, settings_store, skill_files
+from lembas.services import skill_format as fmt
 from lembas.services import tools as tools_service
-from lembas.services.library import skills as skills_service
 
 
 @pytest.fixture
@@ -138,21 +138,23 @@ def test_an_unknown_family_in_the_column_changes_nothing(db, chat, user_id):
 # --- Skills -------------------------------------------------------------------------
 @pytest.fixture
 def skill(db, user_id):
-    return skills_service.create(
-        db,
-        owner=db.get(User, user_id),
-        name="weekly-report",
-        description="When asked for the weekly report.",
-        body="Do the thing.",
+    """A skill file in the person's own skills directory (skills are files)."""
+    user = db.get(User, user_id)
+    home = fs.ensure_home(db, user).path
+    fs.write(
+        fs.view(db, user),
+        f"{home}/skills/weekly-report/SKILL.md",
+        fmt.compose("weekly-report", "When asked for the weekly report.", "Do the thing.").encode(),
     )
+    db.commit()
+    return "weekly-report"
 
 
 def test_a_skill_switched_off_leaves_the_index(db, chat, user_id, skill):
     user = db.get(User, user_id)
-    assert "weekly-report" in skills_service.index_block(db, user)
-    assert "weekly-report" not in skills_service.index_block(
-        db, user, exclude=["weekly-report"]
-    )
+    v = fs.view(db, user, chat)
+    assert "weekly-report" in skill_files.index_block(v)
+    assert "weekly-report" not in skill_files.index_block(v, exclude=["weekly-report"])
 
 
 def test_a_skill_switched_off_cannot_be_fetched_anyway(db, chat, user_id, skill):

@@ -260,7 +260,9 @@ def _guard_existing(s: Session, node: Node, path: str) -> None:
 
 def _stray_skill_note(path: str) -> str:
     """A note when a SKILL.md is written where no skill is loaded from."""
-    return ""
+    from lembas.services import skill_files
+
+    return skill_files.stray_note(path)
 
 
 async def _run_write(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:

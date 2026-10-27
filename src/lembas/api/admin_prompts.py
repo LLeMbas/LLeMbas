@@ -126,10 +126,9 @@ def _variables(
     preview that admitted a fragment the real request would not is worse than
     one that omitted it, so the gating is mirrored rather than approximated.
     """
-    from lembas.services import plans
+    from lembas.services import fs, plans, skill_files
     from lembas.services.agent import policy
     from lembas.services.library import memories as memories_service
-    from lembas.services.library import skills as skills_service
 
     values = harness_service.context_variables(db, user, [], None)
     names = _tool_names(db, families)
@@ -140,7 +139,11 @@ def _variables(
             "tool_names": names,
             "tool_list": harness_service.tool_list_sentence(names),
             "memories": memories_service.block(db, user) if "memory" in families else "",
-            "skills": skills_service.index_block(db, user) if "skills" in families else "",
+            "skills": (
+                skill_files.index_block(fs.view(db, user))
+                if "skills" in families and user is not None
+                else ""
+            ),
             "knowledge_bases": scope,
             "knowledge_scope": harness_service.knowledge_scope_sentence(scope),
             "document_names": documents,
