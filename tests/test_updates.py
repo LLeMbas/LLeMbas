@@ -10,8 +10,16 @@ from __future__ import annotations
 
 import pytest
 
+from lembas import __version__
 from lembas.config import settings
 from lembas.services import updates
+
+# A release of the running major that no real one will reach: the stable channel
+# offers only the running major's releases, so a fixture tag of another major
+# would never be offered.
+MAJOR = __version__.split(".")[0]
+TAG = f"v{MAJOR}.99.9"
+LABEL = TAG.removeprefix("v")
 
 # Stands up something real -- see the `slow` marker in pyproject.toml.
 pytestmark = pytest.mark.slow
@@ -28,19 +36,25 @@ def tagged():
 
     root = updates.checkout_dir()
     subprocess.run(
-        ["git", "tag", "-a", "v9.9.9", "-m", "Ninth release.\n\n- one thing"],
+        ["git", "tag", "-a", TAG, "-m", "Ninth release.\n\n- one thing"],
         cwd=root, check=True, capture_output=True,
     )
     try:
-        yield "v9.9.9"
+        yield TAG
     finally:
         subprocess.run(
-            ["git", "tag", "-d", "v9.9.9"], cwd=root, check=False, capture_output=True
+            ["git", "tag", "-d", TAG], cwd=root, check=False, capture_output=True
         )
 
 
 @pytest.fixture(autouse=True)
-def clean():
+def clean(monkeypatch, tmp_path):
+    # Root's copy of update.sh, as `install.sh` leaves it: one that keeps to the
+    # running major. `test_updates_lts.py` covers the older copy.
+    helper = tmp_path / "update.sh"
+    helper.write_text(f"#!/bin/bash\n# {updates.GUARD_MARKER}\n")
+    monkeypatch.setattr(updates, "HELPER_UNIT", tmp_path / "no-unit.service")
+    monkeypatch.setattr(updates, "HELPER_SCRIPT", helper)
     updates.clear_request()
     (settings.data_dir / updates.MARKER_NAME).unlink(missing_ok=True)
     yield
@@ -139,10 +153,10 @@ def test_stable_picks_the_newest_release_and_reads_its_notes(db, tagged):
     returns a 500 from a server-side panic."""
     root = updates.checkout_dir()
 
-    assert updates.release_tags(root)[0] == "v9.9.9"
+    assert updates.release_tags(root)[0] == TAG
     target = updates.resolve_target(root, updates.CHANNEL_STABLE, "main")
 
-    assert target.label == "9.9.9"
+    assert target.label == LABEL
     assert "one thing" in target.notes
 
 
@@ -231,8 +245,8 @@ def test_a_tag_that_disagrees_with_the_version_is_flagged(db, tagged):
     afterwards. Costs no subprocess: both facts are already in hand."""
     state = updates.read()
 
-    assert state.version_mismatch == "9.9.9"
-    assert state.version != "9.9.9"
+    assert state.version_mismatch == LABEL
+    assert state.version != LABEL
     assert state.version_declared == updates.version_at(updates.checkout_dir(), "HEAD")
 
 
@@ -537,14 +551,14 @@ def test_the_running_version_is_not_two_spellings_of_itself(db, tagged):
     version and appends "(reports X)" when the two disagree -- a note whose
     whole purpose is to flag a tag cut *before* a version bump.
 
-    Unstripped, it would fire on every release: "v9.9.9 (reports 9.9.9)", which
+    Unstripped, it would fire on every release: "v1.99.9 (reports 1.99.9)", which
     reads as a discrepancy and is two ways of writing one version.
     """
     root = updates.checkout_dir()
     running = updates._describe(root)
 
     assert not running.startswith("v"), running
-    assert running.startswith("9.9.9"), running
+    assert running.startswith(LABEL), running
 
 
 def test_a_tag_that_really_disagrees_is_still_reported(db):
@@ -571,17 +585,18 @@ def test_every_release_between_is_read_with_its_notes(db, tagged):
     import subprocess
 
     root = updates.checkout_dir()
-    subprocess.run(["git", "tag", "-a", "v9.9.8", "-m", "Eighth release."],
+    eighth = f"v{MAJOR}.99.8"
+    subprocess.run(["git", "tag", "-a", eighth, "-m", "Eighth release."],
                    cwd=root, check=True, capture_output=True)
     try:
-        between = updates.releases_between(root, "1.0.0", "v9.9.9")
+        between = updates.releases_between(root, f"{MAJOR}.0.0", TAG)
         labels = [r.label for r in between]
-        assert labels[:2] == ["9.9.9", "9.9.8"]
+        assert labels[:2] == [LABEL, eighth.removeprefix("v")]
         assert between[1].notes == "Eighth release."
-        assert updates.releases_between(root, "9.9.8", "v9.9.9")[0].label == "9.9.9"
-        assert [r.label for r in updates.releases_between(root, "9.9.8", "v9.9.9")] == ["9.9.9"]
+        assert updates.releases_between(root, eighth, TAG)[0].label == LABEL
+        assert [r.label for r in updates.releases_between(root, eighth, TAG)] == [LABEL]
     finally:
-        subprocess.run(["git", "tag", "-d", "v9.9.8"], cwd=root, check=False, capture_output=True)
+        subprocess.run(["git", "tag", "-d", eighth], cwd=root, check=False, capture_output=True)
 
 
 def test_the_spec_a_release_pins(db, tagged):

@@ -9,7 +9,9 @@ Check button does. Nothing else touches the network.
 **Deciding.** With `auto_apply` set -- `patch`, `minor` or `all`, off by default
 -- a newer release is *wanted* when it is within the policy: `patch` only when the
 major and minor are the same as the running version's, `minor` when the major
-is. The helper always deploys the newest release of its channel, so the policy
+is. **No policy crosses a major version** -- `all` included: a new major is
+installed by hand (services/updates.py says why), so `all` takes every release
+of the running major. The helper always deploys the newest release of its channel, so the policy
 is judged on that one: a minor release out beside a patch is not taken by a
 `patch` policy at all, rather than taken as the minor it would really be. An
 administrator's *Apply when idle* wants the newest release whatever the policy.
@@ -77,14 +79,15 @@ def _version(label: str) -> tuple[int, int, int] | None:
 
 
 def allowed(current: str, target: str, policy: str) -> bool:
-    """Whether `policy` takes this jump. Never a downgrade, never a non-release."""
+    """Whether `policy` takes this jump. Never a downgrade, never a non-release,
+    and never a new major version, whatever the policy."""
     have, want = _version(current), _version(target)
     if have is None or want is None or want <= have or policy not in POLICIES:
         return False
-    if policy == "all":
+    if want[0] != have[0]:
+        return False
+    if policy in ("all", "minor"):
         return True
-    if policy == "minor":
-        return want[0] == have[0]
     if policy == "patch":
         return want[:2] == have[:2]
     return False
@@ -167,6 +170,18 @@ async def apply(who: str) -> str:
 
     if not updates.helper_installed():
         return t("The update helper is not installed on this host.")
+    if not updates.helper_guarded():
+        # Root's copy of update.sh predates the same-major rule and takes the
+        # newest tag whatever it is. Refused only when that would cross: a
+        # fetch first, so the answer is the remote's and not the last check's.
+        state = await asyncio.to_thread(updates.read, fetch=True)
+        if state.newer_major:
+            return t(
+                "The update helper on this host would install %(label)s, a new major "
+                "version. Re-run the installer with INSTALL_UPDATE_HELPER=1 to replace "
+                "it; nothing was requested.",
+                label=state.newer_major,
+            )
     try:
         taken = await asyncio.to_thread(backup.take, f"before-{STATE.wanted or 'update'}")
     except Exception as exc:  # no update without a backup

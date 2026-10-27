@@ -44,7 +44,9 @@ def test_the_policy():
     assert not updates_auto.allowed(__version__, _bump("minor"), "patch")
     assert updates_auto.allowed(__version__, _bump("minor"), "minor")
     assert not updates_auto.allowed(__version__, _bump("major"), "minor")
-    assert updates_auto.allowed(__version__, _bump("major"), "all")
+    # No policy crosses a major version: a new major is installed by hand.
+    assert not updates_auto.allowed(__version__, _bump("major"), "all")
+    assert updates_auto.allowed(__version__, _bump("minor"), "all")
     assert not updates_auto.allowed(__version__, __version__, "all")
     assert not updates_auto.allowed(__version__, "0.1.0", "all")
     assert not updates_auto.allowed(__version__, _bump("patch"), "off")
@@ -85,10 +87,13 @@ def test_a_page_counts_as_activity_and_a_poll_does_not(client, registered):
     assert updates_auto.LAST_ACTIVITY["at"] > 0
 
 
-def _wanted(monkeypatch, label: str, *, helper=True):
-    state = updates.State(available=updates.Target(ref=f"v{label}", label=label, sha="x"))
+def _wanted(monkeypatch, label: str, *, helper=True, guarded=True, newer_major=""):
+    state = updates.State(
+        available=updates.Target(ref=f"v{label}", label=label, sha="x"), newer_major=newer_major
+    )
     monkeypatch.setattr(updates, "read", lambda fetch=False: state)
     monkeypatch.setattr(updates, "helper_installed", lambda: helper)
+    monkeypatch.setattr(updates, "helper_guarded", lambda: guarded)
     requested = []
     monkeypatch.setattr(updates, "request_update", lambda who="": requested.append(who) or "")
     return requested

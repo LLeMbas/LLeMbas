@@ -45,6 +45,8 @@ def _page(request: Request, state, saved: str = "", *, db=None) -> Response:
             "policies": updates_auto.POLICIES,
             "spec": harness_spec.version(),
             "command": updates_service.manual_command(),
+            # Only asked when the helper is installed: no helper, no copy to read.
+            "helper_guarded": (not state.helper) or updates_service.helper_guarded(),
             "saved": saved,
         },
     )

@@ -7,6 +7,17 @@ at <https://llembas.eu/changelog.html>.
 
 ### Fixed
 
+- **Updates stay on the major version that is running.** The stable channel, the Update button,
+  automatic updates (including *Every release*) and `deploy/update.sh` now offer and install only
+  releases of the running major version: a 1.x installation is never moved to 2.0 by itself, because
+  2.0 does not carry a 1.x database over. When a newer major is out, the Updates page says so in one
+  line; moving to it is done by hand.
+- **An update helper installed by an older release is caught.** The helper runs its own copy of
+  `deploy/update.sh`, installed by `install.sh`, and an older copy would still take the newest
+  release whatever its major. The Updates page now says when the copy is an older one, and nothing
+  is requested through it while a newer major exists. Re-run the installer with
+  `INSTALL_UPDATE_HELPER=1` to replace it.
+
 - **An agent chat no longer says the device "answered on its own model" when it did not.** The
   notice compared the model this server sent with the one the device reported, letter for letter
   and only in one form; a LLeMbas CLI that names the model another way -- without its connection
