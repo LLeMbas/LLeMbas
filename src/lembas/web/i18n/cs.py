@@ -2321,7 +2321,6 @@ MESSAGES['this release has no such settings'] = 'tato verze taková nastavení n
 MESSAGES['unknown kind %(kind)s'] = 'neznámý druh %(kind)s'
 MESSAGES['user groups not here: %(names)s'] = 'uživatelské skupiny, které tu nejsou: %(names)s'
 MESSAGES['with %(count)s earlier versions'] = 's %(count)s staršími verzemi'
-
 # --- 2.0: files, memory and money in place of the library and credits ---------
 MESSAGES["Its models read only this group's memories, and a chat started on one of them stays in it. Moving a connection does not move any data: it starts reading the other group."] = 'Jeho modely čtou jen paměť této skupiny a konverzace začatá na některém z nich v ní zůstává. Přesunutí připojení nepřesouvá žádná data: začne číst druhou skupinu.'
 MESSAGES["A helper cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads and searches files and the web, and the general kind writes what the chat may write. It cannot send helpers of its own; it can message the main agent, and be messaged, while it works. <strong>%(mode)s</strong> is not inherited: a helper's task text can have come from a page it read."] = 'Pomocník se nemůže nikoho na nic zeptat, takže nic v jeho konverzaci se nemůže zastavit kvůli schválení. Dostane proto jen to, co tato konverzace už smí <em>bez</em> ptaní: čte a vyhledává v souborech a na webu a druh general píše to, co smí psát konverzace. Vlastní pomocníky posílat nemůže; během práce může psát hlavnímu agentovi a ten jemu. Režim <strong>%(mode)s</strong> se nedědí: text úlohy pomocníka mohl přijít ze stránky, kterou si přečetl.'
@@ -2350,7 +2349,6 @@ MESSAGES['Keep memories and skills of your own.'] = 'Mít vlastní záznamy v pa
 MESSAGES['Working with files'] = 'Práce se soubory'
 MESSAGES['Running Python'] = 'Spouštění Pythonu'
 MESSAGES['Recalling earlier results'] = 'Vyvolání dřívějších výsledků'
-
 # --- Pyodide by download, apps beside devices (2.0) ---
 MESSAGES['Pyodide %(version)s'] = 'Pyodide %(version)s'
 MESSAGES['Downloading Pyodide'] = 'Stahování Pyodide'
@@ -2375,3 +2373,6 @@ MESSAGES['%(name)s is larger than its pinned size.'] = 'Soubor %(name)s je vět�
 MESSAGES['%(name)s is not its pinned size.'] = 'Soubor %(name)s nemá svou připnutou velikost.'
 MESSAGES['%(name)s does not match its pinned SHA-256.'] = 'Soubor %(name)s se neshoduje se svým připnutým SHA-256.'
 MESSAGES['The download failed: %(why)s'] = 'Stahování selhalo: %(why)s'
+MESSAGES['LLeMbas %(label)s, a new major version, is out. It is not offered here: moving to a new major version is done by hand.'] = 'Vyšlo LLeMbas %(label)s, nová hlavní verze. Zde se nenabízí: přechod na novou hlavní verzi se dělá ručně.'
+MESSAGES['The update helper on this host was installed by an older release and does not keep to one major version: it would install a new major version as soon as one is out. Re-run the installer with <code>INSTALL_UPDATE_HELPER=1</code> to replace it.'] = 'Pomocník aktualizací na tomto hostiteli byl nainstalován starším vydáním a nedrží se jedné hlavní verze: nainstaloval by novou hlavní verzi, jakmile vyjde. Nahraďte ho opětovným spuštěním instalátoru s <code>INSTALL_UPDATE_HELPER=1</code>.'
+MESSAGES['The update helper on this host would install %(label)s, a new major version. Re-run the installer with INSTALL_UPDATE_HELPER=1 to replace it; nothing was requested.'] = 'Pomocník aktualizací na tomto hostiteli by nainstaloval %(label)s, novou hlavní verzi. Nahraďte ho opětovným spuštěním instalátoru s INSTALL_UPDATE_HELPER=1; o nic se nežádalo.'

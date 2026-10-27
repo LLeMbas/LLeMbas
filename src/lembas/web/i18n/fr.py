@@ -2321,7 +2321,6 @@ MESSAGES['this release has no such settings'] = "cette version n'a pas de tels p
 MESSAGES['unknown kind %(kind)s'] = 'type inconnu %(kind)s'
 MESSAGES['user groups not here: %(names)s'] = "groupes d'utilisateurs absents ici : %(names)s"
 MESSAGES['with %(count)s earlier versions'] = 'avec %(count)s versions antérieures'
-
 # --- 2.0: files, memory and money in place of the library and credits ---------
 MESSAGES["Its models read only this group's memories, and a chat started on one of them stays in it. Moving a connection does not move any data: it starts reading the other group."] = "Ses modèles ne lisent que les souvenirs de ce groupe, et une conversation commencée sur l'un d'eux y reste. Déplacer une connexion ne déplace aucune donnée : elle se met à lire l'autre groupe."
 MESSAGES["A helper cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads and searches files and the web, and the general kind writes what the chat may write. It cannot send helpers of its own; it can message the main agent, and be messaged, while it works. <strong>%(mode)s</strong> is not inherited: a helper's task text can have come from a page it read."] = "Un assistant ne peut rien demander à personne, donc rien dans sa discussion ne peut s'arrêter pour une approbation. Il n'obtient donc que ce que cette discussion pouvait déjà faire <em>sans</em> demander : il lit et cherche dans les fichiers et sur le web, et la sorte general écrit ce que la discussion peut écrire. Il ne peut pas envoyer d'assistants à son tour ; il peut écrire à l'agent principal, et en recevoir des messages, pendant qu'il travaille. <strong>%(mode)s</strong> n'est pas hérité : le texte de la tâche d'un assistant peut venir d'une page qu'il a lue."
@@ -2350,7 +2349,6 @@ MESSAGES['Keep memories and skills of your own.'] = 'Conserver vos propres souve
 MESSAGES['Working with files'] = 'Travail sur les fichiers'
 MESSAGES['Running Python'] = 'Exécution de Python'
 MESSAGES['Recalling earlier results'] = 'Rappel de résultats précédents'
-
 # --- Pyodide by download, apps beside devices (2.0) ---
 MESSAGES['Pyodide %(version)s'] = 'Pyodide %(version)s'
 MESSAGES['Downloading Pyodide'] = 'Téléchargement de Pyodide'
@@ -2375,3 +2373,6 @@ MESSAGES['%(name)s is larger than its pinned size.'] = '%(name)s est plus grand 
 MESSAGES['%(name)s is not its pinned size.'] = "%(name)s n'a pas sa taille épinglée."
 MESSAGES['%(name)s does not match its pinned SHA-256.'] = '%(name)s ne correspond pas à son SHA-256 épinglé.'
 MESSAGES['The download failed: %(why)s'] = 'Le téléchargement a échoué : %(why)s'
+MESSAGES['LLeMbas %(label)s, a new major version, is out. It is not offered here: moving to a new major version is done by hand.'] = "LLeMbas %(label)s, une nouvelle version majeure, est sorti. Elle n'est pas proposée ici : le passage à une nouvelle version majeure se fait à la main."
+MESSAGES['The update helper on this host was installed by an older release and does not keep to one major version: it would install a new major version as soon as one is out. Re-run the installer with <code>INSTALL_UPDATE_HELPER=1</code> to replace it.'] = "L'assistant de mise à jour de cet hôte a été installé par une version antérieure et ne s'en tient pas à une seule version majeure : il installerait une nouvelle version majeure dès sa sortie. Relancez l'installateur avec <code>INSTALL_UPDATE_HELPER=1</code> pour le remplacer."
+MESSAGES['The update helper on this host would install %(label)s, a new major version. Re-run the installer with INSTALL_UPDATE_HELPER=1 to replace it; nothing was requested.'] = "L'assistant de mise à jour de cet hôte installerait %(label)s, une nouvelle version majeure. Relancez l'installateur avec INSTALL_UPDATE_HELPER=1 pour le remplacer ; rien n'a été demandé."

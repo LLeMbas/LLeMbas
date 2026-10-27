@@ -18,6 +18,21 @@ may be half finished — the right default for whoever is building it and the wr
 one for whoever is running it. Both channels are the same machinery asking one
 different question: *which ref am I comparing against*.
 
+## A channel never crosses a major version
+
+The stable channel offers only releases of the **major version that is
+running**: a 1.x instance is offered 1.x releases and nothing else, however new
+a 2.0 is. A new major may change the data underneath -- 2.0 does not carry a 1.x
+database over -- so moving to one is a decision somebody makes by hand, never a
+button press that happened to land after a release. The page says when a newer
+major exists, so the decision is never missed either.
+
+`deploy/update.sh` applies the same rule, because it is the helper and not this
+module that chooses what is checked out. Root runs its *own copy* of that
+script, installed by `install.sh`, so a host whose copy predates the rule would
+still take the newest tag. `helper_guarded` reads that copy and the page and
+`updates_auto.apply` refuse to request an update while it could cross.
+
 ## Git plumbing, never a forge API
 
 Tags are read with `git`, over the transport the checkout already has. Not the
@@ -116,6 +131,17 @@ REQUEST_NAME = "update-requested"
 # cannot touch. Lying about the channel is a much smaller thing than choosing it.
 MARKER_NAME = ".update-helper"
 
+# Where `install.sh` puts root's copy of `deploy/update.sh`, and the unit that
+# names it. Read, never run: only to answer whether that copy keeps to one major
+# version (`helper_guarded`). The unit's `ExecStart` wins over the default, so a
+# helper installed somewhere else is still found.
+HELPER_UNIT = Path("/etc/systemd/system/lembas-update.service")
+HELPER_SCRIPT = Path("/usr/local/lib/lembas/update.sh")
+# The line an `update.sh` that keeps to the running major carries. A marker
+# rather than parsing the script: what it does is the script's business, and
+# whether it says it does is one substring.
+GUARD_MARKER = "lembas-update: same-major"
+
 # `%H` sha, `%s` subject, `%cI` date, split on a unit separator rather than a
 # space: a commit subject contains spaces, and every other separator anybody
 # reaches for is one a subject may also contain.
@@ -195,6 +221,9 @@ class State:
     between: list[Release] = field(default_factory=list)
     # The harness spec the offered release carries, from its own lock file.
     target_spec: str = ""
+    # The newest release of a *later* major version, which is never offered
+    # (see "A channel never crosses a major version" above), or "".
+    newer_major: str = ""
 
     @property
     def channel_mismatch(self) -> bool:
@@ -291,6 +320,32 @@ def helper_channel() -> str:
         return ""
 
 
+def helper_script() -> Path:
+    """Root's copy of the update script: the path the helper unit runs, or the
+    one `install.sh` uses when the unit cannot be read."""
+    try:
+        for line in HELPER_UNIT.read_text(encoding="utf-8").splitlines():
+            if line.startswith("ExecStart="):
+                return Path(line.split()[-1])
+    except (OSError, IndexError):
+        pass
+    return HELPER_SCRIPT
+
+
+def helper_guarded() -> bool:
+    """Whether the installed helper keeps to the running major version.
+
+    False when its copy carries no marker -- one installed by an older release,
+    which takes the newest tag whatever its major -- and False when it cannot be
+    read, because "not known to be safe" is the answer that keeps a 1.x host on
+    1.x.
+    """
+    try:
+        return GUARD_MARKER in helper_script().read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+
+
 def request_path() -> Path:
     return settings.data_dir / REQUEST_NAME
 
@@ -311,6 +366,33 @@ def release_tags(root: Path) -> list[str]:
     if code != 0:
         return []
     return [line.strip() for line in output.splitlines() if RELEASE_TAG.match(line.strip())]
+
+
+def major_of(version: str) -> int | None:
+    """The major version of `1.7.2`, `v1.7.2` or `2.0.0-beta.1`, or None."""
+    match = re.match(r"^v?(\d+)\.", (version or "").strip())
+    return int(match.group(1)) if match else None
+
+
+def same_major(tags: list[str], current: str = __version__) -> list[str]:
+    """The tags of `current`'s major version, in their order. A version whose
+    major cannot be read keeps them all: there is no line to hold it to."""
+    major = major_of(current)
+    if major is None:
+        return list(tags)
+    return [tag for tag in tags if major_of(tag) == major]
+
+
+def newer_major(tags: list[str], current: str = __version__) -> str:
+    """The newest release tag of a later major than `current`'s, or ""."""
+    major = major_of(current)
+    if major is None:
+        return ""
+    for tag in tags:
+        found = major_of(tag)
+        if found is not None and found > major:
+            return tag
+    return ""
 
 
 # Where a signature block starts in `%(contents)`. **Both**, because which one
@@ -341,13 +423,17 @@ def _notes_for(root: Path, tag: str) -> str:
 def resolve_target(root: Path, channel: str, branch: str) -> Target | None:
     """What this channel says the instance should be at.
 
+    On stable, the newest release **of the running major version**: a newer
+    major is never offered here (`State.newer_major` names it instead).
+
     Reads **local refs only**. On stable that is the tags the last fetch brought
     down; on edge it is `origin/<branch>`, a file under `.git/refs/remotes/`.
     Neither touches the network -- `read(fetch=True)` is what refreshes them, and
     keeping that split is why opening the page costs nothing.
     """
     if channel == CHANNEL_STABLE:
-        tags = release_tags(root)
+        # Only the running major's releases: a new major is installed by hand.
+        tags = same_major(release_tags(root))
         if not tags:
             return None
         tag = tags[0]
@@ -508,8 +594,11 @@ def read(*, fetch: bool = False) -> State:
         between = releases_between(root, __version__, target.ref)
         target_spec = spec_at(root, target.ref)
 
+    newer = newer_major(release_tags(root)) if channel == CHANNEL_STABLE else ""
+
     return State(
         **base,
+        newer_major=newer.removeprefix("v"),
         between=between,
         target_spec=target_spec,
         checkout=str(root),
@@ -560,6 +649,7 @@ __all__ = [
     "CHANNEL_EDGE",
     "CHANNEL_STABLE",
     "GIT_TIMEOUT",
+    "GUARD_MARKER",
     "MARKER_NAME",
     "RELEASE_TAG",
     "REQUEST_NAME",
@@ -572,8 +662,12 @@ __all__ = [
     "checkout_dir",
     "clear_request",
     "helper_channel",
+    "helper_guarded",
+    "helper_script",
     "helper_installed",
+    "major_of",
     "manual_command",
+    "newer_major",
     "pending",
     "read",
     "release_tags",
@@ -582,4 +676,5 @@ __all__ = [
     "request_path",
     "request_update",
     "resolve_target",
+    "same_major",
 ]

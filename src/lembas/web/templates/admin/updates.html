@@ -159,6 +159,11 @@
   </div>
   {% endif %}
   {% endif %}
+
+  {# A newer major is never offered (services/updates.py), and never hidden. #}
+  {% if state.newer_major %}
+  <p class="field__hint">{{ t("LLeMbas %(label)s, a new major version, is out. It is not offered here: moving to a new major version is done by hand.", label=state.newer_major) }}</p>
+  {% endif %}
 </section>
 
 {#
@@ -199,6 +204,23 @@
     </span>
   </div>
   {% endif %}
+  {% if not helper_guarded %}
+  {#
+    Root runs its own copy of update.sh, installed by an older release, which
+    takes the newest tag whatever its major. Said whether or not a new major
+    exists yet; the buttons are held only while one does.
+  #}
+  <div class="alert alert--warning">
+    {{ icon("warning", "icon--sm") }}
+    <span>
+      {{ tm("The update helper on this host was installed by an older release and
+      does not keep to one major version: it would install a new major version as
+      soon as one is out. Re-run the installer with
+      <code>INSTALL_UPDATE_HELPER=1</code> to replace it.") }}
+    </span>
+  </div>
+  {% endif %}
+  {% set held = state.newer_major and not helper_guarded %}
   <p class="card__lede">
     {{ tm("This host has the update helper installed, so the button below writes a
     request that a systemd unit picks up and runs as root. It always deploys the
@@ -215,14 +237,14 @@
   {% endif %}
   <form method="post" action="/admin/updates/apply" class="btn-row">
     <button class="btn btn--primary" type="submit" name="when" value="idle"
-            {{ 'disabled' if state.up_to_date or state.no_releases }}>
+            {{ 'disabled' if state.up_to_date or state.no_releases or held }}>
       {{ icon("sparkle", "icon--sm") }}
       {% if state.no_releases %}{{ t("Nothing released") }}
       {% elif state.up_to_date %}{{ t("Nothing to apply") }}
       {% else %}{{ t("Update to %(label)s when idle", label=state.available.label) }}{% endif %}
     </button>
     <button class="btn" type="submit" name="when" value="now"
-            {{ 'disabled' if state.up_to_date or state.no_releases }}
+            {{ 'disabled' if state.up_to_date or state.no_releases or held }}
             data-confirm-title="{{ t('Update now?') }}"
             data-confirm-button="{{ t('Replies being written are saved with what they have; open terminals are cut off. A backup is taken first.') }}"
             data-confirm-label="{{ t('Update now') }}" data-confirm-danger="false">{{ t("Now") }}</button>

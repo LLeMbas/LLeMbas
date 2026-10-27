@@ -6,6 +6,11 @@
 # is ever edited in place under the deployment prefix, so a hard reset is safe
 # and avoids merge conflicts from a dirty tree.
 set -euo pipefail
+#
+# lembas-update: same-major
+# The line above says this copy keeps to the running major version (see
+# "stable" below). The Updates page reads root's installed copy for it, and
+# holds its button while a copy without it could step onto a new major.
 
 SERVICE_USER="${SERVICE_USER:-lembas}"
 PREFIX="${PREFIX:-/srv/lembas}"
@@ -28,6 +33,15 @@ git_as() { sudo -u "$SERVICE_USER" git -C "$APP" "$@"; }
 
 before=$(git_as rev-parse HEAD)
 
+# The major version running now, from the code at HEAD -- before anything moves.
+# The stable channel never leaves it: a new major may change what lies
+# underneath (2.0 starts on a new database), so it is installed by hand and
+# never because a release happened to be the newest tag.
+running_version=$(git_as show HEAD:src/lembas/__init__.py 2>/dev/null \
+                    | sed -n 's/^__version__ *= *["'\'']\([^"'\'']*\)["'\''].*/\1/p' \
+                    | head -1 || true)
+running_major="${running_version%%.*}"
+
 echo "== fetching =="
 # `--tags` and `--force`: without the first, the stable channel never learns
 # about a release; without the second, a tag that was moved -- which happens to a
@@ -41,22 +55,41 @@ git_as fetch --quiet --tags --force origin "$BRANCH"
 # onto a release candidate on the strength of a hyphen.
 target="origin/$BRANCH"
 if [[ "$CHANNEL" == "stable" ]]; then
+  if [[ ! "$running_major" =~ ^[0-9]+$ ]]; then
+    # Without the running major there is no line to keep to, and guessing one
+    # is how a host steps onto a new major by itself. Nothing has moved yet.
+    echo "Could not read the running version from src/lembas/__init__.py; not updating." >&2
+    exit 1
+  fi
   # `|| true` is load-bearing under `set -euo pipefail`, and for two reasons:
   # grep exits 1 when nothing matches -- which is every host until the first
   # release is tagged -- and `head -1` closing the pipe early can hand grep a
   # SIGPIPE. Either kills the script mid-update, after the fetch and before the
   # reset, leaving the checkout fetched and unmoved with no error printed.
+  newest_any=$(git_as tag --list --sort=-v:refname \
+                 | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
   newest=$(git_as tag --list --sort=-v:refname \
-             | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
+             | grep -E "^v?${running_major}\.[0-9]+\.[0-9]+\$" | head -1 || true)
+  if [[ -n "$newest_any" && "$newest_any" != "$newest" ]]; then
+    echo "   $newest_any is a new major version and is not installed by this script;"
+    echo "   this host stays on ${running_major}.x. Move to a new major by hand."
+  fi
   if [[ -n "$newest" ]]; then
     target="$newest"
+  elif [[ -n "$newest_any" ]]; then
+    # Releases exist, none of them this major's: stay where we are rather
+    # than follow the branch, which by then is the new major too.
+    target="HEAD"
+    echo "   no ${running_major}.x release to move to; staying put"
   else
     echo "   no release tags yet; following $BRANCH instead"
   fi
 fi
 echo "   channel $CHANNEL -> $target"
 
-if [[ "$target" == "origin/$BRANCH" ]]; then
+if [[ "$target" == "HEAD" ]]; then
+  :
+elif [[ "$target" == "origin/$BRANCH" ]]; then
   # Stays on the branch, which is what this always did.
   git_as reset --hard --quiet "$target"
 else

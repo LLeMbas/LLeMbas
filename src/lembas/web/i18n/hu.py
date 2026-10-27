@@ -2321,7 +2321,6 @@ MESSAGES['this release has no such settings'] = 'ennek a verziónak nincsenek il
 MESSAGES['unknown kind %(kind)s'] = 'ismeretlen fajta: %(kind)s'
 MESSAGES['user groups not here: %(names)s'] = 'itt nem létező felhasználói csoportok: %(names)s'
 MESSAGES['with %(count)s earlier versions'] = '%(count)s korábbi verzióval'
-
 # --- 2.0: files, memory and money in place of the library and credits ---------
 MESSAGES["Its models read only this group's memories, and a chat started on one of them stays in it. Moving a connection does not move any data: it starts reading the other group."] = 'Modelljei csak ennek a csoportnak a memóriáit olvassák, és az egyikükkel indított csevegés ebben a csoportban marad. Egy kapcsolat áthelyezése nem helyez át adatot: egyszerűen a másik csoportot kezdi olvasni.'
 MESSAGES["A helper cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads and searches files and the web, and the general kind writes what the chat may write. It cannot send helpers of its own; it can message the main agent, and be messaged, while it works. <strong>%(mode)s</strong> is not inherited: a helper's task text can have come from a page it read."] = 'A segítő senkitől nem kérdezhet semmit, így a beszélgetésében semmi nem állhat meg jóváhagyásra. Ezért csak azt kapja, amit ez a beszélgetés már kérdezés <em>nélkül</em> is megtehetett: olvas és keres a fájlokban és a weben, a general fajta pedig írja, amit a beszélgetés írhat. Saját segítőket nem küldhet; munka közben írhat a főügynöknek, és az is neki. A(z) <strong>%(mode)s</strong> mód nem öröklődik: a segítő feladatának szövege egy általa olvasott oldalról is származhat.'
@@ -2350,7 +2349,6 @@ MESSAGES['Keep memories and skills of your own.'] = 'Saját memóriák és kész
 MESSAGES['Working with files'] = 'Fájlkezelés'
 MESSAGES['Running Python'] = 'Python futtatása'
 MESSAGES['Recalling earlier results'] = 'Korábbi eredmények előhívása'
-
 # --- Pyodide by download, apps beside devices (2.0) ---
 MESSAGES['Pyodide %(version)s'] = 'Pyodide %(version)s'
 MESSAGES['Downloading Pyodide'] = 'A Pyodide letöltése'
@@ -2375,3 +2373,6 @@ MESSAGES['%(name)s is larger than its pinned size.'] = '%(name)s nagyobb a rögz
 MESSAGES['%(name)s is not its pinned size.'] = '%(name)s mérete nem a rögzített méret.'
 MESSAGES['%(name)s does not match its pinned SHA-256.'] = '%(name)s nem egyezik a rögzített SHA-256-tal.'
 MESSAGES['The download failed: %(why)s'] = 'A letöltés nem sikerült: %(why)s'
+MESSAGES['LLeMbas %(label)s, a new major version, is out. It is not offered here: moving to a new major version is done by hand.'] = 'Megjelent a LLeMbas %(label)s, egy új főverzió. Itt nem kínáljuk fel: új főverzióra kézzel kell átállni.'
+MESSAGES['The update helper on this host was installed by an older release and does not keep to one major version: it would install a new major version as soon as one is out. Re-run the installer with <code>INSTALL_UPDATE_HELPER=1</code> to replace it.'] = 'A gépen lévő frissítési segédet egy régebbi kiadás telepítette, és nem marad egy főverziónál: egy új főverziót azonnal telepítene, amint megjelenik. Cserélje le a telepítő újbóli futtatásával, <code>INSTALL_UPDATE_HELPER=1</code> beállítással.'
+MESSAGES['The update helper on this host would install %(label)s, a new major version. Re-run the installer with INSTALL_UPDATE_HELPER=1 to replace it; nothing was requested.'] = 'A gépen lévő frissítési segéd a(z) %(label)s új főverziót telepítené. Cserélje le a telepítő újbóli futtatásával, INSTALL_UPDATE_HELPER=1 beállítással; semmit sem kértünk.'
