@@ -730,6 +730,31 @@ async def add_memory(
     )
 
 
+@router.get("/api/library/memories/export")
+async def export_memories(db: Db, user: RequiredUser, group: str = "") -> Response:
+    """This person's own memories as a file -- all of them, or one data group's.
+
+    Only ever the reader's own: `export.memory` reads through `all_for`, which
+    filters on the owner, and a group they may not use is refused rather than
+    named. A memory holds no secret, so there is no passphrase.
+    """
+    from lembas.services import export as export_service
+
+    if group and not data_groups.may_use(db, user, group):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, t("That data group is not available."))
+    document = export_service.memory(db, user, group=group or None)
+    return Response(
+        content=export_service.dumps(document),
+        media_type="application/json",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{export_service.filename(export_service.KIND_MEMORY)}"'
+            ),
+            "Cache-Control": "no-store",
+        },
+    )
+
+
 @router.post("/api/library/memories/{memory_id}")
 async def update_memory(
     db: Db, user: RequiredUser, memory_id: str, content: str = Form("")

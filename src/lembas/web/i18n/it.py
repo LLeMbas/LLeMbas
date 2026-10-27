@@ -2328,3 +2328,6 @@ MESSAGES['Passphrase'] = 'Passphrase'
 MESSAGES['Encrypts the keys in the file; the import asks for it. Empty: the keys are left out.'] = "Cifra le chiavi nel file; l'importazione la chiederà. Vuoto: le chiavi vengono omesse."
 MESSAGES['Passphrase again'] = 'Ripeta la passphrase'
 MESSAGES['The two passphrases are not the same. Nothing was exported.'] = 'Le due passphrase non coincidono. Non è stato esportato nulla.'
+MESSAGES['Export'] = 'Esporta'
+MESSAGES['Your memories as a file, each with its data group — to keep, or to bring into the next major version, which starts on a new database.'] = 'I suoi ricordi in un file, ciascuno con il suo gruppo di dati — da conservare, o da portare nella prossima versione principale, che parte da un database nuovo.'
+MESSAGES['That data group is not available.'] = 'Questo gruppo di dati non è disponibile.'

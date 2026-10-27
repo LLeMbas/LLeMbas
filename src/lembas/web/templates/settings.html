@@ -658,6 +658,24 @@
               <p class="field__hint">{{ t("One fact per record, at most %(n)s characters. Never put a password or a key here — it is sent to the model with every message.", n=memory_limit) }}</p>
             </div>
 
+            {# A plain GET: the answer is a file the browser saves, and the
+               settings window stays where it is. #}
+            <div class="card">
+              <h2 class="card__title">{{ t("Export") }}</h2>
+              <p class="card__lede">{{ t("Your memories as a file, each with its data group — to keep, or to bring into the next major version, which starts on a new database.") }}</p>
+              <form method="get" action="/api/library/memories/export" class="add-row">
+                {% if several_groups %}
+                <select class="select" name="group" aria-label="{{ t('Data group') }}">
+                  <option value="">{{ t("All data groups") }}</option>
+                  {% for group in data_groups %}
+                  <option value="{{ group.id }}">{{ group.name }}</option>
+                  {% endfor %}
+                </select>
+                {% endif %}
+                <button class="btn" type="submit" {{ 'disabled' if not memories }}>{{ icon("arrow-down", "icon--sm") }} {{ t("Download") }}</button>
+              </form>
+            </div>
+
           </section>
           {% endif %}
 

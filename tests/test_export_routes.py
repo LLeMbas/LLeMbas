@@ -135,3 +135,83 @@ def test_a_named_but_empty_passphrase_variable_is_an_error(db, tmp_path, monkeyp
     )
     assert result.exit_code == 1
     assert not out.exists()
+
+
+# --- Memory --------------------------------------------------------------------------------
+def _memories(db, email: str) -> None:
+    from lembas.db.models import DEFAULT_GROUP, DataGroup, Memory, User
+    from lembas.services import data_groups
+
+    data_groups.ensure_default(db)
+    if db.get(DataGroup, "work") is None:
+        db.add(DataGroup(id="work", name="Work"))
+    owner = db.scalar(select(User).where(User.email == email))
+    db.add_all([
+        Memory(owner_id=owner.id, content="Prefers metric units.", data_group_id=DEFAULT_GROUP),
+        Memory(owner_id=owner.id, content="Works on the ring project.", data_group_id="work"),
+    ])
+    db.commit()
+
+
+def test_the_memory_tab_offers_a_download(client, registered, db):
+    _memories(db, registered["email"])
+    form = _form(client.get("/settings?tab=memory").text, "/api/library/memories/export")
+    assert 'method="get"' in form and 'type="submit"' in form
+    # Two groups here, so the choice is offered.
+    assert 'name="group"' in form and 'value="work"' in form
+
+
+def test_a_person_downloads_their_own_memories(client, registered, db):
+    _memories(db, registered["email"])
+    response = client.get("/api/library/memories/export")
+    assert response.status_code == 200
+    assert "lembas-memory-export-" in response.headers["content-disposition"]
+    document = export_service.load(response.text)
+    assert document["kind"] == "memory"
+    assert {i["data"]["data_group"] for i in document["items"]} == {"Default", "Work"}
+
+    one = export_service.load(client.get("/api/library/memories/export?group=work").text)
+    assert [i["data"]["content"] for i in one["items"]] == ["Works on the ring project."]
+
+
+def test_nobody_downloads_somebody_elses_memories(client, registered, db):
+    _memories(db, registered["email"])
+    client.post("/auth/logout", follow_redirects=False)
+    client.post(
+        "/auth/register",
+        data={"name": "Sam", "email": "sam@shire.test", "password": "potatoes-po-ta-toes"},
+        follow_redirects=False,
+    )
+    response = client.get("/api/library/memories/export")
+    if response.status_code == 200:
+        assert export_service.load(response.text)["items"] == []
+    assert "ring project" not in response.text
+
+
+def test_a_group_one_may_not_use_is_refused(client, registered, db):
+    from lembas.db.models import DataGroup, User
+
+    _memories(db, registered["email"])
+    other = User(name="Sam", email="sam@shire.test", password_hash="x")
+    db.add(other)
+    db.commit()
+    db.add(DataGroup(id="sams", name="Sam's own", owner_id=other.id))
+    db.commit()
+    response = client.get("/api/library/memories/export?group=sams")
+    assert response.status_code == 404
+    assert "Sam's own" not in response.text
+
+
+def test_export_memory_from_the_command_line(client, registered, db, tmp_path):
+    _memories(db, registered["email"])
+    out = tmp_path / "memories.json"
+    result = runner.invoke(
+        app, ["export", "memory", "--user", registered["email"], "--group", "Work",
+              "--out", str(out)],
+    )
+    assert result.exit_code == 0, result.output
+    document = export_service.load(out.read_text())
+    assert [i["data"]["content"] for i in document["items"]] == ["Works on the ring project."]
+    assert runner.invoke(
+        app, ["export", "memory", "--user", "nobody@shire.test", "--out", str(out)]
+    ).exit_code == 1

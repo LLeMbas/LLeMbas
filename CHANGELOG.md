@@ -21,6 +21,10 @@ line, and its patches may carry the tools for exporting what you want to keep; n
   custom tools and MCP servers, as one file. Give a passphrase to take the keys along. The same from
   a shell: `lembas-server export admin --out FILE [--passphrase-env VARIABLE]`, which writes the
   file readable by its owner only and names every key it left out.
+- **Export your memories** (Settings → Memory → *Export*): your memories as a file, each with its
+  data group, all of them or one data group's. Only ever your own. For somebody who cannot reach the
+  page, an administrator can run `lembas-server export memory --user EMAIL [--group GROUP] --out
+  FILE`.
 
 ### Fixed
 

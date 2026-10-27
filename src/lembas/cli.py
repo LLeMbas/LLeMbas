@@ -114,6 +114,42 @@ def export_admin(
         )
 
 
+@export_app.command("memory")
+def export_memory(
+    user: str = typer.Option(..., "--user", help="The account's email address."),
+    out: str = typer.Option(..., "--out", help="The file to write; - for standard output."),
+    group: str = typer.Option(
+        "", "--group", help="Only this data group's memories: its id or its name."
+    ),
+) -> None:
+    """One person's memories, each with its data group -- what the Download
+    button on their Memory tab gives them, for somebody who cannot reach it."""
+    from lembas.db.models import DataGroup, User
+    from lembas.db.session import init_db, session_scope
+    from lembas.services import export as export_service
+
+    init_db()
+    with session_scope() as db:
+        person = db.scalar(select(User).where(User.email == user.strip().lower()))
+        if person is None:
+            typer.secho(f"No account {user}.", fg=typer.colors.RED, err=True)
+            raise typer.Exit(1)
+        group_id = None
+        if group:
+            found = db.get(DataGroup, group) or db.scalar(
+                select(DataGroup).where(
+                    DataGroup.name == group,
+                    (DataGroup.owner_id.is_(None)) | (DataGroup.owner_id == person.id),
+                )
+            )
+            if found is None:
+                typer.secho(f"No data group {group}.", fg=typer.colors.RED, err=True)
+                raise typer.Exit(1)
+            group_id = found.id
+        document = export_service.memory(db, person, group=group_id)
+    _write_export(document, out)
+
+
 @app.command("create-admin")
 def create_admin(
     email: str = typer.Option(..., prompt=True),
