@@ -32,6 +32,12 @@ release yet.
   can be narrowed further by its data group's preset and floor and its own grants, and a directory
   granted under one that is not is reached only by its full path. Refusals use the wording of the
   harness spec's file system contract, so the server and the CLI say the same thing.
+- **Upgrading from 1.x sets the old database aside.** The first start of 2.0 renames a 1.x
+  `lembas.db` to `lembas.db.old` (its `-wal` and `-shm` with it, after a checkpoint) and starts on a
+  new, empty database; nothing is carried over by itself. `uploads/`, the secret key and `backups/`
+  are not touched, so going back is installing 1.7.x and renaming the file back. If
+  `lembas.db.old` already exists and the database is still 1.x, the server refuses to start and
+  says why, rather than overwrite either.
 
 ## 1.7.2 — 2026-10-25
 

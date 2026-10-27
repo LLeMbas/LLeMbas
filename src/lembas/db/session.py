@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -88,16 +89,90 @@ def get_session_factory() -> sessionmaker[Session]:
     return _SessionFactory
 
 
+# `PRAGMA user_version` of a 2.x database. One value for the whole major; later
+# schema steps are additive and run by `db/migrations.py` as before.
+SCHEMA_VERSION = 2000
+OLD_SUFFIX = ".old"
+
+
+class OldDatabaseInTheWay(RuntimeError):
+    """A 1.x database to set aside, and `lembas.db.old` already taken."""
+
+
+def _is_1x(path: Path) -> bool:
+    """A database with tables in it, below 2000 and without the 2.x tree."""
+    connection = sqlite3.connect(str(path))
+    try:
+        version = connection.execute("PRAGMA user_version").fetchone()[0]
+        tables = {
+            row[0]
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+        }
+    finally:
+        connection.close()
+    return bool(tables) and version < SCHEMA_VERSION and "nodes" not in tables
+
+
+def set_aside_1x(path: Path | None = None) -> Path | None:
+    """Rename a 1.x database to `lembas.db.old` so 2.x starts on an empty one.
+
+    2.0 carries nothing over by itself: the old file is kept whole, for going
+    back to 1.7 (rename it back) and for the import. Only a 1.x database is
+    moved, and only when no `.old` exists -- a second 2.x update must never put
+    a 2.x database over the 1.x one. `uploads/`, the secret key and `backups/`
+    are not touched: the old database needs all three.
+
+    The WAL is checkpointed first, so the renamed file is whole on its own; any
+    `-wal`/`-shm` left beside it move with it. Returns the new path, or None
+    when there was nothing to do.
+    """
+    path = path or settings.db_path
+    if not path.exists() or not _is_1x(path):
+        return None
+    old = path.with_name(path.name + OLD_SUFFIX)
+    if old.exists():
+        raise OldDatabaseInTheWay(
+            f"{path} is a LLeMbas 1.x database and {old} already exists. 2.x would set the "
+            f"1.x database aside as {old.name}, but will not overwrite what is there. Move "
+            f"{old.name} somewhere safe (or delete it, if it is a copy you no longer need) "
+            "and start again."
+        )
+    # Nothing of ours may hold the file open while it moves.
+    reset_engine()
+    connection = sqlite3.connect(str(path))
+    try:
+        connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    finally:
+        connection.close()
+    path.rename(old)
+    for sidecar in ("-wal", "-shm"):
+        beside = path.with_name(path.name + sidecar)
+        if beside.exists():
+            beside.rename(old.with_name(old.name + sidecar))
+    log.warning(
+        "set the 1.x database aside as %s; 2.x starts on a new, empty one (the import "
+        "under Admin reads the old file)",
+        old,
+    )
+    return old
+
+
 def init_db() -> None:
     """Bring the database up to the declared schema.
 
-    Creates missing tables and adds missing columns -- see db/migrations.py for
-    what that does and does not cover. Additive changes need nothing else;
-    renames, drops and retypes are still a hand job.
+    First, a 1.x database is set aside (`set_aside_1x`). Then missing tables
+    and columns are created -- see db/migrations.py for what that does and
+    does not cover -- and the file is marked as 2.x (`SCHEMA_VERSION`).
     """
     from lembas.db.migrations import sync_schema
 
-    changes = sync_schema(get_engine())
+    set_aside_1x()
+    engine = get_engine()
+    changes = sync_schema(engine)
+    with engine.begin() as connection:
+        current = connection.exec_driver_sql("PRAGMA main.user_version").scalar() or 0
+        if current < SCHEMA_VERSION:
+            connection.exec_driver_sql(f"PRAGMA main.user_version = {SCHEMA_VERSION}")
     if changes:
         log.info("database schema updated: %s", ", ".join(changes))
     log.debug("schema ensured at %s", settings.db_path)
