@@ -16,10 +16,13 @@ second answer after the first.
 enabled connection, **in the chat's own data group**: a fallback is never a way
 to hand a conversation to a provider its group keeps it from.
 
-**Said, and recorded.** The reply opens with a line naming the model that did
-not answer and the one that did, and the message row records the model that
-actually answered (`Message.model_id`, `connection_id`), which is what its
-cost is then worked out for.
+**Said, and recorded.** The message row records the model that actually
+answered (`Message.model_id`, `connection_id`), which is what its cost is then
+worked out for, and -- in `usage_json["fallback"]`, beside the reply's other
+metadata -- the model that did not answer and why. The transcript opens the
+reply with a line built from that (`chat/_message.html`). It is never part of the reply's
+content: the content is what the model said, and is sent back to the model in
+later turns, which must not be told about a fallback as if it had written so.
 """
 
 from __future__ import annotations
@@ -30,7 +33,6 @@ from typing import Any
 from sqlalchemy.orm import Session as DBSession
 
 from lembas.services.llm.openai_client import Endpoint, LLMError, StreamError
-from lembas.web.i18n import t
 
 
 @dataclass(frozen=True)
@@ -92,18 +94,15 @@ def eligible(exc: LLMError) -> bool:
     return status is None or status >= 500
 
 
-def note(failed: str, answered: str, reason: str) -> str:
-    """The line a reply opens with when another model answered it."""
-    return (
-        "*("
-        + t(
-            "%(failed)s did not answer (%(reason)s), so %(answered)s answered instead.",
-            failed=failed,
-            answered=answered,
-            reason=reason.rstrip("."),
-        )
-        + ")*\n\n"
-    )
+def record(fallback: dict[str, str] | None) -> dict[str, str] | None:
+    """What a reply's `usage_json["fallback"]` keeps of `generation.fallback`:
+    which model answered, which one did not, and why -- or None."""
+    if not fallback:
+        return None
+    return {
+        key: str(fallback.get(key) or "")
+        for key in ("model_id", "connection_id", "label", "failed", "reason")
+    }
 
 
 async def stream(route: Route, payload: dict[str, Any], generation, stream_once):
@@ -129,13 +128,16 @@ async def stream(route: Route, payload: dict[str, Any], generation, stream_once)
             nxt = route.fallbacks.pop(0)
             route.endpoint, route.model_id, route.taken = nxt.endpoint, nxt.model_id, nxt
             payload["model"] = nxt.model_id
+            # Metadata, not content: `_persist` keeps it on the message
+            # (`usage_json["fallback"]`) and the transcript says it from there.
             generation.fallback = {
                 "model_id": nxt.model_id,
                 "connection_id": nxt.connection_id,
                 "label": nxt.label,
+                "failed": failed,
+                "reason": exc.message,
             }
-            generation.content.append(note(failed, nxt.label, exc.message))
             generation.touch()
 
 
-__all__ = ["Candidate", "Route", "eligible", "note", "plan", "stream"]
+__all__ = ["Candidate", "Route", "eligible", "plan", "record", "stream"]

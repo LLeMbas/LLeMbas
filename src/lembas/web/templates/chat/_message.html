@@ -204,6 +204,12 @@
 
          Kept with the message rather than discarded with the stream, so the
          sources behind an answer are still there tomorrow. #}
+      {% set fell_back = (message.usage_json or {}).get("fallback") if message.role == "assistant" else none %}
+      {% if fell_back and fell_back.failed %}
+      {# Another model answered (services/fallback.py): said from the reply's
+         metadata, never written into its content, which goes back to the model. #}
+      <p class="msg__note">{{ icon("refresh", "icon--sm") }} {{ t("%(failed)s did not answer (%(reason)s), so %(answered)s answered instead.", failed=fell_back.failed, answered=fell_back.label, reason=(fell_back.reason or "").rstrip(".")) }}</p>
+      {% endif %}
       {% if message.role == "assistant" %}
       {# The same id and the same marker as the live container. That is what
          carries an opened block across the `done` frame, which replaces the

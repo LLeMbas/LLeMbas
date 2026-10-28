@@ -496,8 +496,14 @@ def test_a_failed_connection_falls_back_and_says_so(client, db, registered, mock
     mock_http(handler)
     client.post("/api/chats/start", data={"content": "hello", "model_id": "m"})
     reply = _reply(db)
-    assert reply.content.endswith("from backup")
-    assert "Main did not answer" in reply.content and "Backup answered instead" in reply.content
+    # The note is metadata, not content: the content goes back to the model
+    # in later turns, and the model did not write it.
+    assert reply.content == "from backup"
+    fell_back = reply.usage_json["fallback"]
+    assert (fell_back["failed"], fell_back["label"]) == ("Main", "Backup")
+    assert fell_back["model_id"] == "backup" and fell_back["reason"]
+    page = client.get(f"/chat/{reply.chat_id}").text
+    assert "Main did not answer" in page and "Backup answered instead" in page
     # The row records who answered, and that model's price, in its currency.
     assert (reply.model_id, reply.connection_id) == ("backup", backup.connection_id)
     assert reply.currency == "EUR" and reply.cost_micro == 10 * pricing.MICRO

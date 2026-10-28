@@ -243,7 +243,8 @@ class Generation:
     device_shows: dict[str, dict] = field(default_factory=dict)
     # The model that answered instead, when the chat's own failed and one of
     # its fallbacks took over (`services/fallback.py`): `model_id`,
-    # `connection_id`, `label`. Written onto the message row by `_persist`.
+    # `connection_id`, `label`, and the one that did not (`failed`, `reason`).
+    # Written onto the message row by `_persist`, in `usage_json["fallback"]`.
     fallback: dict[str, str] | None = None
     # What the provider said the reply cost, summed over its rounds, in
     # micro-units of its currency (OpenRouter's `usage.cost`); None: it did not say.
@@ -2521,6 +2522,10 @@ def _persist(generation: Generation, title: str, elapsed: float) -> None:
             message.usage_json = metrics_service.to_json(
                 metrics_service.from_generation(generation)
             )
+            fell_back = fallback_service.record(generation.fallback)
+            if fell_back:
+                # Said in the transcript from here, never in the content.
+                message.usage_json = {**message.usage_json, "fallback": fell_back}
             message.error = generation.error
             message.stopped = generation.stopped
             message.complete = True
