@@ -319,12 +319,14 @@ def build_client():
                 )
             )
 
-    # A second data group with a hosted model in it, a note in each group and a
-    # chat with a fixed id (`SHOOT_CHAT`). Without them every grouped screen --
-    # the chips, the Data tab, the models named under the picker as being in
-    # another group -- is rendered with nothing in it, which is the "a screen the
-    # test never renders is unchecked" lesson again.
-    from lembas.db.models import Chat, DataGroup, Note, User
+    # A second data group with a hosted model in it, a memory in each group, a
+    # few files in the person's home and a chat with a fixed id (`SHOOT_CHAT`).
+    # Without them every grouped screen -- the chips, the Data tab, the models
+    # named under the picker as being in another group, the file explorer -- is
+    # rendered with nothing in it, which is the "a screen the test never
+    # renders is unchecked" lesson again.
+    from lembas.db.models import Chat, DataGroup, Memory, User
+    from lembas.services import fs
 
     with session_scope() as db:
         db.add(DataGroup(id="hosted", name="Hosted providers"))
@@ -345,8 +347,15 @@ def build_client():
             )
         )
         owner = db.query(User).first()
-        db.add(Note(owner_id=owner.id, title="A note at home", body="x", data_group_id="default"))
-        db.add(Note(owner_id=owner.id, title="A hosted note", body="x", data_group_id="hosted"))
+        db.add(Memory(owner_id=owner.id, content="Prefers metric units.", author="user",
+                      data_group_id="default"))
+        db.add(Memory(owner_id=owner.id, content="Works on the loader.", author="model",
+                      data_group_id="hosted"))
+        home = fs.ensure_home(db, owner).path
+        mine = fs.view(db, owner)
+        fs.write(mine, f"{home}/AGENTS.md", b"# Working here\n\nRun the tests first.\n")
+        fs.write(mine, f"{home}/notes/A note at home.md", b"# A note at home\n\nx\n")
+        fs.write(mine, f"{home}/src/app.py", b"def main():\n    run(config)\n")
         local = db.query(Connection).filter_by(name="local").first()
         db.add(
             Chat(
@@ -522,14 +531,15 @@ async def _fake_device_requests(method, params=None, *, timeout=60):
 
 
 def _seed_devices_reports_schedules() -> None:
-    """Two linked devices and one that is not, each with an agent chat; a report;
-    a schedule. Without them the Agents side of the sidebar, Library → Reports
-    and Settings → Scheduled are shot empty -- the screens nobody measured."""
+    """Two linked devices and one that is not, each with an agent chat; a report
+    file (what a schedule writes, in `~/reports/`); a schedule. Without them the
+    Agents side of the sidebar, the reports folder and Settings → Scheduled are
+    shot empty -- the screens nobody measured."""
     from datetime import UTC, datetime, timedelta
 
-    from lembas.db.models import TOKEN_DEVICE, ApiToken, Chat, Connection, Report, Schedule, User
+    from lembas.db.models import TOKEN_DEVICE, ApiToken, Chat, Connection, Schedule, User
     from lembas.db.session import session_scope
-    from lembas.services import device_link
+    from lembas.services import device_link, fs
 
     with session_scope() as db:
         owner = db.query(User).first()
@@ -567,11 +577,12 @@ def _seed_devices_reports_schedules() -> None:
                 )
                 link.request = _fake_device_requests  # type: ignore[method-assign]
                 device_link.LINKS[token.id] = link
-        db.add(Report(
-            owner_id=owner.id, title="Weekly digest", data_group_id="default",
-            summary="Three pull requests merged, one release cut, nothing failing.",
-            body="# Weekly digest\n\nThree pull requests merged.",
-        ))
+        home = fs.ensure_home(db, owner).path
+        fs.write(
+            fs.view(db, owner), f"{home}/reports/Weekly digest.md",
+            b"# Weekly digest\n\n*Three pull requests merged, one release cut, nothing "
+            b"failing.*\n\nThree pull requests merged.\n",
+        )
         db.add(Schedule(
             user_id=owner.id, title="Weekly digest", data_group_id="default",
             request="Every Monday at nine, summarise last week's work.",
