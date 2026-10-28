@@ -20,9 +20,9 @@ checked -- they never read the cookie.
 **Headers.** Every response gets `X-Content-Type-Options: nosniff` and
 `Referrer-Policy: same-origin`; every HTML page without a policy of its own gets
 a Content-Security-Policy that loads nothing from anywhere but this instance and
-lets nothing frame it. The prototype route sets its own, sealed policy, and is
-left alone -- an application-wide policy over it would stop every prototype
-loading.
+lets nothing frame it. A file shown as a page sets its own, sealed policy
+(`security/sealed.py`), and is left alone -- an application-wide policy over it
+would stop the page running.
 """
 
 from __future__ import annotations
@@ -143,7 +143,7 @@ def foreign_origin(request: Request) -> bool:
         return False
     source = request.headers.get("origin") or request.headers.get("referer") or ""
     if not source or source == "null":
-        # `Origin: null` is what a sandboxed frame sends -- a prototype, for one.
+        # `Origin: null` is what a sandboxed frame sends -- a page shown sealed.
         # It is refused below only if it carries the cookie, which a sandboxed
         # frame without allow-same-origin cannot.
         return source == "null"

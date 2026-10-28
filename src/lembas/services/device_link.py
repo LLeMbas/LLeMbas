@@ -1474,9 +1474,9 @@ async def _prompt(
         link.turn_writers[(session_id, turn)] = generation
     params: dict[str, Any] = {"sessionId": session_id, "prompt": content}
     # The turn's id, and what only this instance knows -- the chat's
-    # instructions, the person's personalization, the
-    # prototypes -- sent again on every prompt so a change made here
-    # between two turns reaches the device's next one.
+    # instructions and the person's personalization -- sent again on every
+    # prompt so a change made here between two turns reaches the device's
+    # next one.
     meta: dict[str, Any] = {"turnId": turn} if turn else {}
     meta.update(session_context(link, chat_id))
     if meta:
@@ -1836,7 +1836,7 @@ def session_context(link: Link, chat_id: str) -> dict[str, Any]:
     `session/new`): what the device composes its prompt from and cannot know
     by itself. Each piece is gated on the capability that says the device
     reads it; a device listing none gets `{}`, and nothing changes for it."""
-    if not (link.can("context") or link.can("prototypes")):
+    if not link.can("context"):
         return {}
     from lembas.db.models import Chat, User
     from lembas.db.session import session_scope
@@ -1855,14 +1855,12 @@ def context_for(db, link: Link, user, chat) -> dict[str, Any]:
     model over instance, "" when none -- the device appends it as
     "Instructions from <instance>". `personalization`: the account's, in the
     shape `/v1/me/personalization` gives it, or `null` for the device's own
-    (the feature off here, or switched off by the person). `prototypes`:
-    whether the model may write one, and what a page may load. No `library`:
-    knowledge bases are gone from this side (spec 3.0.0), and a device keeps
-    its library locally.
+    (the feature off here, or switched off by the person). No `library` and no
+    `prototypes` (spec 3.0.0): knowledge bases are gone from this side, and
+    `show` replaces prototypes.
     """
     from lembas.services import chat as chat_service
-    from lembas.services import harness, personalization
-    from lembas.services import prototypes as prototypes_service
+    from lembas.services import personalization
 
     context: dict[str, Any] = {}
     if link.can("context"):
@@ -1877,11 +1875,6 @@ def context_for(db, link: Link, user, chat) -> dict[str, Any]:
             if chosen is not None and personalization.enabled(db) and chosen["on"]
             else None
         )
-    if link.can("prototypes"):
-        context["prototypes"] = {
-            "offered": prototypes_service.offered(db, user, chat),
-            "sources": harness._prototype_sources(db),
-        }
     return context
 
 

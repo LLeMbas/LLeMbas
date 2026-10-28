@@ -119,9 +119,9 @@ def test_pages_carry_the_policy_and_the_headers(client, db, registered):
     assert "default-src 'self'" in policy
 
 
-# The prototype route keeping its own sealed policy is asserted where the route
-# is: tests/test_prototypes.py::test_the_route_serves_the_page_sealed reads the
-# policy off the response, which passes through the middleware.
+# A file shown as a page keeping its own sealed policy is asserted where the
+# route is: tests/test_device_show.py::test_html_is_still_served_as_text reads
+# the policy off the response, which passes through the middleware.
 
 
 # --- The audit log ----------------------------------------------------------------------

@@ -262,19 +262,6 @@ VARIABLES: tuple[Variable, ...] = (
         "When this temporary chat is deleted, as the administrator set it: "
         "\"1 hour after the last message\", or \"when the person leaves it\".",
     ),
-    Variable(
-        "prototypes",
-        "Prototypes are offered",
-        "Set when this person may see prototypes and this chat has not switched "
-        "them off, and empty otherwise. A flag wearing a variable's clothes, like "
-        "`subagent`: it is the gate on the prototype guidance.",
-    ),
-    Variable(
-        "prototype_sources",
-        "What a prototype may load",
-        "One sentence saying whether a prototype may load anything from the "
-        "internet, which follows the setting under General.",
-    ),
     Variable("instance_name", "Instance name", "What this installation is called."),
     Variable("user_name", "User's name", "The name of the person in the conversation."),
     Variable("model_name", "Model", "The display name of the model answering."),
@@ -343,11 +330,6 @@ VARIABLES: tuple[Variable, ...] = (
         "git",
         "The Git section",
         "The LLeMbas CLI's `# Git` section. Always empty here.",
-    ),
-    Variable(
-        "prototype_surface",
-        "Where a prototype is seen",
-        "In a terminal, that it is saved as a file. Empty here: the web page renders it.",
     ),
     Variable(
         "mode_plan",
@@ -808,20 +790,6 @@ BUILTIN: tuple[Fragment, ...] = (
             "told here is forgotten. If the person wants something kept, tell them to "
             "choose Keep this chat first."
         ),
-    ),
-    Fragment(
-        key="core.prototypes",
-        label="Prototypes",
-        group=GROUP_CORE,
-        order=45,
-        variables=("prototype_sources", "prototype_surface"),
-        requires=("prototypes",),
-        hint="Only when this person may see prototypes and the chat has not "
-        "switched them off. The text is the harness spec's (blocks/prototypes.md), "
-        "shared with the LLeMbas CLI. The fence languages are what the renderer "
-        "looks for, so an edit that renames them turns every prototype back into "
-        "a code block.",
-        default=harness_spec.prompt("blocks/prototypes.md"),
     ),
     # --- The permission mode ------------------------------------------------------
     # The spec's modes/*.md, one fragment each, gated on a flag per mode. Plan

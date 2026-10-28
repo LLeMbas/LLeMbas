@@ -72,7 +72,7 @@ def _next(ws, method: str) -> dict:
 
 
 def _personalized(db) -> None:
-    settings_store.update(db, {"personalization_enabled": True, "prototypes_enabled": True,
+    settings_store.update(db, {"personalization_enabled": True,
                                "system_prompt": "You are the instance."})
     user = db.scalar(select(User))
     user.settings_json = {
@@ -107,31 +107,30 @@ def test_the_context_goes_with_session_new_and_again_on_every_prompt(client, db,
             "system_prompt": "You are the instance.",
             "personalization": {"personality": "concise", "personality_custom": "",
                                 "instructions": "Call me Frodo."},
-            "prototypes": {"offered": True, "sources": context["prototypes"]["sources"]},
         }
-        assert "self-contained" in context["prototypes"]["sources"]
         _send(ws, {"id": new["id"], "result": {"sessionId": "s1"}})
         prompt = _next(ws, "session/prompt")
         meta = _lembas_meta(prompt)
         assert meta["turnId"] and meta["system_prompt"] == "You are the instance."
-        assert "library" not in meta and meta["prototypes"]["offered"] is True
+        # Spec 3.0.0: neither `library` nor `prototypes` is sent any more.
+        assert "library" not in meta and "prototypes" not in meta
         _event(ws, "s1", {"type": "task", "state": "start", "turnId": meta["turnId"]})
         _finish(ws, prompt, "Done.")
         _reply(db, chat.id)
 
-        # Changed here between two turns: the chat's own prompt, prototypes
-        # off -- the next prompt says so.
+        # Changed here between two turns: the chat's own prompt, the
+        # personalization off -- the next prompt says so.
         db.expire_all()
         chat = db.get(Chat, chat.id)
         chat.system_prompt = "Be brief."
         db.commit()
-        settings_store.update(db, {"prototypes_enabled": False, "personalization_enabled": False})
+        settings_store.update(db, {"personalization_enabled": False})
         client.post(f"/api/chats/{chat.id}/messages", data={"content": "And again"})
         prompt = _next(ws, "session/prompt")
         meta = _lembas_meta(prompt)
         assert meta["system_prompt"] == "Be brief."
         assert meta["personalization"] is None
-        assert meta["prototypes"]["offered"] is False
+        assert "prototypes" not in meta
         _event(ws, "s1", {"type": "task", "state": "start", "turnId": meta["turnId"]})
         _finish(ws, prompt, "Again.")
         _until(lambda: db.expire_all() or db.scalar(

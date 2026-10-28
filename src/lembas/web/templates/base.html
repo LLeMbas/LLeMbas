@@ -144,34 +144,6 @@
 </template>
 
 {#
-  Everything a prototype card shows that the server's placeholder does not:
-  the tools and the words. Here for the reason the copy button is -- the
-  placeholder is model output, which cannot carry a <button> -- and because the
-  placeholder is also rendered inside a reply's stream, where there is no
-  reader's language to hand. prototypes.js clones the tools and reads the words
-  out by `data-text`.
-#}
-<template id="proto-ui">
-  <svg class="icon icon--sm" aria-hidden="true" data-proto-icon><use href="#i-prototype"/></svg>
-  <div class="proto__tools">
-    <button class="btn btn--sm" type="button" data-proto-open>{{ t("Open") }}</button>
-    <button class="btn btn--icon btn--sm" type="button" data-proto-expand
-            aria-label="{{ t('Open beside the conversation') }}"
-            title="{{ t('Open beside the conversation') }}">
-      <svg class="icon icon--sm" aria-hidden="true"><use href="#i-expand"/></svg>
-    </button>
-    <a class="btn btn--icon btn--sm" data-proto-tab target="_blank" rel="noopener"
-       aria-label="{{ t('Open in a new tab') }}" title="{{ t('Open in a new tab') }}">
-      <svg class="icon icon--sm" aria-hidden="true"><use href="#i-external"/></svg>
-    </a>
-  </div>
-  <span data-text="untitled">{{ t("Prototype") }}</span>
-  <span data-text="writing">{{ t("Writing it… line {lines}") }}</span>
-  <span data-text="waiting">{{ t("Shown as soon as this part of the reply is finished.") }}</span>
-  <span data-text="page">{{ t("A page design. Open it to see it full size, as a desktop or a phone.") }}</span>
-</template>
-
-{#
   Every fetch this application makes, said out loud.
 
   htmx has had `htmx-request` on the triggering element since the beginning and
@@ -202,7 +174,6 @@
 <script src="{{ asset('js/commands.js') }}" defer></script>
 <script src="{{ asset('js/composer.js') }}" defer></script>
 <script src="{{ asset('js/audio.js') }}" defer></script>
-<script src="{{ asset('js/prototypes.js') }}" defer></script>
 
 {#
   The version in the query string is what versions the worker's cache, so a

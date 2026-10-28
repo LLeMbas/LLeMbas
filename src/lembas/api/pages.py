@@ -30,7 +30,6 @@ from lembas.services import branding as branding_service
 from lembas.services import chat as chat_service
 from lembas.services import compaction as compaction_service
 from lembas.services import data_groups, local_device, model_prefs, settings_store
-from lembas.services import prototypes as prototypes_service
 from lembas.services import suggestions as suggestions_service
 from lembas.services.schedule import clock
 from lembas.web import i18n
@@ -156,11 +155,6 @@ def _scope_context(db: DBSession, user: User, chat: Chat | None) -> dict:
     seen: dict[str, str] = {}
     for tool in tools_service.resolve_tools(db, chat, user).defs:
         seen.setdefault(tools_service.gate_of(tool.family), tool.name)
-    # Not a tool, but switched the same way and stored in the same place: a
-    # prototype is something the model writes, and "not in this chat" is the
-    # same decision as "no web search in this chat".
-    if prototypes_service.allowed(db, user) and not chat.parent_chat_id:
-        seen.setdefault(prototypes_service.GATE, "")
     # Anything already switched off is absent from the offered set, so it has to
     # be put back or there would be no way to turn it on again.
     for gate in off:
@@ -310,10 +304,6 @@ def _agent_context(db: DBSession, user: User, chat: Chat | None) -> dict:
             for m in agent_policy.MODES
         ],
         "terminal_enabled": _terminal_enabled(db, user, chat),
-        # Whether the panel and its switch exist at all. The per-chat switch is
-        # not consulted: a chat that turned prototypes off still has the ones
-        # it made before, and they must still open.
-        "prototypes_enabled": prototypes_service.allowed(db, user),
     }
 
 

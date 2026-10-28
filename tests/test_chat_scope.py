@@ -331,35 +331,15 @@ def test_with_nothing_to_narrow_there_is_no_button_at_all(
     than no button.
 
     A model with no `tools` capability is offered nothing, so there is nothing
-    to switch off -- the honest way to reach an empty scope. That also takes
-    prototypes being off for the instance: they need no tools, so a tool-less
-    model still has them to switch off.
+    to switch off -- the honest way to reach an empty scope.
     """
-    from lembas.services import settings_store
-
     model = db.query(Model).filter_by(model_id="m").one()
     model.capabilities_json = {}
-    settings_store.update(db, {"prototypes_enabled": False})
     db.commit()
 
     html = client.get(f"/chat/{chat.id}").text
 
     assert '"kind": "family"' not in html
-
-
-def test_a_tool_less_model_still_offers_the_prototype_switch(
-    client: TestClient, db, chat, registered
-):
-    """A prototype is written, not called, so a model with no tools can make one
-    -- and a chat must be able to say "not here" to it all the same."""
-    model = db.query(Model).filter_by(model_id="m").one()
-    model.capabilities_json = {}
-    db.commit()
-
-    html = client.get(f"/chat/{chat.id}").text
-
-    assert 'id="chat-settings"' in html
-    assert '"name": "prototypes"' in html
 
 
 # --- Before the chat exists -------------------------------------------------------

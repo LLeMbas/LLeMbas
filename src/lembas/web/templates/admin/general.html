@@ -117,27 +117,6 @@
   </section>
 
   <section class="card">
-    <h2 class="card__title">{{ t("Prototypes") }}</h2>
-    <p class="card__lede">{{ t("A model can answer with a live HTML page — a chart, a web design, a small app — shown in the conversation or in a panel beside it. It runs in the reader's browser, sealed off from this application: it cannot see the conversation around it, the reader's account or anything on this server, and nothing it contains runs here.") }}</p>
-    <div class="field">
-      <label class="checkbox">
-        <input type="checkbox" name="prototypes_enabled" value="true"
-               {{ 'checked' if values.prototypes_enabled }}>
-        <span>{{ t("Models may answer with prototypes") }}</span>
-      </label>
-      <p class="field__hint">{{ t("Who may see them is the “See prototypes” permission, and every chat can switch them off in its Toggle menu.") }}</p>
-    </div>
-    <div class="field">
-      <label class="checkbox">
-        <input type="checkbox" name="prototypes_network" value="true"
-               {{ 'checked' if values.prototypes_network }}>
-        <span>{{ t("Prototypes may load from the internet") }}</span>
-      </label>
-      <p class="field__hint">{{ t("Off, a prototype is entirely self-contained: charts are drawn by its own code and nothing leaves the reader's browser. On, it may load libraries, fonts and pictures over HTTPS — which tells whoever serves them that somebody opened it, and stops it working offline. It can never reach this application either way.") }}</p>
-    </div>
-  </section>
-
-  <section class="card">
     <h2 class="card__title">{{ t("Temporary chats") }}</h2>
     <p class="card__lede">{{ t("A temporary chat is not listed in the sidebar, may read files and memories but cannot change anything — no files, memories, skills or schedules — and is deleted when its time is up. Keep this chat turns one into an ordinary chat.") }}</p>
     <div class="field">

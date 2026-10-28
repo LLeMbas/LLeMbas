@@ -65,16 +65,6 @@ PERMISSION_DEFS: tuple[PermissionDef, ...] = (
         "Chat",
     ),
     PermissionDef(
-        "chat.prototypes",
-        N_("See prototypes"),
-        N_("Let a model answer with a live HTML page — a chart, a design, a small "
-        "app — shown in the conversation or in a panel beside it. It runs in "
-        "the reader's browser, sealed off from this application, and nothing "
-        "runs on the server."),
-        True,
-        "Chat",
-    ),
-    PermissionDef(
         "folder.manage",
         N_("Manage folders"),
         N_("Create, rename, nest and delete folders."),
@@ -314,7 +304,6 @@ FOR_PEOPLE: dict[str, tuple[str, str]] = {
     "chat.system_prompt": (CHATS, N_("Give a chat its own system prompt.")),
     "chat.params": (CHATS, N_("Change temperature, top-p and the like for a chat.")),
     "chat.model_select": (CHATS, N_("Switch a chat to another model.")),
-    "chat.prototypes": (CHATS, N_("See the live pages a model answers with.")),
     "folder.manage": (CHATS, N_("Create, rename, nest and delete folders.")),
     "files.upload": (CHATS, N_("Attach images, PDFs and text files to a message.")),
     "tools.web_search": (TOOLS, N_("Look things up on the web while answering.")),

@@ -33,7 +33,6 @@ var SHELL = [
   "/static/js/commands.js",
   "/static/js/composer.js",
   "/static/js/audio.js",
-  "/static/js/prototypes.js",
   "/static/js/steps.js",
   "/static/js/terminal.js",
   // Deliberately not the three xterm files below it: ~300KB precached on every

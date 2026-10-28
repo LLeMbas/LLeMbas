@@ -22,8 +22,6 @@ from pygments.formatters import HtmlFormatter
 from pygments.lexers import get_lexer_by_name, guess_lexer
 from pygments.util import ClassNotFound
 
-from lembas.services import prototypes
-
 # Class-based highlighting; the colours come from theme tokens in chat.css, so
 # code blocks follow the active theme instead of carrying their own palette.
 _FORMATTER = HtmlFormatter(nowrap=True, classprefix="pg-")
@@ -36,9 +34,6 @@ ALLOWED_TAGS = {
     "blockquote", "pre", "code",
     "table", "thead", "tbody", "tr", "th", "td",
     "a", "img",
-    # A prototype's source sits under one of these, closed. Harmless in a
-    # model's own Markdown too: neither element has an attribute allowed.
-    "details", "summary",
 }
 
 ALLOWED_ATTRIBUTES = {
@@ -54,13 +49,7 @@ ALLOWED_ATTRIBUTES = {
     "code": {"class"},
     "pre": {"class"},
     "span": {"class"},
-    # The `data-proto-*` four are the placeholder a prototype fence becomes (see
-    # `_render_prototype`). A model can write the same attributes by hand, and
-    # gains nothing by it: `prototypes.js` checks the digest's shape, and the
-    # route serves only a block that is really in this message with that digest.
-    "div": {"class", "data-proto", "data-proto-hash", "data-proto-title", "data-proto-lines"},
-    "details": {"class"},
-    "summary": {"class"},
+    "div": {"class"},
     "td": {"align"},
     "th": {"align"},
 }
@@ -79,10 +68,6 @@ def _render_fence(tokens, idx, _options, env) -> str:
     """
     token = tokens[idx]
     code = token.content
-
-    wanted = prototypes.parse_info(token.info)
-    if wanted is not None:
-        return _render_prototype(token, *wanted, closed=_closed(token, env.get("lines")))
 
     language = (token.info or "").strip().split()[0] if token.info else ""
 
@@ -126,77 +111,6 @@ def _code_block(body: str, label: str) -> str:
     )
 
 
-def _render_prototype(token, kind: str, given: str, *, closed: bool) -> str:
-    """A prototype fence, as the placeholder `prototypes.js` mounts a frame on.
-
-    Nothing here runs anything. The HTML the model wrote appears in exactly one
-    form -- highlighted, which escapes it -- under a closed `<details>`, so the
-    source can be read and copied. The frame itself is built in the browser,
-    because `<iframe>` is not a tag this sanitiser lets through and must not
-    become one: everything else a model writes passes the same allowlist.
-
-    A block still being written gets no digest: its contents change with every
-    token, and a frame mounted on it would reload a dozen times a second. It
-    says how far it has got instead, and becomes a real placeholder the moment
-    its closing fence arrives.
-
-    The words on the card -- "Prototype", "Open", "Writing…" -- are not here.
-    This runs inside a reply's stream as well as on a page, and the stream has
-    no reader's language to hand; `prototypes.js` fills them from a template the
-    page rendered in the right one.
-    """
-    code = token.content
-    title = html.escape(prototypes.title_for(code, given), quote=True)
-    head = f'<div class="proto__head"><span class="proto__title">{title}</span></div>'
-    if not closed:
-        lines = code.count("\n")
-        return (
-            f'<div class="proto proto--{kind} proto--writing" data-proto="{kind}" '
-            f'data-proto-title="{title}" data-proto-lines="{lines}">{head}</div>'
-        )
-
-    source = _code_block(highlight(code, _html_lexer(), _FORMATTER), "html")
-    return (
-        f'<div class="proto proto--{kind}" data-proto="{kind}" '
-        f'data-proto-hash="{prototypes.digest(code)}" data-proto-title="{title}">'
-        f'{head}<div class="proto__stage"></div>'
-        f'<details class="proto__source"><summary class="proto__summary">HTML</summary>'
-        f"{source}</details></div>"
-    )
-
-
-@functools.lru_cache(maxsize=1)
-def _html_lexer():
-    return get_lexer_by_name("html", stripall=False)
-
-
-# A closing fence once a container's markers are off the front of the line: the
-# same character as the opener, at least as many, and nothing after.
-_CONTAINER = re.compile(r"^[ \t>]*")
-_CLOSER = re.compile(r"^(`{3,}|~{3,})[ \t]*$")
-
-
-def _closed(token, lines: list[str] | None) -> bool:
-    """Whether a fence token has its closing line, or simply ran out of text.
-
-    markdown-it closes an unterminated fence at the end of the document and
-    records no difference, so this reads the line the token ends on. That is the
-    one fact that separates a prototype still streaming from one that is done.
-    With no lines to read -- a caller that did not go through `_source` -- the
-    answer is yes, which renders exactly what this did before prototypes.
-    """
-    if lines is None or not token.map or not token.markup:
-        return True
-    start, end = token.map
-    if end - 1 <= start or end - 1 >= len(lines):
-        return False
-    found = _CLOSER.match(_CONTAINER.sub("", lines[end - 1]))
-    if found is None:
-        return False
-    marker = found.group(1)
-    return marker[0] == token.markup[0] and len(marker) >= len(token.markup)
-
-
 def _source(text: str) -> tuple[str, list[str]]:
     """The text as markdown-it will see it, and its lines.
 
@@ -206,20 +120,6 @@ def _source(text: str) -> tuple[str, list[str]]:
     """
     src = text.replace("\r\n", "\n").replace("\r", "\n").replace("\0", "\ufffd")
     return src, src.split("\n")
-
-
-def fences(text: str):
-    """Every fenced block in `text`, with whether it was closed.
-
-    The prototype route's way of finding a block: the same parser the renderer
-    uses, so the two cannot disagree about what a block contains.
-    """
-    if not text:
-        return
-    src, lines = _source(text)
-    for token in _parser().parse(src, {"lines": lines}):
-        if token.type == "fence":
-            yield token, _closed(token, lines)
 
 
 @functools.lru_cache(maxsize=1)
@@ -397,8 +297,6 @@ def escape_text(text: str) -> str:
 # label's and leaves the code behind. <pre> cannot nest, so this is exact.
 _CODE_BLOCK = re.compile(r"<pre\b[^>]*>.*?</pre>", re.DOTALL)
 _CODE_LABEL = re.compile(r"<div class=\"code-block__label\">.*?</div>", re.DOTALL)
-# A prototype's "HTML" disclosure: a control's name, not something the reply says.
-_PROTO_SUMMARY = re.compile(r"<summary class=\"proto__summary\">.*?</summary>", re.DOTALL)
 _TAG = re.compile(r"<[^>]+>")
 _WHITESPACE = re.compile(r"[ \t]*\n\s*\n\s*")
 
@@ -418,7 +316,6 @@ def speakable_text(text: str) -> str:
         return ""
 
     rendered = _CODE_LABEL.sub(" ", _CODE_BLOCK.sub("\n", render_markdown(text)))
-    rendered = _PROTO_SUMMARY.sub(" ", rendered)
     stripped = html.unescape(_TAG.sub(" ", rendered))
 
     # Paragraph breaks survive as a single newline: speech models use them as a

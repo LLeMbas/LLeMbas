@@ -223,7 +223,6 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(preferences.router)
     app.include_router(chats.router)
-    app.include_router(prototypes.router)
     app.include_router(terminal.router)
     app.include_router(audio.router)
     app.include_router(files.router)

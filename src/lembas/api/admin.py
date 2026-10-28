@@ -68,8 +68,6 @@ async def save_general(
     system_prompt: str = Form(""),
     compact_threshold: int = Form(95),
     max_chat_rounds: int = Form(5),
-    prototypes_enabled: bool = Form(False),
-    prototypes_network: bool = Form(False),
     temporary_lifetime_minutes: int = Form(60),
     instance_mode: str = Form(""),
     currency: str = Form(""),
@@ -110,8 +108,6 @@ async def save_general(
             # Floor of 0, not 1: zero is how "no ceiling" is said, and the loop
             # falls back to a runaway backstop rather than to this number.
             "max_chat_rounds": min(max(max_chat_rounds, 0), 100),
-            "prototypes_enabled": prototypes_enabled,
-            "prototypes_network": prototypes_network,
             "temporary_lifetime_minutes": min(
                 max(temporary_lifetime_minutes, 0), chat_service.TEMPORARY_LIFETIME_MAX_MINUTES
             ),

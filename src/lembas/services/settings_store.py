@@ -90,16 +90,6 @@ def _general_defaults() -> dict[str, Any]:
         "loop_wall_seconds": None,
         "loop_output_bytes": None,
         "loop_completion_tokens": None,
-        # Prototypes: HTML a model writes and the reader's browser runs, sealed
-        # off from this application (services/prototypes.py). On by default --
-        # nothing runs here, and the permission and each chat's own switch
-        # narrow it further.
-        "prototypes_enabled": True,
-        # Whether a prototype may load anything over https: a charting library
-        # from a CDN, a web font, a picture. Off by default for the reason hard
-        # rule 2 exists -- a page that loads a script from a third party tells
-        # that party somebody opened it, and does not work offline.
-        "prototypes_network": False,
         # How long a person's temporary chat lives after its last message, in
         # minutes; 0 means until they leave it. Temporary chats read and write
         # nothing that outlives them (services/chat.py:read_only_temporary), so

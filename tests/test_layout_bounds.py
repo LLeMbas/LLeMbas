@@ -25,7 +25,6 @@ TEMPLATES = ROOT / "web/templates"
 # The panels with a drag handle, and the template each handle lives in.
 PANELS = {
     "--terminal-width": "chat/_terminal.html",
-    "--prototype-width": "chat/_prototype.html",
 }
 
 # 1rem, everywhere in this application.

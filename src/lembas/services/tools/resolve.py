@@ -342,7 +342,7 @@ def resolve_tools(
     if unattended(chat):
         off = off | {FAMILY_ASK}
     # A helper has one reply and nobody reading it, so a plan would be a plan
-    # for no one; the same line prototypes draw.
+    # for no one.
     if getattr(chat, "parent_chat_id", None):
         off = off | {FAMILY_PLAN}
 
@@ -538,7 +538,6 @@ GATE_LABELS = {
     "agent": N_("Running commands"),
     "custom": N_("Custom tools"),
     "mcp": N_("MCP servers"),
-    "prototypes": N_("Prototypes"),
 }
 
 

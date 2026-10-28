@@ -41,7 +41,6 @@ from sqlalchemy.orm import Session as DBSession
 from lembas.db.models import KIND_TASK, User
 from lembas.services import branding, harness_spec, plans, prompts, settings_store
 from lembas.services import memories as memories_service
-from lembas.services import prototypes as prototypes_service
 from lembas.services.schedule import clock
 
 log = logging.getLogger(__name__)
@@ -324,17 +323,6 @@ def context_variables(
         # discovers; this reads what it stored.
         "image_templates": _image_templates(db) if "image" in families else "",
         "image_models": _image_models(db) if "image" in families else "",
-        # A flag, and the gate on `core.prototypes`. Not a tool family: a
-        # prototype is a fenced block in the reply, so a model with no tools at
-        # all can write one -- which is the instance this exists for.
-        "prototypes": "yes" if prototypes_service.offered(db, user, chat) else "",
-        # The one sentence that differs with the network setting, as a variable
-        # rather than two fragments: what may be loaded is a fact about this
-        # instance, and the rest of the guidance is the same either way.
-        "prototype_sources": _prototype_sources(db),
-        # Where a prototype is seen: here, rendered by the page, so nothing to
-        # say -- the CLI fills this with "saved as a file".
-        "prototype_surface": "",
         # The gate on `core.temporary`, and its one variable: how long the chat
         # has. A person's temporary chat only, never a helper's, which is also
         # `temporary` but is told what it may do by `core.subagent`.
@@ -458,18 +446,6 @@ def instructions_block(db: DBSession, user: User | None, tools, chat=None) -> st
     from lembas.services import fs, workspace
 
     return workspace.instructions_block(fs.view(db, user, chat))
-
-
-def _prototype_sources(db: DBSession) -> str:
-    if prototypes_service.network(db):
-        return (
-            "It may load libraries, fonts and pictures over https, but prefer inline code "
-            "where that is easy: the reader may be offline."
-        )
-    return (
-        "Nothing can be loaded from the internet, so make it self-contained: inline the "
-        "CSS and JavaScript, draw charts yourself with SVG or <canvas>, and use system fonts."
-    )
 
 
 def _schedule_values(db: DBSession, chat, user) -> dict[str, str]:

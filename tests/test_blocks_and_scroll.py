@@ -122,8 +122,6 @@ def test_every_path_into_the_transcript_asks_the_same_owner():
     assert sse and "scrollThread(false)" in sse.group(1)
     after = re.search(r'htmx:afterSwap", function \(event\) \{([\s\S]*?)\n  \}\);', code)
     assert after and "scrollThread(false)" in after.group(1)
-    # A frame that grew asks too, through the same function.
-    assert "window.lembas.scrollThread(false)" in (JS / "prototypes.js").read_text()
 
 
 def test_no_swap_autosizes_every_textarea_on_the_page():

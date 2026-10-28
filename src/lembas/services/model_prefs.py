@@ -99,7 +99,6 @@ def offered(db: DBSession, user, model) -> list[dict]:
     theirs applies, labelled as the chat's own menu labels them, with whether
     each is on. Gates switched off already are kept, so they can come back."""
     from lembas.db.models import KIND_CHAT, Chat
-    from lembas.services import prototypes as prototypes_service
     from lembas.services import tools as tools_service
 
     if model is None:
@@ -111,8 +110,6 @@ def offered(db: DBSession, user, model) -> list[dict]:
     seen: dict[str, str] = {}
     for tool in tools_service.resolve_tools(db, stand_in, user, user_defaults=False).defs:
         seen.setdefault(tools_service.gate_of(tool.family), tool.name)
-    if prototypes_service.allowed(db, user):
-        seen.setdefault(prototypes_service.GATE, "")
     off = tools_off(db, user, model.model_id)
     return [
         {"gate": gate, "label": tools_service.gate_label(gate, example), "on": gate not in off}

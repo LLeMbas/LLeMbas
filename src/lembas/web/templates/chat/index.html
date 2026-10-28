@@ -103,18 +103,6 @@
            connection and hides them again when it stops. On a chat that exists
            the server's answer is complete and neither attribute appears. #}
 
-        {% if prototypes_enabled %}
-        {# Hidden until the transcript holds a prototype: `prototypes.js` shows
-           it when it mounts the first one. A button for a panel that can only
-           ever be empty is a button somebody presses once and learns to ignore. #}
-        <button class="btn btn--icon" type="button" aria-label="{{ t('Prototype') }}"
-                title="{{ t('Show the prototype beside the conversation') }}"
-                data-proto-toggle hidden
-                aria-expanded="false" data-toggle="#prototype" data-toggle-group="side">
-          {{ icon("prototype") }}
-        </button>
-        {% endif %}
-
         {% if terminal_enabled %}
         {# To the left of the inspector, and never open beside it: see the
            toggle group in app.js. #}
@@ -260,9 +248,6 @@
   {% if chat and chat.kind != "task" %}
     {% include "chat/_job_panel.html" %}
   {% endif %}
-  {% if prototypes_enabled %}
-    {% include "chat/_prototype.html" %}
-  {% endif %}
   {% if terminal_enabled %}
     {% include "chat/_terminal.html" %}
   {% endif %}
@@ -292,12 +277,6 @@
     <button class="winswitch__btn" type="button" data-window="" aria-pressed="true">
       {{ icon("chat", "icon--sm") }}<span class="winswitch__label">{{ t("Chat") }}</span>
     </button>
-    {% if prototypes_enabled %}
-    <button class="winswitch__btn" type="button" data-window="#prototype" aria-pressed="false"
-            data-proto-toggle hidden>
-      {{ icon("prototype", "icon--sm") }}<span class="winswitch__label">{{ t("Prototype") }}</span>
-    </button>
-    {% endif %}
     {% if terminal_enabled %}
     <button class="winswitch__btn" type="button" data-window="#terminal" aria-pressed="false"
             {% if not chat %}data-agent-only hidden{% endif %}>

@@ -114,6 +114,14 @@ def test_html_is_still_served_as_text(client, db, registered, make_chat):
     show = next(t for t in reply.tool_calls_json if t.get("name") == "show")["show"]
     page = client.get(show["url"])
     assert page.headers["content-type"].startswith("text/plain")
+    # The viewer's frame gets the page itself, sealed: an opaque origin that
+    # loads nothing and cannot reach this application.
+    framed = client.get(show["url"], params={"page": 1})
+    assert framed.headers["content-type"].startswith("text/html")
+    policy = framed.headers["content-security-policy"]
+    assert "sandbox allow-scripts allow-forms" in policy and "allow-same-origin" not in policy
+    assert "connect-src 'none'" in policy and "default-src 'none'" in policy
+    assert framed.text == "<script>alert(1)</script>"
 
 
 def test_over_a_megabyte_is_refused_with_the_reason(client, db, registered, make_chat):

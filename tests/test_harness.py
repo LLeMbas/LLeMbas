@@ -358,8 +358,6 @@ def test_the_shipped_defaults_fit_under_the_ceiling(db, owner):
             "tool_names": names,
             "tool_list": harness.tool_list_sentence(names),
             "max_rounds": "200",
-            "prototypes": "yes",
-            "prototype_sources": "Nothing can be loaded from the internet.",
             "mode_plan": "yes",
             # The files block at a size a real chat reaches: a dozen places.
             "start": "`/home/frodo/projects/ring`",

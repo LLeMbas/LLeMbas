@@ -29,7 +29,6 @@ UI = script("ui.js")
 UI_CODE = js_code(UI)
 AUDIO = script("audio.js")
 STEPS = js_code(script("steps.js"))
-PROTOTYPES = js_code(script("prototypes.js"))
 HTMX = (WEB / "static/vendor/htmx.min.js").read_text(encoding="utf-8")
 CHAT_CSS = (WEB / "static/css/chat.css").read_text(encoding="utf-8")
 
@@ -268,16 +267,12 @@ def test_the_thread_observer_ignores_mutations_inside_a_streaming_bubble():
 
 
 def test_the_observers_look_only_at_what_was_added():
-    """Both body-wide observers: each added subtree once, nodes a later frame
+    """The body-wide observer: each added subtree once, nodes a later frame
     already replaced skipped, and never the whole document."""
     roots = js_function(APP, "addedRoots")
     assert "isConnected" in roots
     assert "contains(node)" in roots
     assert "addedRoots(records).forEach(addCodeCopy)" in APP_CODE
-    observer = PROTOTYPES[PROTOTYPES.index("new MutationObserver") :]
-    observer = observer[: observer.index(".observe(")]
-    assert "isConnected" in observer
-    assert "mount(document)" not in observer
 
 
 # --- The microphone ------------------------------------------------------------

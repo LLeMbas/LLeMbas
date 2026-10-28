@@ -6,7 +6,7 @@ person chats in. The setting is `instance_mode` in the general settings group
 (`settings_store.api_only`).
 
 **One gate, not forty checks.** The product is spread over a dozen routers
-(chats, prototypes, the terminal, files, folders, memories, schedules, audio
+(chats, the terminal, files, folders, memories, schedules, audio
 for the composer, `/mcp`), and a check in each route is
 a check somebody forgets in the next one -- the same argument
 `services/audit.AdminAuditMiddleware` makes. So this is a pure ASGI middleware
@@ -67,7 +67,7 @@ PAGE_PREFIXES = (
 # APIs behind those pages. Each prefix covers everything under it.
 API_PREFIXES = (
     "/api/v2",  # the app's door: chats, the stream, cards, attachments, push
-    "/api/chats",  # messaging, the stream, prototypes, the terminal panel and its WebSocket
+    "/api/chats",  # messaging, the stream, the terminal panel and its WebSocket
     "/api/files",  # the composer's uploads and @-mentions
     "/api/folders",
     "/api/memories",  # what is remembered, from Settings

@@ -128,6 +128,13 @@ release yet.
 - **A linked device can show you a file.** The CLI's `show` tool, in an agent chat, sends the
   file (up to 1 MB); it is kept with the chat and drawn as the same card a chat's own `show`
   makes, and read back as plain text only. Deleting the chat deletes it.
+- **Prototypes are gone; `show` replaces them.** A model no longer answers with a live HTML page
+  in a fenced `prototype-*` block: the renderer draws such a block as ordinary code, and the
+  prototype panel and its route, the *Prototypes* settings under General, the *See prototypes*
+  permission, the chat's prototype switch and the prompt's prototype guidance are removed. A
+  device is sent no `prototypes` with its session any more. A file to look at is opened with
+  `show`; an HTML file a linked device shows is drawn in a sealed frame that reaches neither the
+  instance nor the network.
 
 ## 1.7.2 — 2026-10-25
 

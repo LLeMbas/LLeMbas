@@ -590,17 +590,26 @@ async def device_decide(
 
 
 @router.get("/api/chats/{chat_id}/shown/{shown_id}")
-async def shown_file(db: Db, user: RequiredUser, chat_id: str, shown_id: str) -> Response:
+async def shown_file(
+    db: Db, user: RequiredUser, chat_id: str, shown_id: str, page: bool = False
+) -> Response:
     """A file a linked device showed in this chat (`_lembas/show`), as the
-    device sent it: always plain text to the browser, never a page -- the
-    viewer decides how to draw it, and HTML only in its sandboxed frame."""
+    device sent it: plain text, which the viewer draws. `?page=1` on an HTML
+    file is the page itself, for the viewer's frame -- under the sealed policy
+    (`security/sealed.py`), so it reaches neither this application nor the
+    network."""
     from lembas.db.models import Chat
+    from lembas.security import sealed
     from lembas.services import shown
 
     chat = db.get(Chat, chat_id)
     row = shown.get(db, chat_id, shown_id) if chat is not None and chat.user_id == user.id else None
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, i18n.t("That file is not here any more."))
+    if page and row.kind == "html":
+        return Response(
+            shown.text_of(db, row), media_type="text/html; charset=utf-8", headers=sealed.headers()
+        )
     return Response(
         shown.text_of(db, row),
         media_type="text/plain; charset=utf-8",
