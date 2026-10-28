@@ -28,6 +28,8 @@ var SHELL = [
   "/static/css/admin.css",
   "/static/js/app.js",
   "/static/js/ui.js",
+  "/static/js/inplace.js",
+  "/static/js/dnd.js",
   "/static/js/commands.js",
   "/static/js/composer.js",
   "/static/js/audio.js",

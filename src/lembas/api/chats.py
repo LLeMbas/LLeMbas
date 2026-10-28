@@ -2437,7 +2437,11 @@ async def update_chat(request: Request, db: Db, user: RequiredUser, chat_id: str
     temperature means *clear it*, not *leave it alone*.
     """
     chat = _owned_chat(db, chat_id, user.id)
+    folder_before = chat.folder_id
     renamed, archived_changed = apply_chat_update(db, user, chat, await request.form())
+    # A chat dropped on a folder (js/dnd.js) leaves one part of the tree for
+    # another, exactly as archiving does.
+    moved = chat.folder_id != folder_before
 
     if renamed:
         # The two out-of-band spans the `done` frame already uses, so one
@@ -2457,7 +2461,7 @@ async def update_chat(request: Request, db: Db, user: RequiredUser, chat_id: str
     # new one. The same fragment and the same `oob` the sidebar switch returns,
     # for the same reason: New chat lives above the tree and comes along out of
     # band.
-    if archived_changed:
+    if archived_changed or moved:
         from lembas.api.pages import sidebar_context
 
         return templates.TemplateResponse(

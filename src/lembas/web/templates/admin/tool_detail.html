@@ -13,7 +13,7 @@
 </nav>
 
 {% if error %}
-<div class="alert alert--error">{{ icon("warning", "icon--sm") }} <span>{{ error }}</span></div>
+<div data-flash="error" class="alert alert--error">{{ icon("warning", "icon--sm") }} <span>{{ error }}</span></div>
 {% endif %}
 
 <form method="post" action="{{ '/admin/tools' if is_new else '/admin/tools/' ~ tool.id }}"

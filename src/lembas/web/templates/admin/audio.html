@@ -9,7 +9,7 @@
 <p class="admin-lede">{{ t("Two endpoints speaking the OpenAI audio API: one that turns speech into text so a message can be dictated, one that reads a reply out. They are configured separately because they usually are separate servers — whisper.cpp and Kokoro, say, or Speaches for both.") }}</p>
 
 {% if saved %}
-<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ t("Audio settings saved.") }}</span></div>
+<div data-flash="success" class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ t("Audio settings saved.") }}</span></div>
 {% endif %}
 
 <form method="post" action="/admin/audio">

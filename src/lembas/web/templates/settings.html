@@ -108,7 +108,9 @@
       </div>
 
       <div class="tabs__body">
-        <div class="page">
+        {# The tab radios stay outside, so the open tab survives a save in place
+           (web/in_place.py). #}
+        <div class="page" data-in-place-root>
           {# Two of these arrive as codes rather than sentences, because the
              Appearance cards branch on them too; shown as is, saving a language
              would say "language". The sentence is
@@ -119,12 +121,12 @@
           {% set refused = {"language": t("That language is not offered here."),
                             "timezone": t("That is not a timezone this server knows about.")} %}
           {% if error %}
-          <div class="alert alert--error" role="alert">
+          <div class="alert alert--error" role="alert" data-flash="error">
             {{ icon("warning", "alert__icon") }} <span>{{ refused.get(error, error) }}</span>
           </div>
           {% endif %}
           {% if saved %}
-          <div class="alert alert--success" role="status">
+          <div class="alert alert--success" role="status" data-flash="success">
             {{ icon("check", "icon--sm") }} <span>{{ t("This instance serves the API only; chats and scheduled tasks are switched off.") if saved == "api-only" else said.get(saved, saved) }}</span>
           </div>
           {% endif %}

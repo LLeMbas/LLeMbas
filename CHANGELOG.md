@@ -10,6 +10,15 @@ at <https://llembas.eu/changelog.html>.
 2.0 is a new major on `dev`, released as `2.0.0-beta.N`. What is listed here is on `dev` and in no
 release yet.
 
+- **Settings save in place.** Saving a form under Settings, Administration or Scheduled no longer
+  reloads the page: the page is redrawn where it stands — same scroll position, the same sections
+  open — and what was saved, or what went wrong, is said in a toast. Without JavaScript every form
+  posts as it always did. A create that opens the new thing's page, or a delete that leaves it,
+  still goes there.
+- **Drag and drop.** A chat is moved into a folder by dragging it onto the folder (or onto *Chats*
+  to take it out), or from its new *Move to folder* button, which works from the keyboard and on a
+  phone. The custom tools list is put in order by dragging its numbers, by touch on the same
+  handle, or with the arrow keys; dragging on a filtered page or page 2 moves only the rows shown.
 - **A chat works with files.** In an ordinary chat the model has the file tools of the harness
   spec (3.0.0), over the organisation's file tree: `read`, `write`, `edit`, `list`, `glob`,
   `grep`, `search` (by meaning and words, over the search index), `mkdir`, `mv` and `rm` (to the

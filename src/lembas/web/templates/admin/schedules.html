@@ -27,7 +27,7 @@
 </div>
 
 {% if saved %}
-<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ t("Saved.") }}</span></div>
+<div data-flash="success" class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ t("Saved.") }}</span></div>
 {% endif %}
 
 <form method="post" action="/admin/schedules" class="form-grid">

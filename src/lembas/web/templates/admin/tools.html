@@ -15,7 +15,7 @@
 </p>
 
 {% if saved %}
-<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
+<div data-flash="success" class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
 {% endif %}
 
 {% if not total %}
@@ -57,10 +57,18 @@
 </div>
 {% else %}
 
-<div class="model-rows">
+{#- In order by dragging the number, or by focusing it and pressing the arrow
+    keys (js/dnd.js, api/ordering.py). The order is the order a model is
+    offered the tools in. -#}
+<div class="model-rows" data-sortable data-sortable-url="/admin/order/tools" data-testid="tool-order">
   {% for tool in tools %}
-  <div class="model-row {{ 'is-off' if not tool.enabled }}">
-    <span class="model-row__pos">{{ page_start + loop.index }}</span>
+  <div class="model-row {{ 'is-off' if not tool.enabled }}" data-sortable-item data-id="{{ tool.id }}" draggable="true">
+    <button class="model-row__pos sort-handle" type="button" data-sortable-handle
+            id="sort-{{ tool.id }}" data-testid="sort-handle"
+            aria-label="{{ t('Move %(name)s: drag, or use the arrow keys', name=tool.name) }}"
+            title="{{ t('Drag to put in order') }}">
+      {{ icon("grip", "icon--sm") }}{{ page_start + loop.index }}
+    </button>
 
     <div class="model-row__main">
       <div class="model-row__title">

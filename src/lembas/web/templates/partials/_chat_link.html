@@ -7,8 +7,12 @@
   not only inside the Archived group -- a device section set to "All sessions"
   lists them after the active ones, and they must read as put away there too.
 #}
+{#- Draggable onto a folder on the Chats side (js/dnd.js); the Move button
+    below is the same thing for a keyboard or a phone. Agent chats have no
+    folders. -#}
+{% set movable = chat_item.kind != "agent" and folders is defined and folders %}
 <div class="nav-item {% if chat and chat.id == chat_item.id %}is-active{% endif %} {{ 'nav-item--archived' if chat_item.archived }}"
-     data-chat-id="{{ chat_item.id }}">
+     data-chat-id="{{ chat_item.id }}" data-testid="chat-row"{% if movable %} draggable="true"{% endif %}>
   <a class="nav-item__link" href="/chat/{{ chat_item.id }}">
     {# The kind, in the one place a person looks. Legible even with the switch
        off, which is what it is for: a chat that can run commands should not look
@@ -31,6 +35,14 @@
             aria-label="{{ t('Rename chat') }}" title="{{ t('Rename chat') }}">
       {{ icon("pencil", "icon--sm") }}
     </button>
+    {% if movable %}
+    <button class="btn btn--icon btn--sm" type="button"
+            data-move-chat="{{ chat_item.id }}" data-folder-id="{{ chat_item.folder_id or '' }}"
+            data-chat-title="{{ chat_item.title }}" data-testid="chat-move"
+            aria-label="{{ t('Move to folder') }}" title="{{ t('Move to folder') }}">
+      {{ icon("folder", "icon--sm") }}
+    </button>
+    {% endif %}
     {#
       Archiving, and un-archiving, are the same control reading the opposite
       way round -- so one button, and the sidebar re-renders because a row has

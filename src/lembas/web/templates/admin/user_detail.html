@@ -12,7 +12,7 @@
 </p>
 
 {% if saved %}
-<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
+<div data-flash="success" class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
 {% endif %}
 
 <form method="post" action="/admin/users/{{ target.id }}" class="form-grid">

@@ -9,7 +9,7 @@
 <p class="admin-lede">{{ t("Instance-wide settings. These are stored in the database and take effect immediately — no restart, and they survive one.") }}</p>
 
 {% if saved %}
-<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ t("Settings saved.") }}</span></div>
+<div data-flash="success" class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ t("Settings saved.") }}</span></div>
 {% endif %}
 
 <form method="post" action="/admin/general">

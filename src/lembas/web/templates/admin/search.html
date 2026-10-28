@@ -9,7 +9,7 @@
 <p class="admin-lede">{{ t("Lets a model look things up while it answers. It is offered as a tool the model chooses to call, so nothing changes for a question that does not need it — and it is only offered to models marked as supporting tools, because sending a tool list to one that does not fails the whole request.") }}</p>
 
 {% if saved %}
-<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ t("Search settings saved.") }}</span></div>
+<div data-flash="success" class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ t("Search settings saved.") }}</span></div>
 {% endif %}
 
 <form method="post" action="/admin/search">

@@ -2881,3 +2881,37 @@ a.card, .card--action { transition: transform var(--dur-2) var(--ease-out),
 @media (pointer: coarse), (max-width: 48rem) {
   .checkbox { min-height: var(--control-h-sm); }
 }
+
+/* --- Drag and drop (js/dnd.js) ----------------------------------------------
+   A row being dragged fades; whatever it would land in is outlined. The handle
+   of an ordered list is a real button -- the keyboard's way in (arrow keys) --
+   at least a tap target tall, and `touch-action: none` so a finger drags the
+   row instead of scrolling the page. */
+.is-dragging { opacity: var(--opacity-dim); }
+.is-drop-target {
+  outline: var(--outline-w) dashed var(--accent);
+  outline-offset: calc(-1 * var(--outline-w));
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
+}
+[data-chat-id][draggable="true"] { cursor: grab; }
+.sort-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+  padding: 0 var(--sp-1);
+  border: var(--border-w) solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-faint);
+  font: inherit;
+  cursor: grab;
+  touch-action: none;
+  flex: none;
+}
+.sort-handle:hover { background: var(--surface-hover); color: var(--ink); }
+.sort-handle:focus-visible { outline: var(--outline-w) solid var(--ring); outline-offset: var(--outline-offset); }
+.sort-handle:active { cursor: grabbing; }

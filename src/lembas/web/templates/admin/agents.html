@@ -9,7 +9,7 @@
 <p class="admin-lede">{{ t("An agent chat runs on a linked LLeMbas CLI: the CLI on somebody's machine does the work, under its own limits (its remote: roots and modes), and this instance shows it and passes on what is typed here. Nothing runs on this server. What you decide here is whether the feature exists, how long an approval waits, and the terminal panel.") }}</p>
 
 {% if saved %}
-<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ t("Saved.") }}</span></div>
+<div data-flash="success" class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ t("Saved.") }}</span></div>
 {% endif %}
 
 <form method="post" action="/admin/agents" class="form-grid">

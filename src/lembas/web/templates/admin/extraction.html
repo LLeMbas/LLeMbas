@@ -9,7 +9,7 @@
 <p class="admin-lede">{{ t("What happens to a file between the upload and the model, and how anything is found again afterwards. The two are the same pipeline: what is extracted decides what there is to search.") }}</p>
 
 {% if saved %}
-<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
+<div data-flash="success" class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
 {% endif %}
 
 {# --- Extraction ----------------------------------------------------------- #}

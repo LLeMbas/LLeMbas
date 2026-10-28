@@ -148,7 +148,9 @@
     </header>
 
     <div class="admin-scroll">
-      <div class="admin-page">
+      {# `data-in-place-root`: a form in here is saved without leaving the
+         page (web/in_place.py, js/inplace.js). #}
+      <div class="admin-page" data-in-place-root>
         {% block admin_content %}{% endblock %}
       </div>
     </div>

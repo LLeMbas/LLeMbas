@@ -37,9 +37,9 @@ from lembas.api import (
     mcp_server,
     memories,
     models,
+    ordering,
     pages,
     preferences,
-    prototypes,
     push,
     schedules,
     search,
@@ -245,6 +245,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_tools.router)
     app.include_router(admin_agents.router)
     app.include_router(admin_data_groups.router)
+    app.include_router(ordering.router)
     app.include_router(push.router)
     # The program's door: bearer tokens only, never the cookie.
     app.include_router(devices.router)
@@ -270,7 +271,12 @@ def create_app() -> FastAPI:
     from lembas.services.instance_mode import InstanceModeMiddleware
     from lembas.services.updates_auto import ActivityMiddleware
 
-    # API-only mode: innermost of these, so a foreign request is still
+    # Save in place: innermost, so the page it renders for a settings form goes
+    # through the same doors as the browser's own GET would. See web/in_place.py.
+    from lembas.web.in_place import InPlaceMiddleware
+
+    app.add_middleware(InPlaceMiddleware)
+    # API-only mode: innermost of the rest, so a foreign request is still
     # refused by the Origin check first. One gate on path prefixes rather than a
     # check in every product route -- see services/instance_mode.py.
     app.add_middleware(InstanceModeMiddleware)

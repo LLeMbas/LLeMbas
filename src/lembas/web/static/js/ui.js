@@ -107,6 +107,18 @@
       if (options.placeholder) input.placeholder = options.placeholder;
       input.setAttribute("aria-label", options.title || options.message || t("Value"));
       form.appendChild(input);
+    } else if (options.kind === "choose") {
+      /* One of a few: a <select>, so the keyboard and a screen reader get
+         the browser's own list. Labels are text, never markup. */
+      input = el("select", "select");
+      (options.options || []).forEach(function (option) {
+        var item = el("option", "", option.label);
+        item.value = option.value;
+        if (option.value === options.value) item.selected = true;
+        input.appendChild(item);
+      });
+      input.setAttribute("aria-label", options.title || options.message || t("Value"));
+      form.appendChild(input);
     }
 
     var actions = el("div", "dialog__actions");
@@ -146,24 +158,24 @@
         setTimeout(function () { parts.dialog.remove(); }, 200);
       }
 
-      parts.cancel.addEventListener("click", function () { finish(options.kind === "prompt" ? null : false); });
+      parts.cancel.addEventListener("click", function () { finish(parts.input ? null : false); });
       parts.form.addEventListener("submit", function (event) {
         event.preventDefault();
-        finish(options.kind === "prompt" ? (parts.input.value || "") : true);
+        finish(parts.input ? (parts.input.value || "") : true);
       });
       // Escape and the backdrop both mean "no".
       parts.dialog.addEventListener("cancel", function (event) {
         event.preventDefault();
-        finish(options.kind === "prompt" ? null : false);
+        finish(parts.input ? null : false);
       });
       parts.dialog.addEventListener("click", function (event) {
-        if (event.target === parts.dialog) finish(options.kind === "prompt" ? null : false);
+        if (event.target === parts.dialog) finish(parts.input ? null : false);
       });
 
       parts.dialog.showModal();
       if (parts.input) {
         parts.input.focus();
-        parts.input.select();
+        if (parts.input.select && parts.input.tagName === "INPUT") parts.input.select();
       } else {
         (options.danger ? parts.cancel : parts.accept).focus();
       }
@@ -184,6 +196,10 @@
   window.lembas.notify = notify;
   window.lembas.confirm = confirm;
   window.lembas.prompt = prompt;
+  /* `choose({title, options: [{value, label}], value})` -> the value, or null. */
+  window.lembas.choose = function (options) {
+    return open(Object.assign({ kind: "choose", confirmLabel: t("OK") }, options));
+  };
 
   /* --- htmx integration --------------------------------------------------
      hx-confirm normally calls window.confirm. Intercepting the event lets every
@@ -273,6 +289,10 @@
     var form = event.target;
     if (!form.dataset || !form.dataset.confirm || form.dataset.confirmed) return;
     event.preventDefault();
+    /* Not on to htmx either: a form saved in place (inplace.js) is htmx's,
+       and would otherwise be sent before anybody answered. */
+    event.stopPropagation();
+    var submitter = event.submitter || null;
     confirm({
       title: form.dataset.confirmTitle,
       message: form.dataset.confirm,
@@ -281,7 +301,14 @@
     }).then(function (ok) {
       if (!ok) return;
       form.dataset.confirmed = "1";
-      form.submit();
+      if (form.dataset.inPlaceReady && form.requestSubmit) {
+        /* requestSubmit fires `submit`, which is what htmx listens for;
+           submit() would post the old way and reload the page. */
+        form.requestSubmit(submitter && submitter.form === form ? submitter : undefined);
+      } else {
+        form.submit();
+      }
+      delete form.dataset.confirmed;
     });
   }, true);
 })();

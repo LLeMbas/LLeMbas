@@ -12,10 +12,10 @@
 </p>
 
 {% if saved %}
-<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ t("Settings saved.") }}</span></div>
+<div data-flash="success" class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ t("Settings saved.") }}</span></div>
 {% endif %}
 {% if error %}
-<div class="alert alert--error">{{ icon("warning", "alert__icon") }} <span>{{ error }}</span></div>
+<div data-flash="error" class="alert alert--error">{{ icon("warning", "alert__icon") }} <span>{{ error }}</span></div>
 {% endif %}
 
 {#

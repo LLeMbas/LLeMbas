@@ -138,7 +138,8 @@ lembas login {{ request.base_url|string|trim("/") }}</code></pre>
   {% endfor %}
 
   {% else %}
-  <div class="nav-group">
+  {#- The unfiled chats are the drop target for "no folder" (js/dnd.js). -#}
+  <div class="nav-group" data-folder-drop="" data-folder-name="{{ t('No folder') }}">
     {# `[ CHATS ]          +`: the + is New chat. A link, not a button that creates a row -- the chat is
        written when the first message is sent, so opening one and walking away
        leaves nothing behind. Alt+N does the same (commands.js).
