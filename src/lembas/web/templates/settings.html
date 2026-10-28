@@ -607,6 +607,52 @@
               <p class="field__hint">{{ t("One fact per record, at most %(n)s characters. Never put a password or a key here — it is sent to the model with every message.", n=memory_limit) }}</p>
             </div>
 
+            {#- Out, in and forget-all, per data group (api/memory_io.py). The
+                file is the export format LLeMbas 1.7 writes, so memories
+                exported there come across here. -#}
+            <div class="card" id="memory-files" data-testid="memory-io">
+              <h2 class="card__title">{{ t("Export, import, forget") }}</h2>
+              <div class="memory-io">
+                <form method="get" action="/api/memories/export" class="field" data-in-place="off">
+                  <label class="field__label" for="memory-export-group">{{ t("Export") }}</label>
+                  <div class="row u-gap-2">
+                    <select class="select u-grow" id="memory-export-group" name="group">
+                      <option value="">{{ t("Every data group") }}</option>
+                      {% for group in data_groups %}<option value="{{ group.id }}">{{ group.name }}</option>{% endfor %}
+                    </select>
+                    <button class="btn" type="submit">{{ icon("download", "icon--sm") }} {{ t("Export") }}</button>
+                  </div>
+                  <p class="field__hint">{{ t("A file you can import here or on another LLeMbas.") }}</p>
+                </form>
+                <form method="post" action="/api/memories/import" enctype="multipart/form-data"
+                      class="field" data-in-place="off">
+                  <label class="field__label" for="memory-import-file">{{ t("Import") }}</label>
+                  <div class="row u-gap-2">
+                    <input class="input u-grow" id="memory-import-file" type="file" name="file"
+                           accept="application/json,.json" required>
+                    <select class="select" name="into" aria-label="{{ t('Into which data group') }}">
+                      <option value="">{{ t("The group of the same name") }}</option>
+                      {% for group in data_groups %}<option value="{{ group.id }}">{{ group.name }}</option>{% endfor %}
+                    </select>
+                    <button class="btn" type="submit">{{ t("Import") }}</button>
+                  </div>
+                  <p class="field__hint">{{ t("A memory export from LLeMbas 1.7 or later. What cannot be taken is listed, with the reason.") }}</p>
+                </form>
+                <form method="post" action="/api/memories/purge" class="field"
+                      data-confirm="{{ t('Forget every memory in this data group? This cannot be undone; export first if you may want them.') }}"
+                      data-confirm-title="{{ t('Forget all') }}" data-confirm-label="{{ t('Forget all') }}">
+                  <label class="field__label" for="memory-purge-group">{{ t("Forget all") }}</label>
+                  <div class="row u-gap-2">
+                    <select class="select u-grow" id="memory-purge-group" name="group">
+                      {% for group in data_groups %}<option value="{{ group.id }}">{{ group.name }}</option>{% endfor %}
+                    </select>
+                    <button class="btn btn--danger" type="submit">{{ icon("trash", "icon--sm") }} {{ t("Forget all") }}</button>
+                  </div>
+                  <p class="field__hint">{{ t("Every memory in that data group, at once.") }}</p>
+                </form>
+              </div>
+            </div>
+
           </section>
           {% endif %}
 

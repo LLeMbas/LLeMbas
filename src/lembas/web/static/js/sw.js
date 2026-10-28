@@ -33,6 +33,7 @@ var SHELL = [
   "/static/js/dnd.js",
   "/static/js/files.js",
   "/static/js/ticks.js",
+  "/static/js/palette.js",
   "/static/js/commands.js",
   "/static/js/composer.js",
   "/static/js/audio.js",

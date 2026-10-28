@@ -50,6 +50,17 @@ def _general_defaults() -> dict[str, Any]:
         # What this instance is called: device logins and
         # `/.well-known/lembas.json` show it. Empty is "LLeMbas".
         "instance_name": "",
+        # The instance's own logo: a blob's hash and its type (api/admin_brand.py).
+        # Empty is the LLeMbas mark.
+        "logo_blob_hash": "",
+        "logo_mime": "",
+        # Web Push goes through the browser vendor's relay (Google, Mozilla,
+        # Apple). Off until an administrator turns it on; notifications while a
+        # page is open work either way. See services/push.py.
+        "web_push_enabled": False,
+        # The `python` tool, run in the person's browser by Pyodide (api/pyodide.py).
+        # Off until an administrator turns it on, and only where Pyodide is vendored.
+        "pyodide_enabled": False,
         # Custom instructions and a personality, chosen by each person for
         # themselves. Off until an administrator offers it.
         "personalization_enabled": False,
@@ -422,12 +433,6 @@ def _extraction_defaults() -> dict[str, Any]:
         # the keyword search that has always been here, byte for byte -- which
         # is what makes this safe to add to an instance that never asked for it.
         "embedding_model_id": "",
-        # How long a chunk is, in characters, and how much of the previous one
-        # rides along with it. Characters rather than tokens because the count
-        # has to be made without asking the endpoint, and the estimate is the
-        # same four-to-one this codebase already uses.
-        "chunk_chars": 1200,
-        "chunk_overlap": 150,
         # How many chunks one embedding request carries. Small enough that a
         # local endpoint is not asked for a megabyte at once.
         "embed_batch": 16,
@@ -438,8 +443,7 @@ def extraction(db: DBSession) -> dict[str, Any]:
     """Extraction settings, clamped on read for the reason `agents` gives.
 
     Every floor here is a number that means something bad at zero: a zero-page
-    PDF limit extracts nothing from every PDF and reports success, and a
-    zero-character chunk is an infinite loop in the splitter.
+    PDF limit extracts nothing from every PDF and reports success.
     """
     values = get_group(db, EXTRACTION)
     values["max_upload_mb"] = min(max(int(values.get("max_upload_mb") or 1), 1), 512)
@@ -450,13 +454,6 @@ def extraction(db: DBSession) -> dict[str, Any]:
         max(int(values.get("max_extracted_chars") or 1), 1000), 5_000_000
     )
     values["orphan_hours"] = min(max(int(values.get("orphan_hours") or 1), 1), 8760)
-    values["chunk_chars"] = min(max(int(values.get("chunk_chars") or 1), 200), 8000)
-    # Bounded *against the chunk*, not absolutely: an overlap at or past the
-    # chunk size means every chunk starts where the last one did, which is a
-    # splitter that never advances.
-    values["chunk_overlap"] = min(
-        max(int(values.get("chunk_overlap") or 0), 0), values["chunk_chars"] // 2
-    )
     values["embed_batch"] = min(max(int(values.get("embed_batch") or 1), 1), 256)
     stored = values.get("extra_text_extensions")
     values["extra_text_extensions"] = (
@@ -684,3 +681,9 @@ def currency(db: DBSession) -> str:
 def updates(db: DBSession) -> dict[str, Any]:
     """Update settings, merged over the defaults."""
     return {**_updates_defaults(), **(get_group(db, UPDATES) or {})}
+
+
+def web_push_enabled(db: DBSession) -> bool:
+    """Whether this instance sends Web Push at all (off by default)."""
+    return bool(get_group(db, GENERAL).get("web_push_enabled"))
+

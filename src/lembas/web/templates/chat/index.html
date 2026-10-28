@@ -316,4 +316,13 @@
 <script src="{{ asset('vendor/xterm-addon-fit.js') }}" defer></script>
 <script src="{{ asset('js/terminal.js') }}" defer></script>
 {% endif %}
+{#- The `python` tool's runner: only on a chat that may use it, with Python
+    switched on by an administrator and Pyodide on this server
+    (api/pyodide.py). -#}
+{% if chat and python_runner is defined and python_runner(chat) %}
+<div hidden data-python-runner data-chat-id="{{ chat.id }}"
+     data-worker-src="{{ asset('js/python-worker.js') }}"
+     data-pyodide-index="/static/vendor/pyodide/"></div>
+<script src="{{ asset('js/python.js') }}" defer></script>
+{% endif %}
 {% endblock %}

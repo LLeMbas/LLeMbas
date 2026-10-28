@@ -18,6 +18,7 @@ from lembas.api import (
     admin,
     admin_agents,
     admin_audio,
+    admin_brand,
     admin_data_groups,
     admin_extraction,
     admin_images,
@@ -35,13 +36,17 @@ from lembas.api import (
     devices,
     files,
     folders,
+    invites,
     mcp_server,
     memories,
+    memory_io,
     models,
     ordering,
     pages,
+    palette,
     preferences,
     push,
+    pyodide,
     schedules,
     search,
     terminal,
@@ -249,11 +254,17 @@ def create_app() -> FastAPI:
     app.include_router(ordering.router)
     app.include_router(tree.router)
     app.include_router(access_ui.router)
+    app.include_router(palette.router)
+    app.include_router(admin_brand.router)
+    app.include_router(invites.router)
+    app.include_router(pyodide.router)
     app.include_router(push.router)
     # The program's door: bearer tokens only, never the cookie.
     app.include_router(devices.router)
     app.include_router(tokens.router)
     app.include_router(mcp_server.router)
+    # Before `memories`, whose `/api/memories/{id}` would take `import` for an id.
+    app.include_router(memory_io.router)
     app.include_router(memories.router)
     # Before `/v1`'s own router, whose paths it does not share: `/v1/usage` and
     # `/v1/me/*`.

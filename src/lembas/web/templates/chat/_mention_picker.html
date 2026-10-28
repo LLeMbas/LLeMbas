@@ -8,7 +8,7 @@
   autoescaping and none of it is marked safe.
 #}
 <div id="mention-results">
-  {% if not attachments and not website %}
+  {% if not attachments and not website and not tree_files %}
   <p class="muted text-sm u-pad-3">
     {% if q %}
       {{ t("Nothing matches “%(q)s”.", q=q) }}
@@ -31,6 +31,26 @@
         </span>
       </button>
     </li>
+  </ul>
+  {% endif %}
+
+  {#- Files in the tree the chat can read: the path goes into the message,
+      and the model reads the file itself. -#}
+  {% if tree_files %}
+  <p class="picker__group">{{ t("Files") }}</p>
+  <ul class="picker__list">
+    {% for node in tree_files %}
+    <li>
+      <button class="picker__option" type="button" data-testid="mention-tree"
+              data-mention-tree data-mention-token="{{ node.path }}">
+        {{ icon("file-text", "icon--sm") }}
+        <span class="picker__option-body">
+          <span class="picker__option-name">{{ node.name }}</span>
+          <span class="picker__option-note mono">{{ node.path }}</span>
+        </span>
+      </button>
+    </li>
+    {% endfor %}
   </ul>
   {% endif %}
 

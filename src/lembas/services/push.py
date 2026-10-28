@@ -346,13 +346,33 @@ async def announce(
     that by not showing a notification when one of its own windows is focused,
     which is the only place that can be known.
     """
+    from lembas.services import settings_store
+
     subscriptions = subscriptions_for(db, user)
+    # A browser's registration only while an administrator has Web Push on:
+    # it goes through the browser vendor's relay. An app's (UnifiedPush, with a
+    # token) goes to a distributor its person chose, and is not this switch's.
+    if not settings_store.web_push_enabled(db):
+        subscriptions = [s for s in subscriptions if s.token_id]
     if not subscriptions:
         return 0
 
-    # `extra` is what the app reads and a browser ignores: the chat's id, and
-    # for a card the interaction's, so a notification can answer it.
-    payload = {**(extra or {}), "title": title, "body": body, "url": url, "kind": kind}
+    # No content, ever: only that something happened, and where. The relay
+    # cannot read an encrypted payload, but the payload is still the one part
+    # of this that leaves the instance, so it says nothing a page would not.
+    # `title` and `body` are taken for the callers' sake and not sent. `extra`
+    # is ids the app reads (the chat's, a card's), never text.
+    from lembas.services import branding
+    from lembas.web.i18n import t
+
+    del title, body
+    payload = {
+        **{k: v for k, v in (extra or {}).items() if k.endswith("_id") or k in ("id", "ask")},
+        "title": branding.for_db(db).name,
+        "body": t("Something new is waiting for you."),
+        "url": url,
+        "kind": kind,
+    }
     delivered = 0
     for subscription in list(subscriptions):
         if await send_one(db, subscription, payload):

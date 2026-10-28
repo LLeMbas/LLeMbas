@@ -28,7 +28,8 @@
   kept so the call sites stay as they are.
 #}
 {% macro mark(cls="brand-mark", uid="a") -%}
-{{ art.leaf(cls, brand.name) }}
+{% if brand.logo_url %}<img class="{{ cls }} brand-logo" src="{{ brand.logo_url }}" alt="{{ brand.name }}">
+{%- else %}{{ art.leaf(cls, brand.name) }}{% endif %}
 {%- endmacro %}
 
 {#

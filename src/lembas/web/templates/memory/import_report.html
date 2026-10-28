@@ -1,0 +1,29 @@
+{% extends "files/_layout.html" %}
+{% from "_macros.html" import icon %}
+{#- What an import took and what it left, each by name with the reason
+    (services/memory_io.py): an import never fails whole over one item, and
+    never leaves anybody guessing which ones did not come across. -#}
+{% block title %}{{ t("Memory import") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Memory import") }}{% endblock %}
+
+{% block files_content %}
+<p class="admin-lede"><a href="/settings?tab=memory">{{ icon("chevron-left", "icon--sm") }} {{ t("Back to Memory") }}</a></p>
+{% if problem %}
+<div class="alert alert--error" role="alert">{{ icon("warning", "alert__icon") }} <span>{{ problem }}</span></div>
+{% else %}
+<section class="card" data-testid="import-report">
+  <h2 class="card__title">{{ t("Imported") }} <span class="badge badge--leaf">{{ report.taken|length }}</span></h2>
+  {% if report.taken %}
+  <ul class="undo__list">{% for name in report.taken %}<li class="undo__item">{{ icon("check", "icon--sm") }}<span>{{ name }}</span></li>{% endfor %}</ul>
+  {% else %}<p class="muted text-sm">{{ t("Nothing.") }}</p>{% endif %}
+</section>
+{% if report.dropped %}
+<section class="card">
+  <h2 class="card__title">{{ t("Left out") }} <span class="badge">{{ report.dropped|length }}</span></h2>
+  <ul class="undo__list">{% for name, why in report.dropped %}
+    <li class="undo__item">{{ icon("x", "icon--sm") }}<span>{{ name }}</span><span class="badge">{{ why }}</span></li>
+  {% endfor %}</ul>
+</section>
+{% endif %}
+{% endif %}
+{% endblock %}

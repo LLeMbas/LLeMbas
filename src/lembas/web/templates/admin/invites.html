@@ -1,0 +1,77 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "invites" %}
+{#
+  Invites (api/invites.py): a single-use link into this organisation, that
+  expires. Its link is shown once, here, when it is made -- only its hash is
+  kept, so nobody can show it again, this page included.
+#}
+{% block title %}{{ t("Invites") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Invites") }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">{{ t("Nobody can sign up here on their own. Send a person an invite link: it works once, and stops working when it expires or is revoked.") }}</p>
+{% if saved %}<div data-flash="success" class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>{% endif %}
+{% if error %}<div data-flash="error" class="alert alert--error">{{ icon("warning", "alert__icon") }} <span>{{ error }}</span></div>{% endif %}
+
+{% if link %}
+<section class="card invite-made" data-testid="invite-link">
+  <h2 class="card__title">{{ t("The invite link") }}</h2>
+  <p class="card__lede">{{ t("Copy it now: it is not shown again. Send it to the person it is for.") }}</p>
+  <div class="row u-gap-2">
+    <input class="input u-grow mono" readonly value="{{ link }}" aria-label="{{ t('The invite link') }}" onfocus="this.select()">
+    <button class="btn" type="button" data-copy="{{ link }}">{{ icon("copy", "icon--sm") }} {{ t("Copy") }}</button>
+  </div>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2 class="card__title">{{ t("New invite") }}</h2>
+  <form method="post" action="/admin/invites" class="invite-form">
+    <div class="field">
+      <label class="field__label" for="invite-email">{{ t("For one address (optional)") }}</label>
+      <input class="input" type="email" id="invite-email" name="email" autocomplete="off">
+      <p class="field__hint">{{ t("Then only that address can use it.") }}</p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="invite-role">{{ t("Joins as") }}</label>
+      <select class="select" id="invite-role" name="role">
+        <option value="member">{{ t("Member") }}</option>
+        <option value="admin">{{ t("Organisation administrator") }}</option>
+      </select>
+      <p class="field__hint">{{ t("An organisation administrator manages its folders and people, not the instance.") }}</p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="invite-days">{{ t("Expires after") }}</label>
+      <select class="select" id="invite-days" name="days">
+        {% for n in days %}<option value="{{ n }}" {{ 'selected' if n == 7 }}>{{ t("1 day") if n == 1 else t("%(n)s days", n=n) }}</option>{% endfor %}
+      </select>
+      <p class="field__hint"></p>
+    </div>
+    <div class="btn-row invite-form__go"><button class="btn btn--primary" type="submit" data-testid="invite-make">{{ t("Make the link") }}</button></div>
+  </form>
+</section>
+
+<section class="card">
+  <h2 class="card__title">{{ t("Waiting to be used") }} <span class="badge">{{ invites|length }}</span></h2>
+  {% if not invites %}
+  <p class="muted text-sm">{{ t("None.") }}</p>
+  {% else %}
+  <ul class="model-list">
+    {% for invite in invites %}
+    <li class="model-list__item" data-testid="invite-row">
+      <div class="u-shrink">
+        <strong>{{ invite.email or t("Anyone with the link") }}</strong>
+        <div class="text-xs faint">{{ t("Member") if invite.org_role == "member" else t("Organisation administrator") }} · {{ t("expires %(when)s", when=stamp(invite.expires_at, "%d %B %Y")) }}</div>
+      </div>
+      <form method="post" action="/admin/invites/{{ invite.id }}/revoke">
+        <button class="btn btn--sm btn--danger" type="submit"
+                data-confirm-button="{{ t('Revoke this invite? Its link stops working at once.') }}"
+                data-confirm-title="{{ t('Revoke') }}" data-confirm-label="{{ t('Revoke') }}">{{ t("Revoke") }}</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endblock %}

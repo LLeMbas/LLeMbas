@@ -40,6 +40,12 @@ async def application_key(db: Db, user: RequiredUser) -> dict[str, str]:
     because there is no reason for it to be readable by anyone who is not about
     to use it.
     """
+    from lembas.services import settings_store
+
+    # Off by default: no key, so a browser never registers with its vendor's
+    # relay, and the page says notifications work while it is open.
+    if not settings_store.web_push_enabled(db):
+        return {"key": ""}
     return {"key": push_service.public_key(db)}
 
 
@@ -54,6 +60,10 @@ async def subscribe(request: Request, db: Db, user: RequiredUser) -> Response:
     person to turn notifications on must get them instead of the first, not as
     well.
     """
+    from lembas.services import settings_store
+
+    if not settings_store.web_push_enabled(db):
+        return Response(status_code=status.HTTP_409_CONFLICT)
     payload = await request.json()
     keys = payload.get("keys") or {}
     stored = register(

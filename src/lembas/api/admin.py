@@ -48,8 +48,16 @@ async def admin_home(user: AdminUser):
     return RedirectResponse("/admin/general", status_code=status.HTTP_303_SEE_OTHER)
 
 
+def _pyodide_available() -> bool:
+    from lembas.api.pyodide import available
+
+    return available()
+
+
 @router.get("/general")
-async def general_page(request: Request, db: Db, user: AdminUser, saved: bool = False):
+async def general_page(
+    request: Request, db: Db, user: AdminUser, saved: str = "", error: str = ""
+):
     return render(
         request,
         "admin/general.html",
@@ -59,6 +67,11 @@ async def general_page(request: Request, db: Db, user: AdminUser, saved: bool = 
             "currencies": tuple(settings_store.CURRENCIES),
             "currency": settings_store.currency(db),
             "saved": saved,
+            # The logo and Web Push forms (api/admin_brand.py) say what
+            # happened in words, as `back()` does everywhere else.
+            "said": saved if saved not in ("", "1", "true") else "",
+            "pyodide_available": _pyodide_available(),
+            "error": error,
         },
     )
 

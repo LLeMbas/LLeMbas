@@ -160,6 +160,39 @@ async def attach_from_attachment(
     )
 
 
+def _tree_files(db, user, chat_id: str, needle: str) -> list:
+    """Files in the tree whose name has `needle` in it, that the chat can read
+    -- or, on a new chat, that the person can. Only the path is offered: `@`
+    puts the path in the message and the model reads the file through its own
+    `read`, under the chat's access. Bounded, because this runs per keystroke."""
+    from lembas.db.models import KIND_FILE, Chat, Node
+    from lembas.services import fs
+
+    chat = db.get(Chat, chat_id) if chat_id else None
+    if chat is not None and (chat.user_id != user.id or chat.kind == "agent"):
+        return []
+    view = fs.view(db, user, chat)
+    escaped = needle.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    rows = db.scalars(
+        select(Node)
+        .where(
+            Node.org_id == user.org_id,
+            Node.kind == KIND_FILE,
+            Node.trashed_at.is_(None),
+            Node.name.ilike(f"%{escaped}%", escape="\\"),
+        )
+        .order_by(Node.updated_at.desc())
+        .limit(40)
+    )
+    found = []
+    for node in rows:
+        if view.resolver.visible(node.path):
+            found.append(node)
+        if len(found) >= 6:
+            break
+    return found
+
+
 @router.get("/mention-picker", dependencies=[Depends(require_permission("files.upload"))])
 async def mention_picker(
     request: Request,
@@ -205,6 +238,7 @@ async def mention_picker(
             "request": request,
             "user": user,
             "attachments": attachments,
+            "tree_files": _tree_files(db, user, chat_id, needle) if needle and not website else [],
             "website": website,
             "q": q,
             "chat_id": chat_id,

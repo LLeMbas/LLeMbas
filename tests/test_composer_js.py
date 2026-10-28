@@ -332,9 +332,13 @@ def test_a_device_file_is_only_the_reference():
     """Nothing is copied: the device reads the file when the prompt arrives, so
     choosing one writes `@path` and returns before any attach route is called."""
     choose = js_function(SOURCE, "choose")
-    stop = choose.index('if (option.hasAttribute("data-mention-device")) return;')
+    stop = choose.index("if (byPath) return;")
     assert choose.index("replaceToken(token)") < stop
     assert stop < choose.index("/api/files/from-attachment")
+    # A file in the tree is the same: its path, read by the model under the
+    # chat's access, never copied in as an attachment.
+    by_path = choose[choose.index("var byPath"):].split(";", 1)[0]
+    assert "data-mention-device" in by_path and "data-mention-tree" in by_path
 
 
 def test_a_device_path_is_escaped_the_way_the_cli_reads_it():

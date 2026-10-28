@@ -231,12 +231,10 @@ MESSAGES: dict[str, str] = {
     "own embedder": "embedding proprio",
     "own reviewer": "revisore proprio",
     "Also treat as text": "Tratta anche come testo",
-    "Characters. A record is split on paragraph boundaries into pieces of about this size, and each is embedded separately — a document is found by its best piece, not by its average.": "Caratteri. Un record viene diviso ai confini dei paragrafi in pezzi di circa questa dimensione, e ognuno viene vettorizzato separatamente — un documento si trova tramite il suo pezzo migliore, non la sua media.",
     "Characters. Roughly four to a token, so 120,000 is about 30,000 tokens — already most of a small context window. The rest is cut and the model is told so.": "Caratteri. Circa quattro per token, quindi 120.000 sono circa 30.000 token — già gran parte di una piccola finestra di contesto. Il resto viene tagliato e il modello ne viene informato.",
     "Every number here is a trade, and a large one usually breaks a request rather than being slow — the text of a whole book does not fit in a context window, and a model handed it fails the request outright rather than reading the first half.": "Ogni numero qui è un compromesso, e un valore grande di solito fa fallire una richiesta invece di renderla lenta — il testo di un intero libro non entra in una finestra di contesto, e un modello che lo riceve fa fallire subito la richiesta invece di leggerne la prima metà.",
     "Extraction is slow and happens once, at upload. Beyond this the file is still stored; only its text stops.": "L'estrazione è lenta e avviene una sola volta, al caricamento. Oltre questo limite il file viene comunque conservato; si ferma solo il suo testo.",
     "Hours. A file chosen in the composer and never sent. Swept at startup.": "Ore. Un file scelto nell'area di scrittura e mai inviato. Ripulito all'avvio.",
-    "How much of each piece is repeated at the start of the next, so a sentence across a boundary is whole somewhere. Capped at half the piece size.": "Quanto di ogni pezzo viene ripetuto all'inizio del successivo, così una frase a cavallo di un confine è intera da qualche parte. Al massimo metà della dimensione del pezzo.",
     "JPEG quality": "Qualità JPEG",
     "Keep abandoned uploads for": "Conserva i caricamenti abbandonati per",
     "Largest upload": "Caricamento più grande",
@@ -245,9 +243,7 @@ MESSAGES: dict[str, str] = {
     "Megabytes, before anything is done to it.": "Megabyte, prima di qualsiasi elaborazione.",
     "None — keyword search only": "Nessuno — solo ricerca per parole chiave",
     "Off, a scanned PDF is stored with an explanation saying why it contributes nothing — there is no OCR here. That is usually what somebody wants: the file is still attached and still downloadable.": "Se disattivato, un PDF scansionato viene conservato con una spiegazione del perché non apporta nulla — qui non c'è OCR. Di solito è ciò che si vuole: il file resta allegato e scaricabile.",
-    "Overlap": "Sovrapposizione",
     "Pages read from a PDF": "Pagine lette da un PDF",
-    "Piece size": "Dimensione dei pezzi",
     "Pieces per request": "Pezzi per richiesta",
     "Pixels. Images are re-encoded before they are sent, because a phone photo is several megabytes of base64.": "Pixel. Le immagini vengono ricodificate prima dell'invio, perché una foto del telefono sono diversi megabyte di base64.",
     "Refuse a PDF whose text cannot be read": "Rifiuta un PDF il cui testo non può essere letto",
@@ -1942,7 +1938,6 @@ MESSAGES["Microphone access was refused. Allow it for this site in the browser's
 MESSAGES['No microphone was found. Connect one, or check that the system can see it, then try again.'] = 'Nessun microfono trovato. Collegane uno o verifica che il sistema lo rilevi, poi riprova.'
 MESSAGES['The microphone is in use by another application, or the system would not let the browser open it.'] = "Il microfono è usato da un'altra applicazione, oppure il sistema non ha permesso al browser di aprirlo."
 MESSAGES['The microphone could not be opened (%(error)s).'] = 'Impossibile aprire il microfono (%(error)s).'
-MESSAGES['That file is not here any more.'] = "Questo file non c'è più."
 MESSAGES['Move to folder'] = 'Sposta nella cartella'
 MESSAGES['Move'] = 'Sposta'
 MESSAGES['No folder'] = 'Nessuna cartella'
@@ -1950,55 +1945,7 @@ MESSAGES['Order saved.'] = 'Ordine salvato.'
 MESSAGES['Move %(name)s: drag, or use the arrow keys'] = 'Sposta %(name)s: trascina o usa i tasti freccia'
 MESSAGES['Drag to put in order'] = 'Trascina per ordinare'
 MESSAGES['That did not work.'] = 'Non ha funzionato.'
-MESSAGES['%(failed)s did not answer (%(reason)s), so %(answered)s answered instead.'] = '%(failed)s non ha risposto (%(reason)s), quindi ha risposto %(answered)s al suo posto.'
-MESSAGES['%(ms)s ms'] = '%(ms)s ms'
-MESSAGES['%(name)s: balance read.'] = '%(name)s: saldo letto.'
-MESSAGES['A connection is one provider: a server of your own that speaks the OpenAI API (llama.cpp, llama-swap, vLLM, Ollama, LM Studio), or OpenAI, Anthropic, DeepSeek or OpenRouter. %(brand)s asks each one for its model list and offers those models in the chat picker.'] = "Una connessione è un fornitore: un server tuo che parla l'API di OpenAI (llama.cpp, llama-swap, vLLM, Ollama, LM Studio), oppure OpenAI, Anthropic, DeepSeek o OpenRouter. %(brand)s chiede a ciascuno l'elenco dei modelli e li offre nel selettore della chat."
-MESSAGES['Add a fallback model'] = 'Aggiungi un modello di riserva'
-MESSAGES['Add a fallback model…'] = 'Aggiungi un modello di riserva…'
-MESSAGES['An admin key from the provider, used only to read what the account has spent. Never used for a reply; a reply never fails on it.'] = "Una chiave di amministrazione del fornitore, usata solo per leggere quanto ha speso l'account. Mai usata per una risposta; una risposta non fallisce mai per essa."
-MESSAGES['Answering'] = 'Risponde'
-MESSAGES['Answering with an error'] = 'Risponde con un errore'
-MESSAGES['As detected'] = 'Come rilevato'
-MESSAGES['As the provider reported it at %(when)s UTC.'] = 'Come riportato dal fornitore alle %(when)s UTC.'
-MESSAGES['Balance at the provider'] = 'Saldo presso il fornitore'
-MESSAGES['Billing key (optional)'] = 'Chiave di fatturazione (facoltativa)'
-MESSAGES['Check balance'] = 'Controlla il saldo'
-MESSAGES['Default currency'] = 'Valuta predefinita'
-MESSAGES['Detect'] = 'Rileva'
-MESSAGES['Detected: no'] = 'Rilevato: no'
-MESSAGES['Detected: yes'] = 'Rilevato: sì'
-MESSAGES['Fallback models'] = 'Modelli di riserva'
-MESSAGES['Found:'] = 'Trovato:'
-MESSAGES['Loading a model'] = 'Sta caricando un modello'
-MESSAGES['No'] = 'No'
-MESSAGES['Not checked yet'] = 'Non ancora controllato'
-MESSAGES['Not detected'] = 'Non rilevato'
-MESSAGES['Not read yet.'] = 'Non ancora letto.'
-MESSAGES['Nothing at that address answered like a model server.'] = "Nulla a quell'indirizzo ha risposto come un server di modelli."
-MESSAGES['Nothing reported.'] = 'Nulla riportato.'
-MESSAGES['OpenAI-compatible (llama.cpp, llama-swap, vLLM, Ollama, LM Studio)'] = 'Compatibile con OpenAI (llama.cpp, llama-swap, vLLM, Ollama, LM Studio)'
-MESSAGES["OpenRouter's answer had no credits in it."] = 'La risposta di OpenRouter non conteneva crediti.'
-MESSAGES['Paste an address and press Detect: the type is found for you, and what it says about its models is filled in.'] = 'Incolla un indirizzo e premi Rileva: il tipo viene trovato da sé e si compila ciò che dice dei suoi modelli.'
-MESSAGES['Spent at the provider, last 30 days'] = 'Speso presso il fornitore, ultimi 30 giorni'
-MESSAGES['The address could not be asked.'] = "Non è stato possibile interrogare l'indirizzo."
-MESSAGES['The endpoint says %(n)s tokens (%(source)s). A number typed here wins over it; empty follows the endpoint.'] = "L'endpoint indica %(n)s token (%(source)s). Un numero scritto qui ha la precedenza; vuoto segue l'endpoint."
-MESSAGES['The key was refused for this.'] = 'La chiave è stata rifiutata per questo.'
-MESSAGES['The provider did not answer with a balance.'] = 'Il fornitore non ha risposto con un saldo.'
-MESSAGES["The provider's own figure. A reply's cost here is this instance's estimate from the model's prices, or the provider's when it reports one."] = 'Il dato del fornitore stesso. Il costo di una risposta qui è la stima di questa istanza dai prezzi del modello, o quello del fornitore quando lo riporta.'
-MESSAGES['The type carries what differs between providers — how usage, cached tokens and reasoning are sent and read, and where a balance is found — so none of it has to be set by hand.'] = 'Il tipo porta ciò che cambia tra i fornitori — come si inviano e si leggono uso, token in cache e ragionamento, e dove si trova un saldo — così niente va impostato a mano.'
-MESSAGES['This needs an admin key from the provider (the billing key).'] = 'Serve una chiave di amministrazione del fornitore (la chiave di fatturazione).'
-MESSAGES['This provider has no balance to read.'] = 'Questo fornitore non ha un saldo da leggere.'
-MESSAGES['Time to answer the last check'] = "Tempo di risposta dell'ultimo controllo"
-MESSAGES["Tried in order when this model's connection cannot be reached, times out or answers with a server error, before anything of the reply was written — never on Stop or on a refused request. A reply from a fallback says which model answered, and keeps its cost. Only models in the same data group are tried. None listed: a failed reply fails, as it always has."] = 'Provati in ordine quando la connessione di questo modello non è raggiungibile, scade o risponde con un errore del server, prima che sia stato scritto qualcosa della risposta — mai su Interrompi o su una richiesta rifiutata. Una risposta di riserva dice quale modello ha risposto e ne tiene il costo. Si provano solo modelli dello stesso gruppo di dati. Nessuno in elenco: una risposta non riuscita fallisce, come sempre.'
-MESSAGES['Unreachable'] = 'Non raggiungibile'
-MESSAGES["What a new connection starts in, and what speech and picture prices are typed in. Each connection has its own currency for its models' prices (Connections). A reply keeps the currency it was priced in."] = 'Quella con cui parte una nuova connessione, e in cui si scrivono i prezzi di voce e immagini. Ogni connessione ha la propria valuta per i prezzi dei suoi modelli (Connessioni). Una risposta mantiene la valuta in cui è stata prezzata.'
-MESSAGES["What this connection's model prices are typed in, and what a reply on one of them costs in."] = 'In cosa si scrivono i prezzi dei modelli di questa connessione, e in cosa costa una risposta su uno di essi.'
-MESSAGES['What this model can do. <strong>reasoning</strong> shows the thinking block, <strong>vision</strong> lets images be sent, and <strong>tools</strong> is whether a tool list may be sent at all — turn it on for a model that does not support tool calling and every one of its replies fails. <strong>embeddings</strong> is the odd one out: it says this is not a chat model at all, but one that turns text into vectors, and it is what <a href="/admin/extraction">Extraction</a> picks from.'] = 'Cosa sa fare questo modello. <strong>reasoning</strong> mostra il blocco del ragionamento, <strong>vision</strong> permette di inviare immagini e <strong>tools</strong> dice se si può inviare un elenco di strumenti — attivalo su un modello che non supporta le chiamate agli strumenti e ogni sua risposta fallisce. <strong>embeddings</strong> è l\'eccezione: dice che non è un modello di chat, ma uno che trasforma il testo in vettori, ed è da qui che sceglie <a href="/admin/extraction">Estrazione</a>.'
-MESSAGES['Where the endpoint says (llama.cpp, Ollama, LM Studio, OpenRouter and others do), it is filled in on every refresh; what you choose here always wins.'] = "Dove l'endpoint lo dice (llama.cpp, Ollama, LM Studio, OpenRouter e altri lo fanno), viene compilato a ogni aggiornamento; ciò che scegli qui vince sempre."
-MESSAGES["With or without the trailing <code>/v1</code> — both are accepted. Empty takes the type's own address."] = "Con o senza il <code>/v1</code> finale: vanno bene entrambi. Vuoto prende l'indirizzo proprio del tipo."
-MESSAGES['Yes'] = 'Sì'
-MESSAGES['loading %(model)s'] = 'carica %(model)s'
+MESSAGES['That file is not here any more.'] = "Questo file non c'è più."
 MESSAGES['That is not a path.'] = 'Questo non è un percorso.'
 MESSAGES['That did not work: %(reason)s'] = 'Non ha funzionato: %(reason)s'
 MESSAGES['Uploaded.'] = 'Caricato.'
@@ -2101,3 +2048,149 @@ MESSAGES['What it may reach'] = 'A cosa può accedere'
 MESSAGES['Undo its file changes'] = 'Annulla le sue modifiche ai file'
 MESSAGES['Files a chat may reach'] = 'File a cui una chat può accedere'
 MESSAGES['The preset is what a new chat in this group may reach until its person changes it; the ceiling is the most any chat in it ever may.'] = "L'impostazione predefinita è ciò a cui può accedere una nuova chat di questo gruppo finché la sua persona non la cambia; il tetto è il massimo a cui qualsiasi chat del gruppo può mai accedere."
+MESSAGES['%(failed)s did not answer (%(reason)s), so %(answered)s answered instead.'] = '%(failed)s non ha risposto (%(reason)s), quindi ha risposto %(answered)s al suo posto.'
+MESSAGES['%(ms)s ms'] = '%(ms)s ms'
+MESSAGES['%(name)s: balance read.'] = '%(name)s: saldo letto.'
+MESSAGES['A connection is one provider: a server of your own that speaks the OpenAI API (llama.cpp, llama-swap, vLLM, Ollama, LM Studio), or OpenAI, Anthropic, DeepSeek or OpenRouter. %(brand)s asks each one for its model list and offers those models in the chat picker.'] = "Una connessione è un fornitore: un server tuo che parla l'API di OpenAI (llama.cpp, llama-swap, vLLM, Ollama, LM Studio), oppure OpenAI, Anthropic, DeepSeek o OpenRouter. %(brand)s chiede a ciascuno l'elenco dei modelli e li offre nel selettore della chat."
+MESSAGES['Add a fallback model'] = 'Aggiungi un modello di riserva'
+MESSAGES['Add a fallback model…'] = 'Aggiungi un modello di riserva…'
+MESSAGES['An admin key from the provider, used only to read what the account has spent. Never used for a reply; a reply never fails on it.'] = "Una chiave di amministrazione del fornitore, usata solo per leggere quanto ha speso l'account. Mai usata per una risposta; una risposta non fallisce mai per essa."
+MESSAGES['Answering'] = 'Risponde'
+MESSAGES['Answering with an error'] = 'Risponde con un errore'
+MESSAGES['As detected'] = 'Come rilevato'
+MESSAGES['As the provider reported it at %(when)s UTC.'] = 'Come riportato dal fornitore alle %(when)s UTC.'
+MESSAGES['Balance at the provider'] = 'Saldo presso il fornitore'
+MESSAGES['Billing key (optional)'] = 'Chiave di fatturazione (facoltativa)'
+MESSAGES['Check balance'] = 'Controlla il saldo'
+MESSAGES['Default currency'] = 'Valuta predefinita'
+MESSAGES['Detect'] = 'Rileva'
+MESSAGES['Detected: no'] = 'Rilevato: no'
+MESSAGES['Detected: yes'] = 'Rilevato: sì'
+MESSAGES['Fallback models'] = 'Modelli di riserva'
+MESSAGES['Found:'] = 'Trovato:'
+MESSAGES['Loading a model'] = 'Sta caricando un modello'
+MESSAGES['No'] = 'No'
+MESSAGES['Not checked yet'] = 'Non ancora controllato'
+MESSAGES['Not detected'] = 'Non rilevato'
+MESSAGES['Not read yet.'] = 'Non ancora letto.'
+MESSAGES['Nothing at that address answered like a model server.'] = "Nulla a quell'indirizzo ha risposto come un server di modelli."
+MESSAGES['Nothing reported.'] = 'Nulla riportato.'
+MESSAGES['OpenAI-compatible (llama.cpp, llama-swap, vLLM, Ollama, LM Studio)'] = 'Compatibile con OpenAI (llama.cpp, llama-swap, vLLM, Ollama, LM Studio)'
+MESSAGES["OpenRouter's answer had no credits in it."] = 'La risposta di OpenRouter non conteneva crediti.'
+MESSAGES['Paste an address and press Detect: the type is found for you, and what it says about its models is filled in.'] = 'Incolla un indirizzo e premi Rileva: il tipo viene trovato da sé e si compila ciò che dice dei suoi modelli.'
+MESSAGES['Spent at the provider, last 30 days'] = 'Speso presso il fornitore, ultimi 30 giorni'
+MESSAGES['The address could not be asked.'] = "Non è stato possibile interrogare l'indirizzo."
+MESSAGES['The endpoint says %(n)s tokens (%(source)s). A number typed here wins over it; empty follows the endpoint.'] = "L'endpoint indica %(n)s token (%(source)s). Un numero scritto qui ha la precedenza; vuoto segue l'endpoint."
+MESSAGES['The key was refused for this.'] = 'La chiave è stata rifiutata per questo.'
+MESSAGES['The provider did not answer with a balance.'] = 'Il fornitore non ha risposto con un saldo.'
+MESSAGES["The provider's own figure. A reply's cost here is this instance's estimate from the model's prices, or the provider's when it reports one."] = 'Il dato del fornitore stesso. Il costo di una risposta qui è la stima di questa istanza dai prezzi del modello, o quello del fornitore quando lo riporta.'
+MESSAGES['The type carries what differs between providers — how usage, cached tokens and reasoning are sent and read, and where a balance is found — so none of it has to be set by hand.'] = 'Il tipo porta ciò che cambia tra i fornitori — come si inviano e si leggono uso, token in cache e ragionamento, e dove si trova un saldo — così niente va impostato a mano.'
+MESSAGES['This needs an admin key from the provider (the billing key).'] = 'Serve una chiave di amministrazione del fornitore (la chiave di fatturazione).'
+MESSAGES['This provider has no balance to read.'] = 'Questo fornitore non ha un saldo da leggere.'
+MESSAGES['Time to answer the last check'] = "Tempo di risposta dell'ultimo controllo"
+MESSAGES["Tried in order when this model's connection cannot be reached, times out or answers with a server error, before anything of the reply was written — never on Stop or on a refused request. A reply from a fallback says which model answered, and keeps its cost. Only models in the same data group are tried. None listed: a failed reply fails, as it always has."] = 'Provati in ordine quando la connessione di questo modello non è raggiungibile, scade o risponde con un errore del server, prima che sia stato scritto qualcosa della risposta — mai su Interrompi o su una richiesta rifiutata. Una risposta di riserva dice quale modello ha risposto e ne tiene il costo. Si provano solo modelli dello stesso gruppo di dati. Nessuno in elenco: una risposta non riuscita fallisce, come sempre.'
+MESSAGES['Unreachable'] = 'Non raggiungibile'
+MESSAGES["What a new connection starts in, and what speech and picture prices are typed in. Each connection has its own currency for its models' prices (Connections). A reply keeps the currency it was priced in."] = 'Quella con cui parte una nuova connessione, e in cui si scrivono i prezzi di voce e immagini. Ogni connessione ha la propria valuta per i prezzi dei suoi modelli (Connessioni). Una risposta mantiene la valuta in cui è stata prezzata.'
+MESSAGES["What this connection's model prices are typed in, and what a reply on one of them costs in."] = 'In cosa si scrivono i prezzi dei modelli di questa connessione, e in cosa costa una risposta su uno di essi.'
+MESSAGES['What this model can do. <strong>reasoning</strong> shows the thinking block, <strong>vision</strong> lets images be sent, and <strong>tools</strong> is whether a tool list may be sent at all — turn it on for a model that does not support tool calling and every one of its replies fails. <strong>embeddings</strong> is the odd one out: it says this is not a chat model at all, but one that turns text into vectors, and it is what <a href="/admin/extraction">Extraction</a> picks from.'] = 'Cosa sa fare questo modello. <strong>reasoning</strong> mostra il blocco del ragionamento, <strong>vision</strong> permette di inviare immagini e <strong>tools</strong> dice se si può inviare un elenco di strumenti — attivalo su un modello che non supporta le chiamate agli strumenti e ogni sua risposta fallisce. <strong>embeddings</strong> è l\'eccezione: dice che non è un modello di chat, ma uno che trasforma il testo in vettori, ed è da qui che sceglie <a href="/admin/extraction">Estrazione</a>.'
+MESSAGES['Where the endpoint says (llama.cpp, Ollama, LM Studio, OpenRouter and others do), it is filled in on every refresh; what you choose here always wins.'] = "Dove l'endpoint lo dice (llama.cpp, Ollama, LM Studio, OpenRouter e altri lo fanno), viene compilato a ogni aggiornamento; ciò che scegli qui vince sempre."
+MESSAGES["With or without the trailing <code>/v1</code> — both are accepted. Empty takes the type's own address."] = "Con o senza il <code>/v1</code> finale: vanno bene entrambi. Vuoto prende l'indirizzo proprio del tipo."
+MESSAGES['Yes'] = 'Sì'
+MESSAGES['loading %(model)s'] = 'carica %(model)s'
+MESSAGES['Invites'] = 'Inviti'
+MESSAGES['The search index'] = "L'indice di ricerca"
+MESSAGES['Files and chats are indexed as they change. A rebuild reads everything again — after changing the embedding model, or when a search misses something it should find.'] = 'File e chat vengono indicizzati man mano che cambiano. Una ricostruzione rilegge tutto: dopo aver cambiato il modello di embedding, o quando una ricerca non trova qualcosa che dovrebbe.'
+MESSAGES['Waiting'] = 'In attesa'
+MESSAGES['Failed'] = 'Non riusciti'
+MESSAGES['Pieces'] = 'Frammenti'
+MESSAGES['With a vector'] = 'Con vettore'
+MESSAGES['The indexer is running.'] = "L'indicizzatore è in esecuzione."
+MESSAGES['The indexer is not running.'] = "L'indicizzatore non è in esecuzione."
+MESSAGES['Search by meaning is not available on this server (sqlite-vec is not installed); keywords still work.'] = 'La ricerca per significato non è disponibile su questo server (sqlite-vec non è installato); le parole chiave funzionano ancora.'
+MESSAGES['Last error: %(error)s'] = 'Ultimo errore: %(error)s'
+MESSAGES['The index could not be read.'] = "Impossibile leggere l'indice."
+MESSAGES['Rebuild the index'] = "Ricostruisci l'indice"
+MESSAGES['Logo'] = 'Logo'
+MESSAGES["Shown where the instance's name is: the sidebar, the sign-in page, the empty pages. A PNG, JPEG or WebP of at most 512 KB, square looks best. The themes stay as they are."] = "Mostrato dove compare il nome dell'istanza: la barra laterale, la pagina di accesso, le pagine vuote. Un PNG, JPEG o WebP di al massimo 512 KB, meglio se quadrato. I temi restano come sono."
+MESSAGES['The current logo'] = 'Il logo attuale'
+MESSAGES['Logo image'] = 'Immagine del logo'
+MESSAGES['Use the LLeMbas mark'] = 'Usa il marchio LLeMbas'
+MESSAGES['Python in the browser'] = 'Python nel browser'
+MESSAGES['Offer the python tool in chats'] = 'Offri lo strumento python nelle chat'
+MESSAGES["Code runs in the person's own browser (Pyodide), never on this server, with only the files the chat hands it, and only while a page of that chat is open."] = 'Il codice viene eseguito nel browser della persona (Pyodide), mai su questo server, solo con i file che la chat gli passa e solo finché una pagina di quella chat è aperta.'
+MESSAGES['Pyodide is not installed on this server, so there is nothing to switch on.'] = "Pyodide non è installato su questo server, quindi non c'è nulla da attivare."
+MESSAGES['Notifications when LLeMbas is closed'] = 'Notifiche quando LLeMbas è chiuso'
+MESSAGES['Allow Web Push'] = 'Consenti Web Push'
+MESSAGES["A browser's push goes through its maker's relay — Google's, Mozilla's or Apple's — so they learn that this server sent something, and when. What is sent says only that something is waiting, never what. Off, people still get notified while a LLeMbas page is open, and the apps are not affected."] = 'Il push di un browser passa per il servizio del suo produttore — Google, Mozilla o Apple — che così sa che questo server ha inviato qualcosa, e quando. Ciò che viene inviato dice solo che qualcosa è in attesa, mai cosa. Disattivato, le persone ricevono comunque avvisi finché una pagina di LLeMbas è aperta, e le app non ne risentono.'
+MESSAGES['Nobody can sign up here on their own. Send a person an invite link: it works once, and stops working when it expires or is revoked.'] = 'Nessuno può registrarsi qui da solo. Manda un link di invito: funziona una volta e smette di funzionare quando scade o viene revocato.'
+MESSAGES['The invite link'] = 'Il link di invito'
+MESSAGES['Copy it now: it is not shown again. Send it to the person it is for.'] = 'Copialo ora: non verrà mostrato di nuovo. Mandalo alla persona a cui è destinato.'
+MESSAGES['Copy'] = 'Copia'
+MESSAGES['New invite'] = 'Nuovo invito'
+MESSAGES['For one address (optional)'] = 'Per un indirizzo (facoltativo)'
+MESSAGES['Then only that address can use it.'] = "Allora solo quell'indirizzo potrà usarlo."
+MESSAGES['Joins as'] = 'Entra come'
+MESSAGES['Organisation administrator'] = "Amministratore dell'organizzazione"
+MESSAGES['An organisation administrator manages its folders and people, not the instance.'] = "Un amministratore dell'organizzazione gestisce le sue cartelle e persone, non l'istanza."
+MESSAGES['Expires after'] = 'Scade dopo'
+MESSAGES['1 day'] = '1 giorno'
+MESSAGES['%(n)s days'] = '%(n)s giorni'
+MESSAGES['Make the link'] = 'Crea il link'
+MESSAGES['Waiting to be used'] = 'In attesa di essere usati'
+MESSAGES['Anyone with the link'] = 'Chiunque abbia il link'
+MESSAGES['Revoke this invite? Its link stops working at once.'] = 'Revocare questo invito? Il suo link smette subito di funzionare.'
+MESSAGES['Join %(name)s'] = 'Unisciti a %(name)s'
+MESSAGES['You are invited to %(org)s.'] = 'Sei invitato in %(org)s.'
+MESSAGES['Create my account'] = 'Crea il mio account'
+MESSAGES['Step 2 of 3: what this place is called. Next, a connection to your models.'] = 'Passo 2 di 3: come si chiama questo posto. Poi, una connessione ai tuoi modelli.'
+MESSAGES['Organisation'] = 'Organizzazione'
+MESSAGES['Your team, your company, or your own name. People you invite join it.'] = 'Il tuo team, la tua azienda o il tuo nome. Le persone che inviti vi entrano.'
+MESSAGES['What a device asked to sign in here is told it is signing in to. Empty is LLeMbas.'] = 'Ciò che viene detto a un dispositivo che accede qui. Vuoto è LLeMbas.'
+MESSAGES['Next: a connection'] = 'Avanti: una connessione'
+MESSAGES['Skip for now'] = 'Salta per ora'
+MESSAGES['Memory import'] = 'Importazione della memoria'
+MESSAGES['Back to Memory'] = 'Torna a Memoria'
+MESSAGES['Imported'] = 'Importati'
+MESSAGES['Nothing.'] = 'Niente.'
+MESSAGES['Left out'] = 'Esclusi'
+MESSAGES['Export, import, forget'] = 'Esporta, importa, dimentica'
+MESSAGES['Export'] = 'Esporta'
+MESSAGES['Every data group'] = 'Tutti i gruppi di dati'
+MESSAGES['A file you can import here or on another LLeMbas.'] = 'Un file da importare qui o su un altro LLeMbas.'
+MESSAGES['Import'] = 'Importa'
+MESSAGES['Into which data group'] = 'In quale gruppo di dati'
+MESSAGES['The group of the same name'] = 'Il gruppo con lo stesso nome'
+MESSAGES['A memory export from LLeMbas 1.7 or later. What cannot be taken is listed, with the reason.'] = "Un'esportazione della memoria da LLeMbas 1.7 o successivo. Ciò che non si può prendere è elencato, con il motivo."
+MESSAGES['Forget every memory in this data group? This cannot be undone; export first if you may want them.'] = 'Dimenticare tutti i ricordi di questo gruppo di dati? Non si può annullare; esporta prima se potrebbero servirti.'
+MESSAGES['Forget all'] = 'Dimentica tutto'
+MESSAGES['Every memory in that data group, at once.'] = 'Tutti i ricordi di quel gruppo di dati, in una volta.'
+MESSAGES['The logo can be at most 512 KB.'] = 'Il logo può essere al massimo di 512 KB.'
+MESSAGES['The logo must be a PNG, JPEG or WebP image.'] = "Il logo deve essere un'immagine PNG, JPEG o WebP."
+MESSAGES['Logo saved.'] = 'Logo salvato.'
+MESSAGES['The LLeMbas mark is back.'] = 'Il marchio LLeMbas è tornato.'
+MESSAGES['The index is being rebuilt.'] = "L'indice è in ricostruzione."
+MESSAGES['This invite link is not valid.'] = 'Questo link di invito non è valido.'
+MESSAGES['This invite has already been used.'] = 'Questo invito è già stato usato.'
+MESSAGES['This invite has expired.'] = 'Questo invito è scaduto.'
+MESSAGES['This invite is for another email address.'] = 'Questo invito è per un altro indirizzo email.'
+MESSAGES['Only an administrator can invite.'] = 'Solo un amministratore può invitare.'
+MESSAGES['That invite is not there any more.'] = "Quell'invito non c'è più."
+MESSAGES['Invite revoked.'] = 'Invito revocato.'
+MESSAGES['That data group is not one of yours.'] = 'Quel gruppo di dati non è tuo.'
+MESSAGES['Forgotten.'] = 'Dimenticato.'
+MESSAGES['There was nothing to forget.'] = "Non c'era niente da dimenticare."
+MESSAGES['Settings'] = 'Impostazioni'
+MESSAGES['Python is not switched on here.'] = 'Python non è attivo qui.'
+MESSAGES['That file is too large to be a memory export.'] = "Quel file è troppo grande per essere un'esportazione della memoria."
+MESSAGES['That file is not an export: it is not JSON.'] = "Quel file non è un'esportazione: non è JSON."
+MESSAGES['That file is not a LLeMbas export.'] = "Quel file non è un'esportazione di LLeMbas."
+MESSAGES['That export is format version %(theirs)s; this server reads version %(ours)s.'] = "Quell'esportazione è nella versione di formato %(theirs)s; questo server legge la versione %(ours)s."
+MESSAGES["That is not a memory export; an administrator's export is imported elsewhere."] = "Questa non è un'esportazione della memoria; quella di un amministratore si importa altrove."
+MESSAGES['That export has no items.'] = "Quell'esportazione non ha elementi."
+MESSAGES['not an item'] = 'non è un elemento'
+MESSAGES['not a memory (%(type)s)'] = 'non è un ricordo (%(type)s)'
+MESSAGES['already remembered'] = 'già ricordato'
+MESSAGES['Go to'] = 'Vai a'
+MESSAGES['Go to a chat, a file, a model or a setting…'] = "Vai a una chat, un file, un modello o un'impostazione…"
+MESSAGES['Commands…'] = 'Comandi…'
+MESSAGES['Something new is waiting for you.'] = "C'è qualcosa di nuovo che ti aspetta."

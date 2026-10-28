@@ -309,12 +309,15 @@
     // A device's path is read by the CLI's own `@` expander, where a
     // space ends the mention and `#` starts a line range: both go escaped.
     var token = option.dataset.mentionToken;
-    if (option.hasAttribute("data-mention-device")) token = token.replace(/([\\ #])/g, "\\$1");
+    var byPath = option.hasAttribute("data-mention-device") || option.hasAttribute("data-mention-tree");
+    if (byPath) token = token.replace(/([\\ #])/g, "\\$1");
     replaceToken(token);
     hide();
     /* A device's file is only the reference: the device reads it when
-       the prompt arrives, as its own terminal would. Nothing is copied here. */
-    if (option.hasAttribute("data-mention-device")) return;
+       the prompt arrives, as its own terminal would. A file in the tree is
+       the same: the model reads it with `read`, under the chat's access.
+       Nothing is copied here. */
+    if (byPath) return;
 
     var body = new FormData();
     body.append("chat_id", where.chatId);

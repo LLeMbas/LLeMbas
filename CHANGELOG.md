@@ -19,6 +19,59 @@ release yet.
   to take it out), or from its new *Move to folder* button, which works from the keyboard and on a
   phone. The custom tools list is put in order by dragging its numbers, by touch on the same
   handle, or with the arrow keys; dragging on a filtered page or page 2 moves only the rows shown.
+- **Files.** The organisation's file tree has pages of its own (the folder button in the sidebar):
+  an explorer with the path above, a folder tree beside the list on a wide screen, upload (also by
+  dropping files on the list), new folder, rename, move (drag a row onto a folder, the tree or the
+  path, or *Move* in its menu), delete to the trash and restore, and every version of a file with
+  *Restore*. It shows what you can see and nothing more. A file opens in a viewer — Markdown
+  rendered, code highlighted, text as text, an HTML file only in a sealed frame that cannot reach
+  this page, its cookie or the network, an image as an image, anything else as a download (always
+  `attachment`, never run) — and a text file up to 1 MB in an editor (CodeMirror 6, vendored),
+  which saves without leaving the page and refuses to overwrite a file that changed since it was
+  opened unless you say so. Without JavaScript the editor is a text box that still saves.
+- **`show` is a card in the conversation.** A file a model shows you is a card with its name and
+  path; *Open* shows it in the viewer beside the conversation, and a card that arrives while you
+  watch opens by itself on a wide screen. The card is checked again when opened, against what the
+  chat may reach now. A linked device's file opens the copy it sent.
+- **What a chat may reach, as a tree of ticks.** *Chat settings → Files → What it may reach* shows
+  the tree with a level per ticked path (no access, read only, read and write, read, write and
+  commit); below a ticked folder everything comes with it unless ticked otherwise, and a folder
+  above a ticked path that is not ticked itself is drawn as a *passage* — not listed, not readable,
+  the ticked path inside reached by its full path only. Saving gives the chat grants of its own;
+  *Use the data group's preset* goes back. The same editor sets a data group's *Preset* and
+  *Ceiling* (Administration → Data groups, or your own group under Settings → Data).
+- **Undo a chat's file changes.** *Chat settings → Files → Undo its file changes* lists every file
+  the chat wrote — put back as it was before the chat's first change, or, for a file the chat made,
+  moved to the trash — marks one somebody changed since, and does it on confirmation, each as a new
+  version.
+- **Memory: export, import, forget.** Settings → Memory exports your memories (one data group or
+  all) as the export file LLeMbas 1.7 writes, imports such a file — into the group of the same name
+  or one you choose — and reports what it took and, by name, what it left and why, and forgets every
+  memory of one group at once.
+- **One search over chats and files.** The search page has a *Files* tab, from the search index and
+  only what you may read; chats are also found by meaning, not only by their words. The
+  Extraction page shows the index — what is waiting, done and failed, pieces and vectors, the
+  indexer's state — with *Rebuild the index*. *Piece size* and *Overlap* are gone: the index cuts
+  text by tokens itself.
+- **Ctrl/⌘ + K is a palette**: go to a chat, a file, a model or a setting by typing; *Commands…*
+  in it opens the slash commands as Ctrl/⌘ + K used to.
+- **`@` offers files in the tree** that the chat can read; the path goes into the message and the
+  model reads the file itself.
+- **Invites.** Administration → Invites makes a single-use link into your organisation — for one
+  address or anyone, as a member or an organisation administrator, for 1, 7 or 30 days — shown
+  once, and lists the ones waiting so they can be revoked. The link opens a sign-up page that makes
+  the account and spends the invite.
+- **First run.** After the first account, a short wizard names the organisation and the instance
+  and hands over to Connections.
+- **A logo.** Administration → General takes a PNG, JPEG or WebP (up to 512 KB) shown where the
+  instance's name is, in place of the leaf; the themes stay as they are.
+- **Web Push is off by default.** A browser's push goes through its maker's relay, so it is now an
+  administrator's choice (Administration → General), with that said beside the switch; notifications
+  while a page is open, and the apps' UnifiedPush, work either way. A push says only that something
+  is waiting — never a chat's title or a reply's words.
+- **Python in the browser can be switched on** (Administration → General, off by default) once
+  Pyodide is installed on the server: a chat page then runs the `python` tool in a worker in your
+  browser. Pyodide does not ship with LLeMbas yet, so the switch is not available.
 - **A chat works with files.** In an ordinary chat the model has the file tools of the harness
   spec (3.0.0), over the organisation's file tree: `read`, `write`, `edit`, `list`, `glob`,
   `grep`, `search` (by meaning and words, over the search index), `mkdir`, `mv` and `rm` (to the
@@ -113,18 +166,18 @@ release yet.
   not even as a count. A chat is found by its owner. The meaning half needs `sqlite-vec` (pinned
   to 0.1.9 in the `search` extra, which a standard install has); without it, or without an
   embedding model, search is keywords only and no vectors are written.
-- **`/mcp` is the memory and nothing else.** It offers the `memory` tool and a resource,
-  `lembas://memory` — the entries as the memory block of a system prompt shows them, which a
-  LLeMbas CLI reads as a session starts. Both answer within the chat's data group when a call
-  names the session it is made for, and refuse a session that is not the device's. A token needs
-  the new `memory` scope; `library`, its old name, still counts as `memory` but is no longer
-  offered for a new token.
 - **Link protocol 3, and only 3.** A LLeMbas CLI links to a 2.0 server only as 2.0: discovery
   (`/.well-known/lembas.json`) says `protocol: 3` and `protocols: [3]`, so a 1.x CLI refuses to log
   in and says which side to update, and a link whose hello says 1 or 2 is closed with 4400 and
   *update LLeMbas CLI to 2.0*. An agent chat runs on the chat's model and no other: the *answered
   on its own model* note is gone, and a device that cannot use the chat's model refuses to start
   the session, which the reply shows as its error.
+- **`/mcp` is the memory and nothing else.** It offers the `memory` tool and a resource,
+  `lembas://memory` — the entries as the memory block of a system prompt shows them, which a
+  LLeMbas CLI reads as a session starts. Both answer within the chat's data group when a call
+  names the session it is made for, and refuse a session that is not the device's. A token needs
+  the new `memory` scope; `library`, its old name, still counts as `memory` but is no longer
+  offered for a new token.
 - **A linked device can show you a file.** The CLI's `show` tool, in an agent chat, sends the
   file (up to 1 MB); it is kept with the chat and drawn as the same card a chat's own `show`
   makes, and read back as plain text only. Deleting the chat deletes it.

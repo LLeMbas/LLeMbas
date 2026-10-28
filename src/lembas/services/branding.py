@@ -1,11 +1,11 @@
 """What this installation is called, and how it looks.
 
-Instance customization -- logos, favicons, custom themes, custom CSS, rewritten
-flavour lines -- is not offered: an instance looks
-like LLeMbas. What remains is the **name** (Settings → General, because device
-logins and `/.well-known/lembas.json` show it), the Middle-earth lines as they
-ship, and the two built-in themes, Moria and Shire, of which each person still
-chooses their own.
+Instance customization -- favicons, custom themes, custom CSS, rewritten
+flavour lines -- is not offered: an instance looks like LLeMbas. What remains
+is the **name** (Settings → General, because device logins and
+`/.well-known/lembas.json` show it), a **logo** shown where the name is (2.0;
+`api/admin_brand.py`), the Middle-earth lines as they ship, and the two
+built-in themes, Moria and Shire, of which each person still chooses their own.
 
 A process-level snapshot behind a Jinja global, as before: the login page, the
 error pages and the SSE path do not go through `render()`, and every one of them
@@ -120,6 +120,12 @@ class Branding:
     name: str = DEFAULT_NAME
     text: dict[str, str] = field(default_factory=dict)
     themes: tuple[Theme, ...] = ()
+    # The uploaded logo's blob hash, or "" for the LLeMbas mark (api/admin_brand.py).
+    logo: str = ""
+
+    @property
+    def logo_url(self) -> str:
+        return f"/brand/logo?v={self.logo[:12]}" if self.logo else ""
 
     def default_theme_id(self, fallback: str) -> str:
         """`fallback` (LEMBAS_DEFAULT_THEME) when it names a theme, else Moria."""
@@ -141,14 +147,14 @@ class Branding:
         return self.themes[0]
 
 
-def build(name: str = "") -> Branding:
+def build(name: str = "", logo: str = "") -> Branding:
     text = {key: default for key, (_, _, default) in FLAVOUR.items()}
     themes = tuple(
         Theme(id=theme_id, label=text[f"theme_{theme_id}"], scheme=scheme, base=theme_id,
               colour=colour)
         for theme_id, scheme, colour in BUILT_IN
     )
-    return Branding(name=name.strip() or DEFAULT_NAME, text=text, themes=themes)
+    return Branding(name=name.strip() or DEFAULT_NAME, text=text, themes=themes, logo=logo)
 
 
 _CACHE: Branding | None = None
@@ -156,7 +162,9 @@ _CACHE: Branding | None = None
 
 def _read(db) -> Branding:
     general = settings_store.get_group(db, settings_store.GENERAL)
-    return build(str(general.get("instance_name") or ""))
+    return build(
+        str(general.get("instance_name") or ""), str(general.get("logo_blob_hash") or "")
+    )
 
 
 def snapshot() -> Branding:

@@ -78,8 +78,33 @@ async def extraction_page(request: Request, db: Db, user: AdminUser, saved: str 
                 else ""
             ),
             "saved": saved,
+            "index": _index_progress(),
         },
     )
+
+
+def _index_progress() -> dict:
+    """The search index's queue and pieces, for the card; empty when the index
+    cannot be read (an install without it must still show this page)."""
+    try:
+        from lembas.services import index
+
+        return index.progress()
+    except Exception:
+        return {}
+
+
+@router.post("/index/rebuild")
+async def rebuild_index(user: AdminUser) -> Response:
+    """Re-read everything: every file and chat, failures again, other models'
+    vectors replaced. The worker does it in the background; the page shows the
+    queue going down."""
+    from lembas.api._redirect import back
+    from lembas.services import index
+
+    index.rebuild()
+    log.info("search index rebuild asked for by %s", user.email)
+    return back("/admin/extraction", t("The index is being rebuilt."))
 
 
 @router.post("")
@@ -125,24 +150,22 @@ async def save_search(
     db: Db,
     user: AdminUser,
     embedding_model_id: str = Form(""),
-    chunk_chars: int = Form(1200),
-    chunk_overlap: int = Form(150),
     embed_batch: int = Form(16),
 ) -> Response:
     """The semantic half.
 
     Its own form and its own route, because the two halves have different
-    consequences: changing a chunk size invalidates every vector already stored,
-    and changing an upload limit does not. Keeping them apart is what lets the
-    page say so beside the control that does it.
+    consequences: changing the embedding model invalidates every vector already
+    stored, and changing an upload limit does not. Keeping them apart is what
+    lets the page say so beside the control that does it. (How text is cut into
+    pieces is the index's own business -- by tokens, `services/index/chunks.py`
+    -- and no longer a setting here.)
     """
     before = settings_store.extraction(db)
     settings_store.update(
         db,
         {
             "embedding_model_id": embedding_model_id.strip()[:300],
-            "chunk_chars": min(max(chunk_chars, 200), 8000),
-            "chunk_overlap": max(chunk_overlap, 0),
             "embed_batch": min(max(embed_batch, 1), 256),
         },
         key=settings_store.EXTRACTION,

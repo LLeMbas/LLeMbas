@@ -28,6 +28,19 @@ from lembas.services import push as push_service
 
 
 @pytest.fixture(autouse=True)
+def push_switched_on():
+    """Web Push is off by default (it goes through the browser vendor's relay);
+    everything in this file is about it being on. The default itself is tested
+    at the bottom."""
+    from lembas.db.session import session_scope
+    from lembas.services import settings_store
+
+    with session_scope() as session:
+        settings_store.update(session, {"web_push_enabled": True})
+    yield
+
+
+@pytest.fixture(autouse=True)
 def resolvable_push_service(monkeypatch):
     """`push.example` is not a real host, and `check_url` resolves.
 
@@ -391,3 +404,40 @@ async def test_a_stored_endpoint_is_checked_again_before_the_post(db, registered
     # Refused rather than dropped: the row is somebody's registration, and being
     # unreachable today is not the same as being gone.
     assert db.scalar(select(PushSubscription)) is not None
+
+
+# --- Off by default, and nothing of the content ------------------------------------
+
+
+def test_web_push_is_off_until_an_administrator_turns_it_on(client, db, registered):
+    from lembas.services import settings_store
+
+    settings_store.update(db, {"web_push_enabled": False})
+    assert client.get("/api/push/key").json() == {"key": ""}
+    response = client.post(
+        "/api/push/subscribe",
+        json={"endpoint": "https://push.example.test/x", "keys": {"p256dh": "a", "auth": "b"}},
+    )
+    assert response.status_code == 409
+    assert settings_store.defaults(settings_store.GENERAL)["web_push_enabled"] is False
+
+
+async def test_a_push_carries_no_content(db, registered, monkeypatch):
+    owner = db.scalars(select(User)).first()
+    db.add(PushSubscription(user_id=owner.id, endpoint="https://push.example.test/e",
+                            p256dh="x", auth_secret="y"))
+    db.commit()
+    sent = []
+
+    async def capture(_db, _subscription, payload):
+        sent.append(payload)
+        return True
+
+    monkeypatch.setattr(push_service, "send_one", capture)
+    await push_service.announce(
+        db, owner, title="Secret plans", body="The ring is in the cellar", url="/chat/x",
+        kind="reply", extra={"chat_id": "x", "preview": "the ring"},
+    )
+    assert sent and "Secret" not in json.dumps(sent) and "ring" not in json.dumps(sent)
+    assert sent[0]["chat_id"] == "x" and sent[0]["url"] == "/chat/x"
+

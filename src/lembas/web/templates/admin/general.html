@@ -9,7 +9,10 @@
 <p class="admin-lede">{{ t("Instance-wide settings. These are stored in the database and take effect immediately — no restart, and they survive one.") }}</p>
 
 {% if saved %}
-<div data-flash="success" class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ t("Settings saved.") }}</span></div>
+<div data-flash="success" class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ said or t("Settings saved.") }}</span></div>
+{% endif %}
+{% if error %}
+<div data-flash="error" class="alert alert--error">{{ icon("warning", "alert__icon") }} <span>{{ error }}</span></div>
 {% endif %}
 
 <form method="post" action="/admin/general">
@@ -129,4 +132,54 @@
 
   <div class="form-actions"><button class="btn btn--primary" type="submit">{{ t("Save settings") }}</button></div>
 </form>
+
+{#- Their own forms, after the big one rather than inside it: a form inside a
+    form truncates the outer one (api/admin_brand.py). -#}
+<section class="card u-mt-6" data-testid="logo-card">
+  <h2 class="card__title">{{ t("Logo") }}</h2>
+  <p class="card__lede">{{ t("Shown where the instance's name is: the sidebar, the sign-in page, the empty pages. A PNG, JPEG or WebP of at most 512 KB, square looks best. The themes stay as they are.") }}</p>
+  <div class="btn-row">
+    {% if values.logo_blob_hash %}
+    <img class="brand-mark brand-logo" src="/brand/logo?v={{ values.logo_blob_hash[:12] }}" alt="{{ t('The current logo') }}">
+    {% endif %}
+    <form method="post" action="/admin/general/logo" enctype="multipart/form-data" class="btn-row">
+      <input class="input" type="file" name="logo" accept="image/png,image/jpeg,image/webp" required
+             aria-label="{{ t('Logo image') }}">
+      <button class="btn" type="submit">{{ t("Upload") }}</button>
+    </form>
+    {% if values.logo_blob_hash %}
+    <form method="post" action="/admin/general/logo/delete">
+      <button class="btn btn--ghost" type="submit">{{ t("Use the LLeMbas mark") }}</button>
+    </form>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card u-mt-6" data-testid="python-card">
+  <h2 class="card__title">{{ t("Python in the browser") }}</h2>
+  <form method="post" action="/admin/general/python" class="field">
+    <label class="checkbox">
+      <input type="checkbox" name="pyodide_enabled" value="true" {{ 'checked' if values.pyodide_enabled }}
+             {{ 'disabled' if not pyodide_available }}>
+      <span>{{ t("Offer the python tool in chats") }}</span>
+    </label>
+    <p class="field__hint">
+      {% if pyodide_available %}{{ t("Code runs in the person's own browser (Pyodide), never on this server, with only the files the chat hands it, and only while a page of that chat is open.") }}
+      {% else %}{{ t("Pyodide is not installed on this server, so there is nothing to switch on.") }}{% endif %}
+    </p>
+    <div class="btn-row"><button class="btn" type="submit"{{ ' disabled' if not pyodide_available }}>{{ t("Save") }}</button></div>
+  </form>
+</section>
+
+<section class="card u-mt-6" data-testid="push-card">
+  <h2 class="card__title">{{ t("Notifications when LLeMbas is closed") }}</h2>
+  <form method="post" action="/admin/general/push" class="field">
+    <label class="checkbox">
+      <input type="checkbox" name="web_push_enabled" value="true" {{ 'checked' if values.web_push_enabled }}>
+      <span>{{ t("Allow Web Push") }}</span>
+    </label>
+    <p class="field__hint">{{ t("A browser's push goes through its maker's relay — Google's, Mozilla's or Apple's — so they learn that this server sent something, and when. What is sent says only that something is waiting, never what. Off, people still get notified while a LLeMbas page is open, and the apps are not affected.") }}</p>
+    <div class="btn-row"><button class="btn" type="submit">{{ t("Save") }}</button></div>
+  </form>
+</section>
 {% endblock %}

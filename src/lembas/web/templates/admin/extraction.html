@@ -134,20 +134,6 @@
 
     <div class="field-row">
       <div class="field">
-        <label class="field__label" for="chunk_chars">{{ t("Piece size") }}</label>
-        <input class="input" id="chunk_chars" name="chunk_chars"
-               type="number" min="200" max="8000" step="50" value="{{ values.chunk_chars }}">
-        <p class="field__hint">{{ t("Characters. A record is split on paragraph boundaries into pieces of about this size, and each is embedded separately — a document is found by its best piece, not by its average.") }}</p>
-      </div>
-
-      <div class="field">
-        <label class="field__label" for="chunk_overlap">{{ t("Overlap") }}</label>
-        <input class="input" id="chunk_overlap" name="chunk_overlap"
-               type="number" min="0" max="4000" step="10" value="{{ values.chunk_overlap }}">
-        <p class="field__hint">{{ t("How much of each piece is repeated at the start of the next, so a sentence across a boundary is whole somewhere. Capped at half the piece size.") }}</p>
-      </div>
-
-      <div class="field">
         <label class="field__label" for="embed_batch">{{ t("Pieces per request") }}</label>
         <input class="input" id="embed_batch" name="embed_batch"
                type="number" min="1" max="256" step="1" value="{{ values.embed_batch }}">
@@ -160,5 +146,31 @@
     <button class="btn btn--primary" type="submit">{{ t("Save search") }}</button>
   </div>
 </form>
+
+{#- The index itself (services/index): what is waiting, what failed, how many
+    pieces and vectors there are, and the button that reads everything again. -#}
+<section class="card u-mt-6" data-testid="index-card">
+  <h2 class="card__title">{{ t("The search index") }}</h2>
+  <p class="card__lede">{{ t("Files and chats are indexed as they change. A rebuild reads everything again — after changing the embedding model, or when a search misses something it should find.") }}</p>
+  {% if index %}
+  <dl class="index-stats">
+    <div class="index-stats__item"><dt>{{ t("Waiting") }}</dt><dd>{{ index.pending }}</dd></div>
+    <div class="index-stats__item"><dt>{{ t("Done") }}</dt><dd>{{ index.states.get("done", 0) }}</dd></div>
+    <div class="index-stats__item"><dt>{{ t("Failed") }}</dt><dd>{{ index.states.get("error", 0) }}</dd></div>
+    <div class="index-stats__item"><dt>{{ t("Pieces") }}</dt><dd>{{ index.pieces }}</dd></div>
+    <div class="index-stats__item"><dt>{{ t("With a vector") }}</dt><dd>{{ index.vectors }}</dd></div>
+  </dl>
+  <p class="field__hint">
+    {% if index.running %}{{ t("The indexer is running.") }}{% else %}{{ t("The indexer is not running.") }}{% endif %}
+    {% if not index.vectors_available %} {{ t("Search by meaning is not available on this server (sqlite-vec is not installed); keywords still work.") }}{% endif %}
+    {% if index.last_error %} {{ t("Last error: %(error)s", error=index.last_error) }}{% endif %}
+  </p>
+  {% else %}
+  <p class="field__hint">{{ t("The index could not be read.") }}</p>
+  {% endif %}
+  <form method="post" action="/admin/extraction/index/rebuild" class="btn-row">
+    <button class="btn" type="submit" data-testid="index-rebuild">{{ icon("refresh", "icon--sm") }} {{ t("Rebuild the index") }}</button>
+  </form>
+</section>
 
 {% endblock %}

@@ -234,7 +234,9 @@ async def register(
         user_agent=request.headers.get("user-agent", ""),
         ip_address=request.client.host if request.client else "",
     )
-    response = RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
+    # On to the first-run wizard: the organisation, the instance's name, then
+    # the first connection (api/invites.py).
+    response = RedirectResponse("/setup", status_code=status.HTTP_303_SEE_OTHER)
     _set_session_cookie(response, token, request)
     return response
 

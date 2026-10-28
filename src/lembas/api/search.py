@@ -1,14 +1,16 @@
 """Search: one box over everything a person has here.
 
-Chats and agent sessions, and -- for whoever may use them -- memories. One page, `GET /search`,
+Chats and agent sessions, files, and -- for whoever may use them --
+memories. One page, `GET /search`,
 reached from the magnifier in the sidebar's header rail, and carrying the chat
 sidebar as the library does: you look something up mid-conversation and go
 straight back.
 
 **Every store is asked as its owner.** Chats and memories have no sharing:
 they are this person's own, so the query is `user_id`/`owner_id` first and the
-text second. Nothing here widens what a page elsewhere already shows. (Files
-are searched through the index, `services/index`, by the file tools.)
+text second. Nothing here widens what a page elsewhere already shows. Files,
+and chats said in other words, come from the index (`services/index`), which
+filters every hit through the person's access after scoring.
 
 **Filters are offered by permission, not just refused by it.** A tab for
 something the reader may not open would be a link to a 403, so a type nobody
@@ -40,12 +42,15 @@ from lembas.web.templating import render
 router = APIRouter(tags=["search"])
 
 # The filters, in the order the tabs show them. "all" first and the default.
-FILTERS = ("all", "chats", "memories")
+FILTERS = ("all", "chats", "files", "memories")
 
 # Which permission each type needs. Chats need none beyond being signed in: a
 # person's own chats are always theirs to find.
 NEEDS = {
     "chats": None,
+    # Files are found through the index, as the person sees the tree: a hit
+    # in a directory they cannot read is never shown (services/index/query.py).
+    "files": None,
     "memories": "library.use",
 }
 
@@ -179,6 +184,59 @@ def _search_memories(db: DBSession, user: User, needle: str, limit: int) -> list
     ]
 
 
+async def _search_index(
+    db: DBSession, user: User, needle: str, limit: int, *, kinds: tuple[str, ...]
+) -> list:
+    """The index's hits, best first -- keywords and meaning together. Never
+    raises: an index that is not built yet, or not installed, finds nothing."""
+    try:
+        from lembas.services import index
+
+        return await index.search(db, user, None, needle, kinds=kinds, limit=limit)
+    except Exception:  # the index is an addition to search, never its failure
+        return []
+
+
+async def _search_files(db: DBSession, user: User, needle: str, limit: int) -> list[dict]:
+    from urllib.parse import quote
+
+    return [
+        {
+            "title": hit.title or hit.path.rsplit("/", 1)[-1],
+            "url": f"/files/view?path={quote(hit.path)}",
+            "icon": "file-text",
+            "snippet": escape(hit.path) + Markup(" — ") + snippet(hit.snippet, needle),
+            "archived": False,
+        }
+        for hit in await _search_index(db, user, needle, limit, kinds=("file",))
+    ]
+
+
+async def _search_chats_by_meaning(
+    db: DBSession, user: User, needle: str, limit: int, seen: set[str]
+) -> list[dict]:
+    """Chats the index finds that the words did not: a past conversation about
+    the same thing in other words. Owner only, as the index's chats are."""
+    out = []
+    for hit in await _search_index(db, user, needle, limit, kinds=("chat",)):
+        if hit.node_id in seen:
+            continue
+        chat = db.get(Chat, hit.node_id)
+        if chat is None or chat.user_id != user.id or chat.temporary:
+            continue
+        seen.add(chat.id)
+        out.append(
+            {
+                "title": chat.title,
+                "url": f"/chat/{chat.id}",
+                "icon": "terminal" if chat.kind == "agent" else "chat",
+                "snippet": snippet(hit.snippet, needle),
+                "archived": chat.archived,
+            }
+        )
+    return out
+
+
 async def run(db: DBSession, user: User, needle: str, kinds: list[str], limit: int) -> dict:
     """Search each of `kinds` for `needle`, at most `limit` hits each.
 
@@ -188,7 +246,12 @@ async def run(db: DBSession, user: User, needle: str, kinds: list[str], limit: i
     found: dict[str, list[dict]] = {}
     for kind in kinds:
         if kind == "chats":
-            found[kind] = _search_chats(db, user, needle, limit)
+            by_words = _search_chats(db, user, needle, limit)
+            seen = {hit["url"].rsplit("/", 1)[-1] for hit in by_words}
+            more = await _search_chats_by_meaning(db, user, needle, limit, seen)
+            found[kind] = (by_words + more)[:limit]
+        elif kind == "files":
+            found[kind] = await _search_files(db, user, needle, limit)
         elif kind == "memories":
             found[kind] = _search_memories(db, user, needle, limit)
     return found

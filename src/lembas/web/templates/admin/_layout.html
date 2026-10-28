@@ -104,6 +104,10 @@
           {{ icon("user", "icon--sm") }}
           <span class="nav-item__label">{{ t("Users") }}</span>
         </a>
+        <a class="nav-item {{ 'is-active' if section == 'invites' }}" href="/admin/invites">
+          {{ icon("link", "icon--sm") }}
+          <span class="nav-item__label">{{ t("Invites") }}</span>
+        </a>
         <a class="nav-item {{ 'is-active' if section == 'audit' }}" href="/admin/audit">
           {{ icon("shield", "icon--sm") }}
           <span class="nav-item__label">{{ t("Audit log") }}</span>

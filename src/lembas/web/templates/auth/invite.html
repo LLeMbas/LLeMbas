@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, mark, wordmark %}
+{#- The page an invite link opens (api/invites.py): make the account it
+    promises, and be signed in. -#}
+{% block title %}{{ t("Join %(name)s", name=brand.name) }}{% endblock %}
+
+{% block body %}
+<main class="auth">
+  <div class="auth__card">
+    <div class="auth__brand">
+      {{ mark(cls="brand-mark", uid="auth") }}
+      <h1 class="auth__title">{{ wordmark() }}</h1>
+      {% if org %}<p class="auth__subtitle">{{ t("You are invited to %(org)s.", org=org.name) }}</p>{% endif %}
+    </div>
+
+    {% if problem %}
+    <div class="alert alert--error" role="alert">
+      {{ icon("warning", "alert__icon") }} <span>{{ problem }}</span>
+    </div>
+    {% endif %}
+
+    {% if token %}
+    <form method="post" action="/invite/{{ token }}" class="stack" data-testid="invite-accept">
+      <div class="field">
+        <label class="field__label" for="name">{{ t("Name") }}</label>
+        <input class="input" type="text" id="name" name="name" required autofocus
+               autocomplete="name" value="{{ name|default('') }}">
+      </div>
+      <div class="field">
+        <label class="field__label" for="email">{{ t("Email") }}</label>
+        <input class="input" type="email" id="email" name="email" required
+               autocomplete="username" value="{{ email|default('') }}"{% if fixed_email %} readonly{% endif %}>
+      </div>
+      <div class="field">
+        <label class="field__label" for="password">{{ t("Password") }}</label>
+        <input class="input" type="password" id="password" name="password" required
+               autocomplete="new-password" minlength="8">
+        <p class="field__hint">{{ t("At least 8 characters.") }}</p>
+      </div>
+      <button class="btn btn--primary btn--block" type="submit">{{ t("Create my account") }}</button>
+    </form>
+    {% else %}
+    <p class="auth__subtitle"><a href="/auth/login">{{ t("Sign in") }}</a></p>
+    {% endif %}
+  </div>
+</main>
+{% endblock %}
