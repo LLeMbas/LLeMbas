@@ -25,7 +25,7 @@ from datetime import UTC, date, datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DBSession
 
-from lembas.db.models import Attachment, Usage, User
+from lembas.db.models import Attachment, Usage, UsageCost, User
 
 log = logging.getLogger(__name__)
 
@@ -63,8 +63,13 @@ def record(
     images: int = 0,
     audio_seconds: float = 0,
     speech_chars: int = 0,
+    currency: str | None = None,
 ) -> None:
-    """Add one reply, call or use of a service. Best-effort; never raises."""
+    """Add one reply, call or use of a service. Best-effort; never raises.
+
+    `currency` is what `cost_micro` is in: a reply's connection's
+    (`pricing.price_reply`), or None for the instance's, which speech and
+    pictures are priced in. The cost is kept per currency too (`UsageCost`)."""
     if not user_id:
         return
     try:
@@ -77,8 +82,53 @@ def record(
         row.images += max(0, int(images))
         row.audio_seconds += max(0, math.ceil(audio_seconds))
         row.speech_chars += max(0, int(speech_chars))
+        cost = max(0, int(cost_micro or 0))
+        if cost:
+            code = _currency(db, currency)
+            money = db.get(UsageCost, (user_id, row.period, code))
+            if money is None:
+                money = UsageCost(user_id=user_id, period=row.period, currency=code, cost_micro=0)
+                db.add(money)
+            money.cost_micro += cost
+            db.flush()
     except Exception:  # bookkeeping must never break a reply
         log.debug("could not record usage for %s", user_id, exc_info=True)
+
+
+def _currency(db: DBSession, code: str | None) -> str:
+    from lembas.services import settings_store
+
+    value = str(code or "").upper()
+    return value if len(value) == 3 and value.isalpha() else settings_store.currency(db)
+
+
+def cost_by_currency(db: DBSession, user_id: str, *, period: str = "") -> dict[str, int]:
+    """This account's cost for a month, in micro-units, per currency -- never
+    one currency's added to another's. Cost recorded before costs were kept
+    per currency (in `Usage` and not here) reads as the instance's."""
+    period = period or period_of()
+    out: dict[str, int] = {
+        row.currency: int(row.cost_micro or 0)
+        for row in db.scalars(
+            select(UsageCost)
+            .where(UsageCost.user_id == user_id, UsageCost.period == period)
+            .order_by(UsageCost.currency)
+        )
+        if row.cost_micro
+    }
+    total = int(
+        db.scalar(
+            select(func.coalesce(func.sum(Usage.cost_micro), 0)).where(
+                Usage.user_id == user_id, Usage.period == period
+            )
+        )
+        or 0
+    )
+    rest = total - sum(out.values())
+    if rest > 0:
+        code = _currency(db, None)
+        out[code] = out.get(code, 0) + rest
+    return out
 
 
 def record_token(
@@ -170,6 +220,7 @@ def summary(db: DBSession, user: User) -> dict[str, int]:
 
 __all__ = [
     "by_model",
+    "cost_by_currency",
     "images_today",
     "over_image_budget",
     "period_of",

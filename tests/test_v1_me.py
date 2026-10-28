@@ -49,12 +49,48 @@ def test_usage_counts_tokens_and_cost_and_keeps_the_old_keys_null(client, db, re
         "balance_money": None,
         "windows": [],
         "month": {"from": datetime(now.year, now.month, 1, tzinfo=UTC).isoformat(),
-                  "tokens_in": 100, "tokens_out": 20, "cost": None, "cost_money": 1.25},
+                  "tokens_in": 100, "tokens_out": 20, "cost": None, "cost_money": 1.25,
+                  "cost_by_currency": {"USD": 1.25}},
         "device": {"tokens_in": 60, "tokens_out": 5, "cost": None, "cost_money": None},
         "currency": "USD",
         "admin": True,
         "unit": "money",
     }
+
+
+def test_costs_in_different_currencies_are_never_added_together(client, db, registered):
+    _, auth = _token(db)
+    me = _me(db)
+    db.commit()
+    month = client.get("/v1/usage", headers=auth).json()["month"]
+    assert month["cost_money"] == 0 and month["cost_by_currency"] == {}
+
+    usage_service.record(db, me.id, model_id="a", cost_micro=2_000_000, currency="eur")
+    db.commit()
+    body = client.get("/v1/usage", headers=auth).json()
+    # One currency: the money, in it.
+    assert body["month"]["cost_money"] == 2.0 and body["currency"] == "EUR"
+    assert body["month"]["cost_by_currency"] == {"EUR": 2.0}
+
+    usage_service.record(db, me.id, model_id="b", cost_micro=500_000, currency="USD")
+    # Speech and pictures are in the instance's currency (None).
+    usage_service.record(db, me.id, model_id="stt/whisper-1", cost_micro=250_000)
+    db.commit()
+    body = client.get("/v1/usage", headers=auth).json()
+    assert body["month"]["cost_by_currency"] == {"EUR": 2.0, "USD": 0.75}
+    assert body["month"]["cost_money"] is None and body["currency"] == "USD"
+
+
+def test_cost_counted_before_it_was_kept_per_currency_reads_as_the_instance_s(db, registered):
+    from lembas.db.models import Usage
+
+    me = _me(db)
+    row = usage_service.row_for(db, me.id, "old")
+    row.cost_micro = 3_000_000
+    usage_service.record(db, me.id, model_id="new", cost_micro=1_000_000, currency="EUR")
+    db.commit()
+    assert db.get(Usage, (me.id, usage_service.period_of(), "old")).cost_micro == 3_000_000
+    assert usage_service.cost_by_currency(db, me.id) == {"EUR": 1_000_000, "USD": 3_000_000}
 
 
 def test_usage_needs_a_token_of_the_person(client, db, registered):

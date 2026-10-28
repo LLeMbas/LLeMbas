@@ -215,6 +215,7 @@ def test_v1_counts_and_prices_and_never_refuses(client, db, registered, mock_htt
     assert row.cost_micro == 3 * pricing.MICRO  # 100k output at 10 a million, three times
     usage = client.get("/v1/usage", headers=headers).json()
     assert usage["month"]["tokens_out"] == 300_000 and usage["month"]["cost_money"] == 3.0
+    assert usage["month"]["cost_by_currency"] == {usage["currency"]: 3.0}
     assert usage["unit"] == "money" and usage["balance"] is None and usage["windows"] == []
 
 

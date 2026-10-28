@@ -247,6 +247,29 @@ class Usage(Base):
         return f"<Usage {self.user_id} {self.period} {self.model_id}>"
 
 
+class UsageCost(Base):
+    """What one account's use cost in one month, in one currency. Counting only.
+
+    `Usage.cost_micro` adds every model's cost together, but connections price
+    in their own currencies, and dollars and euros are never summed: this is
+    the same money kept apart per currency, written beside it by
+    `services/usage.record`. A reply is in its connection's currency; speech
+    and pictures in the instance's. `cost_micro` is micro-units of `currency`.
+    """
+
+    __tablename__ = "usage_costs"
+
+    user_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    period: Mapped[str] = mapped_column(String(7), primary_key=True)
+    currency: Mapped[str] = mapped_column(String(3), primary_key=True)
+    cost_micro: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<UsageCost {self.user_id} {self.period} {self.currency}>"
+
+
 class UserModelSetting(UUIDPrimaryKey, Timestamps, Base):
     """One person's own defaults for one model (Settings -> Models).
 

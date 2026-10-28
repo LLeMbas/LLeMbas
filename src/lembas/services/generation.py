@@ -2572,6 +2572,7 @@ def _persist(generation: Generation, title: str, elapsed: float) -> None:
                 cached_tokens=generation.cached_tokens,
                 completion_tokens=spent.completion_tokens,
                 cost_micro=message.cost_micro,
+                currency=message.currency,
             )
 
             if title and not chat.title_generated:

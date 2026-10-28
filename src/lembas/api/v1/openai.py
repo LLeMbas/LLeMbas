@@ -346,6 +346,7 @@ def _record(
             completion_tokens=counts["completion_tokens"],
             requests=replies,
             cost_micro=priced["cost_micro"] if priced else 0,
+            currency=priced["currency"] if priced else None,
         )
         if token_id:
             usage_service.record_token(

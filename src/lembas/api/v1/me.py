@@ -33,10 +33,14 @@ SCOPE_API = "api"
 async def my_usage(db: Db, caller: LiveCaller) -> dict[str, Any]:
     """The month so far, for the person and for this token. Counting only.
 
-    `month.tokens_in`/`tokens_out` across every model, and `month.cost_money`,
-    what the month's priced use cost in `currency` (0 when nothing was
-    priced). `device` is this token's own tokens. There are no credits, plans
-    or budgets any more: `plan`, `balance`, `balance_money`, `month.cost`,
+    `month.tokens_in`/`tokens_out` across every model. What the month's priced
+    use cost is `month.cost_by_currency`, `{"USD": 1.25, "EUR": 0.4}`: each
+    connection prices in its own currency, and two currencies are never added
+    together. `month.cost_money` is that cost when exactly one currency is
+    involved, with `currency` naming it; with several it is null (and
+    `currency` is the instance's), and with none it is 0 in the instance's.
+    `device` is this token's own tokens. There are no credits, plans or
+    budgets any more: `plan`, `balance`, `balance_money`, `month.cost`,
     `device.cost` and `device.cost_money` stay in the answer as null and
     `windows` as empty, so a client written for 1.x reads "nothing to show"
     rather than failing; `unit` is `"money"`."""
@@ -45,6 +49,15 @@ async def my_usage(db: Db, caller: LiveCaller) -> dict[str, Any]:
     start = datetime(now.year, now.month, 1, tzinfo=UTC)
     period = usage_service.period_of(now)
     rows = usage_service.by_model(db, user.id, period=period)
+    by_currency = {
+        code: round(pricing.micro_to_money(micro), 6)
+        for code, micro in usage_service.cost_by_currency(db, user.id, period=period).items()
+    }
+    currency = settings_store.currency(db)
+    if len(by_currency) == 1:
+        currency, cost_money = next(iter(by_currency.items()))
+    else:
+        cost_money = None if by_currency else 0.0
     this_month = token.usage_period == period
     return {
         "plan": None,
@@ -55,7 +68,8 @@ async def my_usage(db: Db, caller: LiveCaller) -> dict[str, Any]:
             "tokens_in": sum(r.tokens_in for r in rows),
             "tokens_out": sum(r.tokens_out for r in rows),
             "cost": None,
-            "cost_money": round(pricing.micro_to_money(sum(r.cost_micro for r in rows)), 6),
+            "cost_money": cost_money,
+            "cost_by_currency": by_currency,
         },
         "device": {
             "tokens_in": int(token.usage_prompt_tokens or 0) if this_month else 0,
@@ -64,7 +78,7 @@ async def my_usage(db: Db, caller: LiveCaller) -> dict[str, Any]:
             "cost_money": None,
         },
         "windows": [],
-        "currency": settings_store.currency(db),
+        "currency": currency,
         "admin": bool(user.is_admin),
         "unit": "money",
     }
