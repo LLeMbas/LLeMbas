@@ -29,9 +29,9 @@ from lembas.services import fs
 from lembas.services.skill_format import (
     FILE_NAME,
     MAX_INDEX_SKILLS,
-    SKILL_NAME_PATTERN,
+    loadable_name,
+    lookup_key,
     parse,
-    slugify,
 )
 
 SKILLS_DIR = "skills"
@@ -102,8 +102,10 @@ def _skills_in(v: fs.View, root: str) -> Iterable[SkillFile]:
         if parsed is None:
             continue
         meta, _body = parsed
-        name = slugify(meta.get("name") or entry.name)
-        if not SKILL_NAME_PATTERN.match(name):
+        # Lenient (`filesystem.md` *Skills*): a SKILL.md made elsewhere is offered
+        # under any name that is one line of at most 64 characters.
+        name = loadable_name(meta.get("name") or entry.name)
+        if name is None:
             continue
         yield SkillFile(
             name=name,
@@ -116,18 +118,24 @@ def _skills_in(v: fs.View, root: str) -> Iterable[SkillFile]:
 
 def all_skills(v: fs.View, *, exclude: Iterable[str] = ()) -> list[SkillFile]:
     """Every skill this chat can read, a name's first claim winning, by name."""
-    hidden = {slugify(name) for name in exclude}
+    hidden = {lookup_key(name) for name in exclude}
     found: dict[str, SkillFile] = {}
     for root in roots(v):
         for skill in _skills_in(v, root):
-            if skill.name not in found and skill.name not in hidden:
-                found[skill.name] = skill
+            key = lookup_key(skill.name)
+            if key not in found and key not in hidden:
+                found[key] = skill
     return sorted(found.values(), key=lambda s: s.name)
 
 
 def find(v: fs.View, name: str, *, exclude: Iterable[str] = ()) -> SkillFile | None:
-    wanted = slugify(name)
-    return next((s for s in all_skills(v, exclude=exclude) if s.name == wanted), None)
+    """A skill by name: case ignored, `_` and spaces read as `-`."""
+    skills = all_skills(v, exclude=exclude)
+    exact = (name or "").strip().lower()
+    wanted = lookup_key(name)
+    return next((s for s in skills if s.name.lower() == exact), None) or next(
+        (s for s in skills if lookup_key(s.name) == wanted), None
+    )
 
 
 def count(v: fs.View, *, exclude: Iterable[str] = ()) -> int:

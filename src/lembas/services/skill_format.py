@@ -13,8 +13,11 @@ from __future__ import annotations
 import json
 import re
 
-# A name the model can quote back without getting it wrong.
-SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{1,60}$")
+# A name `skill_manage` makes (harness spec 3.0.0, `filesystem.md` *Skills*; the
+# Agent Skills format's rule): lowercase letters, digits and -, starting with a
+# letter or a digit, at most 64 characters.
+MAX_NAME_CHARS = 64
+SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 
 MAX_DESCRIPTION_CHARS = 400
 MAX_BODY_CHARS = 20_000
@@ -31,8 +34,28 @@ _SHAPE = (
 
 
 def slugify(name: str) -> str:
+    """A name as `skill_manage` would make it: lowercase, every run of anything
+    else as one `-`, at most 64 characters."""
     cleaned = re.sub(r"[^a-z0-9]+", "-", (name or "").strip().lower()).strip("-")
-    return cleaned[:60]
+    return cleaned[:MAX_NAME_CHARS].rstrip("-")
+
+
+def loadable_name(raw: str) -> str | None:
+    """The name a `SKILL.md` made elsewhere is offered under, or None when it is
+    not one: loading is lenient (`filesystem.md` *Skills*) -- any name that is
+    one line of at most 64 characters, whitespace runs as one space."""
+    name = " ".join(str(raw or "").split())
+    if not name or len(name) > MAX_NAME_CHARS or "<" in name or ">" in name:
+        return None
+    return name
+
+
+def lookup_key(name: str) -> str:
+    """What a name is looked up by: case ignored, `_` and spaces read as `-`
+    (the CLI's `slug`)."""
+    key = re.sub(r"[\s_]+", "-", (name or "").strip().lower())
+    key = re.sub(r"[^\w-]", "", key)
+    return re.sub(r"-+", "-", key)
 
 
 def compose(name: str, description: str, instructions: str) -> str:
@@ -77,8 +100,8 @@ def check_name(raw: str) -> str:
     name = slugify(raw)
     if not SKILL_NAME_PATTERN.match(name):
         raise ValueError(
-            f"{raw!r} is not a valid skill name: two or more lowercase letters, digits or "
-            "hyphens, such as 'weekly-report'."
+            f"{raw!r} is not a valid skill name: lowercase letters, digits and -, starting "
+            f"with a letter or digit, up to {MAX_NAME_CHARS}, such as 'weekly-report'."
         )
     return name
 
@@ -123,9 +146,12 @@ __all__ = [
     "MAX_BODY_CHARS",
     "MAX_DESCRIPTION_CHARS",
     "MAX_INDEX_SKILLS",
+    "MAX_NAME_CHARS",
     "SKILL_NAME_PATTERN",
     "check_name",
     "compose",
+    "loadable_name",
+    "lookup_key",
     "parse",
     "slugify",
     "validate",

@@ -159,5 +159,39 @@ def test_the_frontmatter_checks_are_the_old_ones():
     with pytest.raises(ValueError, match="description is 401 characters"):
         fmt.validate(fmt.compose("mine", "x" * 401, "Body."), "mine")
     with pytest.raises(ValueError, match="not a valid skill name"):
-        fmt.check_name("x")
+        fmt.check_name("--")
     assert fmt.validate(fmt.compose("mine", "Use when.", "Body."), "mine") == ("Use when.", "Body.")
+
+
+def test_the_name_rule_is_the_agent_skills_one():
+    """`filesystem.md` *Skills*: `^[a-z0-9][a-z0-9-]{0,63}$` for a name
+    `skill_manage` makes."""
+    assert fmt.SKILL_NAME_PATTERN.match("x")
+    assert fmt.SKILL_NAME_PATTERN.match("a" * 64)
+    assert not fmt.SKILL_NAME_PATTERN.match("a" * 65)
+    assert not fmt.SKILL_NAME_PATTERN.match("-a")
+    assert not fmt.SKILL_NAME_PATTERN.match("a_b")
+    assert fmt.check_name("x") == "x"
+    assert fmt.slugify("Weekly Report!" + "x" * 80) == ("weekly-report-" + "x" * 80)[:64]
+    assert fmt.slugify("a" * 63 + " b") == "a" * 63
+
+
+def test_loading_is_lenient_and_lookup_ignores_case_and_separators(db):
+    """A SKILL.md made elsewhere is offered when its name is one line of at
+    most 64 characters; it is found ignoring case, `_` and spaces as `-`."""
+    user = _member(db)
+    home = fs.home_of(db, user).path
+    skill = "---\nname: {n}\ndescription: Use when {d}.\n---\n\nBody.\n"
+    for d, n in (("upper", "Weekly_Report"), ("spaced", "release notes"),
+                 ("long", "y" * 65), ("dotted", "my.skill")):
+        fs.write(fs.view(db, user), f"{home}/skills/{d}/SKILL.md",
+                 skill.format(n=n, d=d).encode())
+    db.commit()
+    v = fs.view(db, user, _chat(db, user))
+    assert sorted(s.name for s in skill_files.all_skills(v)) == [
+        "Weekly_Report", "my.skill", "release notes",
+    ]
+    assert skill_files.find(v, "weekly-report").name == "Weekly_Report"
+    assert skill_files.find(v, "Release-Notes").name == "release notes"
+    assert skill_files.find(v, "MY.SKILL").name == "my.skill"
+    assert skill_files.all_skills(v, exclude=["weekly report"])[0].name == "my.skill"
