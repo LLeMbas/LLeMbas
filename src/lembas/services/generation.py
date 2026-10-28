@@ -237,6 +237,9 @@ class Generation:
     # A device reply's tool calls started and not yet ended, id -> arguments:
     # kept until the call ends, for the block it is drawn as.
     device_args: dict[str, object] = field(default_factory=dict)
+    # ... and the file each one showed (`_lembas/show`), id -> `event["show"]`,
+    # put on the call's block when it ends.
+    device_shows: dict[str, dict] = field(default_factory=dict)
     # Characters of reply and thinking a device has sent, against
     # `device_link.MAX_REPLY_CHARS`.
     device_chars: int = 0

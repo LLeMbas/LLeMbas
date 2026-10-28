@@ -1008,6 +1008,10 @@ def delete_chats(db: DBSession, chats) -> int:
     if not live:
         return 0
     files_service.remove_files_for_chats(db, [chat.id for chat in live])
+    # Files a device showed in them: their blobs released while the rows name them.
+    from lembas.services import shown
+
+    shown.forget_for_chats(db, [chat.id for chat in live])
     # A chat on a device: its session goes on the device too, and the
     # tombstone stops the device announcing it back as a new chat -- a swept
     # temporary chat would otherwise return as a permanent one. An open shell

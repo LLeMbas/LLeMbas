@@ -119,6 +119,15 @@ release yet.
   names the session it is made for, and refuse a session that is not the device's. A token needs
   the new `memory` scope; `library`, its old name, still counts as `memory` but is no longer
   offered for a new token.
+- **Link protocol 3, and only 3.** A LLeMbas CLI links to a 2.0 server only as 2.0: discovery
+  (`/.well-known/lembas.json`) says `protocol: 3` and `protocols: [3]`, so a 1.x CLI refuses to log
+  in and says which side to update, and a link whose hello says 1 or 2 is closed with 4400 and
+  *update LLeMbas CLI to 2.0*. An agent chat runs on the chat's model and no other: the *answered
+  on its own model* note is gone, and a device that cannot use the chat's model refuses to start
+  the session, which the reply shows as its error.
+- **A linked device can show you a file.** The CLI's `show` tool, in an agent chat, sends the
+  file (up to 1 MB); it is kept with the chat and drawn as the same card a chat's own `show`
+  makes, and read back as plain text only. Deleting the chat deletes it.
 
 ## 1.7.2 — 2026-10-25
 

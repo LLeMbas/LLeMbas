@@ -1978,6 +1978,7 @@ MESSAGES["Microphone access was refused. Allow it for this site in the browser's
 MESSAGES['No microphone was found. Connect one, or check that the system can see it, then try again.'] = "Aucun microphone n'a été trouvé. Branchez-en un ou vérifiez que le système le détecte, puis réessayez."
 MESSAGES['The microphone is in use by another application, or the system would not let the browser open it.'] = "Le microphone est utilisé par une autre application, ou le système n'a pas permis au navigateur de l'ouvrir."
 MESSAGES['The microphone could not be opened (%(error)s).'] = "Le microphone n'a pas pu être ouvert (%(error)s)."
+MESSAGES['That file is not here any more.'] = "Ce fichier n'est plus là."
 MESSAGES['Move to folder'] = 'Déplacer vers un dossier'
 MESSAGES['Move'] = 'Déplacer'
 MESSAGES['No folder'] = 'Aucun dossier'

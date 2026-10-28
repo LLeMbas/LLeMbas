@@ -1978,6 +1978,7 @@ MESSAGES["Microphone access was refused. Allow it for this site in the browser's
 MESSAGES['No microphone was found. Connect one, or check that the system can see it, then try again.'] = 'Nebyl nalezen žádný mikrofon. Připojte ho nebo ověřte, že ho systém vidí, a zkuste to znovu.'
 MESSAGES['The microphone is in use by another application, or the system would not let the browser open it.'] = 'Mikrofon používá jiná aplikace, nebo systém prohlížeči nedovolil jej otevřít.'
 MESSAGES['The microphone could not be opened (%(error)s).'] = 'Mikrofon se nepodařilo otevřít (%(error)s).'
+MESSAGES['That file is not here any more.'] = 'Ten soubor už tu není.'
 MESSAGES['Move to folder'] = 'Přesunout do složky'
 MESSAGES['Move'] = 'Přesunout'
 MESSAGES['No folder'] = 'Bez složky'

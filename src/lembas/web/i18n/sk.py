@@ -2647,6 +2647,7 @@ MESSAGES["Microphone access was refused. Allow it for this site in the browser's
 MESSAGES['No microphone was found. Connect one, or check that the system can see it, then try again.'] = 'Nenašiel sa žiadny mikrofón. Pripojte ho alebo overte, či ho systém vidí, a skúste to znova.'
 MESSAGES['The microphone is in use by another application, or the system would not let the browser open it.'] = 'Mikrofón používa iná aplikácia alebo systém nedovolil prehliadaču ho otvoriť.'
 MESSAGES['The microphone could not be opened (%(error)s).'] = 'Mikrofón sa nepodarilo otvoriť (%(error)s).'
+MESSAGES['That file is not here any more.'] = 'Ten súbor tu už nie je.'
 MESSAGES['Move to folder'] = 'Presunúť do zložky'
 MESSAGES['Move'] = 'Presunúť'
 MESSAGES['No folder'] = 'Bez zložky'

@@ -58,7 +58,7 @@ def _hello(ws, roots=("/srv/work",)):
                 "jsonrpc": "2.0",
                 "method": "_lembas/hello",
                 "params": {
-                    "protocol": 1,
+                    "protocol": 3,
                     "version": "0.19.0",
                     "harness_spec": "1.3.0",
                     "device": {"host": "device-1"},
@@ -70,7 +70,7 @@ def _hello(ws, roots=("/srv/work",)):
     init = ws.receive_json()
     assert init["method"] == "initialize"
     # Says it is LLeMbas, and which protocol it speaks.
-    assert init["params"]["clientCapabilities"]["_meta"]["lembas"] == {"protocol": 2}
+    assert init["params"]["clientCapabilities"]["_meta"]["lembas"] == {"protocol": 3, "show": True}
     ws.send_text(
         json.dumps(
             {
@@ -121,6 +121,26 @@ def test_a_token_without_link_is_refused(client, db, registered):
         "/api/devices/link", headers={"Authorization": f"Bearer {raw}"}
     ) as ws, pytest.raises(WebSocketDisconnect):
         ws.receive_text()
+
+
+@pytest.mark.parametrize("protocol", [1, 2, "two"])
+def test_a_1x_cli_is_closed_with_4400_and_told_to_update(client, db, registered, protocol):
+    """Link protocol 3 alone (harness spec acp.md *Versions*): a hello of 1 or 2
+    -- a LLeMbas CLI 1.x -- is closed with 4400, which it reads as "stop
+    dialling", and the reason says which side to update."""
+    token_id, raw = _device(db)
+    with client.websocket_connect(
+        "/api/devices/link", headers={"Authorization": f"Bearer {raw}"}
+    ) as ws:
+        ws.send_text(json.dumps({
+            "jsonrpc": "2.0", "method": "_lembas/hello",
+            "params": {"protocol": protocol, "version": "1.7.2", "limits": {"roots": ["/"]}},
+        }))
+        with pytest.raises(WebSocketDisconnect) as closed:
+            ws.receive_text()
+    assert closed.value.code == 4400
+    assert closed.value.reason == "update LLeMbas CLI to 2.0"
+    assert device_link.link_for(token_id) is None or not device_link.link_for(token_id).initialized
 
 
 def test_a_reply_is_written_by_the_device(client, db, registered):
@@ -525,7 +545,10 @@ def test_a_model_changed_in_the_chat_reaches_the_device(client, db, registered):
         assert configure["params"]["sessionId"] == "s1"
 
 
-def test_an_older_device_on_its_own_model_is_said_so(client, db, registered):
+def test_no_own_model_notice_and_a_model_refusal_is_the_reply_s_error(client, db, registered):
+    """The chat's model, full stop (spec 3.0.0): nothing is said about a device
+    "answering on its own model" any more, and a device that cannot run the
+    chat's model refuses `session/new` with -32602 -- shown as a plain error."""
     token_id, raw = _device(db)
     with client.websocket_connect(
         "/api/devices/link", headers={"Authorization": f"Bearer {raw}"}
@@ -540,4 +563,17 @@ def test_an_older_device_on_its_own_model_is_said_so(client, db, registered):
         _answer_turn(ws, {"sessionId": "s1",
                           "_meta": {"lembas": {"model": "local/bonsai-abl"}}})
         reply = _reply(db, chat.id)
-        assert "answered on its own model, local/bonsai-abl" in reply.content
+        assert "own model" not in reply.content and reply.content == "Done."
+
+        client.post("/api/chats/start", data={
+            "content": "Two", "kind": "agent", "ssh_profile_id": f"device:{token_id}",
+            "project_dir": "/srv/work", "agent_mode": "edit",
+        })
+        second = db.scalar(select(Chat).where(Chat.id != chat.id))
+        new = ws.receive_json()
+        assert new["method"] == "session/new"
+        ws.send_text(json.dumps({"jsonrpc": "2.0", "id": new["id"], "error": {
+            "code": -32602, "message": "this device cannot use the model c/m"}}))
+        failed = _reply(db, second.id)
+        assert "cannot use the model c/m" in (failed.error or "")
+        assert "own model" not in (failed.content or "")

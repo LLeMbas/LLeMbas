@@ -5,7 +5,8 @@ WebSocket open to `/api/devices/link`. LLeMbas is the **ACP client** on it: it o
 a session in a directory on the device (`session/new`), sends the person's message
 (`session/prompt`), and draws what comes back. The device is the agent, and runs
 its own harness -- the same design as LLeMbas's own agent (the LLeMbas CLI's `harness/`),
-with the device's own model and its own `remote:` limits. **Nothing runs on this
+on the chat's model (served by this instance; the device refuses a session it
+cannot run on it) and with its own `remote:` limits. **Nothing runs on this
 machine**: a device chat's commands run on the device.
 
 **The device decides.** It refuses a directory outside its `remote.roots`, lowers a
@@ -44,11 +45,14 @@ from lembas.web import i18n
 
 log = logging.getLogger(__name__)
 
-# The `_lembas` extension's version. A device speaking 1 still links:
-# everything protocol 2 added is gated on a capability its `initialize` lists,
-# and a device that lists none is served as before.
-PROTOCOL = 2
-PROTOCOLS = (1, 2)
+# The `_lembas` extension's version (harness spec `acp.md` *Versions*). 3 is
+# LLeMbas 2.0 and LLeMbas CLI 2.0, and they speak it alone: a hello of 1 or 2
+# is closed with CLOSE_PROTOCOL and PROTOCOL_REFUSAL, which a 1.x CLI reads as
+# "stop dialling". Within 3, every feature is still gated on a capability the
+# device's `initialize` lists.
+PROTOCOL = 3
+PROTOCOLS = (3,)
+PROTOCOL_REFUSAL = "update LLeMbas CLI to 2.0"
 ACP_VERSION = 1
 HELLO_WAIT = 15.0
 
@@ -258,6 +262,11 @@ class Link:
             return
         if method == "_lembas/plan":
             asyncio.create_task(self._plan(message_id, params))
+            return
+        # The device's `show` tool (spec 3.0.0): the file's text, kept here
+        # and drawn as the chat's own `show` card.
+        if method == "_lembas/show":
+            asyncio.create_task(self._show(message_id, params))
             return
         await self._answer(message_id, error=f"LLeMbas does not answer {method}", code=-32601)
 
@@ -628,6 +637,37 @@ class Link:
         else:
             await self._answer(message_id, {"outcome": "dismissed"})
 
+    async def _show(self, message_id: Any, params: dict[str, Any]) -> None:
+        """`_lembas/show`: keep the file the device sent as a blob attached
+        to the chat, and put the card on the call -- `event["show"]` once the
+        device's tool call ends, the shape the chat's own `show` writes."""
+        from lembas.db.session import session_scope
+        from lembas.services import shown
+
+        session_id = str(params.get("sessionId") or "")
+        generation = self.writer(session_id)
+        if generation is None:
+            await self._answer(message_id, {
+                "shown": False, "reason": "Nobody has this session open in LLeMbas right now.",
+            })
+            return
+        try:
+            with session_scope() as db:
+                row = shown.keep(
+                    db,
+                    chat_id=generation.chat_id,
+                    message_id=generation.message_id,
+                    params=params,
+                )
+                card = shown.payload(row)
+                db.commit()
+        except shown.Refused as exc:
+            await self._answer(message_id, {"shown": False, "reason": str(exc)})
+            return
+        generation.device_shows[str(params.get("toolCallId") or "")] = card
+        generation.touch()
+        await self._answer(message_id, {"shown": True})
+
     async def _nobody_here(self, message_id: Any, patient: bool) -> None:
         """A question or a plan for a session no reply here is writing: patient
         (somebody may answer at the terminal) is an error, so the terminal's
@@ -804,6 +844,14 @@ def unregister(link: Link) -> None:
         del LINKS[link.token_id]
 
 
+def hello_protocol(hello: dict[str, Any]) -> int:
+    """The protocol a device's hello says, or 0 for none or nonsense."""
+    try:
+        return int(hello.get("protocol") or 0)
+    except (TypeError, ValueError, OverflowError):
+        return 0
+
+
 async def handshake(link: Link) -> None:
     """After the device's hello: `initialize`, asking for the full event stream."""
     link.initialized = await link.request(
@@ -816,7 +864,9 @@ async def handshake(link: Link) -> None:
                 # An object, not `true`: `protocol` tells a LLeMbas CLI
                 # that this client answers `_lembas/question` and
                 # `_lembas/plan`; a bare `_meta.lembas` does not promise that.
-                "_meta": {"lembas": {"protocol": PROTOCOL}},
+                # `show`: this client draws a file the device sends with
+                # `_lembas/show`, so the device offers its `show` tool.
+                "_meta": {"lembas": {"protocol": PROTOCOL, "show": True}},
             },
         },
         timeout=HELLO_WAIT,
@@ -1237,6 +1287,11 @@ def apply_event(generation, event: dict[str, Any]) -> None:
         children = generation.sub_tools.pop(call_id, None)
         if children:
             finished["children"] = children
+        # What the call showed (`_lembas/show`): the same card a chat's own
+        # `show` makes.
+        show = generation.device_shows.pop(call_id, None)
+        if show is not None and not failed:
+            finished["show"] = show
         generation.tool_events.append(finished)
     elif kind == "usage":
         usage = event.get("usage") or {}
@@ -1718,15 +1773,10 @@ async def _open(
     session_id = str(opened.get("sessionId") or "")
     link.sessions[chat_id] = session_id
     _keep_session_id(chat_id, session_id)
-    # What the device actually started on. One that does not take the
-    # chat's model uses its own default: said in the reply
-    # rather than shown under a name that is not true.
-    running = str(((opened.get("_meta") or {}).get("lembas") or {}).get("model") or "")
-    if model and running and not running.endswith("/" + model):
-        generation.content.append(
-            f"*({device_name} answered on its own model, {running}: its LLeMbas CLI "
-            "does not take the chat's model. Update it there.)*\n\n"
-        )
+    # The chat's model, full stop (spec 3.0.0): a 2.0 device runs a session it
+    # was opened with on that model or refuses `session/new` with -32602 and
+    # the reason -- which `run` shows as the reply's error. There is no
+    # "answered on its own model" to say any more.
     if link_restarted(generation):
         generation.content.append(
             "*(The device's session started afresh: it does not remember the "
@@ -2805,11 +2855,13 @@ __all__ = [
     "LINKS",
     "PROTOCOL",
     "PROTOCOLS",
+    "PROTOCOL_REFUSAL",
     "DeviceError",
     "Link",
     "LinkClosed",
     "apply_event",
     "handshake",
+    "hello_protocol",
     "link_for",
     "linked_for",
     "register",

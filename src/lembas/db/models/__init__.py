@@ -126,6 +126,7 @@ from lembas.db.models.schedule import (
     Schedule,
 )
 from lembas.db.models.setting import Setting
+from lembas.db.models.shown import ShownFile
 from lembas.db.models.suggestion import Suggestion
 from lembas.db.models.tool import (
     RESPONSE_JSON,
@@ -277,6 +278,7 @@ __all__ = [
     "guess_kind",
     "Session",
     "Setting",
+    "ShownFile",
     "Suggestion",
     "User",
     "custom_tool_groups",

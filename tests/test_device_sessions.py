@@ -63,7 +63,7 @@ def _hello(ws) -> None:
         {
             "method": "_lembas/hello",
             "params": {
-                "protocol": 1,
+                "protocol": 3,
                 "version": "0.24.0",
                 "device": {"host": "device-1"},
                 "limits": {"roots": ["/home/dev"], "max_mode": "auto"},

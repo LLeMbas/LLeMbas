@@ -246,7 +246,7 @@ def test_over_the_real_link_the_missed_delete_follows_initialize(client, db, reg
         "/api/devices/link", headers={"Authorization": f"Bearer {raw}"}
     ) as ws:
         ws.send_text(json.dumps({"jsonrpc": "2.0", "method": "_lembas/hello", "params": {
-            "protocol": 2, "version": "0.27.0", "harness_spec": "2.1.0",
+            "protocol": 3, "version": "0.27.0", "harness_spec": "2.1.0",
             "device": {"host": "device-1"},
             "limits": {"roots": ["/home/dev"], "max_mode": "auto"}}}))
         init = ws.receive_json()
@@ -286,7 +286,7 @@ def test_a_chat_started_here_deletes_the_session_the_device_named(client, db, re
         "/api/devices/link", headers={"Authorization": f"Bearer {raw}"}
     ) as ws:
         ws.send_text(json.dumps({"jsonrpc": "2.0", "method": "_lembas/hello", "params": {
-            "protocol": 2, "version": "0.27.0", "harness_spec": "2.1.0",
+            "protocol": 3, "version": "0.27.0", "harness_spec": "2.1.0",
             "device": {"host": "device-1"},
             "limits": {"roots": ["/home/dev"], "max_mode": "auto"}}}))
         init = ws.receive_json()

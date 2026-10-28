@@ -1978,6 +1978,7 @@ MESSAGES["Microphone access was refused. Allow it for this site in the browser's
 MESSAGES['No microphone was found. Connect one, or check that the system can see it, then try again.'] = 'Nem található mikrofon. Csatlakoztasson egyet, vagy ellenőrizze, hogy a rendszer látja-e, majd próbálja újra.'
 MESSAGES['The microphone is in use by another application, or the system would not let the browser open it.'] = 'A mikrofont egy másik alkalmazás használja, vagy a rendszer nem engedte, hogy a böngésző megnyissa.'
 MESSAGES['The microphone could not be opened (%(error)s).'] = 'A mikrofont nem sikerült megnyitni (%(error)s).'
+MESSAGES['That file is not here any more.'] = 'Ez a fájl már nincs itt.'
 MESSAGES['Move to folder'] = 'Áthelyezés mappába'
 MESSAGES['Move'] = 'Áthelyezés'
 MESSAGES['No folder'] = 'Nincs mappa'

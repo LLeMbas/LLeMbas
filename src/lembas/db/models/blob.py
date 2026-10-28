@@ -8,7 +8,8 @@ later on its own.
 
 A blob is the whole content's SHA-256, split into parts of about 4 MB so a
 read never needs the whole file in memory. `refcount` counts the rows that
-name the blob (`nodes`, `node_versions`, `organisations.logo_blob_hash`); a
+name the blob (`nodes`, `node_versions`, `organisations.logo_blob_hash`,
+`shown_files`); a
 sweep deletes blobs at zero that are older than an hour, so a write in flight
 is never collected. `services/blobs.py` is the only writer.
 """

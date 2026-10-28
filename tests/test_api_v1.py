@@ -262,8 +262,8 @@ def test_the_discovery_document(client):
 
     body = client.get("/.well-known/lembas.json").json()
     assert body["service"] == "lembas" and body["version"] == __version__
-    # 1 still, for an older CLI that compares it exactly.
-    assert body["protocol"] == 1 and body["protocols"] == [1, 2]
+    # 3, so a 1.x CLI comparing it with 1 refuses to log in here.
+    assert body["protocol"] == 3 and body["protocols"] == [3]
     assert body["harness_spec"] == harness_spec.version()
     assert body["login"]["device"]["code"].endswith("/api/device/code")
     assert body["api"]["openai"].endswith("/v1")

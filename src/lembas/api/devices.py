@@ -66,11 +66,11 @@ async def discovery(request: Request) -> JSONResponse:
             "version": __version__,
             "name": name,
             "connection": connection_name(name),
-            # Still 1: an older LLeMbas CLI compares this for
-            # equality with 1 and would refuse to log in to a 2. What protocol 2
-            # added is offered by capability, and `protocols` says both are
-            # spoken -- what a newer CLI reads.
-            "protocol": 1,
+            # 3, raised on purpose (harness spec `acp.md` *Versions*): a 1.x
+            # LLeMbas CLI compares this for equality with 1, so its login is
+            # refused here and it says which side to update. A 2.0 CLI reads
+            # `protocols`.
+            "protocol": device_link.PROTOCOL,
             "protocols": list(device_link.PROTOCOLS),
             "harness_spec": harness_spec.version(),
             "base_url": base,
@@ -323,11 +323,11 @@ async def device_link_socket(websocket: WebSocket) -> None:
             if link.hello or reading.done():
                 break
             await asyncio.sleep(0.1)
-        if int(link.hello.get("protocol") or 0) not in device_link.PROTOCOLS:
+        # A 1.x CLI (protocol 1 or 2) is refused with the code it reads as
+        # "stop dialling" and what to do about it; so is a hello that never came.
+        if device_link.hello_protocol(link.hello) not in device_link.PROTOCOLS:
             await websocket.close(
-                code=device_link.CLOSE_PROTOCOL,
-                reason="this instance speaks device protocol "
-                + " or ".join(str(p) for p in device_link.PROTOCOLS),
+                code=device_link.CLOSE_PROTOCOL, reason=device_link.PROTOCOL_REFUSAL
             )
             return
         await device_link.handshake(link)
@@ -589,4 +589,27 @@ async def device_decide(
     )
 
 
-__all__ = ["public_base", "router"]
+@router.get("/api/chats/{chat_id}/shown/{shown_id}")
+async def shown_file(db: Db, user: RequiredUser, chat_id: str, shown_id: str) -> Response:
+    """A file a linked device showed in this chat (`_lembas/show`), as the
+    device sent it: always plain text to the browser, never a page -- the
+    viewer decides how to draw it, and HTML only in its sandboxed frame."""
+    from lembas.db.models import Chat
+    from lembas.services import shown
+
+    chat = db.get(Chat, chat_id)
+    row = shown.get(db, chat_id, shown_id) if chat is not None and chat.user_id == user.id else None
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, i18n.t("That file is not here any more."))
+    return Response(
+        shown.text_of(db, row),
+        media_type="text/plain; charset=utf-8",
+        headers={
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+            "Cache-Control": "private, max-age=3600",
+        },
+    )
+
+
+__all__ = ["public_base", "router", "shown_file"]

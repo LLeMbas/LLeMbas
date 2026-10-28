@@ -6,8 +6,9 @@ Contents are split into parts of `PART_SIZE`, and both writing and reading go
 part by part, so nothing here ever holds more than one part of a large file.
 
 **Reference counting.** `refcount` counts the rows that name a blob: a node's
-current content, each of its versions, an organisation's logo. `incref` and
-`decref` are called by whoever writes those rows, in the same transaction. A
+current content, each of its versions, an organisation's logo, a file a device
+showed in a chat. `incref` and `decref` are called by whoever writes those
+rows, in the same transaction. A
 blob at zero is not deleted at once: `sweep` removes only those older than
 `SWEEP_GRACE`, so a blob put a moment ago whose node row has not been written
 yet is never collected under it. A `put` of bytes that already exist at zero
@@ -181,6 +182,7 @@ def recount(db: DBSession) -> int:
         "SELECT blob_hash FROM nodes WHERE blob_hash IS NOT NULL",
         "SELECT blob_hash FROM node_versions WHERE blob_hash IS NOT NULL",
         "SELECT logo_blob_hash FROM organisations WHERE logo_blob_hash IS NOT NULL",
+        "SELECT blob_hash FROM shown_files",
     ):
         for (digest,) in db.execute(text(statement)):
             counted[digest] = counted.get(digest, 0) + 1

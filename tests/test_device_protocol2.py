@@ -33,7 +33,7 @@ def _clean():
     device_link.reset()
 
 
-def _hello(ws, capabilities=ALL, *, protocol=2, connection="example", roots=("/srv/work",)):
+def _hello(ws, capabilities=ALL, *, protocol=3, connection="example", roots=("/srv/work",)):
     ws.send_text(json.dumps({
         "jsonrpc": "2.0",
         "method": "_lembas/hello",
@@ -614,7 +614,7 @@ def test_an_older_device_gets_the_text_and_is_told_what_it_cannot_take(
     with client.websocket_connect(
         "/api/devices/link", headers={"Authorization": f"Bearer {raw}"}
     ) as ws:
-        _hello(ws, capabilities=["sessions", "status", "steer"], protocol=1)
+        _hello(ws, capabilities=["sessions", "status", "steer"])
         _wait_linked(token_id)
         ids = [_upload(client, db, "shot.png", png_bytes(), "image/png"),
                _upload(client, db, "notes.txt", b"remember the milk", "text/plain")]
@@ -761,7 +761,7 @@ def test_at_asks_by_directory_before_there_is_a_session_and_not_an_old_device(
     with client.websocket_connect(
         "/api/devices/link", headers={"Authorization": f"Bearer {raw}"}
     ) as ws:
-        _hello(ws, capabilities=["sessions"], protocol=1)
+        _hello(ws, capabilities=["sessions"])
         _wait_linked(token_id)
         # A device that does not list `files` is never asked.
         page = client.get(f"/api/devices/{token_id}/files", params={"q": "x", "cwd": "/srv"})
