@@ -41,13 +41,21 @@ TOKEN_BYTES = 32
 SHOWN_PREFIX = 10  # "lmb_" + six characters
 
 SCOPE_MODELS = "models"
+# The account's memory over `/mcp` (harness spec 3.0.0, acp.md *Memory*).
+# `library` is its older name -- from when notes, skills and knowledge were
+# served too -- and still counts as `memory`; it is no longer offered for a new
+# token, but a device that asks for it gets it.
+SCOPE_MEMORY = "memory"
 SCOPE_LIBRARY = "library"
 SCOPE_LINK = "link"
 SCOPE_APP = "app"
 SCOPE_ADMIN_READ = "admin:read"
 SCOPE_ADMIN_AUDIT = "admin:audit"
 
-USER_SCOPES = (SCOPE_MODELS, SCOPE_LIBRARY, SCOPE_LINK, SCOPE_APP)
+USER_SCOPES = (SCOPE_MODELS, SCOPE_MEMORY, SCOPE_LIBRARY, SCOPE_LINK, SCOPE_APP)
+LEGACY_SCOPES = (SCOPE_LIBRARY,)
+# The scopes a token may hold to reach the memory: the new name and the old.
+MEMORY_SCOPES = (SCOPE_MEMORY, SCOPE_LIBRARY)
 ADMIN_SCOPES = (SCOPE_ADMIN_READ, SCOPE_ADMIN_AUDIT)
 SCOPES = (*USER_SCOPES, *ADMIN_SCOPES)
 
@@ -58,6 +66,7 @@ def scope_label(scope: str) -> str:
 
     return {
         SCOPE_MODELS: t("Use your models, and spend your usage"),
+        SCOPE_MEMORY: t("Read and write your memory"),
         SCOPE_LIBRARY: t("Read and write your memory"),
         SCOPE_LINK: t("Accept work from this instance as a linked device"),
         SCOPE_APP: t("Read and write your chats, as the web interface does"),
@@ -90,7 +99,10 @@ def may_hold(db: DBSession, user: User, scope: str) -> bool:
 
 
 def grantable(db: DBSession, user: User) -> list[str]:
-    return [scope for scope in SCOPES if may_hold(db, user, scope)]
+    """What a new personal token may be given: never an older name of a scope."""
+    return [
+        scope for scope in SCOPES if scope not in LEGACY_SCOPES and may_hold(db, user, scope)
+    ]
 
 
 def create(
@@ -254,12 +266,14 @@ def _unauthorized(message: str) -> HTTPException:
     )
 
 
-def require_token(scope: str):
-    """Dependency factory: the caller, holding a live token with `scope`.
+def require_token(scope: str, *also: str):
+    """Dependency factory: the caller, holding a live token with `scope` --
+    or with one of `also`, the older names that count as it.
 
         @router.get("/models")
         async def models(caller: Annotated[Caller, Depends(require_token("models"))]): …
     """
+    accepted = (scope, *also)
 
     def guard(request: Request, db: Db) -> Caller:
         raw = _bearer(request)
@@ -269,11 +283,12 @@ def require_token(scope: str):
         if found is None:
             raise _unauthorized("That token is not valid, has expired or was revoked.")
         token, user = found
-        if scope not in (token.scopes_json or []):
+        held = next((s for s in accepted if s in (token.scopes_json or [])), None)
+        if held is None:
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN, f"This token was not given the {scope} scope."
             )
-        if not may_hold(db, user, scope):
+        if not may_hold(db, user, held):
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,
                 f"The account behind this token may no longer use the {scope} scope.",
@@ -343,6 +358,9 @@ __all__ = [
     "SCOPE_ADMIN_READ",
     "SCOPE_APP",
     "SCOPE_LIBRARY",
+    "SCOPE_MEMORY",
+    "LEGACY_SCOPES",
+    "MEMORY_SCOPES",
     "SCOPE_LINK",
     "SCOPE_MODELS",
     "USER_SCOPES",

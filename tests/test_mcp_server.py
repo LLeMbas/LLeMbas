@@ -1,4 +1,4 @@
-"""`/mcp`: a person's memory over MCP, with a `library` token.
+"""`/mcp`: a person's memory over MCP, with a `memory` token (or `library`).
 
 The tool is the chat's own `memory`; the permissions that gate it in a chat
 gate it here; nothing else is reachable (spec 3.0.0: a device keeps notes,
@@ -21,7 +21,7 @@ def _rates():
     yield
 
 
-def _token(db, scopes=("library",)) -> dict[str, str]:
+def _token(db, scopes=("memory",)) -> dict[str, str]:
     _, raw = api_tokens.create(db, db.scalar(select(User)), name="dev", scopes=list(scopes))
     return {"Authorization": f"Bearer {raw}"}
 
@@ -114,7 +114,59 @@ def test_the_permissions_gate_it(client, db, registered):
 
 
 def test_an_unknown_method(client, db, registered):
-    assert _rpc(client, _token(db), "resources/list").json()["error"]["code"] == -32601
+    assert _rpc(client, _token(db), "prompts/list").json()["error"]["code"] == -32601
+
+
+def test_the_older_library_scope_counts_as_memory(client, db, registered):
+    headers = _token(db, scopes=("library",))
+    names = {t["name"] for t in _rpc(client, headers, "tools/list").json()["result"]["tools"]}
+    assert names == {"memory"}
+    # ... and is not offered for a new token any more.
+    assert "library" not in api_tokens.grantable(db, db.scalar(select(User)))
+    assert "memory" in api_tokens.grantable(db, db.scalar(select(User)))
+
+
+def test_the_memory_resource_is_the_prompt_s_block(client, db, registered):
+    from lembas.services import memories
+
+    headers = _token(db)
+    listed = _rpc(client, headers, "resources/list").json()["result"]["resources"]
+    assert [r["uri"] for r in listed] == ["lembas://memory"]
+    empty = _rpc(client, headers, "resources/read", {"uri": "lembas://memory"}).json()
+    assert empty["result"]["contents"][0]["text"] == ""
+    user = db.scalar(select(User))
+    memories.add(db, owner=user, content="Prefers tabs.")
+    memories.add(db, owner=user, content="Lives in Trnava.")
+    read = _rpc(client, headers, "resources/read", {"uri": "lembas://memory"}).json()
+    text = read["result"]["contents"][0]["text"]
+    assert text == memories.block(db, user) == "- Prefers tabs.\n- Lives in Trnava."
+    assert _rpc(client, headers, "resources/read", {"uri": "lembas://notes"}).json()["error"][
+        "code"
+    ] == -32602
+
+
+def test_a_scope_that_is_not_this_device_s_session_is_refused(client, db, registered):
+    headers = _token(db)
+    meta = {"_meta": {"lembas": {"scope": "ses_nobody"}}}
+    r = _rpc(client, headers, "resources/read", {"uri": "lembas://memory", **meta}).json()
+    assert r["error"]["code"] == -32602
+    r = _rpc(client, headers, "tools/call", {
+        "name": "memory", "arguments": {"target": "user", "action": "add", "content": "x"},
+        **meta,
+    }).json()
+    assert r["error"]["code"] == -32602
+
+
+def test_the_resource_is_not_listed_without_the_memory_permission(client, db, registered):
+    headers = _token(db)
+    user = db.scalar(select(User))
+    user.role = "user"
+    db.commit()
+    settings_store.update(db, {"default_permissions": {"api.use": True, "library.use": True,
+                                                       "tools.memory": False}})
+    assert _rpc(client, headers, "resources/list").json()["result"]["resources"] == []
+    r = _rpc(client, headers, "resources/read", {"uri": "lembas://memory"}).json()
+    assert r["error"]["code"] == -32602
 
 
 def test_get_is_not_a_stream(client, db, registered):

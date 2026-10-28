@@ -113,6 +113,12 @@ release yet.
   not even as a count. A chat is found by its owner. The meaning half needs `sqlite-vec` (pinned
   to 0.1.9 in the `search` extra, which a standard install has); without it, or without an
   embedding model, search is keywords only and no vectors are written.
+- **`/mcp` is the memory and nothing else.** It offers the `memory` tool and a resource,
+  `lembas://memory` — the entries as the memory block of a system prompt shows them, which a
+  LLeMbas CLI reads as a session starts. Both answer within the chat's data group when a call
+  names the session it is made for, and refuse a session that is not the device's. A token needs
+  the new `memory` scope; `library`, its old name, still counts as `memory` but is no longer
+  offered for a new token.
 
 ## 1.7.2 — 2026-10-25
 

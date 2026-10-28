@@ -2,10 +2,13 @@
 
 Memory is records the server keeps for both sides (harness spec 3.0.0,
 `filesystem.md` *Memory*): the LLeMbas CLI -- or any MCP client -- reads and
-writes the holder's here, with a token carrying the `library` scope (its name
-from when notes, skills and knowledge were served too; a device keeps those
-locally now). The tool is LLeMbas's own `memory`, the same definition and
-runner a chat uses, so a model sees the same tool either way.
+writes the holder's here, with a token carrying the `memory` scope (or
+`library`, its older name from when notes, skills and knowledge were served too,
+which counts as `memory`; a device keeps those locally now). Two things and
+nothing else: the tool `memory` -- LLeMbas's own, the same definition and runner
+a chat uses, so a model sees the same tool either way -- and the resource
+`lembas://memory`, the entries as a system prompt's memory block shows them,
+which a device reads as a session starts.
 
 **What a person may do in a chat is what a device may do here**: the tool is
 gated by the same permissions (`library.use`, `tools.memory`, and the split
@@ -13,11 +16,13 @@ write permission), checked on every call. The data group is the person's
 default one -- a device is not a chat, and has no connection to pick a group by
 -- unless the call names the session it is made for (`_meta.lembas.scope`,
 harness spec 1.1.0): then it is answered within that chat's data group,
-exactly as the chat loop's own tools are.
+exactly as the chat loop's own tools are. The scope rides on a resource read
+the same way.
 
 Streamable HTTP in its plainest form: one JSON-RPC message per POST, answered
 with one JSON response (no server-to-client stream, so `GET` is 405). Methods:
-`initialize`, `notifications/initialized`, `ping`, `tools/list`, `tools/call`.
+`initialize`, `notifications/initialized`, `ping`, `tools/list`, `tools/call`,
+`resources/list`, `resources/read`.
 """
 
 from __future__ import annotations
@@ -31,7 +36,7 @@ from fastapi.responses import JSONResponse, Response
 
 from lembas import __version__
 from lembas.api.deps import Db
-from lembas.security.api_tokens import SCOPE_LIBRARY, Caller, require_token
+from lembas.security.api_tokens import SCOPE_LIBRARY, SCOPE_MEMORY, Caller, require_token
 
 log = logging.getLogger(__name__)
 
@@ -39,8 +44,29 @@ router = APIRouter(tags=["mcp"])
 
 PROTOCOL_VERSION = "2025-06-18"
 LIBRARY_FAMILIES = ("memory",)
+MEMORY_URI = "lembas://memory"
 
-_library = require_token(SCOPE_LIBRARY)
+_library = require_token(SCOPE_MEMORY, SCOPE_LIBRARY)
+
+
+def memory_readable(db, user) -> bool:
+    """Whether this person may read their memory here: what offers the memory
+    tool in a chat, less the write switch, which a read does not need."""
+    from lembas.security import permissions
+
+    allowed = permissions.resolve(db, user)
+    return bool(allowed.get("library.use") and allowed.get("tools.memory"))
+
+
+def memory_text(db, user, chat) -> str:
+    """`lembas://memory`'s text: the entries exactly as the memory block of a
+    system prompt shows them, in the data group the scope lands in (empty:
+    none)."""
+    from lembas.services import memories as memories_service
+    from lembas.services import tools as tools_service
+
+    group = tools_service.context_for(db, user, chat).data_group
+    return memories_service.block(db, user, group)
 
 
 def library_tools(db, user) -> dict[str, Any]:
@@ -93,6 +119,20 @@ def _reply(
     return JSONResponse(body)
 
 
+def _scoped_chat(db, caller: Caller, params: dict[str, Any]):
+    """The chat a call's `_meta.lembas.scope` names, and the error when it
+    names a session that is not this device's (None, None: no scope)."""
+    meta = params.get("_meta") if isinstance(params.get("_meta"), dict) else {}
+    lembas = meta.get("lembas") if isinstance(meta.get("lembas"), dict) else {}
+    scope = str(lembas.get("scope") or "")
+    if not scope:
+        return None, None
+    chat = device_chat(db, caller.token.id, scope, caller.user.id)
+    if chat is None:
+        return None, (-32602, "not this device's session")
+    return chat, None
+
+
 @router.get("/mcp")
 async def no_stream() -> Response:
     return Response(status_code=405, headers={"Allow": "POST"})
@@ -118,11 +158,14 @@ async def mcp(request: Request, db: Db) -> Response:
             message_id,
             {
                 "protocolVersion": PROTOCOL_VERSION,
-                "capabilities": {"tools": {"listChanged": False}},
+                "capabilities": {
+                    "tools": {"listChanged": False},
+                    "resources": {"listChanged": False, "subscribe": False},
+                },
                 "serverInfo": {"name": "lembas", "version": __version__},
                 "instructions": (
-                    "The memory, notes, skills and knowledge of the person signed in, "
-                    "in their default data group."
+                    "The memory of the person signed in: the memory tool, and "
+                    f"{MEMORY_URI} for its entries."
                 ),
             },
         )
@@ -144,6 +187,30 @@ async def mcp(request: Request, db: Db) -> Response:
                 ]
             },
         )
+    if method == "resources/list":
+        listed = (
+            [{
+                "uri": MEMORY_URI,
+                "name": "memory",
+                "description": "The memory entries, as a system prompt shows them.",
+                "mimeType": "text/markdown",
+            }]
+            if memory_readable(db, caller.user)
+            else []
+        )
+        return _reply(message_id, {"resources": listed})
+    if method == "resources/read":
+        uri = str(params.get("uri") or "")
+        if uri != MEMORY_URI or not memory_readable(db, caller.user):
+            return _reply(message_id, error=(-32602, f"There is no resource {uri!r} here."))
+        chat, refused = _scoped_chat(db, caller, params)
+        if refused:
+            return _reply(message_id, error=refused)
+        return _reply(message_id, {"contents": [{
+            "uri": MEMORY_URI,
+            "mimeType": "text/markdown",
+            "text": memory_text(db, caller.user, chat),
+        }]})
     if method == "tools/call":
         from lembas.services import audit
         from lembas.services import tools as tools_service
@@ -165,12 +232,9 @@ async def mcp(request: Request, db: Db) -> Response:
         # the chat loop's own tools would be -- by the same builder the loop
         # uses. A session that is not this device's is refused, whoever's it
         # is. Without a scope, the account's default group, as before.
-        scope = str(((params.get("_meta") or {}).get("lembas") or {}).get("scope") or "")
-        chat = None
-        if scope:
-            chat = device_chat(db, caller.token.id, scope, caller.user.id)
-            if chat is None:
-                return _reply(message_id, error=(-32602, "not this device's session"))
+        chat, refused = _scoped_chat(db, caller, params)
+        if refused:
+            return _reply(message_id, error=refused)
         context = tools_service.context_for(db, caller.user, chat)
         context.tools = tools
         outcome = await tools_service.run_tool(
@@ -192,4 +256,12 @@ async def mcp(request: Request, db: Db) -> Response:
     return _reply(message_id, error=(-32601, f"Method not found: {method}"))
 
 
-__all__ = ["LIBRARY_FAMILIES", "device_chat", "library_tools", "router"]
+__all__ = [
+    "LIBRARY_FAMILIES",
+    "MEMORY_URI",
+    "device_chat",
+    "library_tools",
+    "memory_readable",
+    "memory_text",
+    "router",
+]
