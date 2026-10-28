@@ -88,7 +88,9 @@ release yet.
   pointer to the earlier result instead of the content twice; a long output keeps its beginning
   and end; an edit answers with its diff. Every result is stored with the chat, whole, and the
   new `recall` tool shows any of them again. Nothing already sent to the model is ever changed, so
-  the prompt cache keeps working. Compacting a chat adds a table of the files read before it.
+  the prompt cache keeps working. Compacting a chat adds a table of the files read in the turns
+  it summarises (the newest read of each file, at most 50); a reply that was regenerated or
+  deleted takes its reads with it.
 - **A chat reads its instruction files.** `AGENTS.md` (or `CLAUDE.md`) files are collected from the
   top of what the chat may see down to its starting directory, outermost first, and sent with the
   system prompt — only ones the chat can read. The model is also told which paths it can reach and
@@ -97,7 +99,10 @@ release yet.
   `/home/<you>/skills/`, the organisation's `/skills/`, or a `skills/` directory on the way to the
   chat's starting directory, the nearest winning a name. `skills_list`, `skill_view` and
   `skill_manage` work on those files (a new skill goes to your own skills directory; revert puts
-  back the file's previous version), and editing the file works too.
+  back the file's previous version), and editing the file works too. A new skill's name is
+  lowercase letters, digits and `-`, up to 64 characters; a `SKILL.md` made elsewhere is offered
+  under any one-line name up to 64 characters, and found ignoring case, with `_` and spaces read
+  as `-`.
 - **The library, reports and the canvas are gone; their work is files now.** Knowledge bases and
   their documents, notes, the database skills, reports, sharing of library items and the canvas
   panel with its scratch document are removed — their pages, the *Library* entry in the sidebar,
@@ -243,12 +248,15 @@ release yet.
 - **A currency per connection.** A model's prices are in its connection's currency (USD unless
   set), and a reply's cost is in it; the General setting is now the default for a new connection
   and the currency of speech and picture prices. Where the provider reports a reply's cost itself
-  (OpenRouter), that figure is kept instead, marked as the provider's.
+  (OpenRouter), that figure is kept instead, marked as the provider's. Costs in different
+  currencies are never added together: `/v1/usage` gives the month's cost per currency
+  (`month.cost_by_currency`), and `month.cost_money` only when one currency is involved.
 - **Fallback models, opt-in.** A model can list fallback models, in order. When its connection
   cannot be reached, times out or answers with a server error before anything was written, the
   next one answers instead — never after Stop, never for a refused request, and only models in the
   chat's data group. The reply opens with a line saying which model answered, and the message
-  records that model and its cost. With none listed nothing changes.
+  records that model and its cost. The line is kept with the reply's details, not in its text, so
+  it is never sent back to the model in later turns. With none listed nothing changes.
 
 ## 1.7.2 — 2026-10-25
 
