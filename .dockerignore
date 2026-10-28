@@ -7,9 +7,19 @@ data/
 *.db
 *.db-wal
 *.db-shm
+*.db.old
+*.db.old-wal
+*.db.old-shm
+backups/
+*.tar.zst
+*.tar.gz
+restore-pending/
+pre-restore-*/
 .env
 .env.*
 lembas.env
+# A local ComfyUI workflow kept beside the checkout; somebody's own, not the app's.
+image_gen_base.json
 
 # `.git` is excluded and that has a consequence worth knowing: /admin/updates
 # reads it to say what is running, so inside a container that page says "not

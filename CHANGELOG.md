@@ -124,8 +124,8 @@ release yet.
   default) and can be tied to one email address. (The invite screens come later in the beta.)
 - **A blob store.** File contents live in a second database beside the first,
   `lembas-blobs.db`, by content hash and in parts of about 4 MB, so the same file stored twice is
-  kept once and nothing reads a large file whole. `lembas-server backup` (and the backup before an
-  update) copies it beside the main database as `…db-blobs`; keep the two together.
+  kept once and nothing reads a large file whole. A backup takes it with the main database (see
+  *Backups*).
 - **A file tree per organisation**, kept in the database: `/home/<you>/` for each person (private
   to them), `/skills/` readable by everyone in the organisation, and directories the
   organisation's admins make. Every write is a version recording the chat and message that made
@@ -142,6 +142,34 @@ release yet.
   are not touched, so going back is installing 1.7.x and renaming the file back. If
   `lembas.db.old` already exists and the database is still 1.x, the server refuses to start and
   says why, rather than overwrite either.
+- **Import from 1.x** (Administration → Import, or `lembas-server import old`). The library in
+  `lembas.db.old` comes across as files under `/Imported/`, owned by the person chosen: a Markdown
+  file per note and per report, `Skills/<name>/SKILL.md` per skill (its 1.x revisions become the
+  file's earlier versions), and `Knowledge/<base>/` with each document's original upload when it
+  is still in `uploads/`, its extracted text otherwise. The old file is only read (through a
+  private copy); running it again skips what is already there; with several 1.x accounts each gets
+  a folder of its own. Memories come across only when asked for, into the 2.0 account with the same
+  email address. A report names everything taken and everything left, with the reason.
+- **Import an administrator's export** (Administration → Import, or `lembas-server import admin
+  FILE`): the file 1.7.3 writes brings connections (an `anthropic` kind becomes the Anthropic type,
+  a known cloud host its own type, anything else OpenAI-compatible; the provider name is kept),
+  models (prices in money, settings, and capabilities as an override only where they were set by
+  hand), data groups, speech, web search and image settings, image workflows, custom tools and MCP
+  servers. The passphrase is checked before anything is written; keys the file left out are
+  listed to be typed in again; what 2.0 has no place for is named and dropped. Memory import
+  (Settings → Memory) and this share one reader.
+- **Backups.** A backup is now one archive, `lembas-<time>.tar.zst` (`.tar.gz` without the new
+  `backup` extra): both databases taken with SQLite's online backup and checked, `uploads/`, and a
+  manifest with every file's size and SHA-256 — and the secret key, encrypted under a passphrase,
+  when one is given. Administration → Backups lists them, backs up now, downloads, deletes, runs
+  them daily at a set time (keeping the newest of each of the last N days and N weeks), and
+  restores: an archive picked or uploaded is checked (manifest, checksums, `integrity_check`, same
+  major version) and staged, and put in place at the next start, the data it replaces moved to
+  `pre-restore-<time>/`; stored keys are re-encrypted when the backup carried its own secret key.
+  `lembas-server backup` writes the archive, `lembas-server restore FILE` stages one, and
+  `LEMBAS_BACKUP_DIR` puts backups on another mount.
+- **The container image** installs the `backup` extra, and `.dockerignore` keeps a 1.x
+  `lembas.db.old`, backups and a staged restore out of an image built from a working directory.
 - **Credits, plans and the monthly token budget are gone.** So are the *Credits* admin page, the
   balance in the chat header and in Settings, the *Grant credits* permission, the `admin:credits`
   token scope, the *Tokens a month* group limit, and every refusal that came from them — in a chat,

@@ -50,6 +50,11 @@ services:
       # than a bind mount so it survives `docker compose down` -- `down -v` is
       # the command that deletes it, and that asymmetry is the point.
       - lembas-data:/data
+      # Backups go to /data/backups by default, in the same volume as what
+      # they back up. To keep them somewhere else -- a NAS share mounted on
+      # the host -- mount it and point LEMBAS_BACKUP_DIR at it:
+      #   - /mnt/nas/lembas-backups:/backups
+      # and under `environment:`  LEMBAS_BACKUP_DIR: /backups
 
     # One worker, and that is not a shortcut. The generation registry, the stop
     # mechanism, the terminal sessions and the schedule ticker are all

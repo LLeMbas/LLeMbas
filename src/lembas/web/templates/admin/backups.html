@@ -1,0 +1,128 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "backups" %}
+{#
+  Backups (api/admin_backups.py, services/backup.py): one archive per backup,
+  both databases, the uploads and a manifest. A restore is checked and staged
+  here, and put in place at the next start -- never under the running service.
+#}
+{% block title %}{{ t("Backups") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Backups") }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">{{ t("A backup is one file: both databases, the uploaded files, and a manifest with every file's size and checksum. Taken while the instance runs, without stopping anything.") }}</p>
+{% if saved %}<div data-flash="success" class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>{% endif %}
+{% if error %}<div data-flash="error" class="alert alert--error">{{ icon("warning", "alert__icon") }} <span>{{ error }}</span></div>{% endif %}
+
+{% if pending %}
+<div class="alert" data-testid="restore-pending">
+  {{ icon("refresh", "icon--sm") }}
+  <span>{{ t("A restore is waiting: the backup of %(when)s (LLeMbas %(version)s). It is put in place when the service restarts; the data it replaces is kept in a pre-restore folder.", when=pending.created_at, version=pending.app_version) }}</span>
+  <form method="post" action="/admin/backups/restore/cancel">
+    <button class="btn btn--sm" type="submit">{{ t("Cancel the restore") }}</button>
+  </form>
+</div>
+{% endif %}
+
+<section class="card">
+  <h2 class="card__title">{{ t("Back up now") }}</h2>
+  <form method="post" action="/admin/backups/now" class="form-grid">
+    <div class="field">
+      <label class="field__label" for="backup-now-passphrase">{{ t("Passphrase for the secret key (optional)") }}</label>
+      <input class="input" type="password" id="backup-now-passphrase" name="passphrase" autocomplete="new-password">
+      <p class="field__hint">{{ t("With one, the secret key goes into the backup, encrypted, and a restore on another machine can read the stored keys. Empty uses the schedule's passphrase, if one is set.") }}</p>
+    </div>
+    <div class="btn-row"><button class="btn btn--primary" type="submit" data-testid="backup-now">{{ icon("archive", "icon--sm") }} {{ t("Back up now") }}</button></div>
+  </form>
+  <p class="text-xs faint">{{ tm("Backups go to <code>%(dir)s</code> (set by <code>LEMBAS_BACKUP_DIR</code>).", dir=directory) }}</p>
+  {% if ephemeral_key %}<p class="text-xs faint">{{ t("This instance runs on a temporary secret key, so no backup carries one.") }}</p>{% endif %}
+</section>
+
+<section class="card" data-testid="backup-list">
+  <h2 class="card__title">{{ t("Backups") }} <span class="badge">{{ archives|length }}</span></h2>
+  {% if not archives %}
+  <p class="muted text-sm">{{ t("None yet.") }}</p>
+  {% else %}
+  <ul class="model-list">
+    {% for archive in archives %}
+    <li class="model-list__item" data-testid="backup-row">
+      <div class="u-shrink">
+        <strong class="mono backup-name">{{ archive.name }}</strong>
+        <div class="text-xs faint">{{ stamp(archive.created, "%d %B %Y, %H:%M UTC") }} · {{ archive.size|filesizeformat }}</div>
+      </div>
+      <div class="row u-gap-2">
+        <a class="btn btn--sm" href="/admin/backups/file/{{ archive.name }}" download>{{ icon("download", "icon--sm") }} {{ t("Download") }}</a>
+        <form method="post" action="/admin/backups/file/{{ archive.name }}/delete">
+          <button class="btn btn--sm btn--danger" type="submit"
+                  data-confirm-button="{{ t('Delete this backup? It cannot be brought back.') }}"
+                  data-confirm-title="{{ t('Delete') }}" data-confirm-label="{{ t('Delete') }}">{{ t("Delete") }}</button>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2 class="card__title">{{ t("Restore") }}</h2>
+  <p class="card__lede">{{ t("The backup is checked first: its manifest, every file's checksum, both databases' integrity, and that it is from this major version. Then it waits until the service restarts, and the data it replaces is moved aside, not deleted.") }}</p>
+  {# Not saved in place: an upload can be large, and a plain post shows the
+     browser's own progress while it goes. #}
+  <form method="post" action="/admin/backups/restore" enctype="multipart/form-data" class="form-grid" data-in-place="off">
+    <div class="field">
+      <label class="field__label" for="restore-name">{{ t("A backup from the list") }}</label>
+      <select class="select" id="restore-name" name="name">
+        <option value="">{{ t("None: upload one instead") }}</option>
+        {% for archive in archives %}<option value="{{ archive.name }}">{{ archive.name }}</option>{% endfor %}
+      </select>
+      <p class="field__hint"></p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="restore-file">{{ t("Or a backup file") }}</label>
+      <input class="input" type="file" id="restore-file" name="file">
+      <p class="field__hint"></p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="restore-passphrase">{{ t("Its passphrase (optional)") }}</label>
+      <input class="input" type="password" id="restore-passphrase" name="passphrase" autocomplete="off">
+      <p class="field__hint">{{ t("When the backup carries its secret key, the stored keys are re-encrypted for this instance. Without it, they open only if this instance's secret key is the one the backup was taken under.") }}</p>
+    </div>
+    <div class="btn-row"><button class="btn" type="submit" data-testid="restore-go"
+      data-confirm-button="{{ t('Stage this backup? At the next restart it replaces everything here.') }}"
+      data-confirm-title="{{ t('Restore') }}" data-confirm-label="{{ t('Restore') }}">{{ t("Check and stage") }}</button></div>
+  </form>
+</section>
+
+<section class="card">
+  <h2 class="card__title">{{ t("Schedule") }}</h2>
+  <form method="post" action="/admin/backups/settings" class="form-grid">
+    <div class="field">
+      <label class="checkbox"><input type="checkbox" name="enabled" value="true" {{ 'checked' if values.enabled }}> <span>{{ t("Back up every day") }}</span></label>
+      <p class="field__hint">{% if values.last_day %}{{ t("Last run: %(day)s.", day=values.last_day) }}{% endif %}{% if values.last_error %} {{ t("It failed: %(error)s", error=values.last_error) }}{% endif %}</p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="backup-time">{{ t("At") }}</label>
+      <input class="input" type="time" id="backup-time" name="time" value="{{ values.time }}" required>
+      <p class="field__hint">{{ t("In the server's time.") }}</p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="backup-daily">{{ t("Days to keep") }}</label>
+      <input class="input" type="number" id="backup-daily" name="keep_daily" min="0" max="366" value="{{ values.keep_daily }}">
+      <p class="field__hint">{{ t("The newest backup of each of the last this many days.") }}</p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="backup-weekly">{{ t("Weeks to keep") }}</label>
+      <input class="input" type="number" id="backup-weekly" name="keep_weekly" min="0" max="520" value="{{ values.keep_weekly }}">
+      <p class="field__hint">{{ t("And the newest of each of the last this many weeks. Both 0 keeps every backup.") }}</p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="backup-key">{{ t("Passphrase for the secret key") }}</label>
+      <input class="input" type="password" id="backup-key" name="key_passphrase" autocomplete="new-password"
+             value="{{ sentinel if has_passphrase else '' }}">
+      <p class="field__hint">{{ t("Scheduled backups carry the secret key under this passphrase. Empty leaves it out. Keep the passphrase somewhere other than this server.") }}</p>
+    </div>
+    <div class="btn-row"><button class="btn btn--primary" type="submit">{{ t("Save") }}</button></div>
+  </form>
+</section>
+{% endblock %}

@@ -39,18 +39,129 @@ def serve(
     )
 
 
+def _passphrase(env: str) -> str:
+    """A passphrase from the environment variable named, never from argv."""
+    import os
+
+    if not env:
+        return ""
+    value = os.environ.get(env, "")
+    if not value:
+        typer.secho(f"{env} is not set.", fg=typer.colors.RED)
+        raise typer.Exit(1)
+    return value
+
+
 @app.command()
 def backup(
     label: str = typer.Option("", help="A word in the file name: before-update, by-hand."),
-    keep: int = typer.Option(10, help="How many backups to keep; 0 keeps all."),
+    keep: int = typer.Option(
+        None, help="Keep the newest N backups; 0 keeps all. Default: the schedule's rule."
+    ),
+    passphrase_env: str = typer.Option(
+        "", help="Put the secret key in, encrypted under the passphrase in this variable."
+    ),
+    no_key: bool = typer.Option(False, "--no-key", help="Leave the secret key out."),
 ) -> None:
-    """Back the database up while it runs (SQLite's online backup, checked)."""
+    """Back the instance up while it runs: both databases, uploads, a manifest."""
     from lembas.db.session import init_db
     from lembas.services import backup as backup_service
 
     init_db()
-    path = backup_service.take(label, keep=keep)
+    passphrase = "" if no_key else (_passphrase(passphrase_env) or None)
+    path = backup_service.take(label, keep=keep, passphrase=passphrase)
     typer.echo(str(path))
+
+
+@app.command()
+def restore(
+    archive: str = typer.Argument(..., help="A backup archive, or the name of one in the "
+                                  "backup directory."),
+    passphrase_env: str = typer.Option(
+        "", help="The variable holding the passphrase of the backup's secret key."
+    ),
+) -> None:
+    """Check a backup and stage it; it is put in place at the next start."""
+    from pathlib import Path
+
+    from lembas.services import backup as backup_service
+
+    found = backup_service.find(archive)
+    path = found.path if found else Path(archive)
+    if not path.is_file():
+        typer.secho(f"No such backup: {archive}", fg=typer.colors.RED)
+        raise typer.Exit(1)
+    settings.ensure_dirs()
+    try:
+        staged = backup_service.stage(path, _passphrase(passphrase_env))
+    except backup_service.Refused as refused:
+        typer.secho(str(refused), fg=typer.colors.RED)
+        raise typer.Exit(1) from refused
+    for warning in staged.warnings:
+        typer.secho(warning, fg=typer.colors.YELLOW)
+    typer.secho(
+        f"Staged the backup of {staged.created_at} ({staged.app_version}). Restart the service "
+        "to put it in place; the current data is moved to pre-restore-<time>/.",
+        fg=typer.colors.GREEN,
+    )
+
+
+import_app = typer.Typer(help="Bring data across from LLeMbas 1.x.", no_args_is_help=True)
+app.add_typer(import_app, name="import")
+
+
+@import_app.command("old")
+def import_old(
+    owner: str = typer.Option(..., help="Email of the 2.0 account the files go to."),
+    from_email: str = typer.Option("", help="Only this 1.x account's library."),
+    memories: bool = typer.Option(
+        False, help="Also each 1.x account's memories, into the 2.0 account of the same email."
+    ),
+) -> None:
+    """The 1.x library from lembas.db.old into files under /Imported/."""
+    from lembas.db.models import User
+    from lembas.db.session import init_db, session_scope
+    from lembas.services import import_old as service
+
+    init_db()
+    with session_scope() as db:
+        account = db.scalar(select(User).where(func.lower(User.email) == owner.strip().lower()))
+        if account is None:
+            typer.secho(f"No account {owner}.", fg=typer.colors.RED)
+            raise typer.Exit(1)
+        try:
+            report = service.run(db, account, from_email=from_email, memories=memories)
+        except service.Refused as refused:
+            typer.secho(str(refused), fg=typer.colors.RED)
+            raise typer.Exit(1) from refused
+        for line in report.lines():
+            typer.echo(line)
+
+
+@import_app.command("admin")
+def import_admin(
+    file: str = typer.Argument(..., help="A lembas-export file of kind admin, from 1.7."),
+    passphrase_env: str = typer.Option(
+        "", help="The variable holding the passphrase the file's keys were exported with."
+    ),
+) -> None:
+    """Connections, models and services from a 1.7 administrator's export."""
+    from pathlib import Path
+
+    from lembas.db.session import init_db, session_scope
+    from lembas.services import export_format
+    from lembas.services import import_admin as service
+
+    init_db()
+    try:
+        document = service.load(Path(file).read_bytes())
+        with session_scope() as db:
+            report = service.run(db, document, passphrase=_passphrase(passphrase_env))
+    except (export_format.Refused, OSError) as refused:
+        typer.secho(str(refused), fg=typer.colors.RED)
+        raise typer.Exit(1) from refused
+    for line in report.lines():
+        typer.echo(line)
 
 
 @app.command("create-admin")

@@ -112,6 +112,15 @@
           {{ icon("shield", "icon--sm") }}
           <span class="nav-item__label">{{ t("Audit log") }}</span>
         </a>
+        <a class="nav-item {{ 'is-active' if section == 'backups' }}" href="/admin/backups">
+          {{ icon("archive", "icon--sm") }}
+          <span class="nav-item__label">{{ t("Backups") }}</span>
+        </a>
+        {# From 1.x: the old database's library, and an administrator's export. #}
+        <a class="nav-item {{ 'is-active' if section == 'import' }}" href="/admin/import">
+          {{ icon("download", "icon--sm") }}
+          <span class="nav-item__label">{{ t("Import") }}</span>
+        </a>
         <a class="nav-item {{ 'is-active' if section == 'updates' }}" href="/admin/updates">
           {{ icon("refresh", "icon--sm") }}
           <span class="nav-item__label">{{ t("Updates") }}</span>

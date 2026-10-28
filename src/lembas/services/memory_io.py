@@ -1,6 +1,7 @@
 """A person's memories out and in: the `lembas-export` file, kind `memory`, version 1.
 
-The format is the one the 1.7 LTS line writes (`LLeMbas.wiki/Export-format.md`);
+The format is the one the 1.7 LTS line writes, read by the reader every import
+shares (`services/export_format.py`) (`LLeMbas.wiki/Export-format.md`);
 2.0 writes the same, so a file exported here can be imported anywhere that
 reads version 1, including here again.
 
@@ -17,7 +18,6 @@ memory is only ever written into the importing person's own account.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -27,25 +27,15 @@ from sqlalchemy.orm import Session as DBSession
 
 from lembas import __version__
 from lembas.db.models import AUTHOR_MODEL, AUTHOR_USER, DEFAULT_GROUP, Memory, User
-from lembas.services import data_groups
+from lembas.services import data_groups, export_format
 from lembas.services import memories as memories_service
 from lembas.web.i18n import t
 
-FORMAT = "lembas-export"
-VERSION = 1
-MAX_FILE = 5 * 1024 * 1024
-
-
-class Refused(ValueError):
-    """The file as a whole is not one to import, in the reader's language."""
-
-
-def _stamp(moment: datetime | None) -> str | None:
-    if moment is None:
-        return None
-    if moment.tzinfo is None:
-        moment = moment.replace(tzinfo=UTC)
-    return moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+FORMAT = export_format.FORMAT
+VERSION = export_format.VERSION
+MAX_FILE = export_format.MAX_FILE[export_format.KIND_MEMORY]
+Refused = export_format.Refused
+_stamp = export_format.stamp
 
 
 def export(db: DBSession, user: User, group: str | None = None) -> dict[str, Any]:
@@ -86,31 +76,8 @@ def export(db: DBSession, user: User, group: str | None = None) -> dict[str, Any
 
 
 def load(raw: bytes) -> dict[str, Any]:
-    """The header checked, or `Refused` saying why not."""
-    if len(raw) > MAX_FILE:
-        raise Refused(t("That file is too large to be a memory export."))
-    try:
-        document = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as problem:
-        raise Refused(t("That file is not an export: it is not JSON.")) from problem
-    if not isinstance(document, dict) or document.get("format") != FORMAT:
-        raise Refused(t("That file is not a LLeMbas export."))
-    version = document.get("format_version")
-    if not isinstance(version, int) or version > VERSION:
-        raise Refused(
-            t(
-                "That export is format version %(theirs)s; this server reads version %(ours)s.",
-                theirs=version,
-                ours=VERSION,
-            )
-        )
-    if document.get("kind") != "memory":
-        raise Refused(
-            t("That is not a memory export; an administrator's export is imported elsewhere.")
-        )
-    if not isinstance(document.get("items"), list):
-        raise Refused(t("That export has no items."))
-    return document
+    """The header checked, or `Refused` saying why not (`services/export_format.py`)."""
+    return export_format.load(raw, export_format.KIND_MEMORY)
 
 
 @dataclass

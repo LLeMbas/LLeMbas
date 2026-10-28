@@ -165,12 +165,16 @@ def set_aside_1x(path: Path | None = None) -> Path | None:
 def init_db() -> None:
     """Bring the database up to the declared schema.
 
-    First, a 1.x database is set aside (`set_aside_1x`). Then missing tables
+    First, a restore staged from Admin → Backups is put in place, the current
+    data moved aside (`services/backup.py:apply_pending`). Then a 1.x database
+    is set aside (`set_aside_1x`). Then missing tables
     and columns are created -- see db/migrations.py for what that does and
     does not cover -- and the file is marked as 2.x (`SCHEMA_VERSION`).
     """
     from lembas.db.migrations import sync_schema
+    from lembas.services import backup
 
+    backup.apply_pending()
     set_aside_1x()
     engine = get_engine()
     changes = sync_schema(engine)

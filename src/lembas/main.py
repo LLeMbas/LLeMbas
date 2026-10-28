@@ -18,10 +18,12 @@ from lembas.api import (
     admin,
     admin_agents,
     admin_audio,
+    admin_backups,
     admin_brand,
     admin_data_groups,
     admin_extraction,
     admin_images,
+    admin_import,
     admin_models,
     admin_prompts,
     admin_schedules,
@@ -240,6 +242,8 @@ def create_app() -> FastAPI:
     app.include_router(admin.router)
     app.include_router(admin_users.router)
     app.include_router(admin_updates.router)
+    app.include_router(admin_backups.router)
+    app.include_router(admin_import.router)
     app.include_router(admin_models.router)
     app.include_router(admin_audio.router)
     app.include_router(admin_extraction.router)

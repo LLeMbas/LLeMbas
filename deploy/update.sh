@@ -78,9 +78,9 @@ fi
 
 # Cheap and idempotent; catches a dependency added since the last deploy.
 # The extras a deployment gets. `search` because DuckDuckGo is the default web
-# search provider and is meant to need no setup. Listed here AND in install.sh --
+# search provider and is meant to need no setup; `backup` for zstd backups. Listed here AND in install.sh --
 # an extra added to only one of them means existing deployments silently miss it.
-LEMBAS_EXTRAS="${LEMBAS_EXTRAS:-search}"
+LEMBAS_EXTRAS="${LEMBAS_EXTRAS:-search,backup}"
 echo "== dependencies =="
 sudo -u "$SERVICE_USER" "$VENV/bin/pip" install --quiet -e "$APP[$LEMBAS_EXTRAS]"
 

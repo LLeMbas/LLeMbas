@@ -1,0 +1,77 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "import" %}
+{#
+  Bringing a 1.x instance across (api/admin_import.py). Two sources, both run
+  by hand and never by the update: the 1.x database the update set aside, and
+  an administrator's export file from 1.7. Each answers with a report.
+#}
+{% block title %}{{ t("Import") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Import") }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">{{ t("LLeMbas 2.0 started on a new database. What you want to keep from 1.x comes across here, by hand: the library from the old database, and the connections, models and services from an export file made on 1.7.") }}</p>
+
+<section class="card" data-testid="import-old">
+  <h2 class="card__title">{{ t("From the 1.x database") }}</h2>
+  {% if not old_exists %}
+  <p class="muted text-sm">{{ tm("There is no <code>lembas.db.old</code> in the data directory. The update to 2.0 leaves the 1.x database there under that name; a new installation has none.") }}</p>
+  {% elif problem %}
+  <div class="alert alert--error" role="alert">{{ icon("warning", "alert__icon") }} <span>{{ problem }}</span></div>
+  {% else %}
+  <p class="card__lede">{{ tm("Notes, reports, skills and knowledge from <code>lembas.db.old</code> become files under <code>/Imported/</code>, owned by the person you choose. The old file is only read. Running it again skips what is already there.") }}</p>
+  {% if survey %}
+  <ul class="model-list" data-testid="import-survey">
+    {% for account in survey.accounts %}
+    <li class="model-list__item">
+      <div class="u-shrink"><strong>{{ account.email }}</strong>
+        <div class="text-xs faint">{{ t("%(n)s notes, reports, skills and documents", n=account["items"]) }}</div></div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  <form method="post" action="/admin/import/old" class="form-grid" data-in-place="off">
+    <div class="field">
+      <label class="field__label" for="import-owner">{{ t("Whose files they become") }}</label>
+      <select class="select" id="import-owner" name="owner" required>
+        {% for person, org in people %}
+        <option value="{{ person.id }}" {{ 'selected' if person.id == me.id }}>{{ person.name }} · {{ person.email }}{% if org %} · {{ org }}{% endif %}</option>
+        {% endfor %}
+      </select>
+      <p class="field__hint">{{ t("They go into this person's organisation, and only this person can see them until they share them.") }}</p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="import-from">{{ t("Only the library of (optional)") }}</label>
+      <select class="select" id="import-from" name="from_email">
+        <option value="">{{ t("Every 1.x account, a folder each") }}</option>
+        {% for account in (survey.accounts if survey else []) %}<option value="{{ account.email }}">{{ account.email }}</option>{% endfor %}
+      </select>
+      <p class="field__hint">{{ t("With more than one account, each one's files go into a folder named after it.") }}</p>
+    </div>
+    <div class="field">
+      <label class="checkbox"><input type="checkbox" name="memories" value="true"> <span>{{ t("Also bring memories across") }}</span></label>
+      <p class="field__hint">{{ t("Into the 2.0 account with the same email address only, as memories rather than files.") }}</p>
+    </div>
+    <div class="btn-row"><button class="btn btn--primary" type="submit" data-testid="import-old-go">{{ t("Import the library") }}</button></div>
+  </form>
+  {% endif %}
+</section>
+
+<section class="card" data-testid="import-file">
+  <h2 class="card__title">{{ t("From an export file") }}</h2>
+  <p class="card__lede">{{ t("The file 1.7 writes under Admin → Updates → Export the configuration: connections and their models, data groups, speech, web search, image generation, custom tools and MCP servers. Anything 2.0 has no place for is listed, with the reason.") }}</p>
+  <form method="post" action="/admin/import/file" enctype="multipart/form-data" class="form-grid" data-in-place="off">
+    <div class="field">
+      <label class="field__label" for="import-file">{{ t("Export file") }}</label>
+      <input class="input" type="file" id="import-file" name="file" accept="application/json,.json" required>
+      <p class="field__hint">{{ t("An administrator's export; a memory export is imported under Settings → Memory.") }}</p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="import-passphrase">{{ t("Passphrase") }}</label>
+      <input class="input" type="password" id="import-passphrase" name="passphrase" autocomplete="off">
+      <p class="field__hint">{{ t("The one chosen at export, if the file's keys were encrypted. Without one, the keys were left out and are listed to be entered again.") }}</p>
+    </div>
+    <div class="btn-row"><button class="btn btn--primary" type="submit" data-testid="import-file-go">{{ t("Import the file") }}</button></div>
+  </form>
+</section>
+{% endblock %}

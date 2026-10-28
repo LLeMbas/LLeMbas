@@ -27,11 +27,17 @@ log = logging.getLogger(__name__)
 UNCHANGED_SENTINEL = "•" * 12
 
 
+def fernet_for(secret_key: str) -> Fernet:
+    """The Fernet a LEMBAS_SECRET_KEY makes. Fernet requires a 32-byte
+    urlsafe-base64 key; the secret key is free-form text. Also what a restore
+    re-encrypts with when a backup was taken under another key."""
+    digest = hashlib.sha256(secret_key.encode("utf-8")).digest()
+    return Fernet(base64.urlsafe_b64encode(digest))
+
+
 @lru_cache
 def _fernet() -> Fernet:
-    # Fernet requires a 32-byte urlsafe-base64 key; SECRET_KEY is free-form text.
-    digest = hashlib.sha256(settings.secret_key.encode("utf-8")).digest()
-    return Fernet(base64.urlsafe_b64encode(digest))
+    return fernet_for(settings.secret_key)
 
 
 def encrypt(plaintext: str) -> str:

@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     secret_key_is_ephemeral: bool = Field(default=False, exclude=True)
 
     data_dir: Path = Path("./data")
+    # Where backups are written (services/backup.py): `<data>/backups/` when
+    # unset, or a mounted NAS path. Deployment configuration rather than an
+    # instance setting, because a directory typed into a web form would let an
+    # administrator point the service's writes anywhere it can reach.
+    backup_dir: Path | None = None
 
     host: str = "127.0.0.1"
     port: int = 8080
@@ -80,6 +85,10 @@ class Settings(BaseSettings):
     def blobs_path(self) -> Path:
         """The blob store beside the database (`db/models/blob.py`)."""
         return self.data_dir / "lembas-blobs.db"
+
+    @property
+    def backups_path(self) -> Path:
+        return self.backup_dir or self.data_dir / "backups"
 
     @property
     def uploads_dir(self) -> Path:

@@ -220,6 +220,32 @@ async def update_tick(*, force: bool = False) -> None:
     await updates_auto.tick()
 
 
+_LAST_BACKUP_TICK = 0.0
+_BACKUP: asyncio.Task | None = None
+
+
+def backup_tick(*, force: bool = False) -> None:
+    """The scheduled backup (services/backup.py), looked at once a minute, in a
+    task of its own so a large backup never holds a schedule back; it decides
+    itself whether today's is due."""
+    global _LAST_BACKUP_TICK, _BACKUP
+    now = time.monotonic()
+    if not force and now - _LAST_BACKUP_TICK < TIDY_SECONDS:
+        return
+    if _BACKUP is not None and not _BACKUP.done():
+        return
+    _LAST_BACKUP_TICK = now
+    from lembas.services import backup
+
+    async def _run() -> None:
+        try:
+            await backup.tick()
+        except Exception:  # a backup must never stop the ticker
+            log.exception("the scheduled backup raised")
+
+    _BACKUP = asyncio.create_task(_run())
+
+
 _HEALTH: asyncio.Task | None = None
 
 
@@ -240,6 +266,7 @@ async def _loop() -> None:
             await asyncio.sleep(_interval())
             tidy()
             await update_tick()
+            backup_tick()
             health_tick()
             await sweep()
         except asyncio.CancelledError:
@@ -257,7 +284,12 @@ def start() -> None:
 
 
 async def shutdown() -> None:
-    global _TICKER, _HEALTH
+    global _TICKER, _HEALTH, _BACKUP
+    if _BACKUP is not None:
+        _BACKUP.cancel()
+        with contextlib.suppress(asyncio.CancelledError, Exception):
+            await _BACKUP
+        _BACKUP = None
     if _HEALTH is not None:
         _HEALTH.cancel()
         with contextlib.suppress(asyncio.CancelledError, Exception):

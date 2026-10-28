@@ -32,6 +32,7 @@ SCHEDULES = "schedules"
 SUBAGENTS = "subagents"
 EXTRACTION = "extraction"
 UPDATES = "updates"
+BACKUPS = "backups"
 
 
 def _general_defaults() -> dict[str, Any]:
@@ -380,7 +381,29 @@ _DEFAULTS: dict[str, Any] = {
     # accessor that reads each group lives.
     EXTRACTION: lambda: _extraction_defaults(),
     UPDATES: lambda: _updates_defaults(),
+    BACKUPS: lambda: _backups_defaults(),
 }
+
+
+def _backups_defaults() -> dict[str, Any]:
+    """Backups on a schedule (services/backup.py). Off until an administrator
+    says; `lembas-server backup` and *Back up now* work either way."""
+    return {
+        "enabled": False,
+        # "HH:MM" in the server's time, once a day.
+        "time": "03:00",
+        # The newest backup of each of the last N days, and of the last N weeks.
+        "keep_daily": 7,
+        "keep_weekly": 4,
+        # Put the secret key into scheduled backups, under this passphrase
+        # (scrypt -> Fernet, as an export's keys). Without it, a restore onto a
+        # machine with another LEMBAS_SECRET_KEY cannot read the stored keys.
+        "key_passphrase_encrypted": "",
+        # What the schedule did last; kept here so a restart does not take a
+        # second backup the same day.
+        "last_day": "",
+        "last_error": "",
+    }
 
 
 def _updates_defaults() -> dict[str, Any]:
@@ -681,6 +704,14 @@ def currency(db: DBSession) -> str:
 def updates(db: DBSession) -> dict[str, Any]:
     """Update settings, merged over the defaults."""
     return {**_updates_defaults(), **(get_group(db, UPDATES) or {})}
+
+
+def backups(db: DBSession) -> dict[str, Any]:
+    """Backup settings, clamped on read."""
+    values = get_group(db, BACKUPS)
+    values["keep_daily"] = min(max(int(values.get("keep_daily") or 0), 0), 366)
+    values["keep_weekly"] = min(max(int(values.get("keep_weekly") or 0), 0), 520)
+    return values
 
 
 def web_push_enabled(db: DBSession) -> bool:

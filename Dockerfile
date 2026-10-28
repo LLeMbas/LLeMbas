@@ -36,7 +36,10 @@ WORKDIR /app
 # is a missing COPY. README.md is there for the same reason (`readme = `).
 COPY pyproject.toml README.md LICENSE ./
 COPY src/lembas/__init__.py src/lembas/__init__.py
-RUN pip install --no-cache-dir -e ".[search]"
+# `search` is the web search provider and the file index's vectors
+# (sqlite-vec, which needs the loadable-extension sqlite3 the official Python
+# images are built with); `backup` makes backups `.tar.zst`.
+RUN pip install --no-cache-dir -e ".[search,backup]"
 
 COPY . .
 # Again, because the first install ran against a source tree with one file in
@@ -44,9 +47,13 @@ COPY . .
 RUN pip install --no-cache-dir --no-deps -e "." \
     && chown -R lembas:lembas /app
 
-# The database, the uploads and the encryption at rest all live here. Declared
-# so that running without `-v` still works and says where the data went, rather
-# than losing it silently at the first `docker rm`.
+# Everything the instance keeps lives here, in one volume: the database
+# (`lembas.db`), the file contents (`lembas-blobs.db`), the uploads, the backups
+# (`backups/`, unless LEMBAS_BACKUP_DIR points at another mount), a restore
+# waiting for the next start (`restore-pending/`), and after the update from
+# 1.x the old database (`lembas.db.old`) the import reads. Declared so that
+# running without `-v` still works and says where the data went, rather than
+# losing it silently at the first `docker rm`.
 ENV LEMBAS_DATA_DIR=/data \
     LEMBAS_HOST=0.0.0.0 \
     LEMBAS_PORT=8080 \

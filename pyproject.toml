@@ -57,6 +57,9 @@ dev = [
 # it is pre-1.0 and its SQL functions are what the queries call. Without it the
 # index is keywords only and no vectors are ever written (db/vec.py).
 search = ["ddgs>=9.0", "sqlite-vec==0.1.9"]
+# Backups as `.tar.zst` rather than `.tar.gz` (services/backup.py): smaller and
+# faster. Without it backups are gzip, and a zstd backup cannot be restored.
+backup = ["zstandard>=0.22"]
 
 [project.scripts]
 # `lembas-server`, not `lembas`: the bare name is the LLeMbas CLI's command, and

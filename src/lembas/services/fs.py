@@ -718,6 +718,20 @@ def share(
     return row
 
 
+def ensure_dir(db: DBSession, org_id: str, path: str, *, owner: User) -> Node:
+    """A directory at `path` owned by `owner`, made (with any missing above it)
+    when it is not there. Below access, for an administrator's action that puts
+    something in a person's hands -- the import (`services/import_old.py`)
+    makes `/Imported` this way, and writes below it as that person."""
+    path = normalise(path)
+    node = lookup(db, org_id, path)
+    if node is not None:
+        if node.kind == KIND_FILE:
+            raise not_a_directory(path)
+        return node
+    return _make_node(db, org_id, path, KIND_DIR, owner_id=owner.id, by=owner.id)
+
+
 def count(db: DBSession, org_id: str) -> int:
     return int(
         db.scalar(
@@ -740,6 +754,7 @@ __all__ = [
     "check_writable",
     "children",
     "count",
+    "ensure_dir",
     "ensure_home",
     "ensure_layout",
     "home_of",

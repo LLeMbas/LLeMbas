@@ -5,7 +5,6 @@ release between."""
 from __future__ import annotations
 
 import asyncio
-import sqlite3
 import time
 from datetime import datetime
 
@@ -24,10 +23,7 @@ def _fresh():
 
 def _backups() -> list:
     """The backups on disk, newest first."""
-    folder = backup.backup_dir()
-    if not folder.exists():
-        return []
-    return sorted(folder.glob("lembas-*.db"), key=lambda p: p.stat().st_mtime, reverse=True)
+    return [archive.path for archive in backup.archives()]
 
 
 def _bump(part: str) -> str:
@@ -103,9 +99,9 @@ def test_an_idle_instance_is_backed_up_then_updated(db, monkeypatch):
     asyncio.run(updates_auto.tick())
     assert requested == ["automatic"]
     assert len(_backups()) == before + 1
-    # The backup is a real, whole database.
-    with sqlite3.connect(str(_backups()[0])) as copy:
-        assert copy.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+    # The backup is a real archive with a whole database in it.
+    document = backup.manifest(_backups()[0])
+    assert any(f["path"] == "lembas.db" for f in document["files"])
 
 
 def test_a_release_outside_the_policy_is_left(db, monkeypatch):

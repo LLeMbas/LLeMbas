@@ -1,0 +1,50 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "import" %}
+{#- What an import took and what it left, each by name with the reason
+    (services/import_report.py). -#}
+{% block title %}{{ t("Import") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Import") }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede"><a href="/admin/import">{{ icon("chevron-left", "icon--sm") }} {{ t("Back to Import") }}</a></p>
+{% if problem %}
+<div class="alert alert--error" role="alert">{{ icon("warning", "alert__icon") }} <span>{{ problem }}</span></div>
+{% else %}
+<section class="card" data-testid="import-report">
+  <h2 class="card__title">{{ t("Imported") }} <span class="badge badge--leaf">{{ report.taken|length }}</span></h2>
+  {% if report.taken %}
+  <ul class="import-list">{% for e in report.taken %}
+    <li class="import-list__item">{{ icon("check", "icon--sm") }}<span class="badge">{{ e.label() }}</span><span class="import-list__name">{{ e.name }}</span>{% if e.reason %}<span class="import-list__why text-xs faint">{{ e.why() }}</span>{% endif %}</li>
+  {% endfor %}</ul>
+  {% else %}<p class="muted text-sm">{{ t("Nothing.") }}</p>{% endif %}
+</section>
+{% if report.secrets %}
+<section class="card" data-testid="import-secrets">
+  <h2 class="card__title">{{ t("Keys to enter again") }} <span class="badge">{{ report.secrets|length }}</span></h2>
+  <ul class="import-list">{% for e in report.secrets %}
+    <li class="import-list__item">{{ icon("warning", "icon--sm") }}<span class="badge">{{ e.label() }}</span><span class="import-list__name">{{ e.name }}</span><span class="import-list__why text-xs faint">{{ e.why() }}</span></li>
+  {% endfor %}</ul>
+</section>
+{% endif %}
+{% if report.skipped %}
+<section class="card">
+  <h2 class="card__title">{{ t("Left out") }} <span class="badge">{{ report.skipped|length }}</span></h2>
+  <ul class="import-list">{% for e in report.skipped %}
+    <li class="import-list__item">{{ icon("x", "icon--sm") }}<span class="badge">{{ e.label() }}</span><span class="import-list__name">{{ e.name }}</span><span class="import-list__why text-xs faint">{{ e.why() }}</span></li>
+  {% endfor %}</ul>
+</section>
+{% endif %}
+{% if report.notes %}
+<section class="card">
+  <h2 class="card__title">{{ t("Worth knowing") }}</h2>
+  <ul class="import-list">{% for e in report.notes %}
+    <li class="import-list__item">{{ icon("leaf", "icon--sm") }}{% if e.name %}<span class="import-list__name">{{ e.name }}</span>{% endif %}<span>{{ e.why() }}</span></li>
+  {% endfor %}</ul>
+</section>
+{% endif %}
+{% if source == "old" and report.taken %}
+<p class="text-sm muted">{{ tm("Imported skills are files, not live skills yet: move one into <code>/skills/</code> or your own <code>skills/</code> folder to use it.") }}</p>
+{% endif %}
+{% endif %}
+{% endblock %}

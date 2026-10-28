@@ -130,9 +130,9 @@ if [[ ! -x "$VENV/bin/python" ]]; then
 fi
 sudo -u "$SERVICE_USER" "$VENV/bin/pip" install --quiet --upgrade pip
 # The extras a deployment gets. `search` because DuckDuckGo is the default web
-# search provider and is meant to need no setup. Listed here AND in update.sh --
+# search provider and is meant to need no setup; `backup` for zstd backups. Listed here AND in update.sh --
 # an extra added to only one of them means existing deployments silently miss it.
-LEMBAS_EXTRAS="${LEMBAS_EXTRAS:-search}"
+LEMBAS_EXTRAS="${LEMBAS_EXTRAS:-search,backup}"
 sudo -u "$SERVICE_USER" "$VENV/bin/pip" install --quiet -e "$APP[$LEMBAS_EXTRAS]"
 
 echo "== environment =="

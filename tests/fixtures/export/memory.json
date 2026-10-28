@@ -1,0 +1,42 @@
+{
+  "format": "lembas-export",
+  "format_version": 1,
+  "kind": "memory",
+  "app_version": "1.7.2",
+  "created_at": "2000-01-01T00:00:00Z",
+  "owner": {
+    "name": "Example Person",
+    "email": "person@example.com"
+  },
+  "counts": {
+    "memory": 2
+  },
+  "items": [
+    {
+      "type": "memory",
+      "ref": "mem1",
+      "name": "Prefers metric units and a 24-hour clock.",
+      "data": {
+        "content": "Prefers metric units and a 24-hour clock.",
+        "author": "user",
+        "data_group": "Default",
+        "data_group_ref": "default",
+        "created_at": "2000-01-01T00:00:00Z",
+        "updated_at": "2000-01-01T00:00:00Z"
+      }
+    },
+    {
+      "type": "memory",
+      "ref": "mem2",
+      "name": "Works on a garden-planning side project.",
+      "data": {
+        "content": "Works on a garden-planning side project.",
+        "author": "model",
+        "data_group": "Work",
+        "data_group_ref": "work",
+        "created_at": "2000-01-01T00:00:00Z",
+        "updated_at": "2000-01-01T00:00:00Z"
+      }
+    }
+  ]
+}

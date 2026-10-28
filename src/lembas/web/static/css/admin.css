@@ -922,3 +922,32 @@ a.tabs__tab { text-decoration: none; }
 .model-prefs__state { flex: none; }
 .model-prefs__form { padding: var(--sp-2) 0 var(--sp-4); }
 .model-prefs__form fieldset { border: 0; padding: 0; margin: 0 0 var(--sp-4); min-width: 0; }
+
+/* --- Import report --------------------------------------------------------
+   One grid for the whole list, each row on its tracks (subgrid): the icons,
+   the kinds and the names line up whatever the kind is called in a language.
+   The reason goes under the name, never beside it, so a long one cannot push
+   the name off a phone. */
+.import-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: var(--control-h-sm) auto minmax(0, 1fr);
+  column-gap: var(--sp-2);
+}
+.import-list__item {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+  row-gap: var(--sp-1);
+  padding: var(--sp-2) 0;
+  border-bottom: var(--border-w) solid var(--border);
+}
+.import-list__item:last-child { border-bottom: 0; }
+.import-list__name { min-width: 0; overflow-wrap: anywhere; }
+.import-list__why { grid-column: 3; min-width: 0; }
+.import-list__why:empty { display: none; }
+.import-list__item > .badge { justify-self: start; }
+.backup-name { overflow-wrap: anywhere; }
