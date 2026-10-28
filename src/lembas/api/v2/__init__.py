@@ -19,14 +19,16 @@ does. Errors are `{"detail": "…"}`, as on every JSON answer this server gives.
 
 `APP_API` is the contract's version. A change to what a route returns or a
 frame carries that an existing client would misread is a new number, not a
-tweak; adding a field is not.
+tweak; adding a field is not. 2 (with 2.0): the stream has no `canvas` frame
+and a chat no `knowledge_bases`; a tool call may carry a `show` card, whose
+file is `GET /chats/{chat}/show`.
 """
 
 from __future__ import annotations
 
 from fastapi import APIRouter
 
-APP_API = 1
+APP_API = 2
 
 router = APIRouter(prefix="/api/v2", tags=["app"])
 

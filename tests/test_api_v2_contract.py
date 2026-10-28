@@ -75,6 +75,50 @@ TOOL = {
     "purpose": "Bake one loaf",
 }
 
+# A `show` card: one from the chat's own tool (a file in the tree), one a linked
+# device sent. The card names the file; its text is fetched separately
+# (`GET /api/v2/chats/{chat}/show`) and never rides in the event.
+SHOW_TREE = {
+    "id": "call2",
+    "name": "show",
+    "status": "ok",
+    "path": "/home/frodo/recipe.md",
+    "query": "/home/frodo/recipe.md",
+    "show": {
+        "path": "/home/frodo/recipe.md",
+        "name": "recipe.md",
+        "kind": "markdown",
+        "language": "markdown",
+        "line": 3,
+        "node_id": "node1",
+        "version_id": "ver1",
+        "sha": "a" * 64,
+        "size": 120,
+        "mime": "text/markdown",
+    },
+}
+SHOW_DEVICE = {
+    "id": "call3",
+    "name": "show",
+    "status": "ok",
+    "path": "src/oven.py",
+    "show": {
+        "path": "src/oven.py",
+        "name": "oven.py",
+        "kind": "code",
+        "language": "python",
+        "line": None,
+        "node_id": "",
+        "version_id": "",
+        "sha": "b" * 64,
+        "size": 64,
+        "mime": "text/x-python",
+        "source": "device",
+        "shown_id": "shown1",
+        "url": "/api/chats/chat2/shown/shown1",
+    },
+}
+
 
 def _assistant() -> Message:
     return Message(
@@ -235,6 +279,7 @@ def _shapes() -> dict[str, object]:
             "next": None,
         },
         "event_close": {},
+        "tool_show": {"calls": [serialise.tool_call(SHOW_TREE), serialise.tool_call(SHOW_DEVICE)]},
     }
 
 
@@ -286,3 +331,13 @@ def test_the_steps_carry_markdown_and_no_html():
         "removed": 0,
     }
     assert "html" not in json.dumps(steps)
+
+
+def test_a_show_card_names_the_file_and_never_carries_it():
+    tree, device = _shapes()["tool_show"]["calls"]
+    assert tree["show"]["node_id"] == "node1" and tree["show"]["version_id"] == "ver1"
+    assert "source" not in tree["show"]
+    assert device["show"]["source"] == "device" and device["show"]["shown_id"] == "shown1"
+    # The cookie door's address is the page's, not the app's.
+    assert "url" not in device["show"]
+    assert "text" not in tree["show"] and "text" not in device["show"]

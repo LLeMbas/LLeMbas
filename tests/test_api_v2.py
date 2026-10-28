@@ -98,7 +98,7 @@ def _events(text: str) -> list[tuple[str, object]]:
 def test_discovery_names_the_door_and_the_scope(client):
     found = client.get("/.well-known/lembas.json").json()
     assert found["api"]["app"].endswith("/api/v2")
-    assert found["app_api"] == 1
+    assert found["app_api"] == 2
     assert "app" in found["scopes"]
 
 
@@ -380,7 +380,7 @@ def test_me_models_and_folders(client, db, registered):
     _models(db)
     headers = _bearer(db)
     me = client.get("/api/v2/me", headers=headers).json()
-    assert me["account"]["email"] == "frodo@shire.test" and me["api"] == 1
+    assert me["account"]["email"] == "frodo@shire.test" and me["api"] == 2
     assert me["permissions"]["chat.create"] is True
     models = client.get("/api/v2/models", headers=headers).json()["models"]
     assert models[0]["id"] == "qwen" and models[0]["vision"] is True
@@ -442,3 +442,87 @@ def test_api_only_mode_closes_this_door_too(client, db, registered):
     client.post("/admin/general", data={"instance_mode": "api"}, follow_redirects=False)
     response = client.get("/api/v2/chats", headers=_bearer(db))
     assert response.status_code == 404
+
+
+# --- The show card's file ------------------------------------------------------------
+def _show_setup(db):
+    from lembas.services import fs
+
+    user = db.scalar(select(User).where(User.email == "frodo@shire.test"))
+    home = fs.ensure_home(db, user).path
+    chat = Chat(user_id=user.id, model_id="")
+    db.add(chat)
+    db.commit()
+    return user, home, chat
+
+
+def test_the_show_file_is_plain_text_through_the_chats_view(client, db, registered):
+    from lembas.db.models import SessionGrant
+    from lembas.services import fs
+
+    user, home, chat = _show_setup(db)
+    v = fs.view(db, user)
+    fs.write(v, f"{home}/plan.md", b"# First")
+    node = fs.write(v, f"{home}/plan.md", b"# Second")
+    page = fs.write(v, f"{home}/page.html", b"<script>alert(1)</script>")
+    db.commit()
+    first = fs.versions(v, f"{home}/plan.md")[-1]
+    headers = _bearer(db)
+    url = f"/api/v2/chats/{chat.id}/show"
+
+    now = client.get(url, params={"node": node.id}, headers=headers)
+    assert now.status_code == 200 and now.text == "# Second"
+    assert now.headers["content-type"] == "text/plain; charset=utf-8"
+    assert now.headers["x-content-type-options"] == "nosniff"
+    then = client.get(url, params={"node": node.id, "version": first.id}, headers=headers)
+    assert then.text == "# First"
+    # HTML is its source, never a page.
+    html = client.get(url, params={"node": page.id}, headers=headers)
+    assert html.text == "<script>alert(1)</script>"
+    assert html.headers["content-type"].startswith("text/plain")
+    assert "sandbox" in html.headers["content-security-policy"]
+    # The chat's grants narrowed since the card was drawn: the file is gone from it.
+    chat.grants_customised = True
+    db.add(SessionGrant(chat_id=chat.id, path=f"{home}/skills", level="ro"))
+    db.commit()
+    gone = client.get(url, params={"node": node.id}, headers=headers)
+    assert gone.status_code == 404 and "# Second" not in gone.text
+
+
+def test_the_show_file_refuses_binary_large_and_other_doors(client, db, registered):
+    from lembas.services import fs
+
+    user, home, chat = _show_setup(db)
+    v = fs.view(db, user)
+    binary = fs.write(v, f"{home}/blob.bin", b"\x00\x01\x02")
+    large = fs.write(v, f"{home}/big.txt", b"x" * (1024 * 1024 + 1))
+    db.commit()
+    headers = _bearer(db)
+    url = f"/api/v2/chats/{chat.id}/show"
+    assert client.get(url, params={"node": binary.id}, headers=headers).status_code == 415
+    assert client.get(url, params={"node": large.id}, headers=headers).status_code == 413
+    assert client.get(url, params={"node": "nope"}, headers=headers).status_code == 404
+    # Bearer only: the cookie this client holds does not open it, nor does a
+    # token without the app scope.
+    assert client.get(url, params={"node": binary.id}).status_code == 401
+    other = _bearer(db, scopes=("chat",))
+    assert client.get(url, params={"node": binary.id}, headers=other).status_code in (401, 403)
+
+
+def test_a_devices_show_file_is_its_kept_copy(client, db, registered):
+    from lembas.services import shown
+
+    _user, _home, chat = _show_setup(db)
+    reply = Message(chat_id=chat.id, role="assistant", content="", complete=True)
+    db.add(reply)
+    db.commit()
+    row = shown.keep(
+        db, chat_id=chat.id, message_id=reply.id,
+        params={"path": "docs/plan.md", "kind": "markdown", "text": "# Plan\n"},
+    )
+    db.commit()
+    headers = _bearer(db)
+    url = f"/api/v2/chats/{chat.id}/show"
+    found = client.get(url, params={"shown": row.id}, headers=headers)
+    assert found.status_code == 200 and found.text == "# Plan\n"
+    assert client.get(url, params={"shown": "nope"}, headers=headers).status_code == 404

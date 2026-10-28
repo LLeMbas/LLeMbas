@@ -1,0 +1,57 @@
+{
+  "calls": [
+    {
+      "id": "call2",
+      "name": "show",
+      "status": "ok",
+      "query": "/home/frodo/recipe.md",
+      "path": "/home/frodo/recipe.md",
+      "show": {
+        "path": "/home/frodo/recipe.md",
+        "name": "recipe.md",
+        "kind": "markdown",
+        "language": "markdown",
+        "line": 3,
+        "node_id": "node1",
+        "version_id": "ver1",
+        "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "size": 120,
+        "mime": "text/markdown"
+      },
+      "block": {
+        "kind": "tool",
+        "title": "/home/frodo/recipe.md",
+        "chips": [],
+        "added": 0,
+        "removed": 0
+      }
+    },
+    {
+      "id": "call3",
+      "name": "show",
+      "status": "ok",
+      "path": "src/oven.py",
+      "show": {
+        "path": "src/oven.py",
+        "name": "oven.py",
+        "kind": "code",
+        "language": "python",
+        "line": null,
+        "node_id": "",
+        "version_id": "",
+        "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "size": 64,
+        "mime": "text/x-python",
+        "source": "device",
+        "shown_id": "shown1"
+      },
+      "block": {
+        "kind": "tool",
+        "title": "",
+        "chips": [],
+        "added": 0,
+        "removed": 0
+      }
+    }
+  ]
+}

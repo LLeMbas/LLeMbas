@@ -338,4 +338,63 @@ async def answer(
     return {"answered": True, "remembered": remembered, "not_remembered": unmatchable}
 
 
+# --- The show card's file -------------------------------------------------------------
+SHOW_MAX_BYTES = 1024 * 1024
+
+
+@router.get("/chats/{chat_id}/show")
+async def show_file(
+    caller: Me, db: Db, chat_id: str, node: str = "", version: str = "", shown: str = ""
+) -> Response:
+    """What a `show` card opens, as plain text: `?node=<id>&version=<id>` for a
+    file in the tree (the card's `node_id` and `version_id`), `?shown=<id>` for
+    the copy a linked device sent (`shown_id`).
+
+    The twin of the page's `/chat/{chat}/show`: a tree file is read through
+    the chat's view, rebuilt now, so a grant taken away since takes the file
+    away too. At most 1 MB, and text only -- an HTML file comes back as its
+    source and is never rendered here; what the app does with it is the app's
+    (it is model output, rule 6)."""
+    chat = owned_chat(db, chat_id, caller.user)
+    gone = t("That file is not here any more.")
+    if shown:
+        from lembas.services import shown as shown_service
+
+        row = shown_service.get(db, chat.id, shown)
+        if row is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, gone)
+        text = shown_service.text_of(db, row)
+    else:
+        from lembas.db.models import Node
+        from lembas.services import file_ui, fs
+
+        user = caller.user
+        found = db.get(Node, node) if node else None
+        if found is None or found.org_id != user.org_id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, gone)
+        try:
+            opened = file_ui.open_file(fs.view(db, user, chat), found.path, version)
+        except fs.FsError as refused:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, refused.message) from refused
+        if opened.size > SHOW_MAX_BYTES or opened.kind == "large":
+            raise HTTPException(
+                status.HTTP_413_CONTENT_TOO_LARGE, t("This file is too large to show here.")
+            )
+        if opened.kind in ("image", "binary"):
+            raise HTTPException(
+                status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                t("This is not a text file, so it is not shown here."),
+            )
+        text = opened.text
+    return Response(
+        text,
+        media_type="text/plain; charset=utf-8",
+        headers={
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+            "Cache-Control": "private, no-store",
+        },
+    )
+
+
 __all__ = ["router"]

@@ -212,6 +212,14 @@ release yet.
   names the session it is made for, and refuse a session that is not the device's. A token needs
   the new `memory` scope; `library`, its old name, still counts as `memory` but is no longer
   offered for a new token.
+- **The app sees the `show` card: `/api/v2` is version 2.** A tool call in `/api/v2` may carry
+  `show` — the file's path, name, kind, language, line, ids, hash, size and type, never its text
+  (a device's card adds `source` and `shown_id`) — and `GET /api/v2/chats/{chat}/show?node=…`
+  (`&version=…`) or `?shown=…` returns the file as plain text, at most 1 MB, checked again against
+  what the chat may reach now; an HTML file comes back as its source. Because chats lost
+  `knowledge_bases` and the stream its `canvas` frame, the app API's version (`app_api` in
+  discovery, `api` in `/api/v2/me`) is now 2; an app written for 1 should be updated with this
+  server.
 - **A linked device can show you a file.** The CLI's `show` tool, in an agent chat, sends the
   file (up to 1 MB); it is kept with the chat and drawn as the same card a chat's own `show`
   makes, and read back as plain text only. Deleting the chat deletes it.

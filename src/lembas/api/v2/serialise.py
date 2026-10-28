@@ -55,6 +55,16 @@ TOOL_FIELDS = (
     "image",
     "job",
     "children",
+    "show",
+)
+
+# What a `show` card carries to the app: the file's identity, never its text
+# (the app fetches that from `GET /api/v2/chats/{chat}/show`). A device's card
+# adds `source` and `shown_id`; the page's own `url` is the cookie door's and
+# is left out.
+SHOW_FIELDS = (
+    "path", "name", "kind", "language", "line", "node_id", "version_id", "sha", "size", "mime",
+    "source", "shown_id",
 )
 
 # A string longer than this is cut, and the event says so. A shell's output can
@@ -128,6 +138,11 @@ def tool_call(event: dict) -> dict[str, Any]:
     out: dict[str, Any] = {}
     cut = False
     for key in TOOL_FIELDS:
+        if key == "show":
+            card = event.get("show")
+            if isinstance(card, dict) and card:
+                out["show"] = {k: card[k] for k in SHOW_FIELDS if k in card}
+            continue
         if key in event and event[key] not in (None, ""):
             value, was_cut = _cut(event[key])
             cut = cut or was_cut
