@@ -7,8 +7,8 @@
 
 {% block admin_content %}
 <p class="admin-lede">
-  {{ t("Any endpoint that speaks the OpenAI HTTP API: OpenAI itself, or a local runner such as LM Studio, vLLM, llama.cpp or Ollama. %(brand)s asks each one for its model list and offers those models in the chat picker.", brand=brand.name) }}
-  {{ t("Anthropic's own API is the other type a connection can have.") }}
+  {{ t("A connection is one provider: a server of your own that speaks the OpenAI API (llama.cpp, llama-swap, vLLM, Ollama, LM Studio), or OpenAI, Anthropic, DeepSeek or OpenRouter. %(brand)s asks each one for its model list and offers those models in the chat picker.", brand=brand.name) }}
+  {{ t("Paste an address and press Detect: the type is found for you, and what it says about its models is filled in.") }}
 </p>
 
 {% if message %}
@@ -17,16 +17,65 @@
 
 <section class="card">
   <h2 class="card__title">{{ t("Add a connection") }}</h2>
-  <form method="post" action="/admin/connections"
-        x-data="{ kind: 'openai' }">
+  {# `detect()` asks /admin/connections/detect, which asks only the address
+     typed here (services/llm/detect.py), and fills the form from the answer.
+     Every field still posts as typed: detection is a suggestion. #}
+  <form method="post" action="/admin/connections" data-testid="connection-add"
+        x-data="{
+          type: 'openai_compatible', detecting: false, found: '', error: '',
+          defaults: {{ provider_defaults | tojson | forceescape }},
+          billing: {{ billing_types | tojson | forceescape }},
+          async detect() {
+            this.detecting = true; this.found = ''; this.error = '';
+            const body = new URLSearchParams({ base_url: $refs.url.value, api_key: $refs.key.value });
+            try {
+              const r = await fetch('/admin/connections/detect', { method: 'POST', body: body,
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+              const d = await r.json();
+              if (!d.ok) { this.error = d.error || ''; return; }
+              this.type = d.provider_type;
+              if (d.base_url) $refs.url.value = d.base_url;
+              $refs.server.value = d.server || '';
+              $refs.single.checked = !!(d.suggest && d.suggest.one_model_at_a_time);
+              $refs.unload.value = (d.suggest && d.suggest.unload_url) || '';
+              $refs.unloadMethod.value = $refs.unload.value ? 'GET' : 'POST';
+              this.found = d.label + (d.server && d.server !== d.provider_type ? ' · ' + d.server : '')
+                + (d.models != null ? ' · ' + d.models : '');
+            } catch (e) { this.error = {{ t("The address could not be asked.") | tojson | forceescape }}; }
+            finally { this.detecting = false; }
+          }
+        }">
     <div class="field">
-      <label class="field__label" for="new-kind">{{ t("Type") }}</label>
-      <select class="select" id="new-kind" name="kind" x-model="kind"
-              @change="if (kind === 'anthropic') { $refs.url.value = '{{ anthropic_url }}' } else if ($refs.url.value === '{{ anthropic_url }}') { $refs.url.value = '' }">
-        <option value="openai">{{ t("OpenAI dialect") }}</option>
-        <option value="anthropic">{{ t("Anthropic") }}</option>
+      <label class="field__label" for="new-url">{{ t("Base URL") }}</label>
+      <div class="btn-row">
+        <input class="input input--mono u-grow u-shrink" id="new-url" name="base_url" x-ref="url"
+               placeholder="{{ t('http://localhost:1234/v1') }}">
+        <button class="btn" type="button" @click="detect()" :disabled="detecting"
+                data-testid="connection-detect">
+          {{ icon("search", "icon--sm") }} {{ t("Detect") }}
+        </button>
+      </div>
+      <p class="field__hint">
+        {{ tm("With or without the trailing <code>/v1</code> — both are accepted. Empty takes the type's own address.") }}
+        <span x-show="found" x-cloak>{{ t("Found:") }} <strong x-text="found"></strong></span>
+      </p>
+      <div class="alert alert--error" x-show="error" x-cloak role="status">
+        {{ icon("warning", "alert__icon") }}<span x-text="error"></span>
+      </div>
+      <input type="hidden" name="server" x-ref="server" value="">
+      <input type="hidden" name="unload_url" x-ref="unload" value="">
+      <input type="hidden" name="unload_method" x-ref="unloadMethod" value="POST">
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="new-type">{{ t("Type") }}</label>
+      <select class="select" id="new-type" name="provider_type" x-model="type"
+              @change="if (defaults[type] && !$refs.url.value) { $refs.url.value = defaults[type] }">
+        {% for type in provider_types.values() %}
+        <option value="{{ type.id }}">{{ t(type.label) }}</option>
+        {% endfor %}
       </select>
-      <p class="field__hint">{{ t("Which API the endpoint speaks. Everything except Anthropic's own API speaks the OpenAI dialect.") }}</p>
+      <p class="field__hint">{{ t("The type carries what differs between providers — how usage, cached tokens and reasoning are sent and read, and where a balance is found — so none of it has to be set by hand.") }}</p>
     </div>
 
     <div class="field">
@@ -43,22 +92,32 @@
     </div>
 
     <div class="field">
-      <label class="field__label" for="new-url">{{ t("Base URL") }}</label>
-      <input class="input input--mono" id="new-url" name="base_url" required x-ref="url"
-             placeholder="{{ t('http://localhost:1234/v1') }}">
-      <p class="field__hint">
-        {{ tm("With or without the trailing <code>/v1</code> — both are accepted.") }}
-      </p>
+      <label class="field__label" for="new-key">{{ t("API key") }}</label>
+      <input class="input input--mono" id="new-key" name="api_key" type="password" x-ref="key"
+             autocomplete="off" placeholder="{{ t('sk-…') }}">
+      <p class="field__hint">{{ t("Encrypted before it is stored, and never sent back to the browser. Leave empty for endpoints that need no key.") }}</p>
+    </div>
+
+    <div class="field" x-show="billing.includes(type)" x-cloak>
+      <label class="field__label" for="new-billing">{{ t("Billing key (optional)") }}</label>
+      <input class="input input--mono" id="new-billing" name="billing_key" type="password"
+             autocomplete="off">
+      <p class="field__hint">{{ t("An admin key from the provider, used only to read what the account has spent. Never used for a reply; a reply never fails on it.") }}</p>
     </div>
 
     <div class="field">
-      <label class="field__label" for="new-key">
-        <span x-show="kind !== 'anthropic'">{{ t("API key") }}</span>
-        <span x-show="kind === 'anthropic'" x-cloak>{{ t("Anthropic API key") }}</span>
+      <label class="field__label" for="new-currency">{{ t("Currency") }}</label>
+      <select class="select" id="new-currency" name="currency">
+        {% for code in currencies %}<option value="{{ code }}" {{ 'selected' if code == default_currency }}>{{ code }}</option>{% endfor %}
+      </select>
+      <p class="field__hint">{{ t("What this connection's model prices are typed in, and what a reply on one of them costs in.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="one_model_at_a_time" value="true" x-ref="single">
+        <span>{{ t("Holds one model at a time") }}</span>
       </label>
-      <input class="input input--mono" id="new-key" name="api_key" type="password"
-             autocomplete="off" placeholder="{{ t('sk-…') }}">
-      <p class="field__hint">{{ t("Encrypted before it is stored, and never sent back to the browser. Leave empty for endpoints that need no key.") }}</p>
     </div>
 
     <div class="btn-row u-mt-5">
@@ -83,8 +142,7 @@
 
 <div id="connection-list">
   {% for connection in connections %}
-    {% with masked = masked[connection.id],
-            model_count = model_counts[connection.id] %}
+    {% with row = rows[connection.id] %}
       {% include "admin/_connection_row.html" %}
     {% endwith %}
   {% endfor %}

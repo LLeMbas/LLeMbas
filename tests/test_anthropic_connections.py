@@ -655,7 +655,8 @@ def test_an_anthropic_connection_is_added_with_its_type_and_provider(
 
     page = client.get("/admin/connections").text
     assert "sk-ant-secret" not in page
-    assert "<code>anthropic</code>" in page and "Anthropic API key" in page
+    assert "<code>anthropic</code>" in page and "API key" in page
+    assert 'value="anthropic" selected' in page
     assert "https://api.anthropic.com" in page
 
 

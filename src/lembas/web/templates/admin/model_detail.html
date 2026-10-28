@@ -98,9 +98,13 @@
     <div class="field">
       <label class="field__label" for="context-length">{{ t("Context length") }}</label>
       <input class="input" id="context-length" name="context_length" type="number"
-             min="0" step="1" placeholder="{{ t('unknown') }}"
-             value="{{ model.context_length or '' }}">
-      <p class="field__hint">{{ t("How many tokens this model can hold, filled in from the endpoint where it says. Leave it empty if you do not know: the context percentage and automatic compaction both stay off rather than working from a guess.") }}</p>
+             min="0" step="1"
+             placeholder="{{ detected_caps.context_length if detected_caps.context_length else t('unknown') }}"
+             value="{{ override_caps.context_length or (model.context_length if not detected_caps.context_length and model.context_length else '') }}">
+      <p class="field__hint">
+        {% if detected_caps.context_length %}{{ t("The endpoint says %(n)s tokens (%(source)s). A number typed here wins over it; empty follows the endpoint.", n=detected_caps.context_length, source=detected_caps.source or "/models") }}{% endif %}
+        {{ t("How many tokens this model can hold, filled in from the endpoint where it says. Leave it empty if you do not know: the context percentage and automatic compaction both stay off rather than working from a guess.") }}
+      </p>
     </div>
 
     {# What the model is for, as `/v1/models` says it -- and which of
@@ -250,25 +254,38 @@
     </div>
   </section>
 
-  <section class="card">
+  {# Detected where the endpoint says (services/llm/capabilities.py); a choice
+     made here always wins, and "As detected" follows the endpoint. Every field
+     emits its three slots, so the row lines up whatever the hints say. #}
+  <section class="card" data-testid="model-capabilities">
     <h2 class="card__title">{{ t("Capabilities") }}</h2>
     <p class="card__lede">
-      {{ tm("What this endpoint can do. Endpoints rarely advertise it reliably, so it
-      is your call. <strong>reasoning</strong> shows the thinking block,
+      {{ tm("What this model can do. <strong>reasoning</strong> shows the thinking block,
       <strong>vision</strong> lets images be sent, and <strong>tools</strong> is
       whether a tool list may be sent at all — turn it on for a model that does
       not support tool calling and every one of its replies fails.
       <strong>embeddings</strong> is the odd one out: it says this is not a chat
       model at all, but one that turns text into vectors, and it is what
       <a href=\"/admin/extraction\">Extraction</a> picks from.") }}
+      {{ t("Where the endpoint says (llama.cpp, Ollama, LM Studio, OpenRouter and others do), it is filled in on every refresh; what you choose here always wins.") }}
     </p>
-    <div class="checkbox-row">
+    <div class="price-grid">
       {% for name in capabilities %}
-      <label class="checkbox">
-        <input type="checkbox" name="capability" value="{{ name }}"
-               {{ 'checked' if (model.capabilities_json or {}).get(name) }}>
-        <span>{{ name }}</span>
-      </label>
+      <div class="field">
+        <label class="field__label" for="cap-{{ name }}">{{ name }}</label>
+        <select class="select" id="cap-{{ name }}" name="cap_{{ name }}">
+          <option value="auto" {{ 'selected' if cap_choice[name] == 'auto' }}>{{ t("As detected") }}</option>
+          <option value="yes" {{ 'selected' if cap_choice[name] == 'yes' }}>{{ t("Yes") }}</option>
+          <option value="no" {{ 'selected' if cap_choice[name] == 'no' }}>{{ t("No") }}</option>
+        </select>
+        <p class="field__hint">
+          {%- if name in detected_caps -%}
+            {{ t("Detected: yes") if detected_caps[name] else t("Detected: no") }}
+          {%- else -%}
+            {{ t("Not detected") }}
+          {%- endif -%}
+        </p>
+      </div>
       {% endfor %}
     </div>
   </section>
@@ -356,7 +373,7 @@
     </div>
   </section>
 
-  {# The price, in money in the instance's currency -- a provider's price
+  {# The price, in money in the connection's currency -- a provider's price
      list typed in as it is. Empty everywhere is free. A reply's cost is
      worked out when it is written and kept with it (services/pricing.py). #}
   <section class="card">
@@ -371,6 +388,44 @@
         <p class="field__hint">{{ hint }}</p>
       </div>
       {% endfor %}
+    </div>
+  </section>
+
+  {# Opt-in fallback (services/fallback.py). A plain ordered list with up and
+     down for now: the drag-and-drop list component can take it over by the
+     `data-testid`. Order is the order the inputs post in. #}
+  <section class="card" data-testid="fallback-list"
+           x-data="{ items: {{ fallback_items | tojson | forceescape }}, pick: '' }">
+    <h2 class="card__title">{{ t("Fallback models") }}</h2>
+    <p class="card__lede">{{ t("Tried in order when this model's connection cannot be reached, times out or answers with a server error, before anything of the reply was written — never on Stop or on a refused request. A reply from a fallback says which model answered, and keeps its cost. Only models in the same data group are tried. None listed: a failed reply fails, as it always has.") }}</p>
+    <ol class="fallback-list">
+      <template x-for="(item, index) in items" :key="item.id">
+        <li class="btn-row">
+          <input type="hidden" name="fallback_model_ids" :value="item.id">
+          <span class="u-grow truncate" x-text="item.label"></span>
+          <button class="btn btn--icon btn--sm" type="button" :disabled="index === 0"
+                  aria-label="{{ t('Move up') }}" title="{{ t('Move up') }}"
+                  @click="items.splice(index - 1, 0, items.splice(index, 1)[0])">{{ icon("chevron-up", "icon--sm") }}</button>
+          <button class="btn btn--icon btn--sm" type="button" :disabled="index === items.length - 1"
+                  aria-label="{{ t('Move down') }}" title="{{ t('Move down') }}"
+                  @click="items.splice(index + 1, 0, items.splice(index, 1)[0])">{{ icon("chevron-down", "icon--sm") }}</button>
+          <button class="btn btn--icon btn--sm" type="button"
+                  aria-label="{{ t('Remove') }}" title="{{ t('Remove') }}"
+                  @click="items.splice(index, 1)">{{ icon("x", "icon--sm") }}</button>
+        </li>
+      </template>
+    </ol>
+    {# Posted when the list is empty, so emptying it is a change the server sees. #}
+    <input type="hidden" name="fallback_submitted" value="1">
+    <div class="btn-row">
+      <select class="select u-grow u-shrink" x-model="pick" aria-label="{{ t('Add a fallback model') }}">
+        <option value="">{{ t("Add a fallback model…") }}</option>
+        {% for choice in fallback_choices %}
+        <option value="{{ choice.id }}" :disabled="items.some(i => i.id === '{{ choice.id }}')">{{ choice.label }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn" type="button" :disabled="!pick"
+              @click="items.push({ id: pick, label: $event.target.previousElementSibling.selectedOptions[0].text }); pick = ''">{{ t("Add") }}</button>
     </div>
   </section>
 

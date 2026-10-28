@@ -43,6 +43,7 @@ from lembas.services import (
     tokens,
     tool_labels,
 )
+from lembas.services import fallback as fallback_service
 from lembas.services import metrics as metrics_service
 from lembas.services import prompts as prompts_service
 from lembas.services import push as push_service
@@ -240,6 +241,13 @@ class Generation:
     # ... and the file each one showed (`_lembas/show`), id -> `event["show"]`,
     # put on the call's block when it ends.
     device_shows: dict[str, dict] = field(default_factory=dict)
+    # The model that answered instead, when the chat's own failed and one of
+    # its fallbacks took over (`services/fallback.py`): `model_id`,
+    # `connection_id`, `label`. Written onto the message row by `_persist`.
+    fallback: dict[str, str] | None = None
+    # What the provider said the reply cost, summed over its rounds, in
+    # micro-units of its currency (OpenRouter's `usage.cost`); None: it did not say.
+    reported_cost_micro: int | None = None
     # Characters of reply and thinking a device has sent, against
     # `device_link.MAX_REPLY_CHARS`.
     device_chars: int = 0
@@ -799,6 +807,7 @@ async def _run(generation: Generation) -> None:
     reasoning_started: float | None = None
     question = ""
     endpoint = model_id = None
+    route = None
     needs_title = False
     title_from_prompt = False
     title_prompt = ""
@@ -922,6 +931,8 @@ async def _run(generation: Generation) -> None:
             # how a reply fails with no explanation in it.
             model = chat_service.model_row(db, speaker)
             generation.context_limit = model.context_length if model is not None else 0
+            # The model and, when it lists any, its fallbacks (opt-in).
+            route = fallback_service.plan(db, chat, owner, model, endpoint, model_id)
             # Kept for `_inject`, which builds a user turn after this session
             # has closed. A turn taken in mid-reply has to be shaped exactly as
             # the same words typed a moment later would have been -- images to a
@@ -1017,7 +1028,7 @@ async def _run(generation: Generation) -> None:
                 break
 
             async for chunk in _until_stopped(
-                generation, _stream_once(endpoint, payload, generation, model_id)
+                generation, fallback_service.stream(route, payload, generation, _stream_once)
             ):
                 if native := assistant_blocks(chunk):
                     round_blocks = native
@@ -1030,6 +1041,10 @@ async def _run(generation: Generation) -> None:
                     generation.completion_tokens += counts.get("completion_tokens", 0)
                     generation.cached_tokens += counts.get("cached_tokens", 0)
                     generation.cache_write_tokens += counts.get("cache_write_tokens", 0)
+                    if "reported_cost_micro" in counts:
+                        generation.reported_cost_micro = (
+                            generation.reported_cost_micro or 0
+                        ) + counts["reported_cost_micro"]
                     # Overwritten, not summed: this round's prompt already
                     # contains every earlier round.
                     generation.context_tokens = counts.get("prompt_tokens", 0) + counts.get(
@@ -1393,9 +1408,10 @@ async def _run(generation: Generation) -> None:
                 title = chat_service.fallback_title(question)
             else:
                 with contextlib.suppress(Exception):
+                    # Whoever answered: a fallback, when the chat's own failed.
                     title = await chat_service.generate_title(
-                        endpoint,
-                        model_id,
+                        route.endpoint if route is not None else endpoint,
+                        route.model_id if route is not None else model_id,
                         question,
                         generation.text,
                         template=title_prompt,
@@ -2534,9 +2550,16 @@ def _persist(generation: Generation, title: str, elapsed: float) -> None:
                 "cache_write_tokens": generation.cache_write_tokens,
             }
             spoke = None
+            if generation.fallback and not on_device:
+                # Another model answered: the row says which, and it is
+                # that model's price the reply costs.
+                message.model_id = generation.fallback["model_id"]
+                message.connection_id = generation.fallback["connection_id"]
             if not on_device:
                 spoke = chat_service.model_row(db, chat_service.speaker_for(db, chat, message))
-                priced = pricing.price_reply(db, spoke, counted)
+                priced = pricing.price_reply(
+                    db, spoke, counted, reported_micro=generation.reported_cost_micro
+                )
                 if priced is not None:
                     message.cost_micro = priced["cost_micro"]
                     message.currency = priced["currency"]

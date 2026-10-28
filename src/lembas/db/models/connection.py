@@ -41,11 +41,14 @@ model_groups = Table(
 )
 
 
-# What a connection speaks. OpenAI's dialect came first, which is why it is the
-# default and what the migration leaves old rows on.
+# What a connection speaks: the protocol of its provider type
+# (`services/llm/providers.py`), kept in `Connection.kind` beside the type.
 KIND_OPENAI = "openai"
 KIND_ANTHROPIC = "anthropic"
 KINDS = (KIND_OPENAI, KIND_ANTHROPIC)
+
+# A connection's currency when nobody has chosen one.
+DEFAULT_CURRENCY = "USD"
 
 # A connection's provider name: the first half of `provider/model`, the
 # id `/v1` serves a model under and the LLeMbas CLI names it by. Lowercase, so
@@ -96,11 +99,10 @@ def unique_provider(base: str, taken: set[str]) -> str:
 
 
 class Connection(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
-    """A configured upstream endpoint: OpenAI's HTTP dialect or Anthropic's.
-
-    The OpenAI dialect covers api.openai.com as well as LM Studio, vLLM,
-    llama.cpp, Ollama's compatibility layer, OpenRouter, and anything else
-    exposing /v1. Anthropic's Messages API is the other one.
+    """A configured upstream endpoint, of a provider type
+    (`services/llm/providers.py`): OpenAI-compatible (llama.cpp, llama-swap,
+    vLLM, Ollama, LM Studio and the like), OpenAI, Anthropic, DeepSeek or
+    OpenRouter. The type carries what differs between them.
     """
 
     __tablename__ = "connections"
@@ -112,8 +114,18 @@ class Connection(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     base_url: Mapped[str] = mapped_column(String(500), nullable=False)
 
-    # Which dialect the endpoint speaks: `openai` or `anthropic`. Decides
-    # which client talks to it -- in one place, `services/llm/openai_client`.
+    # The provider type (`providers.TYPE_IDS`). Decides the protocol, the
+    # default address, how usage and cache hits are read, how a reasoning effort
+    # is sent, where a balance is read and whether a reply's cost is reported.
+    # `sync_schema` backfills `openai_compatible`; `migrations.provider_types`
+    # puts an Anthropic row (and a known cloud host) right.
+    provider_type: Mapped[str] = mapped_column(
+        String(32), default="openai_compatible", nullable=False
+    )
+
+    # The protocol the type speaks, `openai` or `anthropic` -- kept in step
+    # with `provider_type` by the hook below, never chosen on its own. Read by
+    # the client dispatch (`openai_client`) and by `/v1/models`' `api` field.
     kind: Mapped[str] = mapped_column(String(16), default=KIND_OPENAI, nullable=False)
 
     # The provider name, see PROVIDER_PATTERN. Nullable only because a
@@ -124,6 +136,23 @@ class Connection(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
     # Fernet ciphertext, never the raw key. See lembas.services.crypto.
     # Empty string is legitimate: local endpoints often need no auth at all.
     api_key_encrypted: Mapped[str] = mapped_column(Text, default="")
+
+    # An optional second key, for reading what the account has spent or has
+    # left where the ordinary key cannot (OpenAI's and Anthropic's admin keys).
+    # Fernet like the other; used only by `services/llm/balance.py`, never on a
+    # request that writes a reply.
+    billing_key_encrypted: Mapped[str] = mapped_column(Text, default="")
+
+    # The currency this connection's model prices are in, and so what a reply
+    # on one of its models costs in (`services/pricing.py`). ISO 4217.
+    currency: Mapped[str] = mapped_column(String(3), default=DEFAULT_CURRENCY, nullable=False)
+
+    # The last health check (`services/llm/health.py`): `checked_at` (ISO),
+    # `status` (`ok` | `loading` | `down` | `error`), `latency_ms`, `error`,
+    # `loading` (the model a single-model server is swapping in), `server`
+    # (what detection found: `llama.cpp`, `llama-swap`, `ollama`, `vllm`,
+    # `lmstudio`), and `balance` -- the last balance read, with its time.
+    health_json: Mapped[dict[str, Any]] = mapped_column(JSONDict, default=dict)
 
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -166,12 +195,38 @@ class Connection(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
         return (self.kind or KIND_OPENAI) == KIND_ANTHROPIC
 
     @property
+    def provider_info(self):
+        """The provider type's registry entry (`providers.get`)."""
+        from lembas.services.llm import providers
+
+        return providers.get(self.provider_type)
+
+    @property
     def provider_name(self) -> str:
         """The provider, or one made from the name for a row that has none yet."""
         return self.provider or provider_slug(self.name)
 
     def __repr__(self) -> str:
         return f"<Connection {self.name} {self.base_url}>"
+
+
+@event.listens_for(Connection, "before_insert")
+@event.listens_for(Connection, "before_update")
+def _kind_follows_the_type(mapper, connection, target: Connection) -> None:
+    """`kind` is the type's protocol, whoever wrote the row. A row written the
+    older way -- a `kind` and no type, or a `kind` changed on its own -- gets
+    the type that kind means (`providers.from_legacy_kind`)."""
+    from sqlalchemy import inspect as inspect_state
+
+    from lembas.services.llm import providers
+
+    state = inspect_state(target)
+    type_changed = state.attrs.provider_type.history.has_changes()
+    kind_changed = state.attrs.kind.history.has_changes()
+    if target.provider_type is None or (kind_changed and not type_changed):
+        target.provider_type = providers.from_legacy_kind(target.kind, target.base_url or "")
+    target.provider_type = providers.known(target.provider_type)
+    target.kind = providers.protocol_of(target.provider_type)
 
 
 @event.listens_for(Connection, "before_insert")
@@ -247,9 +302,26 @@ class Model(UUIDPrimaryKey, Timestamps, Base):
     # See services.chat.effective_system_prompt for the precedence.
     system_prompt: Mapped[str] = mapped_column(Text, default="")
 
-    # Endpoints do not reliably advertise capabilities, so these are admin
-    # overrides. Recognised keys: vision, tools, reasoning.
+    # What the model can do, as everything else reads it: `vision`, `tools`,
+    # `reasoning`, `embeddings`, and the per-tool `tool_*` switches. The first
+    # four are **effective** values -- what the provider said
+    # (`capabilities_detected_json`) with the administrator's word
+    # (`capabilities_override_json`) over it, recomputed by
+    # `services/llm/capabilities.py` whenever either changes; the `tool_*` keys
+    # are the administrator's alone.
     capabilities_json: Mapped[dict[str, Any]] = mapped_column(JSONDict, default=dict)
+    # What the provider says about the model, where it says: `context_length`,
+    # `vision`, `tools`, `reasoning`, `embeddings`, and `source` (which call
+    # said it -- `/props`, `/api/show`, `/models`). Rewritten on every refresh.
+    capabilities_detected_json: Mapped[dict[str, Any]] = mapped_column(JSONDict, default=dict)
+    # What an administrator set by hand, the same keys as detected. Always
+    # wins; a key absent here follows detection.
+    capabilities_override_json: Mapped[dict[str, Any]] = mapped_column(JSONDict, default=dict)
+    # Opt-in fallback: other models' row ids, in order, tried when this one's
+    # connection fails (unreachable, timed out, a 5xx) before anything was
+    # written. Empty -- the default -- is no fallback: the reply fails as
+    # before. Plain ids, validated on read (a deleted model is skipped).
+    fallback_model_ids: Mapped[list[str]] = mapped_column(JSONList, default=list)
     # Default sampling params applied to new chats using this model.
     params_json: Mapped[dict[str, Any]] = mapped_column(JSONDict, default=dict)
     # What a reply on this model costs: per million tokens for

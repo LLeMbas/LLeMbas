@@ -3,9 +3,12 @@
 There are no credits, plans or budgets: LLeMbas counts and prices, it never
 refuses. A model's price list (`Model.pricing_json`) is money per million
 tokens -- `input`, `cached_input`, `output`, `reasoning` (the output price when
-unset) -- and `per_request` per reply, in the instance's currency
-(`settings_store.currency`). A model with no prices is free and its replies are
-unpriced (`cost_micro` NULL), which is what a local model usually is.
+unset) -- and `per_request` per reply, in its **connection's** currency
+(`Connection.currency`, USD unless set). A model with no prices is free and its
+replies are unpriced (`cost_micro` NULL), which is what a local model usually
+is. Where the provider reports what a reply cost itself (OpenRouter's
+`usage.cost`), that figure is used instead, in the provider's currency, and
+`priced_json.source` says `provider` -- the price list's estimate is `list`.
 
 The cost is **stored on the message** with the price that was applied
 (`Message.cost_micro`, `currency`, `priced_json`), so changing a price later
@@ -86,12 +89,35 @@ def cost_micro(
     return math.ceil(round(total, 6))
 
 
-def price_reply(db: DBSession, model: Any, usage: dict[str, int]) -> dict[str, Any] | None:
-    """`cost_micro`, `currency` and `priced_json` for a message, or None for an
-    unpriced (free) model."""
+def currency_of(db: DBSession, model: Any) -> str:
+    """The currency a model is priced in: its connection's."""
     from lembas.services import settings_store
 
+    connection = getattr(model, "connection", None) if model is not None else None
+    value = str(getattr(connection, "currency", "") or "").upper()
+    return value if len(value) == 3 and value.isalpha() else settings_store.currency(db)
+
+
+def price_reply(
+    db: DBSession, model: Any, usage: dict[str, int], *, reported_micro: int | None = None
+) -> dict[str, Any] | None:
+    """`cost_micro`, `currency` and `priced_json` for a message, or None for an
+    unpriced (free) model whose provider said nothing either.
+
+    `reported_micro` is what the provider said the reply cost: preferred, and
+    labelled as such."""
     price = prices(model)
+    if reported_micro is not None:
+        from lembas.services.llm import providers
+
+        connection = getattr(model, "connection", None) if model is not None else None
+        kind = getattr(connection, "provider_type", "") or ""
+        return {
+            "cost_micro": int(reported_micro),
+            "currency": providers.REPORTED_CURRENCY.get(kind) or currency_of(db, model),
+            "priced_json": {**price, "model_id": getattr(model, "model_id", ""),
+                            "source": "provider"},
+        }
     if not price:
         return None
     return {
@@ -103,8 +129,8 @@ def price_reply(db: DBSession, model: Any, usage: dict[str, int]) -> dict[str, A
             reasoning_tokens=usage.get("reasoning_tokens", 0),
             cache_write_tokens=usage.get("cache_write_tokens", 0),
         ),
-        "currency": settings_store.currency(db),
-        "priced_json": {**price, "model_id": getattr(model, "model_id", "")},
+        "currency": currency_of(db, model),
+        "priced_json": {**price, "model_id": getattr(model, "model_id", ""), "source": "list"},
     }
 
 
@@ -141,6 +167,7 @@ __all__ = [
     "MICRO",
     "PRICE_KEYS",
     "cost_micro",
+    "currency_of",
     "format_money",
     "free",
     "micro_to_money",

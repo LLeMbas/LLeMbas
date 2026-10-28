@@ -135,6 +135,39 @@ release yet.
   device is sent no `prototypes` with its session any more. A file to look at is opened with
   `show`; an HTML file a linked device shows is drawn in a sealed frame that reaches neither the
   instance nor the network.
+- **A connection has a provider type.** OpenAI-compatible (a server of your own: llama.cpp,
+  llama-swap, vLLM, Ollama, LM Studio), OpenAI, Anthropic, DeepSeek or OpenRouter, replacing the
+  *OpenAI dialect / Anthropic* choice (an Anthropic connection stays Anthropic, a connection to
+  a known cloud address becomes its type). The type decides what used to be guessed or set by
+  hand: the default address, where a reasoning effort is sent (OpenAI's `reasoning_effort`,
+  OpenRouter's `reasoning`, nothing for DeepSeek, both forms for a server of your own), how cached
+  tokens are read (DeepSeek's cache hits now count), and whether the provider reports what a reply
+  cost. This holds for `/v1` too.
+- **Detect.** Paste an address on the Connections page and press *Detect*: a known cloud address
+  is recognised without a request; anything else is asked, at that address only, what it is —
+  llama-swap, llama.cpp, Ollama, LM Studio or vLLM — and the form is filled in (llama-swap: one
+  model at a time, unloaded with `/unload`).
+- **Capabilities are detected, and what you set wins.** On every refresh a model's context
+  length, vision, tools, reasoning and embeddings are read where the provider says (llama.cpp's
+  `/props`, Ollama's `/api/show`, LM Studio, OpenRouter's model list, vLLM's and Anthropic's
+  lists). The model page shows what was detected beside a choice of *As detected*, *Yes* or *No*
+  for each, and a context length typed there; a choice made by hand is never overwritten.
+- **Connection health.** Every enabled connection is checked every few minutes, and on *Test &
+  refresh*: a dot on the Connections page says answering, loading a model (llama-swap starting
+  one), unreachable, or answering with an error, with the time it took.
+- **The provider's balance.** *Check balance* reads what DeepSeek or OpenRouter says is left, or,
+  with an optional billing (admin) key, what OpenAI or Anthropic says was spent in the last 30
+  days. It is shown as the provider's own figure, never mixed into the instance's estimate, and
+  nothing a reply does waits for it or fails on it. The billing key is encrypted and shown masked.
+- **A currency per connection.** A model's prices are in its connection's currency (USD unless
+  set), and a reply's cost is in it; the General setting is now the default for a new connection
+  and the currency of speech and picture prices. Where the provider reports a reply's cost itself
+  (OpenRouter), that figure is kept instead, marked as the provider's.
+- **Fallback models, opt-in.** A model can list fallback models, in order. When its connection
+  cannot be reached, times out or answers with a server error before anything was written, the
+  next one answers instead — never after Stop, never for a refused request, and only models in the
+  chat's data group. The reply opens with a line saying which model answered, and the message
+  records that model and its cost. With none listed nothing changes.
 
 ## 1.7.2 — 2026-10-25
 

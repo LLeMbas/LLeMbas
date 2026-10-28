@@ -1,4 +1,5 @@
-"""Administration: OpenAI-compatible connections and their models."""
+"""Administration: connections -- their provider type, keys, currency, health,
+balance and models -- and the instance's general settings."""
 
 from __future__ import annotations
 
@@ -13,11 +14,15 @@ from sqlalchemy.orm import Session as DBSession
 
 from lembas.api.deps import AdminUser, Db
 from lembas.db.models import Connection, Model, guess_kind
-from lembas.db.models.connection import KIND_OPENAI, KINDS, PROVIDER_PATTERN
+from lembas.db.models.connection import DEFAULT_CURRENCY, PROVIDER_PATTERN
 from lembas.services import chat as chat_service
 from lembas.services import data_groups, settings_store
 from lembas.services.crypto import UNCHANGED_SENTINEL, decrypt, encrypt, mask
-from lembas.services.llm.anthropic_client import DEFAULT_BASE_URL as ANTHROPIC_URL
+from lembas.services.llm import balance as balance_service
+from lembas.services.llm import capabilities as capabilities_service
+from lembas.services.llm import detect as detect_service
+from lembas.services.llm import health as health_service
+from lembas.services.llm import providers
 from lembas.services.llm.openai_client import Endpoint, LLMError, context_from, list_models
 from lembas.web import i18n
 from lembas.web.templating import render
@@ -123,6 +128,21 @@ async def save_general(
     return RedirectResponse("/admin/general?saved=1", status_code=status.HTTP_303_SEE_OTHER)
 
 
+def _row_context(db: DBSession, connection: Connection) -> dict:
+    """What `_connection_row.html` reads besides the connection: the masked keys
+    (rule 5: never the keys themselves), the choices, and the type's facts."""
+    return {
+        "masked": mask(decrypt(connection.api_key_encrypted)),
+        "masked_billing": mask(decrypt(connection.billing_key_encrypted or "")),
+        "model_count": sum(1 for m in connection.models if m.enabled),
+        "unchanged": UNCHANGED_SENTINEL,
+        "data_group_choices": data_groups.instance_groups(db),
+        "provider_types": providers.TYPES,
+        "currencies": tuple(settings_store.CURRENCIES),
+        "has_balance": balance_service.available(connection.provider_type),
+    }
+
+
 @router.get("/connections")
 async def connections_page(request: Request, db: Db, user: AdminUser, message: str = ""):
     connections = _connections(db)
@@ -131,14 +151,15 @@ async def connections_page(request: Request, db: Db, user: AdminUser, message: s
         "admin/connections.html",
         {
             "connections": connections,
-            "masked": {c.id: mask(decrypt(c.api_key_encrypted)) for c in connections},
-            "model_counts": {
-                c.id: sum(1 for m in c.models if m.enabled) for c in connections
-            },
+            "rows": {c.id: _row_context(db, c) for c in connections},
             "message": message,
-            "unchanged": UNCHANGED_SENTINEL,
-            "data_group_choices": data_groups.instance_groups(db),
-            "anthropic_url": ANTHROPIC_URL,
+            "provider_types": providers.TYPES,
+            "provider_defaults": {t.id: t.default_base_url for t in providers.TYPES.values()},
+            "billing_types": [
+                t.id for t in providers.TYPES.values() if t.balance_needs_billing_key
+            ],
+            "currencies": tuple(settings_store.CURRENCIES),
+            "default_currency": settings_store.currency(db) or DEFAULT_CURRENCY,
         },
     )
 
@@ -162,10 +183,21 @@ def _parse_headers(raw: str) -> dict[str, str]:
     return headers
 
 
-def _kind(raw: str) -> str:
-    """The submitted dialect, or OpenAI's for anything this release does not know."""
-    kind = (raw or "").strip().lower()
-    return kind if kind in KINDS else KIND_OPENAI
+def _type(raw: str, kind: str = "") -> str:
+    """The submitted provider type, or -- from an older form that sends only a
+    dialect -- the type that dialect means; the generic type for anything this
+    release does not know."""
+    wanted = (raw or "").strip().lower()
+    if wanted in providers.TYPES:
+        return wanted
+    return providers.ANTHROPIC if (kind or "").strip().lower() == "anthropic" else (
+        providers.OPENAI_COMPATIBLE
+    )
+
+
+def _currency(raw: str, fallback: str) -> str:
+    code = (raw or "").strip().upper()
+    return code if code in settings_store.CURRENCIES else fallback
 
 
 def _provider(db: DBSession, raw: str, connection_id: str | None = None) -> str:
@@ -203,12 +235,20 @@ async def create_connection(
     db: Db,
     user: AdminUser,
     name: str = Form(...),
-    base_url: str = Form(...),
+    base_url: str = Form(""),
     api_key: str = Form(""),
-    kind: str = Form(KIND_OPENAI),
+    provider_type: str = Form(""),
+    kind: str = Form(""),
     provider: str = Form(""),
+    currency: str = Form(""),
+    billing_key: str = Form(""),
+    one_model_at_a_time: bool = Form(False),
+    unload_url: str = Form(""),
+    unload_method: str = Form(""),
+    server: str = Form(""),
 ) -> Response:
-    base_url = base_url.strip().rstrip("/")
+    chosen_type = _type(provider_type, kind)
+    base_url = base_url.strip().rstrip("/") or providers.get(chosen_type).default_base_url
     if not base_url.startswith(("http://", "https://")):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
@@ -223,9 +263,18 @@ async def create_connection(
         name=name.strip()[:120] or "Connection",
         base_url=base_url,
         api_key_encrypted=encrypt(api_key.strip()),
+        billing_key_encrypted=encrypt(billing_key.strip()) if billing_key.strip() else "",
         position=position,
-        kind=_kind(kind),
+        provider_type=chosen_type,
         provider=chosen,
+        currency=_currency(currency, settings_store.currency(db) or DEFAULT_CURRENCY),
+        # What detection suggested, when the form carried it on (llama-swap).
+        one_model_at_a_time=one_model_at_a_time,
+        unload_url=unload_url.strip()[:500],
+        unload_method="GET" if unload_method.strip().upper() == "GET" else "POST",
+        # Which server detection found, so the capability probe and the
+        # health check ask it the right questions.
+        health_json={"server": server.strip()[:40]} if server.strip() else {},
     )
     db.add(connection)
     db.commit()
@@ -234,6 +283,23 @@ async def create_connection(
     # indistinguishable from a broken one, and finding out now is the point.
     await _refresh_models(db, connection)
     return RedirectResponse("/admin/connections", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/connections/detect")
+async def detect_connection(
+    request: Request, user: AdminUser, base_url: str = Form(""), api_key: str = Form("")
+) -> Response:
+    """What a pasted URL is: its provider type, and for a local server which
+    one it is and what follows from that. Asks only the pasted address (see
+    `services/llm/detect.py`); answers JSON for the form to fill itself from."""
+    from fastapi.responses import JSONResponse
+
+    found = await detect_service.detect(base_url, api_key.strip())
+    if found.get("ok"):
+        found["label"] = i18n.t(providers.get(found["provider_type"]).label)
+    else:
+        found["error"] = i18n.t(found.get("error") or "")
+    return JSONResponse(found)
 
 
 @router.post("/connections/{connection_id}")
@@ -252,14 +318,26 @@ async def update_connection(
     one_model_at_a_time: bool = Form(False),
     kind: str = Form(""),
     provider: str = Form(""),
+    provider_type: str = Form(""),
+    currency: str = Form(""),
+    billing_key: str = Form(""),
 ) -> Response:
     connection = _connection(db, connection_id)
-    # Empty is "not submitted" -- a page from an older release -- and leaves both
-    # alone, as `data_group_id` below does.
+    # Empty is "not submitted" -- a page from an older release -- and leaves
+    # each alone, as `data_group_id` below does.
     if provider.strip():
         connection.provider = _provider(db, provider, connection.id)
-    if kind.strip():
-        connection.kind = _kind(kind)
+    if provider_type.strip() or kind.strip():
+        connection.provider_type = _type(provider_type, kind)
+    if currency.strip():
+        connection.currency = _currency(currency, connection.currency or DEFAULT_CURRENCY)
+    # The billing key as the API key is kept: the dots keep it, an emptied
+    # field removes it, anything else replaces it.
+    billing = billing_key.strip()
+    if billing and billing != UNCHANGED_SENTINEL:
+        connection.billing_key_encrypted = encrypt(billing)
+    elif not billing:
+        connection.billing_key_encrypted = ""
     connection.one_model_at_a_time = one_model_at_a_time
     # Which of the instance's data groups this provider reads. Empty is "not
     # submitted" -- an older page -- and leaves it alone; a personal group is
@@ -301,9 +379,10 @@ async def update_connection(
 async def test_connection(
     request: Request, db: Db, user: AdminUser, connection_id: str
 ) -> Response:
-    """Contact the endpoint and refresh its model list."""
+    """Contact the endpoint, refresh its model list, and record its health."""
     connection = _connection(db, connection_id)
     count, error = await _refresh_models(db, connection)
+    await health_service.check(db, connection)
 
     if error:
         message = f"{connection.name}: {error}"
@@ -316,20 +395,46 @@ async def test_connection(
         "admin/_connection_row.html",
         {
             "connection": connection,
-            "masked": mask(decrypt(connection.api_key_encrypted)),
+            "row": _row_context(db, connection),
             "message": message,
             "message_kind": "error" if error else "success",
-            "unchanged": UNCHANGED_SENTINEL,
-            "data_group_choices": data_groups.instance_groups(db),
-            "anthropic_url": ANTHROPIC_URL,
+        },
+    )
+
+
+@router.post("/connections/{connection_id}/balance")
+async def connection_balance(
+    request: Request, db: Db, user: AdminUser, connection_id: str
+) -> Response:
+    """Read what the provider says is left (or was spent), keep it on the row,
+    and draw the row again. Never on a reply's path."""
+    connection = _connection(db, connection_id)
+    found = await balance_service.read(
+        Endpoint.from_connection(connection), decrypt(connection.billing_key_encrypted or "")
+    )
+    connection.health_json = {**(connection.health_json or {}), "balance": found}
+    db.commit()
+    return render(
+        request,
+        "admin/_connection_row.html",
+        {
+            "connection": connection,
+            "row": _row_context(db, connection),
+            "message": (
+                i18n.t("%(name)s: balance read.", name=connection.name)
+                if found.get("ok")
+                else f"{connection.name}: {i18n.t(found.get('error') or '')}"
+            ),
+            "message_kind": "success" if found.get("ok") else "error",
         },
     )
 
 
 async def _refresh_models(db: DBSession, connection: Connection) -> tuple[int, str]:
     """Sync the cached model list. Returns (count, error message)."""
+    endpoint = Endpoint.from_connection(connection)
     try:
-        discovered = await list_models(Endpoint.from_connection(connection))
+        discovered = await list_models(endpoint)
     except LLMError as exc:
         connection.last_error = exc.message
         connection.last_checked_at = datetime.now(UTC)
@@ -346,17 +451,25 @@ async def _refresh_models(db: DBSession, connection: Connection) -> tuple[int, s
     highest = db.scalar(select(func.coalesce(func.max(Model.position), -1)))
     next_position = int(highest if highest is not None else -1) + 1
 
+    # What the provider says each model can do, where it says (`detect.py`):
+    # recorded as detected, under whatever an administrator set by hand.
+    server = str((connection.health_json or {}).get("server", ""))
+    found = await detect_service.model_capabilities(endpoint, discovered, server)
+
     for entry in discovered:
         model_id = str(entry["id"])[:300]
         seen.add(model_id)
         if model_id in existing:
             # A context length is filled in only when nobody has one yet. A
             # refresh must never overwrite a number an administrator typed --
-            # they are usually correcting the endpoint.
+            # they are usually correcting the endpoint (and since detection,
+            # what they typed is an override, which wins anyway).
             model = existing[model_id]
             if not model.context_length:
                 model.context_length = context_from(entry)
             _record_output(model, entry)
+            if model_id in found:
+                capabilities_service.record_detected(model, *found[model_id])
             continue
         model = Model(
             connection_id=connection.id,
@@ -369,6 +482,8 @@ async def _refresh_models(db: DBSession, connection: Connection) -> tuple[int, s
             kind=guess_kind(model_id),
         )
         _record_output(model, entry)
+        if model_id in found:
+            capabilities_service.record_detected(model, *found[model_id])
         db.add(model)
         next_position += 1
 

@@ -1006,8 +1006,6 @@ MESSAGES.update(
         "Could not read the voice list: %(error)s": "Seznam hlasů se nepodařilo načíst: %(error)s",
         "Read from the endpoint. Save and test to refresh it.": "Načteno z endpointu. Obnovíte ho uložením a ověřením.",
         "Test speech": "Vyzkoušet řeč",
-        "Any endpoint that speaks the OpenAI HTTP API: OpenAI itself, or a local runner such as LM Studio, vLLM, llama.cpp or Ollama. %(brand)s asks each one for its model list and offers those models in the chat picker.": "Jakýkoli endpoint, který mluví HTTP API OpenAI: samotné OpenAI nebo lokální spouštěč jako LM Studio, vLLM, llama.cpp či Ollama. %(brand)s si od každého vyžádá seznam modelů a nabídne je ve výběru modelu v konverzaci.",
-        "With or without the trailing <code>/v1</code> — both are accepted.": "S koncovým <code>/v1</code> i bez něj — přijme se obojí.",
         "Add and load models": "Přidat a načíst modely",
         "Configured connections": "Nastavená připojení",
         "Extraction and search": "Extrakce a vyhledávání",
@@ -1076,7 +1074,6 @@ MESSAGES.update(
         "No instance prompt is set.": "Pokyn instance není nastaven.",
         "Leave empty to fall back to the instance prompt shown above.": "Prázdné znamená použít pokyn instance uvedený výše.",
         "Leave empty to send no system prompt.": "Prázdné znamená neposílat žádný systémový pokyn.",
-        "What this endpoint can do. Endpoints rarely advertise it reliably, so it is your call. <strong>reasoning</strong> shows the thinking block, <strong>vision</strong> lets images be sent, and <strong>tools</strong> is whether a tool list may be sent at all — turn it on for a model that does not support tool calling and every one of its replies fails. <strong>embeddings</strong> is the odd one out: it says this is not a chat model at all, but one that turns text into vectors, and it is what <a href=\"/admin/extraction\">Extraction</a> picks from.": "Co tento endpoint umí. Endpointy to spolehlivě hlásí jen zřídka, takže rozhodnutí je na vás. <strong>reasoning</strong> zobrazí blok uvažování, <strong>vision</strong> dovolí posílat obrázky a <strong>tools</strong> určuje, jestli se vůbec smí poslat seznam nástrojů — zapněte ho u modelu, který volání nástrojů nepodporuje, a selže každá jeho odpověď. <strong>embeddings</strong> je výjimka: říká, že nejde o konverzační model, ale o model, který převádí text na vektory, a právě z nich vybírá <a href=\"/admin/extraction\">Extrakce</a>.",
         "Built-in tools": "Vestavěné nástroje",
         "What this model is given, as opposed to what it is capable of. None of it applies unless <strong>tools</strong> is ticked above. Each one is also subject to the instance being configured for it and to the reader's own permissions — this only decides whether it is offered to <em>this</em> model.": "Co tento model dostane, na rozdíl od toho, čeho je schopný. Nic z toho neplatí, dokud výše není zaškrtnuté <strong>tools</strong>. Každý nástroj navíc závisí na tom, jestli je pro něj instance nastavená, a na oprávněních samotného čtenáře — tohle rozhoduje jen o tom, jestli se nabídne <em>tomuto</em> modelu.",
         "Back to all models": "Zpět na všechny modely",
@@ -1814,13 +1811,8 @@ MESSAGES.update(
 MESSAGES.update(
     {
         "Provider name": "Název poskytovatele",
-        "Anthropic": "Anthropic",
-        "OpenAI dialect": "Dialekt OpenAI",
         "Type": "Typ",
         "How clients such as the LLeMbas CLI name this connection's models: <code>provider/model</code>, for example <code>llama/bonsai</code>. Lowercase letters, digits and hyphens, unique among connections.": "Podle něj klienti jako LLeMbas CLI pojmenovávají modely tohoto připojení: <code>provider/model</code>, například <code>llama/bonsai</code>. Malá písmena, číslice a pomlčky, mezi připojeními jedinečný.",
-        "Anthropic API key": "Klíč API Anthropic",
-        "Anthropic's own API is the other type a connection can have.": "Druhým typem připojení je vlastní API společnosti Anthropic.",
-        "Which API the endpoint speaks. Everything except Anthropic's own API speaks the OpenAI dialect.": "Kterým API koncový bod mluví. Dialektem OpenAI mluví vše kromě vlastního API společnosti Anthropic.",
         "llama": "llama",
         "A provider name is 1 to 32 lowercase letters, digits and hyphens, and starts with a letter or a digit.": "Název poskytovatele tvoří 1 až 32 malých písmen, číslic a pomlček a začíná písmenem nebo číslicí.",
         "The connection “%(name)s” already uses the provider name “%(provider)s”.": "Připojení „%(name)s“ už používá název poskytovatele „%(provider)s“.",
@@ -1958,3 +1950,52 @@ MESSAGES['Order saved.'] = 'Pořadí uloženo.'
 MESSAGES['Move %(name)s: drag, or use the arrow keys'] = 'Přesunout %(name)s: přetáhněte, nebo použijte šipky'
 MESSAGES['Drag to put in order'] = 'Přetažením seřadíte'
 MESSAGES['That did not work.'] = 'To se nepovedlo.'
+MESSAGES['%(failed)s did not answer (%(reason)s), so %(answered)s answered instead.'] = '%(failed)s neodpověděl (%(reason)s), a tak místo něj odpověděl %(answered)s.'
+MESSAGES['%(ms)s ms'] = '%(ms)s ms'
+MESSAGES['%(name)s: balance read.'] = '%(name)s: zůstatek načten.'
+MESSAGES['A connection is one provider: a server of your own that speaks the OpenAI API (llama.cpp, llama-swap, vLLM, Ollama, LM Studio), or OpenAI, Anthropic, DeepSeek or OpenRouter. %(brand)s asks each one for its model list and offers those models in the chat picker.'] = 'Připojení je jeden poskytovatel: vlastní server, který mluví API OpenAI (llama.cpp, llama-swap, vLLM, Ollama, LM Studio), nebo OpenAI, Anthropic, DeepSeek či OpenRouter. %(brand)s se každého zeptá na seznam modelů a nabídne je ve výběru modelu v chatu.'
+MESSAGES['Add a fallback model'] = 'Přidat záložní model'
+MESSAGES['Add a fallback model…'] = 'Přidat záložní model…'
+MESSAGES['An admin key from the provider, used only to read what the account has spent. Never used for a reply; a reply never fails on it.'] = 'Administrátorský klíč od poskytovatele, použitý jen ke čtení toho, kolik účet utratil. Nikdy se nepoužije pro odpověď a odpověď kvůli němu nikdy neselže.'
+MESSAGES['Answering'] = 'Odpovídá'
+MESSAGES['Answering with an error'] = 'Odpovídá chybou'
+MESSAGES['As detected'] = 'Podle zjištění'
+MESSAGES['As the provider reported it at %(when)s UTC.'] = 'Jak to poskytovatel uvedl v %(when)s UTC.'
+MESSAGES['Balance at the provider'] = 'Zůstatek u poskytovatele'
+MESSAGES['Billing key (optional)'] = 'Klíč pro vyúčtování (nepovinný)'
+MESSAGES['Check balance'] = 'Zjistit zůstatek'
+MESSAGES['Default currency'] = 'Výchozí měna'
+MESSAGES['Detect'] = 'Zjistit'
+MESSAGES['Detected: no'] = 'Zjištěno: ne'
+MESSAGES['Detected: yes'] = 'Zjištěno: ano'
+MESSAGES['Fallback models'] = 'Záložní modely'
+MESSAGES['Found:'] = 'Nalezeno:'
+MESSAGES['Loading a model'] = 'Načítá model'
+MESSAGES['No'] = 'Ne'
+MESSAGES['Not checked yet'] = 'Zatím nezkontrolováno'
+MESSAGES['Not detected'] = 'Nezjištěno'
+MESSAGES['Not read yet.'] = 'Zatím nenačteno.'
+MESSAGES['Nothing at that address answered like a model server.'] = 'Na té adrese neodpovídá nic jako server modelů.'
+MESSAGES['Nothing reported.'] = 'Nic neuvedeno.'
+MESSAGES['OpenAI-compatible (llama.cpp, llama-swap, vLLM, Ollama, LM Studio)'] = 'Kompatibilní s OpenAI (llama.cpp, llama-swap, vLLM, Ollama, LM Studio)'
+MESSAGES["OpenRouter's answer had no credits in it."] = 'Odpověď OpenRouteru neobsahovala žádný kredit.'
+MESSAGES['Paste an address and press Detect: the type is found for you, and what it says about its models is filled in.'] = 'Vložte adresu a stiskněte Zjistit: typ se najde sám a doplní se, co server o svých modelech říká.'
+MESSAGES['Spent at the provider, last 30 days'] = 'Utraceno u poskytovatele za posledních 30 dní'
+MESSAGES['The address could not be asked.'] = 'Na adresu se nepodařilo zeptat.'
+MESSAGES['The endpoint says %(n)s tokens (%(source)s). A number typed here wins over it; empty follows the endpoint.'] = 'Endpoint uvádí %(n)s tokenů (%(source)s). Číslo zadané zde má přednost; prázdné se řídí endpointem.'
+MESSAGES['The key was refused for this.'] = 'Klíč byl pro tohle odmítnut.'
+MESSAGES['The provider did not answer with a balance.'] = 'Poskytovatel neodpověděl zůstatkem.'
+MESSAGES["The provider's own figure. A reply's cost here is this instance's estimate from the model's prices, or the provider's when it reports one."] = 'Vlastní číslo poskytovatele. Cena odpovědi je zde odhad této instance podle cen modelu, nebo cena poskytovatele, pokud ji uvádí.'
+MESSAGES['The type carries what differs between providers — how usage, cached tokens and reasoning are sent and read, and where a balance is found — so none of it has to be set by hand.'] = 'Typ nese to, čím se poskytovatelé liší — jak se posílá a čte využití, tokeny z mezipaměti a uvažování a kde se najde zůstatek —, takže nic z toho není třeba nastavovat ručně.'
+MESSAGES['This needs an admin key from the provider (the billing key).'] = 'Na tohle je potřeba administrátorský klíč od poskytovatele (klíč pro vyúčtování).'
+MESSAGES['This provider has no balance to read.'] = 'Tento poskytovatel nemá zůstatek, který by šlo načíst.'
+MESSAGES['Time to answer the last check'] = 'Doba odpovědi při poslední kontrole'
+MESSAGES["Tried in order when this model's connection cannot be reached, times out or answers with a server error, before anything of the reply was written — never on Stop or on a refused request. A reply from a fallback says which model answered, and keeps its cost. Only models in the same data group are tried. None listed: a failed reply fails, as it always has."] = 'Zkoušejí se popořadě, když připojení tohoto modelu není dostupné, vyprší mu čas nebo odpoví chybou serveru, dřív než se z odpovědi cokoli napsalo — nikdy po Zastavit ani u odmítnutého požadavku. Odpověď ze záložního modelu řekne, který model odpověděl, a nese jeho cenu. Zkoušejí se jen modely ze stejné datové skupiny. Žádný v seznamu: neúspěšná odpověď selže jako dosud.'
+MESSAGES['Unreachable'] = 'Nedostupné'
+MESSAGES["What a new connection starts in, and what speech and picture prices are typed in. Each connection has its own currency for its models' prices (Connections). A reply keeps the currency it was priced in."] = 'Měna, ve které začíná nové připojení a ve které se zadávají ceny řeči a obrázků. Každé připojení má pro ceny svých modelů vlastní měnu (Připojení). Odpověď si ponechá měnu, ve které byla oceněna.'
+MESSAGES["What this connection's model prices are typed in, and what a reply on one of them costs in."] = 'V čem se zadávají ceny modelů tohoto připojení a v čem stojí odpověď na jednom z nich.'
+MESSAGES['What this model can do. <strong>reasoning</strong> shows the thinking block, <strong>vision</strong> lets images be sent, and <strong>tools</strong> is whether a tool list may be sent at all — turn it on for a model that does not support tool calling and every one of its replies fails. <strong>embeddings</strong> is the odd one out: it says this is not a chat model at all, but one that turns text into vectors, and it is what <a href="/admin/extraction">Extraction</a> picks from.'] = 'Co tento model umí. <strong>reasoning</strong> zobrazí blok uvažování, <strong>vision</strong> dovolí posílat obrázky a <strong>tools</strong> určuje, zda se vůbec smí poslat seznam nástrojů — zapněte to u modelu, který volání nástrojů nepodporuje, a každá jeho odpověď selže. <strong>embeddings</strong> je výjimka: říká, že nejde o model pro chat, ale o model, který převádí text na vektory, a právě z nich vybírá <a href="/admin/extraction">Extrakce</a>.'
+MESSAGES['Where the endpoint says (llama.cpp, Ollama, LM Studio, OpenRouter and others do), it is filled in on every refresh; what you choose here always wins.'] = 'Kde to endpoint uvádí (llama.cpp, Ollama, LM Studio, OpenRouter a další), doplní se to při každém obnovení; co zvolíte zde, má vždy přednost.'
+MESSAGES["With or without the trailing <code>/v1</code> — both are accepted. Empty takes the type's own address."] = 'S koncovým <code>/v1</code> i bez něj — obojí se přijme. Prázdné pole vezme vlastní adresu typu.'
+MESSAGES['Yes'] = 'Ano'
+MESSAGES['loading %(model)s'] = 'načítá %(model)s'

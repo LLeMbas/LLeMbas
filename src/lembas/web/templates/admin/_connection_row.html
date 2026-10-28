@@ -2,22 +2,51 @@
 {#
   One connection: an editable form plus its current status.
 
-  Swapped in place by the "Test & refresh" button, so this fragment has to be
-  able to render on its own as well as inside the list.
+  Swapped in place by "Test & refresh" and "Check balance", so this fragment
+  has to render on its own as well as inside the list: everything it reads
+  besides `connection` comes in `row` (api/admin.py `_row_context`).
 #}
+{% set health = connection.health_json or {} %}
+{% set status = health.status if connection.enabled else "off" %}
+{% set balance = health.balance or {} %}
 <section class="card connection" id="connection-{{ connection.id }}">
   <form method="post" action="/admin/connections/{{ connection.id }}" class="form-grid"
-        x-data="{ kind: '{{ 'anthropic' if connection.is_anthropic else 'openai' }}' }">
+        x-data="{ type: '{{ connection.provider_info.id }}' }">
     <div class="card__header">
       <div class="row u-gap-2 u-shrink">
-        <span class="status-dot {{ 'is-ok' if connection.enabled and not connection.last_error
-                                    else 'is-bad' if connection.last_error else 'is-off' }}"
-              aria-hidden="true"></span>
+        {# The last health check (services/llm/health.py), every few minutes and
+           on Test: answering, loading a model, unreachable, or answering with
+           an error. Before the first check, what the last refresh said. #}
+        <span class="status-dot {{ 'is-off' if status == 'off'
+                                    else 'is-ok' if status == 'ok'
+                                    else 'is-wait' if status == 'loading'
+                                    else 'is-bad' if status in ('down', 'error') or connection.last_error
+                                    else 'is-off' }}"
+              data-testid="connection-health" data-status="{{ status or 'unknown' }}"
+              role="img"
+              aria-label="{{ t('Disabled') if status == 'off'
+                             else t('Answering') if status == 'ok'
+                             else t('Loading a model') if status == 'loading'
+                             else t('Unreachable') if status == 'down'
+                             else t('Answering with an error') if status == 'error'
+                             else t('Not checked yet') }}"
+              title="{{ t('Disabled') if status == 'off'
+                        else t('Answering') if status == 'ok'
+                        else t('Loading a model') if status == 'loading'
+                        else t('Unreachable') if status == 'down'
+                        else t('Answering with an error') if status == 'error'
+                        else t('Not checked yet') }}"></span>
         <strong class="truncate">{{ connection.name }}</strong>
         <span class="badge" title="{{ t('Provider name') }}"><code>{{ connection.provider_name }}</code></span>
-        <span class="badge">{{ t("Anthropic") if connection.is_anthropic else t("OpenAI dialect") }}</span>
-        {% if model_count is defined %}
-        <span class="badge">{{ t("1 model") if model_count == 1 else t("%(n)s models", n=model_count) }}</span>
+        <span class="badge">{{ t(connection.provider_info.label) if connection.provider_info.id == 'openai_compatible' and not health.server else health.server if connection.provider_info.id == 'openai_compatible' else connection.provider_info.label }}</span>
+        {% if health.latency_ms is defined and status in ('ok', 'loading') %}
+        <span class="badge" title="{{ t('Time to answer the last check') }}">{{ t("%(ms)s ms", ms=health.latency_ms) }}</span>
+        {% endif %}
+        {% if status == 'loading' and health.loading %}
+        <span class="badge">{{ t("loading %(model)s", model=health.loading) }}</span>
+        {% endif %}
+        {% if row.model_count is defined %}
+        <span class="badge">{{ t("1 model") if row.model_count == 1 else t("%(n)s models", n=row.model_count) }}</span>
         {% endif %}
         {% if not connection.enabled %}
         <span class="badge">{{ t("disabled") }}</span>
@@ -45,14 +74,19 @@
       {{ icon("warning", "alert__icon") }}
       <span>{{ connection.last_error }}</span>
     </div>
+    {% elif status in ('down', 'error') and health.error %}
+    <div class="alert alert--error">
+      {{ icon("warning", "alert__icon") }}
+      <span>{{ health.error }}</span>
+    </div>
     {% endif %}
 
     <div class="field">
-      <label class="field__label" for="kind-{{ connection.id }}">{{ t("Type") }}</label>
-      <select class="select" id="kind-{{ connection.id }}" name="kind" x-model="kind"
-              @change="if (kind === 'anthropic') { $refs.url.value = '{{ anthropic_url }}' }">
-        <option value="openai" {{ 'selected' if not connection.is_anthropic }}>{{ t("OpenAI dialect") }}</option>
-        <option value="anthropic" {{ 'selected' if connection.is_anthropic }}>{{ t("Anthropic") }}</option>
+      <label class="field__label" for="type-{{ connection.id }}">{{ t("Type") }}</label>
+      <select class="select" id="type-{{ connection.id }}" name="provider_type" x-model="type">
+        {% for type in row.provider_types.values() %}
+        <option value="{{ type.id }}" {{ 'selected' if connection.provider_info.id == type.id }}>{{ t(type.label) }}</option>
+        {% endfor %}
       </select>
     </div>
 
@@ -77,31 +111,84 @@
     </div>
 
     <div class="field">
-      <label class="field__label" for="key-{{ connection.id }}">
-        <span x-show="kind !== 'anthropic'" {{ 'x-cloak' if connection.is_anthropic }}>{{ t("API key") }}</span>
-        <span x-show="kind === 'anthropic'" {{ 'x-cloak' if not connection.is_anthropic }}>{{ t("Anthropic API key") }}</span>
-      </label>
+      <label class="field__label" for="key-{{ connection.id }}">{{ t("API key") }}</label>
       <input class="input input--mono" id="key-{{ connection.id }}" name="api_key"
              type="password" autocomplete="off"
-             value="{{ unchanged if connection.api_key_encrypted else '' }}"
+             value="{{ row.unchanged if connection.api_key_encrypted else '' }}"
              placeholder="{{ t('No key set') }}">
       <p class="field__hint">
         {% if connection.api_key_encrypted %}
-          {{ tm("Currently <code>%(masked)s</code>. Leave the dots alone to keep it, or clear the field to remove the key entirely.", masked=masked) }}
+          {{ tm("Currently <code>%(masked)s</code>. Leave the dots alone to keep it, or clear the field to remove the key entirely.", masked=row.masked) }}
         {% else %}
           {{ t("No key is stored for this endpoint.") }}
         {% endif %}
       </p>
     </div>
 
+    {# Only for the types whose spend is read with a separate admin key. #}
+    {% if connection.provider_info.balance_needs_billing_key %}
+    <div class="field">
+      <label class="field__label" for="billing-{{ connection.id }}">{{ t("Billing key (optional)") }}</label>
+      <input class="input input--mono" id="billing-{{ connection.id }}" name="billing_key"
+             type="password" autocomplete="off"
+             value="{{ row.unchanged if connection.billing_key_encrypted else '' }}"
+             placeholder="{{ t('No key set') }}">
+      <p class="field__hint">
+        {% if connection.billing_key_encrypted %}
+          {{ tm("Currently <code>%(masked)s</code>. Leave the dots alone to keep it, or clear the field to remove the key entirely.", masked=row.masked_billing) }}
+        {% endif %}
+        {{ t("An admin key from the provider, used only to read what the account has spent. Never used for a reply; a reply never fails on it.") }}
+      </p>
+    </div>
+    {% else %}
+    <input type="hidden" name="billing_key" value="{{ row.unchanged if connection.billing_key_encrypted else '' }}">
+    {% endif %}
+
+    <div class="field">
+      <label class="field__label" for="currency-{{ connection.id }}">{{ t("Currency") }}</label>
+      <select class="select" id="currency-{{ connection.id }}" name="currency">
+        {% for code in row.currencies %}<option value="{{ code }}" {{ 'selected' if connection.currency == code }}>{{ code }}</option>{% endfor %}
+      </select>
+      <p class="field__hint">{{ t("What this connection's model prices are typed in, and what a reply on one of them costs in.") }}</p>
+    </div>
+
+    {% if row.has_balance %}
+    {# What the provider itself says is left, or was spent -- its figure,
+       beside (never mixed into) this instance's own cost estimate. #}
+    <div class="field" data-testid="connection-balance">
+      <span class="field__label">{{ t("Balance at the provider") if balance.kind != 'spent_30d' else t("Spent at the provider, last 30 days") }}</span>
+      <div class="btn-row">
+        <span class="u-grow">
+          {% if balance.ok %}
+            {% for item in balance["items"] %}<strong>{{ item.amount }} {{ item.currency }}</strong>{{ " · " if not loop.last }}{% else %}{{ t("Nothing reported.") }}{% endfor %}
+          {% elif balance.error %}
+            {{ t(balance.error) }}
+          {% else %}
+            {{ t("Not read yet.") }}
+          {% endif %}
+        </span>
+        <button class="btn btn--sm" type="submit"
+                hx-post="/admin/connections/{{ connection.id }}/balance"
+                hx-target="#connection-{{ connection.id }}" hx-swap="outerHTML"
+                formnovalidate>
+          {{ icon("refresh", "icon--sm") }} {{ t("Check balance") }}
+        </button>
+      </div>
+      <p class="field__hint">
+        {% if balance.checked_at %}{{ t("As the provider reported it at %(when)s UTC.", when=balance.checked_at[:16].replace("T", " ")) }}{% endif %}
+        {{ t("The provider's own figure. A reply's cost here is this instance's estimate from the model's prices, or the provider's when it reports one.") }}
+      </p>
+    </div>
+    {% endif %}
+
     {# Which data group this provider reads. Only worth a control once there is a
        second group to choose; until then every connection is in the default one
        and the field would be a select with one option. #}
-    {% if data_group_choices is defined and data_group_choices|length > 1 %}
+    {% if row.data_group_choices and row.data_group_choices|length > 1 %}
     <div class="field">
       <label class="field__label" for="group-{{ connection.id }}">{{ t("Data group") }}</label>
       <select class="select" id="group-{{ connection.id }}" name="data_group_id">
-        {% for group in data_group_choices %}
+        {% for group in row.data_group_choices %}
         <option value="{{ group.id }}"
                 {{ 'selected' if (connection.data_group_id or 'default') == group.id }}>{{ group.name }}</option>
         {% endfor %}

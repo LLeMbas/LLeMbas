@@ -1006,8 +1006,6 @@ MESSAGES.update(
         "Could not read the voice list: %(error)s": "Nem sikerült beolvasni a hanglistát: %(error)s",
         "Read from the endpoint. Save and test to refresh it.": "A végpontról olvasva. Frissítéshez mentsen és teszteljen.",
         "Test speech": "Beszéd tesztelése",
-        "Any endpoint that speaks the OpenAI HTTP API: OpenAI itself, or a local runner such as LM Studio, vLLM, llama.cpp or Ollama. %(brand)s asks each one for its model list and offers those models in the chat picker.": "Bármely végpont, amely az OpenAI HTTP API-t beszéli: maga az OpenAI, vagy egy helyi futtató, például LM Studio, vLLM, llama.cpp vagy Ollama. A(z) %(brand)s mindegyiktől lekéri a modelllistát, és ezeket a modelleket kínálja a csevegés modellválasztójában.",
-        "With or without the trailing <code>/v1</code> — both are accepted.": "A záró <code>/v1</code> résszel vagy anélkül – mindkettő elfogadott.",
         "Add and load models": "Modellek hozzáadása és betöltése",
         "Configured connections": "Beállított kapcsolatok",
         "Extraction and search": "Kinyerés és keresés",
@@ -1076,7 +1074,6 @@ MESSAGES.update(
         "No instance prompt is set.": "Nincs példányprompt beállítva.",
         "Leave empty to fall back to the instance prompt shown above.": "Hagyja üresen, hogy a fent látható példányprompt legyen érvényes.",
         "Leave empty to send no system prompt.": "Hagyja üresen, ha nem akar rendszerpromptot küldeni.",
-        "What this endpoint can do. Endpoints rarely advertise it reliably, so it is your call. <strong>reasoning</strong> shows the thinking block, <strong>vision</strong> lets images be sent, and <strong>tools</strong> is whether a tool list may be sent at all — turn it on for a model that does not support tool calling and every one of its replies fails. <strong>embeddings</strong> is the odd one out: it says this is not a chat model at all, but one that turns text into vectors, and it is what <a href=\"/admin/extraction\">Extraction</a> picks from.": "Mire képes ez a végpont. A végpontok ritkán közlik ezt megbízhatóan, így ez az Ön döntése. A <strong>reasoning</strong> megjeleníti a gondolkodási blokkot, a <strong>vision</strong> lehetővé teszi képek küldését, a <strong>tools</strong> pedig azt jelzi, hogy egyáltalán küldhető-e eszközlista – ha olyan modellnél kapcsolja be, amely nem támogatja az eszközhívást, minden válasza meghiúsul. Az <strong>embeddings</strong> kilóg a sorból: azt jelzi, hogy ez egyáltalán nem csevegőmodell, hanem olyan, amely szöveget vektorokká alakít, és a <a href=\"/admin/extraction\">Kinyerés</a> ezek közül választ.",
         "Built-in tools": "Beépített eszközök",
         "What this model is given, as opposed to what it is capable of. None of it applies unless <strong>tools</strong> is ticked above. Each one is also subject to the instance being configured for it and to the reader's own permissions — this only decides whether it is offered to <em>this</em> model.": "Amit ez a modell megkap, szemben azzal, amire képes. Ebből semmi sem érvényes, hacsak a fenti <strong>tools</strong> nincs bejelölve. Mindegyikhez az is kell, hogy a példány be legyen rá állítva, és az olvasónak meglegyenek a saját jogosultságai – ez csak azt dönti el, hogy felkínáljuk-e <em>ennek</em> a modellnek.",
         "Back to all models": "Vissza az összes modellhez",
@@ -1814,13 +1811,8 @@ MESSAGES.update(
 MESSAGES.update(
     {
         "Provider name": "Szolgáltatónév",
-        "Anthropic": "Anthropic",
-        "OpenAI dialect": "OpenAI-dialektus",
         "Type": "Típus",
         "How clients such as the LLeMbas CLI name this connection's models: <code>provider/model</code>, for example <code>llama/bonsai</code>. Lowercase letters, digits and hyphens, unique among connections.": "Ezen a néven nevezik meg a kliensek, például a LLeMbas CLI, ennek a kapcsolatnak a modelljeit: <code>provider/model</code>, például <code>llama/bonsai</code>. Kisbetűk, számjegyek és kötőjelek, a kapcsolatok között egyedi.",
-        "Anthropic API key": "Anthropic API-kulcs",
-        "Anthropic's own API is the other type a connection can have.": "A kapcsolat másik lehetséges típusa az Anthropic saját API-ja.",
-        "Which API the endpoint speaks. Everything except Anthropic's own API speaks the OpenAI dialect.": "Melyik API-t beszéli a végpont. Az Anthropic saját API-ján kívül minden az OpenAI-dialektust beszéli.",
         "llama": "llama",
         "A provider name is 1 to 32 lowercase letters, digits and hyphens, and starts with a letter or a digit.": "A szolgáltatónév 1–32 kisbetűből, számjegyből és kötőjelből áll, és betűvel vagy számjeggyel kezdődik.",
         "The connection “%(name)s” already uses the provider name “%(provider)s”.": "A(z) „%(name)s” kapcsolat már használja a(z) „%(provider)s” szolgáltatónevet.",
@@ -1958,3 +1950,52 @@ MESSAGES['Order saved.'] = 'Sorrend mentve.'
 MESSAGES['Move %(name)s: drag, or use the arrow keys'] = '%(name)s áthelyezése: húzza, vagy használja a nyílbillentyűket'
 MESSAGES['Drag to put in order'] = 'Húzza a sorrendhez'
 MESSAGES['That did not work.'] = 'Ez nem sikerült.'
+MESSAGES['%(failed)s did not answer (%(reason)s), so %(answered)s answered instead.'] = '%(failed)s nem válaszolt (%(reason)s), ezért helyette %(answered)s válaszolt.'
+MESSAGES['%(ms)s ms'] = '%(ms)s ms'
+MESSAGES['%(name)s: balance read.'] = '%(name)s: egyenleg lekérdezve.'
+MESSAGES['A connection is one provider: a server of your own that speaks the OpenAI API (llama.cpp, llama-swap, vLLM, Ollama, LM Studio), or OpenAI, Anthropic, DeepSeek or OpenRouter. %(brand)s asks each one for its model list and offers those models in the chat picker.'] = 'Egy kapcsolat egy szolgáltató: egy saját szerver, amely az OpenAI API-ját beszéli (llama.cpp, llama-swap, vLLM, Ollama, LM Studio), vagy az OpenAI, az Anthropic, a DeepSeek vagy az OpenRouter. A(z) %(brand)s mindegyiktől lekéri a modellek listáját, és felkínálja őket a csevegés modellválasztójában.'
+MESSAGES['Add a fallback model'] = 'Tartalék modell hozzáadása'
+MESSAGES['Add a fallback model…'] = 'Tartalék modell hozzáadása…'
+MESSAGES['An admin key from the provider, used only to read what the account has spent. Never used for a reply; a reply never fails on it.'] = 'A szolgáltató adminisztrátori kulcsa, csak annak lekérdezésére, mennyit költött a fiók. Válaszhoz sosem használjuk, és egy válasz sosem hiúsul meg miatta.'
+MESSAGES['Answering'] = 'Válaszol'
+MESSAGES['Answering with an error'] = 'Hibával válaszol'
+MESSAGES['As detected'] = 'Ahogy felismertük'
+MESSAGES['As the provider reported it at %(when)s UTC.'] = 'Ahogy a szolgáltató jelentette, %(when)s UTC.'
+MESSAGES['Balance at the provider'] = 'Egyenleg a szolgáltatónál'
+MESSAGES['Billing key (optional)'] = 'Számlázási kulcs (nem kötelező)'
+MESSAGES['Check balance'] = 'Egyenleg lekérdezése'
+MESSAGES['Default currency'] = 'Alapértelmezett pénznem'
+MESSAGES['Detect'] = 'Felismerés'
+MESSAGES['Detected: no'] = 'Felismerve: nem'
+MESSAGES['Detected: yes'] = 'Felismerve: igen'
+MESSAGES['Fallback models'] = 'Tartalék modellek'
+MESSAGES['Found:'] = 'Találat:'
+MESSAGES['Loading a model'] = 'Modellt tölt be'
+MESSAGES['No'] = 'Nem'
+MESSAGES['Not checked yet'] = 'Még nincs ellenőrizve'
+MESSAGES['Not detected'] = 'Nincs felismerve'
+MESSAGES['Not read yet.'] = 'Még nincs lekérdezve.'
+MESSAGES['Nothing at that address answered like a model server.'] = 'Ezen a címen semmi sem válaszolt modellszerverként.'
+MESSAGES['Nothing reported.'] = 'Nincs jelentve semmi.'
+MESSAGES['OpenAI-compatible (llama.cpp, llama-swap, vLLM, Ollama, LM Studio)'] = 'OpenAI-kompatibilis (llama.cpp, llama-swap, vLLM, Ollama, LM Studio)'
+MESSAGES["OpenRouter's answer had no credits in it."] = 'Az OpenRouter válaszában nem volt kredit.'
+MESSAGES['Paste an address and press Detect: the type is found for you, and what it says about its models is filled in.'] = 'Illesszen be egy címet, és nyomja meg a Felismerés gombot: a típust megtaláljuk, és kitöltjük, amit a modelljeiről mond.'
+MESSAGES['Spent at the provider, last 30 days'] = 'A szolgáltatónál elköltve az elmúlt 30 napban'
+MESSAGES['The address could not be asked.'] = 'A címet nem sikerült lekérdezni.'
+MESSAGES['The endpoint says %(n)s tokens (%(source)s). A number typed here wins over it; empty follows the endpoint.'] = 'A végpont szerint %(n)s token (%(source)s). Az ide írt szám felülírja; üresen a végpontot követi.'
+MESSAGES['The key was refused for this.'] = 'A kulcsot ehhez elutasították.'
+MESSAGES['The provider did not answer with a balance.'] = 'A szolgáltató nem egyenleggel válaszolt.'
+MESSAGES["The provider's own figure. A reply's cost here is this instance's estimate from the model's prices, or the provider's when it reports one."] = 'A szolgáltató saját adata. Egy válasz költsége itt ennek a példánynak a modell árai alapján készült becslése, vagy a szolgáltatóé, ha jelenti.'
+MESSAGES['The type carries what differs between providers — how usage, cached tokens and reasoning are sent and read, and where a balance is found — so none of it has to be set by hand.'] = 'A típus hordozza, miben különböznek a szolgáltatók — hogyan küldjük és olvassuk a használatot, a gyorsítótárazott tokeneket és a gondolkodást, és hol található egyenleg —, így ezek egyikét sem kell kézzel beállítani.'
+MESSAGES['This needs an admin key from the provider (the billing key).'] = 'Ehhez a szolgáltató adminisztrátori kulcsa kell (a számlázási kulcs).'
+MESSAGES['This provider has no balance to read.'] = 'Ennél a szolgáltatónál nincs lekérdezhető egyenleg.'
+MESSAGES['Time to answer the last check'] = 'A legutóbbi ellenőrzés válaszideje'
+MESSAGES["Tried in order when this model's connection cannot be reached, times out or answers with a server error, before anything of the reply was written — never on Stop or on a refused request. A reply from a fallback says which model answered, and keeps its cost. Only models in the same data group are tried. None listed: a failed reply fails, as it always has."] = 'Sorban kipróbáljuk őket, ha a modell kapcsolata nem érhető el, túllépi az időt vagy szerverhibával válaszol, mielőtt a válaszból bármi megíródott volna — sosem Leállításkor vagy elutasított kérésnél. A tartalék modelltől érkező válasz megmondja, melyik modell válaszolt, és annak költségét viseli. Csak ugyanannak az adatcsoportnak a modelljeit próbáljuk. Ha nincs egy sem: a sikertelen válasz sikertelen marad, mint eddig.'
+MESSAGES['Unreachable'] = 'Nem érhető el'
+MESSAGES["What a new connection starts in, and what speech and picture prices are typed in. Each connection has its own currency for its models' prices (Connections). A reply keeps the currency it was priced in."] = 'Ezzel indul egy új kapcsolat, és ebben adjuk meg a beszéd és a képek árát. Minden kapcsolatnak saját pénzneme van a modelljei áraihoz (Kapcsolatok). Egy válasz megtartja a pénznemet, amelyben árazták.'
+MESSAGES["What this connection's model prices are typed in, and what a reply on one of them costs in."] = 'Ebben adjuk meg a kapcsolat modelljeinek árát, és ebben kerül egy rajtuk írt válasz.'
+MESSAGES['What this model can do. <strong>reasoning</strong> shows the thinking block, <strong>vision</strong> lets images be sent, and <strong>tools</strong> is whether a tool list may be sent at all — turn it on for a model that does not support tool calling and every one of its replies fails. <strong>embeddings</strong> is the odd one out: it says this is not a chat model at all, but one that turns text into vectors, and it is what <a href="/admin/extraction">Extraction</a> picks from.'] = 'Mire képes ez a modell. A <strong>reasoning</strong> megjeleníti a gondolkodási blokkot, a <strong>vision</strong> engedi képek küldését, a <strong>tools</strong> pedig azt, hogy egyáltalán küldhető-e eszközlista — ha bekapcsolja egy eszközhívást nem támogató modellnél, minden válasza meghiúsul. Az <strong>embeddings</strong> a kivétel: azt mondja, hogy ez nem csevegőmodell, hanem szöveget vektorrá alakító modell, és ezek közül választ a <a href="/admin/extraction">Kinyerés</a>.'
+MESSAGES['Where the endpoint says (llama.cpp, Ollama, LM Studio, OpenRouter and others do), it is filled in on every refresh; what you choose here always wins.'] = 'Ahol a végpont megmondja (a llama.cpp, az Ollama, az LM Studio, az OpenRouter és mások igen), minden frissítéskor kitöltjük; amit itt választ, mindig felülírja.'
+MESSAGES["With or without the trailing <code>/v1</code> — both are accepted. Empty takes the type's own address."] = 'A záró <code>/v1</code> résszel vagy anélkül — mindkettő elfogadott. Üresen a típus saját címét veszi.'
+MESSAGES['Yes'] = 'Igen'
+MESSAGES['loading %(model)s'] = '%(model)s betöltése'

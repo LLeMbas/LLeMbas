@@ -425,6 +425,8 @@ a.tabs__tab { text-decoration: none; }
 .status-dot.is-ok { background: var(--success); }
 .status-dot.is-bad { background: var(--danger); }
 .status-dot.is-off { background: var(--ink-faint); }
+/* A connection whose server is loading a model: it answers, after a wait. */
+.status-dot.is-wait { background: var(--warning); }
 
 /* --- Filter bar ------------------------------------------------------------ */
 .filter-bar {

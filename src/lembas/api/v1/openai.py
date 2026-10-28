@@ -316,10 +316,11 @@ def _record(
     from lembas.db.session import session_scope
     from lembas.services import pricing
     from lembas.services import usage as usage_service
+    from lembas.services.llm import providers
 
     usage = usage or {}
     details = usage.get("prompt_tokens_details")
-    cached = details.get("cached_tokens", 0) if isinstance(details, dict) else 0
+    cached = providers.cached_tokens(usage) or 0
     written = details.get("cache_write_tokens", 0) if isinstance(details, dict) else 0
     counts = {
         "prompt_tokens": int(usage.get("prompt_tokens") or 0),
@@ -329,7 +330,13 @@ def _record(
     }
     with session_scope() as db:
         model = db.get(Model, model_row_id) if model_row_id else None
-        priced = pricing.price_reply(db, model, counts) if replies else None
+        priced = (
+            pricing.price_reply(
+                db, model, counts, reported_micro=providers.reported_cost_micro(usage)
+            )
+            if replies
+            else None
+        )
         usage_service.record(
             db,
             user_id,
@@ -379,6 +386,13 @@ async def chat_completions(request: Request, db: Db, caller: ModelsCaller):
 
     endpoint = Endpoint.from_connection(served.connection)
     upstream = _body_for(served, body)
+    if not endpoint.is_anthropic:
+        # The effort where this provider reads it, and nothing it would refuse
+        # (`providers.shape_request`): a client sends OpenAI's shape to every
+        # model, whichever provider is behind it.
+        from lembas.services.llm import providers
+
+        upstream = providers.shape_request(endpoint.provider_type, upstream)
     user_id = caller.user.id
     streaming = bool(body.get("stream"))
 

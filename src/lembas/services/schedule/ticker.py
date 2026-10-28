@@ -220,12 +220,27 @@ async def update_tick(*, force: bool = False) -> None:
     await updates_auto.tick()
 
 
+_HEALTH: asyncio.Task | None = None
+
+
+def health_tick() -> None:
+    """The connections' health round (services/llm/health.py), in a task of its
+    own so a slow endpoint never holds a schedule back; one round at a time."""
+    global _HEALTH
+    if _HEALTH is not None and not _HEALTH.done():
+        return
+    from lembas.services.llm import health
+
+    _HEALTH = asyncio.create_task(health.tick())
+
+
 async def _loop() -> None:
     while True:
         try:
             await asyncio.sleep(_interval())
             tidy()
             await update_tick()
+            health_tick()
             await sweep()
         except asyncio.CancelledError:
             raise
@@ -242,7 +257,12 @@ def start() -> None:
 
 
 async def shutdown() -> None:
-    global _TICKER
+    global _TICKER, _HEALTH
+    if _HEALTH is not None:
+        _HEALTH.cancel()
+        with contextlib.suppress(asyncio.CancelledError, Exception):
+            await _HEALTH
+        _HEALTH = None
     if _TICKER is not None:
         _TICKER.cancel()
         with contextlib.suppress(asyncio.CancelledError, Exception):

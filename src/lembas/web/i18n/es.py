@@ -1006,8 +1006,6 @@ MESSAGES.update(
         "Could not read the voice list: %(error)s": "No se pudo leer la lista de voces: %(error)s",
         "Read from the endpoint. Save and test to refresh it.": "Leída del endpoint. Guarde y pruebe para actualizarla.",
         "Test speech": "Probar la voz",
-        "Any endpoint that speaks the OpenAI HTTP API: OpenAI itself, or a local runner such as LM Studio, vLLM, llama.cpp or Ollama. %(brand)s asks each one for its model list and offers those models in the chat picker.": "Cualquier endpoint que hable la API HTTP de OpenAI: el propio OpenAI o un servidor local como LM Studio, vLLM, llama.cpp u Ollama. %(brand)s pide a cada uno su lista de modelos y ofrece esos modelos en el selector del chat.",
-        "With or without the trailing <code>/v1</code> — both are accepted.": "Con o sin el <code>/v1</code> final: se aceptan ambas formas.",
         "Add and load models": "Añadir y cargar modelos",
         "Configured connections": "Conexiones configuradas",
         "Extraction and search": "Extracción y búsqueda",
@@ -1076,7 +1074,6 @@ MESSAGES.update(
         "No instance prompt is set.": "No hay prompt de instancia.",
         "Leave empty to fall back to the instance prompt shown above.": "Déjelo vacío para recurrir al prompt de la instancia que se muestra arriba.",
         "Leave empty to send no system prompt.": "Déjelo vacío para no enviar ningún prompt de sistema.",
-        "What this endpoint can do. Endpoints rarely advertise it reliably, so it is your call. <strong>reasoning</strong> shows the thinking block, <strong>vision</strong> lets images be sent, and <strong>tools</strong> is whether a tool list may be sent at all — turn it on for a model that does not support tool calling and every one of its replies fails. <strong>embeddings</strong> is the odd one out: it says this is not a chat model at all, but one that turns text into vectors, and it is what <a href=\"/admin/extraction\">Extraction</a> picks from.": "Lo que puede hacer este endpoint. Los endpoints rara vez lo anuncian de forma fiable, así que lo decide usted. <strong>reasoning</strong> muestra el bloque de razonamiento, <strong>vision</strong> permite enviar imágenes y <strong>tools</strong> indica si se puede enviar una lista de herramientas: actívelo en un modelo que no admite llamadas a herramientas y fallarán todas sus respuestas. <strong>embeddings</strong> es la excepción: indica que no es un modelo de chat, sino uno que convierte texto en vectores, y es entre los que elige <a href=\"/admin/extraction\">Extracción</a>.",
         "Built-in tools": "Herramientas integradas",
         "What this model is given, as opposed to what it is capable of. None of it applies unless <strong>tools</strong> is ticked above. Each one is also subject to the instance being configured for it and to the reader's own permissions — this only decides whether it is offered to <em>this</em> model.": "Lo que se le da a este modelo, a diferencia de lo que es capaz de hacer. Nada de esto se aplica salvo que <strong>tools</strong> esté marcado arriba. Cada una depende además de que la instancia esté configurada para ella y de los permisos del lector: esto solo decide si se ofrece a <em>este</em> modelo.",
         "Back to all models": "Volver a todos los modelos",
@@ -1814,13 +1811,8 @@ MESSAGES.update(
 MESSAGES.update(
     {
         "Provider name": "Nombre del proveedor",
-        "Anthropic": "Anthropic",
-        "OpenAI dialect": "Dialecto OpenAI",
         "Type": "Tipo",
         "How clients such as the LLeMbas CLI name this connection's models: <code>provider/model</code>, for example <code>llama/bonsai</code>. Lowercase letters, digits and hyphens, unique among connections.": "Así nombran los clientes como LLeMbas CLI los modelos de esta conexión: <code>provider/model</code>, por ejemplo <code>llama/bonsai</code>. Minúsculas, dígitos y guiones, único entre las conexiones.",
-        "Anthropic API key": "Clave de la API de Anthropic",
-        "Anthropic's own API is the other type a connection can have.": "La API propia de Anthropic es el otro tipo que puede tener una conexión.",
-        "Which API the endpoint speaks. Everything except Anthropic's own API speaks the OpenAI dialect.": "Qué API habla el endpoint. Todo salvo la API propia de Anthropic habla el dialecto OpenAI.",
         "llama": "llama",
         "A provider name is 1 to 32 lowercase letters, digits and hyphens, and starts with a letter or a digit.": "Un nombre de proveedor tiene de 1 a 32 minúsculas, dígitos y guiones, y empieza por una letra o un dígito.",
         "The connection “%(name)s” already uses the provider name “%(provider)s”.": "La conexión «%(name)s» ya usa el nombre de proveedor «%(provider)s».",
@@ -1958,3 +1950,52 @@ MESSAGES['Order saved.'] = 'Orden guardado.'
 MESSAGES['Move %(name)s: drag, or use the arrow keys'] = 'Mover %(name)s: arrastre o use las flechas'
 MESSAGES['Drag to put in order'] = 'Arrastre para ordenar'
 MESSAGES['That did not work.'] = 'Eso no ha funcionado.'
+MESSAGES['%(failed)s did not answer (%(reason)s), so %(answered)s answered instead.'] = '%(failed)s no respondió (%(reason)s), así que respondió %(answered)s en su lugar.'
+MESSAGES['%(ms)s ms'] = '%(ms)s ms'
+MESSAGES['%(name)s: balance read.'] = '%(name)s: saldo consultado.'
+MESSAGES['A connection is one provider: a server of your own that speaks the OpenAI API (llama.cpp, llama-swap, vLLM, Ollama, LM Studio), or OpenAI, Anthropic, DeepSeek or OpenRouter. %(brand)s asks each one for its model list and offers those models in the chat picker.'] = 'Una conexión es un proveedor: un servidor propio que habla la API de OpenAI (llama.cpp, llama-swap, vLLM, Ollama, LM Studio), o bien OpenAI, Anthropic, DeepSeek u OpenRouter. %(brand)s pide a cada uno su lista de modelos y los ofrece en el selector del chat.'
+MESSAGES['Add a fallback model'] = 'Añadir un modelo de reserva'
+MESSAGES['Add a fallback model…'] = 'Añadir un modelo de reserva…'
+MESSAGES['An admin key from the provider, used only to read what the account has spent. Never used for a reply; a reply never fails on it.'] = 'Una clave de administrador del proveedor, usada solo para leer lo que ha gastado la cuenta. Nunca se usa para una respuesta; una respuesta nunca falla por ella.'
+MESSAGES['Answering'] = 'Responde'
+MESSAGES['Answering with an error'] = 'Responde con un error'
+MESSAGES['As detected'] = 'Según lo detectado'
+MESSAGES['As the provider reported it at %(when)s UTC.'] = 'Tal como lo informó el proveedor a las %(when)s UTC.'
+MESSAGES['Balance at the provider'] = 'Saldo en el proveedor'
+MESSAGES['Billing key (optional)'] = 'Clave de facturación (opcional)'
+MESSAGES['Check balance'] = 'Consultar saldo'
+MESSAGES['Default currency'] = 'Moneda predeterminada'
+MESSAGES['Detect'] = 'Detectar'
+MESSAGES['Detected: no'] = 'Detectado: no'
+MESSAGES['Detected: yes'] = 'Detectado: sí'
+MESSAGES['Fallback models'] = 'Modelos de reserva'
+MESSAGES['Found:'] = 'Encontrado:'
+MESSAGES['Loading a model'] = 'Cargando un modelo'
+MESSAGES['No'] = 'No'
+MESSAGES['Not checked yet'] = 'Aún sin comprobar'
+MESSAGES['Not detected'] = 'No detectado'
+MESSAGES['Not read yet.'] = 'Aún sin consultar.'
+MESSAGES['Nothing at that address answered like a model server.'] = 'Nada en esa dirección respondió como un servidor de modelos.'
+MESSAGES['Nothing reported.'] = 'Nada informado.'
+MESSAGES['OpenAI-compatible (llama.cpp, llama-swap, vLLM, Ollama, LM Studio)'] = 'Compatible con OpenAI (llama.cpp, llama-swap, vLLM, Ollama, LM Studio)'
+MESSAGES["OpenRouter's answer had no credits in it."] = 'La respuesta de OpenRouter no traía créditos.'
+MESSAGES['Paste an address and press Detect: the type is found for you, and what it says about its models is filled in.'] = 'Pegue una dirección y pulse Detectar: el tipo se encuentra solo y se rellena lo que dice de sus modelos.'
+MESSAGES['Spent at the provider, last 30 days'] = 'Gastado en el proveedor, últimos 30 días'
+MESSAGES['The address could not be asked.'] = 'No se pudo consultar la dirección.'
+MESSAGES['The endpoint says %(n)s tokens (%(source)s). A number typed here wins over it; empty follows the endpoint.'] = 'El endpoint indica %(n)s tokens (%(source)s). Un número escrito aquí tiene prioridad; vacío sigue al endpoint.'
+MESSAGES['The key was refused for this.'] = 'La clave fue rechazada para esto.'
+MESSAGES['The provider did not answer with a balance.'] = 'El proveedor no respondió con un saldo.'
+MESSAGES["The provider's own figure. A reply's cost here is this instance's estimate from the model's prices, or the provider's when it reports one."] = 'La cifra propia del proveedor. El coste de una respuesta aquí es la estimación de esta instancia según los precios del modelo, o la del proveedor cuando la informa.'
+MESSAGES['The type carries what differs between providers — how usage, cached tokens and reasoning are sent and read, and where a balance is found — so none of it has to be set by hand.'] = 'El tipo lleva lo que difiere entre proveedores —cómo se envían y leen el uso, los tokens en caché y el razonamiento, y dónde se encuentra un saldo—, así que nada de eso se configura a mano.'
+MESSAGES['This needs an admin key from the provider (the billing key).'] = 'Esto necesita una clave de administrador del proveedor (la clave de facturación).'
+MESSAGES['This provider has no balance to read.'] = 'Este proveedor no tiene saldo que consultar.'
+MESSAGES['Time to answer the last check'] = 'Tiempo de respuesta de la última comprobación'
+MESSAGES["Tried in order when this model's connection cannot be reached, times out or answers with a server error, before anything of the reply was written — never on Stop or on a refused request. A reply from a fallback says which model answered, and keeps its cost. Only models in the same data group are tried. None listed: a failed reply fails, as it always has."] = 'Se prueban en orden cuando la conexión de este modelo no responde, agota el tiempo o devuelve un error del servidor, antes de que se haya escrito nada de la respuesta; nunca al pulsar Detener ni ante una petición rechazada. Una respuesta de reserva dice qué modelo respondió y conserva su coste. Solo se prueban modelos del mismo grupo de datos. Ninguno en la lista: una respuesta fallida falla, como siempre.'
+MESSAGES['Unreachable'] = 'Inaccesible'
+MESSAGES["What a new connection starts in, and what speech and picture prices are typed in. Each connection has its own currency for its models' prices (Connections). A reply keeps the currency it was priced in."] = 'Con la que empieza una conexión nueva, y en la que se escriben los precios de voz e imágenes. Cada conexión tiene su propia moneda para los precios de sus modelos (Conexiones). Una respuesta conserva la moneda en que se calculó.'
+MESSAGES["What this connection's model prices are typed in, and what a reply on one of them costs in."] = 'En qué se escriben los precios de los modelos de esta conexión y en qué cuesta una respuesta de uno de ellos.'
+MESSAGES['What this model can do. <strong>reasoning</strong> shows the thinking block, <strong>vision</strong> lets images be sent, and <strong>tools</strong> is whether a tool list may be sent at all — turn it on for a model that does not support tool calling and every one of its replies fails. <strong>embeddings</strong> is the odd one out: it says this is not a chat model at all, but one that turns text into vectors, and it is what <a href="/admin/extraction">Extraction</a> picks from.'] = 'Lo que puede hacer este modelo. <strong>reasoning</strong> muestra el bloque de razonamiento, <strong>vision</strong> permite enviar imágenes y <strong>tools</strong> indica si se puede enviar una lista de herramientas: actívelo en un modelo que no admite llamadas a herramientas y todas sus respuestas fallarán. <strong>embeddings</strong> es la excepción: dice que no es un modelo de chat, sino uno que convierte texto en vectores, y es de donde elige <a href="/admin/extraction">Extracción</a>.'
+MESSAGES['Where the endpoint says (llama.cpp, Ollama, LM Studio, OpenRouter and others do), it is filled in on every refresh; what you choose here always wins.'] = 'Donde el endpoint lo indica (llama.cpp, Ollama, LM Studio, OpenRouter y otros lo hacen), se rellena en cada actualización; lo que elija aquí siempre tiene prioridad.'
+MESSAGES["With or without the trailing <code>/v1</code> — both are accepted. Empty takes the type's own address."] = 'Con o sin el <code>/v1</code> final: se aceptan ambos. Vacío toma la dirección propia del tipo.'
+MESSAGES['Yes'] = 'Sí'
+MESSAGES['loading %(model)s'] = 'cargando %(model)s'

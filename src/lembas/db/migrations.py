@@ -272,6 +272,28 @@ def infer_model_kinds(engine: Engine) -> list[str]:
     return done
 
 
+def provider_types(engine: Engine) -> list[str]:
+    """Give every connection that predates provider types the type its row
+    means (`providers.from_legacy_kind`): `kind = anthropic` is Anthropic, a
+    known cloud host is its own type, the rest stay OpenAI-compatible (the
+    backfill). Run only on the start that adds the column, so a type an
+    administrator chose afterwards is never changed back."""
+    from lembas.services.llm import providers
+
+    done: list[str] = []
+    with engine.begin() as connection:
+        rows = connection.execute(text("SELECT id, kind, base_url FROM connections")).all()
+        for row_id, kind, base_url in rows:
+            wanted = providers.from_legacy_kind(kind, base_url or "")
+            if wanted != providers.OPENAI_COMPATIBLE:
+                connection.execute(
+                    text("UPDATE connections SET provider_type = :t, kind = :k WHERE id = :i"),
+                    {"t": wanted, "k": providers.protocol_of(wanted), "i": row_id},
+                )
+                done.append(f"connection {row_id} is {wanted}")
+    return done
+
+
 def ensure_default_org(engine: Engine) -> list[str]:
     """The first organisation (`organisation.DEFAULT_ORG`), made once.
 
@@ -347,6 +369,11 @@ def sync_schema(engine: Engine) -> list[str]:
             changes.extend(step(engine))
         except Exception:  # a conversion that fails must not stop a start
             log.exception("could not run %s", step.__name__)
+    if "add column connections.provider_type" in changes:
+        try:
+            changes.extend(provider_types(engine))
+        except Exception:  # a conversion that fails must not stop a start
+            log.exception("could not give the connections their provider types")
 
     # Before the search indexes, and before anything can try to load a row:
     # a column left holding the wrong empty value makes the ORM raise on read.

@@ -16,6 +16,7 @@ from lembas.db.models import MODEL_CHAT, MODEL_EMBEDDING, MODEL_KINDS, Connectio
 from lembas.services import chat as chat_service
 from lembas.services import pricing as pricing_service
 from lembas.services import settings_store, uploads
+from lembas.services.llm import capabilities as capabilities_service
 from lembas.services.llm.openai_client import MAX_CONTEXT
 from lembas.web import i18n
 from lembas.web.templating import render
@@ -176,13 +177,59 @@ async def models_page(
 
 
 def _money_prices(db: DBSession, model: Model) -> dict[str, str]:
-    """The model's prices as the form shows them: money, in the instance's
+    """The model's prices as the form shows them: money, in its connection's
     currency."""
     return {key: f"{price:.12g}" for key, price in pricing_service.prices(model).items()}
 
 
-def _currency_sign(db: DBSession) -> str:
-    return settings_store.CURRENCIES.get(settings_store.currency(db), "")
+def _currency_sign(db: DBSession, model: Model | None = None) -> str:
+    code = pricing_service.currency_of(db, model) if model is not None else (
+        settings_store.currency(db)
+    )
+    return settings_store.CURRENCIES.get(code, code)
+
+
+def _cap_choice(model: Model) -> dict[str, str]:
+    """What each capability's select shows: the override when there is one,
+    "as detected" when the endpoint said, and otherwise what the model has --
+    so a value set before detection existed is kept by saving the page."""
+    override = capabilities_service.clean(model.capabilities_override_json)
+    detected = capabilities_service.clean(model.capabilities_detected_json)
+    current = model.capabilities_json or {}
+    out: dict[str, str] = {}
+    for name in PROTOCOL_CAPABILITIES:
+        if name in override:
+            out[name] = "yes" if override[name] else "no"
+        elif name in detected:
+            out[name] = "auto"
+        else:
+            out[name] = "yes" if current.get(name) else "auto"
+    return out
+
+
+def _fallbacks(db: DBSession, model: Model) -> tuple[list[dict], list[dict]]:
+    """The model's fallback list as the page shows it, and what may be added:
+    chat models on the same data group's connections, never itself."""
+    from lembas.services import data_groups
+
+    def label(m: Model) -> str:
+        return f"{m.label} · {m.connection.name}" if m.connection is not None else m.label
+
+    # The instance's group of each connection; a person's own remapping is
+    # checked again when a reply uses the list.
+    group = data_groups.group_of(model.connection)
+    candidates = [
+        m for m in _ordered(db)
+        if m.id != model.id and (m.kind or MODEL_CHAT) == MODEL_CHAT
+        and data_groups.group_of(m.connection) == group
+    ]
+    by_id = {m.id: m for m in candidates}
+    items = [
+        {"id": row_id, "label": label(by_id[row_id])}
+        for row_id in (model.fallback_model_ids or [])
+        if row_id in by_id
+    ]
+    return items, [{"id": m.id, "label": label(m)} for m in candidates]
 
 
 @router.get("/admin/models/{model_id}/edit")
@@ -199,6 +246,7 @@ async def model_detail(
     model = _model(db, model_id)
     ordered = _ordered(db)
     index = next((i for i, m in enumerate(ordered) if m.id == model.id), 0)
+    fallback_items, fallback_choices = _fallbacks(db, model)
 
     return render(
         request,
@@ -225,7 +273,15 @@ async def model_detail(
                 ),
             ),
             "price_values": _money_prices(db, model),
-            "currency_sign": _currency_sign(db),
+            "currency_sign": _currency_sign(db, model),
+            "detected_caps": {
+                **capabilities_service.clean(model.capabilities_detected_json),
+                "source": str((model.capabilities_detected_json or {}).get("source") or ""),
+            },
+            "override_caps": capabilities_service.clean(model.capabilities_override_json),
+            "cap_choice": _cap_choice(model),
+            "fallback_items": fallback_items,
+            "fallback_choices": fallback_choices,
             "model_kinds": (
                 (MODEL_CHAT, i18n.t("Chat")),
                 (MODEL_EMBEDDING, i18n.t("Embedding")),
@@ -309,6 +365,12 @@ async def update_model(
     reasoning_efforts: list[str] = Form(default=[]),
     group_ids: list[str] = Form(default=[]),
     capability: list[str] = Form(default=[]),
+    cap_reasoning: str | None = Form(None),
+    cap_vision: str | None = Form(None),
+    cap_tools: str | None = Form(None),
+    cap_embeddings: str | None = Form(None),
+    fallback_model_ids: list[str] = Form(default=[]),
+    fallback_submitted: str = Form(""),
     price_input: str = Form(""),
     price_cached_input: str = Form(""),
     price_output: str = Form(""),
@@ -344,12 +406,25 @@ async def update_model(
     model.notes = notes.strip()[:2000]
     model.system_prompt = system_prompt.strip()[:8000]
     # A string, so an emptied field is distinguishable and junk can be ignored
-    # rather than becoming a 422 -- the same shape `position` uses below.
+    # rather than becoming a 422 -- the same shape `position` uses below. A
+    # number typed is an override (it wins over what the endpoint says); empty
+    # follows the endpoint, and with nothing detected is "unknown".
+    override = capabilities_service.clean(model.capabilities_override_json)
+    detected = capabilities_service.clean(model.capabilities_detected_json)
     if context_length.strip():
         with contextlib.suppress(ValueError):
-            model.context_length = min(max(int(context_length), 0), MAX_CONTEXT)
+            typed = min(max(int(context_length), 0), MAX_CONTEXT)
+            if typed and typed == detected.get("context_length"):
+                override.pop("context_length", None)
+            elif typed:
+                override["context_length"] = typed
+            else:
+                override.pop("context_length", None)
+                model.context_length = 0
     else:
-        model.context_length = 0
+        override.pop("context_length", None)
+        if "context_length" not in detected:
+            model.context_length = 0
     model.enabled = enabled
     model.pinned = pinned
     model.public = public
@@ -377,8 +452,36 @@ async def update_model(
     model.params_json = params
 
     # Absent checkboxes are simply missing from a form post, so the submitted
-    # list IS the complete new state -- rebuild rather than merge.
-    model.capabilities_json = {name: (name in capability) for name in CAPABILITIES}
+    # list IS the complete new state -- rebuild rather than merge. The four
+    # protocol capabilities come from their selects when the form has them
+    # (yes / no override, "" follows detection); an older form's checkboxes
+    # are taken as overrides, as they always were the administrator's word.
+    chosen_caps = {
+        "reasoning": cap_reasoning, "vision": cap_vision,
+        "tools": cap_tools, "embeddings": cap_embeddings,
+    }
+    rebuilt = {name: (name in capability) for name in CAPABILITIES}
+    for name in PROTOCOL_CAPABILITIES:
+        choice = chosen_caps[name]
+        if choice is None:
+            override[name] = name in capability
+        elif choice in ("yes", "no"):
+            override[name] = choice == "yes"
+        else:  # "auto"
+            override.pop(name, None)
+            # Following detection, and the endpoint said nothing: off, as an
+            # unticked box always was.
+            rebuilt[name] = bool(detected.get(name, False))
+    model.capabilities_json = rebuilt
+    capabilities_service.set_override(model, override)
+
+    # The fallback list, in the order posted; only other chat models that
+    # exist (validated again when a reply uses it, `services/fallback.py`).
+    if fallback_submitted or fallback_model_ids:
+        known = {m.id for m in db.scalars(select(Model).where(Model.id != model.id))}
+        model.fallback_model_ids = list(
+            dict.fromkeys(i for i in fallback_model_ids if i in known)
+        )[:10]
 
     if public:
         # Group rows would be dead weight and misleading in the UI.

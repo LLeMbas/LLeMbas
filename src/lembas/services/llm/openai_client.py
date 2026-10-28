@@ -79,6 +79,9 @@ class Endpoint:
     name: str = ""
     # The dialect: "openai" or "anthropic". See `Connection.kind`.
     kind: str = "openai"
+    # The provider type (`providers.py`), which shapes the request and reads
+    # the usage. Empty: the generic OpenAI-compatible type.
+    provider_type: str = ""
     # Each model's known output ceiling, as (model id, tokens), for a dialect
     # that requires one on every request (Anthropic's `max_tokens`). A tuple of
     # pairs because the snapshot is frozen.
@@ -110,6 +113,7 @@ class Endpoint:
             extra_headers=dict(connection.extra_headers_json or {}),
             name=connection.name,
             kind=kind,
+            provider_type=getattr(connection, "provider_type", "") or "",
             output_limits=limits,
             context_limits=contexts,
         )
@@ -386,7 +390,9 @@ async def _stream_once(
     *,
     usage: bool,
 ) -> AsyncIterator[dict[str, Any]]:
-    body = {**payload, "stream": True}
+    from lembas.services.llm import providers
+
+    body = {**providers.shape_request(endpoint.provider_type, payload), "stream": True}
     if usage:
         body["stream_options"] = {"include_usage": True}
 
@@ -442,7 +448,9 @@ async def complete(endpoint: Endpoint, payload: dict[str, Any]) -> str:
         from lembas.services.llm import anthropic_client
 
         return await anthropic_client.complete(endpoint, payload)
-    body = {**payload, "stream": False}
+    from lembas.services.llm import providers
+
+    body = {**providers.shape_request(endpoint.provider_type, payload), "stream": False}
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
@@ -634,11 +642,14 @@ def chunk_usage(chunk: dict[str, Any]) -> dict[str, int] | None:
         "total_tokens", counts.get("prompt_tokens", 0) + counts.get("completion_tokens", 0)
     )
     # How much of the prompt the server answered from its cache, which is
-    # priced apart: OpenAI's `prompt_tokens_details.cached_tokens`, and
-    # the same figure some servers put at the top level. llama.cpp says it in
-    # `timings.cache_n` beside the usage.
+    # priced apart: OpenAI's `prompt_tokens_details.cached_tokens`, the same
+    # figure some servers put at the top level, DeepSeek's
+    # `prompt_cache_hit_tokens` (`providers.cached_tokens`). llama.cpp says it
+    # in `timings.cache_n` beside the usage.
+    from lembas.services.llm import providers
+
     details = raw.get("prompt_tokens_details")
-    cached = details.get("cached_tokens") if isinstance(details, dict) else raw.get("cached_tokens")
+    cached = providers.cached_tokens(raw)
     if cached is None:
         timings = chunk.get("timings") if isinstance(chunk, dict) else None
         cached = timings.get("cache_n") if isinstance(timings, dict) else None
@@ -651,6 +662,11 @@ def chunk_usage(chunk: dict[str, Any]) -> dict[str, int] | None:
         written = raw.get("cache_write_tokens")
     if isinstance(written, (int, float)) and not isinstance(written, bool) and written > 0:
         counts["cache_write_tokens"] = int(written)
+    # What the provider says the reply cost (OpenRouter's `usage.cost`), in
+    # micro-units of its own currency: preferred over the price list.
+    reported = providers.reported_cost_micro(raw)
+    if reported is not None:
+        counts["reported_cost_micro"] = reported
     return counts
 
 
