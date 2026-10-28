@@ -262,3 +262,38 @@ def test_the_admin_usage_api_is_per_model(client, db, registered):
     by_model = {row["model_id"]: row for row in data["data"]}
     assert by_model["a"]["prompt_tokens"] == 5 and by_model["a"]["cost_money"] == 1.5
     assert by_model["b"]["completion_tokens"] == 7
+    assert by_model["a"]["currency"] == "USD" and by_model["b"]["currency"] == "USD"
+
+
+def test_the_admin_usage_api_never_adds_currencies(client, db, registered):
+    """Two connections in two currencies: each row says its own, a row where
+    both met has no single amount, and `costs` holds the exact split."""
+    me = _me(db)
+    usage_service.record(db, me.id, model_id="a", cost_micro=1_000_000, currency="USD")
+    usage_service.record(db, me.id, model_id="b", cost_micro=2_000_000, currency="EUR")
+    usage_service.record(db, me.id, model_id="c", cost_micro=500_000, currency="USD")
+    usage_service.record(db, me.id, model_id="c", cost_micro=250_000, currency="EUR")
+    db.commit()
+    _, raw = api_tokens.create(db, me, name="t", scopes=["admin:read"])
+    data = client.get("/api/v1/admin/usage", headers={"Authorization": f"Bearer {raw}"}).json()
+    by_model = {row["model_id"]: row for row in data["data"]}
+    assert (by_model["a"]["cost_money"], by_model["a"]["currency"]) == (1.0, "USD")
+    assert (by_model["b"]["cost_money"], by_model["b"]["currency"]) == (2.0, "EUR")
+    assert (by_model["c"]["cost_money"], by_model["c"]["currency"]) == (None, None)
+    costs = {(c["email"], c["currency"]): c["cost_money"] for c in data["costs"]}
+    assert costs == {(me.email, "EUR"): 2.25, (me.email, "USD"): 1.5}
+
+
+def test_the_admin_screen_shows_cost_per_currency(client, db, registered):
+    me = _me(db)
+    usage_service.record(db, me.id, model_id="a", cost_micro=1_000_000, currency="USD")
+    usage_service.record(db, me.id, model_id="b", cost_micro=2_000_000, currency="EUR")
+    db.commit()
+    assert usage_service.summary(db, me)["cost_by_currency"] == {
+        "EUR": 2_000_000, "USD": 1_000_000
+    }
+    assert "cost_micro" not in usage_service.summary(db, me)
+    page = client.get(f"/admin/users/{me.id}")
+    assert page.status_code == 200
+    cell = page.text.split('data-testid="usage-cost">', 1)[1].split("</dd>", 1)[0]
+    assert "€2.00" in cell and "$1.00" in cell and "+" not in cell

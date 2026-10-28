@@ -52,8 +52,16 @@ async def get_user(db: Db, caller: AdminReadCaller, user_id: str) -> dict[str, A
 @router.get("/usage")
 async def usage(db: Db, caller: AdminReadCaller, period: str = "") -> dict[str, Any]:
     """Tokens, replies, images and cost per account and model, for one month
-    (`YYYY-MM`) or all. `cost_money` is in `currency`."""
+    (`YYYY-MM`) or all.
+
+    Money is never added up across currencies: each connection prices in its
+    own. A row's `cost_money` is in that row's `currency`; a row in which two
+    currencies met (a connection changed currency mid-month) has both null,
+    and `costs` -- one entry per account, month and currency, exact -- says
+    what it came to. `currency` at the top is the instance's default, the one
+    speech and pictures are priced in."""
     from lembas.services import pricing, settings_store
+    from lembas.services import usage as usage_service
 
     query = select(Usage, User.email).join(User, User.id == Usage.user_id)
     if period:
@@ -61,9 +69,10 @@ async def usage(db: Db, caller: AdminReadCaller, period: str = "") -> dict[str, 
     rows = db.execute(
         query.order_by(Usage.period.desc(), User.email, Usage.model_id)
     ).all()
-    return {
-        "currency": settings_store.currency(db),
-        "data": [
+    data = []
+    for row in rows:
+        code = usage_service.row_currency(db, row.Usage)
+        data.append(
             {
                 "user_id": row.Usage.user_id,
                 "email": row.email,
@@ -74,11 +83,27 @@ async def usage(db: Db, caller: AdminReadCaller, period: str = "") -> dict[str, 
                 "completion_tokens": row.Usage.tokens_out,
                 "replies": row.Usage.requests,
                 "images": row.Usage.images,
-                "cost_money": round(pricing.micro_to_money(row.Usage.cost_micro), 6),
+                "cost_money": (
+                    round(pricing.micro_to_money(row.Usage.cost_micro), 6) if code else None
+                ),
+                "currency": code,
             }
-            for row in rows
-        ],
-    }
+        )
+    costs = []
+    accounts = sorted({(r.Usage.user_id, r.email, r.Usage.period) for r in rows},
+                      key=lambda k: k[1])
+    for user_id, email, month in sorted(accounts, key=lambda k: k[2], reverse=True):
+        for code, micro in usage_service.cost_by_currency(db, user_id, period=month).items():
+            costs.append(
+                {
+                    "user_id": user_id,
+                    "email": email,
+                    "period": month,
+                    "currency": code,
+                    "cost_money": round(pricing.micro_to_money(micro), 6),
+                }
+            )
+    return {"currency": settings_store.currency(db), "data": data, "costs": costs}
 
 
 def _when(raw: str) -> datetime | None:

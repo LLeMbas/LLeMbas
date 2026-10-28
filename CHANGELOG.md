@@ -251,7 +251,10 @@ release yet.
   and the currency of speech and picture prices. Where the provider reports a reply's cost itself
   (OpenRouter), that figure is kept instead, marked as the provider's. Costs in different
   currencies are never added together: `/v1/usage` gives the month's cost per currency
-  (`month.cost_by_currency`), and `month.cost_money` only when one currency is involved.
+  (`month.cost_by_currency`), and `month.cost_money` only when one currency is involved;
+  `/api/v1/admin/usage` names each row's currency (none, and no amount, for a row in which two
+  currencies met) and lists the exact amounts per account, month and currency in `costs`; and an
+  account's page under Administration → Users shows the month's cost, one amount per currency.
 - **Fallback models, opt-in.** A model can list fallback models, in order. When its connection
   cannot be reached, times out or answers with a server error before anything was written, the
   next one answers instead — never after Stop, never for a refused request, and only models in the

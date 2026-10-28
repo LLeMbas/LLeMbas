@@ -218,8 +218,13 @@ class Usage(Base):
 
     `period` is "YYYY-MM" in UTC. `model_id` is the model's text id ("" when
     nothing names one); speech and pictures are recorded under the service's
-    own name (`stt/whisper-1`, `image/sdxl`). `cost_micro` is micro-units of the
-    instance's currency (`services/pricing.py`).
+    own name (`stt/whisper-1`, `image/sdxl`). `cost_micro` is micro-units of
+    `currency`: the currency of the first priced use in the row, NULL for a row
+    with no priced use yet (or one written before this column, which reads as
+    the instance's), and `"*"` once two currencies have met in it -- a model's
+    connection changed currency mid-month, say. A `"*"` row's cost is not one
+    amount and is never reported as one; `UsageCost` holds the same money per
+    currency, exactly.
 
     Written by `generation._persist` for a reply (finished, stopped or failed
     alike -- an endpoint charges for what it generated), by the `/v1` routes
@@ -242,6 +247,7 @@ class Usage(Base):
     images: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     audio_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     speech_chars: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
 
     def __repr__(self) -> str:
         return f"<Usage {self.user_id} {self.period} {self.model_id}>"

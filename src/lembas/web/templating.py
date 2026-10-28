@@ -74,6 +74,16 @@ def compact_tokens(value: int | float | None) -> str:
 templates.env.globals["compact_tokens"] = compact_tokens
 
 
+def money(micro: int, code: str) -> str:
+    """An amount of one currency, in the reader's language (`pricing.format_money`)."""
+    from lembas.services import pricing
+
+    return pricing.format_money(int(micro or 0), code)
+
+
+templates.env.globals["money"] = money
+
+
 def short_duration(ms: int | float | None) -> str:
     """A time as a person reads it beside a reply: 0.8s, 14s, 2m 05s, 1h 03m."""
     seconds = max(0.0, float(ms or 0) / 1000)

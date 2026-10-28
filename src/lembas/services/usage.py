@@ -21,6 +21,7 @@ from __future__ import annotations
 import logging
 import math
 from datetime import UTC, date, datetime
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DBSession
@@ -28,6 +29,9 @@ from sqlalchemy.orm import Session as DBSession
 from lembas.db.models import Attachment, Usage, UsageCost, User
 
 log = logging.getLogger(__name__)
+
+# `Usage.currency` once two currencies have met in one row.
+MIXED = "*"
 
 
 def period_of(moment: datetime | None = None) -> str:
@@ -78,13 +82,20 @@ def record(
         row.tokens_cached += max(0, int(cached_tokens))
         row.tokens_out += max(0, int(completion_tokens))
         row.requests += max(0, int(requests))
-        row.cost_micro += max(0, int(cost_micro or 0))
-        row.images += max(0, int(images))
-        row.audio_seconds += max(0, math.ceil(audio_seconds))
-        row.speech_chars += max(0, int(speech_chars))
         cost = max(0, int(cost_micro or 0))
         if cost:
             code = _currency(db, currency)
+            if row.currency is None and row.cost_micro:
+                row.currency = _currency(db, None)  # cost from before the column
+            if row.currency is None:
+                row.currency = code
+            elif row.currency != code:
+                row.currency = MIXED
+        row.cost_micro += cost
+        row.images += max(0, int(images))
+        row.audio_seconds += max(0, math.ceil(audio_seconds))
+        row.speech_chars += max(0, int(speech_chars))
+        if cost:
             money = db.get(UsageCost, (user_id, row.period, code))
             if money is None:
                 money = UsageCost(user_id=user_id, period=row.period, currency=code, cost_micro=0)
@@ -129,6 +140,15 @@ def cost_by_currency(db: DBSession, user_id: str, *, period: str = "") -> dict[s
         code = _currency(db, None)
         out[code] = out.get(code, 0) + rest
     return out
+
+
+def row_currency(db: DBSession, row: Usage) -> str | None:
+    """The currency a usage row's cost is in, or None when it holds more than
+    one (`MIXED`) -- then the row's cost is not one amount, and only
+    `cost_by_currency` can say what it was."""
+    if row.currency == MIXED:
+        return None
+    return row.currency or _currency(db, None)
 
 
 def record_token(
@@ -202,8 +222,10 @@ def by_model(db: DBSession, user_id: str, *, period: str = "") -> list[Usage]:
     )
 
 
-def summary(db: DBSession, user: User) -> dict[str, int]:
-    """This month's figures across every model, for the admin screen."""
+def summary(db: DBSession, user: User) -> dict[str, Any]:
+    """This month's figures across every model, for the admin screen. The cost
+    is per currency (`cost_by_currency`, micro-units by code), never one sum
+    of dollars and euros."""
     rows = by_model(db, user.id)
     prompt = sum(r.tokens_in for r in rows)
     completion = sum(r.tokens_out for r in rows)
@@ -214,11 +236,12 @@ def summary(db: DBSession, user: User) -> dict[str, int]:
         "replies": sum(r.requests for r in rows),
         "images": sum(r.images for r in rows),
         "images_today": images_today(db, user.id),
-        "cost_micro": sum(r.cost_micro for r in rows),
+        "cost_by_currency": cost_by_currency(db, user.id),
     }
 
 
 __all__ = [
+    "MIXED",
     "by_model",
     "cost_by_currency",
     "images_today",
@@ -226,6 +249,7 @@ __all__ = [
     "period_of",
     "record",
     "record_token",
+    "row_currency",
     "row_for",
     "summary",
 ]

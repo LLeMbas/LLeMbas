@@ -126,6 +126,14 @@
         {% if limits.images_per_day %} ({{ t("limit %(n)s a day", n=limits.images_per_day) }}){% endif %}
       </dd>
     </div>
+    {% if usage.cost_by_currency %}
+    {# One amount per currency: connections price in their own, and dollars
+       and euros are never added together. #}
+    <div class="mode-list__row">
+      <dt><strong>{{ t("Cost") }}</strong></dt>
+      <dd data-testid="usage-cost">{% for code, micro in usage.cost_by_currency.items() %}{{ money(micro, code) }}{% if not loop.last %} · {% endif %}{% endfor %}</dd>
+    </div>
+    {% endif %}
   </dl>
 
   <h3 class="section-title">{{ t("Limits in force") }}</h3>
