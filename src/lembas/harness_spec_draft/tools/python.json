@@ -15,10 +15,10 @@
     "llembas": []
   },
   "variables": {
-    "packages": "the packages the instance provides beyond the standard library, as a list, or \"none\"",
-    "seconds": "the time limit of one call, in seconds",
-    "memory": "the memory limit of one call, with its unit",
-    "output": "how much printed output comes back, with its unit"
+    "packages": "the packages the instance provides beyond the standard library, as a list, or \"none\" — implementation-defined; LLeMbas 2.0: none (the standard library only)",
+    "seconds": "the time limit of one call, in seconds — implementation-defined; LLeMbas 2.0: 30",
+    "memory": "the memory limit of one call, with its unit — implementation-defined; LLeMbas 2.0: 512 MB",
+    "output": "how much printed output comes back, with its unit — implementation-defined; LLeMbas 2.0: 20,000 characters"
   },
   "description": "Run Python for calculations and for working with files — parse JSON or CSV, transform text, compute. It runs in the user's browser (Pyodide), sandboxed: no network, no shell, no packages beyond the standard library and these: {{packages}}. Returns what the code printed and the value of its last expression.\n\n- `files` are copied in before the run, at the same paths, from what this session can read.\n- Files the code writes come back only when listed in `save`: each is written as the write tool would write it, with this session's permissions.\n- At most {{seconds}} seconds and {{memory}} of memory per call; printed output past {{output}} is cut.\n- Every call starts fresh: nothing is kept between calls.",
   "parameters": {

@@ -1,8 +1,70 @@
 {
+  "about": "How one prompt runs: model step, tool calls, results, again — and what ends it early. Both harnesses run this loop; the numbers are each project's defaults, the behaviour is the spec's.",
+  "steps": {
+    "about": "A runaway backstop, not a working budget: a prompt is meant to run until the task is done, and a step count low enough to end it ends it halfway. Past it the tools are withdrawn and the model answers (wrap_up).",
+    "default": 200
+  },
+  "budgets": {
+    "about": "What one prompt may spend. Checked between steps, never mid-reply — a reply cut off mid-sentence is worth nothing. Time spent waiting for the user (an approval, a question, a plan) is not counted. Past one, the tools are withdrawn and the model answers from what it has (wrap_up). The CLI leaves them unset by default (one user at their own terminal); LLeMbas sets them, and a group's quota can narrow them.",
+    "wall_seconds": {
+      "about": "Seconds of work.",
+      "cli": null,
+      "llembas": 900
+    },
+    "output_bytes": {
+      "about": "Bytes of tool output read: a model filling its own context with build logs has no room left to answer.",
+      "cli": null,
+      "llembas": 1048576
+    },
+    "completion_tokens": {
+      "about": "Tokens the model writes.",
+      "cli": null,
+      "llembas": 200000
+    }
+  },
+  "wrap_up": {
+    "about": "One more request with no tools and a user message saying which limit was reached: answer now — what is done, what is not, what would come next. The transcript says the prompt was stopped, so an answer given because the room ran out is never mistaken for one the model chose to give.",
+    "message": "The {{limit}} for this prompt has been reached and the tools have been withdrawn. Answer now from what you have: what is done, what is not, and what would come next."
+  },
+  "nudges": {
+    "about": "A reply with only thinking, or one cut off at the output limit, is asked again (at most twice in a row) instead of ending the prompt with nothing said.",
+    "max": 2
+  },
+  "parallel": {
+    "about": "Calls in one step run together, at most 4; a call that waits on the user (ask_user, plan_submit) runs alone; two calls on one file run in order. A tool's error is its result, never the end of the prompt.",
+    "max": 4
+  },
+  "capacity": "A subagent (task) is not started on a model whose server cannot hold it beside the prompt's own model — or beside the model of a subagent already running: another model of a connection that holds one model at a time, or the same model when it serves one request at a time (models/schema.json capacity).",
+  "jobs": {
+    "about": "Background work owned by a session: a command (bash `background: true`, or one still running when its timeout passed) or a subagent (task `background: true`). One id sequence per session (job1, job2, …), one list (job_list), one way to read (job_output), to stop (job_stop) and, for a subagent, to message (job_send); a subagent's own tools see only the jobs it started. A job that ends wakes the session that owns it: while a prompt runs, as a user message at the next step boundary; otherwise as a new turn of its own, marked `machine` so a UI shows it as the harness's, not the person's. A session that is not open keeps the note until it is resumed. Every such message begins with its mark, said rather than hidden: a model refuses an unmarked one as an injection (conformance/jobs.json gives the texts).",
+    "marks": {
+      "command": "[A background job you started has finished:]",
+      "subagent": "[A subagent you started has finished:]",
+      "message": "[A message from a subagent you started:]",
+      "to_subagent": "[The main agent sent this while you were working — take it into account from here:]"
+    },
+    "note_tail_chars": {
+      "about": "Of a finished command's unread output, how much the note carries (the end of it).",
+      "default": 4000
+    },
+    "finished_kept": {
+      "about": "Finished jobs kept per session, oldest forgotten first.",
+      "default": 50
+    },
+    "running_max": {
+      "about": "Background commands one session may have running at once; past it, bash refuses to start another.",
+      "default": 8
+    },
+    "subagent_steps": {
+      "about": "The step backstop of a subagent (the CLI: limits.subagent_steps).",
+      "default": 50
+    },
+    "lifecycle": "A subagent's own background commands stop when it ends, and its report says so. A session's jobs stop when the session is deleted. A front end asked to exit while jobs run asks the person first; one with nobody to ask waits for the jobs the prompt started, then stops the rest."
+  },
   "context": {
     "about": "Context hygiene (spec 3.0.0, context.md): every measure acts when a result is inserted, and nothing already sent to the model is ever rewritten — changing earlier context throws away the prompt cache from that point. conformance/context.json gives the texts.",
     "ids": {
-      "about": "Every tool result gets an id: `#` and lowercase hex, at least 4 digits, unique in the session and never reused (not after a compaction either), so `recall` finds any of them. It is the first thing in the result, in brackets.",
+      "about": "Every tool result gets an id: `#` and its number in the session, counting from 1, in lowercase hex, at least 4 digits (`#0001`, `#000a`, `#10000`) — unique in the session and never reused (not after a compaction either), so `recall` finds any of them. It is the first thing in the result, in brackets.",
       "digits": 4
     },
     "read_header": "[{{id}} {{path}} lines {{from}}-{{to}} of {{of}} sha {{sha}}]",
@@ -26,7 +88,7 @@
       "tail_chars": 10000
     },
     "dedupe": {
-      "about": "by_hash: a read whose file has the same content hash as an earlier full read in the table, and whose lines lie wholly inside that read's, is answered with `unchanged`. by_result: a call with the same arguments as an earlier one in the table, whose result is the same text, is answered with `same_result`. Stubs point at the full result, never at another stub. The table is per session, and compaction empties it.",
+      "about": "by_hash: a read whose file (by its absolute path) has the same content hash as an earlier full read in the table, and whose lines lie wholly inside that read's, is answered with `unchanged`. by_result: a call with the same arguments as an earlier one in the table, whose result is the same text, is answered with `same_result`. Stubs point at the full result, never at another stub. The table is the full results in the request being built — never one the request does not carry (a chat's earlier reply, a turn undone) — and compaction empties it.",
       "by_hash": [
         "read"
       ],
@@ -38,7 +100,7 @@
       ]
     },
     "compaction": {
-      "about": "The one deliberate break of the cache. After the summary the harness adds the table of reads still in the dedupe table — the newest full read of each path, newest last, at most `rows` — and then empties the dedupe table, so no stub ever points at content that is gone from the context. No reads: no table.",
+      "about": "The one deliberate break of the cache. After the summary the harness adds the table of the reads the summary covers — the full reads made since the previous compaction, in turns still in the history being summarised, whether or not the request still carries them; of those the newest full read of each file, newest last, at most `rows` — and then empties the dedupe table, so no stub ever points at content that is gone from the context. No reads: no table.",
       "heading": "## Files read before this summary",
       "line": "Read a file again for its content; recall shows a result by its id.",
       "rows": 50

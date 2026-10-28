@@ -26,7 +26,7 @@ SPEC_DIR = Path(__file__).resolve().parent.parent / "harness_spec"
 # The parts of the CLI's spec 3.0.0 draft this server implements ahead of the
 # pin: tools a chat is offered over the file tree, the context-hygiene texts and
 # numbers (`loop.json` `context`), and the `context`/`workspace` prompt blocks.
-# Copied verbatim from the CLI's `harness/` (`3.0.0-draft`, CLI dev eacf84f)
+# Copied verbatim from the CLI's `harness/` (`3.0.0-draft`, CLI dev ef9dcf3)
 # and read only while the vendored spec is older than 3: `fetch_harness.py
 # --update` to a 3.x tag makes it dead, and it is deleted then. Never edited
 # here, exactly like the vendored copy.

@@ -260,3 +260,24 @@ async def test_a_silent_generation_gets_a_keepalive(db, registered, make_chat, m
     await task
 
     assert any(frame == ": keepalive\n\n" for frame in frames)
+
+
+def test_regenerate_detaches_the_earlier_attempts_tool_results(
+    client: TestClient, db, registered, make_chat, no_upstream
+):
+    """The row is reused, so the first attempt's results would otherwise still
+    read as this reply's -- and a compaction would list reads from a reply
+    that no longer exists. `recall` still finds them."""
+    from lembas.db.models import ToolResult
+
+    _connection(db)
+    chat_id = make_chat()
+    reply = _reply(db, chat_id)
+    db.add(ToolResult(chat_id=chat_id, message_id=reply.id, rid="#0001", kind="read"))
+    db.commit()
+
+    client.post(f"/api/chats/{chat_id}/messages/{reply.id}/regenerate")
+
+    db.expire_all()
+    row = db.scalar(select(ToolResult).where(ToolResult.chat_id == chat_id))
+    assert row.rid == "#0001" and row.message_id is None

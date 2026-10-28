@@ -32,7 +32,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field, replace
 from typing import Any, Protocol
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from lembas.db.models import (
     RESULT_EDIT,
@@ -482,10 +482,12 @@ class ResultContext:
         """The table compaction adds after its summary: the newest full read of
         each path, newest last, at most `compaction.rows`; "" with none.
 
-        `reads` defaults to the dedupe table, as in the CLI. A chat compacts
-        between replies, when no result is in front of the model, so its caller
-        passes the reads of the turns being summarised instead
-        (`reads_since`)."""
+        `reads` are the full reads the summary covers: those made since the
+        previous compaction in turns still part of the history being
+        summarised. They default to the dedupe table, which in a session that
+        resends every result (the CLI) holds exactly those; a chat, which does
+        not, passes what it stored for the turns being summarised
+        (`reads_since`, from `compaction.apply`)."""
         texts = spec()["compaction"]
         rows = self._table() if reads is None else reads
         newest: dict[str, Stored] = {}
@@ -546,9 +548,10 @@ def last_seen(db, chat_id: str, key: str) -> str | None:
     return row
 
 
-def reads_since(db, chat_id: str, since=None) -> list[Stored]:
-    """A chat's full reads, oldest first, after `since` (a datetime) when given:
-    what a compaction's table is drawn from."""
+def reads_since(db, chat_id: str, since=None, message_ids=None) -> list[Stored]:
+    """A chat's full reads, oldest first, after `since` (a datetime) when given,
+    and with `message_ids` only those made in one of those replies: what a
+    compaction's table is drawn from (`compaction.apply`)."""
     query = select(ToolResult).where(
         ToolResult.chat_id == chat_id,
         ToolResult.kind == RESULT_READ,
@@ -556,7 +559,22 @@ def reads_since(db, chat_id: str, since=None) -> list[Stored]:
     )
     if since is not None:
         query = query.where(ToolResult.created_at > since)
+    if message_ids is not None:
+        if not message_ids:
+            return []
+        query = query.where(ToolResult.message_id.in_(list(message_ids)))
     return [_row(r) for r in db.scalars(query.order_by(ToolResult.created_at, ToolResult.rid))]
+
+
+def detach(db, chat_id: str, message_id: str) -> None:
+    """Results given in a reply that is produced again no longer belong to it:
+    `recall` still shows them, but a compaction no longer counts them among
+    the reads of the turns it covers. Caller commits."""
+    db.execute(
+        update(ToolResult)
+        .where(ToolResult.chat_id == chat_id, ToolResult.message_id == message_id)
+        .values(message_id=None)
+    )
 
 
 __all__ = [
@@ -565,6 +583,7 @@ __all__ = [
     "ResultContext",
     "Stored",
     "cap_output",
+    "detach",
     "hunks",
     "last_seen",
     "line_count",

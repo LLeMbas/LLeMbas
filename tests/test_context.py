@@ -29,17 +29,29 @@ SPEC = json.loads((_VENDORED if _VENDORED.exists() else _COPY).read_text(encodin
 
 
 def run_case(case: dict) -> list[str]:
-    """The CLI's runner (`tests/conformance.ts` `context`), step for step."""
+    """The CLI's runner (`tests/conformance.ts` `context`), step for step.
+
+    `messages` is the request being built (what a stub may point at); `history`
+    the results since the last compaction, which its table is drawn from.
+    `reply` starts a request that carries none of them, as a chat's next reply
+    does."""
     messages: list[dict] = []
+    history: list[str] = []
+    store = context_service.MemoryStore()
     cap = {**context_service.spec()["cap"], **(case.get("limits") or {})}
     rc = context_service.ResultContext(
-        context_service.MemoryStore(), lambda: context_service.present_ids(messages), cap
+        store, lambda: context_service.present_ids(messages), cap
     )
     out: list[str] = []
     for step in case["steps"]:
-        if step["op"] == "compact":
-            out.append(rc.compaction_table())
+        if step["op"] == "reply":
             messages.clear()
+            out.append("")
+            continue
+        if step["op"] == "compact":
+            out.append(rc.compaction_table([r for r in store.rows if r.id in history]))
+            messages.clear()
+            history.clear()
             continue
         if step["op"] == "read":
             body, frm, to, of = read_body(step["content"], step.get("offset"), step.get("limit"))
@@ -72,6 +84,7 @@ def run_case(case: dict) -> list[str]:
                 step["id"],
             )
         messages.append({"role": "tool", "content": text})
+        history.append(step["id"])
         out.append(text)
     return out
 
@@ -82,7 +95,7 @@ def test_conformance(case):
 
 
 def test_the_spec_has_its_cases():
-    assert len(SPEC["cases"]) >= 11
+    assert len(SPEC["cases"]) >= 12
 
 
 def test_ids_are_hex_and_never_reused():
@@ -161,7 +174,7 @@ def test_compaction_carries_the_reads_table(db):
     upto = Message(chat_id=chat.id, role=ROLE_ASSISTANT, content="done", complete=True)
     db.add(upto)
     db.commit()
-    rc = context_service.ResultContext(context_service.DbStore(chat.id))
+    rc = context_service.ResultContext(context_service.DbStore(chat.id, upto.id))
     for path, text in (("a.md", "alpha\n"), ("b.md", "beta\n"), ("a.md", "alpha2\n")):
         body, frm, to, of = read_body(text)
         rc.insert({"kind": "read", "path": path, "key": "/" + path,
@@ -183,3 +196,42 @@ def test_compaction_carries_the_reads_table(db):
     db.commit()
     compaction.apply(chat, summary="Later.", upto=later, db=db)
     assert chat.compact_summary == "Later."
+
+
+def test_compaction_counts_only_the_reads_of_turns_still_there(db):
+    """A read made in a reply that was regenerated or deleted is not among the
+    turns being summarised (`tool_results.message_id` has no foreign key), so
+    it is not in the table; `recall` still shows it."""
+    from lembas.db.models import ROLE_ASSISTANT, Message
+
+    chat = _chat(db)
+    gone = Message(chat_id=chat.id, role=ROLE_ASSISTANT, content="gone", complete=True)
+    again = Message(chat_id=chat.id, role=ROLE_ASSISTANT, content="again", complete=True)
+    db.add_all([gone, again])
+    db.commit()
+
+    def read(message_id, path, text):
+        body, frm, to, of = read_body(text)
+        context_service.ResultContext(context_service.DbStore(chat.id, message_id)).insert(
+            {"kind": "read", "path": path, "key": "/" + path,
+             "sha": context_service.sha256(text), "from": frm, "to": to, "of": of,
+             "body": body}
+        )
+
+    read(gone.id, "deleted.md", "x\n")
+    read(again.id, "first-attempt.md", "y\n")
+    # `again` is produced a second time: the first attempt's reads are detached.
+    context_service.detach(db, chat.id, again.id)
+    db.commit()
+    read(again.id, "kept.md", "z\n")
+    db.delete(gone)
+    db.commit()
+
+    chat = db.get(Chat, chat.id)
+    compaction.apply(chat, summary="S.", upto=db.get(Message, again.id), db=db)
+    assert "| kept.md |" in chat.compact_summary
+    assert "deleted.md" not in chat.compact_summary
+    assert "first-attempt.md" not in chat.compact_summary
+    rc = context_service.ResultContext(context_service.DbStore(chat.id))
+    assert rc.insert({"kind": "recall", "target": "#0002"}).startswith("[#0004 recall #0002")
+

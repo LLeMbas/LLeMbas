@@ -33,6 +33,7 @@ from lembas.security import permissions
 from lembas.services import audio as audio_service
 from lembas.services import chat as chat_service
 from lembas.services import compaction as compaction_service
+from lembas.services import context as context_service
 from lembas.services import data_groups, device_link, interaction, model_prefs, settings_store, sse
 from lembas.services import files as files_service
 from lembas.services import generation as generation_service
@@ -2758,6 +2759,9 @@ async def regenerate_reply(db: DBSession, chat: Chat, user: User, message_id: st
     message.content = ""
     message.error = ""
     message.complete = False
+    # The earlier attempt's tool results stay for `recall`, but are no longer
+    # this reply's: a compaction counts only the reads of turns still there.
+    context_service.detach(db, chat.id, message.id)
     # Whose reply this was stays whose reply it is, unless the chat's model has
     # been changed since -- in which case regenerating is how somebody asks for
     # the new one. Always resetting to the chat's model would, since the row *is*

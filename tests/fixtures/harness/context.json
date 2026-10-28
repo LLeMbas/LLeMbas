@@ -1,5 +1,5 @@
 {
-  "about": "Context hygiene (context.md, loop.json `context`): what is inserted into the conversation for each step of a session, in order. Steps: `read` (`path`, the file's whole `content`, `offset`, `limit` — the read tool's body: `<n>: ` lines, the note when lines remain), `edit` / `write` (`path`, `before` — absent for a new file — and `after`), `output` (any other tool's result: `tool`, `args`, `text`), `recall` (`target`, `offset`, `limit`) and `compact` (the table added after a summary; the dedupe table is emptied). Each step but `compact` carries the `id` the session gives its result. `limits` overrides loop.json's `cap` for the case. The answer is the text each step inserts: a read headed by path, lines, length and the first 8 hex digits of the content's SHA-256, a stub for an unchanged re-read inside an earlier full read, a diff for an edit, a capped output with its elided line, a stub for a repeated listing or search with the same result. LLeMbas: services/context.py (to be written); CLI: session/results.ts.",
+  "about": "Context hygiene (context.md, loop.json `context`): what is inserted into the conversation for each step of a session, in order. Steps: `read` (`path`, the file's whole `content`, `offset`, `limit` — the read tool's body: `<n>: ` lines, the note when lines remain), `edit` / `write` (`path`, `before` — absent for a new file — and `after`), `output` (any other tool's result: `tool`, `args`, `text`), `recall` (`target`, `offset`, `limit`), `reply` (a new reply begins whose request does not carry the results inserted so far — a chat's next reply: they stay in the history a compaction covers, but no stub may name them) and `compact` (the table added after a summary, from the full reads since the previous compaction in the history; the request and the dedupe table are emptied). Each step but `reply` and `compact` carries the `id` the session gives its result; `reply` answers \"\", and so does a `compact` with no reads. `limits` overrides loop.json's `cap` for the case. The answer is the text each step inserts: a read headed by path, lines, length and the first 8 hex digits of the content's SHA-256, a stub for an unchanged re-read inside an earlier full read, a diff for an edit, a capped output with its elided line, a stub for a repeated listing or search with the same result. LLeMbas: services/context.py; CLI: session/results.ts.",
   "cases": [
     {
       "steps": [
@@ -397,6 +397,83 @@
       "expect": [
         "[#5001]\nxxxxxxxxxxxxxxxxxxxx […cut]\n[0 lines elided, full output #5001]",
         "[#5002]\nfirst line\n[1 lines elided, full output #5002]\nlast"
+      ]
+    },
+    {
+      "steps": [
+        {
+          "op": "read",
+          "id": "#6001",
+          "path": "a.md",
+          "content": "alpha\n"
+        },
+        {
+          "op": "output",
+          "id": "#6002",
+          "tool": "glob",
+          "args": {
+            "pattern": "*.md"
+          },
+          "text": "a.md"
+        },
+        {
+          "op": "reply"
+        },
+        {
+          "op": "read",
+          "id": "#6003",
+          "path": "a.md",
+          "content": "alpha\n"
+        },
+        {
+          "op": "output",
+          "id": "#6004",
+          "tool": "glob",
+          "args": {
+            "pattern": "*.md"
+          },
+          "text": "a.md"
+        },
+        {
+          "op": "read",
+          "id": "#6005",
+          "path": "a.md",
+          "content": "alpha\n"
+        },
+        {
+          "op": "read",
+          "id": "#6006",
+          "path": "b.md",
+          "content": "beta\n"
+        },
+        {
+          "op": "compact"
+        },
+        {
+          "op": "read",
+          "id": "#6007",
+          "path": "c.md",
+          "content": "gamma\n"
+        },
+        {
+          "op": "reply"
+        },
+        {
+          "op": "compact"
+        }
+      ],
+      "expect": [
+        "[#6001 a.md lines 1-1 of 1 sha b6a98d9c]\n1: alpha",
+        "[#6002]\na.md",
+        "",
+        "[#6003 a.md lines 1-1 of 1 sha b6a98d9c]\n1: alpha",
+        "[#6004]\na.md",
+        "[#6005 a.md lines 1-1 of 1 sha b6a98d9c] Unchanged since #6003, which already shows lines 1-1.",
+        "[#6006 b.md lines 1-1 of 1 sha f2c82dec]\n1: beta",
+        "## Files read before this summary\n\nRead a file again for its content; recall shows a result by its id.\n\n| Path | Lines | sha | Result |\n|---|---|---|---|\n| a.md | 1-1 of 1 | b6a98d9c | #6003 |\n| b.md | 1-1 of 1 | f2c82dec | #6006 |",
+        "[#6007 c.md lines 1-1 of 1 sha ae9a6306]\n1: gamma",
+        "",
+        "## Files read before this summary\n\nRead a file again for its content; recall shows a result by its id.\n\n| Path | Lines | sha | Result |\n|---|---|---|---|\n| c.md | 1-1 of 1 | ae9a6306 | #6007 |"
       ]
     }
   ]

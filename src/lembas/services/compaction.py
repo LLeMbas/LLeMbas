@@ -86,21 +86,32 @@ def apply(chat: Chat, *, summary: str, upto: Message, db: DBSession | None = Non
     """Record a summary and move the boundary. Caller commits.
 
     With `db`, the summary is followed by the table of what was read in the
-    turns it covers (harness spec 3.0.0, `context.md` 7): the newest full read
-    of each path since the last compaction, with its result id, so the model
-    knows what it had read and that `recall` still shows it. Added by the
-    harness, not the summariser. The spec builds it from the reads still in
-    front of the model; a chat compacts between replies, when none is (a
-    reply's tool results are not sent again), so it is drawn from the reads
-    made since the previous compaction instead. The dedupe table it empties is
-    already empty for the same reason: a stub only ever names a result in the
-    request being built (`services/context.py`).
+    turns it covers (harness spec 3.0.0, `context.md` 7): of the full reads
+    made since the previous compaction in turns still part of the history
+    being summarised, the newest of each file (by its absolute path), newest
+    last, at most `compaction.rows`, with its result id -- so the model knows
+    what it had read and that `recall` still shows it. Added by the harness,
+    not the summariser. A chat does not send an earlier reply's results again,
+    so they are drawn from what it stored for those turns: a read belongs to
+    the reply it was made in (`tool_results.message_id`), and a reply taken
+    back -- deleted, rewound away, or regenerated (whose earlier attempt's
+    results are detached) -- takes its reads with it. The dedupe table it
+    empties is already empty for the same reason: a stub only ever names a
+    result in the request being built (`services/context.py`).
     """
     text = summary.strip()
     if db is not None:
         from lembas.services import context as context_service
 
-        reads = context_service.reads_since(db, chat.id, chat.compacted_at)
+        previous = cutoff_message(db, chat)
+        turns = select(Message.id).where(
+            Message.chat_id == chat.id, Message.created_at <= upto.created_at
+        )
+        if previous is not None:
+            turns = turns.where(Message.created_at > previous.created_at)
+        reads = context_service.reads_since(
+            db, chat.id, chat.compacted_at, message_ids=set(db.scalars(turns))
+        )
         table = context_service.ResultContext(context_service.MemoryStore()).compaction_table(
             reads
         )

@@ -43,7 +43,7 @@
             },
             "name": {
               "type": "string",
-              "description": "The skill (lowercase letters, digits, - _ .; up to 64)"
+              "description": "The skill (lowercase letters, digits and -, starting with a letter or digit; up to 64)"
             },
             "description": {
               "description": "create: when to use the skill, one sentence, the trigger first: \"Use when …\"",
