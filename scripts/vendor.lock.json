@@ -4,6 +4,81 @@
     "url": "https://unpkg.com/alpinejs@3.15.12/dist/cdn.min.js",
     "version": "3.15.12"
   },
+  "cm-autocomplete.mjs": {
+    "sha256": "26fe431a5f54e29952e094c93151f11473a80677bfb339711ecca08195a89df4",
+    "url": "https://esm.sh/@codemirror/autocomplete@6.20.4/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/autocomplete.bundle.mjs",
+    "version": "6.20.4"
+  },
+  "cm-codemirror.mjs": {
+    "sha256": "dea86a106e13c9316dfedfd29209780b853bdb2b477edf3f7c90f497b592a223",
+    "url": "https://esm.sh/codemirror@6.0.2/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/codemirror.bundle.mjs",
+    "version": "6.0.2"
+  },
+  "cm-commands.mjs": {
+    "sha256": "e1868cd8ddb1cbcab5f8acedfaf1ab173d895c0b684b58af573e5991a0ab7dc3",
+    "url": "https://esm.sh/@codemirror/commands@6.11.1/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/commands.bundle.mjs",
+    "version": "6.11.1"
+  },
+  "cm-lang-css.mjs": {
+    "sha256": "2034378ea0d0ce561805bfae0c6b270e945302eedf2717410a750b59d26098fe",
+    "url": "https://esm.sh/@codemirror/lang-css@6.3.1/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/lang-css.bundle.mjs",
+    "version": "6.3.1"
+  },
+  "cm-lang-html.mjs": {
+    "sha256": "c431ac565b0b38e77b4900f8e0786a48ad4c74fe3afb1a81253de358ba06ac18",
+    "url": "https://esm.sh/@codemirror/lang-html@6.4.12/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/lang-html.bundle.mjs",
+    "version": "6.4.12"
+  },
+  "cm-lang-javascript.mjs": {
+    "sha256": "97256d9ab7131a42529bb411fc5271837a215efddd63d4a0a6ddd6bd00d0820e",
+    "url": "https://esm.sh/@codemirror/lang-javascript@6.2.5/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/lang-javascript.bundle.mjs",
+    "version": "6.2.5"
+  },
+  "cm-lang-json.mjs": {
+    "sha256": "b58f106e7c0e3d013e0f4a0bde86c4e39b9644576c4244e769271768c6c0af4f",
+    "url": "https://esm.sh/@codemirror/lang-json@6.0.2/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/lang-json.bundle.mjs",
+    "version": "6.0.2"
+  },
+  "cm-lang-markdown.mjs": {
+    "sha256": "5b77c954b306115cfda133d7d2535e45e90abcae0e8c4a9dec08fd4f83e16a65",
+    "url": "https://esm.sh/@codemirror/lang-markdown@6.5.2/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/lang-markdown.bundle.mjs",
+    "version": "6.5.2"
+  },
+  "cm-lang-python.mjs": {
+    "sha256": "8a9ed958f993dbf2c9cb52200383f7894096ef4b400726fc14ce9737077d1f75",
+    "url": "https://esm.sh/@codemirror/lang-python@6.2.1/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/lang-python.bundle.mjs",
+    "version": "6.2.1"
+  },
+  "cm-language.mjs": {
+    "sha256": "1400a75c21ad190b1fd2050f9d8cfdc948d8d2e4a9467b70ed3953b70498ef5d",
+    "url": "https://esm.sh/@codemirror/language@6.13.1/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/language.bundle.mjs",
+    "version": "6.13.1"
+  },
+  "cm-lint.mjs": {
+    "sha256": "88f8d9f4ff305d3a32b6ca44ca78e901c24495b3def2fbb8dc1b351d746f962c",
+    "url": "https://esm.sh/@codemirror/lint@6.9.7/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/lint.bundle.mjs",
+    "version": "6.9.7"
+  },
+  "cm-search.mjs": {
+    "sha256": "75a5bd0a92b1cda20ca075ae8ce3b42dcaa4847c7f7de3f7ef3e9ec6064157c1",
+    "url": "https://esm.sh/@codemirror/search@6.7.2/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/search.bundle.mjs",
+    "version": "6.7.2"
+  },
+  "cm-state.mjs": {
+    "sha256": "9db7c46f6be425dbea814af001692939d694b571b3d8df683b87abb635132d4c",
+    "url": "https://esm.sh/@codemirror/state@6.7.6/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/state.bundle.mjs",
+    "version": "6.7.6"
+  },
+  "cm-view.mjs": {
+    "sha256": "ae7c45442292a6cb1bff0c82b0493924489911ff4f239eb2067293180c0f1d5e",
+    "url": "https://esm.sh/@codemirror/view@6.43.15/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/view.bundle.mjs",
+    "version": "6.43.15"
+  },
+  "highlight.min.js": {
+    "sha256": "8ab71eb09c51f501e5e25157d9cff100e46cc29bcbfc744d0b746d451fca7f53",
+    "url": "https://unpkg.com/@highlightjs/cdn-assets@11.12.0/highlight.min.js",
+    "version": "11.12.0"
+  },
   "htmx-ext-sse.js": {
     "sha256": "3b5992a541619babefc4c169505af474df5c3039da51e59b96ccf9241ecd61d2",
     "url": "https://unpkg.com/htmx-ext-sse@2.2.4/sse.js",
@@ -28,6 +103,21 @@
     "sha256": "18be452724bfdc236c074ca94a249a7f41a86752c7d04ab258ce9ed5651f6a7e",
     "url": "https://unpkg.com/@fontsource-variable/jetbrains-mono@5.3.0/files/jetbrains-mono-latin-wght-normal.woff2",
     "version": "5.3.0"
+  },
+  "lezer-common.mjs": {
+    "sha256": "b63d03ca460cc7a6ce09cbf0de24943fec22bcbe2359dc35978a57b875b2450f",
+    "url": "https://esm.sh/@lezer/common@1.5.4/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/common.bundle.mjs",
+    "version": "1.5.4"
+  },
+  "lezer-highlight.mjs": {
+    "sha256": "b74148d673103ae08330a045a464acddf4ee8b563b213ea26e50f2be01a6d19d",
+    "url": "https://esm.sh/@lezer/highlight@1.2.5/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/highlight.bundle.mjs",
+    "version": "1.2.5"
+  },
+  "lezer-lr.mjs": {
+    "sha256": "4c2dcc61b5c3aedb091dfd60ce8abaeb94704b58fa9036547b0b8d2c75f701e4",
+    "url": "https://esm.sh/@lezer/lr@1.4.11/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/lr.bundle.mjs",
+    "version": "1.4.11"
   },
   "xterm-addon-fit.js": {
     "sha256": "bdaefa370b1bfc42ee88d46fe6072400902a4d4b2d45cd93438dda9b23c97089",

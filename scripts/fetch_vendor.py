@@ -78,6 +78,106 @@ PACKAGES = {
         "url": "https://unpkg.com/@fontsource-variable/jetbrains-mono@5.3.0/LICENSE",
         "why": "The SIL Open Font License, which has to travel with the font files.",
     },
+    # The file editor (CodeMirror 6). There is no single pre-bundled build of
+    # CodeMirror 6 with languages, so each package is esm.sh's own bundle of it
+    # with every package the others share left as a bare import ("external"),
+    # resolved by the import map in files/edit.html -- one copy of
+    # @codemirror/state for all of them, which CodeMirror requires. The long
+    # path segment is esm.sh's encoding of that external list; the URL is
+    # fixed and the bytes are pinned like everything else here. Loaded only on
+    # the editor page.
+    "cm-state.mjs": {
+        "version": "6.7.6",
+        "url": "https://esm.sh/@codemirror/state@6.7.6/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/state.bundle.mjs",
+        "why": "CodeMirror: the editor's state (one shared copy for every module below).",
+    },
+    "cm-view.mjs": {
+        "version": "6.43.15",
+        "url": "https://esm.sh/@codemirror/view@6.43.15/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/view.bundle.mjs",
+        "why": "CodeMirror: the editor's DOM view.",
+    },
+    "cm-language.mjs": {
+        "version": "6.13.1",
+        "url": "https://esm.sh/@codemirror/language@6.13.1/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/language.bundle.mjs",
+        "why": "CodeMirror: syntax trees and highlighting.",
+    },
+    "cm-commands.mjs": {
+        "version": "6.11.1",
+        "url": "https://esm.sh/@codemirror/commands@6.11.1/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/commands.bundle.mjs",
+        "why": "CodeMirror: key bindings and editing commands.",
+    },
+    "cm-search.mjs": {
+        "version": "6.7.2",
+        "url": "https://esm.sh/@codemirror/search@6.7.2/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/search.bundle.mjs",
+        "why": "CodeMirror: find and replace.",
+    },
+    "cm-autocomplete.mjs": {
+        "version": "6.20.4",
+        "url": "https://esm.sh/@codemirror/autocomplete@6.20.4/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/autocomplete.bundle.mjs",
+        "why": "CodeMirror: completion, bracket closing.",
+    },
+    "cm-lint.mjs": {
+        "version": "6.9.7",
+        "url": "https://esm.sh/@codemirror/lint@6.9.7/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/lint.bundle.mjs",
+        "why": "CodeMirror: diagnostics (needed by basicSetup).",
+    },
+    "lezer-common.mjs": {
+        "version": "1.5.4",
+        "url": "https://esm.sh/@lezer/common@1.5.4/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/common.bundle.mjs",
+        "why": "Lezer: the parse tree the language modules share.",
+    },
+    "lezer-highlight.mjs": {
+        "version": "1.2.5",
+        "url": "https://esm.sh/@lezer/highlight@1.2.5/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/highlight.bundle.mjs",
+        "why": "Lezer: highlight tags.",
+    },
+    "lezer-lr.mjs": {
+        "version": "1.4.11",
+        "url": "https://esm.sh/@lezer/lr@1.4.11/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/lr.bundle.mjs",
+        "why": "Lezer: the LR parser the grammars run on.",
+    },
+    "cm-codemirror.mjs": {
+        "version": "6.0.2",
+        "url": "https://esm.sh/codemirror@6.0.2/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/codemirror.bundle.mjs",
+        "why": "CodeMirror: basicSetup.",
+    },
+    "cm-lang-markdown.mjs": {
+        "version": "6.5.2",
+        "url": "https://esm.sh/@codemirror/lang-markdown@6.5.2/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/lang-markdown.bundle.mjs",
+        "why": "CodeMirror: Markdown.",
+    },
+    "cm-lang-python.mjs": {
+        "version": "6.2.1",
+        "url": "https://esm.sh/@codemirror/lang-python@6.2.1/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/lang-python.bundle.mjs",
+        "why": "CodeMirror: Python.",
+    },
+    "cm-lang-javascript.mjs": {
+        "version": "6.2.5",
+        "url": "https://esm.sh/@codemirror/lang-javascript@6.2.5/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/lang-javascript.bundle.mjs",
+        "why": "CodeMirror: JavaScript and TypeScript.",
+    },
+    "cm-lang-html.mjs": {
+        "version": "6.4.12",
+        "url": "https://esm.sh/@codemirror/lang-html@6.4.12/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/lang-html.bundle.mjs",
+        "why": "CodeMirror: HTML.",
+    },
+    "cm-lang-css.mjs": {
+        "version": "6.3.1",
+        "url": "https://esm.sh/@codemirror/lang-css@6.3.1/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/lang-css.bundle.mjs",
+        "why": "CodeMirror: CSS.",
+    },
+    "cm-lang-json.mjs": {
+        "version": "6.0.2",
+        "url": "https://esm.sh/@codemirror/lang-json@6.0.2/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/lang-json.bundle.mjs",
+        "why": "CodeMirror: JSON.",
+    },
+    # Highlighted code in the file viewer. The browser build with the common
+    # languages; its colours come from tokens.css (files.css), not a theme file.
+    "highlight.min.js": {
+        "version": "11.12.0",
+        "url": "https://unpkg.com/@highlightjs/cdn-assets@11.12.0/highlight.min.js",
+        "why": "Highlighted code in the file viewer and the show card.",
+    },
 }
 
 
