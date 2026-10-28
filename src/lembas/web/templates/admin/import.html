@@ -19,7 +19,7 @@
   {% elif problem %}
   <div class="alert alert--error" role="alert">{{ icon("warning", "alert__icon") }} <span>{{ problem }}</span></div>
   {% else %}
-  <p class="card__lede">{{ tm("Notes, reports, skills and knowledge from <code>lembas.db.old</code> become files under <code>/Imported/</code>, owned by the person you choose. The old file is only read. Running it again skips what is already there.") }}</p>
+  <p class="card__lede">{{ tm("Notes, reports, skills and knowledge from <code>lembas.db.old</code> become files in the home folder of the person you choose, under <code>Imported/</code>, private to them. The old file is only read. Running it again skips what is already there.") }}</p>
   {% if survey %}
   <ul class="model-list" data-testid="import-survey">
     {% for account in survey.accounts %}

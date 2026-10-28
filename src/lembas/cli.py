@@ -118,7 +118,7 @@ def import_old(
         False, help="Also each 1.x account's memories, into the 2.0 account of the same email."
     ),
 ) -> None:
-    """The 1.x library from lembas.db.old into files under /Imported/."""
+    """The 1.x library from lembas.db.old into files under the owner's ~/Imported/."""
     from lembas.db.models import User
     from lembas.db.session import init_db, session_scope
     from lembas.services import import_old as service

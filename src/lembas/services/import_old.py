@@ -1,4 +1,4 @@
-"""Bringing a 1.x library across: `lembas.db.old` into files under `/Imported/`.
+"""Bringing a 1.x library across: `lembas.db.old` into files under `~/Imported/`.
 
 2.0 starts on a new database; the update renames the 1.x one to
 `lembas.db.old` and carries nothing over (`db/session.py:set_aside_1x`). This
@@ -6,8 +6,9 @@ is the way across for what people kept in the 1.x library, and it is an
 administrator's action -- Admin → Import, or `lembas-server import old` -- never
 something the update runs.
 
-**What it writes.** Plain files in the chosen person's organisation, owned by
-that person, under `/Imported/`:
+**What it writes.** Plain files in the chosen person's home, owned by that
+person, under `/home/<person>/Imported/` -- private to them, like everything
+else in a home, until they share or move it:
 
 - `Notes/<title>.md` -- one per note, the title as its heading;
 - `Reports/<title>.md` -- one per report, its summary under the heading;
@@ -18,7 +19,7 @@ that person, under `/Imported/`:
   index reads them from scratch; no chunk or embedding comes across.
 
 When the content of more than one 1.x account is brought across, each gets its
-own directory, `/Imported/<name>/Notes/` and so on, so whose was whose stays
+own directory, `~/Imported/<name>/Notes/` and so on, so whose was whose stays
 visible. Imported skills are files, not live skills: a skill counts where a
 chat looks for skills (`/skills/`, `~/skills/`), and moving one there is the
 person's decision.
@@ -63,7 +64,7 @@ from lembas.web.i18n import N_
 
 log = logging.getLogger(__name__)
 
-ROOT = "/Imported"
+ROOT = "Imported"  # under the owner's home: /home/<person>/Imported
 MAX_NAME = 120
 CHUNK = 1024 * 1024
 
@@ -280,7 +281,7 @@ def run(
     from_email: str = "",
     memories: bool = False,
 ) -> Report:
-    """Import the old library into `owner`'s organisation, owned by `owner`.
+    """Import the old library into `owner`'s home (`~/Imported/`), owned by `owner`.
 
     `from_email` limits it to one 1.x account; empty takes every account's.
     Raises `Refused` when it cannot start; anything after that is in the report.
@@ -304,7 +305,8 @@ def run(
         documents = [r for r in _rows(old, "documents") if r.get("owner_id") in users]
 
         contributing = {r["owner_id"] for r in (*notes, *reports, *skills, *documents)}
-        root = fs.ensure_dir(db, owner.org_id, ROOT, owner=owner).path
+        home = fs.ensure_home(db, owner)
+        root = fs.ensure_dir(db, owner.org_id, f"{home.path}/{ROOT}", owner=owner).path
         writer = _Writer(db, owner, report)
         if not at_least(writer.view.level(root), LEVEL_STAGE):
             raise Refused(N_("%(path)s belongs to someone else; the import cannot write there."),

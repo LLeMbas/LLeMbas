@@ -1,4 +1,4 @@
-"""The 1.x library from `lembas.db.old` into files under `/Imported/`.
+"""The 1.x library from `lembas.db.old` into files under `/home/<person>/Imported/`.
 
 The old database is built from the 1.7.3 shape of the tables the import reads
 (`fixtures/old_1x/schema.sql`, dumped from a fresh 1.7.3 database), with rows
@@ -79,6 +79,10 @@ def _old(path: Path, *, wal: bool = False) -> None:
     con.close()
 
 
+# frodo@shire.test's home is /home/frodo; an import lands in it, privately.
+IMPORTED = "/home/frodo/Imported"
+
+
 @pytest.fixture
 def frodo(db):
     org = organisations.default(db)
@@ -104,25 +108,26 @@ def test_one_account_lands_under_imported(db, frodo):
     _old_path()
     report = import_old.run(db, frodo, from_email="frodo@shire.test")
     taken = {e.name for e in report.taken}
-    assert "/Imported/Notes/Ring lore.md" in taken
-    assert "/Imported/Notes/Ring lore (2).md" in taken
-    assert _read(db, frodo, "/Imported/Notes/Ring lore.md").startswith("# Ring / lore\n")
-    assert "*All quiet.*" in _read(db, frodo, "/Imported/Reports/Weekly.md")
+    assert f"{IMPORTED}/Notes/Ring lore.md" in taken
+    assert f"{IMPORTED}/Notes/Ring lore (2).md" in taken
+    assert _read(db, frodo, f"{IMPORTED}/Notes/Ring lore.md").startswith("# Ring / lore\n")
+    assert "*All quiet.*" in _read(db, frodo, f"{IMPORTED}/Reports/Weekly.md")
     # The original upload, byte for byte; the text where the file is gone.
-    assert fs.read(fs.view(db, frodo), "/Imported/Knowledge/Maps/map.pdf") == b"%PDF-1.4 the map"
-    assert "What was in it." in _read(db, frodo, "/Imported/Knowledge/Maps/Gone file.md")
-    assert "<https://example.test/a>" in _read(db, frodo, "/Imported/Knowledge/Link.md")
-    skill = _read(db, frodo, "/Imported/Skills/pipe-weed/SKILL.md")
+    assert fs.read(fs.view(db, frodo), f"{IMPORTED}/Knowledge/Maps/map.pdf") == b"%PDF-1.4 the map"
+    assert "What was in it." in _read(db, frodo, f"{IMPORTED}/Knowledge/Maps/Gone file.md")
+    assert "<https://example.test/a>" in _read(db, frodo, f"{IMPORTED}/Knowledge/Link.md")
+    skill = _read(db, frodo, f"{IMPORTED}/Skills/pipe-weed/SKILL.md")
     assert skill.startswith("---\nname: pipe-weed\n") and "Second version." in skill
-    node = fs.lookup(db, frodo.org_id, "/Imported/Skills/pipe-weed/SKILL.md")
+    node = fs.lookup(db, frodo.org_id, f"{IMPORTED}/Skills/pipe-weed/SKILL.md")
     versions = db.scalars(select(NodeVersion).where(NodeVersion.node_id == node.id)).all()
     assert len(versions) == 2  # the revision, then now
-    # The owner owns it.
-    assert fs.lookup(db, frodo.org_id, "/Imported").owner_id == frodo.id
+    # The owner owns it, in their home -- private, not at the organisation's root.
+    assert fs.lookup(db, frodo.org_id, f"{IMPORTED}").owner_id == frodo.id
+    assert fs.lookup(db, frodo.org_id, "/Imported") is None
     skipped = {(e.kind, e.name): e.why_english() for e in report.skipped}
     assert skipped[("report", "Broken")] == "it failed in 1.x"
     assert ("document", "Empty") in skipped
-    assert "/Imported/Skills/bad-name/SKILL.md" in taken  # a 1.x name made a skill's
+    assert f"{IMPORTED}/Skills/bad-name/SKILL.md" in taken  # a 1.x name made a skill's
     assert any("memories were left" in n.why_english() for n in report.notes)
     # Not imported without asking.
     assert db.scalar(select(Memory).where(Memory.owner_id == frodo.id)) is None
@@ -140,8 +145,8 @@ def test_running_it_again_duplicates_nothing(db, frodo):
 def test_two_accounts_get_a_directory_each(db, frodo):
     _old_path()
     import_old.run(db, frodo)
-    assert fs.lookup(db, frodo.org_id, "/Imported/frodo/Notes/Ring lore.md") is not None
-    assert fs.lookup(db, frodo.org_id, "/Imported/sam/Notes/Sam's.md") is not None
+    assert fs.lookup(db, frodo.org_id, f"{IMPORTED}/frodo/Notes/Ring lore.md") is not None
+    assert fs.lookup(db, frodo.org_id, f"{IMPORTED}/sam/Notes/Sam's.md") is not None
 
 
 def test_memories_only_when_asked_and_only_to_the_same_email(db, frodo):
@@ -183,4 +188,4 @@ def test_the_admin_page_imports(client, db, registered):
     me = db.scalar(select(User).where(User.email == registered["email"]))
     response = client.post("/admin/import/old", data={"owner": me.id, "from_email": ""})
     assert response.status_code == 200
-    assert "/Imported/" in response.text
+    assert f"{IMPORTED}/" in response.text

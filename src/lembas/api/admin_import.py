@@ -3,8 +3,8 @@
 Two doors, one report page:
 
 - **From the 1.x database** (`lembas.db.old`, set aside by the update): the
-  library -- notes, reports, skills, knowledge -- as files under `/Imported/`
-  of the person chosen, in that person's organisation (`services/import_old.py`).
+  library -- notes, reports, skills, knowledge -- as files under `~/Imported/`
+  (`/home/<person>/Imported/`) of the person chosen (`services/import_old.py`).
 - **From an administrator's export file** (1.7's *Export the configuration*):
   connections, models, data groups and the service settings
   (`services/import_admin.py`).

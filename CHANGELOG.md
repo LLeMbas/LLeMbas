@@ -148,7 +148,8 @@ release yet.
   `lembas.db.old` already exists and the database is still 1.x, the server refuses to start and
   says why, rather than overwrite either.
 - **Import from 1.x** (Administration → Import, or `lembas-server import old`). The library in
-  `lembas.db.old` comes across as files under `/Imported/`, owned by the person chosen: a Markdown
+  `lembas.db.old` comes across as files in the chosen person's home, under
+  `/home/<person>/Imported/` — private to them until they share or move them: a Markdown
   file per note and per report, `Skills/<name>/SKILL.md` per skill (its 1.x revisions become the
   file's earlier versions), and `Knowledge/<base>/` with each document's original upload when it
   is still in `uploads/`, its extracted text otherwise. The old file is only read (through a

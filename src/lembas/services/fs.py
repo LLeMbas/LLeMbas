@@ -722,7 +722,7 @@ def ensure_dir(db: DBSession, org_id: str, path: str, *, owner: User) -> Node:
     """A directory at `path` owned by `owner`, made (with any missing above it)
     when it is not there. Below access, for an administrator's action that puts
     something in a person's hands -- the import (`services/import_old.py`)
-    makes `/Imported` this way, and writes below it as that person."""
+    makes `~/Imported` this way, and writes below it as that person."""
     path = normalise(path)
     node = lookup(db, org_id, path)
     if node is not None:
