@@ -26,10 +26,8 @@ from lembas.services.tools.core import (
     FAMILY_PLAN,
     FAMILY_PYTHON,
     FAMILY_RECALL,
-    FAMILY_REPORT,
     FAMILY_REPORT_BACK,
     FAMILY_SCHEDULE,
-    FAMILY_SCRATCH,
     FAMILY_SEARCH,
     FAMILY_SUBAGENT,
     RISK_EXECUTE,
@@ -115,23 +113,11 @@ def _family_allowed(
         # tree is the access resolver's to say, path by path, not a switch's.
         # Whether a chat can have them at all is `_offered_in` below.
         return True
-    if gate in (
-        FAMILY_CUSTOM,
-        FAMILY_MCP,
-        FAMILY_ASK,
-        FAMILY_SCRATCH,
-        FAMILY_REPORT,
-    ):
+    if gate in (FAMILY_CUSTOM, FAMILY_MCP, FAMILY_ASK):
         # Deliberately without `library.use`: an HTTP endpoint an administrator
-        # wrote has nothing to do with this person's own documents and notes,
-        # and requiring the library permission for it would be a coincidence of
-        # naming rather than a rule. The same goes for being asked a question,
-        # for a pad that belongs to this chat and goes nowhere else, for what a
-        # model makes of itself and of the person in front of it, and for
-        # filing a report -- which is addressed to the reader rather than kept
-        # for the model, and is the fallback destination for scheduled work, so
-        # gating it behind the library would switch that off for anyone whose
-        # instance does not use one.
+        # wrote has nothing to do with this person's own memories and skills,
+        # and requiring that permission for it would be a coincidence of naming
+        # rather than a rule. The same goes for being asked a question.
         return bool(allowed.get(f"tools.{gate}"))
     return bool(allowed.get(f"tools.{gate}") and allowed.get("library.use"))
 
@@ -220,7 +206,7 @@ def _book(defs: list[ToolDef]) -> dict[str, ToolDef]:
     """Keyed by name, first claim winning.
 
     The built-ins are laid down first, so a row can never shadow one -- a tool
-    called `notes_delete` that turns out to be somebody's HTTP endpoint is the
+    called `write` that turns out to be somebody's HTTP endpoint is the
     kind of surprise that has no good failure mode.
     """
     book = dict(REGISTRY)
@@ -319,8 +305,8 @@ def resolve_tools(
     # What this chat has switched off, applied AFTER the gates and never
     # instead of them. A chat can only ever *narrow* what the model's
     # capabilities, the reader's permissions and the instance configuration
-    # already allow -- exactly as `chat.knowledge_bases` narrows
-    # `knowledge_search` and can never widen it. A crafted request that turned
+    # already allow -- exactly as a chat's grants narrow what its file tools
+    # reach and can never widen it. A crafted request that turned
     # something on here would still be reaching for a tool the gates had
     # already removed.
     off = scoped_off(chat)
@@ -542,15 +528,11 @@ GATE_LABELS = {
     "recall": N_("Recalling earlier results"),
     "web_search": N_("Web search"),
     "fetch": N_("Fetching pages"),
-    "knowledge": N_("Your knowledge library"),
-    "notes": N_("Notes"),
     "memory": N_("Memory"),
     "skills": N_("Skills"),
     "ask": N_("Asking you questions"),
     "plan": N_("Keeping a plan"),
-    "scratch": N_("Writing in the canvas"),
     "image": N_("Generating images"),
-    "report": N_("Filing reports"),
     "schedule": N_("Scheduling work"),
     "subagent": N_("Sending helpers"),
     "agent": N_("Running commands"),

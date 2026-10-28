@@ -58,11 +58,10 @@ applied by `resolve_tools` after every gate:
   call from one that arrived by any other path.
 - **No writing, unless the task said so.** The `explore` agent (the default)
   sets `scope_json["write"] = False`, which drops every tool whose declared risk
-  is `RISK_WRITE` -- notes, memories, reports, skills, the canvas, file writes,
-  schedules, images. The `general` agent keeps them, and is refused outright in
-  a chat whose own mode would have stopped to ask before writing, because a
-  subagent that writes where its parent had to ask is the mode being laundered
-  through a tool call.
+  is `RISK_WRITE` -- memories, skills, file writes, schedules, images. The
+  `general` agent keeps them, and is refused outright in a chat whose own mode
+  would have stopped to ask before writing, because a subagent that writes
+  where its parent had to ask is the mode being laundered through a tool call.
 - **Commands from a fixed list only, in every mode including Auto.** The child
   runs in Plan or Edit mode, both of which resolve `RISK_EXECUTE` to ASK, and
   ASK in an unattended chat is a refusal. What runs is what matches
@@ -220,7 +219,7 @@ def _child_scope(parent: Chat, *, write: bool, agent: str) -> dict[str, Any]:
     `families` names the withdrawal that is absolute (asking); `write` is the
     risk-class narrowing; `allow` is the command list; `agent` is which kind of
     helper this is, for its prompt. Everything else the parent had, the child
-    has -- searching, fetching, reading the library -- because a helper that
+    has -- searching, fetching, reading files -- because a helper that
     cannot look things up is a slower way of asking the same model the same
     question.
 
@@ -275,10 +274,22 @@ def _create_child(
     effort = chat_service.resolved_effort(parent)
     if effort:
         child.params_json = {"reasoning_effort": effort}
-    # The bases the parent is scoped to, or the helper searches everything its
-    # owner can see and answers from documents the parent was not looking at.
-    child.knowledge_bases = list(parent.knowledge_bases)
+    # The parent's view of the file tree, whole: its boundary, where it
+    # starts, and its own grants when it has them. Without them the helper's
+    # file tools would reach whatever the data group's preset gives -- more
+    # than a chat narrowed by hand -- which is delegating past the narrowing.
+    child.boundary = parent.boundary or "/"
+    child.start_dir = parent.start_dir or ""
+    child.grants_customised = bool(parent.grants_customised)
     db.add(child)
+    db.flush()
+    if parent.grants_customised:
+        from sqlalchemy import select
+
+        from lembas.db.models import SessionGrant
+
+        for grant in db.scalars(select(SessionGrant).where(SessionGrant.chat_id == parent.id)):
+            db.add(SessionGrant(chat_id=child.id, path=grant.path, level=grant.level))
     db.commit()
     return child
 

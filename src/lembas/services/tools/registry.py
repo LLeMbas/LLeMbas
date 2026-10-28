@@ -9,13 +9,9 @@ from lembas.services import plans
 from lembas.services.tools import (
     ask,
     files,
-    knowledge,
     memory,
-    notes,
     plan,
     recall,
-    reports,
-    scratch,
     skills,
     web,
 )
@@ -29,11 +25,7 @@ REGISTRY: dict[str, ToolDef] = {
         *files.TOOLS,
         *recall.TOOLS,
         *web.TOOLS,
-        *knowledge.TOOLS,
-        *notes.TOOLS,
-        *scratch.TOOLS,
         *memory.TOOLS,
-        *reports.TOOLS,
         *skills.TOOLS,
         *ask.TOOLS,
         *plan.TOOLS,
@@ -79,10 +71,6 @@ def resolve_alias(
         if name == "memory_add":
             return target, {"target": "user", "action": "add", "content": content}
         return target, {"target": "user", "action": "remove", "old_text": content}
-    if name in ("notes_create", "notes_edit", "notes_delete"):
-        action = name.split("_", 1)[1]
-        kept = {k: v for k, v in args.items() if k in ("id", "title", "body")}
-        return target, {"action": action, **kept}
     if name == "skill_create":
         return target, {
             "operations": [

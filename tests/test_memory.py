@@ -19,8 +19,8 @@ from sqlalchemy import func, select
 
 from lembas.db.models import Memory, User
 from lembas.security.passwords import hash_password
+from lembas.services import memories as memories_service
 from lembas.services import tools as tools_service
-from lembas.services.library import memories as memories_service
 
 
 @pytest.fixture

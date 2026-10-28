@@ -133,15 +133,6 @@
       }
     },
     {
-      name: "canvas",
-      summary: t("Show or hide the canvas"),
-      /* Gated, like the other two panels. An ungated command on a page with no
-         panel does not merely fail -- it stops being a command, and the message
-         is sent as written. */
-      when: function () { return !!el("#canvas"); },
-      run: function () { toggle("#canvas", "side"); }
-    },
-    {
       name: "terminal",
       summary: t("Show or hide the terminal"),
       when: function () { return !!el("#terminal"); },
@@ -247,11 +238,7 @@
         else note(t("Nothing is being written."));
       }
     },
-    { name: "knowledge", summary: t("Your library"), run: go("/library/knowledge") },
-    { name: "notes", summary: t("Notes the model has written"), run: go("/library/notes") },
-    { name: "skills", summary: t("Saved procedures"), run: go("/library/skills") },
     { name: "devices", summary: t("Your devices: the LLeMbas CLI signed in as you"), run: go("/settings?tab=devices") },
-    { name: "reports", summary: t("Reports filed for you"), run: go("/library/reports") },
     { name: "scheduled", summary: t("Your scheduled tasks"), run: go("/settings?tab=scheduled") }
   ];
 
@@ -698,13 +685,6 @@
       return;
     }
 
-    /* E for editor, not C: Ctrl/Cmd+C is too near for comfort, and Alt+D is
-       the address bar in two browsers -- a shortcut the browser wins looks
-       broken. */
-    if (event.code === "KeyE" && el("#canvas")) {
-      event.preventDefault();
-      return toggle("#canvas", "side");
-    }
     if (event.code === "KeyT" && el("#terminal")) {
       event.preventDefault();
       return toggle("#terminal", "side");

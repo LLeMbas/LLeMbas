@@ -80,7 +80,7 @@ def test_forms_that_answer_with_another_page_leave_the_frame(client: TestClient,
     html = client.get("/settings?embed=1").text
     assert re.search(r'<form method="post" action="/auth/logout" target="_top">', html)
     for form in re.findall(r"<form[^>]*>", html):
-        if 'action="/api/preferences' in form or 'action="/api/library/memories' in form:
+        if 'action="/api/preferences' in form or 'action="/api/memories' in form:
             assert "target=" not in form
 
 
@@ -93,18 +93,6 @@ def test_the_sidebar_footer_has_no_devices_link(client: TestClient, db, register
     assert ">Devices<" not in footer
     # The reader's own entry is still there, and is a plain link to /settings.
     assert 'href="/settings"' in footer
-
-
-def test_the_library_tab_bar_has_no_memory_link(client: TestClient, registered):
-    html = client.get("/library/knowledge").text
-    start = html.index('class="tabs__bar"')
-    bar = html[start : html.index("</nav>", start)]
-    assert "/settings?tab=memory" not in bar
-    assert ">Memory<" not in bar.replace(" ", "")
-    assert 'class="spacer"' not in bar
-    assert 'href="/library/knowledge"' in bar
-    # Memory itself is still a tab of Settings.
-    assert 'id="tab-memory"' in client.get("/settings?tab=memory").text
 
 
 def test_the_library_bar_starts_at_its_column():

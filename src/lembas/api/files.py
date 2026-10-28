@@ -19,14 +19,10 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select
 
 from lembas.api.deps import Db, RequiredUser, require_permission
-from lembas.db.models import Attachment, Chat, Document, KnowledgeBase, Note
-from lembas.security import permissions
+from lembas.db.models import Attachment, Chat
 from lembas.services import data_groups, settings_store
 from lembas.services import files as files_service
 from lembas.services.fetch import FetchError, fetch
-from lembas.services.library import documents as documents_service
-from lembas.services.library import notes as notes_service
-from lembas.services.library import skills as skills_service
 from lembas.web.i18n import t
 from lembas.web.templating import templates
 
@@ -117,38 +113,6 @@ async def attach_link(
     )
 
 
-@router.post("/from-knowledge", dependencies=[Depends(require_permission("files.upload"))])
-async def attach_from_knowledge(
-    request: Request, db: Db, user: RequiredUser, document_id: str = Form(""),
-    chat_id: str = Form(""), model_id: str = Form(""),
-) -> Response:
-    """Attach a library document to the message being composed.
-
-    The document is **copied**, not referenced. History must not change under a
-    conversation because a document was later edited or deleted -- the same
-    reason a PDF's text is extracted once at upload rather than per request.
-    """
-    group = data_groups.for_composer(db, user, chat_id, model_id)
-    document = documents_service.get(db, document_id, user, group)
-    if document is None:
-        return templates.TemplateResponse(
-            request,
-            "chat/_attachment_error.html",
-            {
-                "request": request,
-                "filename": "document",
-                "error": t("That document is not available."),
-            },
-        )
-
-    attachment = files_service.copy_document(
-        db, user_id=user.id, chat_id=chat_id or None, document=document
-    )
-    return templates.TemplateResponse(
-        request, "chat/_attachment_chip.html", {"request": request, "attachment": attachment}
-    )
-
-
 def _chip(request: Request, attachment: Attachment) -> Response:
     return templates.TemplateResponse(
         request, "chat/_attachment_chip.html", {"request": request, "attachment": attachment}
@@ -160,111 +124,6 @@ def _not_available(request: Request, what: str) -> Response:
         request,
         "chat/_attachment_error.html",
         {"request": request, "filename": what, "error": f"That {what} is not available."},
-    )
-
-
-@router.post("/from-note", dependencies=[Depends(require_permission("files.upload"))])
-async def attach_from_note(
-    request: Request,
-    db: Db,
-    user: RequiredUser,
-    note_id: str = Form(""),
-    chat_id: str = Form(""),
-    model_id: str = Form(""),
-) -> Response:
-    """Attach a note the model wrote earlier.
-
-    A copy, like every other attach path: a note is edited far more often than a
-    document, and a transcript that changes underneath itself because somebody
-    tidied a note later is the thing all of this is arranged to prevent.
-    """
-    note = notes_service.get(
-        db, note_id, user, data_groups.for_composer(db, user, chat_id, model_id)
-    )
-    if note is None:
-        return _not_available(request, "note")
-
-    return _chip(
-        request,
-        files_service.store_text(
-            db,
-            user_id=user.id,
-            chat_id=chat_id or None,
-            filename=f"{note.title or 'note'}.txt",
-            text=note.body,
-            source_path=note.title or "",
-            source_label="Note",
-        ),
-    )
-
-
-@router.post("/from-scratch", dependencies=[Depends(require_permission("files.upload"))])
-async def attach_from_scratch(
-    request: Request, db: Db, user: RequiredUser, chat_id: str = Form("")
-) -> Response:
-    """Attach this chat's scratch document.
-
-    A copy, like every other attach path, and here the reason is at its
-    sharpest: the pad goes on being written after the message is sent, by the
-    person and by the model, and a transcript that changed underneath itself
-    every time either of them typed would be no record at all.
-    """
-    from lembas.services import scratch as scratch_service
-
-    chat = db.get(Chat, chat_id) if chat_id else None
-    if chat is None or chat.user_id != user.id:
-        return _not_available(request, "scratch document")
-
-    doc = scratch_service.get(db, chat)
-    if doc is None or not (doc.body or "").strip():
-        return _not_available(request, "scratch document")
-
-    return _chip(
-        request,
-        files_service.store_text(
-            db,
-            user_id=user.id,
-            chat_id=chat.id,
-            filename=f"{doc.title or 'scratch'}.md",
-            text=doc.body,
-            source_path=doc.title or "Scratch",
-            source_label="Scratch",
-        ),
-    )
-
-
-@router.post("/from-skill", dependencies=[Depends(require_permission("files.upload"))])
-async def attach_from_skill(
-    request: Request,
-    db: Db,
-    user: RequiredUser,
-    skill_id: str = Form(""),
-    chat_id: str = Form(""),
-    model_id: str = Form(""),
-) -> Response:
-    """Hand a skill over directly, rather than hoping the model fetches it.
-
-    The index of enabled skills is already in the harness and `skill_view` pulls
-    a body on demand -- but only if the model decides to. `@` is the reader
-    saying "use this one", which is a different act and deserves a way to say it.
-    """
-    skill = skills_service.get(
-        db, skill_id, user, data_groups.for_composer(db, user, chat_id, model_id)
-    )
-    if skill is None:
-        return _not_available(request, "skill")
-
-    return _chip(
-        request,
-        files_service.store_text(
-            db,
-            user_id=user.id,
-            chat_id=chat_id or None,
-            filename=f"{skill.name}.md",
-            text=skill.body,
-            source_path=skill.name,
-            source_label="Skill",
-        ),
     )
 
 
@@ -301,39 +160,6 @@ async def attach_from_attachment(
     )
 
 
-@router.get("/knowledge-picker", dependencies=[Depends(require_permission("files.upload"))])
-async def knowledge_picker(
-    request: Request,
-    db: Db,
-    user: RequiredUser,
-    q: str = "",
-    chat_id: str = "",
-    model_id: str = "",
-) -> Response:
-    """The list of documents shown by the composer's Knowledge option.
-
-    Only the composer's own data group: see `data_groups.for_composer`.
-    """
-    group = data_groups.for_composer(db, user, chat_id, model_id)
-    if q.strip():
-        found = documents_service.search(db, user, q, limit=20, group=group)
-    else:
-        found = list(
-            db.scalars(
-                documents_service.visible(db, user, group=group)
-                .order_by(Document.created_at.desc())
-                .limit(20)
-            )
-        )
-    return templates.TemplateResponse(
-        request,
-        "chat/_knowledge_picker.html",
-        # `user` is read by the template to mark documents shared by someone
-        # else; render() would inject it, but this is a fragment.
-        {"request": request, "documents": found, "q": q, "chat_id": chat_id, "user": user},
-    )
-
-
 @router.get("/mention-picker", dependencies=[Depends(require_permission("files.upload"))])
 async def mention_picker(
     request: Request,
@@ -343,63 +169,13 @@ async def mention_picker(
     chat_id: str = "",
     model_id: str = "",
 ) -> Response:
-    """What `@` offers from here: the library, this chat's attachments, a URL.
+    """What `@` offers from here: this chat's attachments, and a URL.
 
     A device chat's project files are not among them: the composer asks the
-    linked device for those beside this, and lists them first. This is a
-    keystroke-latency path and it must never wait on a machine.
-
-    Filtered server-side, like the knowledge picker beside it and for the same
-    reason: the library is searched with FTS rather than filtered in the
-    browser, which is what makes it work at five hundred documents.
+    linked device for those beside this. This is a keystroke-latency path and
+    it must never wait on a machine.
     """
     needle = q.strip().lower()
-
-    documents: list = []
-    notes: list = []
-    skills: list = []
-    bases: list = []
-    if permissions.has(db, user, "library.use"):
-        # The library half offers only the composer's own data group: whatever is
-        # picked becomes part of the conversation and goes to the chat's model.
-        group = data_groups.for_composer(db, user, chat_id, model_id)
-        if needle:
-            documents = documents_service.search(db, user, q, limit=10, group=group)
-            notes = notes_service.search(db, user, q, limit=5, group=group)
-            skills = skills_service.search(db, user, q, limit=5, group=group)
-        else:
-            documents = list(
-                db.scalars(
-                    documents_service.visible(db, user, group=group)
-                    .order_by(Document.created_at.desc())
-                    .limit(10)
-                )
-            )
-            notes = list(
-                db.scalars(
-                    notes_service.visible(db, user, group)
-                    .order_by(Note.updated_at.desc())
-                    .limit(5)
-                )
-            )
-            skills = list(db.scalars(skills_service.visible(db, user, group).limit(5)))
-
-        # A whole base is a *reference*, not a copy: attaching one scopes the
-        # chat to it and the model searches inside it. Dumping the contents of
-        # a folder of contracts into the window would be the wrong shape
-        # entirely, and `Chat.knowledge_bases` already means exactly this.
-        # Only in an existing chat, because there is nothing to attach it to
-        # before one exists -- the same reason project files are absent there.
-        if chat_id:
-            bases = [
-                base
-                for base in db.scalars(
-                    documents_service.visible_bases(db, user, group).order_by(
-                        KnowledgeBase.name
-                    )
-                )
-                if not needle or needle in base.name.lower()
-            ][:5]
 
     # A URL typed after `@` is a page to read, not a name to look up. The
     # fetcher, its SSRF guard and its HTML-to-text already live behind
@@ -428,10 +204,6 @@ async def mention_picker(
         {
             "request": request,
             "user": user,
-            "documents": documents,
-            "notes": notes,
-            "skills": skills,
-            "bases": bases,
             "attachments": attachments,
             "website": website,
             "q": q,

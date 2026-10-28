@@ -86,8 +86,6 @@ RENAMED_KEYS: dict[str, str] = {
     "core.tool_list": "core.shared",
     "core.keep_working": "core.shared",
     "core.untrusted": "core.shared",
-    "tool.knowledge": "core.library",
-    "context.knowledge_scope": "core.library",
 }
 
 
@@ -352,12 +350,6 @@ VARIABLES: tuple[Variable, ...] = (
         "In a terminal, that it is saved as a file. Empty here: the web page renders it.",
     ),
     Variable(
-        "knowledge_scope",
-        "Which knowledge bases",
-        "The sentence naming the bases this chat is limited to, built from "
-        "`knowledge_bases`. Empty when the chat can see everything.",
-    ),
-    Variable(
         "mode_plan",
         "Plan mode",
         "Set when this chat is in Plan mode -- reading freely, changing nothing, "
@@ -410,11 +402,6 @@ VARIABLES: tuple[Variable, ...] = (
         "Image house rules",
         "Whatever an administrator wrote in the Extra instructions box on the "
         "image generation page. Empty when they wrote nothing.",
-    ),
-    Variable(
-        "knowledge_bases",
-        "Knowledge bases",
-        "The bases this chat is scoped to. Empty when it can see everything.",
     ),
     Variable(
         "document_names",
@@ -811,12 +798,12 @@ BUILTIN: tuple[Fragment, ...] = (
         order=44,
         variables=("temporary_lifetime",),
         requires=("temporary",),
-        hint="Only in a person's temporary chat, which may read the library but "
+        hint="Only in a person's temporary chat, which may read files and memories but "
         "change nothing. Without it a model plans around tools it does not have, or "
         "promises to remember something it cannot write down.",
         default=(
             "- This is a temporary chat. It is deleted {{temporary_lifetime}}, and "
-            "nothing in it is kept: you can read notes, memories, skills and documents, "
+            "nothing in it is kept: you can read files, memories and skills, "
             "but you cannot save, change or schedule anything, and anything you are "
             "told here is forgotten. If the person wants something kept, tell them to "
             "choose Keep this chat first."
@@ -1042,40 +1029,6 @@ BUILTIN: tuple[Fragment, ...] = (
         ),
     ),
     Fragment(
-        key="core.library",
-        label="The library",
-        group=GROUP_TOOLS,
-        order=210,
-        families=("knowledge",),
-        variables=("knowledge_scope",),
-        hint="Appears when knowledge_search and knowledge_get are offered. The "
-        "harness spec's text (blocks/library.md), shared with the LLeMbas CLI; "
-        "{{knowledge_scope}} names the bases this chat is limited to, and its "
-        "bullet goes when there are none. It replaced tool.knowledge and "
-        "context.knowledge_scope.",
-        default=harness_spec.prompt("blocks/library.md"),
-    ),
-    Fragment(
-        key="tool.notes",
-        label="Notes",
-        group=GROUP_TOOLS,
-        order=220,
-        families=("notes",),
-        hint="Appears when the notes tools are offered.",
-        default=(
-            "- You keep notes across conversations. Search them with notes_search when a "
-            "task sounds like one you have done before, and read one in full with "
-            "note_view. Write one with note_manage when you work something out that "
-            "would be tedious to work out again: a procedure, a decision and its reasons, "
-            "a summary of a long document. Correct one with note_manage when it turns out "
-            "to be wrong, and delete it when it is no longer true — a "
-            "stale note is worse than no note. Anything short and durable about the "
-            "person themselves is a memory rather than a note, and anything that should "
-            "*happen* at a time — later, tomorrow, every week — is a schedule rather than "
-            "either, because a note does nothing at the time it describes."
-        ),
-    ),
-    Fragment(
         key="tool.memory",
         label="Memory",
         group=GROUP_TOOLS,
@@ -1214,27 +1167,6 @@ BUILTIN: tuple[Fragment, ...] = (
         "heading.",
         default="{{image_instructions}}",
     ),
-    Fragment(
-        key="tool.scratch",
-        label="The scratch document",
-        group=GROUP_TOOLS,
-        order=245,
-        families=("scratch",),
-        hint="Appears when scratch_write is offered. The point worth making to "
-        "a model is the one it cannot infer from the schema: this is *watched* "
-        "while it is written, so building something up here is visible work "
-        "rather than a result announced at the end — and it is not searchable "
-        "afterwards, which is what keeps it from being used as a note.",
-        default=(
-            "- This chat has a scratch document, open beside the conversation and visible "
-            "to the person as you write it. Use scratch_write for something you build up "
-            "as you work — a draft, a table of findings, a list you keep adding to — "
-            "rather than repeating the whole thing in each reply. Append unless you mean "
-            "to start again. They can edit it themselves and attach it to a later message. "
-            "It belongs to this chat and cannot be searched afterwards, so anything worth "
-            "keeping beyond it is a note."
-        ),
-    ),
     # --- Context -------------------------------------------------------------
     Fragment(
         key="core.unattended",
@@ -1274,32 +1206,6 @@ BUILTIN: tuple[Fragment, ...] = (
             "Each time, you are to: {{schedule_instruction}}\n"
             "Earlier runs are above. Say what has changed since the last one rather "
             "than repeating it, unless there is nothing above to compare with."
-        ),
-    ),
-    Fragment(
-        key="tool.report",
-        label="Reports",
-        group=GROUP_TOOLS,
-        order=246,
-        families=("report",),
-        hint="Appears when the report tools are offered. The whole of what a "
-        "model cannot infer from the schema is the audience: a report is read "
-        "somewhere else, later, by somebody who cannot answer it. Everything "
-        "else here follows from that — write it whole, do not end on a "
-        "question, and do not file one for a two-line answer that has already "
-        "been given in the conversation.",
-        default=(
-            "- You can file a report with report_write: a finished piece of work, kept "
-            "where the person will find it later. Write one when you are asked for one, "
-            "and when you finish something long enough that its result is worth keeping — "
-            "an investigation, an account of what you changed, a summary of what you "
-            "found. Do not file one for an answer you have just given in two lines; the "
-            "conversation already holds that. A report is read on its own, away from this "
-            "chat and possibly long afterwards, and the person cannot reply to it — so "
-            "say what you were asked, what you found and what you conclude, refer to "
-            "nothing above, and end on a finding rather than a question. report_search "
-            "and report_get read back ones filed earlier, which is worth doing before a "
-            "recurring report so this one can say what changed."
         ),
     ),
     Fragment(

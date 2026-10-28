@@ -12,7 +12,7 @@ administrator.
 | Scope | Allows | Needs |
 |---|---|---|
 | `models` | `/v1`: list the holder's models, chat with them, embeddings | `api.use` |
-| `library` | `/mcp`: the holder's memory, notes, skills and knowledge | `api.use` |
+| `library` | `/mcp`: the holder's memory | `api.use` |
 | `link` | being driven from this instance as a linked device | `api.use` |
 | `app` | `/api/v2`: the holder's chats, as the web UI shows them -- the app's door | `api.use` |
 | `admin:read` | users and usage, read only | administrator |
@@ -58,7 +58,7 @@ def scope_label(scope: str) -> str:
 
     return {
         SCOPE_MODELS: t("Use your models, and spend your usage"),
-        SCOPE_LIBRARY: t("Read and write your memory, notes, skills and knowledge"),
+        SCOPE_LIBRARY: t("Read and write your memory"),
         SCOPE_LINK: t("Accept work from this instance as a linked device"),
         SCOPE_APP: t("Read and write your chats, as the web interface does"),
         SCOPE_ADMIN_READ: t("Read every account and its usage"),

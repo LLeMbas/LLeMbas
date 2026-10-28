@@ -14,8 +14,8 @@ once" is a property of the far side rather than of this code.
 **Dimensions are discovered, never declared.** Nobody should have to look up
 that bge-m3 is 1024 and nomic-embed-text is 768, and an instance that changes
 model must not silently compare vectors from two different spaces --
-`services/library/indexing.py` records the width beside every vector and
-refuses to score across a mismatch.
+the search index (`services/index`) records the model beside every vector and
+never scores across two.
 
 Normalisation happens here, once, on the way out. Cosine similarity between two
 unit vectors is their dot product, so normalising at write time turns every

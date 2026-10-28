@@ -19,7 +19,6 @@ from lembas.db.models import (
     DataGroup,
     Memory,
     Model,
-    Note,
     User,
 )
 from lembas.db.session import get_engine
@@ -155,9 +154,9 @@ def test_the_default_group_cannot_be_deleted(db):
 def test_a_group_with_records_in_it_cannot_be_deleted(db, reader):
     group = DataGroup(id="busy", name="Busy")
     db.add(group)
-    db.add(Note(owner_id=reader.id, title="n", body="b", data_group_id="busy"))
+    db.add(Memory(owner_id=reader.id, content="n", data_group_id="busy"))
     db.commit()
-    with pytest.raises(ValueError, match="1 notes"):
+    with pytest.raises(ValueError, match="1 memories"):
         data_groups.delete(db, group)
 
 
@@ -199,10 +198,10 @@ def test_the_sweep_gives_a_chat_its_models_group(db, two, reader):
 
 
 def test_a_row_the_sweep_has_not_reached_still_counts_as_default(db, reader):
-    db.add(Note(owner_id=reader.id, title="old", body=""))
+    db.add(Memory(owner_id=reader.id, content="old"))
     db.commit()
-    found = db.scalars(select(Note).where(data_groups.condition(Note, DEFAULT_GROUP))).all()
-    assert [note.title for note in found] == ["old"]
+    found = db.scalars(select(Memory).where(data_groups.condition(Memory, DEFAULT_GROUP))).all()
+    assert [memory.content for memory in found] == ["old"]
 
 
 # --- Upgrading a database from before data groups -----------------------------------------
@@ -213,12 +212,8 @@ NEW_TABLE = "data_groups"
 GROUPED_TABLES = (
     "chats",
     "connections",
-    "knowledge_bases",
     "memories",
-    "notes",
-    "reports",
     "schedules",
-    "skills",
 )
 
 

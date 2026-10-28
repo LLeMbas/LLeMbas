@@ -39,13 +39,9 @@ from lembas.db.models import (
     Chat,
     Connection,
     DataGroup,
-    KnowledgeBase,
     Memory,
     Model,
-    Note,
-    Report,
     Schedule,
-    Skill,
     User,
 )
 from lembas.web.i18n import t
@@ -67,16 +63,12 @@ PERMISSION = "data.manage"
 # Every table carrying `data_group_id` whose NULL means "written before groups
 # existed" and therefore belongs in the default group. Chats are not on this
 # list: a chat's group is derived from its model, see `for_chat`.
-LIBRARY_TABLES: tuple[Any, ...] = (Memory, Note, Skill, KnowledgeBase, Report, Schedule)
+LIBRARY_TABLES: tuple[Any, ...] = (Memory, Schedule)
 
 # Rows of these, counted per group, on the admin and settings pages.
 COUNTED: tuple[tuple[Any, str], ...] = (
     (Chat, "chats"),
     (Memory, "memories"),
-    (Note, "notes"),
-    (Skill, "skills"),
-    (KnowledgeBase, "knowledge bases"),
-    (Report, "reports"),
 )
 
 

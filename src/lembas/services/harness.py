@@ -40,8 +40,8 @@ from sqlalchemy.orm import Session as DBSession
 
 from lembas.db.models import KIND_TASK, User
 from lembas.services import branding, harness_spec, plans, prompts, settings_store
+from lembas.services import memories as memories_service
 from lembas.services import prototypes as prototypes_service
-from lembas.services.library import memories as memories_service
 from lembas.services.schedule import clock
 
 log = logging.getLogger(__name__)
@@ -171,16 +171,6 @@ def plan_context(plan: dict | None) -> str:
         "### The current plan\n\n"
         f"{text}\n\n"
         "Work to it and quote the ids above rather than restating the plan."
-    )
-
-
-def knowledge_scope_sentence(bases: str) -> str:
-    """`{{knowledge_scope}}`: which bases this chat is limited to, or nothing."""
-    if not bases:
-        return ""
-    return (
-        f"Knowledge searches here cover only: {bases}. Finding nothing there means "
-        "nothing is there, not that the library is empty."
     )
 
 
@@ -353,8 +343,6 @@ def context_variables(
         "image_instructions": (
             str(settings_store.images(db).get("instructions") or "") if "image" in families else ""
         ),
-        "knowledge_bases": "",
-        "knowledge_scope": "",
         "document_names": "",
         # The plan this chat is working to, rendered with its ids: bare, and
         # as the section the shared text carries. Empty with none.
@@ -411,19 +399,6 @@ def context_variables(
             values["temporary_lifetime"] = chat_service.lifetime_words(
                 chat_service.temporary_lifetime(db), translate=False
             )
-        # Naming the bases a chat is scoped to matters: without it the model
-        # cannot tell "there is nothing about this" from "I am only allowed to
-        # see the contracts folder", and phrases a miss as the former.
-        # Only the attached bases in this speaker's group: a base from another
-        # group is not searchable here, and naming it would leak its name.
-        in_group = [
-            base
-            for base in chat.knowledge_bases
-            if (base.data_group_id or data_groups.DEFAULT_GROUP) == group
-        ]
-        if "knowledge" in families and in_group:
-            values["knowledge_bases"] = ", ".join(base.name for base in in_group)
-            values["knowledge_scope"] = knowledge_scope_sentence(values["knowledge_bases"])
         values["document_names"] = _document_names(db, chat)
 
         # The plan, whichever reply wrote it: one column read, no scan. In
@@ -548,9 +523,8 @@ def compose_from(
     """Assemble the preamble from already-resolved variables.
 
     Separate from `compose` because the admin preview has no chat and must not
-    invent one: a transient Chat whose `knowledge_bases` collection cannot be
-    populated without real rows is a trap, and taking a plain dict of variables
-    instead sidesteps it entirely.
+    invent one: a transient Chat is a trap, and taking a plain dict of
+    variables instead sidesteps it entirely.
     """
     return prompts.assemble(
         db,

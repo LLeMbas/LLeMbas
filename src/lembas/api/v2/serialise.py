@@ -118,7 +118,6 @@ def chat_detail(row: Chat, *, running: bool = False) -> dict[str, Any]:
     return {
         **chat(row, running=running),
         "system_prompt": row.system_prompt or "",
-        "knowledge_bases": [{"id": b.id, "name": b.name} for b in row.knowledge_bases],
         "plan": plans.normalise(row.plan) if row.plan else None,
     }
 

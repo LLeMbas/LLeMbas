@@ -1,8 +1,8 @@
 """The sidebar's Search, and what moved in the sidebar with it.
 
-- `/search`: one box over chats and agent sessions, the library, reports and
-  memories -- only what the reader may open, only their own chats and
-  memories, never another person's, and every snippet escaped;
+- `/search`: one box over chats and agent sessions and memories -- only what
+  the reader may open, only their own chats and memories, never another
+  person's, and every snippet escaped;
 - `[ PINNED MODELS ]` folds away, remembered on the account;
 - folders belong to the Chats side: none on the Agents side, where a filed
   agent chat is listed under its device;
@@ -30,7 +30,6 @@ from lembas.db.models import (
     User,
 )
 from lembas.services import device_link, settings_store
-from lembas.services.library import notes as notes_service
 from tests.test_schedules_ui import _as_stranger
 
 
@@ -176,21 +175,66 @@ def test_temporary_and_task_chats_are_not_found(client: TestClient, db, register
     assert "Nothing found" in page
 
 
-def test_another_persons_chats_notes_and_memories_never_appear(
-    client: TestClient, db, registered
-):
+def test_another_persons_chats_and_memories_never_appear(client: TestClient, db, registered):
     frodo = _owner(db)
     _chat(db, frodo, "The ring secret", said="the ring is in my pocket")
-    notes_service.create(db, owner=frodo, title="Ring note", body="the ring must go")
     db.add(Memory(owner_id=frodo.id, content="Frodo keeps the ring close"))
     db.commit()
 
     _as_stranger(client, db)
     page = _results(client.get("/search?q=ring").text)
     assert "The ring secret" not in page
-    assert "Ring note" not in page
     assert "keeps the ring" not in page
     assert "Nothing found" in page
+
+
+def test_all_groups_by_type_with_up_to_five_and_a_show_all(client: TestClient, db, registered):
+    owner = _owner(db)
+    for n in range(7):
+        _chat(db, owner, f"Barrel ride {n}", ago=n)
+    db.add(Memory(owner_id=owner.id, content="Fond of barrel rides"))
+    db.commit()
+
+    page = _results(client.get("/search?q=barrel").text)
+    assert "Chats &amp; agent sessions" in page
+    assert page.count('class="search-hit ') == 5 + 1
+    assert 'href="/search?in=chats&amp;q=barrel"' in page
+    # Newest first.
+    assert page.index("Barrel ride 0") < page.index("Barrel ride 4")
+    assert "Barrel ride 6" not in page
+
+
+def test_a_filtered_view_shows_one_type_and_the_rest(client: TestClient, db, registered):
+    owner = _owner(db)
+    for n in range(7):
+        _chat(db, owner, f"Barrel ride {n}", ago=n)
+    db.add(Memory(owner_id=owner.id, content="Fond of barrel rides"))
+    db.commit()
+
+    page = _results(client.get("/search?in=chats&q=barrel").text)
+    assert "Barrel ride 6" in page
+    assert "Fond of barrel" not in page
+    assert "Show all" not in page
+    assert re.search(r'class="filter-tab is-active"\s+href="/search\?in=chats', page)
+    # And a search from here searches the same filter again.
+    assert 'name="in" value="chats"' in page
+
+
+def test_filters_follow_the_permissions(client: TestClient, db, registered):
+    settings_store.update(db, {"default_permissions": {"library.use": False}})
+    stranger = _as_stranger(client, db)
+    _chat(db, stranger, "Lore chat")
+    db.add(Memory(owner_id=stranger.id, content="Knows the lore"))
+    db.commit()
+
+    page = _results(client.get("/search?q=lore").text)
+    assert "?in=chats" in page
+    assert "?in=memories" not in page
+    assert "Lore chat" in page and "Knows the lore" not in page
+
+    # Asking for a type by URL that is not offered searches "All" instead.
+    page = _results(client.get("/search?in=memories&q=lore").text)
+    assert "Lore chat" in page
 
 
 def test_a_snippet_is_escaped_and_only_the_mark_is_markup(client: TestClient, db, registered):
@@ -249,76 +293,7 @@ def test_memories_are_the_readers_own_and_lead_to_settings(client: TestClient, d
     assert "<mark>cram</mark>" in page
 
 
-def test_notes_are_found_and_linked(client: TestClient, db, registered):
-    note = notes_service.create(
-        db, owner=_owner(db), title="Coney recipe", body="Brace of coneys, stewed"
-    )
-    page = _results(client.get("/search?q=coneys").text)
-    assert f'href="/library/notes/{note.id}"' in page
-
-
 # --- Filters --------------------------------------------------------------------
-def test_all_groups_by_type_with_up_to_five_and_a_show_all(client: TestClient, db, registered):
-    owner = _owner(db)
-    for n in range(7):
-        _chat(db, owner, f"Barrel ride {n}", ago=n)
-    notes_service.create(db, owner=owner, title="Barrel notes", body="barrel ride down the river")
-
-    page = _results(client.get("/search?q=barrel").text)
-    assert "Chats &amp; agent sessions" in page
-    assert page.count('class="search-hit ') == 5 + 1
-    assert 'href="/search?in=chats&amp;q=barrel"' in page
-    # Newest first.
-    assert page.index("Barrel ride 0") < page.index("Barrel ride 4")
-    assert "Barrel ride 6" not in page
-
-
-def test_a_filtered_view_shows_one_type_and_the_rest(client: TestClient, db, registered):
-    owner = _owner(db)
-    for n in range(7):
-        _chat(db, owner, f"Barrel ride {n}", ago=n)
-    notes_service.create(db, owner=owner, title="Barrel notes", body="barrel ride")
-
-    page = _results(client.get("/search?in=chats&q=barrel").text)
-    assert "Barrel ride 6" in page
-    assert "Barrel notes" not in page
-    assert "Show all" not in page
-    assert re.search(r'class="filter-tab is-active"\s+href="/search\?in=chats', page)
-    # And a search from here searches the same filter again.
-    assert 'name="in" value="chats"' in page
-
-
-def test_filters_follow_the_permissions(client: TestClient, db, registered):
-    owner = _owner(db)
-    notes_service.create(db, owner=owner, title="Shared lore", body="lore of the shire")
-    settings_store.update(
-        db, {"default_permissions": {"library.use": False, "reports.use": False}}
-    )
-    stranger = _as_stranger(client, db)
-    _chat(db, stranger, "Lore chat")
-
-    page = _results(client.get("/search?q=lore").text)
-    assert "?in=chats" in page
-    for kind in ("knowledge", "notes", "skills", "reports", "memories"):
-        assert f"?in={kind}" not in page, kind
-    assert "Lore chat" in page
-
-    # Asking for a type by URL that is not offered searches "All" instead.
-    page = _results(client.get("/search?in=notes&q=lore").text)
-    assert "Lore chat" in page
-    assert "Shared lore" not in page
-
-
-def test_reports_are_offered_with_reports_use_alone(client: TestClient, db, registered):
-    settings_store.update(
-        db, {"default_permissions": {"library.use": False, "reports.use": True}}
-    )
-    _as_stranger(client, db)
-    page = _results(client.get("/search?q=x").text)
-    assert "?in=reports" in page
-    assert "?in=notes" not in page
-
-
 def test_no_hits_is_the_empty_block(client: TestClient, db, registered):
     page = _results(client.get("/search?q=balrog").text)
     assert 'class="empty"' in page

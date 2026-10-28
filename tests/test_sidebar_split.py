@@ -332,11 +332,11 @@ def test_an_empty_pinned_group_takes_no_room():
 def test_the_shortcuts_are_on_every_page_that_shows_the_sidebar(
     client: TestClient, db, registered
 ):
-    """They came from the chat page's own context, so the library and the
-    connections pages carried the sidebar without them -- a shortcut that is
+    """They came from the chat page's own context, so other pages carrying the
+    sidebar had it without them -- a shortcut that is
     there on one page and gone on the next."""
     _add_connection(db)
     _pin(db)
 
-    for path in ("/chat", "/library/knowledge", "/reports", "/settings"):
+    for path in ("/chat", "/search", "/settings"):
         assert "Pinned models" in client.get(path).text, path

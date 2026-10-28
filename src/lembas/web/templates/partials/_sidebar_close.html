@@ -16,8 +16,8 @@
   `sidebar.html` made room for. Shown at every width -- the rail itself always
   was; only `.sidebar__close` is phone-only (app.css). Only where the including
   sidebar asks for it with `rail_search`: the admin sidebar shares this rail and
-  has nothing of its own to search, and an API-only instance has no chats,
-  library or reports to search (`/search` is refused there).
+  has nothing of its own to search, and an API-only instance has no chats
+  to search (`/search` is refused there).
 #}
 <div class="sidebar__actions-rail">
   {% if rail_search %}

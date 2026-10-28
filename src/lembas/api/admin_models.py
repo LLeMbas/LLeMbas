@@ -45,18 +45,15 @@ PROTOCOL_CAPABILITIES = ("reasoning", "vision", "tools", "embeddings")
 # of whoever is looking, which a module-level value cannot know.
 def tool_capabilities() -> tuple[tuple[str, str], ...]:
     return (
+        ("tool_files", i18n.t("Files")),
         ("tool_web_search", i18n.t("Web search")),
         ("tool_fetch", i18n.t("Fetch a page")),
-        ("tool_knowledge", i18n.t("Knowledge")),
-        ("tool_notes", i18n.t("Notes")),
         ("tool_memory", i18n.t("Memory")),
         ("tool_skills", i18n.t("Skills")),
         ("tool_custom", i18n.t("Custom tools")),
         ("tool_mcp", i18n.t("MCP servers")),
         ("tool_ask", i18n.t("Ask the reader")),
-        ("tool_report", i18n.t("Reports")),
         ("tool_image", i18n.t("Image generation")),
-        ("tool_scratch", i18n.t("Canvas")),
         ("tool_schedule", i18n.t("Scheduling")),
         ("tool_subagent", i18n.t("Helpers")),
     )

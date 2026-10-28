@@ -140,92 +140,6 @@ def _add_column_sql(table: Table, column: Column, dialect) -> str | None:
     return " ".join(parts)
 
 
-# --- Full-text search --------------------------------------------------------
-# The library stores are searched rather than listed, and LIKE over a few
-# hundred documents ranks nothing and matches badly. SQLite ships FTS5, so the
-# index costs no dependency and works offline like everything else here.
-#
-# These are the one part of the schema this module's model-diffing cannot
-# derive: an FTS5 virtual table is not a SQLAlchemy model, has no columns to
-# compare, and needs triggers to stay in step with the table it shadows. So it
-# is written out -- but written out *idempotently*, with IF NOT EXISTS
-# throughout, which keeps it the same kind of thing as the column sync: run it
-# at every startup and it converges.
-#
-# `content=` makes each index external-content: the text is not stored twice,
-# and the triggers below are what the FTS5 documentation calls for to keep an
-# external-content index correct through updates and deletes.
-FTS_INDEXES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
-    ("documents_fts", "documents", ("title", "description", "extracted_text")),
-    ("notes_fts", "notes", ("title", "body")),
-    ("skills_fts", "skills", ("name", "description", "body")),
-    ("reports_fts", "reports", ("title", "summary", "body")),
-)
-
-
-def _fts_statements(index: str, table: str, columns: tuple[str, ...]) -> list[str]:
-    # `id` rides along UNINDEXED so a match can be turned straight back into an
-    # ORM row. The alternative is joining on rowid, which SQLAlchemy models do
-    # not expose and which changes under VACUUM.
-    columns = ("id", *columns)
-    column_list = ", ".join(columns)
-    declared = ", ".join(f"{name} UNINDEXED" if name == "id" else name for name in columns)
-    new_values = ", ".join(f"new.{name}" for name in columns)
-    old_values = ", ".join(f"old.{name}" for name in columns)
-
-    return [
-        f"CREATE VIRTUAL TABLE IF NOT EXISTS {index} USING fts5("
-        f"{declared}, content='{table}', content_rowid='rowid')",
-        # 'delete' rows carry the old values because an external-content index
-        # cannot look them up itself once the source row has gone.
-        f"""CREATE TRIGGER IF NOT EXISTS {index}_ai AFTER INSERT ON {table} BEGIN
-              INSERT INTO {index}(rowid, {column_list}) VALUES (new.rowid, {new_values});
-            END""",
-        f"""CREATE TRIGGER IF NOT EXISTS {index}_ad AFTER DELETE ON {table} BEGIN
-              INSERT INTO {index}({index}, rowid, {column_list})
-              VALUES ('delete', old.rowid, {old_values});
-            END""",
-        f"""CREATE TRIGGER IF NOT EXISTS {index}_au AFTER UPDATE ON {table} BEGIN
-              INSERT INTO {index}({index}, rowid, {column_list})
-              VALUES ('delete', old.rowid, {old_values});
-              INSERT INTO {index}(rowid, {column_list}) VALUES (new.rowid, {new_values});
-            END""",
-    ]
-
-
-def ensure_fts(engine: Engine) -> list[str]:
-    """Create the search indexes and their triggers if they are missing.
-
-    Returns the indexes it created. A failure here is logged and swallowed:
-    search degrading to "finds nothing" is bad, but it is much better than the
-    application refusing to start.
-    """
-    created: list[str] = []
-    inspector = inspect(engine)
-    known = set(inspector.get_table_names())
-
-    with engine.begin() as connection:
-        for index, table, columns in FTS_INDEXES:
-            if table not in known:
-                continue
-            fresh = index not in known
-            for statement in _fts_statements(index, table, columns):
-                connection.execute(text(statement))
-            if fresh:
-                # Backfill anything already in the table. Only on creation --
-                # the triggers keep it current from then on.
-                column_list = ", ".join(("id", *columns))
-                connection.execute(
-                    text(
-                        f"INSERT INTO {index}(rowid, {column_list}) "
-                        f"SELECT rowid, {column_list} FROM {table}"
-                    )
-                )
-                created.append(index)
-
-    return created
-
-
 def repair_json_shapes(engine: Engine) -> list[str]:
     """Put right any JSON column backfilled with the wrong empty value.
 
@@ -236,7 +150,7 @@ def repair_json_shapes(engine: Engine) -> list[str]:
     *loading*, so the symptom is not an empty list but a `ValueError` and a 500
     on every page that touches the table.
 
-    Converges, like `ensure_fts` beside it: it runs on every start, it is
+    Converges: it runs on every start, it is
     idempotent, and on a database that was never damaged it does nothing. Only
     the exact wrong value is rewritten -- `'{}'` in a column whose default
     produces a list -- because `{}` cannot be a legitimate value there, while
@@ -441,12 +355,6 @@ def sync_schema(engine: Engine) -> list[str]:
             changes.append(f"repair {repair}")
     except Exception:  # a repair that fails must not stop a start
         log.exception("could not repair JSON column shapes")
-
-    try:
-        for index in ensure_fts(engine):
-            changes.append(f"create search index {index}")
-    except Exception:  # search is not worth refusing to start over
-        log.exception("could not create the full-text search indexes")
 
     # The file and chat index's own full-text table (services/index/schema.py).
     try:

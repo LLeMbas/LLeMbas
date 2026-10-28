@@ -145,15 +145,15 @@ def test_a_group_stores_only_the_boxes_that_were_filled(db, client, registered, 
 def test_the_user_page_says_where_each_permission_came_from(db, client, registered, reader):
     """The question the grids could not answer without opening every group by
     eye — which is exactly the simulation the union rule exists to avoid."""
-    group = Group(name="writers", permissions_json={"tools.notes.write": True})
+    group = Group(name="writers", permissions_json={"data.manage": True})
     group.users.append(reader)
     db.add(group)
     db.commit()
 
     explained = permissions.explain(db, reader)
 
-    assert explained["tools.notes.write"]["on"] is True
-    assert "writers" in explained["tools.notes.write"]["source"]
+    assert explained["data.manage"]["on"] is True
+    assert "writers" in explained["data.manage"]["source"]
     # And something the baseline gives says baseline rather than naming a group.
     assert explained["chat.create"]["source"] == ["baseline"]
 

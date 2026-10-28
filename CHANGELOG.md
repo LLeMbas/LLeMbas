@@ -36,6 +36,19 @@ release yet.
   chat's starting directory, the nearest winning a name. `skills_list`, `skill_view` and
   `skill_manage` work on those files (a new skill goes to your own skills directory; revert puts
   back the file's previous version), and editing the file works too.
+- **The library, reports and the canvas are gone; their work is files now.** Knowledge bases and
+  their documents, notes, the database skills, reports, sharing of library items and the canvas
+  panel with its scratch document are removed — their pages, the *Library* entry in the sidebar,
+  the `@` menu's library section, the composer's *Knowledge* option, the chat settings' knowledge
+  boxes, the `/knowledge`, `/notes`, `/skills` and `/reports` commands, the tools
+  (`knowledge_search`, `knowledge_get`, `notes_search`, `note_view`, `note_manage`, `report_*`,
+  `scratch_write`), their permissions and model switches, and the old library index with its
+  rebuild card. Notes, reports and documents are files in the file tree, searched with `search`.
+  A schedule that files a report now writes it as a Markdown file in `/home/<you>/reports/`.
+  Memories stay as they were (Settings → Memory; the forms post to `/api/memories`), and `/mcp`
+  serves the `memory` tool alone. `/api/v2` chats no longer carry `knowledge_bases`, and the
+  stream has no `canvas` frame. A helper sent from a chat now sees exactly the files its chat
+  does.
 - **Organisations.** Every account belongs to one organisation, with a role there (owner, admin or
   member) beside its role on the instance. An existing account, and one made without saying
   otherwise, is in the first organisation; whoever sets an empty instance up runs the instance and

@@ -8,9 +8,9 @@ from lembas.db.models import Chat, Connection, Model, User
 from lembas.security.passwords import hash_password
 from lembas.services import chat as chat_service
 from lembas.services import fs, harness, prompts, settings_store
+from lembas.services import memories as memories_service
 from lembas.services import skill_format as fmt
 from lembas.services import tools as tools_service
-from lembas.services.library import memories as memories_service
 
 
 @pytest.fixture
@@ -361,8 +361,11 @@ def test_the_shipped_defaults_fit_under_the_ceiling(db, owner):
             "prototypes": "yes",
             "prototype_sources": "Nothing can be loaded from the internet.",
             "mode_plan": "yes",
-            "knowledge_bases": "Contracts, Recipes",
-            "knowledge_scope": harness.knowledge_scope_sentence("Contracts, Recipes"),
+            # The files block at a size a real chat reaches: a dozen places.
+            "start": "`/home/frodo/projects/ring`",
+            "view": ", ".join(f"`/home/frodo/place-{n}/` (stage)" for n in range(12)),
+            "show": "Open a file with show.",
+            "python": "Python runs in the browser.",
             "document_names": "report.pdf, notes.txt",
             "image_templates": "- portrait: a portrait",
             "image_models": "sdxl",

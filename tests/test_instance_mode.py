@@ -1,7 +1,7 @@
 """API-only instance mode: one gate in front of the harness product.
 
 Full is the default and changes nothing. API only keeps `/v1`, `/api/v1`, device
-login, Settings and Admin, and switches off chats, the library, reports,
+login, Settings and Admin, and switches off chats, memories,
 schedules, `/mcp` and anything in the background that would start a reply.
 """
 
@@ -66,7 +66,7 @@ def test_full_mode_changes_nothing(client, registered):
     assert client.get("/chat").status_code == 200
     assert client.get("/api/chats/unread").status_code == 200
     page = client.get("/settings").text
-    assert 'href="/library/knowledge"' in page and "sidebar__scroll" in page
+    assert "sidebar__scroll" in page
 
 
 def test_the_admin_form_offers_and_saves_it(client, db, registered):
@@ -89,9 +89,8 @@ def test_a_stored_value_that_is_not_a_mode_reads_as_full(db, registered):
 
 # --- Pages ---------------------------------------------------------------------------
 @pytest.mark.parametrize(
-    "path", ["/", "/chat", "/chat/some-id", "/chat?kind=agent", "/library",
-             "/library/knowledge", "/library/notes", "/reports", "/scheduled",
-             "/folders/x/edit"],
+    "path", ["/", "/chat", "/chat/some-id", "/chat?kind=agent", "/scheduled",
+             "/folders/x/edit", "/search"],
 )
 def test_product_pages_land_on_settings_with_a_notice(client, registered, path):
     _api_only(client)
@@ -113,8 +112,7 @@ def test_the_sidebar_has_no_chats(client, registered):
     page = client.get("/settings").text
     assert "sidebar__scroll" not in page
     assert 'href="/chat' not in page
-    assert 'href="/library/knowledge"' not in page
-    assert 'href="/reports"' not in page and 'href="/scheduled"' not in page
+    assert 'href="/scheduled"' not in page
     assert "/api/chats/unread" not in page
     # What stays: Settings, Admin, sign-out.
     assert 'href="/admin"' in page and 'action="/auth/logout"' in page
@@ -134,9 +132,8 @@ def test_the_sidebar_has_no_chats(client, registered):
         ("post", "/api/files"),
         ("get", "/api/files/mention-picker"),
         ("post", "/api/folders"),
-        ("post", "/api/library/notes"),
-        ("get", "/api/library/share/note/x"),
-        ("post", "/api/reports/x/delete"),
+        ("post", "/api/memories"),
+        ("post", "/api/memories/x/delete"),
         ("post", "/api/schedules"),
         ("post", "/api/audio/transcribe"),
         ("get", "/api/devices/abc/browse"),

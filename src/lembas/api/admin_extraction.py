@@ -25,7 +25,6 @@ from lembas.api.deps import AdminUser, Db
 from lembas.db.models import Connection, Model
 from lembas.services import files as files_service
 from lembas.services import settings_store
-from lembas.services.library import indexing
 from lembas.web.i18n import t
 from lembas.web.templating import render
 
@@ -78,9 +77,6 @@ async def extraction_page(request: Request, db: Db, user: AdminUser, saved: str 
                 and values["embedding_model_id"] not in {m.model_id for m in models}
                 else ""
             ),
-            "ready": indexing.enabled(db),
-            "counts": indexing.counts(db),
-            "progress": indexing.progress(),
             "saved": saved,
         },
     )
@@ -165,41 +161,4 @@ async def save_search(
     log.info("embedding model set to %r by %s", embedding_model_id, user.email)
     return RedirectResponse(
         f"/admin/extraction?saved={quote(message)}", status_code=status.HTTP_303_SEE_OTHER
-    )
-
-
-@router.post("/rebuild")
-async def rebuild(request: Request, db: Db, user: AdminUser) -> Response:
-    """Start a rebuild, and answer with the progress card.
-
-    A background task rather than a request that waits: embedding a library of a
-    few thousand records is minutes of HTTP round trips, and a page that hangs
-    for that long is one somebody reloads, which starts a second one.
-    """
-    started = indexing.start_rebuild()
-    if started:
-        log.info("index rebuild started by %s", user.email)
-    return render(
-        request,
-        "admin/_index_progress.html",
-        {"progress": indexing.progress(), "counts": indexing.counts(db), "ready": True},
-    )
-
-
-@router.get("/progress")
-async def rebuild_progress(request: Request, db: Db, user: AdminUser) -> Response:
-    """Polled while a rebuild runs. Stops polling itself when it finishes.
-
-    Polled rather than streamed for the reason `/api/chats/unread` is: this is
-    one small fragment on one page, and an SSE stream for it would be a second
-    streaming path to keep correct.
-    """
-    return render(
-        request,
-        "admin/_index_progress.html",
-        {
-            "progress": indexing.progress(),
-            "counts": indexing.counts(db),
-            "ready": indexing.enabled(db),
-        },
     )

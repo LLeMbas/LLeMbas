@@ -25,7 +25,6 @@ TEMPLATES = ROOT / "web/templates"
 # The panels with a drag handle, and the template each handle lives in.
 PANELS = {
     "--terminal-width": "chat/_terminal.html",
-    "--canvas-width": "chat/_canvas.html",
     "--prototype-width": "chat/_prototype.html",
 }
 
@@ -63,16 +62,6 @@ def test_no_bound_lets_a_panel_become_unreachable():
     back, which is the other half of what the allowlist is for."""
     for name, (low, high) in LAYOUT_BOUNDS.items():
         assert 0 < low < high, name
-
-
-def test_the_canvas_starts_wider_than_the_terminal():
-    """A source line is longer than eighty columns once nothing is re-wrapping
-    it, and this one holds prose as well."""
-    widths = {
-        name: float(re.search(rf"{re.escape(name)}:\s*([\d.]+)rem", TOKENS).group(1))
-        for name in PANELS
-    }
-    assert widths["--canvas-width"] > widths["--terminal-width"]
 
 
 # --- Breakpoints -------------------------------------------------------------
@@ -128,7 +117,7 @@ def test_no_breakpoint_is_declared_and_never_used():
 # nothing on a desktop. On a phone it was the bug: `min-width` is resolved after
 # `width` and `max-width` and **wins over both** -- CSS clamps width to max-width
 # and then raises the result to min-width -- so
-# `.canvas { width: min(var(--canvas-width), 100vw) }` inside the narrow query was
+# `.terminal { width: min(var(--terminal-width), 100vw) }` inside the narrow query was
 # simply overruled by `min-width: 24rem`, and both side panels were 384px wide on
 # every screen narrower than that. `.inspector` had no cap at all, and its width
 # is a *preference* somebody can drag to 2400px.
@@ -143,7 +132,7 @@ def test_no_breakpoint_is_declared_and_never_used():
 APP_CSS = (ROOT / "web/static/css/app.css").read_text(encoding="utf-8")
 
 # Every panel that becomes an overlay rather than a column on a small screen.
-OVERLAY_PANELS = (".inspector", ".terminal", ".canvas", ".proto-panel")
+OVERLAY_PANELS = (".inspector", ".terminal", ".proto-panel")
 
 
 def _media_body(css: str, condition: str) -> str:
@@ -206,7 +195,7 @@ def test_every_overlay_panel_is_full_width_on_a_phone():
 def test_the_desktop_minimum_is_still_declared():
     """The other direction. Removing the minimum altogether would let a drag
     handle pull a panel to nothing on the machine where dragging exists."""
-    for token in ("--terminal-width-min", "--canvas-width-min", "--prototype-width-min"):
+    for token in ("--terminal-width-min", "--prototype-width-min"):
         assert f"{token}:" in TOKENS
         assert f"var({token})" in APP_CSS
 

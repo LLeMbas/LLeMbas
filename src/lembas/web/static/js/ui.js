@@ -587,7 +587,6 @@
   function describe(items) {
     if (items.length > 1) return t("%(n)s new arrivals", { n: items.length });
     var item = items[0];
-    if (item.kind === "report") return t("Report filed: “%(title)s”", { title: item.title });
     if (item.kind === "message") return t("New message");
     return t("Reply ready in “%(title)s”", { title: item.title });
   }

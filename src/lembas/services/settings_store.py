@@ -556,7 +556,7 @@ def instance_mode(db: DBSession) -> str:
 
 def api_only(db: DBSession) -> bool:
     """Whether this instance serves the API only: no chats, agent chats,
-    library, reports, schedules or `/mcp`, and nothing in the background starts a
+    memories, schedules or `/mcp`, and nothing in the background starts a
     reply."""
     return instance_mode(db) == "api"
 

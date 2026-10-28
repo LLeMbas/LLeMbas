@@ -14,10 +14,8 @@ from lembas.db.models import (
     Folder,
     Memory,
     Message,
-    Note,
     Schedule,
     Session,
-    Skill,
     Usage,
     User,
 )
@@ -46,8 +44,6 @@ def _seed(db, owner_id: str) -> None:
     db.commit()
     db.add(Message(chat_id=chat.id, role="user", content="hello"))
     db.add(Memory(owner_id=owner_id, content="Likes second breakfast."))
-    db.add(Note(owner_id=owner_id, title="Map", body="There and back."))
-    db.add(Skill(owner_id=owner_id, name="cook", description="Cook", body="Stew."))
     db.add(Schedule(user_id=owner_id, title="Daily", chat_id=chat.id))
     db.add(Usage(user_id=owner_id, period="2026-10"))
     db.commit()
@@ -69,7 +65,7 @@ def test_deleting_chats_takes_chats_and_folders_only(client, db, registered, use
     assert _count(db, Folder, user_id=user_id) == 0
     assert _count(db, Message) == 0
     assert _count(db, Memory, owner_id=user_id) == 1
-    assert _count(db, Note, owner_id=user_id) == 1
+    assert _count(db, Schedule, user_id=user_id) == 1
 
 
 def test_forgetting_takes_memories_only(client, db, registered, user_id):
@@ -96,8 +92,6 @@ def test_a_full_reset_keeps_the_account_settings_and_usage(client, db, registere
         (Chat, "user_id"),
         (Folder, "user_id"),
         (Memory, "owner_id"),
-        (Note, "owner_id"),
-        (Skill, "owner_id"),
         (Schedule, "user_id"),
     ):
         assert _count(db, model, **{column: user_id}) == 0, model.__name__
@@ -120,7 +114,7 @@ def test_another_persons_data_is_untouched(client, db, registered, user_id):
     )
     assert _count(db, Chat, user_id=other) == 2
     assert _count(db, Memory, owner_id=other) == 1
-    assert _count(db, Note, owner_id=other) == 1
+    assert _count(db, Schedule, user_id=other) == 1
 
 
 def test_a_wrong_password_deletes_nothing(client, db, registered, user_id):
@@ -131,7 +125,7 @@ def test_a_wrong_password_deletes_nothing(client, db, registered, user_id):
         follow_redirects=False,
     )
     assert "error=" in response.headers["location"]
-    assert _count(db, Note, owner_id=user_id) == 1
+    assert _count(db, Schedule, user_id=user_id) == 1
 
 
 def test_the_word_is_required(client, db, registered, user_id):
@@ -142,7 +136,7 @@ def test_the_word_is_required(client, db, registered, user_id):
         follow_redirects=False,
     )
     assert "error=" in response.headers["location"]
-    assert _count(db, Note, owner_id=user_id) == 1
+    assert _count(db, Schedule, user_id=user_id) == 1
 
 
 def test_a_running_reply_refuses_it(client, db, registered, user_id):

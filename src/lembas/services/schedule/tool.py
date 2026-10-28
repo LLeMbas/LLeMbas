@@ -67,7 +67,8 @@ log = logging.getLogger(__name__)
 TARGET_HELP = (
     "Where the result goes. "
     '"report" for something to read later — an investigation, a summary, a '
-    "digest — which is filed in Reports and cannot be replied to. "
+    "digest — which is written as a Markdown file in the person's reports/ "
+    "directory and cannot be replied to. "
     '"chat" to leave it in the task\'s own chat, which is right when the runs '
     "build on each other and you want the transcript."
 )

@@ -204,10 +204,6 @@ def _generation() -> generation_service.Generation:
             "command": "",
         }
     }
-    generation.canvas = {
-        "tabs": [{"path": "recipe.md", "title": "recipe.md"}],
-        "active": "recipe.md",
-    }
     generation.prompt_tokens, generation.completion_tokens = 120, 20
     generation.context_limit = 8192
     return generation
@@ -232,10 +228,6 @@ def _shapes() -> dict[str, object]:
         "event_ask": {"cards": serialise.asks(generation.waiting)},
         "event_ask_empty": {"cards": []},
         "event_jobs": {"jobs": serialise.jobs(generation.jobs)},
-        "event_canvas": {
-            "tabs": generation.canvas["tabs"],
-            "active": generation.canvas["active"],
-        },
         "event_metrics": serialise.metrics(metrics_service.from_message(_assistant().usage_json)),
         "event_done": {
             "message": assistant,

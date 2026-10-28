@@ -30,7 +30,6 @@ from lembas.services import (
 )
 from lembas.services import tools as tools_service
 from lembas.services.agent import policy, shell
-from lembas.services.library import chunks, documents
 from lembas.services.llm import openai_client
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -43,7 +42,6 @@ AREAS = {
     "plain": lambda c: shell.plain_commands(c["line"]),
     "arity": lambda c: " ".join(shell.prefix(shell.words(c["command"]))),
     "always": lambda c: policy.always_patterns("bash", c["line"]),
-    "chunk": lambda c: chunks.split(c["text"], size=c["size"], overlap=c["overlap"]),
     "think": lambda c: _think(c),
     "effort": lambda c: {
         "refused": generation._effort_was_refused(c["message"]),
@@ -51,7 +49,6 @@ AREAS = {
     },
     "plan": lambda c: _plan(c),
     "prototype": lambda c: prototypes.info(c["info"], c["code"]),
-    "library_scope": lambda c: documents.resolve_base(c["bases"], c["base"]),
     "toolcall_index": lambda c: _toolcalls(c),
     "fill": lambda c: _fill(c),
     "narrow": lambda c: _narrow(c),
@@ -78,7 +75,7 @@ def _narrow(c):
 
 
 def _memory(c):
-    from lembas.services.library import memories
+    from lembas.services import memories
 
     r = memories.apply_ops(c["target"], c["entries"], c["ops"], c["limit"])
     return {
@@ -131,6 +128,10 @@ PENDING = {
     "permission": "LLeMbas's modes are still its own table (agent/policy.py POLICY); the spec's "
     "modes.json and default rules are adopted later -- see the LLeMbas CLI's harness-parity notes",
     "edit": "run in tests/test_chat_files.py against the chat's edit tool",
+    "chunk": "the character splitter was the 1.x library's; the server's index cuts by tokens "
+    "(chunk_tokens, run in tests/test_index.py)",
+    "library_scope": "knowledge bases are gone from the server (spec 3.0.0); the CLI keeps its "
+    "local library",
     "unidiff": _ON_THE_DEVICE,
     "envelope": _ON_THE_DEVICE,
 }
@@ -329,7 +330,12 @@ def test_a_shared_text_marked_identical_is_the_fragment_default(path, key, entry
     it has to be: the fragment's default with every variable empty is the spec
     text with every variable empty -- except the one LLeMbas fills with a
     constant (`plan_dir`), which is filled the same on both sides."""
-    fragment = {f.key: f for f in prompts.BUILTIN}[key]
+    fragments = {f.key: f for f in prompts.BUILTIN}
+    if key not in fragments and path == "blocks/library.md":
+        # The vendored 2.0.0 index still names it; spec 3.0.0 makes the text
+        # the CLI's alone, and the server's library is gone.
+        pytest.skip("core.library went with the library (spec 3.0.0: blocks/library.md is cli)")
+    fragment = fragments[key]
     values = {
         name: prompts.PLAN_DIR if name == "plan_dir" else ""
         for name in entry.get("variables") or {}

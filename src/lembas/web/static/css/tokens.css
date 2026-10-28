@@ -124,18 +124,13 @@
      re-wraps everything a program prints. */
   --terminal-width: 34rem;
   --terminal-width-min: 24rem;
-  /* Wider again: a source line is longer than eighty columns once nothing is
-     re-wrapping it, and this one holds prose as well. The minimum is 24rem =
-     384px and must equal both `data-resize-min` in chat/_canvas.html and the
-     lower bound in api/preferences.py:LAYOUT_BOUNDS -- a width outside those
-     bounds is silently dropped, so the three are pinned equal by a test. */
-  --canvas-width: 40rem;
-  --canvas-width-min: 24rem;
-  /* The prototype panel. The canvas's width, not wider: the page inside is not
-     laid out at the panel's width anyway (see --proto-desktop-width), so a wider
-     panel only buys a larger picture at the cost of the conversation beside it
-     -- at 52rem a 1280px window had 180px of chat left. The minimum is pinned to
-     `data-resize-min` and LAYOUT_BOUNDS exactly as the canvas's is. */
+  /* The prototype panel. 40rem, not wider: the page inside is not laid out at
+     the panel's width anyway (see --proto-desktop-width), so a wider panel only
+     buys a larger picture at the cost of the conversation beside it -- at 52rem
+     a 1280px window had 180px of chat left. The minimum is 24rem = 384px and
+     must equal both `data-resize-min` in chat/_prototype.html and the lower
+     bound in api/preferences.py:LAYOUT_BOUNDS -- a width outside those bounds
+     is silently dropped, so the three are pinned equal by a test. */
   --prototype-width: 40rem;
   --prototype-width-min: 24rem;
   /* The two views are two viewports, each scaled to fit the panel rather than

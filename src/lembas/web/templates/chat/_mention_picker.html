@@ -1,18 +1,14 @@
 {% from "_macros.html" import icon %}
 {#
-  What `@` offers. Two sources, one list, because somebody typing `@readme` is
-  not thinking about which store the answer is in.
+  What `@` offers: a page to read, and what is already in this chat. A device
+  chat's files are the other source, asked of the device by the composer
+  beside this. Swapped in whole on every keystroke.
 
-  Swapped in whole on every keystroke, like the knowledge picker: the library
-  is searched with FTS rather than filtered in the browser. A device chat's
-  files are the other source, asked of the device by the composer beside this.
-
-  Every name here came off somebody's filesystem or out of their library, so
-  all of it is escaped by autoescaping and none of it is marked safe.
+  Every name here came off somebody's filesystem, so all of it is escaped by
+  autoescaping and none of it is marked safe.
 #}
 <div id="mention-results">
-  {% if not documents and not notes and not skills
-        and not bases and not attachments and not website %}
+  {% if not attachments and not website %}
   <p class="muted text-sm u-pad-3">
     {% if q %}
       {{ t("Nothing matches “%(q)s”.", q=q) }}
@@ -35,86 +31,6 @@
         </span>
       </button>
     </li>
-  </ul>
-  {% endif %}
-
-  {% if documents %}
-  <p class="picker__group">{{ t("In your library") }}</p>
-  <ul class="picker__list">
-    {% for document in documents %}
-    <li>
-      <button class="picker__option" type="button"
-              data-mention-knowledge="{{ document.id }}"
-              data-mention-token="{{ document.title }}">
-        {{ icon("image" if document.is_image else "archive", "icon--sm") }}
-        <span class="picker__option-body">
-          <span class="picker__option-name">{{ document.title }}</span>
-          <span class="picker__option-note">
-            {% if document.base %}{{ document.base.name }} · {% endif %}{{ document.kind }}
-            {%- if document.owner_id != user.id %} · {{ t("shared") }}{% endif %}
-          </span>
-        </span>
-      </button>
-    </li>
-    {% endfor %}
-  </ul>
-  {% endif %}
-
-  {% if notes %}
-  <p class="picker__group">{{ t("Notes") }}</p>
-  <ul class="picker__list">
-    {% for note in notes %}
-    <li>
-      <button class="picker__option" type="button"
-              data-mention-note="{{ note.id }}" data-mention-token="{{ note.title }}">
-        {{ icon("file-text", "icon--sm") }}
-        <span class="picker__option-body">
-          <span class="picker__option-name">{{ note.title }}</span>
-          <span class="picker__option-note">
-            {{ note.body | truncate(70) }}{% if note.owner_id != user.id %} · {{ t("shared") }}{% endif %}
-          </span>
-        </span>
-      </button>
-    </li>
-    {% endfor %}
-  </ul>
-  {% endif %}
-
-  {% if skills %}
-  <p class="picker__group">{{ t("Skills") }}</p>
-  <ul class="picker__list">
-    {% for skill in skills %}
-    <li>
-      <button class="picker__option" type="button"
-              data-mention-skill="{{ skill.id }}" data-mention-token="{{ skill.name }}">
-        {{ icon("sparkle", "icon--sm") }}
-        <span class="picker__option-body">
-          <span class="picker__option-name mono">{{ skill.name }}</span>
-          <span class="picker__option-note">{{ skill.description }}</span>
-        </span>
-      </button>
-    </li>
-    {% endfor %}
-  </ul>
-  {% endif %}
-
-  {% if bases %}
-  {# A base is a reference and not a copy: choosing one narrows what this chat
-     may search rather than putting anything into the message. #}
-  <p class="picker__group">{{ t("Search only these") }}</p>
-  <ul class="picker__list">
-    {% for base in bases %}
-    <li>
-      <button class="picker__option" type="button"
-              data-mention-base="{{ base.id }}" data-mention-token="{{ base.name }}">
-        {{ icon("archive", "icon--sm") }}
-        <span class="picker__option-body">
-          <span class="picker__option-name">{{ base.name }}</span>
-          <span class="picker__option-note">{{ t("Scope this chat to this knowledge base") }}</span>
-        </span>
-      </button>
-    </li>
-    {% endfor %}
   </ul>
   {% endif %}
 

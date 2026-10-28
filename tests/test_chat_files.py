@@ -89,8 +89,9 @@ def test_read_write_edit_through_the_chat(db):
     home = fs.ensure_home(db, user).path
     db.commit()
     s = Session(user, chat)
-    text, _ = s.call("write", path=f"{home}/a.py", content="x = 1\ny = 2\nz = 3\n")
+    text, outcome = s.call("write", path=f"{home}/a.py", content="x = 1\ny = 2\nz = 3\n")
     assert text.startswith(f"[#0001 {home}/a.py sha ") and text.endswith("] Created, 3 lines.")
+    assert outcome.event["result_id"] == "#0001"
     # A file it wrote is one it has seen: it may be edited without a read.
     text, outcome = s.call("edit", path=f"{home}/a.py", old="y = 2", new="y = 20")
     assert text.split("\n", 1)[1] == "@@ -1,3 +1,3 @@\n x = 1\n-y = 2\n+y = 20\n z = 3"

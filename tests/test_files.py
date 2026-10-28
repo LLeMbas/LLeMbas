@@ -680,7 +680,6 @@ def test_only_an_administrator_may_change_extraction(client, registered):
 
     assert client.post("/admin/extraction", data={"max_upload_mb": "1"}).status_code == 403
     assert client.post("/admin/extraction/search", data={}).status_code == 403
-    assert client.post("/admin/extraction/rebuild", data={}).status_code == 403
 
 
 def test_deleting_a_chat_removes_the_files_it_held(

@@ -155,7 +155,7 @@ def test_a_nullable_column_is_added_without_a_default(db):
     from sqlalchemy import Column, String
 
     from lembas.db.migrations import _add_column_sql
-    from lembas.db.models import Document
+    from lembas.db.models import Memory as Document
 
     sql = _add_column_sql(
         Document.__table__, Column("later", String(32), nullable=True), db.bind.dialect
@@ -168,7 +168,7 @@ def test_a_not_null_column_still_gets_one(db):
     from sqlalchemy import Column, String
 
     from lembas.db.migrations import _add_column_sql
-    from lembas.db.models import Document
+    from lembas.db.models import Memory as Document
 
     sql = _add_column_sql(
         Document.__table__,

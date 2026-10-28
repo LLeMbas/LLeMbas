@@ -21,7 +21,6 @@ from lembas.db.models import (
     Chat,
     Connection,
     Folder,
-    KnowledgeBase,
     Message,
     User,
 )
@@ -32,9 +31,7 @@ from lembas.services import chat as chat_service
 from lembas.services import compaction as compaction_service
 from lembas.services import data_groups, local_device, model_prefs, settings_store
 from lembas.services import prototypes as prototypes_service
-from lembas.services import reports as reports_service
 from lembas.services import suggestions as suggestions_service
-from lembas.services.library import documents as documents_service
 from lembas.services.schedule import clock
 from lembas.web import i18n
 from lembas.web.templating import STATIC_DIR, render
@@ -84,21 +81,6 @@ def _chat_context(db: DBSession, user: User, chat: Chat | None) -> dict:
         # may not be the model the chat is set to now. Keyed by model_id, the
         # denormalised value stored on each message.
         "models_by_id": {m.model_id: m for m in models},
-        # Offered in the chat settings panel so a conversation can be pointed at
-        # particular bases. Empty when the reader has none, and the panel then
-        # shows nothing rather than an empty control.
-        "knowledge_bases": (
-            list(
-                db.scalars(
-                    documents_service.visible_bases(db, user, group).order_by(
-                        KnowledgeBase.name
-                    )
-                )
-            )
-            if permissions.has(db, user, "library.use")
-            else []
-        ),
-        "attached_base_ids": [base.id for base in chat.knowledge_bases] if chat else [],
         # What *this* model takes, not the three every model used to be assumed
         # to take. The vocabulary is per model -- gpt-oss has no `xhigh` and
         # Bonsai has no `high`, and sending the wrong one does not degrade, it
@@ -328,13 +310,6 @@ def _agent_context(db: DBSession, user: User, chat: Chat | None) -> dict:
             for m in agent_policy.MODES
         ],
         "terminal_enabled": _terminal_enabled(db, user, chat),
-        # Any chat that exists. Deliberately not gated the way the terminal is:
-        # half the canvas's sources -- notes, skills, this chat's attachments,
-        # its own scratch document -- need no machine at all, so the terminal's
-        # total gate would remove a working feature because one source is
-        # unavailable. Absent on the new-chat screen for the reason the scope
-        # menu is: there is no row yet to hang a tab on.
-        "canvas_enabled": chat is not None,
         # Whether the panel and its switch exist at all. The per-chat switch is
         # not consulted: a chat that turned prototypes off still has the ones
         # it made before, and they must still open.
@@ -376,8 +351,7 @@ def sidebar_kind(user: User) -> str:
 # What an API-only instance stops offering in the sidebar and Settings.
 # `tools.agent` stays: it is what shows Devices, which is Settings.
 API_ONLY_HIDDEN = frozenset({
-    "chat.create", "folder.manage", "files.upload", "library.use", "library.share",
-    "reports.use", "schedule.use",
+    "chat.create", "folder.manage", "files.upload", "library.use", "schedule.use",
 })
 
 
@@ -544,8 +518,7 @@ def _device_sections(
 def sidebar_context(db: DBSession, user: User) -> dict:
     """Folder tree plus the chats that belong to no folder.
 
-    Public because every page carrying the chat sidebar needs it, which now
-    includes the library.
+    Public because every page carrying the chat sidebar needs it.
 
     Only root folders are queried; children come through the relationship and
     render recursively in the template.
@@ -664,12 +637,6 @@ def sidebar_context(db: DBSession, user: User) -> dict:
         # session arriving), and what somebody folded must survive each of
         # those. Folders carry theirs on the row (`Folder.collapsed`).
         "sections": section_states(user),
-        # Whether the Reports entry starts with its dot showing. Only the first
-        # paint: from then on `/api/chats/unread` moves it out of band, the same
-        # deal a chat row's dot has. Counted rather than existence-checked
-        # because the same query answers both and a count is what a title would
-        # want if this ever grows one.
-        "unread_reports": reports_service.unread_count(db, user),
         "sidebar_kind": kind,
         # Whether the switch is worth showing at all. A two-way switch with one
         # useful side is worse than no switch: it offers a view that is empty by
@@ -754,11 +721,10 @@ async def manifest(db: Db) -> Response:
             # Opening a link belonging to this scope focuses the window that is
             # already open rather than making a second one.
             "launch_handler": {"client_mode": "navigate-existing"},
-            # The launcher's long-press menu. Three destinations rather than
+            # The launcher's long-press menu. A few destinations rather than
             # ten: a menu nobody can read at a glance is a menu nobody opens.
             "shortcuts": [
                 {"name": "New chat", "url": "/chat"},
-                {"name": "Reports", "url": "/library/reports"},
                 {"name": "Scheduled", "url": "/settings?tab=scheduled"},
             ],
             # Both follow whatever theme this instance is set up in. They were
@@ -1011,7 +977,7 @@ async def chat_detail(request: Request, db: Db, user: RequiredUser, chat_id: str
     # its steps now (`message_steps`, a Jinja global), which is what lets a
     # reply's prose sit either side of the tool call it surrounded rather than
     # arriving as one block at the bottom. Nothing reads this for an assistant
-    # message any more; `library/note_detail.html` has its own.
+    # message any more.
     bodies: dict[str, str] = {}
 
     # What the chat would use if its own prompt were empty, so the settings
@@ -1151,9 +1117,9 @@ async def settings_page(
     embed: str = "",
 ):
     from lembas.api.audio import available_voices
+    from lembas.services import memories as memories_service
     from lembas.services import personalization as personalization_service
     from lembas.services import reset as reset_service
-    from lembas.services.library import memories as memories_service
 
     context = _chat_context(db, user, None)
     sidebar = sidebar_context(db, user)

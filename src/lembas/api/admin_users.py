@@ -12,8 +12,6 @@ from sqlalchemy.orm import Session as DBSession
 
 from lembas.api.deps import AdminUser, Db
 from lembas.db.models import (
-    PRINCIPAL_GROUP,
-    PRINCIPAL_USER,
     ROLE_ADMIN,
     ROLE_PENDING,
     ROLE_USER,
@@ -26,7 +24,7 @@ from lembas.security import permissions
 from lembas.security.passwords import hash_password, validate_password
 from lembas.security.sessions import revoke_all_for_user
 from lembas.services import chat as chat_service
-from lembas.services import settings_store, sharing
+from lembas.services import settings_store
 from lembas.services import usage as usage_service
 from lembas.web.i18n import t
 from lembas.web.templating import render
@@ -296,15 +294,7 @@ async def delete_user(db: Db, user: AdminUser, user_id: str) -> Response:
     email = target.email
     # Chats and folders cascade; that is the point of deleting an account.
     #
-    # Shares do not, and never did. `Share.principal_id` and
-    # `Share.resource_id` both point at one of several tables depending on a
-    # sibling column, which SQLite cannot express as a foreign key -- so a
-    # deleted account left behind every grant *to* it and every grant *of* its
-    # own work. Both halves, and both before the delete, while the rows are
-    # still there to be found.
-    sharing.forget_owner(db, target.id)
-    sharing.forget_principal(db, PRINCIPAL_USER, target.id)
-    # And the same shape a third time: the chats cascade, their attachment rows
+    # The chats cascade, their attachment rows
     # cascade, and every file those rows named stays on disk with nothing left
     # that will ever look at it. Before the delete, while the rows still say
     # which files they are.
@@ -441,16 +431,8 @@ async def delete_group(db: Db, user: AdminUser, group_id: str) -> Response:
     group = _group(db, group_id)
     name = group.name
     # Members and model links go with it; the users themselves are untouched.
-    #
-    # Every share naming this group goes too. Nothing cascades -- see
-    # `sharing.forget_principal` -- so a deleted group left its grants behind,
-    # and a group id is a random hex string that nothing reissues today and
-    # nothing promises not to reissue tomorrow.
-    dropped = sharing.forget_principal(db, PRINCIPAL_GROUP, group.id)
     db.delete(group)
     db.commit()
-    if dropped:
-        log.info("dropped %d share(s) naming group %s", dropped, name)
     log.info("%s deleted group %s", user.email, name)
     return RedirectResponse(
         f"/admin/groups?saved={quote(t('Deleted %(name)s.', name=name))}", status_code=303

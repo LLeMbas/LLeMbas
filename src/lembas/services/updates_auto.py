@@ -110,7 +110,6 @@ def busy(idle_minutes: float) -> list[str]:
     """What the instance is still doing, in words; empty when it is idle."""
     from lembas.services import device_link, generation, subagent
     from lembas.services.agent import terminal
-    from lembas.services.library import indexing
     from lembas.services.schedule import ticker
 
     reasons: list[str] = []
@@ -128,7 +127,11 @@ def busy(idle_minutes: float) -> list[str]:
         reasons.append(f"{len(terminal._SESSIONS)} terminal(s) open")
     if getattr(ticker, "_FIRING", None):
         reasons.append("a schedule firing")
-    if [t for t in getattr(indexing, "_TASKS", {}).values() if not t.done()]:
+    from lembas.services.index import worker as index_worker
+
+    # Busy only while it is embedding something: the worker itself is a loop
+    # that lives as long as the server, waiting for writes.
+    if getattr(getattr(index_worker, "_STATE", None), "current", ""):
         reasons.append("indexing")
     if any(link.writing for link in device_link.LINKS.values()):
         reasons.append("a device writing a reply")

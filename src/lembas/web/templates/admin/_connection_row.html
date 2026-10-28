@@ -106,7 +106,7 @@
                 {{ 'selected' if (connection.data_group_id or 'default') == group.id }}>{{ group.name }}</option>
         {% endfor %}
       </select>
-      <p class="field__hint">{{ t("Its models read only this group's memories, notes, skills, knowledge and reports, and a chat started on one of them stays in it. Moving a connection does not move any data: it starts reading the other group.") }}</p>
+      <p class="field__hint">{{ t("Its models read only this group's memories, and a chat started on one of them stays in it. Moving a connection does not move any data: it starts reading the other group.") }}</p>
     </div>
     {% endif %}
 

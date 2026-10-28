@@ -337,7 +337,7 @@ def test_the_guidance_reaches_the_model(db, registered):
     assert "note" in text.lower()
 
 
-def test_notes_and_memory_point_at_scheduling(db, registered):
+def test_memory_points_at_scheduling(db, registered):
     """The near-miss descriptions are what the model actually reached for, so
     both say what they are not for. Pinned on the defaults rather than on the
     rendered prompt: an administrator may reword them, and the point is that
@@ -345,10 +345,8 @@ def test_notes_and_memory_point_at_scheduling(db, registered):
     from lembas.services import prompts
 
     by_key = {fragment.key: fragment for fragment in prompts.BUILTIN}
-    notes = by_key["tool.notes"].default
     memory = by_key["tool.memory"].default
 
-    assert "schedule" in notes
     assert "schedule" in memory
 
 

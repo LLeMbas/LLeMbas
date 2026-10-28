@@ -1,18 +1,19 @@
-"""`/mcp`: a person's library, served to a logged-in device over MCP.
+"""`/mcp`: a person's memory, served to a logged-in device over MCP.
 
-The LLeMbas CLI's `library: lembas` -- or any MCP client -- reaches the
-holder's memory, notes, skills and knowledge here, with a token carrying the
-`library` scope. The tools are LLeMbas's own library tools, the same definitions
-and the same runners a chat uses, so a model sees the same tools either way and
-a fix to one is a fix to both.
+Memory is records the server keeps for both sides (harness spec 3.0.0,
+`filesystem.md` *Memory*): the LLeMbas CLI -- or any MCP client -- reads and
+writes the holder's here, with a token carrying the `library` scope (its name
+from when notes, skills and knowledge were served too; a device keeps those
+locally now). The tool is LLeMbas's own `memory`, the same definition and
+runner a chat uses, so a model sees the same tool either way.
 
-**What a person may do in a chat is what a device may do here**: the families are
-gated by the same permissions (`library.use`, `tools.<family>`, and the split
-write permissions), checked on every call. The data group is the person's
+**What a person may do in a chat is what a device may do here**: the tool is
+gated by the same permissions (`library.use`, `tools.memory`, and the split
+write permission), checked on every call. The data group is the person's
 default one -- a device is not a chat, and has no connection to pick a group by
 -- unless the call names the session it is made for (`_meta.lembas.scope`,
-harness spec 1.1.0): then it is answered within that chat's scope, its
-knowledge bases and its data group, exactly as the chat loop's own tools are.
+harness spec 1.1.0): then it is answered within that chat's data group,
+exactly as the chat loop's own tools are.
 
 Streamable HTTP in its plainest form: one JSON-RPC message per POST, answered
 with one JSON response (no server-to-client stream, so `GET` is 405). Methods:
@@ -37,13 +38,13 @@ log = logging.getLogger(__name__)
 router = APIRouter(tags=["mcp"])
 
 PROTOCOL_VERSION = "2025-06-18"
-LIBRARY_FAMILIES = ("memory", "notes", "skills", "knowledge")
+LIBRARY_FAMILIES = ("memory",)
 
 _library = require_token(SCOPE_LIBRARY)
 
 
 def library_tools(db, user) -> dict[str, Any]:
-    """The library tools this person may use now, by name."""
+    """The tools this person may use here now (memory), by name."""
     from lembas.security import permissions
     from lembas.services import tools as tools_service
 
@@ -63,6 +64,22 @@ def library_tools(db, user) -> dict[str, Any]:
             continue
         out[name] = tool
     return out
+
+
+def device_chat(db, token_id: str, session_id: str, user_id: str | None = None):
+    """The chat a device's session id names, for this device's token and no
+    other: a session id is the device's, so one device's `scope` can never
+    reach a chat another device runs -- not even one of the same account's."""
+    from sqlalchemy import select
+
+    from lembas.db.models import Chat
+
+    if not token_id or not session_id:
+        return None
+    wanted: list[Any] = [Chat.device_token_id == token_id, Chat.device_session_id == session_id]
+    if user_id:
+        wanted.append(Chat.user_id == user_id)
+    return db.scalars(select(Chat).where(*wanted)).first()
 
 
 def _reply(
@@ -143,18 +160,15 @@ async def mcp(request: Request, db: Db) -> Response:
             return _reply(
                 message_id, error=(-32602, f"There is no tool {name!r} for this account.")
             )
-        # The scope (capability `library`): a call made for a session this
-        # instance opened on the device names it, and is answered within that
-        # chat's scope -- its knowledge bases and its data group, as the chat
-        # loop's own tools would be -- by the same builder the loop uses. A
-        # session that is not this device's is refused, whoever's it is.
-        # Without a scope, the account's default group, as before.
+        # The scope: a call made for a session this instance opened on the
+        # device names it, and is answered within that chat's data group, as
+        # the chat loop's own tools would be -- by the same builder the loop
+        # uses. A session that is not this device's is refused, whoever's it
+        # is. Without a scope, the account's default group, as before.
         scope = str(((params.get("_meta") or {}).get("lembas") or {}).get("scope") or "")
         chat = None
         if scope:
-            from lembas.services.library import scope as library_scope
-
-            chat = library_scope.device_chat(db, caller.token.id, scope, caller.user.id)
+            chat = device_chat(db, caller.token.id, scope, caller.user.id)
             if chat is None:
                 return _reply(message_id, error=(-32602, "not this device's session"))
         context = tools_service.context_for(db, caller.user, chat)
@@ -178,4 +192,4 @@ async def mcp(request: Request, db: Db) -> Response:
     return _reply(message_id, error=(-32601, f"Method not found: {method}"))
 
 
-__all__ = ["LIBRARY_FAMILIES", "library_tools", "router"]
+__all__ = ["LIBRARY_FAMILIES", "device_chat", "library_tools", "router"]

@@ -180,11 +180,6 @@ async def update_chat(
             items.append((field, "" if value is None else str(value)))
     if "archived" in body:
         items.append(("archived", "1" if body["archived"] else "0"))
-    if "knowledge_bases" in body:
-        # Sent once even when empty, which is what clears them -- as the page's
-        # hidden field does.
-        bases = body["knowledge_bases"] if isinstance(body["knowledge_bases"], list) else []
-        items.extend(("knowledge_base_ids", str(b)) for b in bases or [""])
     # A chat's connection is fixed when it is made; naming one is the page's
     # 409, so it is passed through to be refused rather than quietly dropped.
     locked = (("kind", "kind"), ("device", "device_token_id"), ("directory", "project_dir"))

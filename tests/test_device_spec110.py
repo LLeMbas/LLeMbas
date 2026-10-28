@@ -1,6 +1,7 @@
 """Harness spec 1.1.0 on the device link: what only the instance knows goes
-to the device, the plan comes back as a structure, a turn can be rewound, and
-the library is scoped to the chat.
+to the device, the plan comes back as a structure, and a turn can be rewound.
+(The library's scope went with the server's knowledge bases, spec 3.0.0: a
+device that still lists `library` is sent nothing for it.)
 
 Each piece is gated on a capability the device lists in `initialize`
 (`context`, `library`, `prototypes`, `plan_state`, `rewind`), so a device
@@ -16,7 +17,7 @@ import asyncio
 import pytest
 from sqlalchemy import select
 
-from lembas.db.models import TOKEN_DEVICE, Chat, KnowledgeBase, Message, User
+from lembas.db.models import TOKEN_DEVICE, Chat, Message, User
 from lembas.security import api_tokens
 from lembas.services import device_link, plans, settings_store
 from lembas.services import generation as generation_service
@@ -106,7 +107,6 @@ def test_the_context_goes_with_session_new_and_again_on_every_prompt(client, db,
             "system_prompt": "You are the instance.",
             "personalization": {"personality": "concise", "personality_custom": "",
                                 "instructions": "Call me Frodo."},
-            "library": {"bases": []},
             "prototypes": {"offered": True, "sources": context["prototypes"]["sources"]},
         }
         assert "self-contained" in context["prototypes"]["sources"]
@@ -114,18 +114,15 @@ def test_the_context_goes_with_session_new_and_again_on_every_prompt(client, db,
         prompt = _next(ws, "session/prompt")
         meta = _lembas_meta(prompt)
         assert meta["turnId"] and meta["system_prompt"] == "You are the instance."
-        assert meta["library"] == {"bases": []} and meta["prototypes"]["offered"] is True
+        assert "library" not in meta and meta["prototypes"]["offered"] is True
         _event(ws, "s1", {"type": "task", "state": "start", "turnId": meta["turnId"]})
         _finish(ws, prompt, "Done.")
         _reply(db, chat.id)
 
-        # Changed here between two turns: the chat's own prompt, a base
-        # attached, prototypes off -- the next prompt says so.
+        # Changed here between two turns: the chat's own prompt, prototypes
+        # off -- the next prompt says so.
         db.expire_all()
         chat = db.get(Chat, chat.id)
-        base = KnowledgeBase(owner_id=chat.user_id, name="Contracts")
-        db.add(base)
-        chat.knowledge_bases.append(base)
         chat.system_prompt = "Be brief."
         db.commit()
         settings_store.update(db, {"prototypes_enabled": False, "personalization_enabled": False})
@@ -134,7 +131,6 @@ def test_the_context_goes_with_session_new_and_again_on_every_prompt(client, db,
         meta = _lembas_meta(prompt)
         assert meta["system_prompt"] == "Be brief."
         assert meta["personalization"] is None
-        assert meta["library"] == {"bases": [{"id": base.id, "name": "Contracts"}]}
         assert meta["prototypes"]["offered"] is False
         _event(ws, "s1", {"type": "task", "state": "start", "turnId": meta["turnId"]})
         _finish(ws, prompt, "Again.")
@@ -152,9 +148,9 @@ def test_a_device_without_the_capabilities_gets_no_context(client, db, registere
         _hello(ws, [*ALL, "library"])
         _wait_linked(token_id)
         chat, prompt = _start(client, db, ws, token_id)
-        # Only what it listed: the library's scope, and nothing of the rest.
+        # `library` is no Context any more, and nothing it did not list is sent.
         meta = _lembas_meta(prompt)
-        assert set(meta) == {"turnId", "library"}
+        assert set(meta) == {"turnId"}
         _finish(ws, prompt)
         _reply(db, chat.id)
 
@@ -501,7 +497,7 @@ def test_rewind_asks_nothing_it_cannot(db, registered, make_chat):
     assert not device_link.offers(link.token_id, "rewind")
 
 
-# --- 4. The library scoped to the chat on /mcp ------------------------------------------
+# --- 4. Memory scoped to the chat on /mcp ------------------------------------------
 def _library_token(db, name="dev") -> tuple[str, dict[str, str]]:
     token, raw = api_tokens.create(
         db, db.scalar(select(User)), name=name, scopes=["library", "link"],
@@ -520,63 +516,23 @@ def _call(client, headers, name, arguments, scope=None):
     ).json()
 
 
-def test_a_scoped_call_searches_the_chats_bases(client, db, registered, make_chat):
-    token_id, headers = _library_token(db)
-    chat = db.get(Chat, make_chat())
-    chat.kind = "agent"
-    chat.device_token_id = token_id
-    chat.device_session_id = "ses_1"
-    base = KnowledgeBase(owner_id=chat.user_id, name="Contracts")
-    db.add(base)
-    chat.knowledge_bases.append(base)
-    db.commit()
-
-    # Without a scope: the account's default group, no bases to name.
-    plain = _call(client, headers, "knowledge_search", {"query": "lease", "base": "Contracts"})
-    assert plain["result"]["isError"] is True
-    assert "Available: none" in plain["result"]["content"][0]["text"]
-    # Within the session's scope: the chat's base is what `base` may name.
-    scoped = _call(client, headers, "knowledge_search", {"query": "lease", "base": "Contracts"},
-                   scope="ses_1")
-    assert scoped["result"]["isError"] is False
-    # And a base that is not the chat's is not there.
-    other = _call(client, headers, "knowledge_search", {"query": "lease", "base": "Invoices"},
-                  scope="ses_1")
-    assert "Available: Contracts" in other["result"]["content"][0]["text"]
-
-
 def test_a_session_that_is_not_this_devices_is_refused(client, db, registered, make_chat):
     token_id, headers = _library_token(db)
     chat = db.get(Chat, make_chat())
     chat.device_token_id = token_id
     chat.device_session_id = "ses_1"
     db.commit()
-    assert _call(client, headers, "notes_search", {"query": "x"}, scope="ses_1")["result"]
+    assert _call(client, headers, "memory", {"action": "add", "content": "x"}, scope="ses_1")[
+        "result"
+    ]
     # Another device of the same account, naming this device's session.
     _, others = _library_token(db, "other")
-    refused = _call(client, others, "notes_search", {"query": "x"}, scope="ses_1")
+    refused = _call(client, others, "memory", {"action": "add", "content": "y"}, scope="ses_1")
     assert refused["error"] == {"code": -32602, "message": "not this device's session"}
     # A session nobody has.
-    refused = _call(client, headers, "notes_search", {"query": "x"}, scope="ses_404")
+    refused = _call(client, headers, "memory", {"action": "add", "content": "z"}, scope="ses_404")
     assert refused["error"]["code"] == -32602
     # No scope: as before.
-    assert _call(client, headers, "notes_search", {"query": "x"})["result"]["isError"] is False
-
-
-def test_chat_bases_names_only_the_attached_ones_in_the_group(db, registered, make_chat):
-    from lembas.services.library import scope as library_scope
-
-    chat = db.get(Chat, make_chat())
-    user = db.get(User, chat.user_id)
-    assert library_scope.chat_bases(db, user, chat) == []
-    base = KnowledgeBase(owner_id=user.id, name="Contracts")
-    db.add(base)
-    db.commit()
-    # Visible but not attached: not named -- an empty list is the whole library.
-    assert library_scope.chat_bases(db, user, chat) == []
-    chat.knowledge_bases.append(base)
-    db.commit()
-    assert library_scope.chat_bases(db, user, chat) == [{"id": base.id, "name": "Contracts"}]
-    assert library_scope.chat_bases(db, None, chat) == []
-    assert library_scope.device_chat(db, "tok", "") is None
+    no_scope = _call(client, headers, "memory", {"action": "add", "content": "w"})
+    assert no_scope["result"]["isError"] is False
 

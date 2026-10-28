@@ -64,7 +64,7 @@ def test_a_temporary_chat_is_offered_no_write_tool(db, user_id):
     assert _writes(db, chat, user_id) == set()
     # And keeps what reads: "read yes".
     reads = _reads(db, chat, user_id)
-    assert {"notes_search", "knowledge_search"} & reads
+    assert {"read", "grep"} <= reads
 
 
 def test_keeping_the_chat_gives_writing_back(client, db, registered, user_id):

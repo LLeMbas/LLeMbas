@@ -30,7 +30,6 @@ from sqlalchemy import select
 
 from lembas.db.models import KIND_AGENT, ROLE_ASSISTANT, ROLE_USER, Chat, Message, User
 from lembas.db.session import session_scope
-from lembas.services import canvas as canvas_service
 from lembas.services import chat as chat_service
 from lembas.services import compaction as compaction_service
 from lembas.services import context as context_service
@@ -224,12 +223,6 @@ class Generation:
     waited: float = 0.0
     # Bytes of tool output this reply has read, against the output budget.
     output_bytes: int = 0
-    # Which files this reply has put in the canvas panel. Seeded once from
-    # `chat.canvas_json` where `_run` already has the chat loaded, then mutated
-    # in place -- two `file_read` calls in one round that each re-read the row
-    # would leave only the second, which is the lost update `plan` above
-    # documents. Folded back by `_persist`, the single writer.
-    canvas: dict = field(default_factory=dict)
     # The queue, seen from the reply's side. `drained` says this reply's ending
     # handed the next waiting prompt to a fresh one; `injected_ids` names the
     # prompts taken into *this* reply between two rounds of tool calls. Both are
@@ -249,7 +242,7 @@ class Generation:
     device_chars: int = 0
     # Images this reply produced, waiting to be bound to its message row. The
     # runner writes the file and the `Attachment`; only `_persist` may say which
-    # turn it belongs to, which is the same division of labour `canvas` above
+    # turn it belongs to, which is the same division of labour `plan` above
     # follows and for the same reason.
     attachment_ids: list[str] = field(default_factory=list)
     # How many times *in a row* this reply has been asked again after a round
@@ -907,12 +900,6 @@ async def _run(generation: Generation) -> None:
             # trace as it can, and that includes a model call made only to name a
             # conversation nobody will see listed.
             title_from_prompt = chat.kind == KIND_AGENT or chat_service.read_only_temporary(chat)
-            # Seeded once, here, where the chat is already loaded. Mutated from
-            # then on; see the field's own note.
-            generation.canvas = {
-                "tabs": list((chat.canvas_json or {}).get("tabs") or []),
-                "active": (chat.canvas_json or {}).get("active") or "",
-            }
             # Read here, with the rest, because titling happens after this
             # session has closed and must not open another one.
             title_prompt = prompts_service.resolve(db, "task.title")
@@ -1299,18 +1286,10 @@ async def _run(generation: Generation) -> None:
                 content = _inserted(results, call, arguments[index], outcome, messages)
                 generation.output_bytes += len(content.encode("utf-8"))
                 messages.append(tools_service.tool_turn(call, content))
-                if opened := outcome.event.get("canvas"):
-                    # A runner cannot write the message row, so the loop carries
-                    # this exactly as it carries a merged plan. Never activated:
-                    # an agent reads forty files in a long reply, and dragging
-                    # somebody through all of them -- or away from a file they
-                    # are editing -- is what makes a panel like this unusable.
-                    canvas_service.open_tab(generation.canvas, opened, activate=False)
                 if attachment_id := outcome.event.get("attachment_id"):
                     # A generated image. The runner wrote the row and the bytes;
-                    # binding it to this reply is the loop's job for the reason
-                    # the canvas tab above is -- a runner cannot write the
-                    # message row, and `_persist` is the single writer.
+                    # binding it to this reply is the loop's job: a runner cannot
+                    # write the message row, and `_persist` is the single writer.
                     generation.attachment_ids.append(str(attachment_id))
             if generation.stopped:
                 break
@@ -2220,19 +2199,25 @@ def _inserted(
         if entry and not failed:
             if entry.get("kind") == "read":
                 entry = {**entry, "body": outcome.content}
-            return results.insert(entry)
-        return results.insert(
-            {
-                "kind": "output",
-                "tool": call["name"],
-                "args": arguments if isinstance(arguments, dict) else {},
-                "text": outcome.content,
-                "error": failed,
-            }
-        )
+            text = results.insert(entry)
+        else:
+            text = results.insert(
+                {
+                    "kind": "output",
+                    "tool": call["name"],
+                    "args": arguments if isinstance(arguments, dict) else {},
+                    "text": outcome.content,
+                    "error": failed,
+                }
+            )
     except Exception:  # pragma: no cover - storage trouble must not end a reply
         log.exception("could not store a tool result for chat %s", results.store)
         return outcome.content
+    # The id beside the call in the transcript, so a person reading "#0003" in
+    # a reply can find the call it names.
+    if found := context_service.present_ids([{"role": "tool", "content": text}]):
+        outcome.event["result_id"] = next(iter(found))
+    return text
 
 
 async def _run_calls(
@@ -2504,11 +2489,6 @@ def _persist(generation: Generation, title: str, elapsed: float) -> None:
             message.plan_json = plan or {}
             if plan:
                 chat.plan_json = plan
-            if generation.canvas.get("tabs"):
-                # A union with whatever the row says *now*, not an overwrite:
-                # the snapshot above was seeded when the reply began, and
-                # somebody may have opened a tab by hand since.
-                chat.canvas_json = canvas_service.merge(chat.canvas_json, generation.canvas)
             if generation.attachment_ids:
                 # Images this reply made, bound to it here because this is the
                 # only writer. Scoped to rows this chat owns and still unbound,

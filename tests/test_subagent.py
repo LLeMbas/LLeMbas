@@ -192,7 +192,7 @@ async def test_a_helper_writes_nothing_by_default(db, monkeypatch):
     added later defaults into being withheld instead of into being handed over
     because nobody remembered a list."""
     settings_store.update(
-        db, {"default_permissions": {"tools.subagent": True, "tools.notes": True}}
+        db, {"default_permissions": {"tools.subagent": True, "tools.memory": True}}
     )
     settings_store.update(db, {"keep_transcript": True}, key=settings_store.SUBAGENTS)
     seen = _spawn(monkeypatch)
@@ -200,23 +200,23 @@ async def test_a_helper_writes_nothing_by_default(db, monkeypatch):
     await _run(db, _chat(db), {"task": "Look something up."})
 
     offered = _child_tools(db, seen)
-    assert "note_manage" not in offered
+    assert "write" not in offered
     assert "memory" not in offered
     # And the reading half is untouched: a helper that cannot look things up is
     # a slower way of asking the same model the same question.
-    assert "notes_search" in offered
+    assert "read" in offered
 
 
 async def test_a_writing_helper_keeps_the_writing_tools(db, monkeypatch):
     settings_store.update(
-        db, {"default_permissions": {"tools.subagent": True, "tools.notes": True}}
+        db, {"default_permissions": {"tools.subagent": True, "tools.memory": True}}
     )
     settings_store.update(db, {"keep_transcript": True}, key=settings_store.SUBAGENTS)
     seen = _spawn(monkeypatch)
 
     await _run(db, _chat(db), {"task": "Write it down.", "write": True})
 
-    assert "note_manage" in _child_tools(db, seen)
+    assert "write" in _child_tools(db, seen)
 
 
 async def test_the_parents_own_narrowing_is_carried_across(db, monkeypatch):
@@ -529,9 +529,9 @@ async def test_an_unattended_chat_refuses_instead_of_waiting(db, monkeypatch):
     context.unattended = True
     calls = [
         {"name": "ask_user", "arguments": '{"question": "Which one?"}'},
-        {"name": "notes_search", "arguments": '{"query": "x"}'},
+        {"name": "recall", "arguments": '{"id": "#0001"}'},
     ]
-    arguments = [{"question": "Which one?"}, {"query": "x"}]
+    arguments = [{"question": "Which one?"}, {"id": "#0001"}]
 
     # If this ever waits, it waits for the interaction timeout — so a failure
     # here is a hang rather than an assertion, and `interaction.wait_for` is the

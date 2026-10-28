@@ -554,8 +554,8 @@ async def test_a_general_helper_writes_and_an_explore_helper_does_not(db, monkey
         child = db.get(Chat, child_id)
         return {t.name for t in tools_service.resolve_tools(db, child, _user(db)).defs}
 
-    assert "note_manage" not in await child_tools("explore")
-    assert "note_manage" in await child_tools("general")
+    assert "write" not in await child_tools("explore")
+    assert "write" in await child_tools("general")
 
 
 def test_the_strip_lists_a_native_chats_running_helper(client, db, registered):

@@ -1,18 +1,14 @@
 """Search: one box over everything a person has here.
 
-Chats and agent sessions, and -- for whoever may use them -- the library's
-knowledge, notes and skills, reports, and memories. One page, `GET /search`,
+Chats and agent sessions, and -- for whoever may use them -- memories. One page, `GET /search`,
 reached from the magnifier in the sidebar's header rail, and carrying the chat
 sidebar as the library does: you look something up mid-conversation and go
 straight back.
 
-**Every store is asked through the code that already decides who sees what.**
-The library and reports go through their own `search` functions, which apply
-`sharing.visible_to` to the rows the index returned -- the order that makes a
-hit on somebody else's document impossible to leak, even as a count. Chats and
-memories have no index and no sharing: they are this person's own, so the query
-is `user_id`/`owner_id` first and the text second. Nothing here widens what a
-page elsewhere already shows.
+**Every store is asked as its owner.** Chats and memories have no sharing:
+they are this person's own, so the query is `user_id`/`owner_id` first and the
+text second. Nothing here widens what a page elsewhere already shows. (Files
+are searched through the index, `services/index`, by the file tools.)
 
 **Filters are offered by permission, not just refused by it.** A tab for
 something the reader may not open would be a link to a 403, so a type nobody
@@ -25,11 +21,8 @@ asked for as one more than shown, so "more" is known rather than guessed. A
 filtered view shows up to `FULL`. No pager: a search that needs one wants a
 better query, and every store's own page has its own list.
 
-The vector for the library's hybrid search is embedded once and handed to every
-store, and only when one of them is being searched -- it is an HTTP request.
-
 API-only mode refuses `/search` outright (`services/instance_mode.py`): there are
-no chats, library or reports to find.
+no chats to find.
 """
 
 from __future__ import annotations
@@ -42,26 +35,17 @@ from sqlalchemy.orm import Session as DBSession
 from lembas.api.deps import Db, RequiredUser
 from lembas.api.pages import sidebar_context
 from lembas.db.models import KINDS, ROLE_ASSISTANT, ROLE_USER, Chat, Memory, Message, User
-from lembas.services import reports as reports_service
-from lembas.services.library import documents as documents_service
-from lembas.services.library import notes as notes_service
-from lembas.services.library import retrieval
-from lembas.services.library import skills as skills_service
 from lembas.web.templating import render
 
 router = APIRouter(tags=["search"])
 
 # The filters, in the order the tabs show them. "all" first and the default.
-FILTERS = ("all", "chats", "knowledge", "notes", "skills", "reports", "memories")
+FILTERS = ("all", "chats", "memories")
 
 # Which permission each type needs. Chats need none beyond being signed in: a
 # person's own chats are always theirs to find.
 NEEDS = {
     "chats": None,
-    "knowledge": "library.use",
-    "notes": "library.use",
-    "skills": "library.use",
-    "reports": "reports.use",
     "memories": "library.use",
 }
 
@@ -201,64 +185,12 @@ async def run(db: DBSession, user: User, needle: str, kinds: list[str], limit: i
     Returns `{kind: hits}`, each hit the same small dict whatever the store, so
     the template draws one kind of row.
     """
-    vector = None
-    if any(kind in ("knowledge", "notes", "skills", "reports") for kind in kinds):
-        vector = await retrieval.embed_query(db, needle)
-
     found: dict[str, list[dict]] = {}
     for kind in kinds:
         if kind == "chats":
             found[kind] = _search_chats(db, user, needle, limit)
         elif kind == "memories":
             found[kind] = _search_memories(db, user, needle, limit)
-        elif kind == "knowledge":
-            found[kind] = [
-                {
-                    "title": document.title,
-                    "url": f"/library/knowledge/document/{document.id}",
-                    "icon": "archive",
-                    "snippet": documents_service.snippet(document)[:SNIPPET_CHARS],
-                    "archived": False,
-                }
-                for document in documents_service.search(
-                    db, user, needle, limit=limit, vector=vector
-                )
-            ]
-        elif kind == "notes":
-            found[kind] = [
-                {
-                    "title": note.title,
-                    "url": f"/library/notes/{note.id}",
-                    "icon": "pencil",
-                    "snippet": snippet(note.body, needle),
-                    "archived": False,
-                }
-                for note in notes_service.search(db, user, needle, limit=limit, vector=vector)
-            ]
-        elif kind == "skills":
-            found[kind] = [
-                {
-                    "title": skill.name,
-                    "url": f"/library/skills/{skill.id}",
-                    "icon": "sparkle",
-                    "snippet": (skill.description or "")[:SNIPPET_CHARS],
-                    "archived": False,
-                }
-                for skill in skills_service.search(db, user, needle, limit=limit, vector=vector)
-            ]
-        elif kind == "reports":
-            found[kind] = [
-                {
-                    "title": report.title,
-                    "url": f"/library/reports/{report.id}",
-                    "icon": "file-text",
-                    "snippet": (report.summary or "")[:SNIPPET_CHARS],
-                    "archived": False,
-                }
-                for report in reports_service.search(
-                    db, user, needle, limit=limit, vector=vector
-                )
-            ]
     return found
 
 

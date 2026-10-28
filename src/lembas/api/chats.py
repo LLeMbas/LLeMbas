@@ -39,7 +39,6 @@ from lembas.services import generation as generation_service
 from lembas.services import jobs as jobs_service
 from lembas.services import metrics as metrics_service
 from lembas.services import prompts as prompts_service
-from lembas.services import reports as reports_service
 from lembas.services import steps as steps_service
 from lembas.services import subagent as subagent_service
 from lembas.services import tokens as tokens_service
@@ -694,48 +693,6 @@ async def compact_chat(request: Request, db: Db, user: RequiredUser, chat_id: st
     )
 
 
-@router.post("/{chat_id}/bases")
-async def attach_base(
-    request: Request, db: Db, user: RequiredUser, chat_id: str, base_id: str = Form("")
-) -> Response:
-    """Scope this chat to a knowledge base, from the `@` menu.
-
-    A base is a *reference*, not an attachment: `Chat.knowledge_bases` already
-    narrows `knowledge_search`, and the harness already names the attached bases
-    so the model can tell "there is nothing about this" from "I can only see
-    this folder". Copying a folder of documents into the window instead would
-    cost the context on every request forever to answer one question.
-
-    Additive, and idempotent -- choosing the same base twice is not an error.
-    Removing one is a checkbox in the chat's settings, where the whole set is
-    visible at once.
-    """
-    from lembas.db.models import KnowledgeBase
-    from lembas.services.library import documents as documents_service
-
-    chat = _owned_chat(db, chat_id, user.id)
-    if not permissions.has(db, user, "library.use"):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, t("You may not use the library."))
-
-    # Only a base in the chat's own data group: its documents are what this
-    # chat's model would search, and another group's are not its to read.
-    base = db.scalar(
-        documents_service.visible_bases(db, user, data_groups.for_chat(db, chat)).where(
-            KnowledgeBase.id == base_id
-        )
-    )
-    if base is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, t("That knowledge base is not available."))
-
-    if base.id not in {b.id for b in chat.knowledge_bases}:
-        chat.knowledge_bases = [*chat.knowledge_bases, base]
-        db.commit()
-
-    return templates.TemplateResponse(
-        request, "chat/_base_chip.html", {"request": request, "base": base}
-    )
-
-
 @router.post("/{chat_id}/scope")
 async def set_scope(
     db: Db,
@@ -915,25 +872,6 @@ async def unread_poll(request: Request, db: Db, user: RequiredUser) -> Response:
         markup += tree.replace(
             '<div id="sidebar-tree">', '<div id="sidebar-tree" hx-swap-oob="outerHTML">', 1
         )
-
-    # One dot for the whole Reports section, carried by this poll rather than by
-    # a second timer of its own. Sent on every tick including empty, because it
-    # has to be able to clear: a dot that survived reading the last report would
-    # be news that cannot be dismissed.
-    if permissions.has(db, user, "reports.use"):
-        waiting = reports_service.unread_count(db, user)
-        markup += (
-            '<span id="unread-reports" class="unread-dot" hx-swap-oob="true"'
-            f'{"" if waiting else " hidden"} title="New reports"></span>'
-        )
-        # Announced per report rather than per section, because the title is the
-        # whole of what makes it worth interrupting somebody for -- "a report
-        # arrived" is a sentence they have to go and act on to understand.
-        for report in reports_service.unannounced(db, user):
-            report.unread_notified = True
-            items.append(
-                {"kind": "report", "title": report.title, "url": f"/library/reports/{report.id}"}
-            )
 
     if items:
         db.commit()
@@ -1370,11 +1308,11 @@ async def stream_message(
 def _step_html(message_id: str, step) -> str:
     """One closed step of a running reply.
 
-    `SimpleNamespace` for the message, as `_canvas_tabs` already does for the
-    chat: the partial wants an id to build its element ids from and nothing
-    else, and there is no `Message` in scope here -- the row is not written
-    until the reply ends. `reasoning_ms` is only known then too, so a live step
-    says "Thought" and the stored one says how long for.
+    `SimpleNamespace` for the message: the partial wants an id to build its
+    element ids from and nothing else, and there is no `Message` in scope here
+    -- the row is not written until the reply ends. `reasoning_ms` is only
+    known then too, so a live step says "Thought" and the stored one says how
+    long for.
     """
     return templates.get_template("chat/_step.html").render(
         {"step": step, "message": SimpleNamespace(id=message_id, reasoning_ms=0)}
@@ -1481,25 +1419,6 @@ def _ask_html(chat_id: str, pending) -> str:
             {"ask": card, "chat_id": chat_id, "other_value": interaction.OTHER}
         )
         for card in cards
-    )
-
-
-def _canvas_tabs(chat_id: str, state: dict) -> str:
-    """The canvas tab strip, as an out-of-band swap.
-
-    Out of band because it belongs to a panel, not to the bubble the stream is
-    writing into -- the same move the `done` frame already makes for the chat
-    title. Only the strip: pushing the file's contents on every version bump
-    would be a lot of bytes for nothing, and would overwrite a textarea somebody
-    is typing in. The active tab's body fetches itself once instead.
-    """
-    return templates.get_template("chat/_canvas_tabs.html").render(
-        {
-            "chat": SimpleNamespace(id=chat_id),
-            "tabs": state.get("tabs") or [],
-            "active": state.get("active") or "",
-            "oob": True,
-        }
     )
 
 
@@ -1620,21 +1539,6 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
                     yield sse.event("think", sent["think"])
                 if changed("render", tail_html):
                     yield sse.event("render", sent["render"])
-                # Guarded on truthiness, which puts this in the
-                # reasoning/tools/render group and not the
-                # metrics/status/ask one. Those three are sent even when
-                # empty *because* each has to be able to clear itself; this
-                # one must never be able to, since an empty canvas frame
-                # would close every tab somebody had open. The card that
-                # could be pressed twice, with the sign reversed.
-                #
-                # The whole strip each time, not a delta, so a follower
-                # attaching mid-reply gets every tab the reply has touched
-                # rather than the ones that happened to arrive after it.
-                if generation.canvas.get("tabs") and changed(
-                    "canvas", _canvas_tabs(chat_id, generation.canvas)
-                ):
-                    yield sse.event("canvas", sent["canvas"])
                 current_plan = getattr(generation, "plan", None) or generation.todos
                 if current_plan is not None and current_plan != plan_sent:
                     # Out of band, into the panel above the composer.
@@ -1647,9 +1551,8 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
                 if changed("ask", _ask_html(chat_id, generation.waiting)):
                     yield sse.event("ask", sent["ask"])
                 # The background jobs, out of band into the strip above the
-                # composer -- only once there are any, for the reason the
-                # canvas frame gives: an empty one would clear a strip the
-                # page filled for itself.
+                # composer -- only once there are any: an empty frame would
+                # clear a strip the page filled for itself.
                 if generation.jobs and changed(
                     "jobs", _jobs_strip_html(chat_id, list(generation.jobs.values()))
                 ):
@@ -2687,26 +2590,6 @@ def apply_chat_update(db: DBSession, user: User, chat: Chat, form) -> tuple[bool
                 status.HTTP_403_FORBIDDEN, t("You may not set a system prompt.")
             )
         chat.system_prompt = str(form["system_prompt"]).strip()[:8000]
-
-    if "knowledge_base_ids" in form:
-        # Sent as a single field even when empty, so that clearing every box
-        # actually clears the attachment -- absent checkboxes carry no signal of
-        # their own, which is the same trap update_chat exists to avoid.
-        from lembas.db.models import KnowledgeBase
-        from lembas.services.library import documents as documents_service
-
-        wanted = [value for value in form.getlist("knowledge_base_ids") if value]
-        chat.knowledge_bases = (
-            list(
-                db.scalars(
-                    documents_service.visible_bases(
-                        db, user, data_groups.for_chat(db, chat)
-                    ).where(KnowledgeBase.id.in_(wanted))
-                )
-            )
-            if wanted
-            else []
-        )
 
     submitted_params = {name: form[name] for name in _PARAM_RANGES if name in form}
     if submitted_params:

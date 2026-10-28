@@ -5,10 +5,10 @@
 
   It gathers what was in three places: the composer's tools menu (the switches
   for this chat), the header's overflow menu (Keep this chat, Chat settings,
-  Compact) and the strip of prompt, knowledge and sampling fields that menu
+  Compact) and the strip of prompt and sampling fields that menu
   opened under the header. Reached from the composer's settings -- "More
   settings" -- and, on a phone, from the window switch while it is open. A side
-  panel like the canvas and the inspector, in their slot and their toggle group,
+  panel like the inspector, in its slot and their toggle group,
   so only one of them is open at a time.
 
   On the new-chat screen it holds only the switches, and they post nothing:
@@ -131,37 +131,6 @@
             {{ t("Leave empty to use the instance prompt shown above.") }}
           {% else %}
             {{ t("Overrides the model and instance prompts for this chat only.") }}
-          {% endif %}
-        </p>
-      </div>
-    </section>
-    {% endif %}
-
-    {% if chat and knowledge_bases %}
-    {# Which bases this chat draws on. None ticked means everything you can
-       see, which is what a chat with nothing chosen should do. #}
-    <section class="chat-settings__section">
-      <div class="field">
-        <label class="field__label">{{ t("Knowledge") }}</label>
-        <form hx-patch="/api/chats/{{ chat.id }}" hx-swap="none" hx-trigger="change">
-          {# Always submitted, so unticking the last box still says something.
-             An absent checkbox carries no signal of its own. #}
-          <input type="hidden" name="knowledge_base_ids" value="">
-          <div class="chat-settings__checks">
-            {% for base in knowledge_bases %}
-            <label class="checkbox">
-              <input type="checkbox" name="knowledge_base_ids" value="{{ base.id }}"
-                     {{ 'checked' if base.id in attached_base_ids }}>
-              <span>{{ base.name }}</span>
-            </label>
-            {% endfor %}
-          </div>
-        </form>
-        <p class="field__hint">
-          {% if attached_base_ids %}
-            {{ t("Searches in this chat are limited to what is ticked.") }}
-          {% else %}
-            {{ tm("Nothing ticked, so this chat can search everything in your <a href=\"/library/knowledge\">library</a>.") }}
           {% endif %}
         </p>
       </div>

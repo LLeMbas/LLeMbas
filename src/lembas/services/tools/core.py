@@ -22,8 +22,6 @@ FAMILY_SEARCH = "web_search"
 # things up but not follow an arbitrary URL it read somewhere, and the SSRF
 # surface is entirely on this side.
 FAMILY_FETCH = "fetch"
-FAMILY_KNOWLEDGE = "knowledge"
-FAMILY_NOTES = "notes"
 FAMILY_MEMORY = "memory"
 FAMILY_SKILLS = "skills"
 # The chat's file tools over the organisation's tree (harness spec 3.0.0,
@@ -58,33 +56,14 @@ FAMILY_ASK = "ask"
 # Withheld from a helper's chat, which has one reply and nobody reading it.
 FAMILY_PLAN = "plan"
 
-# The chat's own working surface -- the canvas panel's scratch document.
-# Deliberately not part of `notes`: a note is a durable artefact of the reader's
-# that outlives the chat and is searchable, while this is the chat's own record
-# of what it is doing, which is the line `plan_update` sits on. It is also its
-# own switch, because narrowing notes off must not silently take the pad too.
-FAMILY_SCRATCH = "scratch"
-
 # Drawing a picture on a ComfyUI an administrator configured. A family of its
 # own for the reason `fetch` is one: an instance may reasonably want a model
 # that can look things up but not spend a minute of GPU on every request, and
 # the whole cost of this one is somewhere else.
 FAMILY_IMAGE = "image"
 
-# Filing a finished piece of work where the reader will find it later.
-# Deliberately not part of `notes`, and the line is the one a note already
-# draws from the other side: a note is something to be found again *by the
-# model*, searched for mid-conversation and edited when it turns out to be
-# wrong. A report is addressed to a person, read once, and never answered --
-# so it is the destination for work nobody was watching, which is exactly what
-# a note is not. Narrowing notes off must not take it away, and turning it on
-# must not hand out the notebook.
-FAMILY_REPORT = "report"
-
-# Setting work up to happen later, or repeatedly. Its own family and emphatically
-# not part of `notes`: the line between them is the whole reason this exists. A
-# note is something to find again; a schedule is something that *happens*, and a
-# model with only the first reached for it when asked for the second -- wrote the
+# Setting work up to happen later, or repeatedly. Its own family: a schedule is
+# something that *happens*, and a model with nowhere else to put it once wrote a
 # note, said it had scheduled something, and nothing anywhere disagreed.
 FAMILY_SCHEDULE = "schedule"
 
@@ -107,15 +86,11 @@ FAMILIES = (
     FAMILY_RECALL,
     FAMILY_SEARCH,
     FAMILY_FETCH,
-    FAMILY_KNOWLEDGE,
-    FAMILY_NOTES,
     FAMILY_MEMORY,
     FAMILY_SKILLS,
-    FAMILY_SCRATCH,
     FAMILY_ASK,
     FAMILY_PLAN,
     FAMILY_IMAGE,
-    FAMILY_REPORT,
     FAMILY_SCHEDULE,
     FAMILY_SUBAGENT,
 )
@@ -152,21 +127,6 @@ RISKS = (RISK_READ, RISK_WRITE, RISK_EXECUTE, RISK_ASK, RISK_INTERACT)
 # for the next one -- the LLeMbas CLI's page size too.
 MAX_FETCH_CHARS = 20_000
 
-# The same bound for a knowledge document, and it was missing. `knowledge_get`
-# returned `extracted_text` whole while every sibling reader capped and said so
-# -- `web_fetch` above, `file_read`, the memories block, the skill index, the
-# project listing. `MAX_EXTRACTED_CHARS` is 120_000 by default and an
-# administrator can raise it, so one call on a long PDF filled an ordinary
-# window with nothing anywhere reporting that it had.
-#
-# Larger than a fetched page on purpose. Somebody put this document in the
-# library deliberately and named it in a search; a page the model followed a
-# link to is a guess. Cut with the model told so rather than refused, which is
-# what `web_fetch` and `file_read` both do -- a reader that fails on exactly the
-# documents worth reading is worse than one that hands back the first part and
-# says there was more.
-MAX_DOCUMENT_CHARS = 40_000
-
 
 @dataclass
 class ToolContext:
@@ -179,18 +139,11 @@ class ToolContext:
 
     owner_id: str
     # Which conversation this call belongs to. Needed by anything that writes
-    # something the chat owns rather than something the *reader* owns -- the
-    # scratch document, a generated image -- and empty for a call with no chat
+    # something the chat owns rather than something the *reader* owns -- a
+    # generated image, a file the chat's tools reach -- and empty for a call with no chat
     # behind it, which is what those runners check first.
     chat_id: str = ""
     search_config: dict[str, Any] = field(default_factory=dict)
-    # Which knowledge bases this chat is scoped to. Empty means "everything the
-    # owner can see", which is what a chat with none attached should do.
-    base_ids: list[str] = field(default_factory=list)
-    # Every base a `knowledge_search` here may name with `base`, as
-    # `{"id", "name"}`: the scoped ones, else all the owner can see in this
-    # data group. Snapshotted for the reason the rest of this is.
-    bases: list[dict[str, str]] = field(default_factory=list)
     # Name -> definition for the tools actually offered on this request. None
     # means nobody resolved a set, and only then does `run_tool` fall back to
     # the import-time registry. A dict, *even an empty one*, is authoritative:
@@ -229,7 +182,7 @@ class ToolContext:
     model_id: str = ""
     connection_id: str = ""
     # Which data group this call reads and writes, resolved from the answering
-    # model's connection. Every library runner passes it to its store and every
+    # model's connection. The memory runner passes it to its store and every
     # write stamps it, so a model reaches exactly one group's records -- by
     # search *and* by id, since a model that learned an id from somewhere else
     # must not be able to fetch the record past the filter.
@@ -275,8 +228,8 @@ class ToolDef:
     description: str
     parameters: dict[str, Any]
     run: Runner
-    # Declared rather than derived from the name: `notes_edit` and
-    # `knowledge_get` are not told apart by spelling, and the consequence of
+    # Declared rather than derived from the name: `edit` and `grep` are not
+    # told apart by spelling, and the consequence of
     # guessing is that a mode silently permits something it meant to ask about.
     # Defaulted so that reading is what a tool has to be talked out of.
     risk: str = RISK_READ
@@ -347,10 +300,10 @@ SPEC_VARIABLES: dict[str, str] = {
     "agents": "; ".join(f"{name} — {about}" for name, about in HELPER_AGENTS)
 }
 
-# This server's facts for the library tools' variables (spec 1.2.0), where the
-# CLI says its own: one memory about the person rather than files and
-# projects, notes without a scope, skills without categories, supporting files
-# or project skills, and a skills list that shows each description whole.
+# This server's facts for the shared tools' variables, where the CLI says its
+# own: one memory about the person rather than files and projects, skills
+# without categories, supporting files or project skills, and a skills list
+# that shows each description whole.
 LLEMBAS_VARS: dict[str, dict[str, str]] = {
     "memory": {
         "project_home": "",
@@ -363,8 +316,6 @@ LLEMBAS_VARS: dict[str, dict[str, str]] = {
         "when_seen": "What you save is in your instructions from the person's next message.",
         "target_values": "'user': what is remembered about the person you are talking to.",
     },
-    "notes_search": {"kept": ""},
-    "note_manage": {"create_scope": "", "scope": "", "records": ""},
     "skills_list": {"category": ""},
     "skill_view": {
         "files": (

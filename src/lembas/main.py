@@ -30,22 +30,19 @@ from lembas.api import (
     admin_users,
     audio,
     auth,
-    canvas,
     chats,
     devices,
     files,
     folders,
-    library,
     mcp_server,
+    memories,
     models,
     pages,
     preferences,
     prototypes,
     push,
-    reports,
     schedules,
     search,
-    sharing,
     terminal,
     tokens,
 )
@@ -59,7 +56,6 @@ from lembas.api.v2 import router as app_api_router
 from lembas.config import settings
 from lembas.db.session import init_db
 from lembas.services import local_device
-from lembas.services.library import indexing
 from lembas.web import i18n
 from lembas.web.templating import STATIC_DIR, render
 
@@ -95,25 +91,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         from lembas.services.chat import sweep_temporary
         from lembas.services.data_groups import sweep_unassigned
         from lembas.services.files import sweep_orphans
-        from lembas.services.library.documents import sweep_unfiled
-        from lembas.services.library.indexing import sweep_orphans as sweep_chunks
         from lembas.services.suggestions import seed_defaults as seed_suggestions
 
         with session_scope() as db:
             sweep_orphans(db)
-            # Documents that predate knowledge bases have nowhere to live until
-            # this runs; see services/library/documents.py.
-            sweep_unfiled(db)
             # Rows written before data groups existed, into the group they were
             # read in -- see services/data_groups.py.
             sweep_unassigned(db)
             # Temporary chats whose time is up. Also run by the ticker about
             # once a minute -- see services/chat.py:sweep_temporary.
             sweep_temporary(db)
-            # Chunks whose record has gone. A backstop for a delete that
-            # happened with no event loop to schedule the tidy-up -- a CLI
-            # command, or a cascade from removing an account.
-            sweep_chunks(db)
             # Three starting points on the empty screen, written once ever.
             seed_suggestions(db)
             # Every organisation's `/home/` and `/skills/`, and a home for every
@@ -194,7 +181,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await stop_terminals()
     # A chunk set is written whole or not at all, so cancelling loses nothing
     # a rebuild does not pick up again.
-    await indexing.shutdown()
     from lembas.services import index as index_service
 
     await index_service.shutdown()
@@ -226,11 +212,9 @@ def create_app() -> FastAPI:
         local_device.activate(request)
         return await call_next(request)
 
-    # One place that notices a library record changing, rather than a call in
-    # each of the ten writers that touch those tables. Idempotent, because the
-    # factory is called per test. See services/library/indexing.py:install.
-    indexing.install()
-    # The same for the file tree and chats: services/index/worker.py:install.
+    # One place that notices the file tree and chats changing, rather than a
+    # call in every writer. Idempotent, because the factory is called per test.
+    # See services/index/worker.py:install.
     from lembas.services import index as index_service
 
     index_service.install()
@@ -239,18 +223,14 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(preferences.router)
     app.include_router(chats.router)
-    app.include_router(canvas.router)
     app.include_router(prototypes.router)
     app.include_router(terminal.router)
     app.include_router(audio.router)
     app.include_router(files.router)
     app.include_router(folders.router)
-    app.include_router(library.router)
     app.include_router(models.router)
-    app.include_router(reports.router)
     app.include_router(schedules.router)
     app.include_router(search.router)
-    app.include_router(sharing.router)
     app.include_router(admin.router)
     app.include_router(admin_users.router)
     app.include_router(admin_updates.router)
@@ -270,6 +250,7 @@ def create_app() -> FastAPI:
     app.include_router(devices.router)
     app.include_router(tokens.router)
     app.include_router(mcp_server.router)
+    app.include_router(memories.router)
     # Before `/v1`'s own router, whose paths it does not share: `/v1/usage` and
     # `/v1/me/*`.
     app.include_router(api_me.router)

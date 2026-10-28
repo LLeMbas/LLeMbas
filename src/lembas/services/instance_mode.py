@@ -6,8 +6,8 @@ person chats in. The setting is `instance_mode` in the general settings group
 (`settings_store.api_only`).
 
 **One gate, not forty checks.** The product is spread over a dozen routers
-(chats, canvas, prototypes, the terminal, files, folders, the library, sharing,
-reports, schedules, audio for the composer, `/mcp`), and a check in each route is
+(chats, prototypes, the terminal, files, folders, memories, schedules, audio
+for the composer, `/mcp`), and a check in each route is
 a check somebody forgets in the next one -- the same argument
 `services/audit.AdminAuditMiddleware` makes. So this is a pure ASGI middleware
 keyed on path, and the lists below are the whole of what API-only mode means.
@@ -58,10 +58,8 @@ PAGE_EXACT = ("/",)
 PAGE_PREFIXES = (
     "/chat",  # the new-chat screen and every chat, ordinary and agent
     "/folders",  # a folder's edit page
-    "/library",  # knowledge, notes, skills
-    "/reports",
     "/scheduled",
-    # One box over chats, the library, reports and memories -- every one
+    # One box over chats and memories -- every one
     # of them switched off here, so the page would be a search of nothing.
     "/search",
 )
@@ -69,14 +67,13 @@ PAGE_PREFIXES = (
 # APIs behind those pages. Each prefix covers everything under it.
 API_PREFIXES = (
     "/api/v2",  # the app's door: chats, the stream, cards, attachments, push
-    "/api/chats",  # messaging, the stream, canvas, prototypes, the terminal panel and its WebSocket
+    "/api/chats",  # messaging, the stream, prototypes, the terminal panel and its WebSocket
     "/api/files",  # the composer's uploads and @-mentions
     "/api/folders",
-    "/api/library",  # knowledge, notes, skills, memories, and sharing library items
-    "/api/reports",
+    "/api/memories",  # what is remembered, from Settings
     "/api/schedules",
     "/api/audio",  # a reply read aloud, and dictation into the composer (/v1/audio stays)
-    "/mcp",  # the library tools served over MCP
+    "/mcp",  # the memory tool served over MCP
 )
 
 
@@ -103,7 +100,7 @@ def refusal() -> str:
     from lembas.web import i18n
 
     i18n.activate(i18n.instance_default())
-    return i18n.t("This instance serves the API only; chats, the library, reports and scheduled tasks are switched off.")  # noqa: E501
+    return i18n.t("This instance serves the API only; chats and scheduled tasks are switched off.")
 
 
 def _api_only() -> bool:

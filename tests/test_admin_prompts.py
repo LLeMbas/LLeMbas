@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from lembas.db.models import User
 from lembas.services import harness, prompts, settings_store
-from lembas.services.library import memories as memories_service
+from lembas.services import memories as memories_service
 from tests.conftest import join
 
 
@@ -46,7 +46,7 @@ def test_the_preview_controls_are_inside_what_the_preview_includes(
     """
     page = client.get("/admin/prompts").text
     controls = page.split('id="preview-controls"', 1)[1].split("</div>\n  </div>", 1)[0]
-    for name in ("preview_model", "preview_bases", "preview_documents",
+    for name in ("preview_model", "preview_documents",
                  "preview_situation", "preview_mode", "preview_family"):
         assert f'name="{name}"' in controls, name
 
@@ -170,8 +170,8 @@ def test_the_preview_shows_text_that_has_not_been_saved(client: TestClient, db, 
 
 
 def test_the_preview_only_shows_guidance_for_the_families_ticked(client: TestClient, registered):
-    body = client.post("/admin/prompts/preview", data={"preview_family": ["notes"]}).text
-    assert "You keep notes" in body
+    body = client.post("/admin/prompts/preview", data={"preview_family": ["memory"]}).text
+    assert "You can remember durable facts" in body
     assert "Look things up" not in body
 
 

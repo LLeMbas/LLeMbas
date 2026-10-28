@@ -261,13 +261,8 @@ def test_the_builtins_that_change_things_say_so():
         "mkdir",
         "mv",
         "rm",
-        "note_manage",
         "memory",
         "skill_manage",
-        # Filing a report writes a durable artefact of the reader's, the same
-        # class as a note. Plan mode meaning "look but do not touch" has to mean
-        # this too, even though what it touches is a page rather than a machine.
-        "report_write",
     }
 
 

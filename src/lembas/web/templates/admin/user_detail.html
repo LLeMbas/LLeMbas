@@ -219,11 +219,11 @@
   <p class="field__hint">{{ t("Signs them out everywhere. An administrator resetting a password usually means the account is compromised or the person has gone.") }}</p>
 
   <form method="post" action="/admin/users/{{ target.id }}/delete"
-        data-confirm="{{ t('Delete %(email)s? Their chats, folders and library go with them.', email=target.email) }}" class="u-mt-4">
+        data-confirm="{{ t('Delete %(email)s? Their chats and folders go with them.', email=target.email) }}" class="u-mt-4">
     <button class="btn btn--danger btn--sm" type="submit">
       {{ icon("trash", "icon--sm") }} {{ t("Delete this account") }}
     </button>
   </form>
-  <p class="field__hint">{{ t("Their chats, folders and library go too, and every share naming them or naming anything of theirs.") }}</p>
+  <p class="field__hint">{{ t("Their chats and folders go too.") }}</p>
 </section>
 {% endblock %}

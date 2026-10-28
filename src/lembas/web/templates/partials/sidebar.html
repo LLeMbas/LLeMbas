@@ -52,22 +52,6 @@
   {% endif %}
 
   <div class="sidebar__footer">
-    {#- Reports are a tab of the Library, so the Library is offered
-        to whoever may read either, and opens on the first they may. The
-        Reports dot rides here now: toggled out of band by the unread poll, as
-        a chat row's is. -#}
-    {% if can.get("library.use") or can.get("reports.use") %}
-    <a class="nav-item {{ 'is-active' if section in ('knowledge', 'notes', 'skills', 'reports') }}"
-       href="{{ '/library/knowledge' if can.get('library.use') else '/library/reports' }}">
-      {{ icon("archive", "icon--sm") }}
-      <span class="nav-item__label">{{ t("Library") }}</span>
-      {% if can.get("reports.use") %}
-      <span id="unread-reports" class="unread-dot"
-            {{ '' if unread_reports else 'hidden' }} title="{{ t('New reports') }}"></span>
-      {% endif %}
-    </a>
-    {% endif %}
-
     {#- No Devices entry here (the linked LLeMbas CLIs): it would be a second
         door into one tab of Settings, which is the entry below, and on desktop
         that opens as a window over the page. Every other link to it --

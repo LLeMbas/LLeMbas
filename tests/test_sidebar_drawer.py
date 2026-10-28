@@ -25,9 +25,7 @@ APP_JS = (ROOT / "web/static/js/app.js").read_text(encoding="utf-8")
 CARRIERS = [
     "settings.html",
     "chat/index.html",
-    # reports/_layout.html extends the library's.
     "schedules/_layout.html",
-    "library/_layout.html",
     "folders/edit.html",
 ]
 

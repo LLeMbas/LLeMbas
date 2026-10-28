@@ -109,11 +109,11 @@ def _names(offered):
 
 
 def test_web_search_is_absent_when_search_is_off(db, user_id):
-    """The library tools do not depend on a search provider, so they stay."""
+    """The file tools do not depend on a search provider, so they stay."""
     chat = _chat_with(db, user_id, capabilities={"tools": True})
     offered = _names(tools_service.enabled_tools(db, chat, _user(db, user_id)))
     assert "web_search" not in offered
-    assert "notes_search" in offered
+    assert "read" in offered
 
 
 def test_nothing_at_all_without_the_tools_capability(db, user_id):
@@ -142,10 +142,10 @@ def test_a_model_predating_the_split_keeps_its_tools(db, user_id):
 def test_a_family_turned_off_for_the_model_is_withheld(db, user_id):
     settings_store.update(db, {"enabled": True}, key=settings_store.SEARCH)
     chat = _chat_with(
-        db, user_id, capabilities={"tools": True, "tool_notes": False}
+        db, user_id, capabilities={"tools": True, "tool_files": False}
     )
     offered = _names(tools_service.enabled_tools(db, chat, _user(db, user_id)))
-    assert "notes_search" not in offered
+    assert "read" not in offered
     assert "web_search" in offered, "turning one family off must not affect another"
 
 
@@ -184,21 +184,20 @@ async def test_a_tool_that_was_not_offered_is_refused(db, user_id):
     """The lookup is against what was offered, not against everything that
     exists. A model naming a tool its chat was gated out of used to have it run,
     because only the offer was ever filtered."""
-    from lembas.db.models import User
-    from lembas.services.library import notes as notes_service
+    from sqlalchemy import select
+
+    from lembas.db.models import Memory, User
 
     owner = db.get(User, user_id)
-    note = notes_service.create(db, owner=owner, title="Keep me", body="...")
-
-    chat = _chat_with(db, user_id, capabilities={"tools": True, "tool_notes": False})
+    chat = _chat_with(db, user_id, capabilities={"tools": True, "tool_memory": False})
     resolved = tools_service.resolve_tools(db, chat, owner)
     context = tools_service.context_for(db, owner, chat, tools=resolved)
 
     outcome = await tools_service.run_tool(
-        context, "note_manage", json.dumps({"action": "delete", "id": note.id})
+        context, "memory", json.dumps({"action": "add", "content": "Sneaked in."})
     )
     assert outcome.event["status"] == "error"
-    assert notes_service.get(db, note.id, owner) is not None
+    assert db.scalars(select(Memory)).all() == []
 
 
 async def test_a_context_with_no_toolset_still_finds_the_builtins(monkeypatch):
@@ -215,48 +214,6 @@ async def test_a_context_with_no_toolset_still_finds_the_builtins(monkeypatch):
 
     empty = await tools_service.run_tool(_context(tools={}), "web_search", '{"query": "x"}')
     assert empty.event["status"] == "error"
-
-
-# --- Knowledge is scoped to the chat's bases ---------------------------------
-async def test_knowledge_search_is_limited_to_the_attached_bases(db, user_id):
-    """"Answer from the contracts folder" is a different question from "answer
-    from everything I have ever uploaded"."""
-    from lembas.db.models import User
-    from lembas.services.library import documents as documents_service
-
-    owner = db.get(User, user_id)
-    trees = documents_service.create_base(db, owner=owner, name="Trees")
-    contracts = documents_service.create_base(db, owner=owner, name="Contracts")
-    documents_service.store_upload(
-        db, owner=owner, payload=b"The mallorn is golden.", filename="a.txt",
-        title="Mallorn", base=trees,
-    )
-    documents_service.store_upload(
-        db, owner=owner, payload=b"The mallorn clause is void.", filename="b.txt",
-        title="Clause", base=contracts,
-    )
-
-    everywhere = await tools_service.run_tool(
-        tools_service.ToolContext(owner_id=user_id), "knowledge_search",
-        '{"query": "mallorn"}',
-    )
-    assert {r["title"] for r in everywhere.event["results"]} == {"Mallorn", "Clause"}
-
-    scoped = await tools_service.run_tool(
-        tools_service.ToolContext(owner_id=user_id, base_ids=[contracts.id]),
-        "knowledge_search",
-        '{"query": "mallorn"}',
-    )
-    assert [r["title"] for r in scoped.event["results"]] == ["Clause"]
-
-
-def test_a_chat_with_no_bases_searches_everything(db, user_id):
-    """Empty means "everything the owner can see", not "nothing"."""
-    from lembas.db.models import User
-
-    chat = _chat_with(db, user_id, capabilities={"tools": True})
-    context = tools_service.context_for(db, db.get(User, user_id), chat)
-    assert context.base_ids == []
 
 
 # --- Running one -------------------------------------------------------------
@@ -413,56 +370,6 @@ async def test_a_failed_fetch_does_not_kill_the_reply(monkeypatch):
     )
     assert outcome.event["status"] == "error"
     assert "not reachable" in outcome.content
-
-
-async def test_a_long_knowledge_document_is_cut_and_the_model_told(db, user_id):
-    """It was the one reader with no bound at all. `fetch` caps and says so,
-    `file_read` caps and says so, the memories block, the skill index and the
-    project listing all carry budgets -- and `knowledge_get` returned
-    `extracted_text` whole. Its description said "in full", which is why this
-    read as correct: the tool did exactly what it claimed, and what it claimed
-    was one call away from filling the window with nothing reporting it.
-    """
-    from lembas.db.models import User
-    from lembas.services.library import documents as documents_service
-
-    owner = db.get(User, user_id)
-    base = documents_service.create_base(db, owner=owner, name="Long")
-    document = documents_service.store_upload(
-        db, owner=owner, payload=b"x" * 90_000, filename="big.txt",
-        title="Big", base=base,
-    )
-
-    outcome = await tools_service.run_tool(
-        tools_service.ToolContext(owner_id=user_id),
-        "knowledge_get",
-        json.dumps({"id": document.id}),
-    )
-    assert len(outcome.content) < tools_service.MAX_DOCUMENT_CHARS + 500
-    assert "Cut off here" in outcome.content
-    assert outcome.event["truncated"] is True
-
-
-async def test_a_short_knowledge_document_is_returned_whole(db, user_id):
-    """The cap must not become a truncation notice on ordinary documents."""
-    from lembas.db.models import User
-    from lembas.services.library import documents as documents_service
-
-    owner = db.get(User, user_id)
-    base = documents_service.create_base(db, owner=owner, name="Short")
-    document = documents_service.store_upload(
-        db, owner=owner, payload=b"The mallorn is golden.", filename="a.txt",
-        title="Mallorn", base=base,
-    )
-
-    outcome = await tools_service.run_tool(
-        tools_service.ToolContext(owner_id=user_id),
-        "knowledge_get",
-        json.dumps({"id": document.id}),
-    )
-    assert "The mallorn is golden." in outcome.content
-    assert "Cut off here" not in outcome.content
-    assert "truncated" not in outcome.event
 
 
 async def test_a_long_page_is_cut_and_the_model_told(monkeypatch):

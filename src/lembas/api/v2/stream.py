@@ -25,7 +25,6 @@ The rules are `_follow`'s and they are why a flaky phone connection works:
 | `status` | `{"text"}` |
 | `ask` | `{"cards": [...]}` -- empty when the last one was answered |
 | `jobs` | `{"jobs": [...]}` -- only once there are any |
-| `canvas` | `{"tabs", "active"}` -- only once there are tabs |
 | `metrics` | as on a message |
 | `done` | `{"message", "chat": {"id", "title"}, "next": id or null}` |
 | `close` | `{}` |
@@ -109,16 +108,6 @@ async def follow_json(chat_id: str, message_id: str) -> AsyncIterator[str]:
                         unqueued |= gone
                         yield frame("steered", {"ids": sorted(gone)})
                 if out := changed("tail", tail):
-                    yield out
-                if generation.canvas.get("tabs") and (
-                    out := changed(
-                        "canvas",
-                        {
-                            "tabs": generation.canvas.get("tabs") or [],
-                            "active": generation.canvas.get("active") or "",
-                        },
-                    )
-                ):
                     yield out
                 current = getattr(generation, "plan", None) or generation.todos
                 if current is not None and (out := changed("plan", serialise.plan(current))):

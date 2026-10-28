@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from sqlalchemy import (
     BigInteger,
@@ -19,12 +19,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from lembas.db.base import Base, Timestamps, UUIDPrimaryKey
 from lembas.db.models.data_group import InDataGroup
 from lembas.db.types import JSONDict, JSONList
-
-if TYPE_CHECKING:
-    # Annotation only; SQLAlchemy resolves the name through its own registry at
-    # runtime, so there is no import cycle. A bare `Mapped[list]` would be read
-    # as a scalar and hand back None instead of [].
-    from lembas.db.models.library import KnowledgeBase
 
 ROLE_SYSTEM = "system"
 ROLE_USER = "user"
@@ -284,18 +278,6 @@ class Chat(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
     # branch in `resolve_tools` and in `_authorise`.
     unattended: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    # Which files are open in the canvas panel, and which of them is in front.
-    # {"tabs": [{"key": "agent:/srv/app/main.py", "title": …, "source": …}],
-    #  "active": "agent:/srv/app/main.py"}
-    #
-    # Server-side rather than in the browser because a model reading a file
-    # opens a tab, and every frame this application streams is HTML swapped
-    # whole -- if the browser owned the list, the server could not render the
-    # strip and the frame would have to become data for JavaScript to interpret.
-    # One chat, one canvas, the same consequence the terminal panel documents:
-    # two tabs on the same chat share it.
-    canvas_json: Mapped[dict[str, Any]] = mapped_column(JSONDict, default=dict)
-
     # --- Compaction ----------------------------------------------------------
     # A summary of the turns up to `compacted_through_id`, sent in their place.
     # The messages themselves are kept and still shown; they simply stop being
@@ -314,11 +296,6 @@ class Chat(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
         back_populates="chat",
         cascade="all, delete-orphan",
         order_by="Message.created_at",
-    )
-    # Which knowledge bases this chat draws on. None means "everything its owner
-    # can see"; naming some scopes the knowledge tool to those.
-    knowledge_bases: Mapped[list[KnowledgeBase]] = relationship(
-        "KnowledgeBase", secondary="chat_knowledge_bases"
     )
 
     @property

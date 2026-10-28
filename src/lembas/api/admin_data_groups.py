@@ -52,10 +52,6 @@ def labels() -> dict[str, str]:
     return {
         "chats": t("chats"),
         "memories": t("memories"),
-        "notes": t("notes"),
-        "skills": t("skills"),
-        "knowledge bases": t("knowledge bases"),
-        "reports": t("reports"),
         "connections": t("connections"),
         "Chat models": t("Chat models"),
         "Embedding": t("Embedding"),

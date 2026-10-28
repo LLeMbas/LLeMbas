@@ -122,7 +122,7 @@ def test_a_run_of_bullets_stays_a_single_list(db):
         db,
         groups=(prompts.GROUP_TOOLS,),
         variables={"memory_limit": "400"},
-        families=("web_search", "notes"),
+        families=("web_search", "memory"),
     )
     assert "\n\n- " not in text
     assert text.count("\n- ") == 1

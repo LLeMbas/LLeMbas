@@ -407,76 +407,9 @@
     });
   }
 
-  /* The knowledge dialog re-queries the server as you type rather than
-     filtering in the browser: the library is searched with FTS, which is what
-     makes it work at five hundred documents instead of five. */
-  function attachKnowledge() {
-    var dialog = document.createElement("dialog");
-    dialog.className = "dialog dialog--wide";
-    dialog.innerHTML =
-      '<div class="dialog__form">' +
-      '<h2 class="dialog__title">' + t("Attach from your library") + '</h2>' +
-      '<input class="input" type="search" placeholder="' + t("Search your documents…") + '" ' +
-      'aria-label="' + t("Search your documents") + '">' +
-      '<div class="dialog__results"></div>' +
-      '<div class="dialog__actions"><button class="btn" type="button">' + t("Close") + '</button></div>' +
-      "</div>";
-    document.body.appendChild(dialog);
-
-    var search = dialog.querySelector("input");
-    var results = dialog.querySelector(".dialog__results");
-    var close = dialog.querySelector("button");
-
-    function load(query) {
-      fetch("/api/files/knowledge-picker?q=" + encodeURIComponent(query || "") +
-        "&chat_id=" + encodeURIComponent(chatId()) +
-        "&model_id=" + encodeURIComponent(modelId()), {
-        credentials: "same-origin",
-      })
-        .then(function (response) { return response.text(); })
-        .then(function (html) { results.innerHTML = html; })
-        .catch(function () { results.textContent = t("Could not load your library."); });
-    }
-
-    var pending = null;
-    search.addEventListener("input", function () {
-      clearTimeout(pending);
-      pending = setTimeout(function () { load(search.value); }, 200);
-    });
-
-    results.addEventListener("click", function (event) {
-      var option = event.target.closest("[data-attach-knowledge]");
-      if (!option) return;
-      var body = new FormData();
-      body.append("document_id", option.dataset.attachKnowledge);
-      body.append("chat_id", chatId());
-      body.append("model_id", modelId());
-      postForChip("/api/files/from-knowledge", body);
-      finish();
-    });
-
-    function finish() {
-      dialog.close();
-      setTimeout(function () { dialog.remove(); }, 200);
-    }
-
-    close.addEventListener("click", finish);
-    dialog.addEventListener("cancel", function (event) {
-      event.preventDefault();
-      finish();
-    });
-    dialog.addEventListener("click", function (event) {
-      if (event.target === dialog) finish();
-    });
-
-    dialog.showModal();
-    load("");
-    search.focus();
-  }
-
   /* --- Choosing a directory on the far side --------------------------------
-     Shaped like attachKnowledge above, with one difference: a click walks
-     deeper rather than finishing, and finishing is its own button. The path
+     A dialog of results, where a click walks deeper rather than finishing,
+     and finishing is its own button. The path
      that gets submitted is the directory you are *standing in*, not the last
      row you pressed, so choosing the directory you are already looking at
      needs no click at all. */
@@ -573,7 +506,6 @@
     if (kind === "file") document.getElementById("file-input").click();
     else if (kind === "image") document.getElementById("image-input").click();
     else if (kind === "link") attachLink();
-    else if (kind === "knowledge") attachKnowledge();
   });
 
   function setupDropzone() {

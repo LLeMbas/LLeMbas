@@ -25,12 +25,11 @@ import pytest
 from sqlalchemy import inspect, text
 
 from lembas.db.base import Base
-from lembas.db.migrations import ensure_fts, sync_schema
+from lembas.db.migrations import sync_schema
 from lembas.db.session import get_engine
 
 # Tables an old schema does not have. `sync_schema` has to create them.
 OLD_TABLES = (
-    "chunks",
     "push_subscriptions",
     "usage",
 )
@@ -41,7 +40,7 @@ OLD_TABLES = (
 OLD_COLUMNS = (
     ("chats", "parent_chat_id"),
     ("chats", "unattended"),
-    ("reports", "unread_notified"),
+    ("chats", "start_dir"),
     ("groups", "limits_json"),
     # What the other models are told about this one. A Text column with a scalar
     # default, so the backfill is the easy kind -- listed because the hard kind
@@ -121,7 +120,7 @@ def test_an_old_database_with_data_upgrades(db):
 
     # Confirm the rollback actually removed things, or the assertions below
     # would pass against a database that was never old.
-    assert "chunks" not in inspect(engine).get_table_names()
+    assert "usage" not in inspect(engine).get_table_names()
     assert "unattended" not in _columns(engine, "chats")
 
     changes = sync_schema(engine)
@@ -216,23 +215,6 @@ def test_upgrading_twice_changes_nothing_the_second_time(db):
 
     assert sync_schema(engine)
     assert sync_schema(engine) == []
-
-
-def test_the_search_indexes_are_rebuilt_when_missing(db):
-    """FTS5 tables are not SQLAlchemy models, so `create_all` cannot make them
-    and the column differ cannot see them. `ensure_fts` is what converges them,
-    and it runs at every startup for the same reason the column sync does --
-    an instance whose indexes were dropped must repair itself rather than
-    return nothing and call it an empty library.
-    """
-    engine = get_engine()
-    with engine.begin() as connection:
-        connection.execute(text("DROP TABLE IF EXISTS documents_fts"))
-
-    assert "documents_fts" in ensure_fts(engine)
-    assert "documents_fts" in inspect(engine).get_table_names()
-    # Converges: a second call has nothing left to make.
-    assert ensure_fts(engine) == []
 
 
 @pytest.mark.parametrize("table", OLD_TABLES)

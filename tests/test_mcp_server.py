@@ -1,7 +1,8 @@
-"""`/mcp`: a person's library over MCP, with a `library` token.
+"""`/mcp`: a person's memory over MCP, with a `library` token.
 
-The tools are the chat's own library tools; the permissions that gate them in a
-chat gate them here; nothing outside the library is reachable.
+The tool is the chat's own `memory`; the permissions that gate it in a chat
+gate it here; nothing else is reachable (spec 3.0.0: a device keeps notes,
+skills and knowledge itself).
 """
 
 from __future__ import annotations
@@ -9,7 +10,7 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import select
 
-from lembas.db.models import Memory, Note, User
+from lembas.db.models import Memory, User
 from lembas.security import api_tokens
 from lembas.services import settings_store
 
@@ -37,13 +38,7 @@ def test_initialize_and_list(client, db, registered):
     init = _rpc(client, headers, "initialize", {"protocolVersion": "2025-06-18"}).json()
     assert init["result"]["serverInfo"]["name"] == "lembas"
     names = {t["name"] for t in _rpc(client, headers, "tools/list").json()["result"]["tools"]}
-    assert {"memory", "notes_search", "note_manage", "knowledge_search"} <= names
-    # The harness spec's library, as the LLeMbas CLI names its own.
-    assert not names & {"memory_add", "notes_create", "notes_get", "skill_get"}
-    # Nothing that is not the library.
-    assert not names & {
-        "bash", "fetch", "web_fetch", "web_search", "image_generate", "schedule_create"
-    }
+    assert names == {"memory"}
 
 
 def test_a_notification_is_accepted_without_an_answer(client, db, registered):
@@ -83,19 +78,6 @@ def test_a_former_name_is_the_call_it_means(client, db, registered):
     assert db.scalar(select(Memory)).content == "Prefers spaces."
 
 
-def test_reading_a_note(client, db, registered):
-    from lembas.services.library import notes
-
-    notes.create(db, owner=db.scalar(select(User)), title="Map", body="There and back again.")
-    r = _rpc(
-        client,
-        _token(db),
-        "tools/call",
-        {"name": "notes_search", "arguments": {"query": "back again"}},
-    ).json()
-    assert "Map" in r["result"]["content"][0]["text"]
-
-
 def test_the_scope_is_required(client, db, registered):
     assert _rpc(client, _token(db, scopes=("models",)), "tools/list").status_code == 403
     client.cookies.clear()
@@ -111,7 +93,7 @@ def test_the_permissions_gate_it(client, db, registered):
     db.commit()
     # A plain account may not use the API at all by default ...
     assert _rpc(client, headers, "tools/list").status_code == 403
-    # ... and with it, the library permissions still decide.
+    # ... and with it, the memory permissions still decide.
     settings_store.update(
         db,
         {
@@ -123,7 +105,7 @@ def test_the_permissions_gate_it(client, db, registered):
         },
     )
     names = {t["name"] for t in _rpc(client, headers, "tools/list").json()["result"]["tools"]}
-    assert "memory" not in names and "notes_search" in names
+    assert "memory" not in names
     r = _rpc(client, headers, "tools/call", {"name": "memory_add", "arguments": {"content": "x"}})
     assert "error" in r.json()
     arguments = {"target": "user", "action": "add", "content": "x"}
@@ -138,17 +120,3 @@ def test_an_unknown_method(client, db, registered):
 def test_get_is_not_a_stream(client, db, registered):
     assert client.get("/mcp").status_code == 405
 
-
-def test_notes_created_over_mcp_are_the_persons(client, db, registered):
-    r = _rpc(
-        client,
-        _token(db),
-        "tools/call",
-        {
-            "name": "note_manage",
-            "arguments": {"action": "create", "title": "From device-1", "body": "Hello."},
-        },
-    ).json()
-    assert r["result"]["isError"] is False
-    db.expire_all()
-    assert db.scalar(select(Note)).owner_id == db.scalar(select(User)).id

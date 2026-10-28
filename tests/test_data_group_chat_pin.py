@@ -23,7 +23,6 @@ from lembas.services import chat as chat_service
 from lembas.services import data_groups, schedules
 from lembas.services import subagent as subagent_service
 from lembas.services.crypto import encrypt
-from lembas.services.library import notes
 
 HOSTED = "hosted"
 
@@ -147,42 +146,6 @@ def test_a_helper_reads_its_parents_group(db, owner, setup):
     parent = _chat(db, owner, model_id="cloud-model", connection=cloud, group=HOSTED)
     child = subagent_service._create_child(db, parent, title="q", write=False)
     assert child.data_group_id == HOSTED
-
-
-# --- Bases and the @ menu -------------------------------------------------------------
-def test_a_base_from_another_group_cannot_be_attached(client, db, owner, setup):
-    from lembas.services.library import documents
-
-    local, _ = setup
-    chat = _chat(db, owner, connection=local)
-    base = documents.create_base(db, owner=owner, name="Hosted base", group=HOSTED)
-    response = client.post(f"/api/chats/{chat.id}/bases", data={"base_id": base.id})
-    assert response.status_code == 404
-
-
-def test_the_mention_menu_offers_only_the_chats_group(client, db, owner, setup):
-    local, _ = setup
-    chat = _chat(db, owner, connection=local)
-    notes.create(db, owner=owner, title="Home note", body="x")
-    notes.create(db, owner=owner, title="Hosted note", body="x", group=HOSTED)
-    page = client.get(f"/api/files/mention-picker?q=&chat_id={chat.id}").text
-    assert "Home note" in page and "Hosted note" not in page
-
-
-def test_on_the_new_chat_screen_the_chosen_model_decides(client, db, owner, setup):
-    notes.create(db, owner=owner, title="Hosted note", body="x", group=HOSTED)
-    page = client.get("/api/files/mention-picker?q=&model_id=cloud-model").text
-    assert "Hosted note" in page
-
-
-def test_a_note_from_another_group_cannot_be_attached(client, db, owner, setup):
-    local, _ = setup
-    chat = _chat(db, owner, connection=local)
-    hosted = notes.create(db, owner=owner, title="Hosted note", body="x", group=HOSTED)
-    response = client.post(
-        "/api/files/from-note", data={"note_id": hosted.id, "chat_id": chat.id}
-    )
-    assert "not available" in response.text
 
 
 # --- Schedules -------------------------------------------------------------------------

@@ -23,9 +23,8 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDFExpand
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from lembas.db.models import PushSubscription, Report, User
+from lembas.db.models import PushSubscription, User
 from lembas.services import push as push_service
-from lembas.services import reports as reports_service
 
 
 @pytest.fixture(autouse=True)
@@ -265,38 +264,6 @@ def test_forgetting_somebody_elses_registration_does_nothing(client: TestClient,
 
 
 # --- Where an arrival is announced ----------------------------------------------
-async def test_filing_a_report_announces_it(db, registered, monkeypatch):
-    """At the arrival rather than from the poll, which is the whole point: the
-    poll needs an open page and this is the case where there is not one."""
-    said: list[dict] = []
-    monkeypatch.setattr(
-        push_service,
-        "announce_later",
-        lambda user_id, **kwargs: said.append({"user": user_id, **kwargs}),
-    )
-
-    owner = db.scalars(select(User)).first()
-    reports_service.create(db, owner=owner, title="Nightly", body="It went green.")
-
-    assert len(said) == 1
-    assert said[0]["title"] == "Nightly"
-    assert said[0]["url"].startswith("/library/reports/")
-
-
-async def test_a_report_the_reader_filed_themselves_is_not_announced(
-    db, registered, monkeypatch
-):
-    """`unread` is what says it is news. One filed with it off was written by
-    the person looking at the screen."""
-    said: list[dict] = []
-    monkeypatch.setattr(push_service, "announce_later", lambda *a, **k: said.append(k))
-
-    owner = db.scalars(select(User)).first()
-    reports_service.create(db, owner=owner, title="Mine", body="x", unread=False)
-
-    assert said == []
-
-
 async def test_announcing_with_no_registered_browser_is_a_no_op(db, registered):
     owner = db.scalars(select(User)).first()
     assert await push_service.announce(db, owner, title="t", body="b") == 0
@@ -380,53 +347,7 @@ async def test_a_send_carries_the_two_headers_a_push_service_requires(
     assert ", k=" in seen["authorization"]
 
 
-def test_a_report_row_remembers_having_been_announced(db, registered):
-    """The dot may be shown for as long as something is unread; the toast fires
-    once. Reading those apart is what stops the poll interrupting somebody every
-    ten seconds with the same report until they open it."""
-    owner = db.scalars(select(User)).first()
-    reports_service.create(db, owner=owner, title="One", body="x")
-
-    first = reports_service.unannounced(db, owner)
-    assert len(first) == 1
-
-    first[0].unread_notified = True
-    db.commit()
-    assert reports_service.unannounced(db, owner) == []
-    # And it is still unread, so the dot stays.
-    assert db.scalars(select(Report)).one().unread
-
-
 # --- The poll announces everything, not only chats -------------------------------
-def test_the_poll_announces_a_report(client: TestClient, db, registered):
-    """The dots have covered Reports since the section existed; the
-    announcement did not. So a scheduled run that filed one lit a dot in a
-    corner and said nothing at all — which is precisely the arrival nobody is
-    watching for."""
-    owner = db.scalars(select(User)).first()
-    reports_service.create(db, owner=owner, title="Nightly build", body="green")
-
-    response = client.get("/api/chats/unread")
-
-    trigger = json.loads(response.headers["HX-Trigger"])
-    items = trigger["lembas:unread"]["items"]
-    assert any(i["kind"] == "report" and i["title"] == "Nightly build" for i in items)
-    # And where to go, because a browser notification is a thing you click.
-    assert all(i["url"] for i in items)
-
-
-def test_a_report_is_announced_once(client: TestClient, db, registered):
-    """A poll that said the same thing every ten seconds until somebody opened
-    it is the shape of notification nobody leaves switched on."""
-    owner = db.scalars(select(User)).first()
-    reports_service.create(db, owner=owner, title="Nightly", body="x")
-
-    assert "HX-Trigger" in client.get("/api/chats/unread").headers
-    assert "HX-Trigger" not in client.get("/api/chats/unread").headers
-    # Still unread, so the dot is still there to be cleared by reading it.
-    assert db.scalars(select(Report)).one().unread
-
-
 def test_a_push_endpoint_pointing_inside_the_network_is_refused(client, db, registered):
     """The endpoint is a URL the browser hands us and the server later POSTs to,
     so it goes through the SSRF guard like every other outbound client --

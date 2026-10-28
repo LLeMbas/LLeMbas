@@ -6,7 +6,7 @@
 {% block heading %}{{ t("Data groups") }}{% endblock %}
 
 {% block admin_content %}
-<p class="admin-lede">{{ t("A data group keeps one provider's models away from the data another provider's models have been given. Every connection is in one group. Its models read only that group's memories, notes, skills, knowledge, reports and personalities, and a chat stays in the group it was started in.") }}</p>
+<p class="admin-lede">{{ t("A data group keeps one provider's models away from the data another provider's models have been given. Every connection is in one group. Its models read only that group's memories and personalities, and a chat stays in the group it was started in.") }}</p>
 
 {% if saved %}
 <div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ t("Data group deleted.") if saved == "deleted" else t("Settings saved.") }}</span></div>

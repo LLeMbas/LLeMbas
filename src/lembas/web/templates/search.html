@@ -4,13 +4,11 @@
   Search, `GET /search` -- see `api/search.py` for what is searched and
   who may see what.
 
-  Its own page with the chat sidebar, the shape `library/_layout.html` has, and
-  not a tab of the library: it finds chats too, and a chat is not something the
-  library holds. Not a dialog over the current page either -- a result is a link
-  somebody may want to open in another tab, and a search is a URL worth keeping.
+  Its own page with the chat sidebar. Not a dialog over the current page -- a
+  result is a link somebody may want to open in another tab, and a search is a
+  URL worth keeping.
 
-  The filter is a row of links, as the notes list's "All notes / Shared with
-  me" is, so a filtered search is a real address. A type the reader may not
+  The filter is a row of links, so a filtered search is a real address. A type the reader may not
   open is not offered at all (`offered`). The query box is a plain GET form
   with the filter riding along hidden, so pressing Enter searches the same
   filter again rather than falling back to "All".
@@ -30,10 +28,6 @@
     tab for chats is short; the heading says what it holds. -#}
 {% set kinds = {
   "chats": (t("Chats"), t("Chats & agent sessions"), "chat"),
-  "knowledge": (t("Knowledge"), t("Knowledge"), "archive"),
-  "notes": (t("Notes"), t("Notes"), "pencil"),
-  "skills": (t("Skills"), t("Skills"), "sparkle"),
-  "reports": (t("Reports"), t("Reports"), "file-text"),
   "memories": (t("Memory"), t("Memory"), "user"),
 } %}
 <div class="shell">

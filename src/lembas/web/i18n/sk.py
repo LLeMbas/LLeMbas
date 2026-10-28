@@ -50,15 +50,12 @@ MESSAGES.update(
         "Admin settings": "Nastavenia správy",
         "Your settings": "Vaše nastavenia",
         "Settings sections": "Časti nastavení",
-        "People": "Ľudia",
         "Toggle sidebar": "Prepnúť bočný panel",
         "Close sidebar": "Zavrieť bočný panel",
         "Cancel": "Zrušiť",
-        "Revert": "Vrátiť zmenu",
         "Try again": "Skúsiť znova",
         "Dismiss": "Zavrieť",
         "Discard": "Zahodiť",
-        "Upload": "Nahrať",
         "Attach": "Priložiť",
         "Delete this": "Zmazať toto",
         "Forget": "Zabudnúť",
@@ -67,12 +64,8 @@ MESSAGES.update(
         "Remember": "Zapamätať",
         "Send now": "Poslať teraz",
         "Send to chat": "Poslať do konverzácie",
-        "Save page": "Uložiť stránku",
         "Empty": "Prázdne",
-        "Details": "Podrobnosti",
-        "Title": "Názov",
         "Message": "Správa",
-        "Text": "Text",
         "File": "Súbor",
         "Image": "Obrázok",
         "Kind": "Druh",
@@ -80,15 +73,9 @@ MESSAGES.update(
         "At": "V",
         "Once": "Raz",
         "Inside": "Vnútri",
-        "nobody": "nikto",
-        "new": "nové",
-        "shared": "zdieľané",
-        "shared with you": "zdieľané s vami",
         "paused": "pozastavené",
-        "scheduled": "naplánované",
         "remembered": "zapamätané",
         "set up for you": "nastavené pre vás",
-        "written by a model": "napísal model",
         "edited by you": "upravili ste vy",
         "editing": "upravuje sa",
         "writing": "píše",
@@ -96,8 +83,6 @@ MESSAGES.update(
         "error": "chyba",
         "failed": "zlyhalo",
         "estimated": "odhad",
-        "no text": "bez textu",
-        "weekly-report": "weekly-report",
     }
 )
 
@@ -130,9 +115,6 @@ MESSAGES.update(
         "/ for commands": "/ pre príkazy",
         "Dictate a message": "Nadiktovať správu",
         "Drop to attach": "Pustite sem na priloženie",
-        "Images, PDFs and text. A PDF has its text read once, now.": (
-            "Obrázky, PDF a text. Z PDF sa text prečíta raz, hneď teraz."
-        ),
         "PDF, text, code": "PDF, text, kód",
         "Sent only to vision models": "Posiela sa len modelom, ktoré vidia obrázky",
         "The generated image": "Vygenerovaný obrázok",
@@ -178,20 +160,7 @@ MESSAGES.update(
         ),
         "What should happen": "Čo sa má stať",
         "What was found": "Čo sa našlo",
-        "What is there now": "Čo tam je teraz",
-        "Your version": "Vaša verzia",
-        "Discard mine and reload": "Zahodiť moje a načítať znova",
-        "A model wrote this version.": "Túto verziu napísal model.",
         "Canvas": "Plocha",
-        "Close canvas": "Zavrieť plochu",
-        "Resize the canvas": "Zmeniť veľkosť plochy",
-        "Open a file beside the conversation": "Otvoriť súbor pri konverzácii",
-        "This file is empty.": "Tento súbor je prázdny.",
-        "No colour while you type. Tab inserts a tab.": (
-            "Počas písania bez zvýraznenia. Tabulátor vloží tabulátor."
-        ),
-        "Markdown.": "Markdown.",
-        "Rendered": "Vykreslené",
         "Inspect this chat": "Preskúmať túto konverzáciu",
         "Request inspector": "Prehliadka požiadavky",
         "Close inspector": "Zavrieť prehliadku",
@@ -239,112 +208,15 @@ MESSAGES.update(
 MESSAGES.update(
     {
         "Library": "Knižnica",
-        "Knowledge": "Znalosti",
-        "Knowledge base": "Znalostná báza",
-        "New knowledge base": "Nová znalostná báza",
-        "Delete knowledge base": "Zmazať znalostnú bázu",
-        "No knowledge bases yet": "Zatiaľ žiadne znalostné bázy",
-        "Knowledge bases are collections of documents, images and saved web pages. Keep them separate — one per subject, project or client — and a chat can be pointed at just the ones it should draw on. Sharing happens here too: share a base and everything in it comes with it.": (
-            "Znalostné bázy sú zbierky dokumentov, obrázkov a uložených webových "
-            "stránok. Držte ich oddelene — jednu na tému, projekt alebo klienta — a "
-            "konverzáciu potom nasmerujete len na tie, z ktorých má čerpať. Zdieľanie "
-            "je tiež tu: zdieľaním bázy ide s ňou všetko, čo je v nej."
-        ),
-        "Make one below, then put documents in it. A chat with no base attached searches everything you have; a chat pointed at one searches only that.": (
-            "Vytvorte jednu nižšie a vložte do nej dokumenty. Konverzácia bez "
-            "pripojenej bázy prehľadáva všetko, čo máte; konverzácia nasmerovaná na "
-            "bázu prehľadáva len ju."
-        ),
-        "Add to this base": "Pridať do tejto bázy",
-        "This base": "Táto báza",
-        "Search this base…": "Hľadať v tejto báze…",
-        "In your library": "Vo vašej knižnici",
-        "From your library": "Z vašej knižnice",
-        "Search only these": "Hľadať len v týchto",
-        "Scope this chat to this knowledge base": "Zúžiť túto konverzáciu na túto bázu",
-        "This chat now searches only the bases it is attached to": (
-            "Táto konverzácia teraz prehľadáva len pripojené bázy"
-        ),
         "Already in this chat": "Už v tejto konverzácii",
-        "Delete document": "Zmazať dokument",
-        "A file": "Súbor",
         "A folder inside another inherits its system prompt where it has none of its own.": (
             "Zložka v inej zložke prevezme jej systémový pokyn, ak nemá vlastný."
         ),
         "A page to read": "Stránka na prečítanie",
-        "A web page": "Webová stránka",
         "Fetch a page and attach its text": "Načítať stránku a priložiť jej text",
         "Fetch this page": "Načítať túto stránku",
-        "Fetched now and kept as text, so it survives the page changing.": (
-            "Načíta sa teraz a uloží ako text, takže prežije zmenu stránky."
-        ),
-        "Notes": "Poznámky",
-        "Delete note": "Zmazať poznámku",
-        "Search notes…": "Hľadať v poznámkach…",
-        "What this note is about": "O čom je táto poznámka",
-        "Longer things worth keeping between conversations. A model writes these itself when it works something out, and you can edit or delete any of them — they are yours, not its.": (
-            "Dlhšie veci, ktoré sa vyplatí uchovať medzi konverzáciami. Model si ich "
-            "píše sám, keď na niečo príde, a vy ich môžete upraviť alebo zmazať — sú "
-            "vaše, nie jeho."
-        ),
         "Skills": "Schopnosti",
-        "Delete skill": "Zmazať schopnosť",
-        "Search skills…": "Hľadať v schopnostiach…",
-        "Offer this skill to models": "Nabídnuť túto schopnosť modelom",
-        "Turned off, it stays here but disappears from the list the model sees.": (
-            "Vypnutá tu zostáva, ale zmizne zo zoznamu, ktorý vidí model."
-        ),
-        "Instructions": "Pokyny",
-        "Markdown. Steps, conventions, things to avoid.": (
-            "Markdown. Postup, dohody, čomu sa vyhnúť."
-        ),
-        "When to use it": "Kedy ju použiť",
-        "What this is, and when it is worth reading.": "Čo to je a kedy sa to vyplatí prečítať.",
-        "The load-bearing field.": "Toto pole je nosné.",
-        "Shown in search results, so it is what decides whether a model opens it.": (
-            "Zobrazuje sa vo výsledkoch hľadania, takže rozhoduje o tom, či to model otvorí."
-        ),
-        "Searched along with the contents, so a line here helps a model find it.": (
-            "Prehľadáva sa spolu s obsahom, takže jeden riadok tu modelu pomôže to nájsť."
-        ),
-        "Lowercase letters, numbers and hyphens. This is how a model asks for it, and it cannot be changed later.": (
-            "Malé písmená, číslice a spojovníky. Takto si to model vyžiada a neskôr sa "
-            "to už nedá zmeniť."
-        ),
-        "Saved procedures. Every enabled skill's name and description are shown to the model on each turn; it reads the instructions only when it decides one applies. A model may write and revise its own — every version is kept, so any change can be read and undone.": (
-            "Uložené postupy. Názov a opis každej zapnutej schopnosti vidí model v "
-            "každom kroku; samotné pokyny si prečíta až vtedy, keď usúdi, že sa "
-            "niektorá hodí. Model si môže písať a upravovať vlastné — každá verzia "
-            "sa uchová, takže každú zmenu si možno prečítať aj vrátiť."
-        ),
-        "What this skill said before each change. This is the whole safety story for a model editing its own instructions: not a gate, but a record and a way back.": (
-            "Čo táto schopnosť hovorila pred každou zmenou. To je celá bezpečnosť "
-            "toho, že si model upravuje vlastné pokyny: nie zákaz, ale záznam a cesta "
-            "späť."
-        ),
-        "Put the skill back to this version? The current one is kept in the history.": (
-            "Vrátiť schopnosť na túto verziu? Súčasná zostane v histórii."
-        ),
-        "Shared with": "Zdieľané s",
-        "Shared with you. You can read this but not change it.": (
-            "Zdieľané s vami. Môžete to čítať, ale nie meniť."
-        ),
-        "Find somebody": "Nájsť niekoho",
-        "Name, email or group…": "Meno, e-mail alebo skupina…",
-        "Loading who this is shared with": "Načítava sa, s kým je toto zdieľané",
-        "Showing the first few. Type to narrow it — anything already shared stays listed whatever you search for.": (
-            "Zobrazuje sa prvých niekoľko. Písaním to zúžite — čo je už zdieľané, "
-            "zostáva v zozname bez ohľadu na to, čo hľadáte."
-        ),
-        "They will be able to read this, and their models will find it. They cannot change it, delete it, or share it on — so “who can see this?” stays a question you can answer.": (
-            "Budú to môcť čítať a ich modely to nájdu. Nemôžu to zmeniť, zmazať ani "
-            "zdieľať ďalej — takže „kto to vidí?“ zostáva otázkou, na ktorú viete "
-            "odpovedať."
-        ),
-        "Moving it changes who can see it.": "Presunutím sa zmení, kto to vidí.",
-        "What belongs in here.": "Čo tu patrí.",
         "Nothing — a folder at the top": "Nič — zložka na najvyššej úrovni",
-        "Contracts": "Zmluvy",
     }
 )
 
@@ -446,7 +318,6 @@ MESSAGES.update(
         "Auto: copy": "Automaticky: skopírovať",
         "Auto: send": "Automaticky: poslať",
         "Opening…": "Otvára sa…",
-        "Put this in the message box as an attachment": "Vložiť do políčka správy ako prílohu",
         "This chat": "Táto konverzácia",
         "Keep this chat": "Nechať túto konverzáciu",
         "Window size": "Veľkosť okna",
@@ -485,22 +356,7 @@ MESSAGES.update(
             "Zložka nastavená na jeden druh sa zobrazí len na tej strane prepínača v "
             "bočnom paneli a obrazovku novej konverzácie otvorí už na tej vetve."
         ),
-        "What a model is given when it reads this.": "Čo model dostane, keď si to prečíta.",
-        "When the user asks for the weekly report.": "Keď si používateľ vyžiada týždennú správu.",
-        "Reports": "Správy",
-        "New reports": "Nové správy",
         "New reply": "Nová odpoveď",
-        "Search reports…": "Hľadať v správach…",
-        "This run did not finish cleanly.": "Tento beh sa nedokončil čisto.",
-        "Delete this report? It cannot be brought back.": (
-            "Zmazať túto správu? Už sa nedá vrátiť."
-        ),
-        "Finished work, filed to be read later. A model writes one when you ask for it or when it finishes something worth keeping, and anything running on a schedule leaves its result here. Nothing on this page can be replied to.": (
-            "Hotová práca, odložená na prečítanie neskôr. Model ju napíše, keď si ju "
-            "vyžiadate alebo keď dokončí niečo, čo sa vyplatí uchovať, a všetko, čo "
-            "beží podľa plánu, tu necháva svoj výsledok. Na nič na tejto stránke sa "
-            "nedá odpovedať."
-        ),
         "Nothing scheduled": "Nič naplánované",
         "Work that runs on its own, whether or not you are here. Each one has its own chat, and replies into it every time it comes round.": (
             "Práca, ktorá beží sama, či tu ste alebo nie. Každá má vlastnú "
@@ -571,7 +427,6 @@ MESSAGES.update(
 MESSAGES.update(
     {
         "%H:%M on %A %-d %B": "%H:%M v %A, %-d. %B",
-        "%d %B %Y at %H:%M": "%d. %B %Y v %H:%M",
     }
 )
 
@@ -900,10 +755,6 @@ MESSAGES.update(
             "vrátane zastavenej alebo neúspešnej — endpoint si účtuje tokeny, ktoré "
             "vygeneroval, či ich niekto chcel alebo nie."
         ),
-        "Empty means a chat that can see everything.": (
-            "Prázdne znamená konverzáciu, ktorá vidí všetko."
-        ),
-        "Knowledge bases in scope": "Znalostné bázy v rozsahu",
         "Permissions this group adds": "Oprávnenia, ktoré táto skupina pridáva",
         "Password and removal": "Heslo a odstránenie",
         "None. They cannot start a chat at all.": "Žiadne. Nemôžu vôbec začať konverzáciu.",
@@ -1003,7 +854,6 @@ MESSAGES.update(
         "Timeout (seconds)": "Časový limit (sekundy)",
         "The answer": "Odpoveď",
         "The call": "Volanie",
-        "The index": "Index",
         "The modes": "Režimy",
         "The server": "Server",
         "The terminal": "Terminál",
@@ -1012,7 +862,6 @@ MESSAGES.update(
         "The first one": "Prvý",
         "The first in the list above": "Prvý v zozname vyššie",
         "This chat is": "Táto konverzácia je",
-        "This chat's own working document": "Vlastný pracovný dokument tejto konverzácie",
         "This is what the model would read back:": "Toto by si model prečítal:",
         "Text kept per file": "Text uchovaný na súbor",
         "The heading on the card.": "Nadpis na karte.",
@@ -1048,10 +897,6 @@ MESSAGES.update(
         ),
         "Turning this off signs them out everywhere at once, rather than waiting for a cookie to expire.": (
             "Vypnutím ich odhlásite všade naraz, namiesto čakania na vypršanie cookie."
-        ),
-        "Their chats, folders and library go too, and every share naming them or naming anything of theirs.": (
-            "Zmiznú aj ich konverzácie, zložky a knižnica a každé zdieľanie, ktoré "
-            "menuje ich alebo čokoľvek ich."
         ),
         "The one place membership is edited. A user's own page links here rather than offering a second control for the same value.": (
             "Jediné miesto, kde sa upravuje členstvo. Stránka používateľa sem odkazuje, "
@@ -1311,12 +1156,6 @@ MESSAGES.update(
             "Znížte, ak endpoint odmieta veľké požiadavky; zvýšte, ak je "
             "prestavba pomalá a druhá strana má priestor."
         ),
-        "Documents, notes, skills and reports are indexed as they are written. A rebuild is for everything that already existed — or for after changing the model or the piece size, both of which make what is stored stop meaning anything. It runs in the background and can be left.": (
-            "Dokumenty, poznámky, schopnosti a správy sa indexujú pri zápise. Prestavba "
-            "je pre všetko, čo už existovalo — alebo po zmene modelu či veľkosti "
-            "častí, po ktorej to, čo je uložené, prestane čokoľvek znamenať. Beží na "
-            "pozadí a dá sa nechať."
-        ),
         "Placeholders are filled from the arguments and escaped, so a value cannot add a path segment or a query of its own. The scheme and host must be written out — they cannot come from an argument.": (
             "Zástupné hodnoty sa vyplnia z argumentov a escapujú, takže hodnota nemôže "
             "pridať vlastný segment cesty ani vlastný dotaz. Schéma a hostiteľ musia "
@@ -1431,8 +1270,6 @@ MESSAGES.update(
         "unknown": "neznáme",
         "up to date": "aktuálne",
         "with tools": "s nástrojmi",
-        "you": "vy",
-        "model": "model",
         # Sent to an endpoint or typed verbatim: not prose.
         "embeddings": "embeddings",
         "euler (built-in)": "euler (zabudovaný)",
@@ -1463,7 +1300,6 @@ MESSAGES.update(
         'Data group': 'Dátová oblasť',
         'Data groups': 'Dátové oblasti',
         'Data': 'Dáta',
-        "Its models read only this group's memories, notes, skills, knowledge and reports, and a chat started on one of them stays in it. Moving a connection does not move any data: it starts reading the other group.": 'Jeho modely čítajú len pamäť, poznámky, schopnosti, znalosti a správy tejto oblasti a konverzácia začatá na niektorom z nich v nej zostáva. Presunutie spojenia nepresúva žiadne dáta: začne čítať druhú oblasť.',
         'All data groups': 'Všetky dátové oblasti',
         'A personal group of %(who)s.': 'Osobná oblasť používateľa %(who)s.',
         'Connections in this group': 'Spojenia v tejto oblasti',
@@ -1482,7 +1318,6 @@ MESSAGES.update(
         'its connection is in %(group)s': 'jeho spojenie je v oblasti %(group)s',
         'Nothing: no connection is in this group, and no service reads it.': 'Nikam: v tejto oblasti nie je žiadne spojenie a žiadna služba ju nečíta.',
         'Holds': 'Obsahuje',
-        "A data group keeps one provider's models away from the data another provider's models have been given. Every connection is in one group. Its models read only that group's memories, notes, skills, knowledge, reports and personalities, and a chat stays in the group it was started in.": 'Dátová oblasť drží modely jedného poskytovateľa ďalej od dát, ktoré dostali modely iného poskytovateľa. Každé spojenie patrí do jednej oblasti. Jeho modely čítajú len pamäť, poznámky, schopnosti, znalosti, správy a osobnosti tejto oblasti a konverzácia zostáva v oblasti, v ktorej začala.',
         'Data group deleted.': 'Dátová oblasť zmazaná.',
         'Instance groups': 'Oblasti inštancie',
         '%(n)s connections': 'spojenia: %(n)s',
@@ -1494,10 +1329,6 @@ MESSAGES.update(
         'A new group holds nothing and reads nothing until a connection is put into it. Nothing moves on its own.': 'Nová oblasť nič neobsahuje a nič nečíta, kým do nej nezaradíte spojenie. Nič sa nepresúva samo.',
         'Personal groups': 'Osobné oblasti',
         'In another data group than this chat (%(group)s). Start a new chat to use them:': 'V inej dátovej oblasti než táto konverzácia (%(group)s). Ak ich chcete použiť, začnite novú konverzáciu:',
-        'Only models whose connection is in this group can read it.': 'Čítať to môžu len modely, ktorých spojenie je v tejto oblasti.',
-        "Moving it hands it to the other group's models, and takes it away from this group's.": 'Presunutím to dostanú modely druhej oblasti a modely tejto oblasti o to prídu.',
-        'Only models whose connection is in this group can read it. Moving records between groups needs the permission to manage your own data groups.': 'Čítať to môžu len modely, ktorých spojenie je v tejto oblasti. Na presúvanie záznamov medzi oblasťami potrebujete oprávnenie spravovať vlastné dátové oblasti.',
-        'Every group': 'Všetky oblasti',
         'Show': 'Zobraziť',
         'Your data groups': 'Vaše dátové oblasti',
         'yours': 'vaša',
@@ -1510,10 +1341,6 @@ MESSAGES.update(
         'Set by the administrator. Changing it for yourself needs the permission to manage your own data groups.': 'Nastavuje správca. Ak to chcete zmeniť pre seba, potrebujete oprávnenie spravovať vlastné dátové oblasti.',
         'chats': 'konverzácie',
         'memories': 'záznamy v pamäti',
-        'notes': 'poznámky',
-        'skills': 'schopnosti',
-        'knowledge bases': 'znalostné bázy',
-        'reports': 'správy',
         'connections': 'spojenia',
         'Chat models': 'Modely v konverzáciách',
         'Embedding': 'Vnorenia',
@@ -1567,10 +1394,8 @@ MESSAGES.update(
         '%(n)s hours after the last message': '%(n)s h po poslednej správe',
         '%(n)s minutes after the last message': '%(n)s min po poslednej správe',
         'Temporary chats': 'Dočasné konverzácie',
-        'A temporary chat is not listed in the sidebar, may read the library but cannot write to it — no notes, memories, skills, reports or schedules — and is deleted when its time is up. Keep this chat turns one into an ordinary chat.': 'Dočasná konverzácia nie je v bočnom paneli, smie čítať knižnicu, ale nič do nej nezapíše — žiadne poznámky, pamäť, schopnosti, správy ani plány — a keď jej čas uplynie, zmaže sa. „Ponechať konverzáciu“ z nej urobí obyčajnú.',
         'Delete a temporary chat after': 'Zmazať dočasnú konverzáciu po',
         'Minutes after its last message, up to 1440 (a day). 0 deletes it a minute after the person leaves it; one left open in a tab that was closed without saying so goes ten minutes after its last message.': 'Minúty od poslednej správy, najviac 1440 (deň). 0 ju zmaže minútu po tom, čo ju človek opustí; tá, ktorej karta sa zavrela bez ohlásenia, zmizne desať minút po poslednej správe.',
-        'Not listed in the sidebar. It may read the library but saves nothing, and is deleted %(after)s.': 'Nie je v bočnom paneli. Smie čítať knižnicu, ale nič neukladá, a zmaže sa %(after)s.',
         'Temporary · read-only': 'Dočasná · len na čítanie',
         'Starting a temporary chat. Click to go back to a normal one.': 'Začína sa dočasná konverzácia. Kliknutím sa vrátite k obyčajnej.',
         'Start a temporary chat: not listed, saves nothing, and deleted %(after)s.': 'Začať dočasnú konverzáciu: nie je v zozname, nič neukladá a zmaže sa %(after)s.',
@@ -1587,9 +1412,7 @@ MESSAGES.update(
         'You have started over. Your account and settings are as they were.': 'Začali ste odznova. Účet a nastavenia zostali, ako boli.',
         'messages': 'správy v konverzáciách',
         'folders': 'zložky',
-        'documents': 'dokumenty',
         'schedules': 'plány',
-        'scratch documents': 'pracovné dokumenty',
         'Start over': 'Začať odznova',
         "Delete your own data and begin again. None of this can be undone, and nothing here touches anybody else's data. Your account, password and settings stay as they are.": 'Zmažte svoje údaje a začnite odznova. Nič z toho sa nedá vrátiť a nič tu nezasiahne údaje nikoho iného. Účet, heslo a nastavenia zostanú, ako sú.',
         'Delete all chats': 'Zmazať všetky konverzácie',
@@ -1686,7 +1509,6 @@ MESSAGES.update(
         'Revoked.': 'Zrušené.',
         'You may not read the audit log.': 'Nesmiete čítať záznam auditu.',
         'Use your models, and spend your usage': 'Používať vaše modely a míňať vašu spotrebu',
-        'Read and write your memory, notes, skills and knowledge': 'Čítať a zapisovať vašu pamäť, poznámky, schopnosti a znalosti',
         'Accept work from this instance as a linked device': 'Prijímať prácu z tejto inštancie ako prepojené zariadenie',
         'Read every account and its usage': 'Čítať všetky účty a ich spotrebu',
         'Read the audit log': 'Čítať záznam auditu',
@@ -1748,9 +1570,7 @@ MESSAGES.update(
 # --- 2.0.0: personalization, CLI connections, tokens on the user page ----------
 MESSAGES.update(
     {
-        "A model reads only the memories, notes, skills, knowledge and reports of the data group its connection is in, and a chat stays in the group it was started in. Two providers in different groups never see each other's.": "Model číta len pamäť, poznámky, zručnosti, znalosti a správy dátovej skupiny, v ktorej je jeho pripojenie, a chat zostáva v skupine, v ktorej sa začal. Dvaja poskytovatelia v rôznych skupinách nikdy nevidia údaje toho druhého.",
         "A register, not a character: how answers sound, never what they say.": "Tón, nie postava: ako odpovede znejú, nikdy nie čo hovoria.",
-        "Both of the above, and your notes, skills, knowledge bases and their files, reports, schedules and scratch documents, with everything you shared. Kept: your account, password, settings, groups and usage.": "Oboje vyššie a k tomu vaše poznámky, zručnosti, znalostné bázy a ich súbory, správy, plány a pracovné dokumenty spolu so všetkým, čo ste zdieľali. Zostane: váš účet, heslo, nastavenia, skupiny a spotreba.",
         "Connect a machine": "Pripojiť počítač",
         "Custom instructions": "Vlastné pokyny",
         "Default": "Predvolené",
@@ -1768,7 +1588,6 @@ MESSAGES.update(
         "Personalization": "Prispôsobenie",
         "Sign it in to this instance, and approve the code it shows here:": "Prihláste ho k tejto inštancii a kód, ktorý ukáže, schváľte tu:",
         "The API tokens this account made and the LLeMbas CLIs it signed in. Each acts as this account, with only its scopes. Revoking one deletes it and signs out whatever holds it at once.": "API tokeny, ktoré tento účet vytvoril, a LLeMbas CLI, ktoré prihlásil. Každý koná za tento účet, len v rozsahu svojich oprávnení. Zrušenie ho zmaže a okamžite odhlási všetko, čo ho drží.",
-        "The LLeMbas CLI on your machines, signed in as you. Each uses your models, your knowledge and your usage, and an agent chat here runs on one of them — under its own limits — while it is linked.": "LLeMbas CLI na vašich počítačoch, prihlásené za vás. Každé používa vaše modely, vaše znalosti a vašu spotrebu a agentový chat tu beží na jednom z nich — v jeho vlastných medziach — kým je pripojené.",
         "To run agent chats on it from here, allow it in its config (~/.config/lembas/config.yaml) and start the service:": "Aby na ňom odtiaľto bežali agentové chaty, povoľte to v jeho konfigurácii (~/.config/lembas/config.yaml) a spustite službu:",
         "Tokens and devices": "Tokeny a zariadenia",
         "Used when the personality is “In my own words”.": "Použije sa, keď je osobnosť „Vlastnými slovami“.",
@@ -1786,7 +1605,6 @@ MESSAGES.update(
     {
         "A panel beside an agent chat holding an interactive shell on the linked device, when the device allows it (remote.terminal: true). What somebody types there is theirs: the modes govern the model, not the person at the keyboard. The model cannot see the panel; sending it something is a button they press.": "Panel vedľa agentovej konverzácie s interaktívnym shellom na pripojenom zariadení, ak to zariadenie dovolí (remote.terminal: true). Čo tam niekto napíše, je jeho: režimy riadia model, nie človeka pri klávesnici. Model panel nevidí; poslať mu niečo je tlačidlo, ktoré človek stlačí.",
         "An agent chat runs on a linked LLeMbas CLI: the CLI on somebody's machine does the work, under its own limits (its remote: roots and modes), and this instance shows it and passes on what is typed here. Nothing runs on this server. What you decide here is whether the feature exists, how long an approval waits, and the terminal panel.": "Agentová konverzácia beží na pripojenom LLeMbas CLI: prácu robí CLI na niečom počítači, v rámci vlastných obmedzení (svojich koreňov remote: a režimov), a táto inštancia ju zobrazuje a odovzdáva mu, čo sa tu napíše. Na tomto serveri nebeží nič. Tu rozhodujete, či funkcia existuje, ako dlho čaká schválenie a o paneli terminálu.",
-        "Nothing open. A file the model reads or writes appears here, and notes, skills and this chat's own scratch document can be opened from the @ menu.": "Nič nie je otvorené. Súbor, ktorý model číta alebo zapisuje, sa objaví tu; poznámky, zručnosti a pracovný dokument tejto konverzácie sa dajú otvoriť z ponuky @.",
         "People also need the permission “%(permission)s” and a linked LLeMbas CLI (Settings → Devices).": "Ľudia potrebujú aj oprávnenie „%(permission)s“ a pripojené LLeMbas CLI (Nastavenia → Zariadenia).",
         "People also need the permission “%(permission)s”.": "Ľudia potrebujú aj oprávnenie „%(permission)s“.",
         "Shells open right now: %(n)s": "Práve otvorené shelly: %(n)s",
@@ -1813,8 +1631,6 @@ MESSAGES.update(
         "Leave empty to use the model prompt shown above.": "Nechajte prázdne a použije sa pokyn modelu uvedený vyššie.",
         "Leave empty to use the instance prompt shown above.": "Nechajte prázdne a použije sa pokyn inštancie uvedený vyššie.",
         "Overrides the model and instance prompts for this chat only.": "Len pre túto konverzáciu nahradí pokyny modelu aj inštancie.",
-        "Searches in this chat are limited to what is ticked.": "Vyhľadávanie v tejto konverzácii je obmedzené na to, čo je zaškrtnuté.",
-        "Nothing ticked, so this chat can search everything in your <a href=\"/library/knowledge\">library</a>.": "Nič nie je zaškrtnuté, takže táto konverzácia môže prehľadávať celú vašu <a href=\"/library/knowledge\">knižnicu</a>.",
         "Add an OpenAI-compatible connection and %(name)s will load its models.": "Pridajte spojenie kompatibilné s OpenAI a %(name)s načíta jeho modely.",
         "No model connections have been set up yet. Ask an administrator.": "Zatiaľ nie je nastavené žiadne spojenie s modelmi. Obráťte sa na správcu.",
         "Set up a connection": "Nastaviť spojenie",
@@ -1853,7 +1669,6 @@ MESSAGES.update(
         "%(n)s available.": "K dispozícii: %(n)s.",
         "An ISO code such as <code>en</code> or <code>sk</code>. Empty lets the server work it out, which is usually best.": "Kód ISO, napríklad <code>en</code> alebo <code>sk</code>. Prázdne pole nechá jazyk určiť server, čo býva najlepšie.",
         "What models remember about you": "Čo si o vás modely pamätajú",
-        "Short facts, shown to every model you talk to on every turn — so they are few and short on purpose. Anything longer belongs in a <a href=\"/library/notes\">note</a>. Nothing here is shared with anyone else, ever.": "Krátke fakty, ktoré vidí každý model, s ktorým hovoríte, v každom kroku — preto ich je zámerne málo a sú krátke. Čokoľvek dlhšie patrí do <a href=\"/library/notes\">poznámky</a>. Nič z toho sa nikdy s nikým nezdieľa.",
         "One fact per record, at most %(n)s characters. Never put a password or a key here — it is sent to the model with every message.": "Jeden fakt na záznam, najviac %(n)s znakov. Nikdy sem nedávajte heslo ani kľúč — posiela sa modelu s každou správou.",
         "Something went wrong.": "Niečo sa pokazilo.",
         "Start chats": "Začínať konverzácie",
@@ -1886,31 +1701,16 @@ MESSAGES.update(
         "Let a model hand a self-contained piece of work to a second one that runs on its own and reports back — reading and searching in parallel rather than one thing at a time. A helper cannot ask questions, cannot spawn helpers of its own, and can only do what this chat could already do without stopping to ask.": "Model môže odovzdať samostatnú časť práce druhému, ktorý pracuje sám a podá správu — číta a hľadá súbežne namiesto jednej veci po druhej. Pomocník sa nemôže pýtať, nemôže spúšťať vlastných pomocníkov a smie len to, čo by táto konverzácia smela aj bez pýtania.",
         "Be asked questions": "Dostávať otázky",
         "Let a model stop mid-reply and ask you something, with answers to pick from or a box to write your own.": "Model sa môže uprostred odpovede zastaviť a na niečo sa vás opýtať — s odpoveďami na výber alebo s políčkom na vlastnú.",
-        "Write in the canvas": "Písať na plochu",
-        "Let a model build something up in this chat's scratch document, which sits open beside the conversation and can be edited and attached to a message. It belongs to the chat and is not searchable afterwards.": "Model môže niečo budovať v pracovnom dokumente konverzácie, ktorý je otvorený vedľa nej a dá sa upravovať a priložiť k správe. Patrí konverzácii a neskôr sa v ňom nedá vyhľadávať.",
         "Set things to run later, on their own — once, or on a repeating timetable. This spends model time with nobody at the keyboard, so it is a capability chosen on purpose rather than one everybody has.": "Nastaviť veci, aby bežali neskôr samy — raz alebo podľa opakovaného rozvrhu. Míňa to čas modelu bez nikoho pri klávesnici, preto je to schopnosť udelená zámerne, nie samozrejmosť pre všetkých.",
-        "Keep reports": "Mať správy",
-        "Read the Reports section: finished pieces of work filed for them to read later, by a model that was asked for one or by something that ran while they were away.": "Čítať sekciu Správy: hotové kusy práce odložené na neskoršie čítanie, ktoré podal model, keď ho o to požiadali, alebo niečo, čo bežalo počas neprítomnosti.",
-        "File reports": "Podávať správy",
-        "Let a model write a report when it finishes a piece of work, and read back ones it filed earlier. A report is addressed to the reader and cannot be replied to, so this costs nothing but a place to put things.": "Model môže po dokončení práce napísať správu a čítať tie, ktoré podal skôr. Správa je určená čitateľovi a nedá sa na ňu odpovedať, takže to nestojí nič okrem miesta, kam veci odložiť.",
         "Dictate messages": "Diktovať správy",
         "Speak a message instead of typing it. Needs a transcription endpoint.": "Správu vysloviť namiesto písania. Vyžaduje endpoint na prepis.",
         "Play replies aloud": "Prehrávať odpovede nahlas",
         "Have a reply read out. Needs a speech endpoint.": "Nechať si odpoveď prečítať. Vyžaduje endpoint reči.",
         "Use the library": "Používať knižnicu",
-        "Keep knowledge documents, notes, memories and skills of their own.": "Mať vlastné dokumenty znalostí, poznámky, spomienky a schopnosti.",
-        "Share library items": "Zdieľať položky knižnice",
-        "Give other people, or a group, access to their knowledge bases, notes, skills and reports. Sharing grants reading only — never changing, and never sharing on.": "Dať iným ľuďom alebo skupine prístup k vlastným znalostným bázam, poznámkam, schopnostiam a správam. Zdieľanie dovoľuje len čítať — nikdy meniť ani zdieľať ďalej.",
-        "Search their knowledge": "Prehľadávať vlastné znalosti",
-        "Let a model search the documents this user has collected.": "Model môže prehľadávať dokumenty, ktoré tento používateľ zhromaždil.",
-        "Read and write notes": "Čítať a písať poznámky",
-        "Let a model keep its own notes for this user, and read them back later.": "Model si môže pre tohto používateľa viesť vlastné poznámky a neskôr si ich prečítať.",
         "Remember things": "Pamätať si veci",
         "Let a model record short facts about this user, shown to it on every turn.": "Model si môže zaznamenávať krátke fakty o tomto používateľovi, ktoré vidí v každom kroku.",
         "Use and write skills": "Používať a písať schopnosti",
         "Let a model follow saved instructions, and write new ones. Every change is recorded and can be rolled back.": "Model sa môže riadiť uloženými postupmi a písať nové. Každá zmena sa zaznamená a dá sa vrátiť.",
-        "Write notes": "Písať poznámky",
-        "Let a model create, change and delete notes. Without it, it can still search and read the ones that are there.": "Model môže poznámky vytvárať, meniť a mazať. Bez toho ich stále môže prehľadávať a čítať.",
         "Record memories": "Zaznamenávať spomienky",
         "Let a model add and forget short facts about this person. Without it, the memories it already has are still shown to it every turn.": "Model môže pridávať a zabúdať krátke fakty o tomto človeku. Bez toho mu už existujúce spomienky stále ukazujeme v každom kroku.",
         "Write skills": "Písať schopnosti",
@@ -1941,20 +1741,12 @@ MESSAGES.update(
         "Use tools from the MCP servers an administrator has added.": "Používať nástroje zo serverov MCP, ktoré pridal správca.",
         "Hand a self-contained task to a helper model.": "Odovzdať samostatnú úlohu pomocnému modelu.",
         "Stop mid-reply and ask you a question.": "Zastaviť sa uprostred odpovede a niečo sa vás opýtať.",
-        "Write in the chat's canvas document.": "Písať do pracovného dokumentu konverzácie na ploche.",
-        "File a report when a piece of work is finished.": "Podať správu, keď je kus práce hotový.",
         "Start agent chats on a LLeMbas CLI you have linked.": "Začínať agentské konverzácie na prepojenom LLeMbas CLI.",
         "Open a shell on your linked device from an agent chat.": "Z agentskej konverzácie otvoriť shell na prepojenom zariadení.",
         "Make API tokens and sign the LLeMbas CLI in as you.": "Vytvárať tokeny API a prihlásiť LLeMbas CLI vo vašom mene.",
         "Set work to run later, once or on a timetable.": "Nastaviť prácu na neskôr, raz alebo podľa rozvrhu.",
-        "Read the reports filed for you.": "Čítať správy, ktoré pre vás niekto podal.",
         "Speak a message instead of typing it.": "Správu vysloviť namiesto písania.",
         "Have replies read aloud.": "Nechať si odpovede čítať nahlas.",
-        "Keep documents, notes, memories and skills of your own.": "Mať vlastné dokumenty, poznámky, spomienky a schopnosti.",
-        "Let other people read your library items.": "Dovoliť iným čítať položky vašej knižnice.",
-        "Let a model search your documents.": "Model smie prehľadávať vaše dokumenty.",
-        "Let a model read your notes.": "Model smie čítať vaše poznámky.",
-        "Let a model write, change and delete notes.": "Model smie písať, meniť a mazať poznámky.",
         "Let a model see what it remembers about you.": "Model smie vidieť, čo si o vás pamätá.",
         "Let a model add and forget facts about you.": "Model smie pridávať a zabúdať fakty o vás.",
         "Let a model follow your saved skills.": "Model sa smie riadiť vašimi uloženými schopnosťami.",
@@ -1994,7 +1786,6 @@ MESSAGES.update(
         "the new title": "nový názov",
         "Give it a title: /title Something.": "Zadajte názov: /title Niečo.",
         "Renamed.": "Premenované.",
-        "Show or hide the canvas": "Zobraziť alebo skryť plochu",
         "Show or hide the terminal": "Zobraziť alebo skryť terminál",
         "Show or hide the request inspector": "Zobraziť alebo skryť inšpektora požiadaviek",
         "Show or hide the sidebar": "Zobraziť alebo skryť bočný panel",
@@ -2008,9 +1799,6 @@ MESSAGES.update(
         "There is no reply to continue yet.": "Zatiaľ nie je odpoveď, v ktorej by sa dalo pokračovať.",
         "Stop the reply being written": "Zastaviť písanú odpoveď",
         "Nothing is being written.": "Nič sa práve nepíše.",
-        "Your library": "Vaša knižnica",
-        "Notes the model has written": "Poznámky, ktoré napísal model",
-        "Saved procedures": "Uložené postupy",
         "This model is not marked as a reasoning model, so effort would do nothing. An administrator can mark it on the model's page.": "Tento model nie je označený ako uvažujúci, takže náročnosť by nič nezmenila. Správca ho môže označiť na stránke modelu.",
         "No effort is being sent. Try %(levels)s.": "Neposiela sa žiadna náročnosť. Skúste %(levels)s.",
         "Effort is %(level)s. /effort %(levels)s, or off.": "Náročnosť je %(level)s. /effort %(levels)s alebo off.",
@@ -2052,13 +1840,6 @@ MESSAGES.update(
         "Delete the connection “%(name)s”? Existing chats keep their history.": "Zmazať spojenie „%(name)s“? Existujúce konverzácie si históriu ponechajú.",
         "Your list above was left alone. What ComfyUI has:": "Váš zoznam vyššie zostal nezmenený. Čo má ComfyUI:",
         "Filled in above:": "Doplnené vyššie:",
-        "Rebuilding: %(done)s of %(total)s records (%(percent)s%%), %(written)s pieces written. You can leave this page — it carries on.": "Prestavuje sa: %(done)s z %(total)s záznamov (%(percent)s %%), zapísané časti: %(written)s. Túto stránku môžete opustiť — pokračuje sa ďalej.",
-        "Finished: %(done)s records, %(written)s pieces indexed.": "Hotovo: záznamy: %(done)s, zaindexované časti: %(written)s.",
-        "Indexed now:": "Teraz zaindexované:",
-        "<strong>%(count)s</strong> from %(kind)s": "%(kind)s: <strong>%(count)s</strong>",
-        "Nothing is indexed yet.": "Zatiaľ nie je nič zaindexované.",
-        "Rebuilding…": "Prestavuje sa…",
-        "Rebuild the index": "Prestavať index",
         "Groups & permissions": "Skupiny a oprávnenia",
         "1 tool": "1 nástroj",
         "%(n)s tools": "nástroje: %(n)s",
@@ -2097,7 +1878,6 @@ MESSAGES.update(
         "<strong>%(none)s</strong> is not a degraded mode: it is the keyword search this has always had, with nothing stored and nothing sent anywhere. Changing the model changes what a vector means, so anything already indexed is ignored until it is rebuilt.": "<strong>%(none)s</strong> nie je obmedzený režim: je to vyhľadávanie podľa kľúčových slov, aké tu bolo vždy, nič sa neukladá a nikam neposiela. Zmena modelu mení, čo vektor znamená, takže všetko už zaindexované sa ignoruje, kým sa index neprestavia.",
         "This is the interface only. Models answer in whatever language you write to them in, which is a line you can edit under <a href=\"/admin/prompts\">Prompts</a>.": "Týka sa to len rozhrania. Modely odpovedajú v jazyku, ktorým im píšete — to je riadok, ktorý môžete upraviť v časti <a href=\"/admin/prompts\">Pokyny</a>.",
         "Percent of the model's context length. <code>0</code> turns automatic compaction off; the button in each chat still works. Nothing happens for a model whose context length is unset under <a href=\"/admin/models\">Models</a> — that is \"unknown\", not \"small\", and this will not act on a number nobody supplied. The wording of the summary is under <a href=\"/admin/prompts\">Prompts</a>.": "Percento dĺžky kontextu modelu. <code>0</code> automatické zhrnutie vypne; tlačidlo v každej konverzácii funguje ďalej. Pri modeli, ktorý nemá v časti <a href=\"/admin/models\">Modely</a> nastavenú dĺžku kontextu, sa nestane nič — to znamená „neznáma“, nie „malá“, a podľa čísla, ktoré nikto nezadal, sa nekoná. Znenie zhrnutia je v časti <a href=\"/admin/prompts\">Pokyny</a>.",
-        "Several tools can be called in one round, so this is not a count of tools. Leave room for at least two: <code>knowledge_get</code> and <code>note_view</code> read a document by an id a <em>search</em> returned, so a ceiling of one leaves the library searchable and not readable. <code>0</code> means no ceiling, which is how an agent chat already works — those are bounded under <a href=\"/admin/agents\">Agents</a> by time and tokens instead.": "V jednom kole sa dá zavolať niekoľko nástrojov, takže to nie je počet nástrojov. Nechajte priestor aspoň na dve: <code>knowledge_get</code> a <code>note_view</code> čítajú dokument podľa ID, ktoré vrátilo <em>vyhľadávanie</em>, takže strop jedna nechá knižnicu prehľadávateľnú, ale nečitateľnú. <code>0</code> znamená bez stropu, tak už funguje konverzácia s agentom — tie sú namiesto toho obmedzené časom a tokenmi v časti <a href=\"/admin/agents\">Agenti</a>.",
         "All groups": "Všetky skupiny",
         "A group only ever <em>adds</em>. Anything already in the baseline is shown below as such, so a tick here that changes nothing looks like one.": "Skupina vždy len <em>pridáva</em>. Čokoľvek, čo už je v základe, je nižšie tak aj označené, aby zaškrtnutie, ktoré nič nemení, tak aj vyzeralo.",
         "Resolved across a person's groups by <strong>maximum</strong> — the union rule applied to numbers, so a second group can only grant more.": "Naprieč skupinami človeka sa určuje podľa <strong>maxima</strong> — pravidlo zjednotenia použité na čísla, takže ďalšia skupina môže len pridať.",
@@ -2224,7 +2004,6 @@ MESSAGES.update(
         "limit %(n)s a day": "limit %(n)s denne",
         "Resolved across their groups by <strong>maximum</strong> — the union rule applied to numbers, so a second group can only ever grant more. Zero means no limit and wins outright, because a group saying “unlimited” must not count for less than one saying “a million”.": "Naprieč ich skupinami sa určuje podľa <strong>maxima</strong> — pravidlo zjednotenia použité na čísla, takže ďalšia skupina môže vždy len pridať. Nula znamená bez limitu a vyhráva hneď, lebo skupina, ktorá hovorí „neobmedzene“, nesmie mať menšiu váhu než skupina, ktorá hovorí „milión“.",
         "no limit": "bez limitu",
-        "Delete %(email)s? Their chats, folders and library go with them.": "Zmazať %(email)s? Spolu s účtom zmiznú aj jeho konverzácie, priečinky a knižnica.",
         "Delete this account": "Zmazať tento účet",
         "Every account on this instance. Open one to see what it can actually do and where each of those permissions came from. Group membership is edited from the <a href=\"/admin/groups\">group's</a> own page — one control per value, so a save on one screen cannot undo a save on another.": "Všetky účty na tejto instancii. Otvorte niektorý a uvidíte, čo naozaj smie a odkiaľ každé z týchto oprávnení pochádza. Členstvo v skupine sa upravuje na vlastnej stránke <a href=\"/admin/groups\">skupiny</a> — jedno ovládanie pre každú hodnotu, takže uloženie na jednej obrazovke nemôže zrušiť uloženie na inej.",
         "Nobody matches that.": "Tomu nikto nezodpovedá.",
@@ -2245,12 +2024,6 @@ MESSAGES.update(
         "%(n)s pages": "strany: %(n)s",
         "truncated": "skrátené",
         "Remove %(name)s": "Odstrániť %(name)s",
-        "<strong>%(title)s</strong> changed after you opened it, so nothing was written. Your version is below.": "<strong>%(title)s</strong> sa od otvorenia zmenil, preto sa nič nezapísalo. Vaša verzia je nižšie.",
-        "Overwrite with mine": "Prepísať mojou",
-        "This does not look like text, so there is nothing to show and nothing that could safely be saved back.": "Toto nevyzerá ako text, takže tu nie je čo zobraziť ani čo bezpečne uložiť späť.",
-        "Showing the beginning only. Saving from here would delete the rest, so this one is read-only.": "Zobrazuje sa len začiatok. Uložením odtiaľto by sa zvyšok zmazal, preto je tento súbor len na čítanie.",
-        "Scratch": "Pracovný dokument",
-        "Close %(name)s": "Zavrieť %(name)s",
         "Rewind here? The %(n)s message after this one will be deleted.": "Vrátiť sa sem? %(n)s správa po tejto sa zmaže.",
         "Rewind here? The %(n)s messages after this one will be deleted.": "Vrátiť sa sem? Správy po tejto sa zmažú (počet: %(n)s).",
         "Send again": "Poslať znova",
@@ -2279,8 +2052,6 @@ MESSAGES.update(
         "Give reason": "Uviesť dôvod",
         "Don't, and tell it why": "Nepovoliť a povedať prečo",
         "Nothing matches “%(q)s”.": "Výrazu „%(q)s“ nič nezodpovedá.",
-        "Your library is empty. <a href=\"/library/knowledge\">Add something to it</a>.": "Vaša knižnica je prázdna. <a href=\"/library/knowledge\">Pridajte do nej niečo</a>.",
-        "%(n)sp": "%(n)s s.",
         "Nothing to mention yet.": "Zatiaľ tu nie je čo spomenúť.",
         "view extracted text": "zobraziť vytiahnutý text",
         "Stopped. This reply is cut short.": "Zastavené. Táto odpoveď je neúplná.",
@@ -2316,52 +2087,7 @@ MESSAGES.update(
         "%(n)s tokens across %(replies)s reply": "tokeny: %(n)s v %(replies)s odpovedi",
         "%(n)s tokens across %(replies)s replies": "tokeny: %(n)s, odpovede: %(replies)s",
         "%(n)s tokens/second": "%(n)s tokenov/s",
-        "Page %(page)s of %(pages)s · %(n)s items": "Strana %(page)s z %(pages)s · položky: %(n)s",
-        "Nobody matches “%(q)s”.": "Výrazu „%(q)s“ nikto nezodpovedá.",
-        "There is nobody else here yet.": "Zatiaľ tu nikto iný nie je.",
-        "All knowledge bases": "Všetky znalostné bázy",
         "Nothing found": "Nič sa nenašlo",
-        "Nothing in this base matches “%(q)s”.": "Výrazu „%(q)s“ v tejto báze nič nezodpovedá.",
-        "Add a file or a web page above.": "Pridajte vyššie súbor alebo webovú stránku.",
-        "Delete “%(name)s” and the %(n)s document(s) in it? Messages they were attached to keep their copies.": "Zmazať „%(name)s“ a dokumenty v nej (počet: %(n)s)? Správy, ku ktorým boli priložené, si ponechajú svoje kópie.",
-        "Delete base": "Zmazať bázu",
-        "All bases": "Všetky bázy",
-        "Shared with me": "Zdieľané so mnou",
-        "%(n)s document": "%(n)s dokument",
-        "%(n)s documents": "dokumenty: %(n)s",
-        "Back to %(name)s": "Späť na %(name)s",
-        "Back to the base": "Späť na bázu",
-        "Source": "Zdroj",
-        "Size": "Veľkosť",
-        "%(n)s characters": "znaky: %(n)s",
-        "Download": "Stiahnuť",
-        "Delete “%(name)s”? Messages it was already attached to keep their copy.": "Zmazať „%(name)s“? Správy, ku ktorým už bol priložený, si ponechajú svoju kópiu.",
-        "New note": "Nová poznámka",
-        "All notes": "Všetky poznámky",
-        "Written by a model. Edit it freely — it is yours.": "Napísal ju model. Pokojne ju upravte — je vaša.",
-        "Create note": "Vytvoriť poznámku",
-        "Delete “%(name)s”?": "Zmazať „%(name)s“?",
-        "No notes yet": "Zatiaľ žiadne poznámky",
-        "No note matches “%(q)s”.": "Výrazu „%(q)s“ nezodpovedá žiadna poznámka.",
-        "Give a model the notes tool and it will start keeping them, or write the first one yourself.": "Dajte modelu nástroj na poznámky a začne si ich viesť, alebo prvú napíšte sami.",
-        "New skill": "Nová schopnosť",
-        "All skills": "Všetky schopnosti",
-        "This one line is all a model sees until it opens the skill, so it has to say when the skill applies — not what it does.": "Tento jeden riadok je všetko, čo model vidí, kým schopnosť neotvorí, takže musí hovoriť, kedy sa schopnosť použije — nie čo robí.",
-        "Worth reading before you rely on it. A model that has just read a web page can be talked into things by that page, and a skill persists. Every earlier version is below.": "Oplatí sa ju prečítať skôr, než sa na ňu budete spoliehať. Model, ktorý práve čítal webovú stránku, sa ňou môže dať k všeličomu nahovoriť, a schopnosť pretrváva. Všetky staršie verzie sú nižšie.",
-        "Create skill": "Vytvoriť schopnosť",
-        "Delete the skill “%(name)s” and all its history?": "Zmazať schopnosť „%(name)s“ aj s celou históriou?",
-        "History": "História",
-        "No skills yet": "Zatiaľ žiadne schopnosti",
-        "No skill matches “%(q)s”.": "Výrazu „%(q)s“ nezodpovedá žiadna schopnosť.",
-        "Write one for a task you explain often, or let a model save one after it has worked the task out.": "Napíšte ju pre úlohu, ktorú často vysvetľujete, alebo nechajte model, aby si ju uložil, keď úlohu vyrieši.",
-        "All reports": "Všetky správy",
-        "Filed <time datetime=\"%(iso)s\">%(when)s</time> by a schedule": "Založená <time datetime=\"%(iso)s\">%(when)s</time> plánom",
-        "Filed <time datetime=\"%(iso)s\">%(when)s</time> from a chat": "Založená <time datetime=\"%(iso)s\">%(when)s</time> z konverzácie",
-        "Filed <time datetime=\"%(iso)s\">%(when)s</time>": "Založená <time datetime=\"%(iso)s\">%(when)s</time>",
-        "No reports yet": "Zatiaľ žiadne správy",
-        "No report matches “%(q)s”.": "Výrazu „%(q)s“ nezodpovedá žiadna správa.",
-        "Ask a model to write one up when it has finished looking into something, and it will appear here.": "Požiadajte model, aby ju spísal, keď niečo dopreskúma, a objaví sa tu.",
-        "%d %b %Y, %H:%M": "%d. %m. %Y, %H:%M",
         "Leave the date empty for a repeating schedule and it begins now. Times are %(timezone)s.": "Pri opakovanom pláne nechajte dátum prázdny a začne hneď. Časy sú v pásme %(timezone)s.",
         "Paused.": "Pozastavené.",
         "Next run %(when)s.": "Ďalšie spustenie: %(when)s.",
@@ -2495,8 +2221,6 @@ MESSAGES.update(
         "Please enter a name.": "Zadajte meno.",
         "Please enter a valid email address.": "Zadajte platnú e-mailovú adresu.",
         "An account with that email already exists.": "Účet s týmto e-mailom už existuje.",
-        "That could not be opened.": "Nepodarilo sa to otvoriť.",
-        "That could not be saved.": "Nepodarilo sa to uložiť.",
         "This chat runs on a device, which keeps its own history. Send a new message instead.": "Táto konverzácia beží na zariadení, ktoré si vedie vlastnú históriu. Pošlite radšej novú správu.",
         "The inspector is restricted to administrators.": "Prehliadka požiadavky je vyhradená správcom.",
         "Wait for the current reply to finish, then compact.": "Počkajte, kým sa dopíše aktuálna odpoveď, a potom zhrňte.",
@@ -2507,8 +2231,6 @@ MESSAGES.update(
         "This chat has no model that can summarise it -- pick one in the composer first.": "Táto konverzácia nemá model, ktorý by ju zhrnul -- najprv ho vyberte v editore správy.",
         "Could not compact: %(error)s": "Zhrnutie sa nepodarilo: %(error)s",
         "The model returned no summary, so nothing changed.": "Model nevrátil žiadne zhrnutie, takže sa nič nezmenilo.",
-        "You may not use the library.": "Knižnicu nesmiete používať.",
-        "That knowledge base is not available.": "Táto znalostná báza nie je dostupná.",
         "Say what to turn on or off.": "Uveďte, čo zapnúť alebo vypnúť.",
         "Too many things switched off.": "Vypnutých je príliš veľa vecí.",
         "You already have 1 reply being written, which is this account's limit. Wait for one to finish.": "Už sa vám píše 1 odpoveď, čo je limit tohto účtu. Počkajte, kým sa dopíše.",
@@ -2534,30 +2256,18 @@ MESSAGES.update(
         "You do not have permission to do that.": "Na to nemáte oprávnenie.",
         "No such device.": "Také zariadenie neexistuje.",
         "That file no longer exists.": "Tento súbor už neexistuje.",
-        "That document is not available.": "Tento dokument nie je dostupný.",
         "That file is part of a sent message.": "Tento súbor patrí k odoslanej správe.",
         "That file is no longer on disk.": "Tento súbor už nie je na disku.",
         "That folder no longer exists.": "Tento priečinok už neexistuje.",
         "Folders cannot be nested more than %(n)s deep.": "Priečinky nemožno vnárať hlbšie ako do úrovne %(n)s.",
         "A folder cannot be moved inside itself.": "Priečinok nemožno presunúť samého do seba.",
-        "That base is not yours to change.": "Túto bázu nemáte právo meniť.",
-        "That base is not yours to add to.": "Do tejto bázy nemáte právo pridávať.",
-        "That document is not yours to change.": "Tento dokument nemáte právo meniť.",
-        "That note is not available.": "Táto poznámka nie je dostupná.",
-        "That note is not yours to change.": "Túto poznámku nemáte právo meniť.",
-        "That skill is not available.": "Táto schopnosť nie je dostupná.",
-        "That skill is not yours to change.": "Túto schopnosť nemáte právo meniť.",
-        "That revision no longer exists.": "Táto verzia už neexistuje.",
         "Memory added.": "Záznam v pamäti pridaný.",
         "That memory no longer exists.": "Tento záznam v pamäti už neexistuje.",
         "Memory updated.": "Záznam v pamäti aktualizovaný.",
         "Memory removed.": "Záznam v pamäti odstránený.",
         "Fetching pages": "Načítavanie stránok",
-        "Your knowledge library": "Vaša knižnica znalostí",
         "Asking you questions": "Otázky pre vás",
-        "Writing in the canvas": "Písanie na plochu",
         "Generating images": "Generovanie obrázkov",
-        "Filing reports": "Podávanie správ",
         "Scheduling work": "Plánovanie práce",
         "Sending helpers": "Posielanie pomocníkov",
         "Running commands": "Spúšťanie príkazov",
@@ -2573,14 +2283,9 @@ MESSAGES.update(
         "Data group created.": "Dátová oblasť vytvorená.",
         "Personalization is off here.": "Prispôsobenie je tu vypnuté.",
         "Personalization saved.": "Prispôsobenie uložené.",
-        "That report is not available.": "Táto správa nie je dostupná.",
         "Its own chat": "Vlastná konverzácia",
         "There is no model configured to work this out, so fill it in yourself.": "Nie je nastavený žiadny model, ktorý by to zistil, takže to vyplňte sami.",
         "That schedule is not available.": "Tento plán nie je dostupný.",
-        "Not a shareable kind.": "Tento druh sa nedá zdieľať.",
-        "That is not yours to share.": "Toto nemáte právo zdieľať.",
-        "You may not share things.": "Zdieľať nesmiete.",
-        "Unknown principal.": "Neznámy príjemca.",
         "The shell exited.": "Shell sa ukončil.",
         "This terminal was closed after sitting idle.": "Tento terminál bol zatvorený po čase nečinnosti.",
         "LLeMbas restarted, so this shell was closed.": "LLeMbas sa reštartoval, takže sa tento shell zatvoril.",
@@ -2604,16 +2309,6 @@ MESSAGES.update(
         "No audio endpoint has been configured.": "Nie je nastavený žiadny zvukový endpoint.",
         "The transcription endpoint returned no text.": "Endpoint prepisu nevrátil žiadny text.",
         "The endpoint returned a response that was not JSON.": "Endpoint vrátil odpoveď, ktorá nie je JSON.",
-        "That note is not there any more.": "Táto poznámka tam už nie je.",
-        "That skill is not there any more.": "Táto schopnosť tam už nie je.",
-        "That document is not there any more.": "Tento dokument tam už nie je.",
-        "That attachment is not there any more.": "Táto príloha tam už nie je.",
-        "That attachment belongs to another chat.": "Táto príloha patrí inej konverzácii.",
-        "That scratch document belongs to another chat.": "Tento pracovný dokument patrí inej konverzácii.",
-        "There is nothing to open here.": "Nie je tu čo otvoriť.",
-        "There is nothing to save here.": "Nie je tu čo uložiť.",
-        "This one can only be read.": "Tento sa dá len čítať.",
-        "You do not have access to the library.": "Nemáte prístup ku knižnici.",
         "This chat has no model selected.": "Táto konverzácia nemá vybraný model.",
         "No enabled connection currently offers the model '%(model)s'. Pick another model for this chat.": "Model „%(model)s“ teraz neponúka žiadne zapnuté spojenie. Vyberte pre túto konverzáciu iný model.",
         "This chat belongs to the data group %(chat_group)s, and its model is now in %(model_group)s, so it cannot be sent this chat's history. Pick a model in %(chat_group)s, or start a new chat.": "Táto konverzácia patrí do dátovej oblasti %(chat_group)s a jej model je teraz v %(model_group)s, takže mu nemožno poslať jej históriu. Vyberte model v %(chat_group)s alebo začnite novú konverzáciu.",
@@ -2639,15 +2334,8 @@ MESSAGES.update(
         "Waiting for your answers…": "Čaká sa na vaše odpovede…",
         "Waiting for you to allow %(tool)s…": "Čaká sa, kým povolíte %(tool)s…",
         "Waiting for you to allow %(n)s actions…": "Čaká sa na vaše povolenie, počet akcií: %(n)s…",
-        "You already have a knowledge base called %(name)s in another data group. Names are unique across your groups.": "Znalostnú bázu s názvom %(name)s už máte v inej dátovej oblasti. Názvy sú jedinečné naprieč všetkými vašimi oblasťami.",
-        "You already have a knowledge base called %(name)s.": "Znalostnú bázu s názvom %(name)s už máte.",
-        "No embedding model is configured.": "Nie je nastavený žiadny model embeddingov.",
         "A memory cannot be empty.": "Záznam v pamäti nemôže byť prázdny.",
         "There are already %(n)s memories, which is the limit, so nothing was saved. Do not remove one to make room — you are not shown all of them and would be guessing. Say that the limit has been reached, and put this in a note instead.": "Záznamov v pamäti je už %(n)s, čo je limit, takže sa nič neuložilo. Neodstraňujte žiadny, aby ste urobili miesto — nevidíte všetky a len by ste hádali. Povedzte, že limit je dosiahnutý, a zapíšte to radšej do poznámky.",
-        "A skill name must be two or more letters, numbers or hyphens, such as 'weekly-report'.": "Názov schopnosti musí mať aspoň dva znaky z písmen, číslic alebo spojovníkov, napríklad 'weekly-report'.",
-        "The name %(slug)s is already used by a skill in another data group. Choose a different name.": "Názov %(slug)s už používa schopnosť v inej dátovej oblasti. Zvoľte iný názov.",
-        "A skill called %(slug)s already exists. Edit it instead.": "Schopnosť s názvom %(slug)s už existuje. Upravte radšej ju.",
-        "A skill needs a description saying when to use it — it is the only thing shown until the skill is opened.": "Schopnosť potrebuje opis, kedy ju použiť — je to jediné, čo sa zobrazuje, kým sa schopnosť neotvorí.",
         "A reply is still being written in one of your chats. Stop it, or wait for it to finish, and try again.": "V jednej z vašich konverzácií sa ešte píše odpoveď. Zastavte ju alebo počkajte, kým sa dopíše, a skúste to znova.",
         "%(n)s replies are still being written in your chats. Stop them, or wait for them to finish, and try again.": "Odpovede, ktoré sa vo vašich konverzáciách ešte píšu: %(n)s. Zastavte ich alebo počkajte, kým sa dopíšu, a skúste to znova.",
         "Your schedule “%(title)s” is running right now. Try again when it has finished.": "Váš plán „%(title)s“ práve beží. Skúste to znova, keď skončí.",
@@ -2670,15 +2358,6 @@ MESSAGES.update(
         "What this instance is": "Čím je táto inštancia",
         "Full": "Plná",
         "API only": "Len API",
-        "API only switches off chats, agent chats, the library, reports, scheduled tasks and the MCP server; the API, device sign-in, Settings and Admin keep working.": (
-            "Režim Len API vypne konverzácie, agentové konverzácie, knižnicu, správy, "
-            "naplánované úlohy a server MCP; API, prihlasovanie zariadení, Nastavenia "
-            "a Administrácia fungujú ďalej."
-        ),
-        "This instance serves the API only; chats, the library, reports and scheduled tasks are switched off.": (
-            "Táto inštancia slúži len ako API; konverzácie, knižnica, správy a naplánované "
-            "úlohy sú vypnuté."
-        ),
         # A linked device's files, commands and model
         "On the device": "Na zariadení",
         "on the device": "na zariadení",
@@ -2728,7 +2407,6 @@ MESSAGES.update(
             "instancie a pripojené. Teraz nie je pripojené žiadne."
         ),
         "More settings": "Ďalšie nastavenia",
-        "Tools, skills, prompt, knowledge, sampling": "Nástroje, schopnosti, pokyn, znalosti, vzorkovanie",
         "Close chat settings": "Zavrieť nastavenia konverzácie",
         "Switched off here only. What is on to begin with is your default for this model, in Settings → Models.": (
             "Vypnuté len tu. Čo je na začiatku zapnuté, je vaša predvoľba pre tento model "
@@ -2756,7 +2434,6 @@ MESSAGES.update(
         "effort %(level)s": "náročnosť %(level)s",
         "effort off": "náročnosť vypnutá",
         "Your devices: the LLeMbas CLI signed in as you": "Vaše zariadenia: LLeMbas CLI prihlásené za vás",
-        "Reports filed for you": "Správy pripravené pre vás",
         "Your scheduled tasks": "Vaše naplánované úlohy",
     }
 )
@@ -2769,11 +2446,7 @@ MESSAGES.update(
         "Attach a web page": "Priložiť webovú stránku",
         "The page is fetched now and its text attached, so it will not change between writing this and sending it.": "Stránka sa stiahne hneď a priloží sa jej text, takže sa medzi písaním a odoslaním nezmení.",
         "Fetch": "Stiahnuť",
-        "Attach from your library": "Priložiť z vašej knižnice",
-        "Search your documents…": "Hľadať vo vašich dokumentoch…",
-        "Search your documents": "Hľadať vo vašich dokumentoch",
         "Close": "Zavrieť",
-        "Could not load your library.": "Vašu knižnicu sa nepodarilo načítať.",
         "Where this chat works on the device: its trusted places and anything in them. The device has the last word.": "Kde táto konverzácia pracuje na zariadení: jeho dôveryhodné miesta a čokoľvek v nich. Posledné slovo má zariadenie.",
         "Where this chat starts, and what a relative path is measured from. You can walk anywhere the account can reach.": "Kde sa táto konverzácia začína a od čoho sa počíta relatívna cesta. Prejsť môžete kamkoľvek, kam účet dosiahne.",
         "Path": "Cesta",
@@ -2812,7 +2485,6 @@ MESSAGES.update(
         "OK": "OK",
         "Model switched to %(model)s": "Model prepnutý na %(model)s",
         "%(n)s new arrivals": "Nové položky: %(n)s",
-        "Report filed: “%(title)s”": "Podaná správa: „%(title)s“",
         "New message": "Nová správa",
         "Reply ready in “%(title)s”": "Odpoveď je hotová v „%(title)s“",
         "This browser has no notifications to offer.": "Tento prehliadač upozornenia neponúka.",
@@ -2935,7 +2607,6 @@ MESSAGES.update(
 
 # --- 1.6.0: background jobs, the helper panel, the subagent preamble ---
 MESSAGES["A reply can hand a self-contained piece of work to a second model that runs on its own and reports back — several at once, which is what makes research fan out instead of queueing, and in the background, so the reply carries on and is told when the helper is done. There are two kinds: explore, which reads and searches only, and general, which may also change things the chat itself may change. An agent chat's helpers run on its linked device instead, under the device's own limits."] = 'Odpoveď môže samostatný kus práce podať druhému modelu, ktorý beží sám a ohlási sa — aj viacerým naraz, a práve preto sa výskum rozvetví namiesto toho, aby stál v rade; a aj na pozadí, takže odpoveď pokračuje a dozvie sa, keď pomocník skončí. Sú dva druhy: explore, ktorý len číta a vyhľadáva, a general, ktorý smie meniť aj to, čo smie meniť samotná konverzácia. Pomocníci agentskej konverzácie bežia namiesto toho na pripojenom zariadení, v jeho vlastných limitoch.'
-MESSAGES["A helper cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads and searches the library and the web, and the general kind writes what the chat may write. It cannot send helpers of its own; it can message the main agent, and be messaged, while it works. <strong>%(mode)s</strong> is not inherited: a helper's task text can have come from a page it read."] = 'Pomocník sa nemôže nikoho na nič spýtať, takže nič v jeho konverzácii sa nemôže zastaviť kvôli schváleniu. Dostane preto len to, čo táto konverzácia už smie <em>bez</em> pýtania: číta a vyhľadáva v knižnici a na webe a druh general píše to, čo smie písať konverzácia. Vlastných pomocníkov posielať nemôže; počas práce môže písať hlavnému agentovi a ten jemu. Režim <strong>%(mode)s</strong> sa nededí: text úlohy pomocníka mohol prísť zo stránky, ktorú si prečítal.'
 MESSAGES['%(job)s asks:'] = '%(job)s sa pýta:'
 MESSAGES['Helper'] = 'Pomocník'
 MESSAGES['Close the helper panel'] = 'Zatvoriť panel pomocníka'

@@ -104,7 +104,6 @@ def _variables(
     *,
     families: list[str],
     model_name: str = "",
-    bases: str = "",
     documents: str = "",
     situation: str = SITUATION_ORDINARY,
     mode: str = "",
@@ -127,12 +126,11 @@ def _variables(
     one that omitted it, so the gating is mirrored rather than approximated.
     """
     from lembas.services import fs, plans, skill_files
+    from lembas.services import memories as memories_service
     from lembas.services.agent import policy
-    from lembas.services.library import memories as memories_service
 
     values = harness_service.context_variables(db, user, [], None)
     names = _tool_names(db, families)
-    scope = bases if "knowledge" in families else ""
     values.update(
         {
             "model_name": model_name,
@@ -144,8 +142,6 @@ def _variables(
                 if "skills" in families and user is not None
                 else ""
             ),
-            "knowledge_bases": scope,
-            "knowledge_scope": harness_service.knowledge_scope_sentence(scope),
             "document_names": documents,
         }
     )
@@ -213,7 +209,6 @@ async def prompts_page(request: Request, db: Db, user: AdminUser, saved: bool = 
                     user,
                     families=families,
                     model_name=models[0].label if models else "",
-                    bases="Contracts, Recipes",
                     documents=SAMPLE_DOCUMENTS,
                     situation=SITUATION_TASK,
                 ),
@@ -279,7 +274,6 @@ async def preview(request: Request, db: Db, user: AdminUser):
     overrides = _submitted(db, form)
     families = _families_of(db, [str(value) for value in form.getlist("preview_family")])
     model_name = str(form.get("preview_model") or "")
-    bases = str(form.get("preview_bases") or "").strip()
     documents = str(form.get("preview_documents") or "").strip()
     situation = str(form.get("preview_situation") or "")
     mode = str(form.get("preview_mode") or "")
@@ -289,7 +283,6 @@ async def preview(request: Request, db: Db, user: AdminUser):
         user,
         families=families,
         model_name=model_name,
-        bases=bases,
         documents=documents,
         situation=situation,
         mode=mode,

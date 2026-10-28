@@ -294,10 +294,10 @@ def test_the_panel_buttons_wait_for_a_connection_before_they_appear():
     """
     index = (TEMPLATES / "chat/index.html").read_text(encoding="utf-8")
 
-    # Four: the topbar's canvas and terminal buttons, and their entries in the
-    # phone's window switch -- which carry no `data-toggle`, so the
-    # handler below hides them and leaves closing the panel to the topbar's.
-    assert index.count("{% if not chat %}data-agent-only hidden{% endif %}") == 4
+    # Two: the topbar's terminal button, and its entry in the phone's window
+    # switch -- which carries no `data-toggle`, so the handler below hides it
+    # and leaves closing the panel to the topbar's.
+    assert index.count("{% if not chat %}data-agent-only hidden{% endif %}") == 2
     assert "[data-agent-only]" in SOURCE
     assert "lembas:agent-target" in SOURCE
     # An open panel pointed at a connection that has gone is closed, or it shows

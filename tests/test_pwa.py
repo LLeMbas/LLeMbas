@@ -174,7 +174,7 @@ def test_the_manifest_offers_launcher_shortcuts(client: TestClient):
     results land, is in the Library, and Scheduled is in Settings.)"""
     payload = client.get("/manifest.webmanifest").json()
     urls = {s["url"] for s in payload["shortcuts"]}
-    assert urls == {"/chat", "/library/reports", "/settings?tab=scheduled"}
+    assert urls == {"/chat", "/settings?tab=scheduled"}
 
 
 def test_the_manifest_identity_matches_where_it_starts(client: TestClient):

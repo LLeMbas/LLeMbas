@@ -19,7 +19,7 @@ import nh3
 from markdown_it import MarkdownIt
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
-from pygments.lexers import get_lexer_by_name, get_lexer_for_filename, guess_lexer
+from pygments.lexers import get_lexer_by_name, guess_lexer
 from pygments.util import ClassNotFound
 
 from lembas.services import prototypes
@@ -220,43 +220,6 @@ def fences(text: str):
     for token in _parser().parse(src, {"lines": lines}):
         if token.type == "fence":
             yield token, _closed(token, lines)
-
-
-def highlight_code(text: str, filename: str = "") -> str:
-    """A whole file, class-highlighted, for the canvas panel to read.
-
-    Here rather than in a module of its own because `markdown.py` is where
-    pygments lives and `_FORMATTER` is already configured: a second formatter
-    would mean a second set of class names and a second thing to theme, and the
-    `.pg-*` rules would then be right about code fences and wrong about files.
-
-    Pygments' `HtmlFormatter` escapes what it is given, which is what makes this
-    the one call the canvas templates mark `|safe`. The content came off
-    somebody else's disk, so that property is the whole of the argument -- if
-    the lexer cannot be found the text is escaped by hand instead, never passed
-    through.
-
-    Chooses by filename, because that is what the canvas has: a lexer guessed
-    from contents is confidently wrong on short files, and there is no fence
-    info string here to read a language out of.
-    """
-    if not text:
-        return ""
-
-    lexer = None
-    if filename:
-        try:
-            lexer = get_lexer_for_filename(filename, stripall=False)
-        except (ClassNotFound, ValueError):
-            lexer = None
-    if lexer is None and len(text) > 200:
-        try:
-            lexer = guess_lexer(text)
-        except (ClassNotFound, ValueError):
-            lexer = None
-
-    body = nh3.clean_text(text) if lexer is None else highlight(text, lexer, _FORMATTER)
-    return f'<pre class="canvas__code"><code>{body}</code></pre>'
 
 
 @functools.lru_cache(maxsize=1)

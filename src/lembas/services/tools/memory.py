@@ -8,7 +8,7 @@ from lembas.db.models import (
     User,
 )
 from lembas.db.session import session_scope
-from lembas.services.library import memories as memories_service
+from lembas.services import memories as memories_service
 from lembas.services.tools.core import (
     FAMILY_MEMORY,
     RISK_WRITE,

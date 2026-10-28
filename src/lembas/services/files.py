@@ -597,50 +597,6 @@ def copy_attachment(
     return copy
 
 
-def copy_document(
-    db: DBSession, *, user_id: str, chat_id: str | None, document
-) -> Attachment:
-    """Copy a library document into a message being composed.
-
-    A copy rather than a reference. History must not change under a conversation
-    because a document was edited or deleted afterwards -- the same reason text
-    is extracted once at upload instead of per request. The bytes are duplicated
-    too, so deleting the document cannot leave a message pointing at nothing.
-    """
-    from lembas.services.library import documents as documents_service
-
-    stored_name = ""
-    source = documents_service.stored_path(document.stored_name)
-    if source is not None:
-        stored_name = f"{secrets.token_hex(16)}{Path(source.name).suffix}"
-        (attachments_dir() / stored_name).write_bytes(source.read_bytes())
-
-    attachment = Attachment(
-        user_id=user_id,
-        chat_id=owned_chat_id(db, user_id, chat_id),
-        filename=document.filename or f"{document.title}.txt",
-        stored_name=stored_name,
-        media_type=document.media_type,
-        size_bytes=document.size_bytes,
-        kind=document.kind,
-        width=document.width,
-        height=document.height,
-        extracted_text=document.extracted_text,
-        pages=document.pages,
-        truncated=document.truncated,
-        extraction_error=document.extraction_error,
-        # Where it came from, for the same reason a project file carries it: a
-        # model handed four documents cannot tell which is which, and cannot
-        # name one back when asked to work on it. This was the one attach path
-        # that dropped provenance.
-        source_path=(document.title or "")[:1000],
-        source_label=(document.base.name if document.base else "Knowledge")[:200],
-    )
-    db.add(attachment)
-    db.commit()
-    return attachment
-
-
 def delete(db: DBSession, attachment: Attachment) -> None:
     path = stored_path(attachment.stored_name)
     if path is not None:

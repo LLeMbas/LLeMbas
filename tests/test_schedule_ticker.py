@@ -8,7 +8,7 @@ stubbed, because what is being checked is the bookkeeping, not the reply.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -20,7 +20,6 @@ from lembas.db.models import (
     TARGET_REPORT,
     Chat,
     Message,
-    Report,
     Schedule,
     User,
 )
@@ -341,23 +340,37 @@ def _finished(db, chat_id: str, text: str) -> Message:
     return message
 
 
+def _reports(db, owner) -> dict[str, str]:
+    """The files in the owner's reports directory, name -> text."""
+    from lembas.services import fs
+
+    v = fs.view(db, owner)
+    home = fs.home_of(db, owner).path
+    db.expire_all()
+    try:
+        entries = fs.list_dir(v, f"{home}/reports")
+    except fs.FsError:
+        return {}
+    return {e.name: fs.read(v, e.path).decode() for e in entries}
+
+
 @pytest.mark.anyio
 async def test_a_report_target_files_the_reply(
     client: TestClient, db, registered, make_chat
 ):
+    """Reports are files since 2.0: the reply is written as Markdown in the
+    owner's `reports/` directory, named by when the run began."""
     chat_id = make_chat()
     schedule = _schedule(db, chat_id=chat_id, target=TARGET_REPORT, title="Daily news")
     assistant = _finished(db, chat_id, "Three things happened.")
 
     await runner.deliver(
-        schedule.id, assistant.id, since=datetime(2020, 1, 1, tzinfo=UTC)
+        schedule.id, assistant.id, since=datetime(2020, 1, 1, 9, 30, tzinfo=UTC)
     )
 
-    filed = db.scalars(select(Report)).all()
-    assert [r.title for r in filed] == ["Daily news"]
-    assert filed[0].body == "Three things happened."
-    assert filed[0].schedule_id == schedule.id
-    assert filed[0].unread is True
+    assert _reports(db, _user(db)) == {
+        "2020-01-01 0930 Daily news.md": "# Daily news\n\nThree things happened.\n"
+    }
 
 
 @pytest.mark.anyio
@@ -375,56 +388,23 @@ async def test_a_run_that_produced_nothing_still_files_something(
 
     await runner.deliver(schedule.id, broken.id, since=datetime(2020, 1, 1, tzinfo=UTC))
 
-    filed = db.scalars(select(Report)).all()
+    filed = _reports(db, _user(db))
     assert len(filed) == 1
-    assert filed[0].error
+    assert "did not produce a reply" in next(iter(filed.values()))
 
 
 @pytest.mark.anyio
-async def test_a_report_the_model_filed_itself_is_not_duplicated(
+async def test_two_runs_in_one_minute_file_two_reports(
     client: TestClient, db, registered, make_chat
 ):
-    """`report_write` during the run *is* the report. Filing the reply beside it
-    would put two of everything in the feed."""
-    from lembas.services import reports as reports_service
-
     chat_id = make_chat()
-    schedule = _schedule(db, chat_id=chat_id, target=TARGET_REPORT)
-    began = datetime.now(tz=UTC) - timedelta(seconds=5)
-    reports_service.create(
-        db, owner=_user(db), title="Filed by the model", body="...",
-        source="chat", source_id=chat_id,
-    )
-    assistant = _finished(db, chat_id, "Also this.")
-
-    await runner.deliver(schedule.id, assistant.id, since=began)
-
-    assert [r.title for r in db.scalars(select(Report))] == ["Filed by the model"]
-
-
-@pytest.mark.anyio
-async def test_a_report_from_an_earlier_run_does_not_suppress_this_one(
-    client: TestClient, db, registered, make_chat
-):
-    """The other half of the dedup, and the one that would fail silently: a
-    daily report would be filed once and then never again, because last week's
-    is still sitting there with the same `source_id`."""
-    from lembas.services import reports as reports_service
-
-    chat_id = make_chat()
-    schedule = _schedule(db, chat_id=chat_id, target=TARGET_REPORT, title="Daily news")
-    reports_service.create(
-        db, owner=_user(db), title="Yesterday's", body="...",
-        source="schedule", source_id=chat_id,
-    )
-    assistant = _finished(db, chat_id, "Today's news.")
-
-    # This run began *after* yesterday's report was filed.
-    await runner.deliver(schedule.id, assistant.id, since=datetime.now(tz=UTC))
-
-    assert sorted(r.title for r in db.scalars(select(Report))) == [
-        "Daily news",
-        "Yesterday's",
+    schedule = _schedule(db, chat_id=chat_id, target=TARGET_REPORT, title="A/b: c")
+    when = datetime(2020, 1, 1, tzinfo=UTC)
+    await runner.deliver(schedule.id, _finished(db, chat_id, "One.").id, since=when)
+    await runner.deliver(schedule.id, _finished(db, chat_id, "Two.").id, since=when)
+    assert sorted(_reports(db, _user(db))) == [
+        "2020-01-01 0000 A b c (2).md",
+        "2020-01-01 0000 A b c.md",
     ]
 
 

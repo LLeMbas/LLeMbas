@@ -6,9 +6,11 @@ reply. One mechanism, two deliveries:
 
 - `chat`     leave it there. The reply is the point, and it is already in the
              task chat where somebody will read it.
-- `report`   copy it into a `Report` and keep the chat out of the way. Copied
+- `report`   write it as a Markdown file in the owner's `reports/` directory
+             (`/home/<user>/reports/`) and keep the chat out of the way. Copied
              rather than moved: the task chat is the working area and keeps the
-             tool calls, the steps and the metrics; the report gets the answer.
+             tool calls, the steps and the metrics; the file gets the answer.
+             (Reports are files since 2.0; the target keeps its name.)
 
 The alternative — a one-shot `complete()` in the shape of `generate_title` — was
 rejected because it has no tools and no rounds, which is useless for the case
@@ -28,7 +30,6 @@ import logging
 from datetime import UTC, datetime
 
 from lembas.db.models import (
-    DEFAULT_GROUP,
     TARGET_CHAT,
     TARGET_REPORT,
     Chat,
@@ -37,7 +38,6 @@ from lembas.db.models import (
     User,
 )
 from lembas.db.session import session_scope
-from lembas.services import reports as reports_service
 from lembas.services import wake as wake_service
 from lembas.services.schedule import clock
 from lembas.services.schedule import rule as rule_service
@@ -149,44 +149,39 @@ async def deliver(schedule_id: str, message_id: str, *, since: datetime) -> None
         message = _finished_reply(db, chat_id, message_id)
 
         if target == TARGET_REPORT:
-            # If the model filed one itself with `report_write`, that is the
-            # report and this must not file a second. The tool stamps
-            # `source_id` with the chat, which is what makes them the same run;
-            # `since` is what makes it *this* run. Both stamps go through
-            # `as_utc` because one comes from a row read back from SQLite (which
-            # loses the offset) and the other is still in memory -- comparing
-            # the two raises, the trap `compaction.moment` exists for.
-            already = reports_service.recent(db, owner, limit=5)
-            if any(
-                r.source_id == chat_id and clock.as_utc(r.created_at) >= clock.as_utc(since)
-                for r in already
-            ):
-                return
-            if message is None:
-                reports_service.create(
-                    db,
-                    owner=owner,
-                    title=schedule.title or "Scheduled run",
-                    body="",
-                    source="schedule",
-                    source_id=chat_id,
-                    schedule_id=schedule.id,
-                    error="The run did not produce a reply.",
-                    group=schedule.data_group_id or DEFAULT_GROUP,
-                )
-                return
-            reports_service.create(
-                db,
-                owner=owner,
-                title=schedule.title or "Scheduled run",
-                body=message.content or "",
-                source="schedule",
-                source_id=chat_id,
-                schedule_id=schedule.id,
-                model_id=message.model_id or "",
-                group=schedule.data_group_id or DEFAULT_GROUP,
-            )
+            body = "The run did not produce a reply." if message is None else message.content
+            file_report(db, owner, schedule.title or "Scheduled run", body, when=since)
             return
+
+
+REPORTS_DIR = "reports"
+
+
+def report_path(home: str, title: str, when: datetime) -> str:
+    """Where a run's report goes: `<home>/reports/YYYY-MM-DD HHMM <title>.md`,
+    a name a person can sort and read, with nothing in it a path cannot hold."""
+    safe = " ".join(
+        "".join(c if c.isalnum() or c in " -_.,()" else " " for c in title).split()
+    )[:80].strip(" .") or "Scheduled run"
+    stamp = clock.as_utc(when).strftime("%Y-%m-%d %H%M")
+    return f"{home}/{REPORTS_DIR}/{stamp} {safe}.md"
+
+
+def file_report(db, owner: User, title: str, body: str, *, when: datetime) -> str:
+    """Write a run's answer as a file in the owner's home, as the owner (no chat:
+    a schedule's delivery is the person's own write). Returns the path."""
+    from lembas.services import fs
+
+    home = fs.ensure_home(db, owner).path
+    path = report_path(home, title, when)
+    view = fs.view(db, owner)
+    n = 1
+    while fs.lookup(db, owner.org_id, path) is not None:
+        n += 1
+        path = report_path(home, f"{title} ({n})", when)
+    fs.write(view, path, f"# {title}\n\n{body.strip()}\n".encode(), mime="text/markdown")
+    db.commit()
+    return path
 
 
 async def fire(schedule_id: str, *, due_at: datetime | None = None) -> None:

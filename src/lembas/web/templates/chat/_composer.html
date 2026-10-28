@@ -161,16 +161,6 @@
                   <span class="picker__option-note">{{ t("Fetch a page and attach its text") }}</span>
                 </span>
               </button>
-              {% if can.get("library.use") %}
-              <button class="picker__option" type="button" role="menuitem"
-                      data-attach="knowledge">
-                {{ icon("archive", "icon--sm") }}
-                <span class="picker__option-body">
-                  <span class="picker__option-name">{{ t("Knowledge") }}</span>
-                  <span class="picker__option-note">{{ t("From your library") }}</span>
-                </span>
-              </button>
-              {% endif %}
             </div>
           </div>
 
@@ -258,7 +248,7 @@
                 {{ icon("sliders", "icon--sm") }}
                 <span class="picker__option-body">
                   <span class="picker__option-name">{{ t("More settings") }}</span>
-                  <span class="picker__option-note">{{ t("Tools, skills, prompt, knowledge, sampling") }}</span>
+                  <span class="picker__option-note">{{ t("Tools, skills, prompt, sampling") }}</span>
                 </span>
               </button>
               {% endif %}

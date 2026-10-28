@@ -319,27 +319,12 @@
     var body = new FormData();
     body.append("chat_id", where.chatId);
     body.append("model_id", where.modelId);
-    if (option.dataset.mentionKnowledge) {
-      body.append("document_id", option.dataset.mentionKnowledge);
-      attach("/api/files/from-knowledge", body);
-    } else if (option.dataset.mentionNote) {
-      body.append("note_id", option.dataset.mentionNote);
-      attach("/api/files/from-note", body);
-    } else if (option.dataset.mentionSkill) {
-      body.append("skill_id", option.dataset.mentionSkill);
-      attach("/api/files/from-skill", body);
-    } else if (option.dataset.mentionAttachment) {
+    if (option.dataset.mentionAttachment) {
       body.append("attachment_id", option.dataset.mentionAttachment);
       attach("/api/files/from-attachment", body);
     } else if (option.dataset.mentionUrl) {
       body.append("url", option.dataset.mentionUrl);
       attach("/api/files/link", body);
-    } else if (option.dataset.mentionBase) {
-      /* Not an attachment: nothing is copied, and what changes is what this
-         chat is allowed to search. It goes on the chat, so the route is the
-         chat's own. */
-      body.append("base_id", option.dataset.mentionBase);
-      attach("/api/chats/" + where.chatId + "/bases", body);
     }
   }
 

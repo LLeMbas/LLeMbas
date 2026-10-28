@@ -169,15 +169,6 @@ PERMISSION_DEFS: tuple[PermissionDef, ...] = (
         "Chat",
     ),
     PermissionDef(
-        "tools.scratch",
-        N_("Write in the canvas"),
-        N_("Let a model build something up in this chat's scratch document, which "
-        "sits open beside the conversation and can be edited and attached to a "
-        "message. It belongs to the chat and is not searchable afterwards."),
-        True,
-        "Chat",
-    ),
-    PermissionDef(
         "schedule.use",
         N_("Schedule work"),
         N_("Set things to run later, on their own — once, or on a repeating "
@@ -185,24 +176,6 @@ PERMISSION_DEFS: tuple[PermissionDef, ...] = (
         "is a capability chosen on purpose rather than one everybody has."),
         False,
         "Scheduling",
-    ),
-    PermissionDef(
-        "reports.use",
-        N_("Keep reports"),
-        N_("Read the Reports section: finished pieces of work filed for them to "
-        "read later, by a model that was asked for one or by something that ran "
-        "while they were away."),
-        True,
-        "Reports",
-    ),
-    PermissionDef(
-        "tools.report",
-        N_("File reports"),
-        N_("Let a model write a report when it finishes a piece of work, and read "
-        "back ones it filed earlier. A report is addressed to the reader and "
-        "cannot be replied to, so this costs nothing but a place to put things."),
-        True,
-        "Reports",
     ),
     PermissionDef(
         "audio.transcribe",
@@ -221,35 +194,7 @@ PERMISSION_DEFS: tuple[PermissionDef, ...] = (
     PermissionDef(
         "library.use",
         N_("Use the library"),
-        N_("Keep knowledge documents, notes, memories and skills of their own."),
-        True,
-        "Library",
-    ),
-    PermissionDef(
-        "library.share",
-        N_("Share library items"),
-        N_("Give other people, or a group, access to their knowledge bases, notes, "
-        "skills and reports. Sharing grants reading only — never changing, and "
-        "never sharing on."),
-        # On. It was off, which meant sharing shipped documented as done and
-        # unreachable: the panel is only rendered for somebody who holds this,
-        # so out of the box nobody could share anything and nothing said why.
-        # An instance that wants it off can say so; one that never looked should
-        # get the feature it was told it had.
-        True,
-        "Library",
-    ),
-    PermissionDef(
-        "tools.knowledge",
-        N_("Search their knowledge"),
-        N_("Let a model search the documents this user has collected."),
-        True,
-        "Library",
-    ),
-    PermissionDef(
-        "tools.notes",
-        N_("Read and write notes"),
-        N_("Let a model keep its own notes for this user, and read them back later."),
+        N_("Keep memories and skills of their own."),
         True,
         "Library",
     ),
@@ -270,28 +215,19 @@ PERMISSION_DEFS: tuple[PermissionDef, ...] = (
         "Library",
     ),
     # --- Reading and writing, split where the difference matters ------------
-    # Three gates cover both, and for these three the two halves are genuinely
-    # different decisions: a model that may *read* somebody's notes and not add
-    # to them is a reasonable thing to want, and until now `tools.notes` was one
-    # switch over five tools.
+    # Two gates cover both, and for these the two halves are genuinely
+    # different decisions: a model that may *read* somebody's memories or
+    # skills and not add to them is a reasonable thing to want.
     #
-    # Not split for every gate. `tools.web_search` has no write half; `report`
-    # is a write with no read worth withholding; `agent` has modes, which are a
-    # finer instrument than a permission and are per chat. A permission that
-    # answers "the same as that one" is a permission nobody should be asked
-    # about -- the reasoning `schedule.use` already carries.
+    # Not split for every gate. `tools.web_search` has no write half; `agent`
+    # has modes, which are a finer instrument than a permission and are per
+    # chat; the file tools are governed path by path by the access resolver.
+    # A permission that answers "the same as that one" is a permission nobody
+    # should be asked about -- the reasoning `schedule.use` already carries.
     #
-    # **All three default on**, so an instance that never looks behaves exactly
-    # as it did: `_family_allowed` reads them only to *narrow* what the gate
+    # **Both default on**, so an instance that never looks behaves exactly as
+    # it did: `_family_allowed` reads them only to *narrow* what the gate
     # already allowed.
-    PermissionDef(
-        "tools.notes.write",
-        N_("Write notes"),
-        N_("Let a model create, change and delete notes. Without it, it can still "
-        "search and read the ones that are there."),
-        True,
-        "Library",
-    ),
     PermissionDef(
         "tools.memory.write",
         N_("Record memories"),
@@ -347,13 +283,13 @@ PERMISSION_DEFS: tuple[PermissionDef, ...] = (
 # The admin screens' section names, marked for the catalogue so the headings of
 # the permission grids translate with everything else (`t(section_name)`).
 ADMIN_SECTIONS = (
-    N_("Chat"), N_("Workspace"), N_("Agent"), N_("Scheduling"), N_("Reports"), N_("Audio"),
-    N_("Library"), N_("API"),
+    N_("Chat"), N_("Workspace"), N_("Agent"), N_("Scheduling"), N_("Audio"), N_("Library"),
+    N_("API"),
 )
 
 # --- The same permissions, said to the person who has them -------------------
 # Settings → Account → "What you can do" does not list the keys -- `chat.create`,
-# `tools.knowledge` -- which are the vocabulary of the admin grids and of nobody
+# `tools.memory` -- which are the vocabulary of the admin grids and of nobody
 # else. A person wants to know what they can *do*, in a sentence addressed to
 # them, grouped the way they think of the application rather than the way the
 # code gates it.
@@ -388,20 +324,13 @@ FOR_PEOPLE: dict[str, tuple[str, str]] = {
     "tools.mcp": (TOOLS, N_("Use tools from the MCP servers an administrator has added.")),
     "tools.subagent": (TOOLS, N_("Hand a self-contained task to a helper model.")),
     "tools.ask": (TOOLS, N_("Stop mid-reply and ask you a question.")),
-    "tools.scratch": (TOOLS, N_("Write in the chat's canvas document.")),
-    "tools.report": (LATER, N_("File a report when a piece of work is finished.")),
     "tools.agent": (DEVICES, N_("Start agent chats on a LLeMbas CLI you have linked.")),
     "agent.terminal": (DEVICES, N_("Open a shell on your linked device from an agent chat.")),
     "api.use": (DEVICES, N_("Make API tokens and sign the LLeMbas CLI in as you.")),
     "schedule.use": (LATER, N_("Set work to run later, once or on a timetable.")),
-    "reports.use": (LATER, N_("Read the reports filed for you.")),
     "audio.transcribe": (VOICE, N_("Speak a message instead of typing it.")),
     "audio.listen": (VOICE, N_("Have replies read aloud.")),
-    "library.use": (LIBRARY, N_("Keep documents, notes, memories and skills of your own.")),
-    "library.share": (LIBRARY, N_("Let other people read your library items.")),
-    "tools.knowledge": (LIBRARY, N_("Let a model search your documents.")),
-    "tools.notes": (LIBRARY, N_("Let a model read your notes.")),
-    "tools.notes.write": (LIBRARY, N_("Let a model write, change and delete notes.")),
+    "library.use": (LIBRARY, N_("Keep memories and skills of your own.")),
     "tools.memory": (LIBRARY, N_("Let a model see what it remembers about you.")),
     "tools.memory.write": (LIBRARY, N_("Let a model add and forget facts about you.")),
     "tools.skills": (LIBRARY, N_("Let a model follow your saved skills.")),
@@ -430,9 +359,9 @@ def for_people(granted: dict[str, bool]) -> list[tuple[str, list[tuple[str, str,
 
 
 # Gates whose read and write halves are separate permissions. Keyed on the gate,
-# with the permission derived as `tools.<gate>.write`, so adding a fourth is one
+# with the permission derived as `tools.<gate>.write`, so adding one more is one
 # entry here and one PermissionDef above.
-SPLIT_GATES = ("notes", "memory", "skills")
+SPLIT_GATES = ("memory", "skills")
 
 PERMISSION_KEYS = tuple(d.key for d in PERMISSION_DEFS)
 DEFAULT_PERMISSIONS = {d.key: d.default for d in PERMISSION_DEFS}

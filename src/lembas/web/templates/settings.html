@@ -125,7 +125,7 @@
           {% endif %}
           {% if saved %}
           <div class="alert alert--success" role="status">
-            {{ icon("check", "icon--sm") }} <span>{{ t("This instance serves the API only; chats, the library, reports and scheduled tasks are switched off.") if saved == "api-only" else said.get(saved, saved) }}</span>
+            {{ icon("check", "icon--sm") }} <span>{{ t("This instance serves the API only; chats and scheduled tasks are switched off.") if saved == "api-only" else said.get(saved, saved) }}</span>
           </div>
           {% endif %}
 
@@ -552,13 +552,13 @@
                 {{ t("What models remember about you") }}
                 <span class="badge">{{ memories|length }}</span>
               </h2>
-              <p class="card__lede">{{ tm("Short facts, shown to every model you talk to on every turn — so they are few and short on purpose. Anything longer belongs in a <a href=\"/library/notes\">note</a>. Nothing here is shared with anyone else, ever.") }}</p>
+              <p class="card__lede">{{ t("Short facts, shown to every model you talk to on every turn — so they are few and short on purpose. Anything longer belongs in a file. Nothing here is shared with anyone else, ever.") }}</p>
 
               {% if memories %}
               <ul class="model-list">
                 {% for memory in memories %}
                 <li class="model-list__item">
-                  <form method="post" action="/api/library/memories/{{ memory.id }}"
+                  <form method="post" action="/api/memories/{{ memory.id }}"
                         class="row u-grow u-gap-2 u-shrink">
                     <input class="input u-grow" name="content" value="{{ memory.content }}"
                            maxlength="{{ memory_limit }}"
@@ -568,7 +568,7 @@
                     {% endif %}
                     <button class="btn btn--sm" type="submit">{{ t("Save") }}</button>
                     <button class="btn btn--sm btn--danger" type="submit"
-                            formaction="/api/library/memories/{{ memory.id }}/delete"
+                            formaction="/api/memories/{{ memory.id }}/delete"
                             data-confirm-button="{{ t('Forget this?') }}"
                             data-confirm-title="{{ t('Forget') }}"
                             aria-label="{{ t('Forget this') }}" title="{{ t('Forget this') }}">
@@ -588,7 +588,7 @@
 
             <div class="card">
               <h2 class="card__title">{{ t("Add one") }}</h2>
-              <form method="post" action="/api/library/memories" class="add-row">
+              <form method="post" action="/api/memories" class="add-row">
                 <input class="input" name="content" required
                        maxlength="{{ memory_limit }}"
                        aria-label="{{ t('Something worth remembering') }}"
@@ -614,7 +614,7 @@
           <section class="tabs__panel" data-tab="tab-devices">
             <div class="card" id="devices">
               <h2 class="card__title">{{ t("Devices") }}</h2>
-              <p class="card__lede">{{ t("The LLeMbas CLI on your machines, signed in as you. Each uses your models, your knowledge and your usage, and an agent chat here runs on one of them — under its own limits — while it is linked.") }}</p>
+              <p class="card__lede">{{ t("The LLeMbas CLI on your machines, signed in as you. Each uses your models, your memory and your usage, and an agent chat here runs on one of them — under its own limits — while it is linked.") }}</p>
               {# Where a code is typed. /device does the same, but nobody
                  types an address into an installed app, and this is where a
                  device's login sends them. #}
@@ -701,14 +701,14 @@ lembas service install</code></pre></li>
           {#
             Which provider may read which of this person's data. Shown to anybody
             once there is more than one group, because "which provider can read
-            my notes?" is a question anybody may ask; editable only with
+            my memories?" is a question anybody may ask; editable only with
             `data.manage`, because the answer changes what a provider can see.
           #}
           <section class="tabs__panel" data-tab="tab-data">
             {% if several_groups or may_manage_groups %}
             <div class="card">
               <h2 class="card__title">{{ t("Your data groups") }}</h2>
-              <p class="card__lede">{{ t("A model reads only the memories, notes, skills, knowledge and reports of the data group its connection is in, and a chat stays in the group it was started in. Two providers in different groups never see each other's.") }}</p>
+              <p class="card__lede">{{ t("A model reads only the memories of the data group its connection is in, and a chat stays in the group it was started in. Two providers in different groups never see each other's.") }}</p>
               <ul class="model-list">
                 {% for group in data_groups %}
                 <li class="model-list__item">
@@ -780,11 +780,7 @@ lembas service install</code></pre></li>
             {# --- Start over --- #}
             {% set reset_labels = {
               "chats": t("chats"), "messages": t("messages"), "folders": t("folders"),
-              "memories": t("memories"),
-              "notes": t("notes"), "skills": t("skills"),
-              "knowledge bases": t("knowledge bases"), "documents": t("documents"),
-              "reports": t("reports"), "schedules": t("schedules"),
-              "scratch documents": t("scratch documents"),
+              "memories": t("memories"), "schedules": t("schedules"),
             } %}
             {% macro reset_counts(counts, labels) -%}
               {%- for name, n in counts.rows.items() %}{{ labels.get(name, name) }}: {{ n }}{% if not loop.last %}, {% endif %}{% endfor -%}
@@ -827,7 +823,7 @@ lembas service install</code></pre></li>
                 <form method="post" action="/api/preferences/reset/all" class="reset-row reset-row--full">
                   <div class="reset-row__text">
                     <strong>{{ t("Full reset") }}</strong>
-                    <p class="field__hint">{{ t("Both of the above, and your notes, skills, knowledge bases and their files, reports, schedules and scratch documents, with everything you shared. Kept: your account, password, settings, groups and usage.") }}</p>
+                    <p class="field__hint">{{ t("Both of the above, and your schedules. Kept: your account, password, settings, groups, usage, and your files, which you delete from the file tree.") }}</p>
                     <p class="text-xs faint">{{ reset_counts(reset_preview.all, reset_labels) or t("Nothing to delete.") }}</p>
                   </div>
                   <div class="grid grid--2">

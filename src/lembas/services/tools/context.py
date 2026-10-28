@@ -10,7 +10,6 @@ from lembas.db.models import (
     User,
 )
 from lembas.services import settings_store
-from lembas.services.library import documents as documents_service
 from lembas.services.tools.core import ToolContext, ToolSet
 from lembas.services.tools.resolve import has_display, scoped_skills_off, unattended
 
@@ -50,28 +49,9 @@ def context_for(
             if chat is not None
             else DEFAULT_GROUP
         ),
-        base_ids=[base.id for base in chat.knowledge_bases] if chat is not None else [],
-        bases=_searchable_bases(db, user, chat, speaker),
         skills_off=scoped_skills_off(chat),
         tools=tools.by_name if tools is not None else None,
         interaction_timeout=float(settings_store.agents(db)["approval_timeout"]),
         unattended=unattended(chat),
         display=has_display(chat),
     )
-
-
-def _searchable_bases(db: DBSession, user: User | None, chat: Chat | None, speaker) -> list[dict]:
-    """The bases a `knowledge_search` in this chat may name: the attached ones,
-    else every base the owner may see in the answering model's data group."""
-    from lembas.services import data_groups
-
-    if chat is None or user is None:
-        return []
-    group = data_groups.for_speaker(db, user, chat, speaker)
-    attached = [
-        base
-        for base in chat.knowledge_bases
-        if (base.data_group_id or DEFAULT_GROUP) == group
-    ]
-    rows = attached or list(db.scalars(documents_service.visible_bases(db, user, group)))
-    return [{"id": base.id, "name": base.name} for base in rows]

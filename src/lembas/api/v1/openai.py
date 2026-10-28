@@ -651,9 +651,8 @@ async def embeddings(request: Request, db: Db, caller: ModelsCaller):
         return error_response(502, "The model's server answered with something that is not JSON.")
     if isinstance(data, dict):
         # Counted and charged like a reply, on the model's input price: the
-        # caller asked for these vectors. The library's own index is the one
-        # embedding that is not charged -- `services/library/indexing.py` says
-        # why.
+        # caller asked for these vectors. The search index's own embedding is
+        # the one that is not charged (`services/index`).
         usage = data.get("usage") or {}
         await asyncio.to_thread(
             _record,

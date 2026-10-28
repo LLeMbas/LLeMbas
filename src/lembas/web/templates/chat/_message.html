@@ -374,17 +374,6 @@
   {# Receives the finished bubble and replaces this whole article with it. #}
   <div hidden sse-swap="done" hx-target="#msg-{{ message.id }}" hx-swap="outerHTML"></div>
 
-  {#
-    A file the model has opened. The frame carries the canvas tab strip marked
-    `hx-swap-oob`, so it lands in the panel rather than here -- this element is
-    only somewhere for it to arrive. `hx-swap="none"` because the payload has no
-    business in the bubble; htmx extracts out-of-band fragments before it
-    considers the main swap, so "none" does not stop them.
-
-    Only the strip is ever pushed. The file's contents would be a lot of bytes
-    on every version bump and would overwrite a textarea somebody is typing in.
-  #}
-  <div hidden sse-swap="canvas" hx-swap="none"></div>
   {# The plan: the frame carries the panel marked `hx-swap-oob`,
      which lands above the composer; this is only where it arrives. #}
   <div hidden sse-swap="plan" hx-swap="none"></div>

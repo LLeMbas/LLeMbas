@@ -41,7 +41,7 @@ def offered_targets() -> tuple[tuple[str, str], ...]:
     """A function so the labels are in the reader's language."""
     return (
         (TARGET_CHAT, t("Its own chat")),
-        (TARGET_REPORT, t("Reports")),
+        (TARGET_REPORT, t("A file in your reports folder")),
     )
 
 REPEAT_ONCE = "once"

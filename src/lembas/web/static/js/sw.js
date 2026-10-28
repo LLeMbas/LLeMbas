@@ -33,7 +33,6 @@ var SHELL = [
   "/static/js/audio.js",
   "/static/js/prototypes.js",
   "/static/js/steps.js",
-  "/static/js/canvas.js",
   "/static/js/terminal.js",
   // Deliberately not the three xterm files below it: ~300KB precached on every
   // install, for a panel most people never open, to spare one fetch from the

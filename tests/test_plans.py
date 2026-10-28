@@ -159,7 +159,7 @@ def test_plan_mode_withholds_what_changes_things_and_offers_plan_submit(db, user
     assert "plan_submit" in offered
     changing = (tools_service.RISK_WRITE, tools_service.RISK_EXECUTE)
     assert not any(t.risk in changing for t in offered.values())
-    assert "notes_search" in offered  # the readers stay
+    assert {"read", "grep", "skill_view"} & set(offered)  # the readers stay
 
     helper = _chat_with_tools(db, user_id, parent_chat_id=normal.id, unattended=True)
     assert not {"plan_write", "plan_update", "plan_submit"} & set(

@@ -5,8 +5,8 @@
 - `chats`: every chat the person owns -- archived, temporary and task chats
   too -- their folders, and every file those chats' attachments named.
 - `memory`: what models remember about them.
-- `all`: both, plus notes, skills, knowledge bases with their documents and
-  files, reports, schedules, scratch documents, and the shares of all of it.
+- `all`: both, plus their schedules. (Their files are in the file tree, and
+  are theirs to delete there.)
 
 What a full reset keeps: the account, its password and settings (its
 per-model defaults too, `UserModelSetting`, which are settings), group
@@ -14,15 +14,11 @@ memberships, the person's own data groups (settings, not data), the aggregate
 `Usage` rows, push subscriptions, and the session it was asked from.
 
 **Files go before rows**, the order `chat.delete_chats` keeps and for the same
-reason: the rows are what say which files they are. **Shares go before their
-resources** (`sharing.forget_owner`), because `Share.resource_id` has no foreign
-key and a grant left behind names a row that no longer exists. Chunks are the
-other column with no foreign key to its record; `indexing.sweep_orphans` drops
-them once the records are gone.
+reason: the rows are what say which files they are.
 
 Bulk `DELETE`s rather than a loop of `db.delete`: the database's own cascades
-(foreign keys are on, `db/session.py`) and FTS triggers do the rest, and a
-person with ten thousand memories should not wait on ten thousand flushes.
+(foreign keys are on, `db/session.py`) do the rest, and a person with ten
+thousand memories should not wait on ten thousand flushes.
 """
 
 from __future__ import annotations
@@ -35,16 +31,10 @@ from sqlalchemy.orm import Session as DBSession
 
 from lembas.db.models import (
     Chat,
-    Document,
     Folder,
-    KnowledgeBase,
     Memory,
     Message,
-    Note,
-    Report,
     Schedule,
-    ScratchDoc,
-    Skill,
     User,
 )
 from lembas.web.i18n import t
@@ -110,13 +100,7 @@ def preview(db: DBSession, user: User) -> dict[str, Counts]:
     for part in (chats, memory):
         for name, n in part.rows.items():
             everything.add(name, n)
-    everything.add("notes", _count(db, Note, Note.owner_id, user.id))
-    everything.add("skills", _count(db, Skill, Skill.owner_id, user.id))
-    everything.add("knowledge bases", _count(db, KnowledgeBase, KnowledgeBase.owner_id, user.id))
-    everything.add("documents", _count(db, Document, Document.owner_id, user.id))
-    everything.add("reports", _count(db, Report, Report.owner_id, user.id))
     everything.add("schedules", _count(db, Schedule, Schedule.user_id, user.id))
-    everything.add("scratch documents", _count(db, ScratchDoc, ScratchDoc.user_id, user.id))
     return {LEVEL_CHATS: chats, LEVEL_MEMORY: memory, LEVEL_ALL: everything}
 
 
@@ -124,7 +108,7 @@ def busy(db: DBSession, user: User) -> str:
     """Why a reset must wait, or "" when it need not.
 
     A reply being written would land in a chat that no longer exists, and a
-    schedule firing would write its report into a library that was just emptied.
+    schedule firing would deliver into one.
     The person can stop the one and wait for the other; refusing is better than
     either half-finishing.
     """
@@ -175,38 +159,9 @@ def _forget_memory(db: DBSession, user: User, counts: Counts) -> None:
     )
 
 
-def _delete_library(db: DBSession, user: User, counts: Counts) -> None:
-    from lembas.services import sharing
-    from lembas.services.library.documents import stored_path
-
-    # Shares of everything they own, while the rows are there to be matched.
-    sharing.forget_owner(db, user.id)
-
-    # Every document's file, in a base of theirs or not, before any row goes.
-    for stored_name in db.scalars(
-        select(Document.stored_name).where(Document.owner_id == user.id)
-    ):
-        path = stored_path(stored_name)
-        if path is not None:
-            path.unlink(missing_ok=True)
-    counts.add(
-        "documents", db.execute(delete(Document).where(Document.owner_id == user.id)).rowcount or 0
-    )
-    counts.add(
-        "knowledge bases",
-        db.execute(delete(KnowledgeBase).where(KnowledgeBase.owner_id == user.id)).rowcount or 0,
-    )
-    counts.add("notes", db.execute(delete(Note).where(Note.owner_id == user.id)).rowcount or 0)
-    counts.add("skills", db.execute(delete(Skill).where(Skill.owner_id == user.id)).rowcount or 0)
-    counts.add(
-        "reports", db.execute(delete(Report).where(Report.owner_id == user.id)).rowcount or 0
-    )
+def _delete_schedules(db: DBSession, user: User, counts: Counts) -> None:
     counts.add(
         "schedules", db.execute(delete(Schedule).where(Schedule.user_id == user.id)).rowcount or 0
-    )
-    counts.add(
-        "scratch documents",
-        db.execute(delete(ScratchDoc).where(ScratchDoc.user_id == user.id)).rowcount or 0,
     )
 
 
@@ -227,15 +182,7 @@ def reset(db: DBSession, user: User, level: str) -> Counts:
     if level in (LEVEL_MEMORY, LEVEL_ALL):
         _forget_memory(db, user, counts)
     if level == LEVEL_ALL:
-        _delete_library(db, user, counts)
-    db.commit()
-
-    from lembas.services.library import indexing
-
-    indexing.sweep_orphans(db)
-    # `sweep_orphans` commits only when it removed something; its DELETE opened a
-    # write transaction either way, and left open it holds SQLite's write lock
-    # against every other session -- the audit record that follows, for one.
+        _delete_schedules(db, user, counts)
     db.commit()
     log.info("%s started over (%s): %s", user.email, level, counts.rows)
     return counts

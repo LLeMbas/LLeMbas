@@ -43,7 +43,7 @@
            it. The way out of it is Keep, in the overflow menu. #}
         {% if chat and chat.temporary %}
         <span class="badge badge--warning"
-              title="{{ t('Not listed in the sidebar. It may read the library but saves nothing, and is deleted %(after)s.', after=temporary_after) }}">{{ t("Temporary · read-only") }}</span>
+              title="{{ t('Not listed in the sidebar. It may read your files but saves nothing, and is deleted %(after)s.', after=temporary_after) }}">{{ t("Temporary · read-only") }}</span>
         {# Reported on the way out, so a chat that lives "until you leave it"
            does. A reload reports it too, and the page that comes back clears
            it again (chat_service.mark_back). #}
@@ -102,18 +102,6 @@
            `hidden`; `ui.js` shows them when `lembas:agent-target` names a
            connection and hides them again when it stops. On a chat that exists
            the server's answer is complete and neither attribute appears. #}
-        {% if canvas_enabled %}
-        {# Nearest the conversation of the three, being the widest and the one
-           most likely to be open beside it. All three share one slot: at
-           1280px the sidebar plus two panels leaves about seventy pixels of
-           chat. #}
-        <button class="btn btn--icon" type="button" aria-label="{{ t('Canvas') }}"
-                title="{{ t('Open a file beside the conversation') }}"
-                {% if not chat %}data-agent-only hidden{% endif %}
-                aria-expanded="false" data-toggle="#canvas" data-toggle-group="side">
-          {{ icon("file-text") }}
-        </button>
-        {% endif %}
 
         {% if prototypes_enabled %}
         {# Hidden until the transcript holds a prototype: `prototypes.js` shows
@@ -267,12 +255,8 @@
   </main>
 
   {# The panels, mirroring the sidebar opposite, in the order they sit on
-     screen: the canvas nearest the conversation, then the terminal, then the
-     inspector, then the chat's settings. Only ever one of them is open
-     -- see the toggle group. #}
-  {% if canvas_enabled %}
-    {% include "chat/_canvas.html" %}
-  {% endif %}
+     screen: the terminal, then the inspector, then the chat's settings. Only
+     ever one of them is open -- see the toggle group. #}
   {% if chat and chat.kind != "task" %}
     {% include "chat/_job_panel.html" %}
   {% endif %}
@@ -295,7 +279,7 @@
 
     A panel on a phone used to be a sheet over the conversation with a close
     button, which made the conversation a place you return to by closing
-    things -- and the canvas, the terminal and a prototype each a separate
+    things -- and the terminal and a prototype each a separate
     detour. Switching is the honest model at that width: there is room for one
     window, so say which, and let the others be one tap away.
 
@@ -308,12 +292,6 @@
     <button class="winswitch__btn" type="button" data-window="" aria-pressed="true">
       {{ icon("chat", "icon--sm") }}<span class="winswitch__label">{{ t("Chat") }}</span>
     </button>
-    {% if canvas_enabled %}
-    <button class="winswitch__btn" type="button" data-window="#canvas" aria-pressed="false"
-            {% if not chat %}data-agent-only hidden{% endif %}>
-      {{ icon("file-text", "icon--sm") }}<span class="winswitch__label">{{ t("Canvas") }}</span>
-    </button>
-    {% endif %}
     {% if prototypes_enabled %}
     <button class="winswitch__btn" type="button" data-window="#prototype" aria-pressed="false"
             data-proto-toggle hidden>
@@ -352,14 +330,6 @@
 {# Unconditional: every chat has a transcript, and this is what keeps a block
    somebody opened open across the swaps that arrive twelve times a second. #}
 <script src="{{ asset('js/steps.js') }}" defer></script>
-{% if not chat and (canvas_enabled or terminal_enabled) %}
-{# Only where there is no chat yet. It points both panels at a draft id for
-   whatever the composer has selected, and does nothing at all once a chat
-   exists -- which is every other page this block renders on. #}
-{% endif %}
-{% if canvas_enabled %}
-<script src="{{ asset('js/canvas.js') }}" defer></script>
-{% endif %}
 {% if terminal_enabled %}
 {# Only where it can be used. xterm is nearly three times everything else
    vendored, so a plain chat must never load it. #}

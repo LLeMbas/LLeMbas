@@ -47,7 +47,7 @@
         <option value="full" {{ 'selected' if values.instance_mode != "api" }}>{{ t("Full") }}</option>
         <option value="api" {{ 'selected' if values.instance_mode == "api" }}>{{ t("API only") }}</option>
       </select>
-      <p class="field__hint">{{ t("API only switches off chats, agent chats, the library, reports, scheduled tasks and the MCP server; the API, device sign-in, Settings and Admin keep working.") }}</p>
+      <p class="field__hint">{{ t("API only switches off chats, agent chats, scheduled tasks and the MCP server; the API, device sign-in, Settings and Admin keep working.") }}</p>
     </div>
   </section>
 
@@ -111,7 +111,7 @@
       <input class="input" id="max-chat-rounds" name="max_chat_rounds" type="number"
              min="0" max="100" value="{{ values.max_chat_rounds }}">
       <p class="field__hint">
-        {{ tm("Several tools can be called in one round, so this is not a count of tools. Leave room for at least two: <code>knowledge_get</code> and <code>note_view</code> read a document by an id a <em>search</em> returned, so a ceiling of one leaves the library searchable and not readable. <code>0</code> means no ceiling, which is how an agent chat already works — those are bounded under <a href=\"/admin/agents\">Agents</a> by time and tokens instead.") }}
+        {{ tm("Several tools can be called in one round, so this is not a count of tools. Leave room for at least two: <code>search</code> finds a passage and <code>read</code> reads the file around it, so a ceiling of one leaves files searchable and not readable. <code>0</code> means no ceiling, which is how an agent chat already works — those are bounded under <a href=\"/admin/agents\">Agents</a> by time and tokens instead.") }}
       </p>
     </div>
   </section>
@@ -139,7 +139,7 @@
 
   <section class="card">
     <h2 class="card__title">{{ t("Temporary chats") }}</h2>
-    <p class="card__lede">{{ t("A temporary chat is not listed in the sidebar, may read the library but cannot write to it — no notes, memories, skills, reports or schedules — and is deleted when its time is up. Keep this chat turns one into an ordinary chat.") }}</p>
+    <p class="card__lede">{{ t("A temporary chat is not listed in the sidebar, may read files and memories but cannot change anything — no files, memories, skills or schedules — and is deleted when its time is up. Keep this chat turns one into an ordinary chat.") }}</p>
     <div class="field">
       <label class="field__label" for="temporary-lifetime">{{ t("Delete a temporary chat after") }}</label>
       <input class="input" id="temporary-lifetime" name="temporary_lifetime_minutes" type="number"

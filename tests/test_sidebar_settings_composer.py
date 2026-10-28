@@ -229,7 +229,8 @@ def test_reports_and_scheduled_have_left_the_sidebar(client: TestClient, db, reg
     sidebar = html[html.index('<aside class="sidebar"'):html.index("</aside>")]
     assert 'href="/reports"' not in sidebar
     assert 'href="/scheduled"' not in sidebar
-    assert 'href="/library/knowledge"' in sidebar
+    # And the Library went with the library (2.0): files are the file tree's.
+    assert 'href="/library/' not in sidebar
 
 
 def test_no_pinned_heading_without_a_pinned_model(client: TestClient, db, registered):
@@ -303,7 +304,7 @@ def test_api_only_hides_and_refuses_the_moved_pages(client: TestClient, db, regi
     html = client.get("/settings?tab=scheduled").text
     assert 'id="tab-scheduled"' not in html
     assert 'href="/library/' not in html[html.index('<aside class="sidebar"'):]
-    for path in ("/library/reports", "/reports", "/scheduled"):
+    for path in ("/scheduled",):
         response = client.get(path, follow_redirects=False)
         assert response.status_code == 303, path
         assert response.headers["location"].startswith("/settings?saved=api-only"), path
