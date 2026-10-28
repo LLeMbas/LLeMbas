@@ -237,11 +237,10 @@
      Every swap and every stream frame asks for the bottom; this grants it once,
      in a `requestAnimationFrame`, after everything else that was going to touch
      the transcript in this turn has touched it. Two things depend on that
-     order. The MutationObservers in this file and in prototypes.js add a label
-     bar to every code block and a status line to every prototype card, and
-     they run as microtasks -- so when the scroll happened in the swap listener
-     itself, the bottom it measured was short by exactly what they were about to
-     insert, on every frame. And a shrink -- a round closing, incomplete Markdown
+     order. The MutationObserver in this file adds a label bar to every code
+     block, and it runs as a microtask -- so when the scroll happened in the swap
+     listener itself, the bottom it measured was short by exactly what it was
+     about to insert, on every frame. And a shrink -- a round closing, incomplete Markdown
      changing shape as the next token lands, a block the reader shuts -- clamps
      `scrollTop` when layout runs, which fires a scroll event *upward* that the
      listener below would read as the reader leaving. Here the clamp and the

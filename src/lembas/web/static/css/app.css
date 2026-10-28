@@ -981,100 +981,6 @@ body.is-resizing .terminal__screen { pointer-events: none; }
 .terminal__mark { box-shadow: inset var(--border-w-accent) 0 0 var(--success); pointer-events: auto; }
 .terminal__mark--fail { box-shadow: inset var(--border-w-accent) 0 0 var(--danger); }
 
-/* --- The prototype panel ----------------------------------------------------
-   The terminal's shape again: a fixed-width column that hides with `hidden`,
-   shares .panel-head and .panel-resize, and becomes an overlay below 64rem. What
-   is inside is one frame, filling the column in the desktop view and standing
-   at a phone's size in the middle of it in the phone view. */
-.proto-panel {
-  width: var(--prototype-width);
-  min-width: var(--prototype-width-min);
-  max-width: 80vw;
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  position: relative;
-  background: var(--bg-sunken);
-  border-left: var(--border-w) solid var(--border);
-}
-/* The title is the one part of the head that gives: six controls sit beside it
-   and none of them may be pushed off the end by a long name. */
-.proto-panel__title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.proto-panel .panel-head .segmented { flex: none; }
-.proto-panel .panel-head .segmented__option > span { padding: 0 var(--sp-2); }
-
-/* The frame is positioned inside the stage and scaled by `--proto-scale`,
-   which prototypes.js keeps equal to "how much smaller than its viewport the
-   picture has to be to fit". Laid out at the viewport's size and shrunk, so the
-   page sees a desktop or a phone whatever the panel's width. */
-.proto-panel__stage {
-  flex: 1;
-  min-height: 0;
-  position: relative;
-  overflow: hidden;
-}
-.proto-panel__frame {
-  position: absolute;
-  top: 0;
-  left: 0;
-  display: block;
-  /* Divided by the scale so that, once shrunk, it fills the stage exactly. At
-     a scale of 1 these are 100%: a panel wider than a desktop shows the page at
-     the panel's own width rather than letterboxing it. */
-  width: calc(100% / var(--proto-scale, 1));
-  height: calc(100% / var(--proto-scale, 1));
-  border: 0;
-  background: transparent;
-  transform: scale(var(--proto-scale, 1));
-  transform-origin: 0 0;
-}
-/* A phone in the middle of the column, with the screen texture around it so
-   the edge of the page is visible even when the page has no background. */
-.proto-panel__stage[data-view="phone"] {
-  background: var(--texture-screen), var(--bg-sunken);
-}
-.proto-panel__stage[data-view="phone"] .proto-panel__frame {
-  top: var(--sp-4);
-  left: 50%;
-  width: var(--proto-phone-width);
-  height: var(--proto-phone-height);
-  box-sizing: content-box;
-  border: var(--border-w-thick) solid var(--border-strong);
-  border-radius: var(--radius-lg);
-  background: var(--bg);
-  box-shadow: var(--shadow-block-lg);
-  transform: translateX(-50%) scale(var(--proto-scale, 1));
-  transform-origin: 50% 0;
-}
-/* How the picture relates to the page, when they differ: "1280 × 1488 · 50%".
-   Without it a shrunken desktop reads as a page with tiny type. */
-.proto-panel__scale {
-  position: absolute;
-  z-index: var(--z-raised);
-  right: var(--sp-2);
-  bottom: var(--sp-2);
-  padding: var(--sp-1) var(--sp-2);
-  border: var(--border-w) solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--ink-muted);
-  font-family: var(--font-ui);
-  font-size: var(--text-xs);
-  pointer-events: none;
-}
-.proto-panel__empty {
-  margin: 0;
-  padding: var(--sp-4);
-  color: var(--ink-faint);
-  font-size: var(--text-xs);
-}
-
 /* --- The window switch --------------------------------------------------------
    Nothing at all above the phone breakpoint. Below it, and only while a side
    panel is open, it takes the place the topbar had: one row of windows across
@@ -1115,15 +1021,13 @@ body.is-resizing .terminal__screen { pointer-events: none; }
 }
 
 @media (max-width: 64rem) {
-  .terminal,
-  .proto-panel {
+  .terminal {
     position: fixed;
     inset: 0 0 0 auto;
     z-index: var(--z-panel);
     box-shadow: var(--shadow-lg);
   }
   .terminal { width: min(var(--terminal-width), 100vw); }
-  .proto-panel { width: min(var(--prototype-width), 100vw); }
 
   /* 🚨 And the minimum has to give as well, which is the half that was missing.
      `min-width` is resolved *after* `width` and `max-width` and wins over both
@@ -1141,7 +1045,6 @@ body.is-resizing .terminal__screen { pointer-events: none; }
      This is the tree's standing rule in another shape: a minimum wider than the
      screen is the bug, and the minimum is what must give. */
   .terminal,
-  .proto-panel,
   .inspector,
   .chat-settings {
     min-width: 0;
@@ -2022,8 +1925,7 @@ a.picker__option { text-decoration: none; }
      Set here rather than in the 64rem block so the tablet keeps its column. */
   .inspector,
   .chat-settings,
-  .terminal,
-  .proto-panel {
+  .terminal {
     width: 100vw;
     max-width: 100vw;
   }
@@ -2045,11 +1947,11 @@ a.picker__option { text-decoration: none; }
     background: var(--bg);
     border-bottom: var(--border-w) solid var(--border);
   }
-  :root[data-window]:not([data-window=""]) :is(.inspector, .chat-settings, .terminal, .proto-panel, .jobpanel) {
+  :root[data-window]:not([data-window=""]) :is(.inspector, .chat-settings, .terminal, .jobpanel) {
     top: calc(var(--header-height) + var(--safe-top));
   }
-  :root[data-window]:not([data-window=""]) :is(.inspector, .chat-settings, .terminal, .proto-panel, .jobpanel) > .panel-head,
-  :root[data-window]:not([data-window=""]) :is(.inspector, .chat-settings, .terminal, .proto-panel, .jobpanel) > * > .panel-head {
+  :root[data-window]:not([data-window=""]) :is(.inspector, .chat-settings, .terminal, .jobpanel) > .panel-head,
+  :root[data-window]:not([data-window=""]) :is(.inspector, .chat-settings, .terminal, .jobpanel) > * > .panel-head {
     height: var(--header-height);
     padding-top: 0;
   }
@@ -2736,7 +2638,7 @@ a.card, .card--action { transition: transform var(--dur-2) var(--ease-out),
 */
 
 /*
-  The segmented switch: `[ DESKTOP | PHONE ]` on the prototype panel, the chosen
+  The segmented switch: two choices side by side, the chosen
   side in reverse video. (The sidebar's Chats/Agents switch is `.kind-switch`,
   not this.)
 

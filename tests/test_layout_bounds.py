@@ -131,7 +131,7 @@ def test_no_breakpoint_is_declared_and_never_used():
 APP_CSS = (ROOT / "web/static/css/app.css").read_text(encoding="utf-8")
 
 # Every panel that becomes an overlay rather than a column on a small screen.
-OVERLAY_PANELS = (".inspector", ".terminal", ".proto-panel")
+OVERLAY_PANELS = (".inspector", ".terminal")
 
 
 def _media_body(css: str, condition: str) -> str:
@@ -194,7 +194,7 @@ def test_every_overlay_panel_is_full_width_on_a_phone():
 def test_the_desktop_minimum_is_still_declared():
     """The other direction. Removing the minimum altogether would let a drag
     handle pull a panel to nothing on the machine where dragging exists."""
-    for token in ("--terminal-width-min", "--prototype-width-min"):
+    for token in ("--terminal-width-min",):
         assert f"{token}:" in TOKENS
         assert f"var({token})" in APP_CSS
 

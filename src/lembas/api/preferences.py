@@ -98,7 +98,6 @@ async def set_language(db: Db, user: RequiredUser, language: str = Form("")) -> 
 # panel they cannot see to drag back.
 LAYOUT_BOUNDS = {
     "--terminal-width": (384, 2400),
-    "--prototype-width": (384, 2400),
     "--inspector-width": (280, 2400),
     "--sidebar-width": (200, 800),
 }

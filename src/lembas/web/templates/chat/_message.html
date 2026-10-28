@@ -33,9 +33,6 @@
 <article class="msg msg--{{ message.role }}{{ ' msg--machine' if machine }}{{ ' msg--queued' if queued }}"
          id="msg-{{ message.id }}"
          data-chat="{{ chat.id }}" data-message="{{ message.id }}"
-         {#- The frame that ends a live reply, and only that one: prototypes.js
-             opens a page this reply wrote, once, and a page load never does. #}
-         {%- if just_finished | default(false) %} data-just-finished{% endif %}
   {% if streaming %}
          hx-ext="sse"
          sse-connect="/api/chats/{{ chat.id }}/messages/{{ message.id }}/stream"
