@@ -1,0 +1,13 @@
+{#- The attributes that make a button's own request a save in place, the way
+    js/inplace.js makes a form's (web/in_place.py). -#}
+{% macro in_place() -%}
+{{ 'hx-target="closest [data-in-place-root]" hx-select="[data-in-place-root]" hx-swap="outerHTML show:none focus-scroll:false"' | safe }} {{ "hx-headers='{\"LMB-In-Place\": \"1\"}'" | safe }}
+{%- endmacro %}
+
+{% macro size(bytes) -%}
+{%- if bytes is none -%}
+{%- elif bytes < 1024 -%}{{ t("%(n)s B", n=bytes) }}
+{%- elif bytes < 1048576 -%}{{ t("%(n)s KB", n=(bytes / 1024) | round(1)) }}
+{%- else -%}{{ t("%(n)s MB", n=(bytes / 1048576) | round(1)) }}
+{%- endif -%}
+{%- endmacro %}

@@ -1,0 +1,47 @@
+{% extends "files/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% from "files/_macros.html" import in_place, size %}
+{% block title %}{{ path }} - {{ brand.name }}{% endblock %}
+
+{% block files_content %}
+{% with link_last = false %}{% include "files/_crumbs.html" %}{% endwith %}
+{% if problem %}
+<div class="empty">
+  {{ icon("file-text", "empty__mark") }}
+  <h2 class="empty__title">{{ t("Not here") }}</h2>
+  <p class="empty__text">{{ problem }}</p>
+  <p class="empty__text"><a href="/files">{{ t("Back to all files") }}</a></p>
+</div>
+{% else %}
+{% include "files/_viewer.html" %}
+
+{% if versions %}
+{#- Every write is a version (services/fs.py); restoring one writes it
+    again, so nothing is lost by trying. -#}
+<details class="card versions" id="file-versions" data-testid="file-versions">
+  <summary class="card__title versions__summary">{{ t("Versions") }} <span class="badge">{{ versions|length }}</span></summary>
+  <ol class="versions__list">
+    {% for item in versions %}
+    <li class="versions__item{{ ' is-current' if (current_version == item.id) or (not current_version and loop.first) }}">
+      <span class="versions__when">{{ stamp(item.at, "%d %B %Y") }} {{ item.at.strftime("%H:%M") }}</span>
+      <span class="versions__size">{{ size(item.size) }}</span>
+      <span class="versions__by">{% if item.chat_id %}<span class="badge">{{ t("by a chat") }}</span>{% endif %}</span>
+      <span class="versions__tools">
+        {% if not loop.first %}
+        <a class="btn btn--sm" href="/files/view?path={{ path|urlencode }}&amp;version={{ item.id }}">{{ t("Look") }}</a>
+        {% if opened.writable %}
+        <button class="btn btn--sm" type="button" hx-post="/files/versions/restore"
+                hx-vals='{"path": {{ path|tojson }}, "version": {{ item.id|tojson }}}' {{ in_place() }}
+                hx-confirm="{{ t('Make this version the current one? The current one stays in the list.') }}"
+                data-confirm-title="{{ t('Restore this version') }}" data-confirm-label="{{ t('Restore') }}"
+                data-confirm-danger="false">{{ t("Restore") }}</button>
+        {% endif %}
+        {% else %}<span class="badge badge--leaf">{{ t("current") }}</span>{% endif %}
+      </span>
+    </li>
+    {% endfor %}
+  </ol>
+</details>
+{% endif %}
+{% endif %}
+{% endblock %}

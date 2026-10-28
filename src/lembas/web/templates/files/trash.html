@@ -1,0 +1,33 @@
+{% extends "files/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% from "files/_macros.html" import in_place %}
+{#- What you may restore: each thing moved to the trash, with what went with
+    it coming back too (services/fs.py `trash`, `restore`). -#}
+{% block title %}{{ t("Trash") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Trash") }}{% endblock %}
+
+{% block files_content %}
+<p class="admin-lede"><a href="/files">{{ icon("chevron-left", "icon--sm") }} {{ t("Back to all files") }}</a></p>
+{% if not items %}
+<div class="empty">
+  {{ icon("trash", "empty__mark") }}
+  <p class="empty__text">{{ t("The trash is empty.") }}</p>
+</div>
+{% else %}
+<div class="file-rows file-rows--trash" role="table" aria-label="{{ t('Trash') }}">
+  {% for node in items %}
+  <div class="file-row" role="row" data-testid="trash-row">
+    <span role="cell" class="file-row__name">
+      {{ icon("folder" if node.kind != "file" else "file-text", "icon--sm") }}
+      <span class="file-row__label">{{ node.path }}</span>
+    </span>
+    <span role="cell" class="file-row__when">{{ stamp(node.trashed_at, "%d %B %Y") }}</span>
+    <span role="cell" class="file-row__actions">
+      <button class="btn btn--sm" type="button" hx-post="/files/restore"
+              hx-vals='{"node_id": {{ node.id|tojson }}}' {{ in_place() }}>{{ t("Restore") }}</button>
+    </span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

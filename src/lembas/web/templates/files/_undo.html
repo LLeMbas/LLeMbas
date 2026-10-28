@@ -1,0 +1,26 @@
+{% from "_macros.html" import icon %}
+{#- What undoing this chat's file changes would do, before it is done: every
+    file the chat wrote, back to the version before its first write -- or, for a
+    file the chat made, to the trash (services/file_ui.py `undo_plan`). A file
+    somebody changed after the chat did is marked, because undoing takes their
+    change back too. -#}
+<section class="undo" data-testid="undo-plan">
+  {% if not plan %}
+  <p class="admin-lede">{{ t("This chat has not changed any file that is still as it left it.") }}</p>
+  {% else %}
+  <p class="admin-lede">{{ t("Undoing puts these files back as they were before this chat changed them. Each is a new version, so this can be undone too.") }}</p>
+  <ul class="undo__list">
+    {% for item in plan %}
+    <li class="undo__item">
+      {{ icon("file-text", "icon--sm") }}
+      <code class="undo__path">{{ item.path }}</code>
+      <span class="badge">{{ t("restored") if item.action == "restore" else t("moved to the trash") }}</span>
+      {% if item.changed_since %}<span class="badge badge--danger">{{ t("changed since by someone else") }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  <form method="post" action="/chat/{{ chat.id }}/undo" class="btn-row" data-in-place="off">
+    <button class="btn btn--danger-solid" type="submit" data-testid="undo-confirm">{{ t("Undo these changes") }}</button>
+  </form>
+  {% endif %}
+</section>

@@ -179,6 +179,21 @@
     </section>
     {% endif %}
 
+    {#- What the chat may reach in the file tree, and taking back what it
+        changed there (api/access_ui.py, api/tree.py). Not for an agent chat,
+        whose files are on its device. -#}
+    {% if chat and chat.kind != "agent" %}
+    <section class="chat-settings__section">
+      <h3 class="chat-settings__heading">{{ t("Files") }}</h3>
+      <div class="btn-row">
+        <a class="btn btn--sm" href="/chat/{{ chat.id }}/access" data-testid="chat-access">
+          {{ icon("shield", "icon--sm") }} {{ t("What it may reach") }}</a>
+        <a class="btn btn--sm" href="/chat/{{ chat.id }}/undo" data-testid="chat-undo">
+          {{ icon("refresh", "icon--sm") }} {{ t("Undo its file changes") }}</a>
+      </div>
+    </section>
+    {% endif %}
+
     <p class="field__hint chat-settings__foot">
       <a href="/settings?tab=models#model-defaults">{{ t("Your defaults per model") }}</a>
     </p>

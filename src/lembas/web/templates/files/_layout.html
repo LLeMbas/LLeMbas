@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{#
+  The file pages' frame: the chat sidebar, a topbar, one scroller, and the
+  page inside `data-in-place-root`, so every change made here (upload, new
+  folder, rename, move, delete, restore) is saved in place (web/in_place.py).
+#}
+
+{% block head %}
+<link rel="stylesheet" href="{{ asset('css/chat.css') }}">
+<link rel="stylesheet" href="{{ asset('css/admin.css') }}">
+{% block files_head %}{% endblock %}
+{% endblock %}
+
+{% block body_attrs %} data-authenticated="true"{% endblock %}
+
+{% block body %}
+<div class="shell">
+  {% include "partials/sidebar.html" %}
+
+  <main class="main">
+    <header class="topbar">
+      {% include "partials/_sidebar_toggle.html" %}
+      <h1 class="topbar__title">{% block heading %}{{ t("Files") }}{% endblock %}</h1>
+      <div class="topbar__actions">{% block actions %}{% endblock %}</div>
+    </header>
+
+    <div class="admin-scroll">
+      <div class="admin-page files-page" data-in-place-root>
+        {% if saved %}
+        <div data-flash="success" class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
+        {% endif %}
+        {% if error %}
+        <div data-flash="error" class="alert alert--error">{{ icon("warning", "alert__icon") }} <span>{{ error }}</span></div>
+        {% endif %}
+        {% block files_content %}{% endblock %}
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

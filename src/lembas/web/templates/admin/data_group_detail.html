@@ -108,6 +108,17 @@
   </div>
 </form>
 
+{#- What a chat in this group may reach in the file tree: the preset a new
+    chat starts from, and the ceiling none goes above (api/access_ui.py). -#}
+<section class="card u-mt-6">
+  <h2 class="card__title">{{ t("Files a chat may reach") }}</h2>
+  <p class="card__lede">{{ t("The preset is what a new chat in this group may reach until its person changes it; the ceiling is the most any chat in it ever may.") }}</p>
+  <div class="btn-row">
+    <a class="btn" href="/data-groups/{{ group.id }}/access?mode=preset" data-testid="group-preset">{{ t("Preset") }}</a>
+    <a class="btn" href="/data-groups/{{ group.id }}/access?mode=floor" data-testid="group-floor">{{ t("Ceiling") }}</a>
+  </div>
+</section>
+
 <section class="card u-mt-6">
   <h2 class="card__title">{{ t("Where this group's data goes") }}</h2>
   <p class="card__lede">{{ t("Every provider this group's data is sent to, as the instance has it set. A person holding “Manage their own data groups” may have arranged their own differently. Speech to text and text to speech are not grouped: audio is sent and not kept.") }}</p>

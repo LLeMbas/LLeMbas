@@ -1,0 +1,8 @@
+{% extends "files/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% block title %}{{ t("Undo this chat's changes") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Undo this chat's changes") }}{% endblock %}
+{% block files_content %}
+<p class="admin-lede"><a href="/chat/{{ chat.id }}">{{ icon("chevron-left", "icon--sm") }} {{ chat.title }}</a></p>
+{% include "files/_undo.html" %}
+{% endblock %}

@@ -1,0 +1,148 @@
+{% extends "files/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% from "files/_macros.html" import in_place, size %}
+{#
+  The explorer, `GET /files?path=`: where you are, the tree beside the list
+  (wide screens), and the list. Everything here is what *you* can see
+  (services/file_ui.py) -- a chat sees its own part of it.
+
+  The list is one grid with a track per column and every row a subgrid of it,
+  so a long name never pushes the size or the date out of line; the name track
+  is the one that gives (`minmax(0, 1fr)`), and on a phone the date track goes.
+
+  Moving: drag a row onto a folder in the list, the tree or the path above
+  (js/files.js), or use Move in the row's menu, which asks for the folder.
+#}
+
+{% block title %}{{ t("Files") }} - {{ brand.name }}{% endblock %}
+
+{% block files_content %}
+{% include "files/_crumbs.html" %}
+
+{% if problem %}
+<div class="empty">
+  {{ icon("folder", "empty__mark") }}
+  <h2 class="empty__title">{{ t("Not here") }}</h2>
+  <p class="empty__text">{{ problem }}</p>
+  <p class="empty__text"><a href="/files">{{ t("Back to all files") }}</a></p>
+</div>
+{% else %}
+<div class="files-toolbar" data-testid="files-toolbar">
+  {% if writable %}
+  <button class="btn" type="button" data-testid="files-new-folder"
+          hx-post="/files/mkdir" hx-vals='{"path": {{ path|tojson }}}' {{ in_place() }}
+          data-prompt="{{ t('What should the folder be called?') }}"
+          data-prompt-title="{{ t('New folder') }}" data-prompt-field="name"
+          data-prompt-label="{{ t('Create') }}">
+    {{ icon("folder", "icon--sm") }} {{ t("New folder") }}
+  </button>
+  {#- A plain form, so it works without JavaScript; files.js sends it as
+      soon as files are chosen, and a drop of files on the list sends the
+      same. -#}
+  <form class="files-upload" method="post" action="/files/upload" enctype="multipart/form-data"
+        data-upload-form>
+    <input type="hidden" name="path" value="{{ path }}">
+    <label class="btn files-upload__pick">
+      {{ icon("arrow-up", "icon--sm") }} {{ t("Upload") }}
+      <input class="visually-hidden" type="file" name="files" multiple data-testid="files-upload">
+    </label>
+    <button class="btn files-upload__send" type="submit">{{ t("Send") }}</button>
+  </form>
+  {% endif %}
+  <span class="spacer"></span>
+  <a class="btn btn--ghost" href="/files/trash">{{ icon("trash", "icon--sm") }} {{ t("Trash") }}</a>
+</div>
+
+<div class="files-body">
+  {% if tree %}
+  <aside class="files-tree" aria-label="{{ t('Folders') }}">
+    <a class="ftree__link ftree__root{{ ' is-current' if path == '/' }}" href="/files" data-drop-dir="/">
+      {{ icon("folder-open", "icon--sm") }}<span class="ftree__name">{{ t("All files") }}</span>
+    </a>
+    {% with branches = tree %}{% include "files/_tree.html" %}{% endwith %}
+  </aside>
+  {% endif %}
+
+  <section class="files-list" data-drop-files="{{ path }}" data-testid="files-list"
+           aria-label="{{ t('Contents') }}">
+    {% if not rows %}
+    <div class="empty">
+      {{ icon("folder-open", "empty__mark") }}
+      <p class="empty__text">{{ t("Nothing here yet. Not even a hobbit hole.") }}</p>
+      {% if writable %}<p class="empty__text">{{ t("Drop files here to upload them.") }}</p>{% endif %}
+    </div>
+    {% else %}
+    <div class="file-rows" role="table" aria-label="{{ t('Contents') }}">
+      <div class="file-row file-row--head" role="row">
+        <span role="columnheader">{{ t("Name") }}</span>
+        <span role="columnheader" class="file-row__size">{{ t("Size") }}</span>
+        <span role="columnheader" class="file-row__when">{{ t("Changed") }}</span>
+        <span role="columnheader"><span class="visually-hidden">{{ t("Actions") }}</span></span>
+      </div>
+      {% for row in rows %}
+      <div class="file-row" role="row" data-testid="file-row" data-path="{{ row.path }}"
+           {%- if row.writable %} draggable="true"{% endif %}
+           {%- if row.is_dir %} data-drop-dir="{{ row.path }}"{% endif %}>
+        <span role="cell" class="file-row__name">
+          <a href="{{ ('/files?path=' if row.is_dir else '/files/view?path=') ~ row.path|urlencode }}">
+            {{ icon("folder" if row.is_dir else "file-text", "icon--sm") }}
+            <span class="file-row__label">{{ row.name }}</span>
+          </a>
+          {% if not row.writable %}<span class="badge">{{ t("read-only") }}</span>{% endif %}
+          {% if row.kind == "mount" %}<span class="badge">{{ t("mount") }}</span>{% endif %}
+        </span>
+        <span role="cell" class="file-row__size">{{ size(row.size) if not row.is_dir }}</span>
+        <span role="cell" class="file-row__when">{{ stamp(row.updated_at, "%d %B %Y") if row.updated_at }}</span>
+        <span role="cell" class="file-row__actions">
+          {% set label = t("More for %(name)s", name=row.name) %}
+          <div class="picker" data-picker>
+            <button class="btn btn--icon btn--sm" type="button" data-picker-toggle data-testid="file-menu"
+                    aria-haspopup="menu" aria-expanded="false" aria-label="{{ label }}" title="{{ label }}">
+              {{ icon("dots", "icon--sm") }}
+            </button>
+            <div class="picker__menu picker__menu--compact" data-picker-menu role="menu" hidden aria-label="{{ label }}">
+              {% if not row.is_dir %}
+              <a class="picker__option" role="menuitem" href="/files/view?path={{ row.path|urlencode }}">
+                {{ icon("eye", "icon--sm") }}<span class="picker__option-body"><span class="picker__option-name">{{ t("Open") }}</span></span>
+              </a>
+              {% if row.writable %}
+              <a class="picker__option" role="menuitem" href="/files/edit?path={{ row.path|urlencode }}">
+                {{ icon("pencil", "icon--sm") }}<span class="picker__option-body"><span class="picker__option-name">{{ t("Edit") }}</span></span>
+              </a>
+              {% endif %}
+              <a class="picker__option" role="menuitem" href="/files/raw?path={{ row.path|urlencode }}" download>
+                {{ icon("download", "icon--sm") }}<span class="picker__option-body"><span class="picker__option-name">{{ t("Download") }}</span></span>
+              </a>
+              {% endif %}
+              {% if row.writable %}
+              <button class="picker__option" type="button" role="menuitem"
+                      hx-post="/files/rename" hx-vals='{"path": {{ row.path|tojson }}}' {{ in_place() }}
+                      data-prompt="{{ t('New name') }}" data-prompt-title="{{ t('Rename') }}"
+                      data-prompt-field="name" data-prompt-value="{{ row.name }}">
+                {{ icon("pencil", "icon--sm") }}<span class="picker__option-body"><span class="picker__option-name">{{ t("Rename") }}</span></span>
+              </button>
+              <button class="picker__option" type="button" role="menuitem"
+                      hx-post="/files/move" hx-vals='{"path": {{ row.path|tojson }}, "back_to": {{ path|tojson }}}' {{ in_place() }}
+                      data-prompt="{{ t('Which folder should it go to? A path such as /home/you/notes.') }}"
+                      data-prompt-title="{{ t('Move') }}" data-prompt-field="to"
+                      data-prompt-value="{{ path }}" data-prompt-label="{{ t('Move') }}">
+                {{ icon("corner-down-right", "icon--sm") }}<span class="picker__option-body"><span class="picker__option-name">{{ t("Move") }}</span></span>
+              </button>
+              <button class="picker__option" type="button" role="menuitem"
+                      hx-post="/files/delete" hx-vals='{"path": {{ row.path|tojson }}}' {{ in_place() }}
+                      hx-confirm="{{ t('Move “%(name)s” to the trash? It can be restored from there.', name=row.name) }}"
+                      data-confirm-title="{{ t('Move to the trash') }}" data-confirm-label="{{ t('Move to the trash') }}">
+                {{ icon("trash", "icon--sm") }}<span class="picker__option-body"><span class="picker__option-name">{{ t("Delete") }}</span></span>
+              </button>
+              {% endif %}
+            </div>
+          </div>
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </section>
+</div>
+{% endif %}
+{% endblock %}

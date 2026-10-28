@@ -722,6 +722,7 @@ lembas service install</code></pre></li>
                     </div>
                   </div>
                   {% if group.personal and may_manage_groups %}
+                  <a class="btn btn--sm" href="/data-groups/{{ group.id }}/access?mode=preset">{{ t("Files a chat may reach") }}</a>
                   <form method="post" action="/api/preferences/data-groups/{{ group.id }}/delete">
                     <button class="btn btn--sm btn--danger" type="submit"
                             data-confirm-button="{{ t('Delete the data group “%(name)s”?', name=group.name) }}"

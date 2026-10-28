@@ -1,0 +1,444 @@
+/*
+  Files: the explorer, the viewer, the editor, the `show` card and the tick tree.
+
+  Every value is a token (tokens.css). Rows line up by construction: each list
+  is one grid with a track per column, every row a subgrid of it, and the
+  track that holds a name somebody chose is the one that gives
+  (`minmax(0, 1fr)`). Wide content -- a path, a code block, a long line --
+  scrolls in itself, never the page.
+*/
+
+/* --- Where you are --------------------------------------------------------- */
+.file-crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  overflow-x: auto;
+  white-space: nowrap;
+  padding-bottom: var(--sp-2);
+  margin-bottom: var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+.file-crumbs__sep { color: var(--ink-faint); }
+.file-crumbs__link { color: var(--ink-muted); border-radius: var(--radius-sm); padding: 0 var(--sp-1); }
+.file-crumbs__link:hover { color: var(--ink); }
+.file-crumbs__here { color: var(--ink); font-weight: 600; padding: 0 var(--sp-1); }
+
+/* --- The explorer ------------------------------------------------------------ */
+.files-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+.files-upload { display: contents; }
+.files-upload__pick { cursor: pointer; }
+.files-upload__send { display: none; }
+
+.files-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-4);
+  align-items: start;
+}
+.files-tree { display: none; }
+@media (min-width: 64rem) {
+  .files-body { grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr); }
+  .files-tree {
+    display: block;
+    border-right: var(--border-w) solid var(--border);
+    padding-right: var(--sp-3);
+    overflow-x: auto;
+  }
+}
+
+.ftree { list-style: none; margin: 0; padding-left: var(--sp-3); }
+.files-tree > .ftree { padding-left: 0; }
+.ftree__branch > summary { list-style: none; display: flex; align-items: center; gap: var(--sp-1); }
+.ftree__branch > summary::-webkit-details-marker { display: none; }
+.ftree__chevron { display: inline-flex; color: var(--ink-faint); transition: transform var(--transition-fast); }
+.ftree__branch[open] > summary .ftree__chevron { transform: rotate(90deg); }
+.ftree__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: var(--row-h);
+  min-width: 0;
+  padding: 0 var(--sp-1);
+  border-radius: var(--radius-sm);
+  color: var(--ink-muted);
+}
+.ftree__link:hover { color: var(--ink); background: var(--surface-hover); }
+.ftree__link.is-current { color: var(--ink); background: var(--surface-active); }
+.ftree__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ftree__root { margin-bottom: var(--sp-1); }
+
+.files-list { min-width: 0; border-radius: var(--radius); }
+
+.file-rows {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto var(--tap-min);
+  column-gap: var(--sp-3);
+}
+.file-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  min-height: var(--tap-min);
+  border-bottom: var(--border-w) solid var(--border);
+}
+.file-row--head {
+  min-height: var(--row-h);
+  color: var(--ink-faint);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+}
+.file-row__name { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+.file-row__name > a { display: inline-flex; align-items: center; gap: var(--sp-2); min-width: 0; color: var(--ink); }
+.file-row__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-row__size, .file-row__when { color: var(--ink-muted); font-size: var(--text-sm); white-space: nowrap; text-align: right; }
+.file-row__actions { display: flex; justify-content: flex-end; }
+.file-row[draggable="true"] { cursor: grab; }
+.file-rows--trash { grid-template-columns: minmax(0, 1fr) auto auto; }
+
+@media (max-width: 40rem) {
+  .file-rows { grid-template-columns: minmax(0, 1fr) auto var(--tap-min); }
+  .file-rows .file-row__when { display: none; }
+  .file-rows--trash { grid-template-columns: minmax(0, 1fr) auto; }
+}
+
+/* --- The viewer ---------------------------------------------------------------- */
+.viewer {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  margin-bottom: var(--sp-4);
+}
+.viewer__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: var(--border-w) solid var(--border);
+}
+.viewer__title { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+.viewer__path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.viewer__meta { color: var(--ink-faint); font-size: var(--text-xs); white-space: nowrap; }
+.viewer__tools { display: flex; gap: var(--sp-1); }
+.viewer__body { min-width: 0; min-height: 0; }
+.viewer__md { padding: var(--sp-4); overflow-x: auto; }
+.viewer__code {
+  margin: 0;
+  padding: var(--sp-3);
+  overflow: auto;
+  max-height: 75vh;
+  background: var(--code-bg);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  tab-size: 4;
+}
+.viewer__frame {
+  display: block;
+  width: 100%;
+  height: 75vh;
+  border: 0;
+  background: var(--bg);
+}
+.viewer__image { display: block; max-width: 100%; height: auto; margin: var(--sp-3) auto; }
+
+@media (max-width: 40rem) {
+  .viewer__head { grid-template-columns: minmax(0, 1fr) auto; }
+  .viewer__meta { display: none; }
+}
+
+/* highlight.js, coloured by the theme rather than by a theme file. */
+.hljs-keyword, .hljs-built_in, .hljs-selector-tag, .hljs-literal { color: var(--accent); }
+.hljs-string, .hljs-regexp, .hljs-addition, .hljs-attr { color: var(--leaf); }
+.hljs-comment, .hljs-quote, .hljs-meta { color: var(--ink-faint); font-style: italic; }
+.hljs-number, .hljs-symbol, .hljs-bullet { color: var(--warning); }
+.hljs-title, .hljs-section, .hljs-name, .hljs-type { color: var(--accent-hover); font-weight: 600; }
+.hljs-deletion { color: var(--danger); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 700; }
+
+/* The dialog a `show` card opens: beside the conversation on a wide screen
+   (not modal, so the reply can still be read), the whole screen on a phone. */
+.viewer-dialog {
+  width: min(100vw, 56rem);
+  max-height: 90vh;
+  padding: var(--sp-3);
+  overflow: auto;
+}
+@media (min-width: 64rem) {
+  .viewer-dialog:not(:modal) {
+    position: fixed;
+    inset: var(--header-height) var(--sp-4) var(--sp-4) auto;
+    margin: 0;
+    width: min(48vw, 56rem);
+    max-height: none;
+    z-index: var(--z-panel);
+    box-shadow: var(--shadow-lg);
+  }
+}
+.viewer-dialog__close { float: right; }
+.viewer-dialog .viewer { margin-bottom: 0; }
+
+/* --- Versions ------------------------------------------------------------------ */
+.versions__summary { cursor: pointer; display: flex; align-items: center; gap: var(--sp-2); }
+.versions__list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  column-gap: var(--sp-3);
+  list-style: none;
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+}
+.versions__item {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  min-height: var(--tap-min);
+  border-bottom: var(--border-w) solid var(--border);
+}
+.versions__item.is-current { font-weight: 600; }
+.versions__size { color: var(--ink-muted); font-size: var(--text-sm); }
+.versions__tools { display: flex; gap: var(--sp-1); justify-content: flex-end; }
+@media (max-width: 40rem) {
+  .versions__list { grid-template-columns: minmax(0, 1fr) auto; }
+  .versions__size, .versions__by { display: none; }
+}
+
+/* --- The editor ---------------------------------------------------------------- */
+.editor {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.editor__bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: var(--border-w) solid var(--border);
+}
+.editor__path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor__state { color: var(--ink-faint); font-size: var(--text-xs); white-space: nowrap; }
+.editor__text {
+  min-height: 70vh;
+  border: 0;
+  border-radius: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  resize: vertical;
+}
+.editor__cm { min-height: 70vh; }
+.editor__cm .cm-scroller { overflow: auto; }
+@media (max-width: 40rem) {
+  .editor__bar { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .editor__state { grid-column: 1 / -1; grid-row: 2; }
+}
+
+/* --- The `show` card ----------------------------------------------------------- */
+.show-card {
+  display: grid;
+  grid-template-columns: var(--control-h-sm) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-2);
+  max-width: var(--w-prose);
+  margin: var(--sp-1) 0;
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+}
+.show-card__mark { display: inline-flex; justify-content: center; color: var(--accent); }
+.show-card__body { display: grid; min-width: 0; }
+.show-card__name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.show-card__path {
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.show-card__open { min-height: var(--tap-min); }
+
+/* --- Undo ------------------------------------------------------------------------ */
+.undo__list { list-style: none; margin: 0 0 var(--sp-4); padding: 0; }
+.undo__item {
+  display: grid;
+  grid-template-columns: var(--control-h-sm) minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--row-h);
+  border-bottom: var(--border-w) solid var(--border);
+}
+.undo__path { overflow-x: auto; white-space: nowrap; }
+@media (max-width: 40rem) {
+  .undo__item { grid-template-columns: var(--control-h-sm) minmax(0, 1fr); }
+  .undo__item > .badge { grid-column: 2; justify-self: start; }
+}
+
+/* --- The tick tree --------------------------------------------------------------- */
+.ticks {
+  display: grid;
+  grid-template-columns: var(--tap-min) minmax(0, 1fr) minmax(min(100%, 10rem), auto);
+  column-gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+.tick-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  min-height: var(--tap-min);
+  border-bottom: var(--border-w) solid var(--border);
+}
+.tick-row__check { display: inline-flex; align-items: center; justify-content: center; min-height: var(--tap-min); }
+.tick-row__name {
+  display: grid;
+  grid-template-columns: var(--control-h-sm) auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--sp-1);
+  min-width: 0;
+  padding-left: calc(var(--depth, 0) * var(--sp-4));
+}
+.tick-row__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  border: 0;
+  background: transparent;
+  color: var(--ink-faint);
+  border-radius: var(--radius-sm);
+}
+.tick-row__toggle[aria-expanded="true"] { transform: rotate(90deg); }
+.tick-row__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); }
+.tick-row__note {
+  grid-column: 3;
+  color: var(--ink-faint);
+  font-size: var(--text-xs);
+}
+.tick-row__note:empty { display: none; }
+.tick-row__level:disabled { opacity: var(--opacity-dim); }
+.tick-row.is-ticked .tick-row__label { color: var(--ink); font-weight: 600; }
+/* A passage: a way through, not a place -- dashed, and quieter. */
+.tick-row.is-passage .tick-row__name {
+  border-left: var(--border-w-thick) dashed var(--border-strong);
+}
+.tick-row.is-passage .tick-row__label { color: var(--ink-muted); font-style: italic; }
+
+.ticks-add {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  grid-template-rows: auto auto auto;
+  column-gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+  min-width: 0;
+}
+.ticks-add > .field { display: grid; grid-template-rows: subgrid; grid-row: span 3; min-width: 0; }
+
+@media (max-width: 40rem) {
+  .ticks { grid-template-columns: var(--tap-min) minmax(0, 1fr); }
+  .tick-row__level { grid-column: 2; margin: 0 0 var(--sp-2); }
+  .tick-row__name { padding-left: calc(var(--depth, 0) * var(--sp-2)); }
+}
+
+/* --- Memory: export, import, forget ---------------------------------------------
+   Three fields on one shared track: label, control row, hint -- a long
+   Slovak hint under one never moves the others' controls. */
+.memory-io {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  grid-template-rows: auto auto auto;
+  column-gap: var(--sp-4);
+  row-gap: var(--sp-3);
+  min-width: 0;
+}
+.memory-io > .field { display: grid; grid-template-rows: subgrid; grid-row: span 3; min-width: 0; margin: 0; }
+.memory-io .row { flex-wrap: wrap; min-width: 0; }
+
+/* --- The search index card (admin/extraction.html) -------------------------- */
+.index-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
+  gap: var(--sp-3);
+  margin: 0 0 var(--sp-3);
+  min-width: 0;
+}
+.index-stats__item { display: grid; gap: var(--sp-1); min-width: 0; }
+.index-stats__item dt { color: var(--ink-faint); font-size: var(--text-xs); }
+.index-stats__item dd { margin: 0; font-family: var(--font-mono); font-size: var(--text-lg); }
+
+/* --- The command palette (js/palette.js) ------------------------------------- */
+.palette {
+  width: min(calc(100vw - 2 * var(--sp-4)), var(--w-dialog));
+  padding: var(--sp-2);
+  margin-top: var(--header-height);
+}
+.palette__input { width: 100%; }
+.palette__list {
+  list-style: none;
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.palette__group {
+  padding: var(--sp-2) var(--sp-2) var(--sp-1);
+  color: var(--ink-faint);
+  font-size: var(--text-xs);
+}
+.palette__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--tap-min);
+  padding: 0 var(--sp-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.palette__item.is-chosen { background: var(--surface-active); }
+.palette__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette__detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+.palette__empty { padding: var(--sp-3) var(--sp-2); color: var(--ink-muted); }
+@media (max-width: 40rem) {
+  .palette__item { grid-template-columns: minmax(0, 1fr); }
+  .palette__detail { display: none; }
+}
+
+/* An uploaded logo stands where the pixel leaf stands, in the leaf's box. */
+img.brand-logo { object-fit: contain; }
+
+/* --- Invites (admin/invites.html) --------------------------------------------- */
+.invite-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  grid-template-rows: auto auto auto;
+  column-gap: var(--sp-4);
+  min-width: 0;
+}
+.invite-form > .field { display: grid; grid-template-rows: subgrid; grid-row: span 3; min-width: 0; margin: 0; }
+.invite-form__go { grid-column: 1 / -1; }

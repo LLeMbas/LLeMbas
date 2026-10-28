@@ -70,7 +70,32 @@
 {% set block = tool_block(event) %}
 {% set block_id = ("tool-" ~ message_id ~ "-" ~ (step_index | default(0)) ~ "-" ~ loop.index0) if message_id | default('') else "" %}
 {% set failed = event.status == "error" %}
-{% if block.kind == "hidden" %}
+{% if event.show and not failed %}
+  {#- `show`: a card that opens the file in the viewer. The card names the
+      file and nothing of its contents; the viewer fetches it through a route
+      that rebuilds the chat's view and checks the path again
+      (api/tree.py `chat_show`), or -- a device's file -- reads the copy the
+      device sent (`shown_id`). The words in it are a path a model chose:
+      escaped like everything here. js/files.js opens it, and opens a card
+      that arrives while the page is open by itself, beside the conversation,
+      on a screen wide enough to have room. -#}
+  {% set shown = event.show %}
+  {% set chat_ref = message.chat_id if message is defined and message else "" %}
+  {% set query = ("shown=" ~ (shown.shown_id|urlencode)) if shown.shown_id
+                 else ("node=" ~ (shown.node_id|urlencode) ~ "&version=" ~ ((shown.version_id or "")|urlencode)) %}
+  <div class="show-card"{% if block_id %} id="{{ block_id }}"{% endif %} data-testid="show-card"
+       data-show-key="{{ chat_ref }}:{{ shown.shown_id or shown.version_id or shown.node_id }}">
+    <span class="show-card__mark">{{ icon("eye", "icon--sm") }}</span>
+    <span class="show-card__body">
+      <span class="show-card__name">{{ shown.name }}</span>
+      <code class="show-card__path">{{ shown.path }}{% if shown.line %}:{{ shown.line }}{% endif %}</code>
+    </span>
+    {% if chat_ref %}
+    <a class="btn btn--sm show-card__open" data-open-viewer data-testid="show-open"
+       href="/chat/{{ chat_ref }}/show?{{ query }}{% if shown.line %}&amp;line={{ shown.line|int }}{% endif %}">{{ t("Open") }}</a>
+    {% endif %}
+  </div>
+{% elif block.kind == "hidden" %}
 {% elif block.kind == "read" %}
   {# Just the file: what was in it is the model's business, and one click to see
      a file's contents nobody asked for is clutter. #}

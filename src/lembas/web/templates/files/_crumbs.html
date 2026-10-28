@@ -1,0 +1,14 @@
+{#- Where you are, each part a link -- and a drop target for a file dragged
+    in the explorer (js/files.js). Its own scroller: a deep path is wider than
+    a phone. -#}
+<nav class="file-crumbs" aria-label="{{ t('Where you are') }}" data-testid="file-crumbs">
+  {% for name, at in crumbs %}
+    {% if not loop.first %}<span class="file-crumbs__sep" aria-hidden="true">/</span>{% endif %}
+    {% if loop.last and not link_last|default(false) %}
+    <span class="file-crumbs__here" aria-current="page">{{ name or t("All files") }}</span>
+    {% else %}
+    <a class="file-crumbs__link" href="/files{{ '?path=' ~ at|urlencode if at != '/' }}"
+       data-drop-dir="{{ at }}">{{ name or t("All files") }}</a>
+    {% endif %}
+  {% endfor %}
+</nav>

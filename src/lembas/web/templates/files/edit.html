@@ -1,0 +1,67 @@
+{% extends "files/_layout.html" %}
+{% from "_macros.html" import icon %}
+{#
+  The editor. Without JavaScript it is a textarea and a Save button that post
+  `/files/save` as a form. With it, js/editor.js puts CodeMirror 6 over the
+  textarea (vendored, hash-pinned, loaded only here through the import map
+  below -- scripts/fetch_vendor.py says why it is many files) and saves without
+  leaving the page, sending the hash the file had when it was opened: a file
+  that changed since is refused rather than overwritten, and the editor offers
+  to save anyway.
+#}
+{% block title %}{{ t("Edit") }} {{ path }} - {{ brand.name }}{% endblock %}
+
+{% block files_head %}
+<script type="importmap">
+{
+  "imports": {
+    "@codemirror/state": "{{ asset('vendor/cm-state.mjs') }}",
+    "@codemirror/view": "{{ asset('vendor/cm-view.mjs') }}",
+    "@codemirror/language": "{{ asset('vendor/cm-language.mjs') }}",
+    "@codemirror/commands": "{{ asset('vendor/cm-commands.mjs') }}",
+    "@codemirror/search": "{{ asset('vendor/cm-search.mjs') }}",
+    "@codemirror/autocomplete": "{{ asset('vendor/cm-autocomplete.mjs') }}",
+    "@codemirror/lint": "{{ asset('vendor/cm-lint.mjs') }}",
+    "@lezer/common": "{{ asset('vendor/lezer-common.mjs') }}",
+    "@lezer/highlight": "{{ asset('vendor/lezer-highlight.mjs') }}",
+    "@lezer/lr": "{{ asset('vendor/lezer-lr.mjs') }}",
+    "codemirror": "{{ asset('vendor/cm-codemirror.mjs') }}",
+    "@codemirror/lang-markdown": "{{ asset('vendor/cm-lang-markdown.mjs') }}",
+    "@codemirror/lang-python": "{{ asset('vendor/cm-lang-python.mjs') }}",
+    "@codemirror/lang-javascript": "{{ asset('vendor/cm-lang-javascript.mjs') }}",
+    "@codemirror/lang-html": "{{ asset('vendor/cm-lang-html.mjs') }}",
+    "@codemirror/lang-css": "{{ asset('vendor/cm-lang-css.mjs') }}",
+    "@codemirror/lang-json": "{{ asset('vendor/cm-lang-json.mjs') }}"
+  }
+}
+</script>
+<script type="module" src="{{ asset('js/editor.js') }}"></script>
+{% endblock %}
+
+{% block files_content %}
+{% with link_last = true %}{% include "files/_crumbs.html" %}{% endwith %}
+{% if problem %}
+<div class="empty">
+  {{ icon("pencil", "empty__mark") }}
+  <h2 class="empty__title">{{ t("Not editable here") }}</h2>
+  <p class="empty__text">{{ problem }}</p>
+  <p class="empty__text"><a href="/files/view?path={{ path|urlencode }}">{{ t("Look at it instead") }}</a></p>
+</div>
+{% else %}
+<form class="editor" method="post" action="/files/save" data-in-place="off" data-editor
+      data-testid="file-editor">
+  <input type="hidden" name="path" value="{{ opened.path }}">
+  <input type="hidden" name="base" value="{{ opened.sha }}">
+  <div class="editor__bar">
+    <code class="editor__path">{{ opened.path }}</code>
+    <span class="editor__state" data-editor-state aria-live="polite"></span>
+    <a class="btn btn--ghost btn--sm" href="/files/view?path={{ opened.path|urlencode }}">{{ t("Close") }}</a>
+    <button class="btn btn--primary btn--sm" type="submit" data-testid="editor-save"
+            aria-keyshortcuts="Control+S">{{ t("Save") }}</button>
+  </div>
+  <textarea class="textarea editor__text" name="content" spellcheck="false"
+            data-language="{{ opened.language or opened.kind }}"
+            aria-label="{{ t('Contents of %(name)s', name=opened.name) }}">{{ opened.text }}</textarea>
+</form>
+{% endif %}
+{% endblock %}

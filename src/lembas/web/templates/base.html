@@ -55,6 +55,7 @@
 
 <link rel="stylesheet" href="{{ asset('css/tokens.css') }}">
 <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+<link rel="stylesheet" href="{{ asset('css/files.css') }}">
 {% block head %}{% endblock %}
 
 {#
@@ -169,6 +170,8 @@
 <script src="{{ asset('js/ui.js') }}" defer></script>
 <script src="{{ asset('js/inplace.js') }}" defer></script>
 <script src="{{ asset('js/dnd.js') }}" defer></script>
+<script src="{{ asset('js/files.js') }}" defer></script>
+<script src="{{ asset('js/ticks.js') }}" defer></script>
 {# commands.js before composer.js: the second reads the first's table to draw
    the `/` menu, and both are deferred so the order here is the run order. #}
 <script src="{{ asset('js/commands.js') }}" defer></script>

@@ -1,0 +1,51 @@
+{% from "_macros.html" import icon %}
+{#
+  Rows of the tick tree (api/access_ui.py). One row per path: the tick (does
+  this path have a rule of its own?), the name, indented by depth, with what
+  the rules give it said underneath, and the level -- only for a ticked row.
+
+  The three things a row can say, and js/ticks.js keeps them true as you tick:
+  * ticked: its own level;
+  * unticked under a ticked folder: that folder's level, and where it comes from;
+  * unticked with a tick somewhere below and none above: a **passage** --
+    not listed and not readable; what is ticked inside it is reached only by
+    its full path. Drawn dashed, so it reads as a way through, not a place.
+
+  A grid with a track per part and each row a subgrid: a long name wraps in its
+  own track and never moves the level select.
+#}
+{% for r in rows %}
+<div class="tick-row{{ ' is-passage' if r.passage }}{{ ' is-ticked' if r.rule }}" data-tick-row
+     data-path="{{ r.path }}" data-depth="{{ r.depth }}" style="--depth: {{ r.depth }}"
+     data-testid="tick-row">
+  <label class="tick-row__check">
+    <input type="checkbox" name="tick" value="{{ r.path }}" data-tick {{ 'checked' if r.rule }}
+           aria-label="{{ t('Give %(path)s a level of its own', path=r.path) }}">
+  </label>
+  <span class="tick-row__name">
+    {% if r.is_dir %}
+    <button class="tick-row__toggle" type="button" data-tick-toggle
+            aria-expanded="{{ 'true' if r.expanded else 'false' }}"
+            aria-label="{{ t('Show what is in %(path)s', path=r.path) }}"
+            {%- if not r.expanded %} hx-get="/access/rows?scope={{ scope|urlencode }}&amp;path={{ r.path|urlencode }}&amp;depth={{ r.depth + 1 }}"
+            hx-trigger="click once" hx-target="closest .tick-row" hx-swap="afterend"{% endif %}>
+      {{ icon("chevron-right", "icon--sm") }}
+    </button>
+    {% else %}<span class="tick-row__toggle" aria-hidden="true"></span>{% endif %}
+    {{ icon("folder" if r.is_dir else "file-text", "icon--sm") }}
+    <span class="tick-row__label">{{ r.name }}</span>
+    <small class="tick-row__note" data-tick-note>
+      {%- if r.rule -%}
+      {%- elif r.passage -%}{{ t("Passage: not listed or readable; what is ticked inside is reached by its full path.") }}
+      {%- elif r.effective != "none" -%}{{ t("As above: %(level)s", level=t(level_labels[r.effective])) }}
+      {%- else -%}{{ t("No access") }}{%- endif -%}
+    </small>
+  </span>
+  <select class="select tick-row__level" name="level:{{ r.path }}" data-tick-level
+          aria-label="{{ t('Level for %(path)s', path=r.path) }}"{% if not r.rule %} disabled{% endif %}>
+    {% for level in levels %}
+    <option value="{{ level }}" {{ 'selected' if (r.rule or 'ro') == level }}>{{ t(level_labels[level]) }}</option>
+    {% endfor %}
+  </select>
+</div>
+{% endfor %}

@@ -1,0 +1,66 @@
+{% extends "files/_layout.html" %}
+{% from "_macros.html" import icon %}
+{#
+  The tick-tree access editor, for a chat's grants and for a data group's
+  preset and floor (api/access_ui.py). The root row is `/`, everything: ticked,
+  it gives the whole tree a level, and anything ticked below it says otherwise
+  for its own part.
+#}
+{% block title %}{{ title }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Access") }}{% endblock %}
+
+{% block files_content %}
+{% if chat is defined and chat %}
+<p class="admin-lede"><a href="/chat/{{ chat.id }}">{{ icon("chevron-left", "icon--sm") }} {{ chat.title }}</a></p>
+{% elif group is defined and group %}
+<p class="admin-lede">
+  {% if user.is_admin and not group.owner_id %}<a href="/admin/data-groups/{{ group.id }}">{{ icon("chevron-left", "icon--sm") }} {{ group.name }}</a>{% else %}<a href="/settings?tab=data">{{ icon("chevron-left", "icon--sm") }} {{ t("Data") }}</a>{% endif %}
+</p>
+<nav class="filter-tabs" aria-label="{{ t('Which rules') }}">
+  <a class="filter-tab {{ 'is-active' if mode == 'preset' }}" href="/data-groups/{{ group.id }}/access?mode=preset">{{ t("Preset") }}</a>
+  <a class="filter-tab {{ 'is-active' if mode == 'floor' }}" href="/data-groups/{{ group.id }}/access?mode=floor">{{ t("Ceiling") }}</a>
+</nav>
+{% endif %}
+
+<section class="card">
+  <h2 class="card__title">{{ title }}</h2>
+  <p class="card__lede">{{ lede }}</p>
+  {% if chat is defined and chat %}
+  <p class="field__hint">{{ t("These are this chat's own grants.") if customised else t("This chat uses its data group's preset. Saving here gives it grants of its own.") }}</p>
+  {% endif %}
+
+  <form method="post" action="{{ action }}" class="ticks-form" data-ticks data-testid="tick-tree">
+    <div class="ticks" role="group" aria-label="{{ title }}">
+      {% with rows = [{"name": "/", "path": "/", "is_dir": false, "depth": 0, "rule": root_rule,
+                       "effective": root_rule or "none", "passage": false, "expanded": true}] %}
+        {% include "access/_rows.html" %}
+      {% endwith %}
+      {% include "access/_rows.html" %}
+    </div>
+
+    {#- A path nobody here can see -- another person's, a directory yet to be
+        made -- can still be given a rule by typing it. -#}
+    <div class="ticks-add">
+      <div class="field">
+        <label class="field__label" for="tick-add-path">{{ t("Another path") }}</label>
+        <input class="input" id="tick-add-path" name="add_path">
+        <p class="field__hint">{{ t("For a path not in the tree above.") }}</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="tick-add-level">{{ t("Level") }}</label>
+        <select class="select" id="tick-add-level" name="add_level">
+          {% for level in levels %}<option value="{{ level }}" {{ 'selected' if level == 'ro' }}>{{ t(level_labels[level]) }}</option>{% endfor %}
+        </select>
+        <p class="field__hint"></p>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn--primary" type="submit" data-testid="ticks-save">{{ t("Save") }}</button>
+      {% if chat is defined and chat and customised %}
+      <button class="btn" type="submit" name="reset" value="1">{{ t("Use the data group's preset") }}</button>
+      {% endif %}
+    </div>
+  </form>
+</section>
+{% endblock %}

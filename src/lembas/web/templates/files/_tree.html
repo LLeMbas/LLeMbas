@@ -1,0 +1,25 @@
+{% from "_macros.html" import icon %}
+{#- The directory tree beside the list. A branch the page did not open is
+    fetched when it is first opened (`/files/dirs`), once. Each name is a link
+    and a drop target. -#}
+{% macro branch_list(branches) -%}
+<ul class="ftree" role="group">
+  {% for b in branches %}
+  <li class="ftree__item">
+    <details class="ftree__branch"{% if b.open %} open{% endif %}
+             {%- if b.children is none %} hx-get="/files/dirs?path={{ b.row.path|urlencode }}"
+             hx-trigger="toggle once" hx-target="find .ftree__kids" hx-swap="innerHTML"{% endif %}>
+      <summary class="ftree__summary">
+        <span class="ftree__chevron">{{ icon("chevron-right", "icon--sm") }}</span>
+        <a class="ftree__link{{ ' is-current' if b.current }}" href="/files?path={{ b.row.path|urlencode }}"
+           data-drop-dir="{{ b.row.path }}"{% if b.current %} aria-current="page"{% endif %}>
+          {{ icon("folder", "icon--sm") }}<span class="ftree__name">{{ b.row.name }}</span>
+        </a>
+      </summary>
+      <div class="ftree__kids">{% if b.children %}{{ branch_list(b.children) }}{% endif %}</div>
+    </details>
+  </li>
+  {% endfor %}
+</ul>
+{%- endmacro %}
+{{ branch_list(branches) }}

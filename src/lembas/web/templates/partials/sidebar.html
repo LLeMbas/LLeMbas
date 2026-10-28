@@ -94,6 +94,11 @@
               aria-label="{{ t('Install as an app') }}" title="{{ t('Install as an app') }}">
         {{ icon("arrow-down") }}
       </button>
+      {#- The file tree: the explorer (api/tree.py). -#}
+      <a class="btn btn--icon" href="/files" data-testid="nav-files"
+         aria-label="{{ t('Files') }}" title="{{ t('Files') }}">
+        {{ icon("folder-open") }}
+      </a>
       {% if user.is_admin %}
       <a class="btn btn--icon" href="/admin" aria-label="{{ t('Admin settings') }}" title="{{ t('Admin settings') }}">
         {{ icon("shield") }}

@@ -14,6 +14,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from lembas import __version__
 from lembas.api import (
+    access_ui,
     admin,
     admin_agents,
     admin_audio,
@@ -45,6 +46,7 @@ from lembas.api import (
     search,
     terminal,
     tokens,
+    tree,
 )
 from lembas.api.deps import RedirectToLogin, is_htmx, login_redirect
 from lembas.api.v1 import admin as api_admin
@@ -245,6 +247,8 @@ def create_app() -> FastAPI:
     app.include_router(admin_agents.router)
     app.include_router(admin_data_groups.router)
     app.include_router(ordering.router)
+    app.include_router(tree.router)
+    app.include_router(access_ui.router)
     app.include_router(push.router)
     # The program's door: bearer tokens only, never the cookie.
     app.include_router(devices.router)

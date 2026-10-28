@@ -1,0 +1,62 @@
+{% from "_macros.html" import icon %}
+{% from "files/_macros.html" import size %}
+{#
+  A file, drawn by its kind (services/file_ui.py). Everything in it is
+  untrusted -- a model or a device may have written the file -- so:
+
+  * Markdown is `services/markdown.py`'s output (markdown-it, then nh3): the
+    one path allowed to emit HTML, and the only `|safe` here.
+  * Code and text are escaped by Jinja; js/files.js highlights code in place
+    from its text (highlight.js reads `textContent`, never markup).
+  * HTML is never put into this page. It is the sealed frame: `sandbox`
+    without `allow-same-origin`, served from its own route under the sealed
+    policy (security/sealed.py), so it is an opaque origin with no network and
+    no way to reach this page, its cookie or the application.
+
+  Used as a page (files/view.html) and as the dialog a `show` card opens.
+#}
+<article class="viewer viewer--{{ opened.kind }}" data-testid="file-viewer">
+  <header class="viewer__head">
+    <span class="viewer__title">
+      {{ icon("file-text", "icon--sm") }}
+      <code class="viewer__path" title="{{ opened.path }}">{{ opened.path }}</code>
+    </span>
+    <span class="viewer__meta">{{ size(opened.size) }}{% if opened.version %} · {{ t("an older version") }}{% endif %}</span>
+    <span class="viewer__tools">
+      {% if opened.writable and not chat and opened.kind in ("markdown", "code", "text", "html") %}
+      <a class="btn btn--sm" href="/files/edit?path={{ opened.path|urlencode }}" data-testid="viewer-edit">
+        {{ icon("pencil", "icon--sm") }} {{ t("Edit") }}</a>
+      {% endif %}
+      {% if chat and opened.node %}
+      <a class="btn btn--sm" href="/files/view?path={{ opened.path|urlencode }}">{{ t("Open in Files") }}</a>
+      {% endif %}
+      <a class="btn btn--icon btn--sm" href="{{ raw_url }}" download
+         aria-label="{{ t('Download') }}" title="{{ t('Download') }}">{{ icon("download", "icon--sm") }}</a>
+    </span>
+  </header>
+
+  <div class="viewer__body">
+  {% if opened.kind == "markdown" %}
+    <div class="msg__body viewer__md">{{ html|safe }}</div>
+  {% elif opened.kind == "code" %}
+    <pre class="viewer__code"><code data-highlight="{{ opened.language }}"
+         data-hljs-src="{{ asset('vendor/highlight.min.js') }}"
+         {%- if line %} data-line="{{ line }}"{% endif %}>{{ opened.text }}</code></pre>
+  {% elif opened.kind == "text" %}
+    <pre class="viewer__code viewer__code--plain"{% if line %} data-line="{{ line }}"{% endif %}><code>{{ opened.text }}</code></pre>
+  {% elif opened.kind == "html" %}
+    <iframe class="viewer__frame" src="{{ frame_url }}" sandbox="allow-scripts"
+            referrerpolicy="no-referrer" loading="lazy" data-testid="viewer-frame"
+            title="{{ t('The page in %(name)s, sealed off from this application', name=opened.name) }}"></iframe>
+  {% elif opened.kind == "image" %}
+    <img class="viewer__image" src="{{ raw_url }}&amp;inline=1" alt="{{ opened.name }}">
+  {% else %}
+    <div class="empty">
+      {{ icon("file-text", "empty__mark") }}
+      <p class="empty__text">{{ t("This file is too large to show here.") if opened.kind == "large"
+                                 else t("This is not a text file, so it is not shown here.") }}</p>
+      <p class="empty__text"><a href="{{ raw_url }}" download>{{ t("Download it") }}</a></p>
+    </div>
+  {% endif %}
+  </div>
+</article>
