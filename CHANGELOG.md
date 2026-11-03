@@ -5,6 +5,12 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
+### Fixed
+
+- **A 2.x installation is never offered a 1.x release.** The stable channel, automatic updates and
+  `deploy/update.sh` keep to the running major (from 1.7.3), so the Update button on a 2.0 beta can
+  no longer step back onto 1.7.x.
+
 ## 2.0.0-beta.1 — 2026-11-03
 
 The first beta of LLeMbas 2.0, a new major: one file system for chats, organisations, prices instead
