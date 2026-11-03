@@ -1,6 +1,7 @@
 {
   "name": "skills_list",
   "scope": "shared",
+  "sessions": "both",
   "risk": "read",
   "exclusive": false,
   "block": "search",

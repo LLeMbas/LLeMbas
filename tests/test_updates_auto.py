@@ -10,7 +10,7 @@ from datetime import datetime
 
 import pytest
 
-from lembas import __version__
+from lembas import __version__ as _RUNNING
 from lembas.services import backup, settings_store, updates, updates_auto
 
 
@@ -24,6 +24,17 @@ def _fresh():
 def _backups() -> list:
     """The backups on disk, newest first."""
     return [archive.path for archive in backup.archives()]
+
+
+# The policy is about stable releases: a pre-release is updated by hand and
+# `allowed` never moves one (`_version` refuses a suffix). The tests run as the
+# stable release this line will become.
+__version__ = _RUNNING.split("-")[0]
+
+
+@pytest.fixture(autouse=True)
+def _as_a_stable_release(monkeypatch):
+    monkeypatch.setattr(updates_auto, "__version__", __version__)
 
 
 def _bump(part: str) -> str:

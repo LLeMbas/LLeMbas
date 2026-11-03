@@ -1,6 +1,7 @@
 {
   "name": "multiedit",
   "scope": "cli",
+  "sessions": "agent",
   "risk": "write",
   "exclusive": false,
   "block": "edit",

@@ -1,6 +1,7 @@
 {
   "name": "notes_search",
-  "scope": "shared",
+  "scope": "cli",
+  "sessions": "agent",
   "risk": "read",
   "exclusive": false,
   "block": "search",

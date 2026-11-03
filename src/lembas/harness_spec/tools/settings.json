@@ -1,6 +1,7 @@
 {
   "name": "settings",
   "scope": "cli",
+  "sessions": "agent",
   "risk": "interact",
   "exclusive": false,
   "block": "tool",

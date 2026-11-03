@@ -1,5 +1,5 @@
 {
-  "about": "Text → the pieces a knowledge document is cut into for search: about `size` characters (raised to 200 when smaller), cut just after a paragraph break, else a line break, else a sentence's \". \", found in the window's last third, with `overlap` characters (at most half the size) repeated; CRLF read as LF; pieces under 40 characters dropped.",
+  "about": "Text → the pieces a knowledge document is cut into for search: about `size` characters (raised to 200 when smaller), cut just after a paragraph break, else a line break, else a sentence's \". \", found in the window's last third, with `overlap` characters (at most half the size) repeated; CRLF read as LF; pieces under 40 characters dropped. Spec 3.0.0: indexing for search cuts by tokens instead (chunk_tokens.json, filesystem.md); this character splitter stays the rule wherever a piece is still measured in characters.",
   "cases": [
     {
       "size": 200,

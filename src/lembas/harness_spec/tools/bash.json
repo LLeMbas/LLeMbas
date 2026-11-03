@@ -1,6 +1,7 @@
 {
   "name": "bash",
   "scope": "cli",
+  "sessions": "agent",
   "risk": "execute",
   "exclusive": false,
   "block": "shell",

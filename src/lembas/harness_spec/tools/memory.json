@@ -1,6 +1,7 @@
 {
   "name": "memory",
   "scope": "shared",
+  "sessions": "both",
   "risk": "interact",
   "exclusive": false,
   "block": "tool",

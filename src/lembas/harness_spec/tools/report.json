@@ -1,6 +1,7 @@
 {
   "name": "report",
   "scope": "shared",
+  "sessions": "both",
   "risk": "interact",
   "exclusive": false,
   "block": "tool",

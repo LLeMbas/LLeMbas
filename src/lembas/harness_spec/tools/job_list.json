@@ -1,6 +1,7 @@
 {
   "name": "job_list",
   "scope": "shared",
+  "sessions": "both",
   "risk": "read",
   "exclusive": false,
   "block": "tool",

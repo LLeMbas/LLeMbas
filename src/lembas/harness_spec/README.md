@@ -7,7 +7,7 @@ metadata. This directory writes that design down as data. Each project implement
 language; neither ever runs the other. LLeMbas CLI embeds these files at build time; LLeMbas vendors a pinned, hash-checked copy.
 
 The concept-by-concept map of the two implementations, and where they still differ, is the wiki
-page [Harness-parity](https://git.houmeres.sk/LLeMbas/LLeMbas-CLI/wiki/Harness-parity).
+page *Harness-parity* in LLeMbas CLI's wiki.
 
 ## What is here
 
@@ -15,14 +15,16 @@ page [Harness-parity](https://git.houmeres.sk/LLeMbas/LLeMbas-CLI/wiki/Harness-p
 |---|---|
 | `VERSION` | The spec's own version, apart from LLeMbas CLI's |
 | `purpose.json` | The `purpose` argument added to a tool whose calls say what they are for |
-| `tools/<name>.json` | One tool each: name, `scope`, `risk`, `exclusive`, `block` (how a call is shown: `shell`, `edit`, `read`, `search`, `web`, `task`, `plan` — not drawn, the plan card refreshes — `hidden`, `tool`), `purpose`, former names (`aliases`, per project), renamed arguments, `variables`, what a project offers of the parameters (`narrow`, per project), `offered` (`subagent`: given to subagents only, never to the main agent — `report`), the description and the JSON Schema of its parameters — exactly what a model is sent |
+| `tools/<name>.json` | One tool each: name, `scope`, `sessions`, `risk`, `exclusive`, `block` (how a call is shown: `shell`, `edit`, `read`, `search`, `web`, `task`, `plan` — not drawn, the plan card refreshes — `hidden`, `tool`), `purpose`, former names (`aliases`, per project), renamed arguments, `variables`, what a project offers of the parameters (`narrow`, per project), `offered` (`subagent`: given to subagents only, never to the main agent — `report`), `requires` and `unavailable` (when it can be offered, and what a call answers when that has gone), `confirm` (`always`: the person is asked in every mode), the description and the JSON Schema of its parameters — exactly what a model is sent |
 | `prompts/` | The prompt texts; `prompts/index.json` says which are shared, which LLeMbas fragment each one is, and what each `{{variable}}` in a text means. `prompts/personality/` holds the personality presets both offer |
 | `permission/hardline.json` | The floor: commands refused in every mode, protected paths, and how a command is spelled plainly before it is checked again |
 | `permission/arity.json` | How much of a command an "always allow" covers |
 | `permission/defaults.json` | The rules every session starts from |
 | `permission/modes.json` | The four modes — manual, edit, auto, plan — as what each does with each risk class |
 | `models/schema.json` | Model metadata: context, output limit, efforts, vision, tools, notes, capacity |
-| `loop.json` | How one prompt runs: the step backstop, budgets, wrap-up, nudges, parallel calls, capacity; `jobs` — background work, its marks and limits |
+| `loop.json` | How one prompt runs: the step backstop, budgets, wrap-up, nudges, parallel calls, capacity; `jobs` — background work, its marks and limits; `context` — result ids, stubs, the output cap, the compaction table |
+| `filesystem.md` | The file system a session works in: paths, node kinds, the four access levels, errors, listings, search and indexing by tokens, stacked instruction files, skills, memory |
+| `context.md` | Context hygiene: what happens to a tool result when it is inserted, and never afterwards |
 | `quirks.json` | What real servers do, and how both harnesses cope |
 | `conformance/<area>.json` | Cases with their expected results, run by both test suites |
 | `acp.md` | The link between them: ACP plus every `_lembas/*` method, field and capability |
@@ -35,6 +37,20 @@ page [Harness-parity](https://git.houmeres.sk/LLeMbas/LLeMbas-CLI/wiki/Harness-p
 - **Scopes:** `shared` — both projects implement it; `cli` or `llembas` — only that one. The same
   two names key what is per project elsewhere: a tool's `aliases`, `loop.json`'s budgets, a
   protected path's `scope`.
+- **Sessions** (a tool's `sessions`, spec 3.0.0): where a tool is offered — `chat`, a conversation
+  on the server, working in the server's file system (`filesystem.md`); `agent`, a session on a
+  device (the CLI's own, Desktop's agent — which is the CLI — or an agent chat the web UI runs on a
+  linked device), working on that machine's disk; `both`. The two say different things: `read` is
+  `shared` and `both` (each project implements it for its own world); `bash` is `cli` and `agent`;
+  `mkdir` is `llembas` and `chat`.
+- **Requires** (spec 3.0.0): what must hold for a tool to be offered at all — `page`: a browser
+  page of the chat is open and attached (not a schedule, not a background job); `display`: the
+  session is shown somewhere a file can be opened (the web UI, Desktop; not a bare terminal);
+  `forge`: the session's view holds a repository mounted from a forge. A requirement that goes away
+  between the offer and the call makes the call answer the tool's `unavailable` text, word for
+  word, as its result.
+- **Confirm** (spec 3.0.0): `always` — the call is put to the person before it runs, in every mode,
+  auto included, and runs on a yes only; nothing remembers the answer (`permission/modes.json`).
 - A tool's other names, per project, are listed in its `aliases` and work as the tool. A former
   name may have taken different arguments; the project converts them. The one such case:
   **`todo` → `plan_write`**, `todos[]` becoming one phase called "Work" (`pending` → `todo`,
@@ -45,6 +61,71 @@ page [Harness-parity](https://git.houmeres.sk/LLeMbas/LLeMbas-CLI/wiki/Harness-p
   (`{{plan_context}}`) on every step while it exists. `plan_write` and `plan_update` are offered in
   every mode; `plan_submit` only in plan mode, where it is the approval. Their permission key is
   `plan` (`permission/defaults.json`), which a rule written for the former `todo` key still reaches.
+
+## 3.0.0
+
+Written ahead of both implementations as `3.0.0-draft`, and `3.0.0` once both carried it (LLeMbas
+CLI 2.0.0-beta.1, LLeMbas 2.0.0-beta.1). **Two worlds, one harness**: a chat works in the server's file
+system, an agent session on its device's disk, and neither sees the other's files; what is shared is
+this design.
+
+- **`sessions`, `requires`, `unavailable`, `confirm`** — new fields on a tool (Vocabulary). Every
+  tool says its `sessions`.
+- **New tools.** `mkdir`, `mv`, `rm` (to the trash) and `search` (meaning and words over the files
+  this session can see, filtered by its view after scoring) — LLeMbas, chat. `show` (a file in the
+  user's viewer: Markdown, code, text, HTML in a sandboxed frame) — shared, `requires: display`: a
+  chat in the web UI, an agent session through the link to the web UI or Desktop (`acp.md`
+  `_lembas/show`), never a bare terminal. `python` (Pyodide in the user's browser) — LLeMbas, chat,
+  `requires: page`; with no page it answers *Python cannot run now: no open browser page is attached
+  to this chat.* The forge verbs `commit`, `branch`, `pr`, `merge`, `tag`, `release` — LLeMbas,
+  chat, `requires: forge`; `merge`, `tag` and `release` `confirm: always`. `recall` — shared, both
+  (`context.md`). An agent session keeps git through `bash`, as before.
+- **The file tools are shared.** `read`, `write`, `edit`, `glob`, `grep` and `list` are `shared` and
+  offered in both: on the device's disk, and over the server's tree in a chat. `multiedit`,
+  `apply_patch` and `bash` stay the agent's. A chat's listing marks a mount and a read-only entry
+  (`filesystem.md`, told to the model in `blocks/workspace.md`). `skills_list`, `skill_view` and `skill_manage` work over skill files on both
+  sides; `memory` is the same tool on both, and its records are the server's for both
+  (`filesystem.md`, *Memory*; `acp.md`, *The HTTP API*). `session_search` is shared.
+- **Removed from chat** (LLeMbas): `knowledge_search`, `knowledge_get`, `notes_search`,
+  `note_view`, `note_manage` — now `cli` and `agent` only: the CLI keeps its local library — and
+  LLeMbas's own `report_*`, `scratch_write`, the prototype tools and the canvas, which were never
+  in the spec. Notes, reports and knowledge become files; prototypes become `show`.
+  `blocks/library.md` and `blocks/prototypes.md` are the CLI's alone.
+- **`filesystem.md`** — the file system as a contract: paths, the kinds `dir`, `file`, `mount`, the
+  levels `none`, `ro`, `stage`, `commit`, grants and floors, the exact error texts, and the rule
+  that a granted path under one that is not is reached only by its full path, its ancestor denied
+  for reading and writing and never listed. Paths absolute in every answer but a result's bracket;
+  one `No such file or directory` for every tool, the `write`/`edit` refusals' texts, the `list`
+  tree; where skills are found and in what order, and the name rule
+  (`^[a-z0-9][a-z0-9-]{0,63}$`). Search results and **indexing by tokens** (at most 480
+  tokens a piece, 64 repeated; a piece the embedder refuses is split, never dropped).
+  **Instruction files stack** from the boundary down to the start directory, outermost first, one
+  per directory (`AGENTS.md`, else `CLAUDE.md`), none from a directory the session cannot read —
+  the CLI took only the nearest one before. `blocks/workspace.md` (LLeMbas) tells a chat's model its
+  view.
+- **`context.md`** — context hygiene, insert-time only, nothing sent ever rewritten: every result
+  has an id (`#0001`: its number in the session, in hex, at least 4 digits); a read carries its
+  lines and content hash, under the path as the call gave it; an unchanged re-read, or a range
+  inside an earlier unchanged read, is a stub — naming only a result in the request being built; output over 400 lines or 40,000 characters keeps its
+  head and tail with `[N lines elided, full output #id]`; `recall` shows any stored result; edits
+  answer with their diff; the same listing or search with the same result is a stub; compaction
+  adds a table of the reads it covers (those since the previous compaction, in turns still in the
+  history) and empties the dedupe table; earlier reasoning is left to the chat
+  template. `loop.json` `context` holds the texts and numbers, `blocks/context.md` tells the model.
+- **`acp.md`**: **link protocol 3** — LLeMbas 2.0 and LLeMbas CLI 2.0 speak it alone, and a 1.x peer
+  and a 2.0 one refuse each other, each saying what to update (discovery's `protocol` is raised to 3
+  on purpose); the served id is the device's ref for a model (one server, no connection prefix);
+  `session/new`'s result carries `instance`; a session the client opened runs on the
+  chat's model and no other — refused rather than answered on the device's own, so the "answered on
+  its own model" notice is gone; capability `show` with `_lembas/show`; memory through the
+  instance; a 3.0.0 instance sends neither `library` nor `prototypes`. `GET /v1/usage` counts
+  and prices without credits: the month's cost per currency (`month.cost_by_currency`), never
+  summed across currencies; the credit fields are null. The device asks for the `memory` scope.
+- **Permissions**: default rules for the new tools (`search`, `recall`, `show`, `python` allowed;
+  the forge verbs asked); `modes.json` `confirm`.
+- **Conformance**: `fs_access`, `instructions`, `context`, `chunk_tokens` — new, their answers
+  written from a reference model of the rules, not recorded from either implementation (neither has
+  them yet). `chunk` stays, noted as the character rule.
 
 ## 2.0.0
 
@@ -126,7 +207,9 @@ narrower tool's facts through its `variables`.
 ## Changing it
 
 1. Change the spec first, and bump `VERSION`: **patch** for a text or a new conformance case,
-   **minor** for a new tool, rule or field, **major** for a rename or a removed tool. A tool folded
+   **minor** for a new tool, rule or field, **major** for a rename or a removed tool — removed
+   from either project. A spec written ahead of its implementations carries a pre-release suffix
+   (`3.0.0-draft`) until both have it. A tool folded
    into another, its name kept as an alias that still runs, is minor: nothing stored or trained
    breaks.
 2. A fix comes with a **conformance case** that fails without it. In LLeMbas CLI,

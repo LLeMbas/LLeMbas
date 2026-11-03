@@ -1,6 +1,7 @@
 {
   "name": "web_search",
   "scope": "shared",
+  "sessions": "both",
   "risk": "read",
   "exclusive": false,
   "block": "web",

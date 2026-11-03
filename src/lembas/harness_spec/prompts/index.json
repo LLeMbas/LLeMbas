@@ -11,7 +11,7 @@
         "intro": "the opening line: what the model is here to help with on this surface (the CLI: software engineering and running the project; LLeMbas: whatever the person is working on)",
         "surface": "where the output is shown and how it is rendered (a terminal, monospace, GitHub-flavoured markdown; a web page rendering markdown)",
         "tool_list": "LLeMbas: the exact tools offered on this request, as a sentence; the CLI: empty",
-        "file_tools": "the CLI: the bullet about using read, edit, write, grep and glob rather than shell commands; LLeMbas: empty",
+        "file_tools": "the bullet about using the dedicated file tools — read, edit, write, grep, glob — rather than shell commands: the CLI's, and since spec 3.0.0 LLeMbas's in a chat as well (where there is no shell, the bullet says the file tools are the way to the files); empty for a session without file tools",
         "plan_tools": "the bullet about planning with plan_write from the start and keeping the plan current with plan_update, and saying so with ask_user when the plan turns out wrong; empty for a subagent, which has no plan tools",
         "plan_context": "the current plan, rendered with its ids, under a heading, with the sentence to work to it and quote the ids; empty when there is none",
         "ask_tool": "the bullet about asking with ask_user when a decision is the user's; empty for a subagent, which has nobody to ask",
@@ -183,25 +183,21 @@
       "llembas_text": "identical"
     },
     "blocks/prototypes.md": {
-      "scope": "shared",
-      "llembas": [
-        "core.prototypes"
-      ],
-      "llembas_text": "identical",
+      "scope": "cli",
+      "llembas": [],
       "variables": {
         "prototype_sources": "whether the page may load anything over https (the instance's network setting), as one sentence",
         "prototype_surface": "where it is seen on this surface: empty in the web UI, which renders it; in a terminal, that it is saved as a file the person can open, and that the web UI renders it"
-      }
+      },
+      "why": "spec 3.0.0: a chat has no prototypes (show replaces them); the CLI keeps the text while a client still offers them over the link"
     },
     "blocks/library.md": {
-      "scope": "shared",
-      "llembas": [
-        "core.library"
-      ],
-      "llembas_text": "identical",
+      "scope": "cli",
+      "llembas": [],
       "variables": {
         "knowledge_scope": "the sentence naming the knowledge bases this conversation is limited to (\"Knowledge searches here cover only: …. Finding nothing there means nothing is there, not that the library is empty.\"), or empty"
-      }
+      },
+      "why": "spec 3.0.0: a chat has no knowledge bases (its files are searched with search); the CLI keeps its own local library"
     },
     "blocks/subagent.md": {
       "scope": "shared",
@@ -227,6 +223,23 @@
       "llembas": [],
       "llembas_text": "identical",
       "why": "LLeMbas reads it from the vendored spec (harness_spec.prompt), not from a fragment"
+    },
+    "blocks/context.md": {
+      "scope": "shared",
+      "llembas": [],
+      "llembas_text": "differs",
+      "why": "not adopted yet (spec 3.0.0)"
+    },
+    "blocks/workspace.md": {
+      "scope": "llembas",
+      "llembas": [],
+      "variables": {
+        "start": "the session's start directory, as a code span",
+        "view": "every path granted to this session with its level (read-only, stage, commit), as a list in one sentence, a mount named as a repository with its branch",
+        "repositories": "when the view holds a repository from a forge: the sentence saying changes there collect in this session's working copy until `commit`, that a branch moved on the forge refuses the commit and shows the difference, and that merge, tag and release always ask the user; otherwise empty",
+        "show": "when the session has a screen (`show` is offered): the sentence saying to open a file the user should see with show — a page, a chart, a document you made — rather than pasting it; otherwise empty",
+        "python": "when `python` is offered: the sentence saying quick calculations and file work can be done in Python in the user's browser, and that it cannot run when no browser page is open; otherwise empty"
+      }
     }
   }
 }

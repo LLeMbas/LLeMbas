@@ -1,6 +1,7 @@
 {
   "name": "knowledge_get",
-  "scope": "shared",
+  "scope": "cli",
+  "sessions": "agent",
   "risk": "read",
   "exclusive": false,
   "block": "read",

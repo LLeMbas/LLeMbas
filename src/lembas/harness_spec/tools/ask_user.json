@@ -1,6 +1,7 @@
 {
   "name": "ask_user",
   "scope": "shared",
+  "sessions": "both",
   "risk": "interact",
   "exclusive": true,
   "block": "tool",

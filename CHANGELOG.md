@@ -5,12 +5,17 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
-### 2.0 (in progress)
+## 2.0.0-beta.1 — 2026-11-03
+
+The first beta of LLeMbas 2.0, a new major: one file system for chats, organisations, prices instead
+of credits, provider types, and a new web UI. It starts on a new database: the 1.x one is renamed
+`lembas.db.old` and nothing is carried over by itself — export from 1.7.3 first, then import (see
+*Import and backups* on the wiki). Works with LLeMbas CLI 2.0.0-beta.1, LLeMbas Desktop
+1.0.0-beta.1 and LLeMbas for Android 1.0.0-beta.1, and with no 1.x client. Harness spec 3.0.0.
+
+### Changed
 
 - `GET /api/v1/instance` also returns `scope`, the presented token's scopes, so `lembas login --token-stdin` can check that a handed-over token can link a computer.
-
-2.0 is a new major on `dev`, released as `2.0.0-beta.N`. What is listed here is on `dev` and in no
-release yet.
 
 - **Settings save in place.** Saving a form under Settings, Administration or Scheduled no longer
   reloads the page: the page is redrawn where it stands — same scroll position, the same sections
@@ -290,6 +295,50 @@ release yet.
   `GET /api/v2/files/content?path=` returns a file's text (up to 1 MB; an HTML file as its source;
   anything that is not text, or larger, with `withheld` and why), both through your own access to
   the tree, as the file pages are.
+
+## 1.7.3 — 2026-10-27
+
+The first long-term-support patch: export what you want to keep before 2.0, and updates that stay on 1.x.
+
+### Added — for the move to 2.0
+
+LLeMbas 2.0 starts on a new database and does not carry a 1.x one over. 1.7 is a long-term-support
+line, and its patches may carry the tools for exporting what you want to keep; nothing else new.
+
+- **One export format.** Every export is a JSON file that says what it is (`lembas-export`, format
+  version 1), which LLeMbas version wrote it and when, and lists its items each with a type and a
+  name -- so an importer can report exactly what it took and what it could not. Keys and other
+  secrets are never in the file in clear: with a passphrase they are encrypted (scrypt and Fernet,
+  a new salt per file); without one they are left out, and the file lists each one left out.
+- **Export the configuration** (Admin → Updates → *Export the configuration*): connections and
+  their models (with prices, kinds and every per-model setting), data groups, speech-to-text,
+  text-to-speech, web search, image generation and the other service settings, image workflows,
+  custom tools and MCP servers, as one file. Give a passphrase to take the keys along. The same from
+  a shell: `lembas-server export admin --out FILE [--passphrase-env VARIABLE]`, which writes the
+  file readable by its owner only and names every key it left out.
+- **Export your memories** (Settings → Memory → *Export*): your memories as a file, each with its
+  data group, all of them or one data group's. Only ever your own. For somebody who cannot reach the
+  page, an administrator can run `lembas-server export memory --user EMAIL [--group GROUP] --out
+  FILE`.
+
+### Fixed
+
+- **Updates stay on the major version that is running.** The stable channel, the Update button,
+  automatic updates (including *Every release*) and `deploy/update.sh` now offer and install only
+  releases of the running major version: a 1.x installation is never moved to 2.0 by itself, because
+  2.0 does not carry a 1.x database over. When a newer major is out, the Updates page says so in one
+  line; moving to it is done by hand.
+- **An update helper installed by an older release is caught.** The helper runs its own copy of
+  `deploy/update.sh`, installed by `install.sh`, and an older copy would still take the newest
+  release whatever its major. The Updates page now says when the copy is an older one, and nothing
+  is requested through it while a newer major exists. Re-run the installer with
+  `INSTALL_UPDATE_HELPER=1` to replace it.
+- **An agent chat no longer says the device "answered on its own model" when it did not.** The
+  notice compared the model this server sent with the one the device reported, letter for letter
+  and only in one form; a LLeMbas CLI that names the model another way -- without its connection
+  prefix, without the provider, or in another case -- got the notice on every new session although
+  it was running the chat's model. The two are now compared by the model's own name, and the notice
+  appears only when the device really runs something else.
 
 ## 1.7.2 — 2026-10-25
 

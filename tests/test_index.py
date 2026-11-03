@@ -15,7 +15,6 @@ import io
 import json
 import math
 import zipfile
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -42,8 +41,7 @@ from lembas.services.index import chunks, extract, ignore, pipeline, query, work
 from lembas.services.llm.openai_client import LLMError
 
 _VENDORED = harness_spec.conformance_dir() / "chunk_tokens.json"
-_COPY = Path(__file__).parent / "fixtures" / "harness" / "chunk_tokens.json"
-CHUNK_SPEC = json.loads((_VENDORED if _VENDORED.exists() else _COPY).read_text(encoding="utf-8"))
+CHUNK_SPEC = json.loads(_VENDORED.read_text(encoding="utf-8"))
 
 
 # --- Chunking --------------------------------------------------------------------

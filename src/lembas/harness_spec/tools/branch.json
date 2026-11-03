@@ -1,0 +1,39 @@
+{
+  "name": "branch",
+  "scope": "llembas",
+  "sessions": "chat",
+  "risk": "execute",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": "purpose",
+  "requires": [
+    "forge"
+  ],
+  "unavailable": "No repository from a forge is open to this session, so there is nothing to branch here.",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Create a branch in a repository (a mount), from `from` (default: the branch this session works on), and switch this session's working copy of it to the new branch. Staged changes come along.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Any path inside the repository (the mount) this is about"
+      },
+      "name": {
+        "type": "string",
+        "description": "The new branch's name"
+      },
+      "from": {
+        "type": "string",
+        "description": "Branch, tag or commit to start from"
+      }
+    },
+    "required": [
+      "path",
+      "name"
+    ]
+  }
+}

@@ -1,6 +1,7 @@
 {
   "name": "plan_submit",
   "scope": "shared",
+  "sessions": "both",
   "risk": "interact",
   "exclusive": true,
   "block": "tool",

@@ -1,0 +1,46 @@
+{
+  "name": "pr",
+  "scope": "llembas",
+  "sessions": "chat",
+  "risk": "execute",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": "purpose",
+  "requires": [
+    "forge"
+  ],
+  "unavailable": "No repository from a forge is open to this session, so there is nothing to pr here.",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Open a pull request on the forge, from `head` (default: the branch this session works on) into `base` (default: the repository's default branch). Only committed changes are in it: commit first.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Any path inside the repository (the mount) this is about"
+      },
+      "title": {
+        "type": "string"
+      },
+      "body": {
+        "type": "string",
+        "description": "What it changes and why"
+      },
+      "head": {
+        "type": "string",
+        "description": "The branch with the changes"
+      },
+      "base": {
+        "type": "string",
+        "description": "The branch to merge into"
+      }
+    },
+    "required": [
+      "path",
+      "title"
+    ]
+  }
+}

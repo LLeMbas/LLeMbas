@@ -1,6 +1,7 @@
 {
   "name": "note_manage",
-  "scope": "shared",
+  "scope": "cli",
+  "sessions": "agent",
   "risk": "interact",
   "exclusive": false,
   "block": "tool",
@@ -53,12 +54,5 @@
     "required": [
       "action"
     ]
-  },
-  "narrow": {
-    "llembas": {
-      "drop": [
-        "scope"
-      ]
-    }
   }
 }

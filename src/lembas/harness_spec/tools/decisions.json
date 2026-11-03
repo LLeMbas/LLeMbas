@@ -1,6 +1,7 @@
 {
   "name": "decisions",
   "scope": "cli",
+  "sessions": "agent",
   "risk": "interact",
   "exclusive": false,
   "block": "tool",

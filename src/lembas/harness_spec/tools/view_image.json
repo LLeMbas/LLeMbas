@@ -1,6 +1,7 @@
 {
   "name": "view_image",
   "scope": "cli",
+  "sessions": "agent",
   "risk": "read",
   "exclusive": false,
   "block": "read",

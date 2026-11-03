@@ -1,6 +1,7 @@
 {
   "name": "task",
   "scope": "shared",
+  "sessions": "both",
   "risk": "interact",
   "exclusive": false,
   "block": "task",

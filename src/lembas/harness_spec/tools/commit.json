@@ -1,0 +1,42 @@
+{
+  "name": "commit",
+  "scope": "llembas",
+  "sessions": "chat",
+  "risk": "execute",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": "purpose",
+  "requires": [
+    "forge"
+  ],
+  "unavailable": "No repository from a forge is open to this session, so there is nothing to commit here.",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Send the staged changes of a repository (a mount) to the forge as one commit on the branch this session works on, under the user's account. Every change this session made in that repository since its last commit goes in, unless `paths` names some of them.\n\n- Refused when the branch has moved on the forge since this session's working copy was based on it: the answer shows what changed there. Look at it, then commit again.\n- Write the message as the repository's history does: a short subject line, then why, where it is not obvious.\n- Needs commit access to the repository in this session. With stage access the changes stay staged, for the user to commit.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Any path inside the repository (the mount) this is about"
+      },
+      "message": {
+        "type": "string",
+        "description": "The commit message"
+      },
+      "paths": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Only these changed paths (default: every staged change)"
+      }
+    },
+    "required": [
+      "path",
+      "message"
+    ]
+  }
+}

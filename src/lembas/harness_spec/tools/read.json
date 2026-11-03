@@ -1,6 +1,7 @@
 {
   "name": "read",
-  "scope": "cli",
+  "scope": "shared",
+  "sessions": "both",
   "risk": "read",
   "exclusive": false,
   "block": "read",

@@ -1,6 +1,7 @@
 {
   "name": "write",
-  "scope": "cli",
+  "scope": "shared",
+  "sessions": "both",
   "risk": "write",
   "exclusive": false,
   "block": "edit",

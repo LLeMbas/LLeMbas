@@ -1,6 +1,7 @@
 {
   "name": "note_view",
-  "scope": "shared",
+  "scope": "cli",
+  "sessions": "agent",
   "risk": "read",
   "exclusive": false,
   "block": "read",

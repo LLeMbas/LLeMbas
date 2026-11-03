@@ -12,7 +12,6 @@ instance admin who gets nothing for being one.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 from sqlalchemy import select
@@ -41,8 +40,7 @@ from lembas.security.passwords import hash_password
 from lembas.services import fs, harness_spec, organisations
 
 _VENDORED = harness_spec.conformance_dir() / "fs_access.json"
-_COPY = Path(__file__).parent / "fixtures" / "harness" / "fs_access.json"
-SPEC = json.loads((_VENDORED if _VENDORED.exists() else _COPY).read_text(encoding="utf-8"))
+SPEC = json.loads(_VENDORED.read_text(encoding="utf-8"))
 
 
 def _user(db, email="frodo@shire.test", **kwargs) -> User:

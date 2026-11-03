@@ -4,6 +4,7 @@
   "order_about": "Loosest first. A project or a subagent may make the mode stricter, never looser; switching to a looser mode is always asked.",
   "aliases": { "unrestricted": "auto" },
   "floor": "The hardline (hardline.json) and the protected paths are refused in every mode, auto included.",
+  "confirm": "Spec 3.0.0: a tool with `confirm: always` (merge, tag, release) is put to the person before it runs, in every mode, auto included, as an approval card naming the call and what it reaches; it runs on a yes only. No rule allows it and no approval is remembered (an approval card offers once, never always). With nobody to answer, it is refused, as unattended says.",
   "modes": {
     "manual": {
       "summary": "Everything not already allowed is asked.",

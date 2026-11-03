@@ -1,0 +1,45 @@
+{
+  "name": "tag",
+  "scope": "llembas",
+  "sessions": "chat",
+  "risk": "execute",
+  "exclusive": true,
+  "block": "tool",
+  "purpose": "purpose",
+  "requires": [
+    "forge"
+  ],
+  "confirm": "always",
+  "unavailable": "No repository from a forge is open to this session, so there is nothing to tag here.",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Create an annotated tag on the forge, at `at` (default: the newest commit of the branch this session works on), its message being the release note. The user is always asked first, in every mode.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Any path inside the repository (the mount) this is about"
+      },
+      "name": {
+        "type": "string",
+        "description": "The tag, e.g. v1.2.0"
+      },
+      "message": {
+        "type": "string",
+        "description": "The tag's message"
+      },
+      "at": {
+        "type": "string",
+        "description": "Branch or commit to tag"
+      }
+    },
+    "required": [
+      "path",
+      "name",
+      "message"
+    ]
+  }
+}

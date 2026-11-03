@@ -1,6 +1,7 @@
 {
   "name": "web_fetch",
   "scope": "shared",
+  "sessions": "both",
   "risk": "read",
   "exclusive": false,
   "block": "web",

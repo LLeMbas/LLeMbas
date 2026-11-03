@@ -12,7 +12,6 @@ at a result from an earlier reply, which a chat does not send again.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 from sqlalchemy import select
@@ -24,8 +23,7 @@ from lembas.services import context as context_service
 from lembas.services.tools.files import read_body
 
 _VENDORED = harness_spec.conformance_dir() / "context.json"
-_COPY = Path(__file__).parent / "fixtures" / "harness" / "context.json"
-SPEC = json.loads((_VENDORED if _VENDORED.exists() else _COPY).read_text(encoding="utf-8"))
+SPEC = json.loads(_VENDORED.read_text(encoding="utf-8"))
 
 
 def run_case(case: dict) -> list[str]:

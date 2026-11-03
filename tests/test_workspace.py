@@ -10,7 +10,6 @@ vendored spec carries it.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 
@@ -32,8 +31,7 @@ from lembas.services import fs, harness, harness_spec, workspace
 from lembas.services import tools as tools_service
 
 _VENDORED = harness_spec.conformance_dir() / "instructions.json"
-_COPY = Path(__file__).parent / "fixtures" / "harness" / "instructions.json"
-SPEC = json.loads((_VENDORED if _VENDORED.exists() else _COPY).read_text(encoding="utf-8"))
+SPEC = json.loads(_VENDORED.read_text(encoding="utf-8"))
 
 
 def _visible(grants: dict[str, str] | None, path: str) -> bool:

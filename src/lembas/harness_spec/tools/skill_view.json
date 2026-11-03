@@ -1,6 +1,7 @@
 {
   "name": "skill_view",
   "scope": "shared",
+  "sessions": "both",
   "risk": "read",
   "exclusive": false,
   "block": "read",

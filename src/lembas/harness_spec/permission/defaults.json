@@ -11,6 +11,10 @@
     "glob": "allow",
     "grep": "allow",
     "list": "allow",
+    "search": "allow",
+    "recall": "allow",
+    "show": "allow",
+    "python": "allow",
     "ask_user": "allow",
     "plan_submit": "allow",
     "task": "allow",
@@ -74,6 +78,12 @@
       "tree *-o*": "ask",
       "tree *-R*": "ask",
       "file *-C*": "ask"
-    }
+    },
+    "commit": "ask",
+    "branch": "ask",
+    "pr": "ask",
+    "merge": "ask",
+    "tag": "ask",
+    "release": "ask"
   }
 }

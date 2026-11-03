@@ -1,0 +1,51 @@
+{
+  "name": "release",
+  "scope": "llembas",
+  "sessions": "chat",
+  "risk": "execute",
+  "exclusive": true,
+  "block": "tool",
+  "purpose": "purpose",
+  "requires": [
+    "forge"
+  ],
+  "confirm": "always",
+  "unavailable": "No repository from a forge is open to this session, so there is nothing to release here.",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Publish a release on the forge from a tag that already exists, with its notes. Make the tag first (tag): a release is never made for a tag that does not exist. The user is always asked first, in every mode.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Any path inside the repository (the mount) this is about"
+      },
+      "tag": {
+        "type": "string",
+        "description": "The existing tag"
+      },
+      "title": {
+        "type": "string"
+      },
+      "notes": {
+        "type": "string",
+        "description": "The release notes (usually the tag's message)"
+      },
+      "prerelease": {
+        "type": "boolean"
+      },
+      "draft": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "path",
+      "tag",
+      "title",
+      "notes"
+    ]
+  }
+}

@@ -1,6 +1,7 @@
 {
   "name": "plan_update",
   "scope": "shared",
+  "sessions": "both",
   "risk": "interact",
   "exclusive": false,
   "block": "plan",

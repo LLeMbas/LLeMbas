@@ -131,6 +131,10 @@ PENDING = {
     "library_scope": "knowledge bases are gone from the server (spec 3.0.0); the CLI keeps its "
     "local library",
     "prototype": "prototypes are gone from the server's chat (spec 3.0.0: `show` replaces them)",
+    "chunk_tokens": "run in tests/test_index.py",
+    "context": "run in tests/test_context.py",
+    "fs_access": "run in tests/test_fs_access.py",
+    "instructions": "run in tests/test_workspace.py",
     "unidiff": _ON_THE_DEVICE,
     "envelope": _ON_THE_DEVICE,
 }
@@ -235,7 +239,10 @@ SHARED_ADOPTED = (
 )
 # Shared tools whose LLeMbas implementation keeps its own name or shape for now,
 # and why -- the parity page lists the same.
-TOOLS_PENDING: dict[str, str] = {}
+TOOLS_PENDING: dict[str, str] = {
+    "session_search": "a chat's own past is searched by the one search box (services/index, "
+    "kinds=chat); the tool itself is not offered in a chat yet",
+}
 
 
 def test_every_shared_tool_is_adopted_or_named_as_pending():

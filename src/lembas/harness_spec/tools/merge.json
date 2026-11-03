@@ -1,0 +1,46 @@
+{
+  "name": "merge",
+  "scope": "llembas",
+  "sessions": "chat",
+  "risk": "execute",
+  "exclusive": true,
+  "block": "tool",
+  "purpose": "purpose",
+  "requires": [
+    "forge"
+  ],
+  "confirm": "always",
+  "unavailable": "No repository from a forge is open to this session, so there is nothing to merge here.",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Merge a pull request on the forge. The user is always asked first, in every mode, and shown the pull request: nothing is merged without their yes.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Any path inside the repository (the mount) this is about"
+      },
+      "number": {
+        "type": "integer",
+        "minimum": 1,
+        "description": "The pull request's number"
+      },
+      "method": {
+        "type": "string",
+        "enum": [
+          "merge",
+          "squash",
+          "rebase"
+        ],
+        "description": "How to merge (default: the repository's setting)"
+      }
+    },
+    "required": [
+      "path",
+      "number"
+    ]
+  }
+}
