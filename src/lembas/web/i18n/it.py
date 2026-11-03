@@ -399,8 +399,6 @@ MESSAGES: dict[str, str] = {
     "Disable": "Disattiva",
     "Enable": "Attiva",
     "Make public": "Rendi pubblico",
-    "Move down": "Sposta giù",
-    "Move up": "Sposta su",
     "Next": "Successivo",
     "Nothing matches that filter.": "Nessun risultato per questo filtro.",
     "Previous": "Precedente",
@@ -2118,7 +2116,6 @@ MESSAGES['Use the LLeMbas mark'] = 'Usa il marchio LLeMbas'
 MESSAGES['Python in the browser'] = 'Python nel browser'
 MESSAGES['Offer the python tool in chats'] = 'Offri lo strumento python nelle chat'
 MESSAGES["Code runs in the person's own browser (Pyodide), never on this server, with only the files the chat hands it, and only while a page of that chat is open."] = 'Il codice viene eseguito nel browser della persona (Pyodide), mai su questo server, solo con i file che la chat gli passa e solo finché una pagina di quella chat è aperta.'
-MESSAGES['Pyodide is not installed on this server, so there is nothing to switch on.'] = "Pyodide non è installato su questo server, quindi non c'è nulla da attivare."
 MESSAGES['Notifications when LLeMbas is closed'] = 'Notifiche quando LLeMbas è chiuso'
 MESSAGES['Allow Web Push'] = 'Consenti Web Push'
 MESSAGES["A browser's push goes through its maker's relay — Google's, Mozilla's or Apple's — so they learn that this server sent something, and when. What is sent says only that something is waiting, never what. Off, people still get notified while a LLeMbas page is open, and the apps are not affected."] = 'Il push di un browser passa per il servizio del suo produttore — Google, Mozilla o Apple — che così sa che questo server ha inviato qualcosa, e quando. Ciò che viene inviato dice solo che qualcosa è in attesa, mai cosa. Disattivato, le persone ricevono comunque avvisi finché una pagina di LLeMbas è aperta, e le app non ne risentono.'
@@ -2353,3 +2350,28 @@ MESSAGES['Keep memories and skills of your own.'] = 'Avere memorie e abilità tu
 MESSAGES['Working with files'] = 'Lavoro con i file'
 MESSAGES['Running Python'] = 'Esecuzione di Python'
 MESSAGES['Recalling earlier results'] = 'Richiamo di risultati precedenti'
+
+# --- Pyodide by download, apps beside devices (2.0) ---
+MESSAGES['Pyodide %(version)s'] = 'Pyodide %(version)s'
+MESSAGES['Downloading Pyodide'] = 'Download di Pyodide'
+MESSAGES['Downloading: %(done)s of %(total)s'] = 'Download in corso: %(done)s di %(total)s'
+MESSAGES['On this server: %(count)s files, %(size)s, each checked against its pinned SHA-256.'] = 'Su questo server: %(count)s file, %(size)s, ognuno verificato con il suo SHA-256 fissato.'
+MESSAGES["Not on this server. Downloading fetches %(count)s files (%(size)s) once, from the Pyodide release's own address, and refuses them unless each matches the SHA-256 pinned in this version of LLeMbas. Nothing is loaded from anywhere else afterwards."] = "Non è su questo server. Il download recupera %(count)s file (%(size)s) una sola volta, dall'indirizzo proprio della release di Pyodide, e li rifiuta se uno non corrisponde allo SHA-256 fissato in questa versione di LLeMbas. Dopo non viene caricato nulla da nessun'altra parte."
+MESSAGES['The last download was refused: %(why)s'] = "L'ultimo download è stato rifiutato: %(why)s"
+MESSAGES['Remove Pyodide?'] = 'Rimuovere Pyodide?'
+MESSAGES['The python tool is switched off, and its files are deleted from this server. It can be downloaded again.'] = 'Lo strumento python viene disattivato e i suoi file vengono eliminati da questo server. Si può scaricare di nuovo.'
+MESSAGES['Download Pyodide'] = 'Scarica Pyodide'
+MESSAGES['Pyodide is not on this server yet, so there is nothing to switch on.'] = "Pyodide non è ancora su questo server, quindi non c'è nulla da attivare."
+MESSAGES['app'] = 'app'
+MESSAGES['Its agent may'] = 'Il suo agente può'
+MESSAGES['Apps'] = 'App'
+MESSAGES['Sign this app out?'] = "Disconnettere quest'app?"
+MESSAGES['Pyodide is already on this server.'] = 'Pyodide è già su questo server.'
+MESSAGES['Downloading Pyodide.'] = 'Download di Pyodide in corso.'
+MESSAGES['There is no Pyodide on this server to remove.'] = "Su questo server non c'è nessun Pyodide da rimuovere."
+MESSAGES['Pyodide removed, and the python tool switched off.'] = 'Pyodide rimosso e lo strumento python disattivato.'
+MESSAGES['The download was answered with %(status)s.'] = 'Il download ha ricevuto la risposta %(status)s.'
+MESSAGES['%(name)s is larger than its pinned size.'] = '%(name)s è più grande della sua dimensione fissata.'
+MESSAGES['%(name)s is not its pinned size.'] = '%(name)s non ha la sua dimensione fissata.'
+MESSAGES['%(name)s does not match its pinned SHA-256.'] = '%(name)s non corrisponde al suo SHA-256 fissato.'
+MESSAGES['The download failed: %(why)s'] = 'Il download non è riuscito: %(why)s'

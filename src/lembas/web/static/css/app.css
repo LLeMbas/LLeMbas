@@ -2600,6 +2600,8 @@ a.card, .card--action { transition: transform var(--dur-2) var(--ease-out),
 /* --- Connecting a machine: the three steps under CLI connections. --- */
 .setup-steps { margin-top: var(--sp-4); }
 .setup-steps__title { font-size: var(--text-base); margin: 0 0 var(--sp-2); }
+/* A second list in the same card (Settings → Devices: the apps). */
+.card__subtitle { font-size: var(--text-base); margin: var(--sp-4) 0 var(--sp-2); }
 /* One track that may shrink, and items that may too: the command below
    is one unbreakable line, and a grid item's min-content floor let it push the
    whole settings body sideways on a phone (703px of `curl` in a 390px window)

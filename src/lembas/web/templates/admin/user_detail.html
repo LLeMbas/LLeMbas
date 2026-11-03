@@ -194,7 +194,7 @@
       <tr>
         <td><strong>{{ token.name }}</strong><br><code class="text-xs">{{ token.prefix }}…</code></td>
         <td>
-          {{ t("device") if token.kind == "device" else t("personal") }}
+          {{ (t("app") if is_app(token) else t("device")) if token.kind == "device" else t("personal") }}
           {% if token.device_host %}<br><span class="text-xs faint">{{ token.device_host }}</span>{% endif %}
           {% if token.id in linked %}<br><span class="badge badge--success">{{ t("linked now") }}</span>{% endif %}
         </td>

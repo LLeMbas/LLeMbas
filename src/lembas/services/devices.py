@@ -16,6 +16,17 @@ The flow, as the LLeMbas CLI's `/login` drives it:
    token** (`ApiToken.kind == "device"`) -- once. A second poll with the same
    code is `invalid_grant`.
 
+**One approval, two tokens.** A login may also ask for `agent_scope`: a second
+set of scopes for the LLeMbas CLI an app runs beside itself (Desktop: the app
+holds `app models`, its agent `models memory link`). The person sees both sets
+on the one page, and the poll after approval hands over both. Two tokens rather
+than one with every scope, because they are two programs: signing the agent
+out must not sign the app out, and the app's token is not a linked device.
+
+**An app is not a device.** A token with the `app` scope and not `link` is an
+app's (Android, Desktop's window): it is listed under *Apps*, never among the
+devices an agent chat can run on (`devices_of`, `apps_of`).
+
 The device code is stored as its hash, like every other secret here; the user
 code is short and readable on purpose, and is good for ten minutes and one
 decision.
@@ -78,14 +89,20 @@ def start(
     device_host: str = "",
     device_platform: str = "",
     scopes: list[str] | None = None,
+    agent_scopes: list[str] | None = None,
     ip: str = "",
     now: datetime | None = None,
 ) -> tuple[DeviceCode, str]:
-    """Open a device login. Returns the row and the raw device code."""
+    """Open a device login. Returns the row and the raw device code.
+
+    `agent_scopes`, when given, asks for the second token of the same approval
+    (see the module docstring); it never carries `app`."""
     now = now or datetime.now(UTC)
     sweep(db, now=now)
     wanted = [s for s in dict.fromkeys(scopes or [api_tokens.SCOPE_MODELS])
               if s in api_tokens.USER_SCOPES]
+    agent = [s for s in dict.fromkeys(agent_scopes or [])
+             if s in api_tokens.USER_SCOPES and s != api_tokens.SCOPE_APP]
     raw = secrets.token_urlsafe(32)
     row = DeviceCode(
         device_code_hash=api_tokens.hash_token(raw),
@@ -95,6 +112,7 @@ def start(
         device_host=(device_host or "")[:200],
         device_platform=(device_platform or "")[:64],
         scopes_json=wanted or [api_tokens.SCOPE_MODELS],
+        agent_scopes_json=agent,
         ip=(ip or "")[:45],
         expires_at=now + LIFETIME,
         interval=INTERVAL,
@@ -135,6 +153,9 @@ class Poll:
     token: ApiToken | None = None
     raw: str = ""
     interval: int = INTERVAL
+    # The agent's token, when the login asked for one (`agent_scopes`).
+    agent_token: ApiToken | None = None
+    agent_raw: str = ""
 
 
 def poll(db: DBSession, raw_device_code: str, *, now: datetime | None = None) -> Poll:
@@ -178,8 +199,22 @@ def poll(db: DBSession, raw_device_code: str, *, now: datetime | None = None) ->
         client=row.client,
     )
     row.token_id = token.id
+    agent_token, agent_raw = None, ""
+    if row.agent_scopes_json:
+        agent_token, agent_raw = api_tokens.create(
+            db,
+            user,
+            name=row.device_name,
+            scopes=list(row.agent_scopes_json),
+            kind=TOKEN_DEVICE,
+            device_host=row.device_host,
+            device_platform=row.device_platform,
+            client=row.client,
+        )
+        row.agent_token_id = agent_token.id
     db.commit()
-    return Poll(token=token, raw=raw, interval=row.interval)
+    return Poll(token=token, raw=raw, interval=row.interval,
+                agent_token=agent_token, agent_raw=agent_raw)
 
 
 def sweep(db: DBSession, *, now: datetime | None = None) -> int:
@@ -191,8 +226,13 @@ def sweep(db: DBSession, *, now: datetime | None = None) -> int:
     return int(removed or 0)
 
 
-def devices_of(db: DBSession, user: User) -> list[ApiToken]:
-    """This person's device tokens, live ones first, newest first."""
+def is_app(token: ApiToken) -> bool:
+    """An app's token (`app` and not `link`): the app, not a linked computer."""
+    scopes = token.scopes_json or []
+    return api_tokens.SCOPE_APP in scopes and api_tokens.SCOPE_LINK not in scopes
+
+
+def _signed_in(db: DBSession, user: User) -> list[ApiToken]:
     rows = list(
         db.scalars(
             select(ApiToken)
@@ -201,6 +241,17 @@ def devices_of(db: DBSession, user: User) -> list[ApiToken]:
         )
     )
     return sorted(rows, key=lambda t: t.revoked_at is not None)
+
+
+def devices_of(db: DBSession, user: User) -> list[ApiToken]:
+    """This person's devices -- signed-in programs that are not an app --
+    live ones first, newest first."""
+    return [token for token in _signed_in(db, user) if not is_app(token)]
+
+
+def apps_of(db: DBSession, user: User) -> list[ApiToken]:
+    """This person's signed-in apps, live ones first, newest first."""
+    return [token for token in _signed_in(db, user) if is_app(token)]
 
 
 __all__ = [
@@ -212,9 +263,11 @@ __all__ = [
     "PENDING",
     "SLOW_DOWN",
     "Poll",
+    "apps_of",
     "approve",
     "deny",
     "devices_of",
+    "is_app",
     "normalise",
     "pending",
     "poll",

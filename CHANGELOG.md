@@ -17,8 +17,10 @@ release yet.
   still goes there.
 - **Drag and drop.** A chat is moved into a folder by dragging it onto the folder (or onto *Chats*
   to take it out), or from its new *Move to folder* button, which works from the keyboard and on a
-  phone. The custom tools list is put in order by dragging its numbers, by touch on the same
-  handle, or with the arrow keys; dragging on a filtered page or page 2 moves only the rows shown.
+  phone. The models list and the custom tools list are put in order by dragging their numbers, by
+  touch on the same handle, or with the arrow keys; dragging on a filtered page or page 2 moves
+  only the rows shown. The models list has no up and down arrows any more. A model's fallback list
+  is put in order the same way, and saved with the model's page.
 - **Files.** The organisation's file tree has pages of its own (the folder button in the sidebar):
   an explorer with the path above, a folder tree beside the list on a wide screen, upload (also by
   dropping files on the list), new folder, rename, move (drag a row onto a folder, the tree or the
@@ -70,8 +72,13 @@ release yet.
   while a page is open, and the apps' UnifiedPush, work either way. A push says only that something
   is waiting — never a chat's title or a reply's words.
 - **Python in the browser can be switched on** (Administration → General, off by default) once
-  Pyodide is installed on the server: a chat page then runs the `python` tool in a worker in your
-  browser. Pyodide does not ship with LLeMbas yet, so the switch is not available.
+  Pyodide is on the server: a chat page then runs the `python` tool in a worker in your browser.
+  Pyodide does not ship with LLeMbas (it is about 13 MB): *Download Pyodide* on the same card, or
+  `lembas-server fetch-pyodide`, fetches the pinned release (314.0.7, the core and the standard
+  library, no packages) once from its own address, shows how far it has got, and keeps the files
+  only if every one matches the size and SHA-256 committed with LLeMbas. They are kept in the data
+  directory and served by this server; nothing is loaded from anywhere else afterwards. *Remove*
+  deletes them and switches the tool off.
 - **A chat works with files.** In an ordinary chat the model has the file tools of the harness
   spec (3.0.0), over the organisation's file tree: `read`, `write`, `edit`, `list`, `glob`,
   `grep`, `search` (by meaning and words, over the search index), `mkdir`, `mv` and `rm` (to the
@@ -269,6 +276,18 @@ release yet.
   chat's data group. The reply opens with a line saying which model answered, and the message
   records that model and its cost. The line is kept with the reply's details, not in its text, so
   it is never sent back to the model in later turns. With none listed nothing changes.
+- **One approval signs in an app and its agent.** A device login may ask for a second set of scopes,
+  `agent_scope`, beside `scope`: the approval page shows both, and the one approval hands over two
+  tokens — the app's and the agent's (the LLeMbas CLI the desktop app runs beside itself). A login
+  that asks for one token gets one, as before; discovery says a server can do this
+  (`login.device.agent_scope`).
+- **An app is not a device.** A token with the `app` scope and not `link` (the Android app, the
+  desktop app's window) is listed under *Apps* in Settings → Devices, and never among the devices
+  an agent chat can be started on — on the page or in `/api/v2/devices`.
+- **The apps can browse your files.** `GET /api/v2/files?path=` lists a directory and
+  `GET /api/v2/files/content?path=` returns a file's text (up to 1 MB; an HTML file as its source;
+  anything that is not text, or larger, with `withheld` and why), both through your own access to
+  the tree, as the file pages are.
 
 ## 1.7.2 — 2026-10-25
 

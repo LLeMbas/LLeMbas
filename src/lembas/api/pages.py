@@ -1065,6 +1065,7 @@ def _api_settings(db: DBSession, user: User) -> dict:
             "api_allowed": False,
             "api_tokens": [],
             "api_devices": [],
+            "api_apps": [],
             "api_scopes": [],
             "linked_now": set(),
         }
@@ -1079,6 +1080,9 @@ def _api_settings(db: DBSession, user: User) -> dict:
         "api_allowed": True,
         "api_tokens": personal,
         "api_devices": devices_service.devices_of(db, user),
+        # The apps (Android, Desktop's window): signed in the same way, but
+        # not computers an agent chat can run on, so listed on their own.
+        "api_apps": devices_service.apps_of(db, user),
         "api_scopes": [
             (scope, api_tokens.scope_label(scope))
             for scope in api_tokens.grantable(db, user)

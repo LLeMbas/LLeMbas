@@ -399,8 +399,6 @@ MESSAGES: dict[str, str] = {
     "Disable": "Letiltás",
     "Enable": "Engedélyezés",
     "Make public": "Nyilvánossá tétel",
-    "Move down": "Mozgatás lefelé",
-    "Move up": "Mozgatás felfelé",
     "Next": "Következő",
     "Nothing matches that filter.": "Semmi sem felel meg ennek a szűrőnek.",
     "Previous": "Előző",
@@ -2118,7 +2116,6 @@ MESSAGES['Use the LLeMbas mark'] = 'A LLeMbas jel használata'
 MESSAGES['Python in the browser'] = 'Python a böngészőben'
 MESSAGES['Offer the python tool in chats'] = 'A python eszköz felkínálása a csevegésekben'
 MESSAGES["Code runs in the person's own browser (Pyodide), never on this server, with only the files the chat hands it, and only while a page of that chat is open."] = 'A kód az illető saját böngészőjében fut (Pyodide), soha nem ezen a szerveren, csak a csevegés által átadott fájlokkal, és csak amíg a csevegés egy oldala nyitva van.'
-MESSAGES['Pyodide is not installed on this server, so there is nothing to switch on.'] = 'A Pyodide nincs telepítve ezen a szerveren, így nincs mit bekapcsolni.'
 MESSAGES['Notifications when LLeMbas is closed'] = 'Értesítések, amikor a LLeMbas zárva van'
 MESSAGES['Allow Web Push'] = 'Web Push engedélyezése'
 MESSAGES["A browser's push goes through its maker's relay — Google's, Mozilla's or Apple's — so they learn that this server sent something, and when. What is sent says only that something is waiting, never what. Off, people still get notified while a LLeMbas page is open, and the apps are not affected."] = 'A böngésző push-értesítése a gyártó közvetítőjén megy át — Google, Mozilla vagy Apple —, így megtudják, hogy ez a szerver küldött valamit, és mikor. Az elküldött üzenet csak annyit mond, hogy valami vár, sosem azt, hogy mi. Kikapcsolva is kapnak értesítést, amíg egy LLeMbas-oldal nyitva van, és az alkalmazásokat ez nem érinti.'
@@ -2353,3 +2350,28 @@ MESSAGES['Keep memories and skills of your own.'] = 'Saját memóriák és kész
 MESSAGES['Working with files'] = 'Fájlkezelés'
 MESSAGES['Running Python'] = 'Python futtatása'
 MESSAGES['Recalling earlier results'] = 'Korábbi eredmények előhívása'
+
+# --- Pyodide by download, apps beside devices (2.0) ---
+MESSAGES['Pyodide %(version)s'] = 'Pyodide %(version)s'
+MESSAGES['Downloading Pyodide'] = 'A Pyodide letöltése'
+MESSAGES['Downloading: %(done)s of %(total)s'] = 'Letöltés: %(done)s / %(total)s'
+MESSAGES['On this server: %(count)s files, %(size)s, each checked against its pinned SHA-256.'] = 'Ezen a szerveren: %(count)s fájl, %(size)s, mindegyik a rögzített SHA-256 alapján ellenőrizve.'
+MESSAGES["Not on this server. Downloading fetches %(count)s files (%(size)s) once, from the Pyodide release's own address, and refuses them unless each matches the SHA-256 pinned in this version of LLeMbas. Nothing is loaded from anywhere else afterwards."] = 'Nincs ezen a szerveren. A letöltés egyszer lehoz %(count)s fájlt (%(size)s) a Pyodide kiadás saját címéről, és elutasítja őket, ha bármelyik nem egyezik a LLeMbas ezen verziójában rögzített SHA-256-tal. Utána semmi sem töltődik be máshonnan.'
+MESSAGES['The last download was refused: %(why)s'] = 'A legutóbbi letöltés elutasítva: %(why)s'
+MESSAGES['Remove Pyodide?'] = 'Eltávolítja a Pyodide-ot?'
+MESSAGES['The python tool is switched off, and its files are deleted from this server. It can be downloaded again.'] = 'A python eszköz kikapcsol, és a fájljai törlődnek erről a szerverről. Újra letölthető.'
+MESSAGES['Download Pyodide'] = 'Pyodide letöltése'
+MESSAGES['Pyodide is not on this server yet, so there is nothing to switch on.'] = 'A Pyodide még nincs ezen a szerveren, így nincs mit bekapcsolni.'
+MESSAGES['app'] = 'alkalmazás'
+MESSAGES['Its agent may'] = 'Az ügynöke ezt teheti'
+MESSAGES['Apps'] = 'Alkalmazások'
+MESSAGES['Sign this app out?'] = 'Kijelentkezteti ezt az alkalmazást?'
+MESSAGES['Pyodide is already on this server.'] = 'A Pyodide már ezen a szerveren van.'
+MESSAGES['Downloading Pyodide.'] = 'A Pyodide letöltése folyamatban.'
+MESSAGES['There is no Pyodide on this server to remove.'] = 'Ezen a szerveren nincs eltávolítható Pyodide.'
+MESSAGES['Pyodide removed, and the python tool switched off.'] = 'A Pyodide eltávolítva, a python eszköz kikapcsolva.'
+MESSAGES['The download was answered with %(status)s.'] = 'A letöltésre ez a válasz érkezett: %(status)s.'
+MESSAGES['%(name)s is larger than its pinned size.'] = '%(name)s nagyobb a rögzített méreténél.'
+MESSAGES['%(name)s is not its pinned size.'] = '%(name)s mérete nem a rögzített méret.'
+MESSAGES['%(name)s does not match its pinned SHA-256.'] = '%(name)s nem egyezik a rögzített SHA-256-tal.'
+MESSAGES['The download failed: %(why)s'] = 'A letöltés nem sikerült: %(why)s'

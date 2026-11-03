@@ -111,6 +111,12 @@ class DeviceCode(UUIDPrimaryKey, Timestamps, Base):
     denied: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # Set once the token has been handed over, so a code is good for one token.
     token_id: Mapped[str | None] = mapped_column(String(32))
+    # One approval, two tokens: an app that runs the LLeMbas CLI beside itself
+    # (Desktop) asks for its own `app` token and, in the same login, for the
+    # agent's (`agent_scope`). Both are shown on the approval page and both are
+    # handed over by the one poll that follows it. Empty: one token, as ever.
+    agent_scopes_json: Mapped[list[str]] = mapped_column(JSONList, default=list)
+    agent_token_id: Mapped[str | None] = mapped_column(String(32))
 
 
 class AuditEvent(UUIDPrimaryKey, Base):

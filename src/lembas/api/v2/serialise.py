@@ -300,11 +300,58 @@ def jobs(value: dict | None) -> list[dict[str, Any]]:
     return _plain(list((value or {}).values()))
 
 
+# --- Files --------------------------------------------------------------------------
+# A directory entry and an opened file, as `GET /files` and `GET /files/content`
+# return them (`api/v2/files.py`). What the explorer shows, from the same rows.
+WITHHELD_TOO_LARGE = "too_large"
+WITHHELD_NOT_TEXT = "not_text"
+
+
+def file_entry(row: Any) -> dict[str, Any]:
+    """One `file_ui.Row`: `kind` is `file`, `dir` or `mount`."""
+    return {
+        "name": row.name,
+        "path": row.path,
+        "kind": row.kind,
+        "size": int(row.size or 0),
+        "mime": row.mime or "",
+        "updated_at": stamp(row.updated_at),
+    }
+
+
+def file_listing(path: str, rows: list[Any]) -> dict[str, Any]:
+    parent = None if path == "/" else (path.rsplit("/", 1)[0] or "/")
+    return {"path": path, "parent": parent, "entries": [file_entry(row) for row in rows]}
+
+
+def file_content(opened: Any, withheld: dict[str, str] | None = None) -> dict[str, Any]:
+    """One `file_ui.Opened`. `text` is the file as written -- an HTML file's
+    source, never rendered -- or empty, with `withheld` saying why."""
+    out: dict[str, Any] = {
+        "path": opened.path,
+        "name": opened.name,
+        "size": int(opened.size or 0),
+        "mime": opened.mime or "",
+        "kind": opened.kind,
+        "language": opened.language or "",
+        "sha": opened.sha or "",
+        "text": "" if withheld else opened.text,
+    }
+    if withheld:
+        out["withheld"] = withheld
+    return out
+
+
 __all__ = [
+    "WITHHELD_NOT_TEXT",
+    "WITHHELD_TOO_LARGE",
     "asks",
     "attachment",
     "chat",
     "chat_detail",
+    "file_content",
+    "file_entry",
+    "file_listing",
     "interruption",
     "item",
     "jobs",

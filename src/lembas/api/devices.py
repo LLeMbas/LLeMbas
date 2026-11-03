@@ -6,7 +6,10 @@
   tells a LLeMbas instance from any other web server before asking anybody to
   approve anything. It names no account and no model.
 - `POST /api/device/code` and `POST /api/device/token` -- RFC 8628, for the
-  device. No cookie and no token; the device code is the credential.
+  device. No cookie and no token; the device code is the credential. A code
+  may ask, besides `scope`, for `agent_scope`: a second token from the same
+  approval, for the LLeMbas CLI an app runs beside itself; the token answer
+  then carries `agent_token` and `agent_scope` too (`services/devices.py`).
 - `GET /device` and `POST /device` -- the page a signed-in person approves or
   denies a device on. The cookie door, like every page.
 """
@@ -88,6 +91,9 @@ async def discovery(request: Request) -> JSONResponse:
                     "code": f"{base}/api/device/code",
                     "token": f"{base}/api/device/token",
                     "verify": f"{base}/device",
+                    # A code may ask for a second, agent token from the same
+                    # approval (`agent_scope`); a client reads this before asking.
+                    "agent_scope": True,
                 }
             },
             "scopes": list(api_tokens.USER_SCOPES),
@@ -141,6 +147,7 @@ async def device_code(request: Request, db: Db) -> JSONResponse:
         return _oauth_error("slow_down", "Too many device logins from this address.", 429)
     fields = await _fields(request)
     scopes = str(fields.get("scope") or "").split() or [api_tokens.SCOPE_MODELS]
+    agent_scopes = str(fields.get("agent_scope") or "").split()
     row, raw = devices_service.start(
         db,
         client=str(fields.get("client_id") or fields.get("client") or ""),
@@ -148,6 +155,7 @@ async def device_code(request: Request, db: Db) -> JSONResponse:
         device_host=str(fields.get("device_host") or ""),
         device_platform=str(fields.get("device_platform") or ""),
         scopes=scopes,
+        agent_scopes=agent_scopes,
         ip=ip,
     )
     audit.record(
@@ -156,7 +164,8 @@ async def device_code(request: Request, db: Db) -> JSONResponse:
         target_kind="device_code",
         target_id=row.id,
         summary=f"{row.device_name} ({row.client or 'unknown client'}) asked to sign in",
-        detail={"host": row.device_host, "scopes": row.scopes_json},
+        detail={"host": row.device_host, "scopes": row.scopes_json,
+                "agent_scopes": row.agent_scopes_json or []},
     )
     base = public_base(request)
     shown = devices_service.shown(row.user_code)
@@ -192,18 +201,22 @@ async def device_token(request: Request, db: Db) -> JSONResponse:
         target_kind="token",
         target_id=token.id,
         summary=f"{token.name} was signed in",
-        detail={"host": token.device_host, "scopes": token.scopes_json},
+        detail={"host": token.device_host, "scopes": token.scopes_json,
+                "agent_token": result.agent_token.id if result.agent_token else ""},
     )
-    return JSONResponse(
-        {
-            "access_token": result.raw,
-            "token_type": "Bearer",
-            "scope": " ".join(token.scopes_json or []),
-            "account": {"email": user.email, "name": user.name} if user else {},
-            "base_url": public_base(request),
-        },
-        headers={"Cache-Control": "no-store"},
-    )
+    body: dict[str, Any] = {
+        "access_token": result.raw,
+        "token_type": "Bearer",
+        "scope": " ".join(token.scopes_json or []),
+        "account": {"email": user.email, "name": user.name} if user else {},
+        "base_url": public_base(request),
+    }
+    if result.agent_token is not None:
+        # The second token of the same approval: the agent's, for the CLI the
+        # app runs beside itself. Only when the code asked for it.
+        body["agent_token"] = result.agent_raw
+        body["agent_scope"] = " ".join(result.agent_token.scopes_json or [])
+    return JSONResponse(body, headers={"Cache-Control": "no-store"})
 
 
 @router.delete("/api/v1/token")
@@ -569,7 +582,8 @@ async def device_decide(
             target_kind="device_code",
             target_id=row.id,
             summary=f"approved {row.device_name} on {row.device_host or 'an unnamed host'}",
-            detail={"scopes": row.scopes_json, "from": row.ip},
+            detail={"scopes": row.scopes_json, "agent_scopes": row.agent_scopes_json or [],
+                    "from": row.ip},
         )
         message = i18n.t("Approved. The device is signing in now; you can close this page.")
     else:

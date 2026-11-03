@@ -21,7 +21,8 @@ does. Errors are `{"detail": "…"}`, as on every JSON answer this server gives.
 frame carries that an existing client would misread is a new number, not a
 tweak; adding a field is not. 2 (with 2.0): the stream has no `canvas` frame
 and a chat no `knowledge_bases`; a tool call may carry a `show` card, whose
-file is `GET /chats/{chat}/show`.
+file is `GET /chats/{chat}/show`. Added within 2: `GET /files` and
+`GET /files/content`, the person's files (`files.py`).
 """
 
 from __future__ import annotations
@@ -34,9 +35,10 @@ router = APIRouter(prefix="/api/v2", tags=["app"])
 
 
 def _include() -> None:
-    from lembas.api.v2 import chats, misc, stream
+    from lembas.api.v2 import chats, files, misc, stream
 
     router.include_router(chats.router)
+    router.include_router(files.router)
     router.include_router(stream.router)
     router.include_router(misc.router)
 

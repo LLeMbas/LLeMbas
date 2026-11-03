@@ -706,6 +706,32 @@
                 {% endfor %}
               </ul>
               {% endif %}
+              {#- The apps: signed in by the same kind of code, but not a
+                  computer an agent chat can run on (services/devices.py). -#}
+              {% if api_apps %}
+              <h3 class="card__subtitle" id="apps">{{ t("Apps") }}</h3>
+              <ul class="model-list" data-testid="signed-in-apps">
+                {% for app in api_apps %}
+                <li class="model-list__item">
+                  <div class="u-shrink">
+                    <strong>{{ app.name }}</strong>
+                    <div class="text-xs faint">
+                      {{ app.device_host or "?" }}{% if app.client %} · {{ app.client }}{% endif %} ·
+                      {{ t("last used %(when)s", when=app.last_used_at.strftime("%Y-%m-%d %H:%M")) if app.last_used_at else t("never used") }}
+                    </div>
+                  </div>
+                  {% if api_live(app) %}
+                  <form method="post" action="/api/tokens/{{ app.id }}/revoke">
+                    <button class="btn btn--sm btn--danger" type="submit"
+                            data-confirm-title="{{ t('Sign this app out?') }}"
+                            data-confirm-button="{{ t('%(name)s loses access at once, and has to log in again.', name=app.name) }}"
+                            data-confirm-label="{{ t('Sign out') }}">{{ t("Sign out") }}</button>
+                  </form>
+                  {% endif %}
+                </li>
+                {% endfor %}
+              </ul>
+              {% endif %}
               {% if not linked_now %}
               {# How to get one: there is no other way to run an agent chat. #}
               <div class="setup-steps">

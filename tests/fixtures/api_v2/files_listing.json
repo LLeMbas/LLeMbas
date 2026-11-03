@@ -1,0 +1,22 @@
+{
+  "path": "/home/frodo",
+  "parent": "/home",
+  "entries": [
+    {
+      "name": "recipes",
+      "path": "/home/frodo/recipes",
+      "kind": "dir",
+      "size": 0,
+      "mime": "",
+      "updated_at": "2026-01-02T03:04:05+00:00"
+    },
+    {
+      "name": "lembas.md",
+      "path": "/home/frodo/lembas.md",
+      "kind": "file",
+      "size": 27,
+      "mime": "text/markdown",
+      "updated_at": "2026-01-02T03:04:05+00:00"
+    }
+  ]
+}

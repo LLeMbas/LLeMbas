@@ -1,0 +1,14 @@
+{
+  "path": "/home/frodo/map.png",
+  "name": "map.png",
+  "size": 2048,
+  "mime": "image/png",
+  "kind": "image",
+  "language": "",
+  "sha": "abababababababababababababababababababababababababababababababab",
+  "text": "",
+  "withheld": {
+    "reason": "not_text",
+    "message": "This is not a text file, so it is not shown here."
+  }
+}

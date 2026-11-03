@@ -399,8 +399,6 @@ MESSAGES: dict[str, str] = {
     "Disable": "Vypnout",
     "Enable": "Zapnout",
     "Make public": "Zveřejnit",
-    "Move down": "Posunout níž",
-    "Move up": "Posunout výš",
     "Next": "Další",
     "Nothing matches that filter.": "Tomuto filtru nic neodpovídá.",
     "Previous": "Předchozí",
@@ -2118,7 +2116,6 @@ MESSAGES['Use the LLeMbas mark'] = 'Použít znak LLeMbas'
 MESSAGES['Python in the browser'] = 'Python v prohlížeči'
 MESSAGES['Offer the python tool in chats'] = 'Nabízet v konverzacích nástroj python'
 MESSAGES["Code runs in the person's own browser (Pyodide), never on this server, with only the files the chat hands it, and only while a page of that chat is open."] = 'Kód běží v prohlížeči daného člověka (Pyodide), nikdy na tomto serveru, jen se soubory, které mu konverzace předá, a jen dokud je stránka té konverzace otevřená.'
-MESSAGES['Pyodide is not installed on this server, so there is nothing to switch on.'] = 'Pyodide na tomto serveru není nainstalováno, takže není co zapnout.'
 MESSAGES['Notifications when LLeMbas is closed'] = 'Oznámení, když je LLeMbas zavřený'
 MESSAGES['Allow Web Push'] = 'Povolit Web Push'
 MESSAGES["A browser's push goes through its maker's relay — Google's, Mozilla's or Apple's — so they learn that this server sent something, and when. What is sent says only that something is waiting, never what. Off, people still get notified while a LLeMbas page is open, and the apps are not affected."] = 'Push z prohlížeče jde přes službu jeho výrobce — Google, Mozilla nebo Apple — takže se dozví, že tento server něco poslal, a kdy. Odeslaná zpráva říká jen, že něco čeká, nikdy co. Vypnuto: lidé dostávají oznámení, dokud je otevřená stránka LLeMbas, a aplikací se to netýká.'
@@ -2353,3 +2350,28 @@ MESSAGES['Keep memories and skills of your own.'] = 'Mít vlastní záznamy v pa
 MESSAGES['Working with files'] = 'Práce se soubory'
 MESSAGES['Running Python'] = 'Spouštění Pythonu'
 MESSAGES['Recalling earlier results'] = 'Vyvolání dřívějších výsledků'
+
+# --- Pyodide by download, apps beside devices (2.0) ---
+MESSAGES['Pyodide %(version)s'] = 'Pyodide %(version)s'
+MESSAGES['Downloading Pyodide'] = 'Stahování Pyodide'
+MESSAGES['Downloading: %(done)s of %(total)s'] = 'Stahuje se: %(done)s z %(total)s'
+MESSAGES['On this server: %(count)s files, %(size)s, each checked against its pinned SHA-256.'] = 'Na tomto serveru: %(count)s souborů, %(size)s, každý ověřený podle připnutého SHA-256.'
+MESSAGES["Not on this server. Downloading fetches %(count)s files (%(size)s) once, from the Pyodide release's own address, and refuses them unless each matches the SHA-256 pinned in this version of LLeMbas. Nothing is loaded from anywhere else afterwards."] = 'Není na tomto serveru. Stažení jednou převezme %(count)s souborů (%(size)s) z vlastní adresy vydání Pyodide a odmítne je, pokud se některý neshoduje s SHA-256 připnutým v této verzi LLeMbas. Potom se už nic odjinud nenačítá.'
+MESSAGES['The last download was refused: %(why)s'] = 'Poslední stahování bylo odmítnuto: %(why)s'
+MESSAGES['Remove Pyodide?'] = 'Odstranit Pyodide?'
+MESSAGES['The python tool is switched off, and its files are deleted from this server. It can be downloaded again.'] = 'Nástroj python se vypne a jeho soubory se z tohoto serveru smažou. Lze jej znovu stáhnout.'
+MESSAGES['Download Pyodide'] = 'Stáhnout Pyodide'
+MESSAGES['Pyodide is not on this server yet, so there is nothing to switch on.'] = 'Pyodide na tomto serveru ještě není, takže není co zapnout.'
+MESSAGES['app'] = 'aplikace'
+MESSAGES['Its agent may'] = 'Jeho agent smí'
+MESSAGES['Apps'] = 'Aplikace'
+MESSAGES['Sign this app out?'] = 'Odhlásit tuto aplikaci?'
+MESSAGES['Pyodide is already on this server.'] = 'Pyodide už na tomto serveru je.'
+MESSAGES['Downloading Pyodide.'] = 'Pyodide se stahuje.'
+MESSAGES['There is no Pyodide on this server to remove.'] = 'Na tomto serveru není žádné Pyodide k odstranění.'
+MESSAGES['Pyodide removed, and the python tool switched off.'] = 'Pyodide je odstraněno a nástroj python vypnut.'
+MESSAGES['The download was answered with %(status)s.'] = 'Stahování dostalo odpověď %(status)s.'
+MESSAGES['%(name)s is larger than its pinned size.'] = 'Soubor %(name)s je větší než jeho připnutá velikost.'
+MESSAGES['%(name)s is not its pinned size.'] = 'Soubor %(name)s nemá svou připnutou velikost.'
+MESSAGES['%(name)s does not match its pinned SHA-256.'] = 'Soubor %(name)s se neshoduje se svým připnutým SHA-256.'
+MESSAGES['The download failed: %(why)s'] = 'Stahování selhalo: %(why)s'

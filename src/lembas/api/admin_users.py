@@ -108,6 +108,12 @@ async def users_page(
     )
 
 
+def _is_app(token) -> bool:
+    from lembas.services.devices import is_app
+
+    return is_app(token)
+
+
 def _tokens_of(db, target) -> list:
     from sqlalchemy import select
 
@@ -153,6 +159,7 @@ async def user_detail(request: Request, db: Db, user: AdminUser, user_id: str, s
             # Their tokens and signed-in devices, here rather than on a
             # page listing every token on the instance.
             "tokens": _tokens_of(db, target),
+            "is_app": _is_app,
             "linked": _linked_ids(target),
             "saved": saved,
             "admin_count": _admin_count(db),

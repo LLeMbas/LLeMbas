@@ -253,6 +253,37 @@ def _generation() -> generation_service.Generation:
     return generation
 
 
+def _files() -> dict[str, object]:
+    """`GET /files` and `GET /files/content`: a listing, a text file, a withheld one."""
+    from lembas.services.file_ui import Opened, Row
+
+    rows = [
+        Row(name="recipes", path="/home/frodo/recipes", kind="dir", size=0, level="commit",
+            updated_at=WHEN, node_id="node1", mime=""),
+        Row(name="lembas.md", path="/home/frodo/lembas.md", kind="file", size=27,
+            level="commit", updated_at=WHEN, node_id="node2", mime="text/markdown"),
+    ]
+
+    def opened(**kwargs) -> Opened:
+        base = {"path": "/home/frodo/lembas.md", "name": "lembas.md", "node": None,
+                "version": None, "size": 27, "sha": "ab" * 32, "mime": "text/markdown",
+                "kind": "markdown", "language": "markdown",
+                "text": "# Lembas\n\nWrap it in a leaf.\n", "level": "commit"}
+        return Opened(**{**base, **kwargs})
+
+    picture = opened(path="/home/frodo/map.png", name="map.png", size=2048,
+                     mime="image/png", kind="image", language="", text="")
+    return {
+        "files_listing": serialise.file_listing("/home/frodo", rows),
+        "file_content": serialise.file_content(opened()),
+        "file_content_withheld": serialise.file_content(
+            picture,
+            {"reason": serialise.WITHHELD_NOT_TEXT,
+             "message": "This is not a text file, so it is not shown here."},
+        ),
+    }
+
+
 def _shapes() -> dict[str, object]:
     generation = _generation()
     tail = serialise.tail(generation, "4s")
@@ -280,6 +311,7 @@ def _shapes() -> dict[str, object]:
         },
         "event_close": {},
         "tool_show": {"calls": [serialise.tool_call(SHOW_TREE), serialise.tool_call(SHOW_DEVICE)]},
+        **_files(),
     }
 
 

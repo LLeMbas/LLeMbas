@@ -33,6 +33,12 @@
       <div class="mode-list__row"><dt>{{ t("It may") }}</dt>
         <dd><ul class="device-scopes">{% for scope in row.scopes_json %}<li>{{ scope_label(scope) }}</li>{% endfor %}</ul></dd>
       </div>
+      {#- The second token of the same approval (services/devices.py). -#}
+      {% if row.agent_scopes_json %}
+      <div class="mode-list__row" data-testid="agent-scopes"><dt>{{ t("Its agent may") }}</dt>
+        <dd><ul class="device-scopes">{% for scope in row.agent_scopes_json %}<li>{{ scope_label(scope) }}</li>{% endfor %}</ul></dd>
+      </div>
+      {% endif %}
     </dl>
     <p class="field__hint">{{ t("Approve only a device you are signing in yourself, right now. It keeps access until you revoke it under Settings → Devices.") }}</p>
     <form method="post" action="/device" class="btn-row">
