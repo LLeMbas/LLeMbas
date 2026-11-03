@@ -5,7 +5,7 @@ from `/v1/models`, and its voice and web search from here, so the endpoints and
 keys of the speech and search servers are set once -- on this instance -- and
 every device uses them. A device that has none of its own needs none.
 
-- `GET /api/v1/instance` -- this instance by name, the account, the model new
+- `GET /api/v1/instance` -- this instance by name, the account, the token's scope, the model new
   chats start on, and which of the services below this account may use.
 - `POST /v1/audio/transcriptions` and `POST /v1/audio/speech` -- OpenAI's shapes,
   so any client that speaks them works, over the instance's own speech servers
@@ -115,6 +115,9 @@ async def instance(db: Db, caller: ModelsCaller) -> JSONResponse:
             "name": brand.name,
             "connection": connection_name(brand.name),
             "account": {"email": user.email, "name": user.name},
+            # The presented token's own scopes, so a client handed a token rather
+            # than granted one (`lembas login --token-stdin`) can tell what it holds.
+            "scope": " ".join(caller.token.scopes_json or []),
             "default_model": default,
             "services": available(db, user),
         },

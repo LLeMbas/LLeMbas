@@ -232,3 +232,10 @@ def test_a_decision_returns_to_the_devices(client, db, registered):
     )
     assert response.status_code == 303
     assert response.headers["location"].startswith("/settings?tab=devices")
+
+
+def test_the_instance_names_the_token_s_scope(client, db, registered):
+    body = client.get(
+        "/api/v1/instance", headers=_bearer(db, scopes=("models", "memory", "link"))
+    ).json()
+    assert body["scope"] == "models memory link"

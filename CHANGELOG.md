@@ -7,6 +7,8 @@ at <https://llembas.eu/changelog.html>.
 
 ### 2.0 (in progress)
 
+- `GET /api/v1/instance` also returns `scope`, the presented token's scopes, so `lembas login --token-stdin` can check that a handed-over token can link a computer.
+
 2.0 is a new major on `dev`, released as `2.0.0-beta.N`. What is listed here is on `dev` and in no
 release yet.
 
