@@ -555,3 +555,24 @@ def test_the_model_page_keeps_the_fallback_order(client, db, registered):
     client.post(f"/admin/models/{main.id}", data=base)
     db.expire_all()
     assert db.get(Model, main.id).fallback_model_ids == []
+
+
+def test_the_fallback_rows_are_drawn_by_the_server_in_order_and_sortable(client, db, registered):
+    main, backup = _two_models(db, fallback=True)
+    page = client.get(f"/admin/models/{main.id}/edit").text
+    card = page[page.index('data-testid="fallback-list"'):]
+    card = card[: card.index("</section>")]
+    listed = card[card.index('data-testid="fallback-order"'): card.index("</ol>")]
+    # Rendered here, not by a template loop in the browser: the hidden input is
+    # in the row that is dragged, so moving the row moves the value.
+    assert "x-for" not in card and "x-data" not in card
+    assert f'data-id="{backup.id}"' in listed and "data-sortable-handle" in listed
+    assert f'name="fallback_model_ids" value="{backup.id}"' in listed
+    assert "data-sortable-url" not in card  # the order posts with the form
+    # The keyboard: the handle is a focusable button; add and remove are buttons too.
+    assert 'type="button" data-sortable-handle' in listed
+    assert "data-sortable-remove" in listed and "data-sortable-add" in card
+    assert "<template data-sortable-template>" in card and "__ID__" in card
+    # A listed model cannot be added twice.
+    option = card[card.index(f'<option value="{backup.id}"'):]
+    assert option[: option.index(">")].rstrip().endswith("disabled")

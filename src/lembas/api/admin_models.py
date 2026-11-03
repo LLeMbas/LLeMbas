@@ -511,33 +511,6 @@ async def update_model(
     )
 
 
-@router.post("/admin/models/{model_id}/move")
-async def move_model(
-    db: Db,
-    user: AdminUser,
-    model_id: str,
-    direction: str = Form(...),
-    back: str = Form(""),
-) -> Response:
-    """Swap a model with its neighbour."""
-    model = _model(db, model_id)
-    ordered = _ordered(db)
-    index = next((i for i, m in enumerate(ordered) if m.id == model.id), None)
-
-    if index is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, i18n.t("That model no longer exists."))
-
-    target = index - 1 if direction == "up" else index + 1
-    if 0 <= target < len(ordered):
-        ordered[index], ordered[target] = ordered[target], ordered[index]
-        for position, item in enumerate(ordered):
-            item.position = position
-        db.commit()
-
-    # Back to whichever filtered, paginated view the button was pressed on.
-    return RedirectResponse(back or "/admin/models", status_code=303)
-
-
 @router.post("/admin/models/{model_id}/detect-efforts")
 async def detect_efforts(db: Db, user: AdminUser, model_id: str) -> Response:
     """Ask the endpoint which reasoning efforts this model actually takes.

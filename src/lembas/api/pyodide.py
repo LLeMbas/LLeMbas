@@ -7,32 +7,67 @@ and checks that the chat is the caller's own -- a page can only ever run code
 for, and hand results to, a chat of the person whose browser it is.
 
 Offered only when an administrator has switched it on (`pyodide_enabled`, off
-by default) **and** Pyodide is vendored under `static/vendor/pyodide/`
-(`available()`). Pyodide is CPython in WebAssembly, run in a worker in the
-person's browser: nothing runs on this machine, and the code sees only the
-files the tool hands it.
+by default) **and** Pyodide has been fetched and verified into the data
+directory (`services/pyodide_files.py`, `available()`). Pyodide is CPython in
+WebAssembly, run in a worker in the person's browser: nothing runs on this
+machine, and the code sees only the files the tool hands it.
+
+`GET /vendor/pyodide/<version>/<name>` serves those files, and only those: a
+name the lock lists, of the pinned version, once it is verified. Public like
+`/static/`, because nothing in it is anybody's -- it is a release of somebody
+else's software, byte for byte.
 """
 
 from __future__ import annotations
 
 from fastapi import APIRouter, Body, HTTPException, status
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 from lembas.api.deps import Db, RequiredUser
 from lembas.db.models import Chat
-from lembas.services import pages, settings_store
+from lembas.services import pages, pyodide_files, settings_store
 from lembas.web.i18n import t
-from lembas.web.templating import STATIC_DIR
 
 router = APIRouter(tags=["pyodide"])
 
-VENDOR = STATIC_DIR / "vendor" / "pyodide"
 TAKE_SECONDS = 25.0
+# What each file is, said explicitly: a module must be `text/javascript` for
+# the browser to import it, and WebAssembly `application/wasm` to be compiled
+# while it streams.
+MEDIA_TYPES = {
+    ".js": "text/javascript; charset=utf-8",
+    ".mjs": "text/javascript; charset=utf-8",
+    ".wasm": "application/wasm",
+    ".zip": "application/zip",
+    ".json": "application/json",
+}
 
 
 def available() -> bool:
-    """Whether Pyodide is on this server at all."""
-    return (VENDOR / "pyodide.js").is_file()
+    """Whether Pyodide is on this server, fetched and verified."""
+    return pyodide_files.available()
+
+
+def index_url() -> str:
+    """Where the runner loads Pyodide from: this server, the pinned version."""
+    return f"/vendor/pyodide/{pyodide_files.version()}/"
+
+
+@router.get("/vendor/pyodide/{version}/{name}")
+async def pyodide_file(version: str, name: str) -> Response:
+    found = pyodide_files.path_of(name) if version == pyodide_files.version() else None
+    if found is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    suffix = "." + name.rsplit(".", 1)[-1]
+    return FileResponse(
+        found,
+        media_type=MEDIA_TYPES.get(suffix, "application/octet-stream"),
+        headers={
+            "X-Content-Type-Options": "nosniff",
+            # The version is in the address, so a file under it never changes.
+            "Cache-Control": "public, max-age=31536000, immutable",
+        },
+    )
 
 
 def enabled(db) -> bool:
@@ -113,8 +148,9 @@ def _register() -> None:
     from lembas.web.templating import templates
 
     templates.env.globals["python_runner"] = python_runner
+    templates.env.globals["pyodide_index_url"] = index_url
 
 
 _register()
 
-__all__ = ["available", "enabled", "offered", "python_runner", "router"]
+__all__ = ["available", "enabled", "index_url", "offered", "python_runner", "router"]

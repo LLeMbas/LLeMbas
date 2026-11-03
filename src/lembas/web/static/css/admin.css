@@ -951,3 +951,20 @@ a.tabs__tab { text-decoration: none; }
 .import-list__why:empty { display: none; }
 .import-list__item > .badge { justify-self: start; }
 .backup-name { overflow-wrap: anywhere; }
+
+/* Pyodide's download (admin/_python_card.html): a plain <progress>, coloured
+   from the theme. The bar is the whole width the field has. */
+.download-progress {
+  display: block;
+  width: 100%;
+  height: var(--sp-2);
+  margin-top: var(--sp-2);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--bg-sunken);
+  accent-color: var(--leaf);
+  overflow: hidden;
+}
+.download-progress::-webkit-progress-bar { background: var(--bg-sunken); }
+.download-progress::-webkit-progress-value { background: var(--leaf); }
+.download-progress::-moz-progress-bar { background: var(--leaf); }

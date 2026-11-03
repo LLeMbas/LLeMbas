@@ -141,3 +141,30 @@ def test_the_script_has_a_keyboard_and_a_touch_path():
     assert "pointerdown" in source
     base = (ROOT / "web/templates/base.html").read_text(encoding="utf-8")
     assert base.count("js/dnd.js") == 1
+
+
+def test_the_models_list_is_sortable_and_has_no_arrows(client, db, registered):
+    from lembas.db.models import Connection, Model
+
+    connection = Connection(name="Local", base_url="http://127.0.0.1:9/v1")
+    db.add(connection)
+    db.commit()
+    db.add_all([Model(connection_id=connection.id, model_id=f"m{i}", position=i)
+                for i in range(2)])
+    db.commit()
+    page = client.get("/admin/models").text
+    rows = page[page.index('id="model-rows"'):]
+    assert rows.startswith('id="model-rows" data-sortable data-sortable-url="/admin/order/models"')
+    assert rows.count("data-sortable-item") == 2 and rows.count('draggable="true"') == 2
+    assert rows.count("data-sortable-handle") == 2
+    assert "/move" not in page and 'aria-label="Move up"' not in page
+
+
+def test_a_list_without_a_url_is_left_to_its_form():
+    source = (ROOT / "web/static/js/dnd.js").read_text(encoding="utf-8")
+    save = source[source.index("function save(list)"):]
+    save = save[: save.index("\n  }\n")]
+    assert "if (!url" in save  # no URL, no request: the hidden inputs carry the order
+    assert "[data-sortable-add]" in source and "[data-sortable-remove]" in source
+    # A name goes in as text, never as markup.
+    assert "innerHTML" not in source

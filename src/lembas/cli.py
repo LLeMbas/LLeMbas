@@ -106,6 +106,48 @@ def restore(
     )
 
 
+@app.command("fetch-pyodide")
+def fetch_pyodide(
+    remove: bool = typer.Option(
+        False, "--remove", help="Delete it instead, and switch Python off."
+    ),
+) -> None:
+    """Download the pinned Pyodide for the python tool, checking every file's SHA-256.
+
+    The same as Admin -> General -> Download Pyodide. The files go to the data
+    directory; switching the tool on is still the administrator's."""
+    import asyncio
+
+    from lembas.services import pyodide_files
+
+    settings.ensure_dirs()
+    if remove:
+        from lembas.db.session import init_db, session_scope
+        from lembas.services import settings_store
+
+        removed = pyodide_files.remove()
+        init_db()
+        with session_scope() as db:
+            settings_store.update(db, {"pyodide_enabled": False})
+            db.commit()
+        typer.echo("Pyodide removed." if removed else "There was no Pyodide to remove.")
+        return
+    if pyodide_files.available():
+        where = pyodide_files.directory()
+        typer.echo(f"Pyodide {pyodide_files.version()} is already here: {where}")
+        return
+    size = pyodide_files.total_size() / 1_000_000
+    typer.echo(f"Fetching Pyodide {pyodide_files.version()} ({size:.1f} MB) from "
+               f"{pyodide_files.base_url()}")
+    try:
+        where = asyncio.run(pyodide_files.download())
+    except pyodide_files.PyodideError as refused:
+        typer.secho(str(refused), fg=typer.colors.RED)
+        raise typer.Exit(1) from refused
+    typer.secho(f"Verified into {where}. Switch it on under Admin -> General.",
+                fg=typer.colors.GREEN)
+
+
 import_app = typer.Typer(help="Bring data across from LLeMbas 1.x.", no_args_is_help=True)
 app.add_typer(import_app, name="import")
 

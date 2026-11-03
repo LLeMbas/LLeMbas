@@ -1,0 +1,56 @@
+{% from "_macros.html" import icon %}
+{#- The `python` tool's runtime (services/pyodide_files.py, api/admin_brand.py).
+    Pyodide is fetched by the administrator, once, from one fixed address, and
+    every file is checked against the lock committed with LLeMbas. While a
+    download runs the card asks for itself again every second, and stops asking
+    once it has finished: the finished card carries no trigger. -#}
+<section class="card u-mt-6" data-testid="python-card" id="python-card"
+  {%- if pyodide.running %} hx-get="/admin/general/python/progress" hx-trigger="every 1s"
+  hx-swap="outerHTML" hx-target="this"{% endif %}>
+  <h2 class="card__title">{{ t("Python in the browser") }}</h2>
+
+  <div class="field">
+    <span class="field__label">{{ t("Pyodide %(version)s", version=pyodide.version) }}</span>
+    {% if pyodide.running %}
+    <progress class="download-progress" max="{{ pyodide.total }}" value="{{ pyodide.done }}"
+              aria-label="{{ t('Downloading Pyodide') }}"></progress>
+    <p class="field__hint" data-testid="pyodide-progress">{{ t("Downloading: %(done)s of %(total)s", done=pyodide.done|filesizeformat, total=pyodide.total|filesizeformat) }}</p>
+    {% elif pyodide.available %}
+    <p class="field__hint" data-testid="pyodide-state">{{ t("On this server: %(count)s files, %(size)s, each checked against its pinned SHA-256.", count=pyodide.count, size=pyodide.total|filesizeformat) }}</p>
+    {% else %}
+    <p class="field__hint" data-testid="pyodide-state">{{ t("Not on this server. Downloading fetches %(count)s files (%(size)s) once, from the Pyodide release's own address, and refuses them unless each matches the SHA-256 pinned in this version of LLeMbas. Nothing is loaded from anywhere else afterwards.", count=pyodide.count, size=pyodide.total|filesizeformat) }}</p>
+    {% endif %}
+    {% if pyodide.error %}
+    <div class="alert alert--error" role="alert" data-testid="pyodide-error">{{ icon("warning", "alert__icon") }} <span>{{ t("The last download was refused: %(why)s", why=pyodide.error) }}</span></div>
+    {% endif %}
+    {% if not pyodide.running %}
+    <div class="btn-row">
+      {% if pyodide.available %}
+      <form method="post" action="/admin/general/python/remove">
+        <button class="btn btn--ghost" type="submit"
+                data-confirm-title="{{ t('Remove Pyodide?') }}"
+                data-confirm-button="{{ t('The python tool is switched off, and its files are deleted from this server. It can be downloaded again.') }}"
+                data-confirm-label="{{ t('Remove') }}">{{ t("Remove") }}</button>
+      </form>
+      {% else %}
+      <form method="post" action="/admin/general/python/download">
+        <button class="btn" type="submit">{{ t("Download Pyodide") }}</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <form method="post" action="/admin/general/python" class="field">
+    <label class="checkbox">
+      <input type="checkbox" name="pyodide_enabled" value="true" {{ 'checked' if values.pyodide_enabled and pyodide.available }}
+             {{ 'disabled' if not pyodide.available }}>
+      <span>{{ t("Offer the python tool in chats") }}</span>
+    </label>
+    <p class="field__hint">
+      {% if pyodide.available %}{{ t("Code runs in the person's own browser (Pyodide), never on this server, with only the files the chat hands it, and only while a page of that chat is open.") }}
+      {% else %}{{ t("Pyodide is not on this server yet, so there is nothing to switch on.") }}{% endif %}
+    </p>
+    <div class="btn-row"><button class="btn" type="submit"{{ ' disabled' if not pyodide.available }}>{{ t("Save") }}</button></div>
+  </form>
+</section>

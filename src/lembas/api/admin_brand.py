@@ -8,6 +8,10 @@ at once. The type is read from the bytes, never the name. SVG is refused: it is
 a document that can carry script, and `/brand/logo` is served from this
 instance's own origin. The route is public, because the sign-in page shows it.
 
+**Python in the browser** needs Pyodide on this server, which an administrator
+downloads here, once (`services/pyodide_files.py`): the switch cannot be turned
+on until every file is present and verified, and removing it turns it off.
+
 **Web Push** is off by default (`settings_store.web_push_enabled`), with the
 note the owner asked for: a browser's push goes through its vendor's relay,
 and what is sent says only that something happened (`services/push.py`).
@@ -17,12 +21,13 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, Request, Response, UploadFile, status
 
 from lembas.api._redirect import back
 from lembas.api.deps import AdminUser, Db
-from lembas.services import blobs, branding, settings_store
+from lembas.services import blobs, branding, pyodide_files, settings_store
 from lembas.web.i18n import t
+from lembas.web.templating import render
 
 log = logging.getLogger(__name__)
 
@@ -85,12 +90,65 @@ async def save_push(db: Db, user: AdminUser, web_push_enabled: bool = Form(False
     return back("/admin/general", t("Saved."))
 
 
+def pyodide_state() -> dict:
+    """What the Python card draws (admin/_python_card.html)."""
+    progress = pyodide_files.PROGRESS
+    running = progress.state == "running"
+    return {
+        "version": pyodide_files.version(),
+        "count": len(pyodide_files.files()),
+        "total": pyodide_files.total_size(),
+        "available": pyodide_files.available(),
+        "running": running,
+        "done": progress.done_bytes if running else 0,
+        "error": progress.error if progress.state == "failed" else "",
+    }
+
+
 @router.post("/admin/general/python")
 async def save_python(db: Db, user: AdminUser, pyodide_enabled: bool = Form(False)) -> Response:
+    if pyodide_enabled and not pyodide_files.available():
+        return back(
+            "/admin/general",
+            t("Pyodide is not on this server yet, so there is nothing to switch on."),
+            ok=False,
+        )
     settings_store.update(db, {"pyodide_enabled": pyodide_enabled})
     db.commit()
     log.info("python in the browser %s by %s", "on" if pyodide_enabled else "off", user.email)
     return back("/admin/general", t("Saved."))
+
+
+@router.post("/admin/general/python/download")
+async def download_pyodide(user: AdminUser) -> Response:
+    if pyodide_files.available():
+        return back("/admin/general", t("Pyodide is already on this server."))
+    pyodide_files.start()
+    log.info("pyodide %s download started by %s", pyodide_files.version(), user.email)
+    return back("/admin/general", t("Downloading Pyodide."))
+
+
+@router.post("/admin/general/python/remove")
+async def remove_pyodide(db: Db, user: AdminUser) -> Response:
+    if not pyodide_files.remove():
+        return back("/admin/general", t("There is no Pyodide on this server to remove."), ok=False)
+    settings_store.update(db, {"pyodide_enabled": False})
+    db.commit()
+    log.info("pyodide removed by %s", user.email)
+    return back("/admin/general", t("Pyodide removed, and the python tool switched off."))
+
+
+@router.get("/admin/general/python/progress")
+async def pyodide_progress(request: Request, db: Db, user: AdminUser) -> Response:
+    """The card alone, for its own poll while a download runs."""
+    return render(
+        request,
+        "admin/_python_card.html",
+        {
+            "pyodide": pyodide_state(),
+            "values": settings_store.get_group(db, settings_store.GENERAL),
+        },
+    )
 
 
 @router.get("/brand/logo")

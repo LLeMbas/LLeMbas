@@ -656,16 +656,18 @@ def test_a_nonsense_position_is_ignored(client: TestClient, db, registered):
     assert model.position == 0
 
 
-def test_moving_returns_to_the_filtered_view(client: TestClient, db, registered):
+def test_putting_models_in_order_returns_to_the_filtered_view(client: TestClient, db,
+                                                               registered):
     _many_models(db, 3)
-    model = db.scalar(select(Model).where(Model.model_id == "model-001"))
-
+    ids = [m.id for m in db.scalars(select(Model).order_by(Model.position))]
     response = client.post(
-        f"/admin/models/{model.id}/move",
-        data={"direction": "up", "back": "/admin/models?filter=enabled&page=2"},
+        "/admin/order/models",
+        data={"ids": ",".join(reversed(ids)), "back": "/admin/models?filter=enabled&page=2"},
         follow_redirects=False,
     )
-    assert response.headers["location"] == "/admin/models?filter=enabled&page=2"
+    assert response.headers["location"].startswith("/admin/models?filter=enabled&page=2&saved=")
+    db.expire_all()
+    assert [m.id for m in db.scalars(select(Model).order_by(Model.position))] == ids[::-1]
 
 
 def test_the_new_chat_composer_preselects_the_default_model(

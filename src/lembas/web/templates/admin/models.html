@@ -78,13 +78,22 @@
     <button class="btn btn--sm" name="action" value="private" type="submit">{{ t("Restrict") }}</button>
   </div>
 
-  <div class="model-rows" id="model-rows">
+  {#- In order by dragging the number, or by focusing it and pressing the arrow
+      keys (js/dnd.js, api/ordering.py), as the tools are. The order posts by
+      itself; the bulk form around it is not sent. -#}
+  <div class="model-rows" id="model-rows" data-sortable data-sortable-url="/admin/order/models"
+       data-testid="model-order">
     {% for model in models %}
-    <div class="model-row {{ 'is-off' if not model.enabled }}">
+    <div class="model-row {{ 'is-off' if not model.enabled }}" data-sortable-item data-id="{{ model.id }}" draggable="true">
       <input class="model-row__check" type="checkbox" name="model_ids" value="{{ model.id }}"
              aria-label="{{ t('Select %(name)s', name=model.label) }}">
 
-      <span class="model-row__pos">{{ page_start + loop.index }}</span>
+      <button class="model-row__pos sort-handle" type="button" data-sortable-handle
+              id="sort-{{ model.id }}" data-testid="sort-handle"
+              aria-label="{{ t('Move %(name)s: drag, or use the arrow keys', name=model.label) }}"
+              title="{{ t('Drag to put in order') }}">
+        {{ icon("grip", "icon--sm") }}{{ page_start + loop.index }}
+      </button>
 
       {{ model_avatar(model, cls="model-row__avatar") }}
 
@@ -105,17 +114,6 @@
       </div>
 
       <div class="model-row__actions">
-        {# formaction lets these post elsewhere without nesting a second form. #}
-        <button class="btn btn--icon btn--sm" type="submit" aria-label="{{ t('Move up') }}"
-                formaction="/admin/models/{{ model.id }}/move" name="direction" value="up"
-                {{ 'disabled' if page == 1 and loop.first }}>
-          {{ icon("arrow-up", "icon--sm") }}
-        </button>
-        <button class="btn btn--icon btn--sm" type="submit" aria-label="{{ t('Move down') }}"
-                formaction="/admin/models/{{ model.id }}/move" name="direction" value="down"
-                {{ 'disabled' if page == pages and loop.last }}>
-          {{ icon("arrow-down", "icon--sm") }}
-        </button>
         <a class="btn btn--sm" href="/admin/models/{{ model.id }}/edit">{{ t("Edit") }}</a>
       </div>
     </div>

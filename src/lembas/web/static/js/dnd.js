@@ -20,6 +20,15 @@
     list only; the server keeps the slots of everything not on the page) and
     the page is saved in place (inplace.js), so the numbers beside the rows are
     the server's again.
+
+  * A list in order with no URL is part of a form: each item carries its own
+    hidden input, so moving the item moves its value, and the order is posted
+    with the form (a model's fallbacks). Inside a `[data-sortable-editor]` it
+    can also grow and shrink: `[data-sortable-add]` copies the
+    `<template data-sortable-template>` row for the option chosen in
+    `[data-sortable-pick]` (filling `__ID__` and `__NAME__`, the name as text),
+    and `[data-sortable-remove]` takes its row out. An option already listed is
+    disabled, so nothing is listed twice.
 */
 (function () {
   "use strict";
@@ -247,5 +256,73 @@
     grip.focus();
     clearTimeout(pending);
     pending = setTimeout(function () { pending = null; save(list); }, 700);
+  });
+
+  /* --- A list that is part of a form: add and remove -------------------- */
+
+  function editorParts(editor) {
+    return {
+      list: editor.querySelector("[data-sortable]"),
+      template: editor.querySelector("template[data-sortable-template]"),
+      pick: editor.querySelector("[data-sortable-pick]"),
+    };
+  }
+
+  function syncPick(editor) {
+    var parts = editorParts(editor);
+    if (!parts.list || !parts.pick) return;
+    var listed = {};
+    items(parts.list).forEach(function (el) { listed[el.dataset.id] = true; });
+    Array.prototype.forEach.call(parts.pick.options, function (option) {
+      if (option.value) option.disabled = !!listed[option.value];
+    });
+    if (parts.pick.selectedOptions.length && parts.pick.selectedOptions[0].disabled) {
+      parts.pick.value = "";
+    }
+  }
+
+  /* The template's row with its two holes filled: attributes by replacing the
+     marker in each, text only through textContent, never as markup. */
+  function fill(node, id, name) {
+    if (node.nodeType === 3) {
+      node.textContent = node.textContent.split("__NAME__").join(name).split("__ID__").join(id);
+      return;
+    }
+    if (node.nodeType !== 1) return;
+    Array.prototype.forEach.call(node.attributes, function (attr) {
+      if (attr.value.indexOf("__") === -1) return;
+      attr.value = attr.value.split("__NAME__").join(name).split("__ID__").join(id);
+    });
+    Array.prototype.forEach.call(node.childNodes, function (child) { fill(child, id, name); });
+  }
+
+  document.addEventListener("click", function (event) {
+    var add = event.target.closest && event.target.closest("[data-sortable-add]");
+    var remove = event.target.closest && event.target.closest("[data-sortable-remove]");
+    if (!add && !remove) return;
+    var editor = (add || remove).closest("[data-sortable-editor]");
+    if (!editor) return;
+    event.preventDefault();
+    var parts = editorParts(editor);
+    if (remove) {
+      var row = remove.closest("[data-sortable-item]");
+      var next = row && (row.nextElementSibling || row.previousElementSibling);
+      if (row) row.remove();
+      syncPick(editor);
+      /* Focus somewhere sensible rather than on a button that is gone. */
+      var focus = next && next.querySelector("[data-sortable-handle]");
+      (focus || parts.pick || document.body).focus();
+      return;
+    }
+    if (!parts.list || !parts.template || !parts.pick || !parts.pick.value) return;
+    var option = parts.pick.selectedOptions[0];
+    if (!option || option.disabled) return;
+    var copy = parts.template.content.firstElementChild.cloneNode(true);
+    fill(copy, option.value, option.textContent.trim());
+    parts.list.appendChild(copy);
+    parts.pick.value = "";
+    syncPick(editor);
+    var handle = copy.querySelector("[data-sortable-handle]");
+    if (handle) handle.focus();
   });
 })();

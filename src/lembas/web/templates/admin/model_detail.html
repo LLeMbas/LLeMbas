@@ -391,41 +391,42 @@
     </div>
   </section>
 
-  {# Opt-in fallback (services/fallback.py). A plain ordered list with up and
-     down for now: the drag-and-drop list component can take it over by the
-     `data-testid`. Order is the order the inputs post in. #}
-  <section class="card" data-testid="fallback-list"
-           x-data="{ items: {{ fallback_items | tojson | forceescape }}, pick: '' }">
+  {#- Opt-in fallback (services/fallback.py). Put in order by dragging a row's
+      handle, or by focusing it and pressing the arrow keys (js/dnd.js); added
+      and removed with the buttons. The list has no URL of its own: the order
+      is the order the hidden inputs post in, with the rest of this form.
+      `fallback_submitted` posts even when the list is empty, so emptying it
+      is a change the server sees. -#}
+  {%- macro fallback_row(id, label) -%}
+  <li class="btn-row fallback-list__item" data-sortable-item data-id="{{ id }}" draggable="true">
+    <input type="hidden" name="fallback_model_ids" value="{{ id }}">
+    <button class="sort-handle" type="button" data-sortable-handle
+            aria-label="{{ t('Move %(name)s: drag, or use the arrow keys', name=label) }}"
+            title="{{ t('Drag to put in order') }}">{{ icon("grip", "icon--sm") }}</button>
+    <span class="u-grow truncate" data-sortable-label>{{ label }}</span>
+    <button class="btn btn--icon btn--sm" type="button" data-sortable-remove
+            aria-label="{{ t('Remove %(name)s', name=label) }}" title="{{ t('Remove') }}">{{ icon("x", "icon--sm") }}</button>
+  </li>
+  {%- endmacro %}
+  <section class="card" data-testid="fallback-list" data-sortable-editor>
     <h2 class="card__title">{{ t("Fallback models") }}</h2>
     <p class="card__lede">{{ t("Tried in order when this model's connection cannot be reached, times out or answers with a server error, before anything of the reply was written — never on Stop or on a refused request. A reply from a fallback says which model answered, and keeps its cost. Only models in the same data group are tried. None listed: a failed reply fails, as it always has.") }}</p>
-    <ol class="fallback-list">
-      <template x-for="(item, index) in items" :key="item.id">
-        <li class="btn-row">
-          <input type="hidden" name="fallback_model_ids" :value="item.id">
-          <span class="u-grow truncate" x-text="item.label"></span>
-          <button class="btn btn--icon btn--sm" type="button" :disabled="index === 0"
-                  aria-label="{{ t('Move up') }}" title="{{ t('Move up') }}"
-                  @click="items.splice(index - 1, 0, items.splice(index, 1)[0])">{{ icon("chevron-up", "icon--sm") }}</button>
-          <button class="btn btn--icon btn--sm" type="button" :disabled="index === items.length - 1"
-                  aria-label="{{ t('Move down') }}" title="{{ t('Move down') }}"
-                  @click="items.splice(index + 1, 0, items.splice(index, 1)[0])">{{ icon("chevron-down", "icon--sm") }}</button>
-          <button class="btn btn--icon btn--sm" type="button"
-                  aria-label="{{ t('Remove') }}" title="{{ t('Remove') }}"
-                  @click="items.splice(index, 1)">{{ icon("x", "icon--sm") }}</button>
-        </li>
-      </template>
+    <ol class="fallback-list" data-sortable data-testid="fallback-order">
+      {% for item in fallback_items %}{{ fallback_row(item.id, item.label) }}{% endfor %}
     </ol>
-    {# Posted when the list is empty, so emptying it is a change the server sees. #}
+    {#- What "Add" copies: the same row, `__ID__` and `__NAME__` filled in by
+        the script from the chosen option (as text, never as markup). -#}
+    <template data-sortable-template>{{ fallback_row("__ID__", "__NAME__") }}</template>
     <input type="hidden" name="fallback_submitted" value="1">
+    {% set listed = fallback_items | map(attribute="id") | list %}
     <div class="btn-row">
-      <select class="select u-grow u-shrink" x-model="pick" aria-label="{{ t('Add a fallback model') }}">
+      <select class="select u-grow u-shrink" data-sortable-pick aria-label="{{ t('Add a fallback model') }}">
         <option value="">{{ t("Add a fallback model…") }}</option>
         {% for choice in fallback_choices %}
-        <option value="{{ choice.id }}" :disabled="items.some(i => i.id === '{{ choice.id }}')">{{ choice.label }}</option>
+        <option value="{{ choice.id }}" {{ 'disabled' if choice.id in listed }}>{{ choice.label }}</option>
         {% endfor %}
       </select>
-      <button class="btn" type="button" :disabled="!pick"
-              @click="items.push({ id: pick, label: $event.target.previousElementSibling.selectedOptions[0].text }); pick = ''">{{ t("Add") }}</button>
+      <button class="btn" type="button" data-sortable-add>{{ t("Add") }}</button>
     </div>
   </section>
 
