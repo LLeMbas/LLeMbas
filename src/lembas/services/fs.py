@@ -679,6 +679,17 @@ def home_of(db: DBSession, user: User) -> Node | None:
     )
 
 
+def start(v: View) -> str:
+    """Where a person's explorer opens: `/` when they can read it (an
+    organisation's owner or admin), otherwise their own home. A member's `/`
+    is a passage, which cannot be listed, so opening there would greet every
+    member with a refusal."""
+    if v.resolver.visible("/"):
+        return "/"
+    home = home_of(v.db, v.user)
+    return home.path if home is not None else "/"
+
+
 def ensure_home(db: DBSession, user: User) -> Node:
     """`/home/<name>/`, owned by `user`; made the first time it is asked for."""
     seed_org(db, user.org_id)

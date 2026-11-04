@@ -170,3 +170,16 @@ def test_the_files_door_needs_the_app_scope(client, db, registered):
     _, raw = api_tokens.create(db, _me(db), name="CLI", scopes=["models"])
     assert client.get("/api/v2/files", headers=_bearer(raw)).status_code in (401, 403)
     assert client.get("/api/v2/files").status_code == 401
+
+
+def test_a_listing_of_the_root_answers_for_a_member_with_their_home(client, db, registered):
+    """`/` is a passage for a member; the apps ask for it first."""
+    user = _me(db)
+    home = fs.ensure_home(db, user).path
+    db.commit()
+    v = fs.view(db, user)
+    got = client.get("/api/v2/files", params={"path": "/"}, headers=_app(db))
+    assert got.status_code == 200
+    assert got.json()["path"] == fs.start(v)
+    if not v.resolver.visible("/"):
+        assert got.json()["path"] == home

@@ -15,6 +15,9 @@ at <https://llembas.eu/changelog.html>.
 - **Test & refresh and Check balance on a connection update their row again.** Inside a form that
   saves in place they took over that form's whole-page swap, and the row's answer replaced the
   page with an unstyled copy of the row.
+- **Files opens in a member's home.** Only an organisation's owner and admins can read `/`, so
+  for everyone else the explorer opened on "Access denied". It now starts in `/home/<name>/`, and
+  `GET /api/v2/files?path=/` answers with that listing (its `path` says where).
 
 ## 2.0.0-beta.1 — 2026-11-03
 

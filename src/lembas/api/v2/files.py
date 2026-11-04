@@ -43,8 +43,13 @@ def _path(raw: str) -> str:
 @router.get("/files")
 async def list_files(caller: Me, db: Db, path: str = "/") -> dict[str, Any]:
     where = _path(path)
+    v = fs.view(db, caller.user)
+    if where == "/":
+        # A member cannot read `/`: the listing answers for their home, and
+        # its `path` says so, so an app's breadcrumbs start there.
+        where = fs.start(v)
     try:
-        rows = file_ui.listing(fs.view(db, caller.user), where)
+        rows = file_ui.listing(v, where)
     except fs.FsError as refused:
         raise HTTPException(status.HTTP_404_NOT_FOUND, refused.message) from refused
     return serialise.file_listing(where, rows)

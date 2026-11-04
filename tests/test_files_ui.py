@@ -102,6 +102,30 @@ def test_someone_elses_files_are_not_listed(client, db, me):
     assert raw.status_code == 404
 
 
+def test_a_member_opens_the_explorer_in_their_home(client, db, me):
+    """A member cannot read `/` (it is a passage), so the explorer does not
+    open there -- it used to answer every member with "Access denied"."""
+    from lembas.services import organisations
+
+    user, _home = me
+    member = organisations.create_account(
+        db, org_id=user.org_id, name="Sam", email="sam@shire.test", password="potatoes-and-more"
+    )
+    home = fs.ensure_home(db, member).path
+    db.commit()
+    assert not fs.view(db, member).resolver.visible("/")
+    assert fs.start(fs.view(db, member)) == home
+    assert fs.start(fs.view(db, user)) == "/"
+    client.post("/auth/logout")
+    client.post("/auth/login", data={"email": "sam@shire.test", "password": "potatoes-and-more"})
+    opened = client.get("/files", follow_redirects=False)
+    assert opened.status_code == 303
+    assert opened.headers["location"] == f"/files?path={quote(home)}"
+    page = client.get("/files")
+    assert page.status_code == 200
+    assert "Access denied" not in page.text
+
+
 # --- The viewer ----------------------------------------------------------------------
 
 

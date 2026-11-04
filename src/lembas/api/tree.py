@@ -95,6 +95,10 @@ def _tree(v: fs.View, path: str) -> list[dict]:
 async def explorer(request: Request, db: Db, user: RequiredUser, path: str = "/"):
     v = fs.view(db, user)
     path = _norm(path)
+    if path == "/" and fs.start(v) != "/":
+        from fastapi.responses import RedirectResponse
+
+        return RedirectResponse(f"/files?path={quote(fs.start(v))}", status_code=303)
     problem = ""
     rows: list[file_ui.Row] = []
     try:
