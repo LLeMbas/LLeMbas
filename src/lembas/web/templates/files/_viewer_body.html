@@ -1,0 +1,27 @@
+{#- A file's content, drawn by its kind: the viewer dialog's body and the file
+    page's (files/_viewer.html says what is trusted, and why). -#}
+{% from "_macros.html" import icon %}
+  <div class="viewer__body">
+  {% if opened.kind == "markdown" %}
+    <div class="msg__body viewer__md">{{ html|safe }}</div>
+  {% elif opened.kind == "code" %}
+    <pre class="viewer__code"><code data-highlight="{{ opened.language }}"
+         data-hljs-src="{{ asset('vendor/highlight.min.js') }}"
+         {%- if line %} data-line="{{ line }}"{% endif %}>{{ opened.text }}</code></pre>
+  {% elif opened.kind == "text" %}
+    <pre class="viewer__code viewer__code--plain"{% if line %} data-line="{{ line }}"{% endif %}><code>{{ opened.text }}</code></pre>
+  {% elif opened.kind == "html" %}
+    <iframe class="viewer__frame" src="{{ frame_url }}" sandbox="allow-scripts"
+            referrerpolicy="no-referrer" loading="lazy" data-testid="viewer-frame"
+            title="{{ t('The page in %(name)s, sealed off from this application', name=opened.name) }}"></iframe>
+  {% elif opened.kind == "image" %}
+    <img class="viewer__image" src="{{ raw_url }}&amp;inline=1" alt="{{ opened.name }}">
+  {% else %}
+    <div class="empty">
+      {{ icon("file-text", "empty__mark") }}
+      <p class="empty__text">{{ t("This file is too large to show here.") if opened.kind == "large"
+                                 else t("This is not a text file, so it is not shown here.") }}</p>
+      <p class="empty__text"><a href="{{ raw_url }}" download>{{ t("Download it") }}</a></p>
+    </div>
+  {% endif %}
+  </div>

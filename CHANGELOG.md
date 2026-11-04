@@ -5,6 +5,26 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
+### Changed
+
+- **Files is a file manager in the whole window.** A path bar with New file, New folder and Upload;
+  the folder tree and the list side by side, each scrolling on its own; a whole row opens what it
+  names, with its type, size and date in line. On a phone the tree folds away and the buttons keep
+  their icons.
+- **A file opens in the editor.** A text file you may change opens straight in CodeMirror, with its
+  highlighting, beside the tree; Markdown and HTML have Edit and Preview. A file you may only read,
+  an older version, an image or a binary opens in the viewer. Versions are a menu on the file's bar.
+  The old `/files/edit` address leads to the file.
+- **A chat with no start folder works in its person's home**, not at the organisation's root: a
+  model that saved `notes.md` put it where everybody could see it.
+
+### Added
+
+- **New file**: name it, and it opens in the editor.
+- **Run, for Python files**, when an administrator has switched Python on and fetched Pyodide: a
+  ▶ on every `.py` row and on the file's bar runs it in this browser (Pyodide, in a worker), with
+  what it printed under the file, and Stop.
+
 ### Fixed
 
 - **A 2.x installation is never offered a 1.x release.** The stable channel, automatic updates and

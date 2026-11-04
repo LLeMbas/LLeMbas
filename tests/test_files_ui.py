@@ -141,8 +141,75 @@ def test_code_is_escaped_and_marked_for_highlighting(client, db, me):
     user, home = me
     _write(db, user, f"{home}/x.py", b"print('<b>hi</b>')")
     page = client.get(f"/files/view?path={quote(home + '/x.py')}").text
+    # Yours to change: it opens in the editor, as Python, escaped.
+    assert 'data-language="python"' in page
+    assert "&lt;b&gt;hi&lt;/b&gt;" in page
+    assert "<b>hi</b>" not in page
+
+
+def test_code_you_may_only_read_is_highlighted_in_the_viewer(client, db, me):
+    user, home = me
+    node = _write(db, user, f"{home}/y.py", b"print('<b>hi</b>')")
+    _write(db, user, f"{home}/y.py", b"print('two')")
+    older = db.scalars(select(NodeVersion).where(NodeVersion.node_id == node.id)
+                       .order_by(NodeVersion.at)).first()
+    page = client.get(f"/files/view?path={quote(home + '/y.py')}&version={older.id}").text
     assert 'data-highlight="python"' in page
     assert "&lt;b&gt;hi&lt;/b&gt;" in page
+    assert 'name="content"' not in page
+
+
+def test_a_new_file_opens_in_the_editor(client, db, me):
+    user, home = me
+    made = client.post("/files/new", data={"path": home, "name": "notes.md"},
+                       follow_redirects=False)
+    assert made.status_code == 303
+    assert made.headers["location"] == f"/files/view?path={quote(home + '/notes.md')}"
+    page = client.get(made.headers["location"]).text
+    assert 'data-testid="file-editor"' in page
+    assert 'data-testid="file-preview"' in page  # markdown has a preview
+    again = client.post("/files/new", data={"path": home, "name": "notes.md"},
+                        follow_redirects=False)
+    assert "error=" in again.headers["location"]
+    assert client.post("/files/new", data={"path": home, "name": "a/b"},
+                       follow_redirects=False).status_code == 303
+    assert "a" not in [e.name for e in fs.list_dir(fs.view(db, user), home)]
+
+
+def test_the_old_editor_address_opens_the_file(client, db, me):
+    user, home = me
+    _write(db, user, f"{home}/e.txt", b"old")
+    moved = client.get(f"/files/edit?path={quote(home + '/e.txt')}", follow_redirects=False)
+    assert moved.status_code == 301
+    assert moved.headers["location"] == f"/files/view?path={quote(home + '/e.txt')}"
+
+
+def test_the_explorer_takes_the_window(client, db, me):
+    user, home = me
+    _write(db, user, f"{home}/run.py", b"print(1)")
+    page = client.get(f"/files?path={quote(home)}").text
+    assert 'data-testid="explorer"' in page
+    assert 'data-testid="files-new-file"' in page
+    assert 'class="fx__tree"' in page
+    # Python is off unless an administrator switched it on and fetched it.
+    assert 'data-testid="file-run"' not in page
+
+
+def test_a_python_file_has_run_when_python_is_on(client, db, me, monkeypatch):
+    from lembas.api import pyodide
+
+    monkeypatch.setattr(pyodide, "enabled", lambda db: True)
+    monkeypatch.setattr(pyodide, "available", lambda: True)
+    monkeypatch.setattr(pyodide, "index_url", lambda: "/vendor/pyodide/0/")
+    user, home = me
+    _write(db, user, f"{home}/run.py", b"print(1)")
+    _write(db, user, f"{home}/notes.md", b"# x")
+    listing = client.get(f"/files?path={quote(home)}").text
+    assert listing.count('data-testid="file-run"') == 1
+    page = client.get(f"/files/view?path={quote(home + '/run.py')}&run=1").text
+    assert 'data-run-now="1"' in page
+    assert 'data-run-worker="' in page
+    assert 'data-testid="run-output"' in page
 
 
 def test_html_is_only_ever_in_the_sealed_frame(client, db, me):
@@ -198,7 +265,7 @@ def test_versions_are_listed_and_restored(client, db, me):
 def test_the_editor_works_without_javascript(client, db, me):
     user, home = me
     node = _write(db, user, f"{home}/e.txt", b"old")
-    page = client.get(f"/files/edit?path={quote(home + '/e.txt')}").text
+    page = client.get(f"/files/view?path={quote(home + '/e.txt')}").text
     assert '<textarea class="textarea editor__text" name="content"' in page
     assert 'type="importmap"' in page
     r = client.post(
@@ -232,7 +299,7 @@ def test_the_import_map_names_only_vendored_files():
     import lembas
 
     root = Path(lembas.__file__).parent / "web"
-    page = (root / "templates/files/edit.html").read_text(encoding="utf-8")
+    page = (root / "templates/files/view.html").read_text(encoding="utf-8")
     assert "http" not in page.split('type="importmap"')[1].split("</script>")[0]
     for name in ("cm-state.mjs", "cm-view.mjs", "cm-codemirror.mjs", "lezer-lr.mjs"):
         assert (root / "static/vendor" / name).exists()
@@ -248,7 +315,7 @@ def test_every_import_in_the_editor_modules_is_mapped():
     import lembas
 
     root = Path(lembas.__file__).parent / "web"
-    page = (root / "templates/files/edit.html").read_text(encoding="utf-8")
+    page = (root / "templates/files/view.html").read_text(encoding="utf-8")
     mapped = set(re.findall(r'"([^"]+)":\s*"\{\{', page))
     wanted = set()
     for module in (root / "static/vendor").glob("*.mjs"):

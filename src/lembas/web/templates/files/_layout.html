@@ -1,9 +1,14 @@
 {% extends "base.html" %}
 {% from "_macros.html" import icon %}
 {#
-  The file pages' frame: the chat sidebar, a topbar, one scroller, and the
-  page inside `data-in-place-root`, so every change made here (upload, new
-  folder, rename, move, delete, restore) is saved in place (web/in_place.py).
+  The file pages' frame: the chat sidebar, a topbar, and the page inside
+  `data-in-place-root`, so every change made here (upload, new file or folder,
+  rename, move, delete, restore) is saved in place (web/in_place.py).
+
+  Two shapes. The explorer and a file (`explorer = true`) take the whole
+  window, like a file manager: a path bar, the folder tree, and the list or
+  the file, each scrolling in itself. Trash and undo are pages to read and
+  keep the narrow measure of the settings pages.
 #}
 
 {% block head %}
@@ -13,6 +18,15 @@
 {% endblock %}
 
 {% block body_attrs %} data-authenticated="true"{% endblock %}
+
+{% macro flashes() -%}
+{% if saved %}
+<div data-flash="success" class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
+{% endif %}
+{% if error %}
+<div data-flash="error" class="alert alert--error">{{ icon("warning", "alert__icon") }} <span>{{ error }}</span></div>
+{% endif %}
+{%- endmacro %}
 
 {% block body %}
 <div class="shell">
@@ -25,17 +39,35 @@
       <div class="topbar__actions">{% block actions %}{% endblock %}</div>
     </header>
 
-    <div class="admin-scroll">
-      <div class="admin-page files-page" data-in-place-root>
-        {% if saved %}
-        <div data-flash="success" class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
-        {% endif %}
-        {% if error %}
-        <div data-flash="error" class="alert alert--error">{{ icon("warning", "alert__icon") }} <span>{{ error }}</span></div>
-        {% endif %}
-        {% block files_content %}{% endblock %}
+    {% if explorer|default(false) %}
+    <div class="fx" data-in-place-root data-testid="explorer">
+      {{ flashes() }}
+      <div class="fx__bar">
+        {% include "files/_crumbs.html" %}
+        <div class="fx__tools">{% block tools %}{% endblock %}</div>
+      </div>
+      <div class="fx__panes">
+        <aside class="fx__tree" aria-label="{{ t('Folders') }}">
+          <a class="ftree__link ftree__root{{ ' is-current' if path == top }}"
+             href="/files{{ '?path=' ~ top|urlencode if top != '/' }}" data-drop-dir="{{ top }}">
+            {{ icon("folder-open", "icon--sm") }}<span class="ftree__name">{{ t("All files") if top == "/" else t("Home") }}</span>
+          </a>
+          {% if tree %}{% with branches = tree %}{% include "files/_tree.html" %}{% endwith %}{% endif %}
+          <a class="ftree__link ftree__trash" href="/files/trash">
+            {{ icon("trash", "icon--sm") }}<span class="ftree__name">{{ t("Trash") }}</span>
+          </a>
+        </aside>
+        <section class="fx__main">{% block files_content %}{% endblock %}</section>
       </div>
     </div>
+    {% else %}
+    <div class="admin-scroll">
+      <div class="admin-page files-page" data-in-place-root>
+        {{ flashes() }}
+        {% block page_content %}{% endblock %}
+      </div>
+    </div>
+    {% endif %}
   </main>
 </div>
 {% endblock %}

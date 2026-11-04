@@ -6,7 +6,7 @@
 {% block title %}{{ t("Memory import") }} - {{ brand.name }}{% endblock %}
 {% block heading %}{{ t("Memory import") }}{% endblock %}
 
-{% block files_content %}
+{% block page_content %}
 <p class="admin-lede"><a href="/settings?tab=memory">{{ icon("chevron-left", "icon--sm") }} {{ t("Back to Memory") }}</a></p>
 {% if problem %}
 <div class="alert alert--error" role="alert">{{ icon("warning", "alert__icon") }} <span>{{ problem }}</span></div>

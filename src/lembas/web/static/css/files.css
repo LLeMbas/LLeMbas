@@ -8,107 +8,264 @@
   scrolls in itself, never the page.
 */
 
+/* --- The explorer's frame --------------------------------------------------
+   The whole window under the topbar, like a file manager: a path bar, then
+   the folder tree and the list (or the file) side by side, each its own
+   scroller, so a long folder never scrolls the tree away and the bar stays. */
+.fx {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+}
+.fx > .alert { margin: var(--sp-2) var(--sp-4) 0; }
+
+.fx__bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: var(--tap-min);
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: var(--border-w) solid var(--border);
+  background: var(--surface);
+}
+.fx__tools { display: flex; align-items: center; gap: var(--sp-2); }
+.fx__tools:empty { display: none; }
+
+.fx__panes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+  min-width: 0;
+}
+.fx__tree { display: none; }
+.fx__main { min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+
+@media (min-width: 56rem) {
+  .fx__panes { grid-template-columns: minmax(12rem, 17rem) minmax(0, 1fr); }
+  .fx__tree {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    min-height: 0;
+    overflow: auto;
+    padding: var(--sp-3) var(--sp-2);
+    border-right: var(--border-w) solid var(--border);
+    background: var(--surface);
+  }
+}
+
+/* On a phone the buttons keep their icon and lose their word. */
+@media (max-width: 40rem) {
+  .fx__bar { padding: var(--sp-2) var(--sp-3); gap: var(--sp-2); }
+  .fx__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .fx__tools .btn { min-width: var(--tap-min); min-height: var(--tap-min); }
+}
+
 /* --- Where you are --------------------------------------------------------- */
 .file-crumbs {
   display: flex;
   align-items: center;
   gap: var(--sp-1);
+  min-width: 0;
   overflow-x: auto;
   white-space: nowrap;
-  padding-bottom: var(--sp-2);
-  margin-bottom: var(--sp-3);
+  scrollbar-width: none;
   font-family: var(--font-mono);
   font-size: var(--text-sm);
 }
 .file-crumbs__sep { color: var(--ink-faint); }
-.file-crumbs__link { color: var(--ink-muted); border-radius: var(--radius-sm); padding: 0 var(--sp-1); }
-.file-crumbs__link:hover { color: var(--ink); }
+.file-crumbs__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--row-h);
+  color: var(--ink-muted);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--sp-1);
+}
+.file-crumbs__link:hover { color: var(--ink); background: var(--surface-hover); }
 .file-crumbs__here { color: var(--ink); font-weight: 600; padding: 0 var(--sp-1); }
 
-/* --- The explorer ------------------------------------------------------------ */
-.files-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2);
-  margin-bottom: var(--sp-4);
-}
+/* --- The folder tree --------------------------------------------------------- */
 .files-upload { display: contents; }
 .files-upload__pick { cursor: pointer; }
 .files-upload__send { display: none; }
 
-.files-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--sp-4);
-  align-items: start;
-}
-.files-tree { display: none; }
-@media (min-width: 64rem) {
-  .files-body { grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr); }
-  .files-tree {
-    display: block;
-    border-right: var(--border-w) solid var(--border);
-    padding-right: var(--sp-3);
-    overflow-x: auto;
-  }
-}
-
 .ftree { list-style: none; margin: 0; padding-left: var(--sp-3); }
-.files-tree > .ftree { padding-left: 0; }
+.fx__tree > .ftree { padding-left: 0; }
 .ftree__branch > summary { list-style: none; display: flex; align-items: center; gap: var(--sp-1); }
 .ftree__branch > summary::-webkit-details-marker { display: none; }
 .ftree__chevron { display: inline-flex; color: var(--ink-faint); transition: transform var(--transition-fast); }
 .ftree__branch[open] > summary .ftree__chevron { transform: rotate(90deg); }
 .ftree__link {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: var(--sp-1);
+  gap: var(--sp-2);
+  flex: 1;
   min-height: var(--row-h);
   min-width: 0;
-  padding: 0 var(--sp-1);
+  padding: 0 var(--sp-2);
   border-radius: var(--radius-sm);
   color: var(--ink-muted);
+  text-decoration: none;
 }
 .ftree__link:hover { color: var(--ink); background: var(--surface-hover); }
-.ftree__link.is-current { color: var(--ink); background: var(--surface-active); }
+.ftree__link.is-current { color: var(--ink); background: var(--surface-active); font-weight: 600; }
 .ftree__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ftree__root { margin-bottom: var(--sp-1); }
+.ftree__root { flex: none; }
+.ftree__trash { flex: none; margin-top: auto; }
 
-.files-list { min-width: 0; border-radius: var(--radius); }
+/* --- The list ------------------------------------------------------------------ */
+.fx-list { box-sizing: border-box; min-height: 100%; padding: 0 var(--sp-4) var(--sp-8); }
+.fx-list > .empty { margin-top: var(--sp-8); }
 
 .file-rows {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto var(--tap-min);
-  column-gap: var(--sp-3);
+  grid-template-columns: minmax(0, 1fr) minmax(4rem, auto) minmax(5rem, auto) minmax(7rem, auto) auto;
+  column-gap: var(--sp-4);
 }
 .file-row {
+  position: relative;
   display: grid;
   grid-column: 1 / -1;
   grid-template-columns: subgrid;
   align-items: center;
   min-height: var(--tap-min);
+  margin: 0 calc(-1 * var(--sp-2));
+  padding: 0 var(--sp-2);
   border-bottom: var(--border-w) solid var(--border);
+  border-radius: var(--radius-sm);
 }
+.file-row:not(.file-row--head):hover { background: var(--surface-hover); }
 .file-row--head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   min-height: var(--row-h);
+  background: var(--bg);
   color: var(--ink-faint);
   font-size: var(--text-xs);
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+  border-radius: 0;
 }
 .file-row__name { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
-.file-row__name > a { display: inline-flex; align-items: center; gap: var(--sp-2); min-width: 0; color: var(--ink); }
+.file-row__open {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+  color: var(--ink);
+  text-decoration: none;
+}
+/* The whole row opens what it names; the buttons at its end stay on top. */
+.file-row__open::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.file-row__open:focus-visible { outline: none; }
+.file-row__open:focus-visible::after { outline: var(--outline-w) solid var(--accent); outline-offset: calc(-1 * var(--outline-w)); }
+.file-row__name .badge, .file-row__actions { position: relative; z-index: 1; }
+.file-row__icon { display: inline-flex; color: var(--ink-muted); }
+.file-row__icon--dir { color: var(--accent); }
+.file-row__icon--code, .file-row__icon--html { color: var(--leaf); }
 .file-row__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-row__type { color: var(--ink-faint); font-family: var(--font-mono); font-size: var(--text-xs); white-space: nowrap; }
 .file-row__size, .file-row__when { color: var(--ink-muted); font-size: var(--text-sm); white-space: nowrap; text-align: right; }
-.file-row__actions { display: flex; justify-content: flex-end; }
+.file-row__actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-1); }
+.file-row__run { color: var(--leaf); }
 .file-row[draggable="true"] { cursor: grab; }
 .file-rows--trash { grid-template-columns: minmax(0, 1fr) auto auto; }
+.file-rows--trash .file-row { margin: 0; padding: 0; }
 
 @media (max-width: 40rem) {
-  .file-rows { grid-template-columns: minmax(0, 1fr) auto var(--tap-min); }
-  .file-rows .file-row__when { display: none; }
+  .fx-list { padding: 0 var(--sp-3) var(--sp-8); }
+  .file-rows { grid-template-columns: minmax(0, 1fr) auto auto; column-gap: var(--sp-2); }
+  .file-rows .file-row__when, .file-rows .file-row__type { display: none; }
   .file-rows--trash { grid-template-columns: minmax(0, 1fr) auto; }
 }
+
+/* --- A file in the explorer ---------------------------------------------------
+   Its bar, then the editor or the viewer filling what is left, and Run's
+   output under it when there is some. */
+.fx-file {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+.fx-file__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: var(--border-w) solid var(--border);
+}
+.fx-file__name { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; flex: 1 1 12rem; }
+.fx-file__meta { color: var(--ink-faint); font-size: var(--text-xs); white-space: nowrap; }
+.fx-file__state:empty { display: none; }
+.fx-file__tools { display: flex; align-items: center; gap: var(--sp-1); margin-left: auto; }
+.fx-file__body { position: relative; min-height: 0; min-width: 0; display: grid; }
+.fx-file__body > * { min-height: 0; min-width: 0; }
+.fx-file__preview, .fx-file__view { overflow: auto; }
+.fx-file__body > [hidden] { display: none; }
+.fx-file .viewer { border: 0; border-radius: 0; margin: 0; background: transparent; }
+.fx-file .viewer__code { max-height: none; min-height: 100%; }
+.fx-file .viewer__frame { height: 100%; min-height: 60vh; }
+.fx-file .viewer__md { max-width: var(--thread-max-width); margin: 0 auto; padding: var(--sp-5) var(--sp-5) var(--sp-8); }
+
+.fx-file .editor { display: grid; grid-template-rows: minmax(0, 1fr); border: 0; border-radius: 0; height: 100%; }
+.fx-file .editor__text { min-height: 100%; resize: none; }
+.fx-file .editor__cm { height: 100%; min-height: 0; }
+
+@media (max-width: 40rem) {
+  .fx-file__bar { padding: var(--sp-2) var(--sp-3); }
+  .fx-file__meta { display: none; }
+}
+
+/* Versions, in a menu off the file's bar. */
+.fx-versions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  column-gap: var(--sp-3);
+  width: min(calc(100vw - 2 * var(--sp-4)), 30rem);
+  max-height: 60vh;
+  overflow: auto;
+  right: 0;
+  left: auto;
+}
+.fx-versions__item {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  min-height: var(--tap-min);
+  padding: 0 var(--sp-2);
+  border-bottom: var(--border-w) solid var(--border);
+}
+.fx-versions__item.is-current { font-weight: 600; }
+.fx-versions__size { color: var(--ink-muted); font-size: var(--text-sm); }
+.fx-versions__tools { display: flex; justify-content: flex-end; }
+
+/* Run's output: text the code printed, never markup. */
+.fx-run { border-top: var(--border-w) solid var(--border-strong); background: var(--surface); }
+.fx-run[hidden] { display: none; }
+.fx-run__bar { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-1) var(--sp-4); }
+.fx-run__state { color: var(--ink-faint); font-size: var(--text-xs); }
+.fx-run__out {
+  margin: 0;
+  max-height: 35vh;
+  min-height: 4rem;
+  overflow: auto;
+  padding: var(--sp-2) var(--sp-4) var(--sp-3);
+  background: var(--code-bg);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.fx-run__error { color: var(--danger); }
 
 /* --- The viewer ---------------------------------------------------------------- */
 .viewer {

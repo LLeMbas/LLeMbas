@@ -9,7 +9,7 @@
 {% block title %}{{ title }} - {{ brand.name }}{% endblock %}
 {% block heading %}{{ t("Access") }}{% endblock %}
 
-{% block files_content %}
+{% block page_content %}
 {% if chat is defined and chat %}
 <p class="admin-lede"><a href="/chat/{{ chat.id }}">{{ icon("chevron-left", "icon--sm") }} {{ chat.title }}</a></p>
 {% elif group is defined and group %}

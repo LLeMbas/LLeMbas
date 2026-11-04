@@ -11,3 +11,13 @@
 {%- else -%}{{ t("%(n)s MB", n=(bytes / 1048576) | round(1)) }}
 {%- endif -%}
 {%- endmacro %}
+
+{#- A row's icon, by what the viewer would make of it (file_ui.Row.shown_as). -#}
+{% macro file_icon(row) -%}
+{%- from "_macros.html" import icon -%}
+{%- if row.is_dir -%}{{ icon("folder", "icon--sm") }}
+{%- elif row.mime and row.mime.startswith("image/") -%}{{ icon("image", "icon--sm") }}
+{%- elif row.shown_as in ("code", "html") -%}{{ icon("file-code", "icon--sm") }}
+{%- else -%}{{ icon("file-text", "icon--sm") }}
+{%- endif -%}
+{%- endmacro %}

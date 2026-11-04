@@ -84,6 +84,25 @@ class Row:
     def writable(self) -> bool:
         return at_least(self.level, LEVEL_STAGE)
 
+    @property
+    def shown_as(self) -> str:
+        """The viewer's kind by the name alone (markdown, code, html, ...):
+        the row's icon, and whether it can be run."""
+        return "dir" if self.is_dir else show_kind(self.path)[0]
+
+    @property
+    def runnable(self) -> bool:
+        """A Python script, which the explorer can run in the browser."""
+        return not self.is_dir and self.name.lower().endswith(".py")
+
+    @property
+    def type_label(self) -> str:
+        """The column a person sorts by eye: a folder, or the extension."""
+        if self.is_dir:
+            return ""
+        stem, dot, ext = self.name.rpartition(".")
+        return ext.lower() if dot and stem else ""
+
 
 def listing(v: fs.View, path: str) -> list[Row]:
     """A directory's entries the view can read, directories first."""
@@ -129,6 +148,11 @@ def is_text(data: bytes) -> bool:
     except UnicodeDecodeError:
         return False
     return True
+
+
+# What the editor opens: text, at most 1 MB.
+EDITABLE = ("markdown", "code", "text", "html")
+EDIT_MAX = 1024 * 1024
 
 
 @dataclass

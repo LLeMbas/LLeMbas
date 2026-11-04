@@ -1,47 +1,178 @@
 {% extends "files/_layout.html" %}
 {% from "_macros.html" import icon %}
 {% from "files/_macros.html" import in_place, size %}
+{% set explorer = true %}
+{#
+  A file, in the explorer's frame (tree beside it, path above).
+
+  A text file you may change opens straight in the editor: CodeMirror over a
+  textarea (js/editor.js; without JavaScript the textarea and Save post
+  `/files/save` as a form). Markdown and HTML have a Preview beside Edit, drawn
+  by the server the way the viewer draws them (js/file-page.js fetches it again
+  after a change). Anything else -- an older version, a file you may only read,
+  an image, a binary -- opens in the viewer (files/_viewer_body.html).
+
+  A `.py` file has Run when Python is switched on here: Pyodide, in a worker in
+  this browser (js/file-page.js and the `python` tool's worker), with what it
+  printed shown under the file. `?run=1` runs it on arrival -- the explorer's
+  Run button.
+#}
 {% block title %}{{ path }} - {{ brand.name }}{% endblock %}
 
+{% block files_head %}
+{% if editing %}
+<script type="importmap">
+{
+  "imports": {
+    "@codemirror/state": "{{ asset('vendor/cm-state.mjs') }}",
+    "@codemirror/view": "{{ asset('vendor/cm-view.mjs') }}",
+    "@codemirror/language": "{{ asset('vendor/cm-language.mjs') }}",
+    "@codemirror/commands": "{{ asset('vendor/cm-commands.mjs') }}",
+    "@codemirror/search": "{{ asset('vendor/cm-search.mjs') }}",
+    "@codemirror/autocomplete": "{{ asset('vendor/cm-autocomplete.mjs') }}",
+    "@codemirror/lint": "{{ asset('vendor/cm-lint.mjs') }}",
+    "@lezer/common": "{{ asset('vendor/lezer-common.mjs') }}",
+    "@lezer/highlight": "{{ asset('vendor/lezer-highlight.mjs') }}",
+    "@lezer/lr": "{{ asset('vendor/lezer-lr.mjs') }}",
+    "codemirror": "{{ asset('vendor/cm-codemirror.mjs') }}",
+    "@codemirror/lang-markdown": "{{ asset('vendor/cm-lang-markdown.mjs') }}",
+    "@codemirror/lang-python": "{{ asset('vendor/cm-lang-python.mjs') }}",
+    "@codemirror/lang-javascript": "{{ asset('vendor/cm-lang-javascript.mjs') }}",
+    "@codemirror/lang-html": "{{ asset('vendor/cm-lang-html.mjs') }}",
+    "@codemirror/lang-css": "{{ asset('vendor/cm-lang-css.mjs') }}",
+    "@codemirror/lang-json": "{{ asset('vendor/cm-lang-json.mjs') }}",
+    "/node/process.mjs": "{{ asset('js/node-process.mjs') }}"
+  }
+}
+</script>
+<script type="module" src="{{ asset('js/editor.js') }}"></script>
+{% endif %}
+<script src="{{ asset('js/file-page.js') }}" defer></script>
+{% endblock %}
+
 {% block files_content %}
-{% with link_last = false %}{% include "files/_crumbs.html" %}{% endwith %}
 {% if problem %}
 <div class="empty">
   {{ icon("file-text", "empty__mark") }}
   <h2 class="empty__title">{{ t("Not here") }}</h2>
   <p class="empty__text">{{ problem }}</p>
-  <p class="empty__text"><a href="/files">{{ t("Back to all files") }}</a></p>
+  <p class="empty__text"><a href="/files">{{ t("Back to your files") }}</a></p>
 </div>
 {% else %}
-{% include "files/_viewer.html" %}
+{% set previewable = opened.kind in ("markdown", "html") %}
+{% set runnable = python and opened.name.lower().endswith(".py") %}
+<div class="fx-file{{ ' is-editing' if editing }}" data-file-page data-testid="file-page"
+     data-path="{{ opened.path }}"
+     {%- if runnable %} data-run-worker="{{ asset('js/python-worker.js') }}"
+     data-run-index="{{ pyodide_index_url() }}"
+     {%- if request.query_params.get('run') %} data-run-now="1"{% endif %}{% endif %}>
+  <div class="fx-file__bar">
+    <span class="fx-file__name">
+      {{ icon("file-code" if opened.kind in ("code", "html") else "file-text", "icon--sm") }}
+      <strong class="truncate">{{ opened.name }}</strong>
+      <span class="fx-file__meta">{{ size(opened.size) }}{% if opened.version %} · {{ t("an older version") }}{% elif not opened.writable %} · {{ t("read-only") }}{% endif %}</span>
+    </span>
 
-{% if versions %}
-{#- Every write is a version (services/fs.py); restoring one writes it
-    again, so nothing is lost by trying. -#}
-<details class="card versions" id="file-versions" data-testid="file-versions">
-  <summary class="card__title versions__summary">{{ t("Versions") }} <span class="badge">{{ versions|length }}</span></summary>
-  <ol class="versions__list">
-    {% for item in versions %}
-    <li class="versions__item{{ ' is-current' if (current_version == item.id) or (not current_version and loop.first) }}">
-      <span class="versions__when">{{ stamp(item.at, "%d %B %Y") }} {{ item.at.strftime("%H:%M") }}</span>
-      <span class="versions__size">{{ size(item.size) }}</span>
-      <span class="versions__by">{% if item.chat_id %}<span class="badge">{{ t("by a chat") }}</span>{% endif %}</span>
-      <span class="versions__tools">
-        {% if not loop.first %}
-        <a class="btn btn--sm" href="/files/view?path={{ path|urlencode }}&amp;version={{ item.id }}">{{ t("Look") }}</a>
-        {% if opened.writable %}
-        <button class="btn btn--sm" type="button" hx-post="/files/versions/restore"
-                hx-vals='{"path": {{ path|tojson }}, "version": {{ item.id|tojson }}}' {{ in_place() }}
-                hx-confirm="{{ t('Make this version the current one? The current one stays in the list.') }}"
-                data-confirm-title="{{ t('Restore this version') }}" data-confirm-label="{{ t('Restore') }}"
-                data-confirm-danger="false">{{ t("Restore") }}</button>
-        {% endif %}
-        {% else %}<span class="badge badge--leaf">{{ t("current") }}</span>{% endif %}
-      </span>
-    </li>
-    {% endfor %}
-  </ol>
-</details>
-{% endif %}
+    {% if editing and previewable %}
+    <span class="segmented" role="radiogroup" aria-label="{{ t('Show') }}">
+      <label class="segmented__option"><input type="radio" name="file-mode" value="edit" checked
+             data-file-mode><span>{{ t("Edit") }}</span></label>
+      <label class="segmented__option"><input type="radio" name="file-mode" value="preview"
+             data-file-mode data-testid="file-preview"><span>{{ t("Preview") }}</span></label>
+    </span>
+    {% endif %}
+
+    <span class="fx-file__state editor__state" data-editor-state aria-live="polite"></span>
+
+    <span class="fx-file__tools">
+      {% if runnable %}
+      <button class="btn btn--sm" type="button" data-file-run data-testid="file-run"
+              title="{{ t('Run with Python (Pyodide), in this browser') }}">
+        {{ icon("play", "icon--sm") }}<span class="fx__label">{{ t("Run") }}</span>
+      </button>
+      {% endif %}
+
+      {% if versions|length > 1 %}
+      {#- Every write is a version (services/fs.py); restoring one writes it
+          again, so nothing is lost by trying. -#}
+      <div class="picker" data-picker>
+        <button class="btn btn--sm" type="button" data-picker-toggle data-testid="file-versions"
+                aria-haspopup="menu" aria-expanded="false">
+          {{ icon("clock", "icon--sm") }}<span class="fx__label">{{ t("Versions") }}</span>
+          <span class="badge">{{ versions|length }}</span>
+        </button>
+        <div class="picker__menu fx-versions" data-picker-menu role="menu" hidden aria-label="{{ t('Versions') }}">
+          {% for item in versions %}
+          {% set is_current = (current_version == item.id) or (not current_version and loop.first) %}
+          <div class="fx-versions__item{{ ' is-current' if is_current }}" role="menuitem">
+            <a class="fx-versions__when" href="/files/view?path={{ path|urlencode }}{% if not loop.first %}&amp;version={{ item.id }}{% endif %}">
+              {{ stamp(item.at, "%d %B %Y") }} {{ item.at.strftime("%H:%M") }}
+            </a>
+            <span class="fx-versions__size">{{ size(item.size) }}</span>
+            <span class="fx-versions__by">{% if item.chat_id %}<span class="badge">{{ t("by a chat") }}</span>{% endif %}</span>
+            <span class="fx-versions__tools">
+              {% if loop.first %}<span class="badge badge--leaf">{{ t("current") }}</span>
+              {% elif opened.node and (opened.level in ("stage", "commit")) %}
+              <button class="btn btn--sm" type="button" hx-post="/files/versions/restore"
+                      hx-vals='{"path": {{ path|tojson }}, "version": {{ item.id|tojson }}}' {{ in_place() }}
+                      hx-confirm="{{ t('Make this version the current one? The current one stays in the list.') }}"
+                      data-confirm-title="{{ t('Restore this version') }}" data-confirm-label="{{ t('Restore') }}"
+                      data-confirm-danger="false">{{ t("Restore") }}</button>
+              {% endif %}
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if opened.version %}
+      <a class="btn btn--sm" href="/files/view?path={{ path|urlencode }}">{{ t("Back to the current one") }}</a>
+      {% endif %}
+      <a class="btn btn--icon btn--sm" href="{{ raw_url }}" download
+         aria-label="{{ t('Download') }}" title="{{ t('Download') }}">{{ icon("download", "icon--sm") }}</a>
+      {% if editing %}
+      <button class="btn btn--primary btn--sm" type="submit" form="file-editor" data-testid="editor-save"
+              aria-keyshortcuts="Control+S">{{ t("Save") }}</button>
+      {% endif %}
+    </span>
+  </div>
+
+  <div class="fx-file__body">
+    {% if editing %}
+    <form class="editor" id="file-editor" method="post" action="/files/save" data-in-place="off"
+          data-editor data-testid="file-editor">
+      <input type="hidden" name="path" value="{{ opened.path }}">
+      <input type="hidden" name="base" value="{{ opened.sha }}">
+      <textarea class="textarea editor__text" name="content" spellcheck="false"
+                data-language="{{ opened.language or opened.kind }}"
+                aria-label="{{ t('Contents of %(name)s', name=opened.name) }}">{{ opened.text }}</textarea>
+    </form>
+    {% if previewable %}
+    <div class="fx-file__preview" data-file-preview hidden>
+      {% include "files/_viewer_body.html" %}
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="fx-file__view viewer viewer--{{ opened.kind }}" data-testid="file-viewer">
+      {% include "files/_viewer_body.html" %}
+    </div>
+    {% endif %}
+  </div>
+
+  {% if runnable %}
+  <section class="fx-run" data-run-panel hidden aria-label="{{ t('Output') }}" data-testid="run-output">
+    <header class="fx-run__bar">
+      <strong>{{ t("Output") }}</strong>
+      <span class="fx-run__state" data-run-state aria-live="polite"></span>
+      <span class="spacer"></span>
+      <button class="btn btn--sm" type="button" data-run-stop hidden>{{ icon("stop-circle", "icon--sm") }} {{ t("Stop") }}</button>
+      <button class="btn btn--icon btn--sm" type="button" data-run-close
+              aria-label="{{ t('Close') }}" title="{{ t('Close') }}">{{ icon("x", "icon--sm") }}</button>
+    </header>
+    <pre class="fx-run__out" data-run-out></pre>
+  </section>
+  {% endif %}
+</div>
 {% endif %}
 {% endblock %}

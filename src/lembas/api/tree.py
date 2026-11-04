@@ -63,9 +63,27 @@ def _owned_chat(db, chat_id: str, user) -> Chat:
 
 
 # --- The explorer ------------------------------------------------------------------
-def _tree(v: fs.View, path: str) -> list[dict]:
-    """The directory tree beside the list: the root's directories, and the
-    chain down to `path` opened."""
+def _python(db) -> bool:
+    """Whether `.py` files get a Run button: Pyodide switched on and fetched."""
+    from lembas.api import pyodide
+
+    return pyodide.enabled(db) and pyodide.available()
+
+
+def _frame(db, user, v: fs.View, path: str) -> dict:
+    """What every explorer page draws around its content: the tree from where
+    this person's files start, and whether Python runs here."""
+    top = fs.start(v)
+    return {
+        "tree": _tree(v, path, top),
+        "top": top,
+        "python": _python(db),
+    }
+
+
+def _tree(v: fs.View, path: str, top: str = "/") -> list[dict]:
+    """The directory tree beside the list: `top`'s directories, and the chain
+    down to `path` opened."""
     from lembas.security.access import chain
 
     opened = set(chain(path))
@@ -88,7 +106,7 @@ def _tree(v: fs.View, path: str) -> list[dict]:
             )
         return out
 
-    return level("/")
+    return level(top)
 
 
 @router.get("/files")
@@ -119,7 +137,7 @@ async def explorer(request: Request, db: Db, user: RequiredUser, path: str = "/"
             "path": path,
             "crumbs": file_ui.crumbs(path),
             "rows": rows,
-            "tree": _tree(v, path) if not problem else [],
+            **_frame(db, user, v, path),
             "problem": problem,
             "writable": not problem and v.level(path) in ("stage", "commit"),
             "saved": request.query_params.get("saved", ""),
@@ -191,6 +209,33 @@ async def make_dir(db: Db, user: RequiredUser, path: str = Form("/"), name: str 
         db.rollback()
         return _refused(refused, _here(where))
     return back(_here(where), t("Folder made."))
+
+
+@router.post("/files/new")
+async def new_file(db: Db, user: RequiredUser, path: str = Form("/"), name: str = Form("")):
+    """An empty file, opened in the editor."""
+    v = fs.view(db, user)
+    where = _norm(path)
+    name = name.strip()
+    if not name or "/" in name:
+        return back(_here(where), t("A file needs a name without a slash."), ok=False)
+    target = f"{where.rstrip('/')}/{name}"
+    try:
+        there = fs.stat(v, target) is not None
+    except fs.FsError:
+        there = False  # not there, or not to be seen: the write below decides
+    if there:
+        return back(_here(where), t("There is already something called %(name)s here.",
+                                    name=name), ok=False)
+    try:
+        fs.write(v, target, b"")
+        db.commit()
+    except fs.FsError as refused:
+        db.rollback()
+        return _refused(refused, _here(where))
+    from fastapi.responses import RedirectResponse
+
+    return RedirectResponse(f"/files/view?path={quote(target)}", status_code=303)
 
 
 @router.post("/files/rename")
@@ -297,7 +342,8 @@ async def view_page(
             request,
             "files/view.html",
             {"problem": refused.message, "path": target, "crumbs": file_ui.crumbs(target),
-             "section": "files", **sidebar_context(db, user)},
+             "section": "files", **_frame(db, user, v, _parent(target)),
+             **sidebar_context(db, user)},
             status_code=404,
         )
     q = f"path={quote(opened.path)}" + (f"&version={quote(version)}" if version else "")
@@ -307,13 +353,19 @@ async def view_page(
         "crumbs": file_ui.crumbs(opened.path),
         "versions": versions,
         "current_version": version,
+        # A text file you may change opens in the editor; an older version,
+        # a file you may only read, and anything not text open in the viewer.
+        "editing": opened.writable and not version
+        and opened.kind in file_ui.EDITABLE and opened.size <= file_ui.EDIT_MAX,
         "saved": request.query_params.get("saved", ""),
         "error": request.query_params.get("error", ""),
         **_viewer_context(opened, frame=f"/files/frame?{q}", raw=f"/files/raw?{q}", chat=None),
     }
     if is_htmx(request) and request.query_params.get("fragment"):
         return render(request, "files/_viewer.html", context)
-    return render(request, "files/view.html", {**context, **sidebar_context(db, user)})
+    return render(request, "files/view.html", {
+        **context, **_frame(db, user, v, _parent(opened.path)), **sidebar_context(db, user),
+    })
 
 
 def _download(node: Node, chunks, *, inline: bool) -> Response:
@@ -383,33 +435,11 @@ async def restore_version(
 
 # --- Editing ----------------------------------------------------------------------------
 @router.get("/files/edit")
-async def edit_page(request: Request, db: Db, user: RequiredUser, path: str = "/"):
-    v = fs.view(db, user)
-    target = _norm(path)
-    problem = ""
-    opened = None
-    try:
-        opened = file_ui.open_file(v, target)
-        if not opened.writable:
-            problem = fs.read_only(target).message
-        elif opened.kind in ("image", "binary", "large"):
-            problem = t("Only a text file of at most 1 MB can be edited here.")
-    except fs.FsError as refused:
-        problem = refused.message
-    return render(
-        request,
-        "files/edit.html",
-        {
-            "section": "files",
-            "path": target,
-            "crumbs": file_ui.crumbs(target),
-            "opened": opened,
-            "problem": problem,
-            "saved": request.query_params.get("saved", ""),
-            "error": request.query_params.get("error", ""),
-            **sidebar_context(db, user),
-        },
-    )
+async def edit_page(path: str = "/"):
+    """Where the editor used to be: a file you may change now opens in it."""
+    from fastapi.responses import RedirectResponse
+
+    return RedirectResponse(f"/files/view?path={quote(_norm(path))}", status_code=301)
 
 
 @router.post("/files/save")
@@ -422,7 +452,7 @@ async def save(request: Request, db: Db, user: RequiredUser):
     content = str(form.get("content", ""))
     base = str(form.get("base", ""))
     wants_json = "application/json" in request.headers.get("accept", "")
-    where = f"/files/edit?path={quote(target)}"
+    where = f"/files/view?path={quote(target)}"
     v = fs.view(db, user)
     try:
         node = fs.stat(v, target)

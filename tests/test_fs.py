@@ -183,3 +183,17 @@ def test_a_node_and_its_blob_commit_or_roll_back_together(db):
     db.add(Node(org_id=DEFAULT_ORG, name="a", path="/a", kind="file", blob_hash=digest))
     db.rollback()
     assert not blobs.exists(db, digest)
+
+
+def test_a_chat_with_no_start_folder_works_in_its_persons_home(db, alice):
+    """A relative write used to land at the organisation's root, for everyone."""
+    chat = Chat(user_id=alice.id)
+    db.add(chat)
+    db.commit()
+    v = fs.view(db, alice, chat)
+    assert v.cwd == "/home/alice"
+    assert fs.write(v, "notes.md", b"x").path == "/home/alice/notes.md"
+    chat.start_dir = "/skills"
+    assert fs.view(db, alice, chat).cwd == "/skills"
+    chat.start_dir, chat.boundary = "", "/home/alice/work"
+    assert fs.view(db, alice, chat).cwd == "/home/alice/work"

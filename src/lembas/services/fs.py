@@ -125,11 +125,23 @@ class View:
     def cwd(self) -> str:
         if self.chat is None:
             return "/"
-        start = (self.chat.start_dir or "").strip() or (self.chat.boundary or "/")
-        start = normalise(start)
         boundary = normalise(self.chat.boundary or "/")
+        start = (self.chat.start_dir or "").strip()
+        if not start:
+            # Nothing chosen: a chat bounded by the whole tree starts in its
+            # person's home, not at the organisation's root -- a model writing
+            # `notes.md` should not put it where everybody sees it (and where a
+            # member may not write at all).
+            start = self._home() if boundary == "/" else boundary
+        start = normalise(start)
         # A start directory outside the boundary is read as the boundary.
         return start if access.is_within(start, boundary) else boundary
+
+    def _home(self) -> str:
+        if not hasattr(self, "_home_path"):
+            home = home_of(self.db, self.user)
+            self._home_path = home.path if home is not None else "/"
+        return self._home_path
 
     def path(self, raw: str) -> str:
         try:

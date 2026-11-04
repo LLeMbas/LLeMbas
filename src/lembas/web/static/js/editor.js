@@ -1,5 +1,5 @@
 /*
-  The file editor: CodeMirror 6 over the page's textarea (files/edit.html).
+  The file editor: CodeMirror 6 over the page's textarea (files/view.html).
 
   The modules come from the vendored, hash-pinned copies the page's import
   map names; nothing is fetched from anywhere else. If they cannot load, the
@@ -54,6 +54,10 @@ var colours = HighlightStyle.define([
   { tag: [tags.number, tags.bool, tags.null, tags.atom], color: "var(--warning)" },
   { tag: [tags.function(tags.variableName), tags.definition(tags.variableName)], color: "var(--ink)", fontWeight: "600" },
   { tag: [tags.heading], color: "var(--accent)", fontWeight: "700" },
+  { tag: [tags.strong], fontWeight: "700" },
+  { tag: [tags.emphasis], fontStyle: "italic" },
+  { tag: [tags.monospace, tags.quote], color: "var(--leaf)" },
+  { tag: [tags.processingInstruction, tags.contentSeparator], color: "var(--ink-faint)" },
   { tag: [tags.link, tags.url], color: "var(--accent)", textDecoration: "underline" },
   { tag: [tags.tagName, tags.typeName, tags.className], color: "var(--accent-hover)" },
   { tag: [tags.invalid], color: "var(--danger)" },
@@ -61,7 +65,9 @@ var colours = HighlightStyle.define([
 
 async function start(form) {
   var area = form.querySelector("textarea[name='content']");
-  var state = form.querySelector("[data-editor-state]");
+  /* The page's bar says how it is going; it sits above the form. */
+  var state = form.querySelector("[data-editor-state]") ||
+    document.querySelector("[data-editor-state]");
   var base = form.querySelector("input[name='base']");
   if (!area) return;
 
@@ -86,6 +92,7 @@ async function start(form) {
       if (base && answer.sha) base.value = answer.sha;
       dirty = false;
       say(t("Saved."));
+      document.dispatchEvent(new CustomEvent("lembas:file-saved"));
       return;
     }
     if (response.status === 409 && window.lembas && window.lembas.confirm) {
@@ -118,6 +125,8 @@ async function start(form) {
       ],
     }),
   });
+  /* For Run (js/file-page.js): what is in the editor now, saved or not. */
+  form.lembasText = function () { return view.state.doc.toString(); };
   area.hidden = true;
   area.parentElement.insertBefore(view.dom, area);
   view.dom.classList.add("editor__cm");
