@@ -507,6 +507,9 @@ input.visually-hidden[type="checkbox"] {
 
 /* Multi-column form layout, one definition. */
 .grid { display: grid; gap: var(--sp-4); }
+/* A form of several grids and a button: the same gap between them as inside one. */
+.stack-form { display: grid; gap: var(--sp-4); justify-items: start; }
+.stack-form > .grid { justify-self: stretch; }
 /* `min(100%, …)` on every auto-fit track and `min-width: 0` with it, for the
    reason `.suggestions` in chat.css sets out at length. The pair is not
    optional: `min(100%, …)` stops the track demanding more than the box, and

@@ -929,7 +929,7 @@ lembas service install</code></pre></li>
             <div class="card">
               <h2 class="card__title">{{ t("Change password") }}</h2>
               <p class="card__lede">{{ t("Every other session is signed out when the password changes. You stay signed in here.") }}</p>
-              <form method="post" action="/api/preferences/password">
+              <form method="post" action="/api/preferences/password" class="stack-form">
                 <div class="grid grid--2">
                   <div class="field">
                     <label class="field__label" for="current-password">{{ t("Current password") }}</label>

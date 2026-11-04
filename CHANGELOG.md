@@ -3,6 +3,13 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## Unreleased
+
+### Fixed
+
+- **Change password** has the same gap between its fields and its button as elsewhere (beta.2 left
+  them touching).
+
 ## 2.0.0-beta.2 — 2026-11-04
 
 ### Changed
