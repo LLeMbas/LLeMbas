@@ -3,6 +3,13 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## Unreleased
+
+### Fixed
+
+- **Saving a file that is not there yet makes it**, instead of answering 403 "No such file or
+  directory".
+
 ## 2.0.0-beta.3 — 2026-11-04
 
 ### Changed

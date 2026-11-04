@@ -455,7 +455,10 @@ async def save(request: Request, db: Db, user: RequiredUser):
     where = f"/files/view?path={quote(target)}"
     v = fs.view(db, user)
     try:
-        node = fs.stat(v, target)
+        try:
+            node = fs.stat(v, target)
+        except fs.FsError:
+            node = None  # a new file: the write below decides whether it may be made
         if node is not None and base and (node.blob_hash or "") != base and not form.get("force"):
             message = t("This file changed since you opened it. Reload it, or save anyway.")
             if wants_json:
