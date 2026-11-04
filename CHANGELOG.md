@@ -3,7 +3,7 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
-## Unreleased
+## 2.0.0-beta.2 — 2026-11-04
 
 ### Changed
 
