@@ -18,6 +18,8 @@ at <https://llembas.eu/changelog.html>.
 - **Files opens in a member's home.** Only an organisation's owner and admins can read `/`, so
   for everyone else the explorer opened on "Access denied". It now starts in `/home/<name>/`, and
   `GET /api/v2/files?path=/` answers with that listing (its `path` says where).
+- **A new chat on a phone opens at the top of its welcome**, not scrolled past the artwork.
+- **Change password on a phone** no longer has an empty row under the current password.
 
 ## 2.0.0-beta.1 — 2026-11-03
 

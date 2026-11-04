@@ -936,7 +936,10 @@ lembas service install</code></pre></li>
                     <input class="input" type="password" id="current-password"
                            name="current_password" required autocomplete="current-password">
                   </div>
-                  <div class="field"></div>
+                </div>
+                {# A second grid of the same columns rather than an empty cell
+                   beside the first field: on a phone that cell was a blank row. #}
+                <div class="grid grid--2">
                   <div class="field">
                     <label class="field__label" for="new-password">{{ t("New password") }}</label>
                     <input class="input" type="password" id="new-password" name="new_password"

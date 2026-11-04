@@ -261,7 +261,10 @@
       scrollFrame = 0;
       var thread = document.getElementById("thread-scroll");
       if (!thread || !stick) return;
-      thread.scrollTop = thread.scrollHeight;
+      /* An empty chat's welcome is read from the top: on a phone it is taller
+         than the thread, and following "the bottom" hid its artwork. */
+      var intro = thread.querySelector(".thread__intro");
+      thread.scrollTop = intro && !thread.querySelector(".msg") ? 0 : thread.scrollHeight;
       placed = thread.scrollTop;
     });
   }
