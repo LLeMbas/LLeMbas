@@ -10,6 +10,8 @@ at <https://llembas.eu/changelog.html>.
 - **A 2.x installation is never offered a 1.x release.** The stable channel, automatic updates and
   `deploy/update.sh` keep to the running major (from 1.7.3), so the Update button on a 2.0 beta can
   no longer step back onto 1.7.x.
+- **The Copy button beside a new invite link copies it.** It named the link instead of the field
+  holding it, so it did nothing; it now copies and turns green.
 
 ## 2.0.0-beta.1 — 2026-11-03
 

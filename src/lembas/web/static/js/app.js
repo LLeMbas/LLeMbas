@@ -911,7 +911,7 @@
     if (copy) {
       event.preventDefault();
       var source = document.getElementById(copy.dataset.copy);
-      if (source) copyText(source.textContent.trim(), copy);
+      if (source) copyText(("value" in source ? source.value : source.textContent).trim(), copy);
       return;
     }
 

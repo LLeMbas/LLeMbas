@@ -80,6 +80,9 @@ def test_an_invite_link_is_shown_once_and_signs_up_once(client, db, registered):
     assert page.status_code == 200
     assert 'data-testid="invite-link"' in page.text
     link = page.text.split('/invite/', 1)[1].split('"', 1)[0]
+    # The Copy button names the field that holds the link (app.js reads it by id).
+    target = page.text.split('data-copy="', 1)[1].split('"', 1)[0]
+    assert f'id="{target}"' in page.text
     # Not shown again.
     assert link not in client.get("/admin/invites").text
     client.post("/auth/logout")

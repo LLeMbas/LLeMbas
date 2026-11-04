@@ -176,6 +176,8 @@ button, input, textarea, select {
   color: var(--ink);
 }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+/* A text button that copied (app.js copyText): the colour is the only sign it worked. */
+.btn.is-copied { color: var(--success); border-color: var(--success); }
 
 .btn--primary {
   background: var(--accent);

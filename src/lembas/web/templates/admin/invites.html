@@ -19,8 +19,8 @@
   <h2 class="card__title">{{ t("The invite link") }}</h2>
   <p class="card__lede">{{ t("Copy it now: it is not shown again. Send it to the person it is for.") }}</p>
   <div class="row u-gap-2">
-    <input class="input u-grow mono" readonly value="{{ link }}" aria-label="{{ t('The invite link') }}" onfocus="this.select()">
-    <button class="btn" type="button" data-copy="{{ link }}">{{ icon("copy", "icon--sm") }} {{ t("Copy") }}</button>
+    <input class="input u-grow mono" id="invite-link-value" readonly value="{{ link }}" aria-label="{{ t('The invite link') }}" onfocus="this.select()">
+    <button class="btn" type="button" data-copy="invite-link-value">{{ icon("copy", "icon--sm") }} {{ t("Copy") }}</button>
   </div>
 </section>
 {% endif %}
