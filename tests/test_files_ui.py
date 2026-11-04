@@ -487,7 +487,10 @@ def test_the_explorer_rows_are_on_one_grid_with_subgrid_rows():
 def test_saving_a_path_that_is_not_there_yet_makes_it(client, db, me):
     """The editor's save on a new path is a write, not a 403 "no such file"."""
     user, home = me
-    r = client.post("/files/save", data={"path": f"{home}/fresh.py", "content": "print(1)\n", "base": ""},
-                    headers={"Accept": "application/json"})
+    r = client.post(
+        "/files/save",
+        data={"path": f"{home}/fresh.py", "content": "print(1)\n", "base": ""},
+        headers={"Accept": "application/json"},
+    )
     assert r.status_code == 200
     assert fs.read(fs.view(db, user), f"{home}/fresh.py") == b"print(1)\n"
