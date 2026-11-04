@@ -50,12 +50,25 @@
       form.setAttribute("hx-select", ROOT);
       form.setAttribute("hx-swap", "outerHTML show:none focus-scroll:false");
       form.setAttribute("hx-headers", JSON.stringify({ "LMB-In-Place": "1" }));
+      /* htmx hands an element's hx-* attributes down to everything inside it.
+         A button in the form with a request of its own ("Test & refresh",
+         swapping one row) must not inherit the page swap and its header: its
+         answer is a fragment with no root, which would be written over the
+         whole page. */
+      var own = (form.getAttribute("hx-disinherit") || "").trim();
+      if (own !== "*") {
+        form.setAttribute("hx-disinherit",
+                          (own + " hx-target hx-select hx-swap hx-headers").trim());
+      }
       window.htmx.process(form);
     });
   }
 
+  /* Only the form's own request: never one made by something inside it. */
   function isInPlace(detail) {
-    var headers = detail && detail.requestConfig && detail.requestConfig.headers;
+    var elt = detail && detail.elt;
+    if (!elt || elt.tagName !== "FORM" || !elt.dataset.inPlaceReady) return false;
+    var headers = detail.requestConfig && detail.requestConfig.headers;
     return !!(headers && headers["LMB-In-Place"]);
   }
 

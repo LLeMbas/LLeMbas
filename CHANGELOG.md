@@ -12,6 +12,9 @@ at <https://llembas.eu/changelog.html>.
   no longer step back onto 1.7.x.
 - **The Copy button beside a new invite link copies it.** It named the link instead of the field
   holding it, so it did nothing; it now copies and turns green.
+- **Test & refresh and Check balance on a connection update their row again.** Inside a form that
+  saves in place they took over that form's whole-page swap, and the row's answer replaced the
+  page with an unstyled copy of the row.
 
 ## 2.0.0-beta.1 — 2026-11-03
 

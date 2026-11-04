@@ -136,3 +136,23 @@ def test_a_confirmed_form_goes_through_htmx():
     block = source[start : start + 1500]
     assert "requestSubmit" in block
     assert "stopPropagation" in block
+
+
+def test_a_request_inside_an_in_place_form_keeps_its_own_swap():
+    """htmx hands hx-* down to children: a button inside the form with its own
+    hx-post ("Test & refresh") inherited the page swap and its header, and its
+    one-row answer was written over the whole page."""
+    source = (ROOT / "web/static/js/inplace.js").read_text(encoding="utf-8")
+    assert "hx-disinherit" in source
+    for name in ("hx-target", "hx-select", "hx-swap", "hx-headers"):
+        assert name in source[source.index('"hx-disinherit"') :][:400]
+    check = source[source.index("function isInPlace") :][:400]
+    assert "inPlaceReady" in check
+
+
+def test_rows_swapped_on_their_own_sit_inside_in_place_forms():
+    """The case above, as the markup has it: if these buttons ever leave their
+    forms the test above guards nothing, and that is fine."""
+    row = (ROOT / "web/templates/admin/_connection_row.html").read_text(encoding="utf-8")
+    form = row[row.index("<form") : row.index("</form>")]
+    assert 'hx-post="/admin/connections/{{ connection.id }}/test"' in form
