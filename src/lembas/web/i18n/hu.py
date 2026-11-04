@@ -2391,3 +2391,8 @@ MESSAGES['Stopped'] = 'Leállítva'
 MESSAGES['There is already something called %(name)s here.'] = 'Már van itt valami %(name)s néven.'
 MESSAGES['What should the file be called? With its extension, such as notes.md.'] = 'Mi legyen a fájl neve? Kiterjesztéssel együtt, például notes.md.'
 MESSAGES['folder'] = 'mappa'
+
+# One way to say what an action did, and confirmations (2.0.0-beta.3).
+MESSAGES['Not saved'] = 'Nincs mentve'
+MESSAGES['Remove the uploaded logo and show the LLeMbas mark again?'] = 'Eltávolítja a feltöltött logót, és újra a LLeMbas jelet mutatja?'
+MESSAGES['Remove this model’s image? It gets its generated badge again.'] = 'Eltávolítja a modell képét? Újra a generált jelvényét kapja.'

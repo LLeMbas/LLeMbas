@@ -71,7 +71,14 @@ async function start(form) {
   var base = form.querySelector("input[name='base']");
   if (!area) return;
 
+  /* The bar says the file's state (not saved yet, saving); what a save did is
+     a toast, like the result of anything else (ui.js). */
   var say = function (text) { if (state) state.textContent = text; };
+  var tell = function (text, kind) {
+    say(kind === "error" ? t("Not saved") : "");
+    if (window.lembas && window.lembas.notify) window.lembas.notify(text, { kind: kind });
+    else say(text);
+  };
   var dirty = false;
 
   async function save(force) {
@@ -83,7 +90,7 @@ async function start(form) {
     try {
       response = await fetch(form.action, { method: "POST", body: body, headers: { Accept: "application/json" } });
     } catch (error) {
-      say(t("Not saved: the server could not be reached."));
+      tell(t("Not saved: the server could not be reached."), "error");
       return;
     }
     var answer = {};
@@ -91,12 +98,12 @@ async function start(form) {
     if (response.ok) {
       if (base && answer.sha) base.value = answer.sha;
       dirty = false;
-      say(t("Saved."));
+      tell(t("Saved."), "success");
       document.dispatchEvent(new CustomEvent("lembas:file-saved"));
       return;
     }
     if (response.status === 409 && window.lembas && window.lembas.confirm) {
-      say(answer.detail || t("That did not work."));
+      say(t("Not saved"));
       var again = await window.lembas.confirm({
         title: t("Changed meanwhile"),
         message: answer.detail || "",
@@ -105,7 +112,7 @@ async function start(form) {
       if (again) save(true);
       return;
     }
-    say(answer.detail || t("That did not work."));
+    tell(answer.detail || t("That did not work."), "error");
   }
 
   var view = new EditorView({

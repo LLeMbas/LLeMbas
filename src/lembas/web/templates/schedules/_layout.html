@@ -28,7 +28,7 @@
     <div class="admin-scroll">
       <div class="admin-page" data-in-place-root>
         {% if error %}
-        <div class="alert alert--warning">
+        <div data-flash="error" class="alert alert--warning">
           {{ icon("warning", "alert__icon") }} <span>{{ error }}</span>
         </div>
         {% endif %}

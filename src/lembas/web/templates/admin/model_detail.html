@@ -23,7 +23,7 @@
 </nav>
 
 {% if saved %}
-<div class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
+<div data-flash="success" class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
 {% endif %}
 
 <section class="card">
@@ -58,7 +58,9 @@
       <button class="btn btn--sm" type="submit">{{ icon("image", "icon--sm") }} {{ t("Upload image") }}</button>
     </form>
     {% if model.image_path %}
-    <form method="post" action="/admin/models/{{ model.id }}/image/delete">
+    <form method="post" action="/admin/models/{{ model.id }}/image/delete"
+          data-confirm="{{ t('Remove this model’s image? It gets its generated badge again.') }}"
+          data-confirm-title="{{ t('Remove image') }}" data-confirm-label="{{ t('Remove') }}">
       <button class="btn btn--sm btn--danger" type="submit">{{ t("Remove image") }}</button>
     </form>
     {% endif %}

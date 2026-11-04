@@ -5,6 +5,18 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
+### Changed
+
+- **One way to say what an action did: a toast**, at the bottom right. Saving, deleting, testing a
+  connection, uploading -- every page now says it the same way, whether it saves in place or
+  reloads; before, a page that reloaded put a box at its top, where nobody was looking. A box stays
+  in the page only for what is a state of it: a wrong password on the sign-in form, a standing
+  warning, a connection's last error. The file editor says "Saved." as a toast too, and its bar
+  keeps only whether the file has unsaved changes.
+- **Every "are you sure?" is the same dialog**, in the theme. Removing the instance logo and a
+  model's image now ask first, like every other delete. Tests keep it so: a result box without
+  `data-flash`, or a browser `confirm()` / `alert()` / `prompt()`, fails the build.
+
 ### Fixed
 
 - **Python in the browser runs.** Pyodide 314 is ES modules only and refused the classic worker

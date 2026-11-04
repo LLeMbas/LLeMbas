@@ -146,8 +146,10 @@ def test_a_request_inside_an_in_place_form_keeps_its_own_swap():
     assert "hx-disinherit" in source
     for name in ("hx-target", "hx-select", "hx-swap", "hx-headers"):
         assert name in source[source.index('"hx-disinherit"') :][:400]
-    check = source[source.index("function isInPlace") :][:400]
-    assert "inPlaceReady" in check
+    # The header is then the whole test: buttons and htmx.ajax calls that ask
+    # for it themselves (the explorer, drag and drop) still count.
+    check = source[source.index("function isInPlace") :][:300]
+    assert 'headers["LMB-In-Place"]' in check
 
 
 def test_rows_swapped_on_their_own_sit_inside_in_place_forms():
@@ -156,3 +158,35 @@ def test_rows_swapped_on_their_own_sit_inside_in_place_forms():
     row = (ROOT / "web/templates/admin/_connection_row.html").read_text(encoding="utf-8")
     form = row[row.index("<form") : row.index("</form>")]
     assert 'hx-post="/admin/connections/{{ connection.id }}/test"' in form
+
+
+def test_the_result_of_an_action_is_always_a_toast():
+    """One way to say what an action did: a box the page draws from `saved`
+    (or a row's `message`) is marked `data-flash`, and ui.js makes it a toast
+    -- on load, after a swap, after a save in place. A box left unmarked stays
+    at the top of a page the person is not looking at."""
+    found = []
+    for path in (ROOT / "web/templates").rglob("*.html"):
+        text = path.read_text(encoding="utf-8")
+        for m in re.finditer(r"\{% if (saved|message) %\}\s*(<div[^>]*>)", text):
+            if "alert" in m.group(2) and "data-flash" not in m.group(2):
+                found.append(f"{path.name}:{text[: m.start()].count(chr(10)) + 1}")
+    assert found == []
+    ui = (ROOT / "web/static/js/ui.js").read_text(encoding="utf-8")
+    assert "function sayFlashes" in ui and "DOMContentLoaded" in ui
+    inplace = (ROOT / "web/static/js/inplace.js").read_text(encoding="utf-8")
+    assert "window.lembas.sayFlashes" in inplace
+
+
+def test_nothing_asks_with_the_browsers_own_dialogs():
+    """Confirm, prompt and alert are the themed dialogs (ui.js): the browser's
+    ignore the theme and block the tab."""
+    pattern = re.compile(r"(?<![\w.])(?:window\.)?(confirm|alert|prompt)\(")
+    found = []
+    for path in [*(ROOT / "web/static/js").glob("*.js"), *(ROOT / "web/templates").rglob("*.html")]:
+        if path.name == "ui.js":
+            continue  # where the themed ones are defined
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if pattern.search(line) and "lembas." not in line:
+                found.append(f"{path.name}:{n}")
+    assert found == []

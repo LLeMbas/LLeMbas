@@ -65,7 +65,8 @@
     </div>
 
     {% if message %}
-    <div class="alert alert--{{ message_kind|default('success') }}">
+    {#- What Test or Check balance just said: a toast (ui.js), like any result. -#}
+    <div data-flash="{{ message_kind|default('success') }}" class="alert alert--{{ message_kind|default('success') }}">
       {% if message_kind == "error" %}{{ icon("warning", "alert__icon") }}{% endif %}
       <span>{{ message }}</span>
     </div>

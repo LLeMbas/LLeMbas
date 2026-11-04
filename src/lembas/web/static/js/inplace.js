@@ -64,11 +64,12 @@
     });
   }
 
-  /* Only the form's own request: never one made by something inside it. */
+  /* A request sent with the header: a form prepared here, a button with the
+     header in its own attributes (files/_macros.html `in_place`), or htmx.ajax
+     from files.js and dnd.js. A request from something inside a prepared form
+     does not carry it: the form disinherits it (see `prepare`). */
   function isInPlace(detail) {
-    var elt = detail && detail.elt;
-    if (!elt || elt.tagName !== "FORM" || !elt.dataset.inPlaceReady) return false;
-    var headers = detail.requestConfig && detail.requestConfig.headers;
+    var headers = detail && detail.requestConfig && detail.requestConfig.headers;
     return !!(headers && headers["LMB-In-Place"]);
   }
 
@@ -106,17 +107,8 @@
   }
 
   function sayFlashes(root, said) {
-    var spoke = false;
-    if (root) {
-      root.querySelectorAll("[data-flash]").forEach(function (box) {
-        var text = (box.textContent || "").replace(/\s+/g, " ").trim();
-        if (text && window.lembas && window.lembas.notify) {
-          window.lembas.notify(text, { kind: box.dataset.flash || "success" });
-          spoke = true;
-        }
-        box.remove();
-      });
-    }
+    /* The boxes the page drew, through the one place that says them (ui.js). */
+    var spoke = !!(root && window.lembas && window.lembas.sayFlashes && window.lembas.sayFlashes(root));
     if (spoke || !said || !window.lembas || !window.lembas.notify) return;
     /* A bare code ("1", "language") is not a sentence; a sentence is shown. */
     function sentence(value) { return value && /\s/.test(value) ? value : ""; }

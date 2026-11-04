@@ -192,8 +192,55 @@
     return open(Object.assign({ kind: "prompt", confirmLabel: t("Save") }, options));
   }
 
+  /* --- One-off news on a page ---------------------------------------------
+     The one way the result of an action is said: as a toast. A page that is
+     answering an action (a redirect carrying `?saved=` or `?error=`, a row
+     drawn again after Test) marks the box `data-flash="success|error|info"`;
+     the box is server-rendered so the words are there without JavaScript, and
+     with it they become a toast here and the box goes -- on page load, after
+     any htmx swap, and after a save in place (inplace.js calls this). A box
+     without `data-flash` is a state of the page (an error on the form being
+     filled in, a standing warning) and stays where it is.
+     Returns whether anything was said. */
+  function sayFlashes(scope) {
+    var spoke = false;
+    if (!scope || !scope.querySelectorAll) return spoke;
+    var boxes = Array.prototype.slice.call(scope.querySelectorAll("[data-flash]"));
+    if (scope.matches && scope.matches("[data-flash]")) boxes.unshift(scope);
+    boxes.forEach(function (box) {
+      var text = (box.textContent || "").replace(/\s+/g, " ").trim();
+      if (text) {
+        notify(text, { kind: box.dataset.flash || "success" });
+        spoke = true;
+      }
+      box.remove();
+    });
+    return spoke;
+  }
+
+  /* Once: the words came in the address (`?saved=`), and a reload must not
+     say them again -- the same as a save in place's HX-Replace-Url. */
+  function sayOnLoad() {
+    if (!sayFlashes(document.body)) return;
+    try {
+      var url = new URL(location.href);
+      ["saved", "error", "message"].forEach(function (name) { url.searchParams.delete(name); });
+      history.replaceState(history.state, "", url.pathname + url.search + url.hash);
+    } catch (error) { /* the address keeps them; a reload says them twice */ }
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", sayOnLoad);
+  else sayOnLoad();
+  /* A swap that is not a save in place (inplace.js says those itself, with
+     the words the server sent along when the page has no box). */
+  document.addEventListener("htmx:afterSettle", function (event) {
+    var headers = event.detail && event.detail.requestConfig && event.detail.requestConfig.headers;
+    if (headers && headers["LMB-In-Place"]) return;
+    sayFlashes(event.detail && event.detail.target);
+  });
+
   window.lembas = window.lembas || {};
   window.lembas.notify = notify;
+  window.lembas.sayFlashes = sayFlashes;
   window.lembas.confirm = confirm;
   window.lembas.prompt = prompt;
   /* `choose({title, options: [{value, label}], value})` -> the value, or null. */

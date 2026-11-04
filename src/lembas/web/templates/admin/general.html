@@ -148,7 +148,9 @@
       <button class="btn" type="submit">{{ t("Upload") }}</button>
     </form>
     {% if values.logo_blob_hash %}
-    <form method="post" action="/admin/general/logo/delete">
+    <form method="post" action="/admin/general/logo/delete"
+          data-confirm="{{ t('Remove the uploaded logo and show the LLeMbas mark again?') }}"
+          data-confirm-title="{{ t('Use the LLeMbas mark') }}" data-confirm-label="{{ t('Remove') }}">
       <button class="btn btn--ghost" type="submit">{{ t("Use the LLeMbas mark") }}</button>
     </form>
     {% endif %}

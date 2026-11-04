@@ -2391,3 +2391,8 @@ MESSAGES['Stopped'] = 'Zastaveno'
 MESSAGES['There is already something called %(name)s here.'] = 'Něco s názvem %(name)s tu už je.'
 MESSAGES['What should the file be called? With its extension, such as notes.md.'] = 'Jak se má soubor jmenovat? I s příponou, například notes.md.'
 MESSAGES['folder'] = 'složka'
+
+# One way to say what an action did, and confirmations (2.0.0-beta.3).
+MESSAGES['Not saved'] = 'Neuloženo'
+MESSAGES['Remove the uploaded logo and show the LLeMbas mark again?'] = 'Odstranit nahrané logo a znovu zobrazit značku LLeMbas?'
+MESSAGES['Remove this model’s image? It gets its generated badge again.'] = 'Odstranit obrázek tohoto modelu? Znovu dostane vygenerovaný odznak.'

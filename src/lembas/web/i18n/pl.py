@@ -2391,3 +2391,8 @@ MESSAGES['Stopped'] = 'Zatrzymano'
 MESSAGES['There is already something called %(name)s here.'] = 'Coś o nazwie %(name)s już tu jest.'
 MESSAGES['What should the file be called? With its extension, such as notes.md.'] = 'Jak ma się nazywać plik? Z rozszerzeniem, na przykład notes.md.'
 MESSAGES['folder'] = 'folder'
+
+# One way to say what an action did, and confirmations (2.0.0-beta.3).
+MESSAGES['Not saved'] = 'Nie zapisano'
+MESSAGES['Remove the uploaded logo and show the LLeMbas mark again?'] = 'Usunąć przesłane logo i znów pokazywać znak LLeMbas?'
+MESSAGES['Remove this model’s image? It gets its generated badge again.'] = 'Usunąć obraz tego modelu? Wróci do wygenerowanej odznaki.'
