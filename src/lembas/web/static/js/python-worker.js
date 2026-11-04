@@ -1,11 +1,13 @@
 /*
-  The worker the `python` tool's code runs in (python.js). Pyodide comes from
-  this server's vendored copy; the code gets the files it was handed in
-  Pyodide's own in-memory file system, and nothing is read back but the paths
-  it was asked to save.
+  The worker the `python` tool's code runs in (python.js), and a file page's
+  Run (file-page.js). Pyodide comes from this server's vendored copy; the code
+  gets the files it was handed in Pyodide's own in-memory file system, and
+  nothing is read back but the paths it was asked to save.
+
+  A **module** worker (`new Worker(src, { type: "module" })`): from 314 on
+  Pyodide is ES modules only and refuses a classic worker ("Classic web
+  workers are not supported"), so its entry, pyodide.mjs, is imported.
 */
-/* global importScripts, loadPyodide */
-"use strict";
 var ready = null;
 
 function b64ToBytes(text) {
@@ -35,8 +37,9 @@ function ensureDir(py, path) {
 self.onmessage = function (event) {
   var data = event.data || {};
   if (data.type === "init") {
-    importScripts(data.indexURL + "pyodide.js");
-    ready = loadPyodide({ indexURL: data.indexURL });
+    ready = import(data.indexURL + "pyodide.mjs").then(function (module) {
+      return module.loadPyodide({ indexURL: data.indexURL });
+    });
     return;
   }
   if (data.type !== "run" || !ready) return;

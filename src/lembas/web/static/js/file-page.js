@@ -85,7 +85,7 @@
 
   function fresh() {
     if (worker) worker.terminate();
-    worker = new Worker(workerSrc);
+    worker = new Worker(workerSrc, { type: "module" });
     worker.postMessage({ type: "init", indexURL: indexUrl });
     return worker;
   }

@@ -2,11 +2,11 @@
   "version": "314.0.7",
   "python": "3.14",
   "url": "https://cdn.jsdelivr.net/pyodide/v314.0.7/full/",
-  "why": "The python tool's runtime, fetched by an administrator (Admin -> General) or `lembas-server fetch-pyodide`: the core and the standard library, no package repository.",
+  "why": "The python tool's runtime, fetched by an administrator (Admin -> General) or `lembas-server fetch-pyodide`: the core and the standard library, no package repository. pyodide.mjs is the entry a module worker imports: from 314 Pyodide refuses a classic worker (importScripts).",
   "files": {
-    "pyodide.js": {
-      "sha256": "3141b814715a72e59b51b1b18b9ceae5bf19f7c852417e431bb0a34feadf825c",
-      "size": 18912
+    "pyodide.mjs": {
+      "sha256": "6f1d60f7bf529beb300f0f47983c921d3982363640ba20af0e38efdddbc66109",
+      "size": 17931
     },
     "pyodide.asm.mjs": {
       "sha256": "f7cdc8ece80678ceb712f8e65ebe6d3a83203a180c399865f49612a051693635",

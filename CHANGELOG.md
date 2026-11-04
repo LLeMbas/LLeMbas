@@ -7,6 +7,11 @@ at <https://llembas.eu/changelog.html>.
 
 ### Fixed
 
+- **Python in the browser runs.** Pyodide 314 is ES modules only and refused the classic worker
+  the `python` tool and Run used ("Classic web workers are not supported"), even for
+  `print("hello")`. The worker is a module worker importing `pyodide.mjs`, which the lock now pins in
+  place of `pyodide.js`. **Fetch Pyodide again** (Admin → General): the copy already on a server is
+  shown as missing until it has the new file.
 - **Change password** has the same gap between its fields and its button as elsewhere (beta.2 left
   them touching).
 

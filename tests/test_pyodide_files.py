@@ -16,7 +16,7 @@ import pytest
 from lembas.services import pyodide_files, settings_store
 
 CONTENT = {
-    "pyodide.js": b"var loadPyodide = 1;\n",
+    "pyodide.mjs": b"export const loadPyodide = 1;\n",
     "pyodide.asm.mjs": b"export default 1;\n",
     "pyodide.asm.wasm": b"\x00asm\x01\x00\x00\x00",
     "python_stdlib.zip": b"PK\x05\x06" + b"\x00" * 18,
@@ -79,7 +79,7 @@ def test_a_download_is_verified_and_lands_in_the_data_directory(fake_lock):
     "broken",
     [
         {**CONTENT, "python_stdlib.zip": b"PK\x05\x06" + b"\x01" * 18},  # same size, other bytes
-        {**CONTENT, "pyodide.js": CONTENT["pyodide.js"] + b"//"},  # larger
+        {**CONTENT, "pyodide.mjs": CONTENT["pyodide.mjs"] + b"//"},  # larger
         {**CONTENT, "pyodide-lock.json": b"{"},  # shorter
     ],
 )
@@ -95,13 +95,13 @@ def test_any_mismatch_refuses_the_whole_download_and_keeps_nothing(fake_lock, br
 
 def test_a_lock_bumped_since_reads_as_absent(fake_lock, monkeypatch):
     asyncio.run(pyodide_files.download(_downloader(CONTENT)))
-    other = {**CONTENT, "pyodide.js": b"var loadPyodide = 2;\n"}
+    other = {**CONTENT, "pyodide.mjs": b"export const loadPyodide = 2;\n"}
     monkeypatch.setattr(pyodide_files, "lock", lambda: {**_lock(other), "version": "9.9.9"})
     assert not pyodide_files.available()
 
 
 def test_served_from_here_only_the_pinned_files(client, fake_lock):
-    assert client.get("/vendor/pyodide/9.9.9/pyodide.js").status_code == 404
+    assert client.get("/vendor/pyodide/9.9.9/pyodide.mjs").status_code == 404
     asyncio.run(pyodide_files.download(_downloader(CONTENT)))
     js = client.get("/vendor/pyodide/9.9.9/pyodide.asm.mjs")
     assert js.status_code == 200 and js.content == CONTENT["pyodide.asm.mjs"]
@@ -109,7 +109,7 @@ def test_served_from_here_only_the_pinned_files(client, fake_lock):
     wasm = client.get("/vendor/pyodide/9.9.9/pyodide.asm.wasm")
     assert wasm.headers["content-type"] == "application/wasm"
     assert client.get("/vendor/pyodide/9.9.9/VERIFIED").status_code == 404
-    assert client.get("/vendor/pyodide/1.0.0/pyodide.js").status_code == 404
+    assert client.get("/vendor/pyodide/1.0.0/pyodide.mjs").status_code == 404
     assert client.get("/vendor/pyodide/9.9.9/..%2F..%2Flembas.db").status_code == 404
 
 
@@ -144,7 +144,7 @@ def test_while_it_runs_the_card_polls_itself_and_stops_when_done(client, registe
     card = client.get("/admin/general/python/progress").text
     assert 'hx-trigger="every 1s"' in card and "<progress" in card
     pyodide_files.PROGRESS.state = "failed"
-    pyodide_files.PROGRESS.error = "pyodide.js does not match its pinned SHA-256."
+    pyodide_files.PROGRESS.error = "pyodide.mjs does not match its pinned SHA-256."
     card = client.get("/admin/general/python/progress").text
     assert "hx-trigger" not in card and 'data-testid="pyodide-error"' in card
 
