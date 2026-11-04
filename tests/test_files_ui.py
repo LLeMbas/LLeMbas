@@ -238,6 +238,26 @@ def test_the_import_map_names_only_vendored_files():
         assert (root / "static/vendor" / name).exists()
 
 
+def test_every_import_in_the_editor_modules_is_mapped():
+    """A module the import map does not name is a 404 at run time, and a
+    failed import takes every language with it: lezer-lr imports esm.sh's
+    "/node/process.mjs", and the editor lost all highlighting over it."""
+    import re
+    from pathlib import Path
+
+    import lembas
+
+    root = Path(lembas.__file__).parent / "web"
+    page = (root / "templates/files/edit.html").read_text(encoding="utf-8")
+    mapped = set(re.findall(r'"([^"]+)":\s*"\{\{', page))
+    wanted = set()
+    for module in (root / "static/vendor").glob("*.mjs"):
+        text = module.read_text(encoding="utf-8")
+        wanted |= set(re.findall(r'(?:from|import)\s*"((?:@[\w-]+/)?[\w-]+|/[\w/.-]+\.mjs)"', text))
+    wanted = {w for w in wanted if w.startswith(("@", "/")) or w == "codemirror"}
+    assert wanted - mapped == set()
+
+
 # --- A chat's view: the show card ----------------------------------------------------
 
 

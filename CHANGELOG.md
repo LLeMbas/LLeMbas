@@ -20,6 +20,9 @@ at <https://llembas.eu/changelog.html>.
   `GET /api/v2/files?path=/` answers with that listing (its `path` says where).
 - **A new chat on a phone opens at the top of its welcome**, not scrolled past the artwork.
 - **Change password on a phone** no longer has an empty row under the current password.
+- **The file editor highlights code again.** `@lezer/lr` imports esm.sh's `/node/process.mjs`, which
+  this server does not have, so every language that parses failed to load and the editor opened as
+  plain text. The import map now names a stub of its own for it, and a test checks every import.
 
 ## 2.0.0-beta.1 — 2026-11-03
 
