@@ -263,8 +263,11 @@
       if (!thread || !stick) return;
       /* An empty chat's welcome is read from the top: on a phone it is taller
          than the thread, and following "the bottom" hid its artwork. */
-      var intro = thread.querySelector(".thread__intro");
-      thread.scrollTop = intro && !thread.querySelector(".msg") ? 0 : thread.scrollHeight;
+      if (thread.querySelector(".thread__intro") && !thread.querySelector(".msg")) {
+        thread.scrollTop = 0;
+      } else {
+        thread.scrollTop = thread.scrollHeight;
+      }
       placed = thread.scrollTop;
     });
   }
