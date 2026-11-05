@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 
 from lembas.db.models import Chat, Connection, Folder, Message, Model
 from lembas.services import chat as chat_service
+from lembas.services import prefix
 from lembas.services.crypto import encrypt
 from lembas.services.llm.openai_client import Endpoint, LLMError, delta_text, list_models
 from lembas.services.sse import event
@@ -501,7 +502,9 @@ def test_history_skips_failed_and_empty_turns(db, user_id):
     db.commit()
 
     messages = chat_service.build_request(db, chat)["messages"]
-    contents = [m["content"] for m in messages if m["role"] != "system"]
+    # The newest turn carries the session's date note after the words (spec
+    # 3.1.0); what is compared here is the words.
+    contents = [prefix.strip(m["content"]) for m in messages if m["role"] != "system"]
     assert contents == ["one", "two"]
 
 

@@ -138,8 +138,17 @@ class Variable:
 # One source for the admin page's legend. A name absent from here still
 # substitutes if the caller supplies it; this list is what gets *documented*.
 VARIABLES: tuple[Variable, ...] = (
-    Variable("today", "Today's date", "The current date, written out in full."),
-    Variable("now", "Date and time", "The current date and time, with the offset from UTC."),
+    Variable(
+        "today",
+        "Today's date",
+        "Empty in a chat's system prompt, which is made once and resent unchanged: "
+        "the date comes as a note on the person's message instead.",
+    ),
+    Variable(
+        "now",
+        "Date and time",
+        "Empty in a chat's system prompt, for the same reason as the date.",
+    ),
     Variable(
         "schedule_instruction",
         "Scheduled instruction",
@@ -735,16 +744,18 @@ BUILTIN: tuple[Fragment, ...] = (
         label="Today's date",
         group=GROUP_CORE,
         order=20,
-        variables=("today", "timezone"),
+        variables=("timezone",),
         hint="A model has no clock. Without this it cannot tell whether what it "
-        "recalls is current, and will not think to check. {{timezone}} is the "
-        "reader's own zone, or the server's where they have not chosen one -- "
-        "the same zone the date above is already stated in, so it names a value "
-        "rather than making a decision.",
+        "recalls is current, and will not think to check. The date itself is not "
+        "here: a chat's system prompt is made once and resent unchanged, so the "
+        "date comes as a note on the person's message, on the first one and when "
+        "it changes (harness spec 3.1.0) -- {{today}} and {{now}} are empty in a "
+        "chat's prompt. {{timezone}} is the reader's own zone, or the server's "
+        "where they have not chosen one.",
         default=(
-            "Today is {{today}}. Your training data stops well before this, so treat "
-            "anything time-sensitive as something to check rather than something you "
-            "already know.\n"
+            "Your training data stops well before today's date, which a note on the "
+            "person's message gives you, so treat anything time-sensitive as something "
+            "to check rather than something you already know.\n"
             "- Times the person gives you are in {{timezone}} unless they say otherwise."
         ),
     ),
@@ -804,7 +815,10 @@ BUILTIN: tuple[Fragment, ...] = (
         requires=("mode_plan",),
         hint="Only in Plan mode: reading freely, changing nothing, and finishing "
         "with plan_submit, which is how the plan is approved. The tools that "
-        "write or run are withheld as well, not merely discouraged.",
+        "write or run are refused when called as well, not merely discouraged "
+        "(they stay in the list: since harness spec 3.1.0 it is the session's). "
+        "In a chat's system prompt only when the chat began in Plan mode; a "
+        "switch during a chat is a session note carrying this text.",
         default=harness_spec.prompt_with("modes/plan.md", {"plan_dir": PLAN_DIR}),
     ),
     Fragment(
@@ -1033,8 +1047,9 @@ BUILTIN: tuple[Fragment, ...] = (
         requires=("skills",),
         hint="Only once there is at least one skill. Gated on the family alone, "
         "a person with no skills would get 'the list below gives each one's "
-        "name' above no list, and skill_view in the tools array — which is "
-        "exactly why models hunt for skills that do not exist. The writing half "
+        "name' above no list — which is exactly why models hunt for skills "
+        "that do not exist. (skill_view itself stays offered with none: since "
+        "harness spec 3.1.0 the tool list is the session's.) The writing half "
         "is its own fragment below, because that half is most useful precisely "
         "when there are none.",
         default=(
@@ -1182,7 +1197,7 @@ BUILTIN: tuple[Fragment, ...] = (
         group=GROUP_TOOLS,
         order=248,
         families=("schedule",),
-        variables=("now",),
+        variables=("timezone",),
         hint="Appears when the scheduling tools are offered. Most of this is the "
         "rule vocabulary, which is also in the tool's own schema — repeated "
         "here because the failure it prevents is expensive and silent: a "
@@ -1200,9 +1215,9 @@ BUILTIN: tuple[Fragment, ...] = (
             "memory instead makes nothing happen at the time; those are read only when "
             "somebody goes looking. schedule_list shows what already exists, "
             "schedule_update changes one and schedule_cancel stops it.\n"
-            "- It is {{now}} where this person is, and every time you write is read in "
-            "their zone. Work “in ten minutes” and “tomorrow at nine” out from that clock "
-            "rather than guessing.\n"
+            "- Every time you write is read in the person's zone, {{timezone}}. The time "
+            "now is not in this prompt: schedule_list starts with it, so call that before "
+            "working “in ten minutes” or “tomorrow at nine” out rather than guessing.\n"
             '- Use "every" for a plain timer and "at" for a calendar: "in ten minutes" is '
             '{"every": {"minutes": 10}} with a start, and "every Monday at noon" is '
             '{"at": {"weekdays": [0], "times": ["12:00"]}}. Monday is 0 — count the days '
@@ -1428,13 +1443,17 @@ BUILTIN: tuple[Fragment, ...] = (
         group=GROUP_TASKS,
         order=410,
         variables=("transcript", "previous_summary"),
-        hint="A separate one-message request, not part of any chat. Clear it to "
-        "turn compaction off entirely: the button says so and nothing is "
-        "summarised automatically.",
+        hint="Asked as the next turn of the chat itself (harness spec 3.1.0): the "
+        "same system prompt, tools and messages, then this. The model has the "
+        "conversation, an earlier summary included, so {{transcript}} and "
+        "{{previous_summary}} are empty -- they stay as names so an older "
+        "override that uses them still reads. Clear it to turn compaction off "
+        "entirely: the button says so and nothing is summarised automatically.",
         default=(
-            "Summarise the conversation below so it can be carried forward after the "
-            "earlier turns are dropped from your context. This is a working record, "
-            "not a report for a reader.\n"
+            "Summarise this conversation so far, so it can be carried forward after "
+            "the earlier turns are dropped from your context. If it began with a "
+            "summary of even earlier turns, fold that in: this record replaces it. "
+            "This is a working record, not a report for a reader.\n"
             "\n"
             "Keep, under these headings and in this order:\n"
             "\n"
@@ -1448,7 +1467,7 @@ BUILTIN: tuple[Fragment, ...] = (
             "## Facts established\n"
             "Names, numbers, versions, file paths, URLs and identifiers, copied "
             "exactly. Do not round them, paraphrase them or reconstruct one from "
-            "memory — if it is not in the transcript, leave it out.\n"
+            "memory — if it is not in the conversation, leave it out.\n"
             "\n"
             "## Open threads\n"
             "What is unfinished, and what was about to happen next.\n"
@@ -1458,8 +1477,6 @@ BUILTIN: tuple[Fragment, ...] = (
             "language of the conversation, and stay under 500 words.\n"
             "\n"
             "{{previous_summary}}\n"
-            "\n"
-            "## Transcript\n"
             "\n"
             "{{transcript}}"
         ),

@@ -9,7 +9,7 @@ import json
 
 from lembas.db.models import ROLE_ASSISTANT, Chat, Connection, Message, Model, User
 from lembas.services import generation as generation_service
-from lembas.services import harness, interaction, plans, settings_store
+from lembas.services import harness, harness_spec, interaction, plans, settings_store
 from lembas.services import tools as tools_service
 
 PLAN = {
@@ -146,25 +146,50 @@ async def test_plan_update_changes_the_chats_plan_and_names_the_known_ids(db, us
     assert wrong.event["status"] == "error"
 
 
-def test_plan_mode_withholds_what_changes_things_and_offers_plan_submit(db, user_id):
+def test_plan_mode_keeps_the_tool_list_and_refuses_what_changes_things(db, user_id):
+    """Spec 3.1.0 (context.md §10 rule 4): the tool list is the same for the
+    whole session, and a mode comes and goes within one -- so Plan mode takes
+    nothing out and offers nothing extra. What changes or runs something is
+    refused when it is called; `plan_submit` is offered in every mode and
+    answers its `unavailable` text outside Plan mode."""
     user = db.get(User, user_id)
     normal = _chat_with_tools(db, user_id)
     offered = tools_service.resolve_tools(db, normal, user).by_name
-    assert {"plan_write", "plan_update"} <= set(offered)
-    assert "plan_submit" not in offered
-    assert "memory" in offered
+    assert {"plan_write", "plan_update", "plan_submit", "memory"} <= set(offered)
 
     planning = _chat_with_tools(db, user_id, agent_mode="plan")
-    offered = tools_service.resolve_tools(db, planning, user).by_name
-    assert "plan_submit" in offered
-    changing = (tools_service.RISK_WRITE, tools_service.RISK_EXECUTE)
-    assert not any(t.risk in changing for t in offered.values())
-    assert {"read", "grep", "skill_view"} & set(offered)  # the readers stay
+    assert set(tools_service.resolve_tools(db, planning, user).by_name) == set(offered)
 
     helper = _chat_with_tools(db, user_id, parent_chat_id=normal.id, unattended=True)
     assert not {"plan_write", "plan_update", "plan_submit"} & set(
         tools_service.resolve_tools(db, helper, user).by_name
     )
+
+
+async def test_plan_mode_refuses_a_change_when_it_is_called(db, user_id):
+    user = db.get(User, user_id)
+    planning = _chat_with_tools(db, user_id, agent_mode="plan")
+    toolset = tools_service.resolve_tools(db, planning, user)
+    context = tools_service.context_for(db, user, planning, tools=toolset)
+    assert context.planning is True
+
+    refused = await tools_service.run_tool(context, "memory", '{"action": "add"}')
+    assert refused.content == harness_spec.plan_refused()
+    assert refused.content.startswith("Plan mode: nothing changes but the plan.")
+    assert refused.event["status"] == "error"
+    # Reading is not refused.
+    read = await tools_service.run_tool(context, "plan_write", json.dumps(PLAN))
+    assert read.event.get("status") != "error"
+
+
+async def test_plan_submit_outside_plan_mode_answers_its_unavailable_text(db, user_id):
+    user = db.get(User, user_id)
+    normal = _chat_with_tools(db, user_id)
+    toolset = tools_service.resolve_tools(db, normal, user)
+    context = tools_service.context_for(db, user, normal, tools=toolset)
+    outcome = await tools_service.run_tool(context, "plan_submit", "{}")
+    assert outcome.content == harness_spec.tools()["plan_submit"]["unavailable"]
+    assert outcome.content.startswith("Not in plan mode")
 
 
 def test_the_former_todo_name_runs_as_plan_write():
@@ -333,11 +358,6 @@ async def test_plan_submit_waits_on_the_card_and_approval_ends_plan_mode(db, use
             seen,
         ),
     )
-    # Plan mode withheld the writers for this request.
-    assert "memory" not in {
-        t["function"]["name"]
-        for t in tools_service.resolve_tools(db, chat, db.get(User, user_id)).schemas
-    }
     generation = generation_service.Generation(chat_id=chat.id, message_id=message_id)
     task = asyncio.ensure_future(generation_service._run(generation))
     generation_service._RUNNING[message_id] = generation
@@ -358,14 +378,20 @@ async def test_plan_submit_waits_on_the_card_and_approval_ends_plan_mode(db, use
     db.expire_all()
     assert db.get(Chat, chat.id).agent_mode == ""
     assert generation.text == "Carrying it out."
-    # The answer was the tool's result, and the next request had the writers.
-    third = seen[2]
+    # The answer was the tool's result, and the tool list never changed: the
+    # writers were offered all along (refused while planning), and still are.
+    first, third = seen[0], seen[2]
     assert "approved" in third["messages"][-1]["content"]
+    assert third["tools"] == first["tools"]
+    assert third["messages"][0] == first["messages"][0]
     assert "memory" in {t["function"]["name"] for t in third["tools"]}
-    assert "plan_submit" not in {t["function"]["name"] for t in third["tools"]}
+    # Its model was told in the result, so no note reports the mode later.
+    reply = db.get(Message, message_id)
+    states = [entry.get("state") for entry in (reply.note_json or {}).values()]
+    assert {"mode": ""} in states
 
 
-async def test_a_plan_put_aside_withdraws_the_tools_for_a_last_word(db, user_id, monkeypatch):
+async def test_a_plan_put_aside_gets_a_last_word_that_runs_no_tool(db, user_id, monkeypatch):
     chat = _chat_with_tools(db, user_id, agent_mode="plan", plan_json=plans.normalise(PLAN))
     message_id = _reply(db, chat)
     seen: list[dict] = []
@@ -388,7 +414,8 @@ async def test_a_plan_put_aside_withdraws_the_tools_for_a_last_word(db, user_id,
         generation_service._RUNNING.pop(message_id, None)
     db.expire_all()
     assert db.get(Chat, chat.id).agent_mode == "plan"
-    assert "tools" not in seen[1]
+    # The tool list is the session's (spec 3.1.0); the last word runs none.
+    assert seen[1]["tools"] == seen[0]["tools"]
     assert "put the plan aside" in seen[1]["messages"][-1]["content"]
 
 
@@ -420,7 +447,7 @@ async def test_past_the_output_budget_the_model_is_told_which_limit(db, user_id,
     generation = generation_service.Generation(chat_id=chat.id, message_id=message_id)
     await generation_service._run(generation)
     assert generation.text == "Here is what I have."
-    assert "tools" not in seen[1]
+    assert seen[1]["tools"] == seen[0]["tools"]
     last = seen[1]["messages"][-1]
     assert last["role"] == "user" and "tool-output limit" in last["content"]
     assert any(e.get("name") == "budget" for e in generation.tool_events)

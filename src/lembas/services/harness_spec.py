@@ -23,6 +23,17 @@ from typing import Any
 
 SPEC_DIR = Path(__file__).resolve().parent.parent / "harness_spec"
 
+# The parts of the CLI's spec 3.1.0 draft this server implements ahead of the
+# pin: the session note's texts (`loop.json` `context.note`, context.md §10),
+# `plan_submit`'s `requires: plan` with its `unavailable` text, and plan mode's
+# `refused` text (`permission/modes.json`). Copied verbatim from the CLI's
+# `harness/` (`3.1.0-draft`: CLI ecae624 and the draft revision after it) and
+# read only while the vendored spec is older than 3.1: `fetch_harness.py
+# --update` to a 3.1 tag
+# makes it dead, and it is deleted then. Never edited here, exactly like the
+# vendored copy.
+DRAFT_DIR = Path(__file__).resolve().parent.parent / "harness_spec_draft"
+
 # `{{name}}` in a prompt text or a tool description: the facts the two projects
 # differ in. The grammar is the one `services/prompts.py` substitutes, so a
 # text's JSON, shell and Markdown are never candidates.
@@ -44,13 +55,27 @@ def _json(relative: str) -> Any:
     return json.loads((SPEC_DIR / relative).read_text(encoding="utf-8"))
 
 
+def _semver(text: str) -> tuple[int, int]:
+    match = re.match(r"\s*v?(\d+)\.(\d+)", text)
+    return (int(match.group(1)), int(match.group(2))) if match else (0, 0)
+
+
+@cache
+def draft_active() -> bool:
+    """Whether the 3.1.0 draft overlay is read: only while the vendored spec is
+    older than 3.1, so pinning a 3.1 spec retires it without a code change."""
+    return DRAFT_DIR.is_dir() and _semver(version()) < (3, 1)
+
+
 @cache
 def tools() -> dict[str, dict[str, Any]]:
-    """Every tool of the spec, by name."""
+    """Every tool of the spec, by name (the draft's where it has one)."""
     out: dict[str, dict[str, Any]] = {}
-    for path in sorted((SPEC_DIR / "tools").glob("*.json")):
-        spec = json.loads(path.read_text(encoding="utf-8"))
-        out[spec["name"]] = spec
+    dirs = [SPEC_DIR / "tools"] + ([DRAFT_DIR / "tools"] if draft_active() else [])
+    for directory in dirs:
+        for path in sorted(directory.glob("*.json")):
+            spec = json.loads(path.read_text(encoding="utf-8"))
+            out[spec["name"]] = spec
     return out
 
 
@@ -65,8 +90,34 @@ def arity() -> dict[str, Any]:
 @cache
 def loop() -> dict[str, Any]:
     """How one prompt runs: the step backstop, the budgets, the wrap-up, the
-    nudges, and (spec 3.0.0) `context`, the context-hygiene texts and numbers."""
-    return dict(_json("loop.json"))
+    nudges, and (spec 3.0.0) `context`, the context-hygiene texts and numbers
+    -- with (spec 3.1.0) `context.note`, from the draft until it is pinned."""
+    out = dict(_json("loop.json"))
+    context = dict(out.get("context") or {})
+    if draft_active() and "note" not in context:
+        draft = json.loads((DRAFT_DIR / "loop.json").read_text(encoding="utf-8"))
+        context["note"] = draft["context"]["note"]
+        out["context"] = context
+    return out
+
+
+def modes() -> dict[str, Any]:
+    """`permission/modes.json` (the draft's while it is newer: spec 3.1.0 gives
+    plan mode its `refused` text)."""
+    if draft_active() and (DRAFT_DIR / "permission" / "modes.json").exists():
+        return json.loads((DRAFT_DIR / "permission" / "modes.json").read_text(encoding="utf-8"))
+    return _json("permission/modes.json")
+
+
+def plan_refused() -> str:
+    """What a call that changes something answers in plan mode (spec 3.1.0)."""
+    return str(modes()["modes"]["plan"]["refused"])
+
+
+def note() -> dict[str, str]:
+    """The session note's texts (spec 3.1.0, `loop.json` `context.note`): what
+    changed since a session's system prompt was made, on the next user message."""
+    return dict(loop()["context"]["note"])
 
 
 def index() -> dict[str, Any]:
@@ -228,12 +279,16 @@ __all__ = [
     "NarrowError",
     "arity",
     "conformance_dir",
+    "draft_active",
     "fill",
     "fill_parameters",
     "hardline",
     "index",
     "loop",
+    "modes",
     "narrow",
+    "note",
+    "plan_refused",
     "offered_parameters",
     "prompt",
     "prompt_with",

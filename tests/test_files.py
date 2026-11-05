@@ -13,7 +13,7 @@ from sqlalchemy import select
 from lembas.db.models import Attachment, Chat, Connection, Message, Model
 from lembas.services import chat as chat_service
 from lembas.services import files as files_service
-from lembas.services import settings_store
+from lembas.services import prefix, settings_store
 from lembas.services.crypto import encrypt
 from tests.conftest import join
 
@@ -21,8 +21,8 @@ from tests.conftest import join
 def turns(body: dict) -> list[dict]:
     """The conversation turns, without the system preamble in front of them.
 
-    `build_request` always emits a system message now -- the harness carries the
-    date even for a model with no tools -- so a test about a *user* turn has to
+    `build_request` always emits a system message now -- the harness carries
+    its core fragments even for a model with no tools -- so a test about a *user* turn has to
     say which turn it means rather than assume index 0.
     """
     return [message for message in body["messages"] if message["role"] != "system"]
@@ -400,14 +400,16 @@ def test_images_are_withheld_from_a_model_without_vision(client: TestClient, db,
     chat = db.get(Chat, chat_with_model)
     content = turns(chat_service.build_request(db, chat))[0]["content"]
     assert isinstance(content, str)
-    assert content == "what is this?"
+    # The words, and after them only the session's date note (spec 3.1.0).
+    assert prefix.strip(content) == "what is this?"
 
 
 def test_a_plain_turn_stays_a_plain_string(client: TestClient, db, chat_with_model):
     """The list form is a reliable 400 from endpoints that do not implement it."""
     client.post(f"/api/chats/{chat_with_model}/messages", data={"content": "just words"})
     chat = db.get(Chat, chat_with_model)
-    assert turns(chat_service.build_request(db, chat))[0]["content"] == "just words"
+    content = turns(chat_service.build_request(db, chat))[0]["content"]
+    assert isinstance(content, str) and prefix.strip(content) == "just words"
 
 
 def test_document_text_is_prepended_in_tags(client: TestClient, db, chat_with_model):

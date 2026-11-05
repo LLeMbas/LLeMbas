@@ -86,8 +86,18 @@ def instruction_files(v: fs.View) -> list[tuple[str, str]]:
 def instructions_block(v: fs.View) -> str:
     """The chain's files for the system prompt, each under its path relative to
     the boundary -- the CLI's shape, a long one cut with a note."""
+    return "\n\n".join(
+        f"Instructions from {named}:\n<instructions>\n{text}\n</instructions>"
+        for named, text in instruction_texts(v)
+    )
+
+
+def instruction_texts(v: fs.View) -> list[tuple[str, str]]:
+    """The chain's files as (name relative to the boundary, text as sent), a
+    long one cut with a note; an empty file left out. What `instructions_block`
+    puts in the system prompt, and what a session note compares against."""
     boundary = access.normalise((v.chat.boundary if v.chat is not None else "/") or "/")
-    sections = []
+    out: list[tuple[str, str]] = []
     for path, raw in instruction_files(v):
         text = raw.strip()
         if not text:
@@ -99,8 +109,8 @@ def instructions_block(v: fs.View) -> str:
                 f"read {path} for the rest]"
             )
         named = posixpath.relpath(path, boundary) if boundary != "/" else path.lstrip("/")
-        sections.append(f"Instructions from {named}:\n<instructions>\n{text}\n</instructions>")
-    return "\n\n".join(sections)
+        out.append((named, text))
+    return out
 
 
 # --- The view -------------------------------------------------------------------------
@@ -200,6 +210,7 @@ __all__ = [
     "chain",
     "instruction_files",
     "instruction_paths",
+    "instruction_texts",
     "instructions_block",
     "reachable",
     "variables",

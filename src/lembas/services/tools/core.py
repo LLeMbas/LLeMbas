@@ -199,6 +199,12 @@ class ToolContext:
     # Whether the session is shown somewhere a file can be opened (`show`'s
     # `requires: display`): every chat a person reads, not a helper's hidden one.
     display: bool = False
+    # Whether the chat is in Plan mode. Since spec 3.1.0 the tool list stays the
+    # same for the whole session (context.md §10 rule 4), so Plan mode refuses a
+    # call that changes or runs something when it is made (`run_tool`) instead
+    # of taking the tool out of the list, and `plan_submit` answers its
+    # `unavailable` text outside Plan mode.
+    planning: bool = False
 
 
 @dataclass

@@ -5,6 +5,33 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
+### Changed
+
+- **A chat's system prompt is made once and sent unchanged** (harness spec 3.1.0, "the prefix
+  stays still"). It was composed again for every reply, so anything in it changing -- the date at
+  midnight, a memory, the plan, Plan mode, a personality -- made the model's server read the whole
+  chat again: on a long chat, minutes on a local model and the full input price on a cloud one.
+  It is now kept with the chat and made again only after a compaction, for another model, when the
+  offered tools change, or when you edit the chat's own system prompt. What changes during a chat
+  reaches the model as a short note after your next message instead -- the date (on the first
+  message and when it changes), a memory you edited, Plan mode switched, a plan you chose, a
+  personality or custom instructions changed. The note is kept with that message and sent the same
+  way from then on; it is not shown in the transcript. An instance's, a folder's or a model's
+  system prompt edited during a chat applies from its next compaction or a new chat.
+- **The tool list stays the same for the whole chat.** `python` is offered from the start wherever
+  Python in the browser is switched on, and says it is unavailable while no page of the chat is
+  open; Plan mode no longer takes the tools that change things out of the list but refuses them
+  when called, and `plan_submit` is offered in every mode and says so outside Plan mode; reading
+  skills stays offered with none. The last round after a limit is reached, or after a plan is put
+  aside, keeps the list too: it is told the tools are withdrawn, and a call in it is not run.
+- **Compaction asks for its summary as the next turn of the same conversation** -- the same system
+  prompt, tools and messages, then the summary request -- instead of a separate request with the
+  conversation pasted into it, which was a full re-read and, capped to fit, lost the middle of a
+  long chat. The summary request's tokens, cached ones included, are counted in usage like a
+  reply's.
+- **`schedule_list` starts with the time it is now**, since the system prompt no longer carries a
+  clock.
+
 ### Fixed
 
 - **Saving a file that is not there yet makes it**, instead of answering 403 "No such file or

@@ -314,21 +314,75 @@ def effective_system_prompt(
     return (settings_store.get(db, "system_prompt") or "").strip()
 
 
+def window(
+    db: DBSession,
+    chat: Chat,
+    *,
+    upto: Message | None = None,
+    through: Message | None = None,
+) -> tuple[list[Message], list[Message]]:
+    """(the history in front of the model, the rows of it sent as turns).
+
+    The history runs from the compaction boundary to the end of the request:
+    up to `upto`, which is left out with everything after it (the placeholder
+    being written into), or up to and including `through` (the compaction
+    request, which ends on the last finished reply). The sent rows are those of
+    it that become turns, one turn each -- the rows `build_messages` sends and
+    `services/prefix.py` attaches notes to, by one definition.
+    """
+    from lembas.services import compaction as compaction_service
+
+    cutoff = compaction_service.cutoff_message(db, chat)
+    history = db.scalars(
+        select(Message).where(Message.chat_id == chat.id).order_by(Message.created_at)
+    ).all()
+    shown: list[Message] = []
+    sent: list[Message] = []
+    for message in history:
+        if upto is not None and message.id == upto.id:
+            break
+        if cutoff is not None and compaction_service.moment(
+            message
+        ) <= compaction_service.moment(cutoff):
+            continue
+        shown.append(message)
+        last = through is not None and message.id == through.id
+        # Typed while the previous reply was still being written, and not yet
+        # handed to a model. It is in the transcript and it is not in the
+        # request; delivery is what moves it from one to the other.
+        # Turns that failed or produced nothing are skipped too -- but a
+        # message carrying only an attachment has no text and must still be
+        # sent.
+        if not (
+            message.queued
+            or message.error
+            or (not message.content.strip() and not message.attachments)
+        ):
+            sent.append(message)
+        if last:
+            break
+    return shown, sent
+
+
 def build_messages(
     db: DBSession,
     chat: Chat,
     *,
     upto: Message | None = None,
+    through: Message | None = None,
     vision: bool = False,
     system_prompt: str | None = None,
     speaker: Speaker | None = None,
+    notes: dict[str, str] | None = None,
 ) -> list[dict]:
     """Assemble the message list to send upstream.
 
     `upto` excludes the placeholder assistant row being generated into, and
-    everything after it. `system_prompt` overrides what would otherwise be
-    resolved, which is how the harness gets in front of the authored prompt
-    without this function knowing anything about tools.
+    everything after it; `through` ends the list on that row instead (see
+    `window`). `system_prompt` overrides what would otherwise be resolved,
+    which is how the harness gets in front of the authored prompt without this
+    function knowing anything about tools. `notes` are the session notes by
+    message id (`services/prefix.py`), each after that turn's words.
     """
     from lembas.services import compaction as compaction_service
     from lembas.services import prompts as prompts_service
@@ -355,33 +409,27 @@ def build_messages(
         if ack:
             payload.append({"role": ROLE_ASSISTANT, "content": ack})
 
-    history = db.scalars(
-        select(Message).where(Message.chat_id == chat.id).order_by(Message.created_at)
-    ).all()
-    for message in history:
-        if upto is not None and message.id == upto.id:
-            break
-        if cutoff is not None and compaction_service.moment(
-            message
-        ) <= compaction_service.moment(cutoff):
-            continue
-        # Typed while the previous reply was still being written, and not yet
-        # handed to a model. It is in the transcript and it is not in the
-        # request; delivery is what moves it from one to the other.
-        if message.queued:
-            continue
-        # Skip turns that failed or produced nothing -- but a message carrying
-        # only an attachment has no text and must still be sent.
-        if message.error:
-            continue
-        if not message.content.strip() and not message.attachments:
-            continue
-        payload.append(message_payload(message, vision=vision))
+    _shown, sent = window(db, chat, upto=upto, through=through)
+    for message in sent:
+        entry = message_payload(message, vision=vision)
+        if notes and (note := notes.get(message.id)) and message.role == ROLE_USER:
+            entry = with_note(entry, note)
+        payload.append(entry)
 
     if speaker is not None:
-        payload = _as_one_speaker_sees_it(db, payload, history, speaker, upto=upto)
+        payload = _as_one_speaker_sees_it(db, payload, sent, speaker)
 
     return payload
+
+
+def with_note(entry: dict[str, Any], note: str) -> dict[str, Any]:
+    """A user turn with its session note after the person's words: appended to
+    a plain string, or as a last text part of a turn with images."""
+    content = entry.get("content")
+    if isinstance(content, list):
+        return {**entry, "content": [*content, {"type": "text", "text": note}]}
+    text = str(content or "")
+    return {**entry, "content": f"{text}\n\n{note}" if text else note}
 
 
 def _as_one_speaker_sees_it(
@@ -389,8 +437,6 @@ def _as_one_speaker_sees_it(
     payload: list[dict[str, Any]],
     history: list[Message],
     speaker: Speaker,
-    *,
-    upto: Message | None = None,
 ) -> list[dict[str, Any]]:
     """Rewrite a transcript from one model's point of view: a chat whose model
     was changed holds turns another model wrote.
@@ -437,12 +483,9 @@ def _as_one_speaker_sees_it(
 
     # The payload and the history line up only over the message rows: the system
     # turn and a compaction pair come first and belong to nobody. Walking from the
-    # end is what pairs them without counting.
-    rows = [
-        message
-        for message in history
-        if not (upto is not None and message.id == upto.id)
-    ]
+    # end is what pairs them without counting -- `history` is the rows that were
+    # sent, one turn each (`window`), so the two end together.
+    rows = list(history)
     rewritten: list[dict[str, Any]] = []
     for index, entry in enumerate(payload):
         row = None
@@ -542,6 +585,9 @@ def build_request(
     user=None,
     force_tool: str = "",
     speaker: Speaker | None = None,
+    persist: bool = False,
+    through: Message | None = None,
+    new_note: bool = True,
 ) -> dict[str, Any]:
     """The whole request body, tools and harness included.
 
@@ -554,9 +600,16 @@ def build_request(
     per model is resolved from it and not from the chat: the model name sent, the
     vision decision, the authored prompt's model layer, `{{model_name}}`, the
     personality, and the reasoning-effort vocabulary.
+
+    The system prompt is the session's frozen one and each user turn carries
+    its session note (harness spec 3.1.0, `services/prefix.py`). `persist` is
+    what a reply passes: a prompt made here, and the note made for the newest
+    turn, are stored and sent identically from then on. Without it nothing is
+    written (the inspector shows what would go). `through` and `new_note` are
+    the compaction request's: the conversation up to its last finished reply,
+    with no new note.
     """
-    from lembas.services import harness as harness_service
-    from lembas.services import prompts as prompts_service
+    from lembas.services import prefix
 
     params = {
         key: value
@@ -575,24 +628,33 @@ def build_request(
         user = db.get(User, chat.user_id)
 
     # The harness describes the tools; the authored prompt describes the
-    # behaviour. See services/harness.py for why these are joined rather than
-    # being two competing layers.
-    system = harness_service.join(
-        harness_service.compose(db, user, tools, chat, speaker=speaker),
-        effective_system_prompt(db, chat, speaker),
-        lead=prompts_service.render(db, "seam.authored_lead", {}),
+    # behaviour (see services/harness.py for why these are joined rather than
+    # being two competing layers), and the person's own custom instructions and
+    # personality go last. Made once per session (`prefix.compose`).
+    shown, sent = window(db, chat, upto=upto, through=through)
+    prepared = prefix.prepare(
+        db,
+        chat,
+        user,
+        speaker,
+        tools,
+        window=shown,
+        sent=sent,
+        persist=persist,
+        new_note=new_note,
     )
-    # The person's own custom instructions and personality, last: they
-    # are theirs, for every model, and opt-in.
-    from lembas.services import personalization
-
-    if mine := personalization.block(db, user):
-        system = f"{system}\n\n{mine}" if system else mine
 
     body: dict[str, Any] = {
         "model": speaker.model_id,
         "messages": build_messages(
-            db, chat, upto=upto, vision=vision, system_prompt=system, speaker=speaker
+            db,
+            chat,
+            upto=upto,
+            through=through,
+            vision=vision,
+            system_prompt=prepared.system,
+            speaker=speaker,
+            notes=prepared.notes,
         ),
         **params,
     }
@@ -944,42 +1006,6 @@ def create_message(
     db.add(message)
     db.commit()
     return message
-
-
-async def summarise_for_compaction(
-    endpoint: Endpoint,
-    model_id: str,
-    *,
-    transcript: str,
-    previous_summary: str,
-    template: str,
-) -> str:
-    """Ask the model to summarise the earlier turns.
-
-    `template` is passed in for the same reason `generate_title`'s is: this runs
-    after the generation's session has closed, and opening another one there is
-    how you get a session that outlives its scope. An empty template means an
-    administrator cleared the fragment, and nothing is asked of anyone.
-    """
-    from lembas.services import prompts as prompts_service
-
-    if not template.strip() or not transcript.strip():
-        return ""
-
-    prompt = prompts_service.substitute(
-        template, {"transcript": transcript, "previous_summary": previous_summary}
-    )
-    raw = await complete(
-        endpoint,
-        {
-            "model": model_id,
-            "messages": [{"role": ROLE_USER, "content": prompt}],
-            "max_tokens": 1200,
-            # Low, but not zero: this is recall, not invention.
-            "temperature": 0.3,
-        },
-    )
-    return raw.strip()
 
 
 def delete_chats(db: DBSession, chats) -> int:

@@ -24,8 +24,8 @@ under a heading that makes the seam obvious.
 One system message rather than two because several endpoints reject a second one.
 The authored prompt goes last, where it is closest to the conversation.
 
-A model with no tools still gets the core fragments -- the date above all, since
-it has no clock and is being asked about a present it cannot see. That is a
+A model with no tools still gets the core fragments, and the date as a note,
+since it has no clock and is being asked about a present it cannot see. That is a
 change from the original behaviour, where no tools meant no harness at all;
 clearing those fragments in the admin page restores it exactly.
 """
@@ -241,14 +241,6 @@ def context_variables(
 
     offered = tools or []
     families = _families(db, offered)
-    # The reader's zone, not the server's. Telling somebody in another country
-    # that it is Tuesday when it is Wednesday where they are was survivable
-    # while the answer was only ever prose; it stops being survivable the moment
-    # they can say "every Monday at 3" and something has to work out when that
-    # is. `zone_for` falls back to the server's, so an instance where nobody has
-    # set one behaves exactly as it always did.
-    stamp = clock.now_for(user)
-
     # Whose data this request may carry. The data group of the *answering*
     # model -- the chat's own for the chat's model, the member's own for a crowd
     # member -- so a model is handed exactly one group's memories, skills and
@@ -264,8 +256,15 @@ def context_variables(
         )
 
     values: dict[str, str] = {
-        "today": stamp.strftime("%A %-d %B %Y"),
-        "now": stamp.strftime("%A %-d %B %Y, %H:%M (UTC%z)"),
+        # No clock in a chat's system prompt (harness spec 3.1.0, context.md
+        # §10 rule 2): the prompt is made once per session and resent byte for
+        # byte, and a date in it changed at midnight and made the model's
+        # server read the whole chat again. The date is a session note on the
+        # person's message (services/prefix.py). Kept as names, empty, so an
+        # administrator's older override naming them is filled rather than
+        # sent with its braces.
+        "today": "",
+        "now": "",
         # Named so a model working out a schedule can say which zone it meant,
         # and so `core.today` can carry it without a second fragment.
         #
@@ -277,12 +276,10 @@ def context_variables(
         # this variable sits inside a sentence, so every such request shipped
         # "- Times the person gives you are in  unless they say otherwise."
         #
-        # Naming the server's zone was never the thing being avoided anyway.
-        # `stamp` is `clock.now_for(user)`, which already falls back to it, so
-        # `{{today}}` and `{{now}}` are *already* in that zone and `{{now}}`
-        # already prints its offset. Withholding the label from a value the
-        # model has been given is not restraint, it is a hole. This is the
-        # fallback `schedule/compile.py` has always had, for the same reason.
+        # Naming the server's zone was never the thing being avoided anyway:
+        # `clock.now_for(user)` falls back to it, so the date a session note
+        # gives is already in that zone. This is the fallback
+        # `schedule/compile.py` has always had, for the same reason.
         "timezone": clock.name_for(user) or str(clock.server_zone()),
         "instance_name": branding.for_db(db).name,
         "user_name": (user.name or "") if user is not None else "",

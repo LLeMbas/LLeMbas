@@ -12,6 +12,8 @@ the reason `_prune` cannot take it away.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
@@ -389,6 +391,11 @@ def test_compaction_does_not_summarise_a_waiting_prompt(db, registered, make_cha
     reply = chat_service.create_message(db, chat, ROLE_ASSISTANT, "Waybread.")
     chat_service.create_message(db, chat, ROLE_USER, "still waiting", queued=True)
 
-    text = compaction_service.transcript(db, chat, upto=reply)
+    # The summary is asked as the next turn of what was sent, through the
+    # last finished reply (spec 3.1.0): the waiting prompt is not in it.
+    body = chat_service.build_request(db, chat, through=reply, new_note=False)
+    text = json.dumps(body["messages"])
 
+    assert "Waybread." in text
     assert "still waiting" not in text
+    assert compaction_service.last_complete(db, chat).id == reply.id

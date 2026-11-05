@@ -133,20 +133,31 @@ def cleaned(instructions: str, personality: str, custom: str, on: bool = True) -
 def block(db: DBSession, user: Any) -> str:
     """What goes after the system prompt for this person, or "" when nothing does
     (the feature off, or nothing chosen)."""
+    instructions, personality = parts(db, user)
+    out: list[str] = []
+    if instructions:
+        heading = "## How the person you are talking to wants to be helped"
+        out.append(f"{heading}\n\n{instructions}")
+    if personality:
+        out.append(f"## Personality\n\n{personality}")
+    return "\n\n".join(out)
+
+
+def parts(db: DBSession, user: Any) -> tuple[str, str]:
+    """(custom instructions, personality text) as they are in force now, each
+    "" when off or unset -- what `block` puts in the prompt, and what a session
+    note (services/prefix.py) compares against what the model was told."""
     if user is None or not enabled(db):
-        return ""
+        return "", ""
     chosen = of(user)
     if not chosen["on"]:
-        return ""
-    parts: list[str] = []
-    if chosen["instructions"]:
-        heading = "## How the person you are talking to wants to be helped"
-        parts.append(f"{heading}\n\n{chosen['instructions']}")
+        return "", ""
+    personality = ""
     if chosen["personality"] == CUSTOM and chosen["custom"]:
-        parts.append(f"## Personality\n\n{chosen['custom']}")
-    elif chosen["personality"] and (text := preset_text(chosen["personality"])):
-        parts.append(f"## Personality\n\n{text}")
-    return "\n\n".join(parts)
+        personality = chosen["custom"]
+    elif chosen["personality"]:
+        personality = preset_text(chosen["personality"]) or ""
+    return chosen["instructions"] or "", personality
 
 
-__all__ = ["CUSTOM", "PRESETS", "block", "cleaned", "enabled", "of", "preset_text"]
+__all__ = ["CUSTOM", "PRESETS", "block", "cleaned", "enabled", "of", "parts", "preset_text"]

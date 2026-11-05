@@ -31,10 +31,6 @@ from lembas.services import settings_store, tokens
 
 log = logging.getLogger(__name__)
 
-# What the summariser is shown. Past this the oldest turns are dropped with a
-# marker: a transcript that does not fit the window it is protecting is no use.
-MAX_TRANSCRIPT_CHARS = 24_000
-
 # Settings key, in the GENERAL group. 0 turns automatic compaction off; the
 # button still works, because a person asking for it does not need a threshold.
 THRESHOLD_KEY = "compact_threshold"
@@ -77,9 +73,14 @@ def cutoff_message(db: DBSession, chat: Chat) -> Message | None:
 
 def reset(chat: Chat) -> None:
     """Forget that this chat was ever compacted."""
+    from lembas.services import prefix
+
     chat.compact_summary = ""
     chat.compacted_through_id = None
     chat.compacted_at = None
+    # What the model reads from the start changes, so its system prompt is made
+    # again with the next request (harness spec 3.1.0, context.md §10).
+    prefix.forget(chat)
 
 
 def apply(chat: Chat, *, summary: str, upto: Message, db: DBSession | None = None) -> None:
@@ -120,15 +121,12 @@ def apply(chat: Chat, *, summary: str, upto: Message, db: DBSession | None = Non
     chat.compact_summary = text
     chat.compacted_through_id = upto.id
     chat.compacted_at = datetime.now(UTC)
+    # The one deliberate break of the prompt cache: everything is read again
+    # anyway, so the system prompt is made again with the next request
+    # (harness spec 3.1.0, context.md §10 rule 1), from what is true then.
+    from lembas.services import prefix
 
-
-def _without_reads_table(summary: str) -> str:
-    """A summary without the reads table the harness added after it."""
-    from lembas.services import context as context_service
-
-    heading = context_service.spec()["compaction"]["heading"]
-    at = summary.find(f"\n\n{heading}")
-    return summary[:at] if at >= 0 else summary
+    prefix.forget(chat)
 
 
 def split(
@@ -166,52 +164,125 @@ def last_complete(db: DBSession, chat: Chat) -> Message | None:
     )
 
 
-def transcript(db: DBSession, chat: Chat, *, upto: Message) -> str:
-    """The turns to summarise, oldest first, as plain text.
+# --- Asking for the summary (harness spec 3.1.0, context.md §7) -------------------------
+async def summarise(chat_id: str, *, upto_id: str, speaker=None) -> str:
+    """The summary, asked for as the next turn of the same conversation.
 
-    Only the delta since the last compaction: the previous summary is supplied
-    separately, and the instruction asks for one record, so each summary
-    subsumes the one before it. Re-summarising the whole chat every time grows
-    quadratically and eventually exceeds the very window this protects.
+    The same frozen system prompt, the same tools, every turn as it was sent
+    (notes included) up to and including `upto` -- the last finished reply --
+    and then one more user turn, `task.compact` with `{{transcript}}` and
+    `{{previous_summary}}` empty: the model has the conversation itself, an
+    earlier summary included (the lead turn). So the request that makes the
+    summary costs only that turn where the server has the rest cached; a
+    separate request with a pasted transcript was a full re-read, and the
+    transcript capped to fit it lost the conversation's middle.
+
+    A tool call in the reply is not run: the text before it is the summary,
+    and a reply with none is no summary (""), as an empty one is. Nothing here
+    is stored as a turn. What the request used, cached tokens included, is
+    counted like any reply's (`services/usage.py`).
+
+    Read, close the session, ask, reopen to count -- the awaited call never
+    holds a session open. Raises `LLMError` from the endpoint; "" when there is
+    nothing to ask (the fragment cleared, the chat or the reply gone).
     """
-    previous = cutoff_message(db, chat)
-    query = select(Message).where(
-        Message.chat_id == chat.id,
-        Message.created_at <= upto.created_at,
-        Message.error == "",
-        # Not yet sent to anything. Summarising it would fold words the model
-        # has never seen into the record, and then deliver them again later.
-        Message.queued.is_(False),
+    from lembas.db.models import User
+    from lembas.db.session import session_scope
+    from lembas.services import chat as chat_service
+    from lembas.services import prompts
+    from lembas.services import tools as tools_service
+
+    with session_scope() as db:
+        chat = db.get(Chat, chat_id)
+        upto = db.get(Message, upto_id)
+        if chat is None or upto is None or upto.chat_id != chat.id:
+            return ""
+        template = prompts.resolve(db, "task.compact")
+        if not template.strip():
+            return ""
+        owner = db.get(User, chat.user_id)
+        speaker = speaker or chat_service.speaker_for(db, chat)
+        endpoint, model_id = chat_service.resolve_endpoint(db, chat, speaker)
+        offered = tools_service.resolve_tools(db, chat, owner, speaker).schemas
+        body = chat_service.build_request(
+            db,
+            chat,
+            through=upto,
+            tools=offered,
+            user=owner,
+            speaker=speaker,
+            new_note=False,
+        )
+        # Both empty in this form (spec 3.1.0 §7): the conversation is in
+        # front of the model, the earlier summary as its lead turn.
+        ask = prompts.substitute(template, {"transcript": "", "previous_summary": ""}).strip()
+        body["model"] = model_id
+        body["messages"] = [*body["messages"], {"role": "user", "content": ask}]
+        user_id = chat.user_id
+
+    text, counts = await _ask(endpoint, body)
+
+    with session_scope() as db:
+        _count(db, user_id, speaker, counts)
+    return text.strip()
+
+
+async def _ask(endpoint, body: dict) -> tuple[str, dict[str, int]]:
+    """Stream the summary turn: its words up to any tool call, and what the
+    endpoint said it used (summed, as a reply's rounds are)."""
+    from lembas.services.llm.openai_client import (
+        chunk_usage,
+        delta_text,
+        delta_tool_calls,
+        stream_chat,
     )
-    if previous is not None:
-        query = query.where(Message.created_at > previous.created_at)
+    from lembas.services.reasoning import REASONING, ReasoningSplitter
 
-    lines: list[str] = []
-    for message in db.scalars(query.order_by(Message.created_at)):
-        body = message.content.strip()
-        if not body:
+    splitter = ReasoningSplitter()
+    words: list[str] = []
+    counts: dict[str, int] = {}
+    called = False
+    async for chunk in stream_chat(endpoint, body):
+        if (used := chunk_usage(chunk)) is not None:
+            for name, value in used.items():
+                counts[name] = counts.get(name, 0) + int(value)
+        if delta_tool_calls(chunk):
+            # Not run. What came before it is the summary.
+            called = True
+        if called:
             continue
-        lines.append(f"{message.role}: {body}")
-
-    text = "\n\n".join(lines)
-    if len(text) > MAX_TRANSCRIPT_CHARS:
-        # Keep the most recent part: the older it is, the more likely the
-        # previous summary already covers it.
-        text = "[earlier turns omitted]\n\n" + text[-MAX_TRANSCRIPT_CHARS:]
-    return text
+        if text := delta_text(chunk):
+            words.extend(piece for kind, piece in splitter.feed(text) if kind != REASONING)
+    if not called:
+        words.extend(piece for kind, piece in splitter.flush() if kind != REASONING)
+    return "".join(words), counts
 
 
-def previous_summary_block(chat: Chat) -> str:
-    """The earlier summary, headed, or "" on a first compaction.
+def _count(db: DBSession, user_id: str, speaker, counts: dict[str, int]) -> None:
+    """The summary request's tokens and cost, on the speaker's usage row. Never
+    raises: bookkeeping must not undo a compaction."""
+    from lembas.services import chat as chat_service
+    from lembas.services import pricing
+    from lembas.services import usage as usage_service
 
-    Empty is fine to pass straight through: `prompts.substitute` drops a line
-    that held a known variable and expanded to nothing, so the prompt does not
-    end up with a hole where a heading was.
-    """
-    earlier = _without_reads_table(chat.compact_summary).strip()
-    if not earlier:
-        return ""
-    return "## Summary of even earlier turns\n\n" + earlier
+    try:
+        model = chat_service.model_row(db, speaker) if speaker is not None else None
+        priced = pricing.price_reply(
+            db, model, counts, reported_micro=counts.get("reported_cost_micro")
+        )
+        usage_service.record(
+            db,
+            user_id,
+            model_id=(model.model_id if model is not None else getattr(speaker, "model_id", ""))
+            or "",
+            prompt_tokens=counts.get("prompt_tokens", 0),
+            cached_tokens=counts.get("cached_tokens", 0),
+            completion_tokens=counts.get("completion_tokens", 0),
+            cost_micro=priced["cost_micro"] if priced else 0,
+            currency=priced["currency"] if priced else None,
+        )
+    except Exception:  # pragma: no cover - bookkeeping
+        log.debug("could not count the compaction request", exc_info=True)
 
 
 def should_compact(db: DBSession, chat: Chat, *, pending: str = "") -> bool:

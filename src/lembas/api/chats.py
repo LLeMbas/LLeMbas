@@ -34,7 +34,15 @@ from lembas.services import audio as audio_service
 from lembas.services import chat as chat_service
 from lembas.services import compaction as compaction_service
 from lembas.services import context as context_service
-from lembas.services import data_groups, device_link, interaction, model_prefs, settings_store, sse
+from lembas.services import (
+    data_groups,
+    device_link,
+    interaction,
+    model_prefs,
+    prefix,
+    settings_store,
+    sse,
+)
 from lembas.services import files as files_service
 from lembas.services import generation as generation_service
 from lembas.services import jobs as jobs_service
@@ -657,22 +665,19 @@ async def compact_chat(request: Request, db: Db, user: RequiredUser, chat_id: st
         )
 
     try:
-        endpoint, model_id = chat_service.resolve_endpoint(db, chat)
+        chat_service.resolve_endpoint(db, chat)
     except Exception as exc:  # said, rather than a bare 500
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             t("This chat has no model that can summarise it -- pick one in the composer first."),
         ) from exc
-    transcript = compaction_service.transcript(db, chat, upto=upto)
-    previous = compaction_service.previous_summary_block(chat)
 
+    # The next turn of the same conversation, as the model that wrote its last
+    # reply had it (harness spec 3.1.0 §7, `compaction.summarise`): its
+    # frozen prompt and the turns it was sent.
     try:
-        summary = await chat_service.summarise_for_compaction(
-            endpoint,
-            model_id,
-            transcript=transcript,
-            previous_summary=previous,
-            template=template,
+        summary = await compaction_service.summarise(
+            chat.id, upto_id=upto.id, speaker=chat_service.speaker_for(db, chat, upto)
         )
     except LLMError as exc:
         # Said in the toast; a bare 500 would show on the page as nothing
@@ -1984,6 +1989,9 @@ def plan_prompt(db: DBSession, chat: Chat, message_id: str) -> str:
         plan = message.plan
         chat.plan_json = plan
         chat.plan_message_id = message.id
+        # The person chose this plan: the session note that reports it is
+        # theirs (harness spec 3.1.0, `loop.json` `context.note.plan`).
+        prefix.person_changed_plan(chat, plan)
 
     # `steps` is flattened from every phase in order and is always written,
     # which is why this line needed no change when the shape grew findings,

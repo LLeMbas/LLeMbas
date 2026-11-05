@@ -141,38 +141,152 @@ def test_clearing_the_lead_fragment_still_sends_the_summary(db, chat):
     assert messages[0] == {"role": "user", "content": "Summary."}
 
 
-# --- The transcript -----------------------------------------------------------
-def test_only_the_delta_is_summarised_the_second_time(db, chat):
-    """Re-summarising the whole chat grows quadratically and eventually exceeds
-    the very window it is protecting."""
-    first = _exchange(db, chat, question="the old part", answer="ok", minutes=20)
-    compaction_service.apply(chat, summary="Earlier summary.", upto=first)
+# --- The request (spec 3.1.0, context.md §7) ----------------------------------------
+def _sse(text: str, *, usage: dict | None = None) -> str:
+    """A streamed reply saying `text`, with a usage chunk when given."""
+    frames = [json.dumps({"choices": [{"delta": {"content": text}}]})]
+    if usage is not None:
+        frames.append(json.dumps({"choices": [], "usage": usage}))
+    return "".join(f"data: {frame}\n\n" for frame in frames) + "data: [DONE]\n\n"
+
+
+def _asks_for_summary(body: dict) -> bool:
+    last = (body.get("messages") or [{}])[-1]
+    return last.get("role") == "user" and "Summarise this conversation" in str(
+        last.get("content")
+    )
+
+
+async def test_the_summary_is_the_next_turn_of_the_same_conversation(db, chat, mock_http):
+    """The same system prompt, the same tools, every turn as it was sent -- and
+    then the compaction text with an empty transcript. Nothing is pasted: the
+    model has the conversation, so a server that cached it reads only the ask."""
+    from lembas.db.models import User
+
+    user = db.get(User, chat.user_id)
+    db.add(Message(chat_id=chat.id, role="user", content="what is lembas?"))
+    db.commit()
+    placeholder = Message(chat_id=chat.id, role="assistant", content="", complete=False)
+    db.add(placeholder)
+    db.commit()
+    tools = [{"type": "function", "function": {"name": "t", "parameters": {}}}]
+    sent = chat_service.build_request(
+        db, chat, upto=placeholder, tools=tools, user=user, persist=True
+    )
+    db.commit()
+    placeholder.content, placeholder.complete = "Waybread.", True
     db.commit()
 
-    second = _exchange(db, chat, question="the new part", answer="ok", minutes=5)
-    transcript = compaction_service.transcript(db, chat, upto=second)
+    seen: list[dict] = []
 
-    assert "the new part" in transcript
-    assert "the old part" not in transcript
-    assert "Earlier summary." in compaction_service.previous_summary_block(chat)
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, text=_sse("Asking about lembas."))
+
+    mock_http(handler)
+    from lembas.services import tools as tools_service
+
+    real = tools_service.resolve_tools
+
+    class _Set:
+        schemas = tools
+
+    tools_service.resolve_tools = lambda *a, **k: _Set()
+    try:
+        summary = await compaction_service.summarise(chat.id, upto_id=placeholder.id)
+    finally:
+        tools_service.resolve_tools = real
+
+    assert summary == "Asking about lembas."
+    body = seen[0]
+    assert body["tools"] == sent["tools"]
+    assert body["messages"][: len(sent["messages"])] == sent["messages"]
+    assert body["messages"][len(sent["messages"])] == {
+        "role": "assistant",
+        "content": "Waybread.",
+    }
+    ask = body["messages"][-1]
+    assert _asks_for_summary(body)
+    # The transcript is empty in this form: no turn is pasted into the ask.
+    assert "what is lembas?" not in ask["content"]
+    assert len(body["messages"]) == len(sent["messages"]) + 2
 
 
-def test_a_first_compaction_has_no_previous_summary(db, chat):
-    assert compaction_service.previous_summary_block(chat) == ""
+async def test_a_tool_call_in_the_summary_is_not_run(db, chat, mock_http):
+    """Its text before the call is the summary; a reply with nothing before the
+    call is no summary."""
+    reply = _exchange(db, chat, question="one", answer="two", minutes=5)
+    call = {
+        "choices": [
+            {"delta": {"tool_calls": [{"index": 0, "id": "c", "function": {
+                "name": "read", "arguments": "{}"}}]}}
+        ]
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        frames = [
+            {"choices": [{"delta": {"content": "The summary."}}]},
+            call,
+            {"choices": [{"delta": {"content": " after"}}]},
+        ]
+        body = "".join(f"data: {json.dumps(f)}\n\n" for f in frames) + "data: [DONE]\n\n"
+        return httpx.Response(200, text=body)
+
+    mock_http(handler)
+    assert await compaction_service.summarise(chat.id, upto_id=reply.id) == "The summary."
+
+    mock_http(lambda request: httpx.Response(
+        200, text=f"data: {json.dumps(call)}\n\ndata: [DONE]\n\n"
+    ))
+    assert await compaction_service.summarise(chat.id, upto_id=reply.id) == ""
 
 
-def test_a_huge_transcript_is_trimmed_from_the_front(db, chat):
-    reply = _exchange(db, chat, question="x" * 40_000, answer="ok", minutes=5)
-    transcript = compaction_service.transcript(db, chat, upto=reply)
+async def test_the_summary_request_is_counted_with_its_cached_tokens(db, chat, mock_http):
+    from lembas.db.models import Usage
 
-    assert len(transcript) < 40_000
-    assert transcript.startswith("[earlier turns omitted]")
+    reply = _exchange(db, chat, question="one", answer="two", minutes=5)
+    usage = {
+        "prompt_tokens": 900,
+        "completion_tokens": 40,
+        "prompt_tokens_details": {"cached_tokens": 880},
+    }
+    mock_http(lambda request: httpx.Response(200, text=_sse("S.", usage=usage)))
+
+    assert await compaction_service.summarise(chat.id, upto_id=reply.id) == "S."
+    db.expire_all()
+    row = db.scalar(select(Usage).where(Usage.user_id == chat.user_id))
+    assert (row.tokens_in, row.tokens_cached, row.tokens_out, row.requests) == (900, 880, 40, 1)
+
+
+def test_the_ask_reads_right_with_both_variables_empty(db, chat):
+    """The model has the conversation, the earlier summary as its lead turn:
+    nothing is pasted, and no heading is left hanging over nothing."""
+    template = prompts.resolve(db, "task.compact")
+    ask = prompts.substitute(template, {"transcript": "", "previous_summary": ""}).strip()
+    assert ask.startswith("Summarise this conversation so far")
+    assert "below" not in ask
+    assert ask.endswith("stay under 500 words.")
+
+
+def test_compaction_makes_the_system_prompt_again(db, chat):
+    """§10 rule 1: everything is read again after a compaction anyway, so the
+    frozen prompt goes and the next request makes it from what is true then."""
+    from lembas.db.models import User
+
+    reply = _exchange(db, chat, question="one", answer="two", minutes=5)
+    chat_service.build_request(db, chat, user=db.get(User, chat.user_id), persist=True)
+    db.commit()
+    assert chat.system_frozen
+
+    compaction_service.apply(chat, summary="Summary.", upto=reply)
+    db.commit()
+    assert not chat.system_frozen
 
 
 # --- The button ---------------------------------------------------------------
 def _summariser(text: str = "## What we are doing\n\nAsking about lembas."):
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"choices": [{"message": {"content": text}}]})
+        return httpx.Response(200, text=_sse(text))
 
     return handler
 
@@ -325,9 +439,9 @@ async def test_a_generation_compacts_before_it_asks(db, chat, mock_http):
     def handler(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
         sent.append(body)
-        if body.get("stream"):
-            return httpx.Response(200, text="data: [DONE]\n\n")
-        return httpx.Response(200, json={"choices": [{"message": {"content": "A summary."}}]})
+        if _asks_for_summary(body):
+            return httpx.Response(200, text=_sse("A summary."))
+        return httpx.Response(200, text="data: [DONE]\n\n")
 
     mock_http(handler)
     generation = generation_service.Generation(chat_id=chat.id, message_id=placeholder.id)
@@ -337,8 +451,11 @@ async def test_a_generation_compacts_before_it_asks(db, chat, mock_http):
 
     db.expire_all()
     assert db.get(Chat, chat.id).compact_summary == "A summary."
-    # The streamed request went out after compaction, carrying the summary.
-    streamed = next(b for b in sent if b.get("stream"))
+    # The summary was asked as the conversation's next turn, then the reply's
+    # request went out after compaction, carrying the summary.
+    assert _asks_for_summary(sent[0])
+    assert any(m.get("content") == "Waybread." for m in sent[0]["messages"])
+    streamed = next(b for b in sent if not _asks_for_summary(b))
     assert any("A summary." in str(m.get("content")) for m in streamed["messages"])
     assert not any(m.get("content") == "what is lembas?" for m in streamed["messages"])
 
@@ -356,7 +473,7 @@ async def test_a_failed_compaction_still_sends_the_reply(db, chat, mock_http):
     db.commit()
 
     def handler(request: httpx.Request) -> httpx.Response:
-        if json.loads(request.content).get("stream"):
+        if not _asks_for_summary(json.loads(request.content)):
             return httpx.Response(
                 200, text='data: {"choices":[{"delta":{"content":"hi"}}]}\n\ndata: [DONE]\n\n'
             )

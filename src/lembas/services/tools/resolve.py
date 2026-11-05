@@ -30,7 +30,6 @@ from lembas.services.tools.core import (
     FAMILY_SCHEDULE,
     FAMILY_SEARCH,
     FAMILY_SUBAGENT,
-    RISK_EXECUTE,
     RISK_WRITE,
     ToolDef,
     ToolSet,
@@ -317,15 +316,6 @@ def resolve_tools(
         from lembas.services import model_prefs
 
         off = off | (model_prefs.tools_off(db, user, model.model_id) - scoped_on(chat))
-    # The skills this chat can read, as files in its view of the tree
-    # (`services/skill_files.py`): none, and listing and reading them are
-    # withdrawn below.
-    from lembas.services import fs, skill_files
-
-    empty_library = user is None or not skill_files.count(
-        fs.view(db, user, chat), exclude=scoped_skills_off(chat)
-    )
-
     # A scheduled task runs with nobody present, so `ask_user` cannot work here:
     # it pauses the reply and waits for a POST that will never come, until
     # `approval_timeout` expires -- a run that silently does nothing for fifteen
@@ -346,11 +336,11 @@ def resolve_tools(
     if getattr(chat, "parent_chat_id", None):
         off = off | {FAMILY_PLAN}
 
-    # Plan mode: everything that changes the library or runs something is
-    # withheld, not merely discouraged, and `plan_submit` appears -- it is the
-    # approval, and a model that has it in another mode would submit a plan
-    # nobody asked to approve.
-    planning = plan_mode(chat)
+    # Plan mode takes nothing out of the list (harness spec 3.1.0, context.md
+    # §10 rule 4: the tool list is the same for the whole session, and a mode
+    # comes and goes within one). What changes or runs something is refused
+    # when it is called, and `plan_submit` answers its `unavailable` text
+    # outside Plan mode -- both in `run_tool`.
 
     # Everything that changes something, withheld. Set by `services/subagent.py`
     # on the chat it creates and by nothing else, so absent means on exactly as
@@ -394,23 +384,14 @@ def resolve_tools(
             )
             and gate_of(tool.family) not in off
             and not (writes_off and tool.risk == RISK_WRITE)
-            and not (planning and tool.risk in (RISK_WRITE, RISK_EXECUTE))
-            and (planning or tool.name != "plan_submit")
             and may_write(tool)
-            # Nothing to read and nothing to improve. Offering `skill_get` with
-            # no skills is what makes a model spend a round looking one up and
-            # being told it does not exist -- and `context.skills` already
-            # vanishes, so the prompt says "read one with skill_get" above a
-            # list that is not there. `skill_create` stays: writing the first
-            # one is exactly what somebody with none needs.
-            and not (empty_library and tool.name in _NEEDS_A_SKILL)
-            and _offered_in(tool, chat)
+            # No longer withdrawn with an empty library: a first skill can be
+            # written during the session (by the model's skill_manage, or in
+            # another tab), and a list that changes with it is a re-read of
+            # the whole chat (spec 3.1.0). Listing none says there are none.
+            and _offered_in(tool, chat, db)
         )
     )
-
-
-# Skills tools that are meaningless with an empty library.
-_NEEDS_A_SKILL = frozenset({"skills_list", "skill_view"})
 
 # The families a chat on this server works with itself (harness spec 3.0.0,
 # `sessions: chat`): an agent chat works on its device's disk with the
@@ -429,9 +410,12 @@ def has_display(chat: Chat | None) -> bool:
     )
 
 
-def _offered_in(tool: ToolDef, chat: Chat) -> bool:
+def _offered_in(tool: ToolDef, chat: Chat, db: DBSession | None = None) -> bool:
     """Whether this chat can have the tool at all, beyond the gates: the
-    spec's `sessions` and `requires`."""
+    spec's `sessions` and `requires` -- the parts of `requires` fixed for the
+    chat's session. One that comes and goes during it (a page attached) never
+    takes a tool out (spec 3.1.0, context.md §10 rule 4): the tool is offered
+    from the start and answers its `unavailable` text while it is not met."""
     if tool.family not in _CHAT_ONLY:
         return True
     if chat.kind == KIND_AGENT:
@@ -439,12 +423,24 @@ def _offered_in(tool: ToolDef, chat: Chat) -> bool:
     if tool.name == "show":
         return has_display(chat)
     if tool.family == FAMILY_PYTHON:
-        # `requires: page`: a browser page of this chat that has said it can run
-        # Python (`services/pages.py`). Never a schedule's or a helper's chat.
-        from lembas.services import pages
-
-        return not unattended(chat) and pages.attached(getattr(chat, "id", "") or "")
+        # `requires: page`: a browser page of this chat that can run Python
+        # (`services/pages.py`) -- which any chat a person reads may have
+        # whenever the instance runs Python at all. Never a schedule's or a
+        # helper's chat, which nobody opens. Whether a page is attached now is
+        # the call's question (`_run_python`), not the list's.
+        return not unattended(chat) and not getattr(chat, "parent_chat_id", None) and (
+            db is not None and python_offered(db)
+        )
     return True
+
+
+def python_offered(db: DBSession) -> bool:
+    """Whether this instance runs Python in the browser: switched on, and the
+    pinned Pyodide present and verified -- what makes a chat page load it."""
+    from lembas.services import pyodide_files
+
+    group = settings_store.get_group(db, settings_store.GENERAL)
+    return bool(group.get("pyodide_enabled")) and pyodide_files.available()
 
 
 def unattended(chat: Chat | None) -> bool:

@@ -38,6 +38,7 @@ from lembas.services import (
     harness_spec,
     interaction,
     plans,
+    prefix,
     pricing,
     settings_store,
     tokens,
@@ -219,6 +220,10 @@ class Generation:
     # reply on with the tools it was planning for; dismissal withdraws them for
     # a final round, so the reply ends in an answer rather than mid-sentence.
     plan_final: bool = False
+    # Set when this reply's approved plan ended Plan mode: the model was told
+    # in the call's result, so no session note reports the mode change later
+    # (`prefix.known`, harness spec 3.1.0).
+    left_plan_mode: bool = False
     # Seconds this reply spent waiting for a person (an approval, a question,
     # the plan card). Not counted against the wall-clock budget.
     waited: float = 0.0
@@ -892,6 +897,9 @@ async def _run(generation: Generation) -> None:
             # exist by the time a call comes back.
             toolset = tools_service.resolve_tools(db, chat, owner, speaker)
             offered = toolset.schemas
+            # `persist`: this request is sent, so the session's system prompt
+            # and the note on the newest turn are kept and resent as they are
+            # (harness spec 3.1.0, services/prefix.py).
             payload = chat_service.build_request(
                 db,
                 chat,
@@ -900,6 +908,7 @@ async def _run(generation: Generation) -> None:
                 user=owner,
                 force_tool=generation.force_tool,
                 speaker=speaker,
+                persist=True,
             )
             question = _question_from(payload)
             needs_title = not chat.title_generated
@@ -1020,6 +1029,8 @@ async def _run(generation: Generation) -> None:
             # Why the endpoint said it stopped, when it said: "length" is a
             # reply cut off at the output limit, which is asked again below.
             round_finish = ""
+            # Set when a wrap-up round's reply calls a tool anyway (not run).
+            wrap_called = False
 
             # Stopped between rounds -- while the last round's tools ran, or the
             # moment before this request -- is stopped now, before another
@@ -1061,7 +1072,12 @@ async def _run(generation: Generation) -> None:
                     generation.reasoning.append(thought)
                     generation.touch()
 
-                if offered:
+                if offered and wrapping_up and delta_tool_calls(chunk):
+                    # The wrap-up keeps the session's tool list (spec 3.1.0,
+                    # context.md §10 rule 4) but a call in it is not run: the
+                    # text before it is the answer, and nothing after it is.
+                    wrap_called = True
+                elif offered:
                     fragments = delta_tool_calls(chunk)
                     if fragments:
                         # The model has stopped thinking and started writing a
@@ -1077,7 +1093,7 @@ async def _run(generation: Generation) -> None:
                             generation.status = _preparing_status(named)
                             generation.touch()
 
-                text = delta_text(chunk)
+                text = "" if wrap_called else delta_text(chunk)
                 if text:
                     for kind, piece in splitter.feed(text):
                         if kind == REASONING:
@@ -1342,12 +1358,11 @@ async def _run(generation: Generation) -> None:
 
             # A plan put aside ends the turn. One more request so the model can
             # say what it proposed and why -- a bubble containing only a card
-            # reads as though it had nothing to add -- but with the tools
-            # withdrawn, so "one more round" cannot become three rounds of it
-            # changing its mind about a plan nobody approved.
+            # reads as though it had nothing to add -- as a wrap-up: the tools
+            # stay listed (spec 3.1.0, the list is the session's) but a call in
+            # it is not run, so "one more round" cannot become three rounds of
+            # it changing its mind about a plan nobody approved.
             if generation.plan_final:
-                offered = []
-                payload.pop("tools", None)
                 wrapping_up = True
                 continue
 
@@ -1521,8 +1536,9 @@ async def _maybe_compact(generation: Generation) -> None:
     happened -- refusing to answer because the summariser was unavailable would
     be a worse trade.
 
-    The awaited call is deliberately outside any session, the same shape titling
-    uses: read everything needed, close, ask, reopen to write.
+    The summary is the next turn of the same conversation, as the answering
+    model sees it (`compaction.summarise`, harness spec 3.1.0 §7): this reply's
+    own speaker, its frozen prompt and tools, and the turns already sent.
     """
     try:
         with session_scope() as db:
@@ -1539,21 +1555,14 @@ async def _maybe_compact(generation: Generation) -> None:
             upto = compaction_service.last_complete(db, chat)
             if not template.strip() or upto is None:
                 return
-
-            endpoint, model_id = chat_service.resolve_endpoint(db, chat)
-            transcript = compaction_service.transcript(db, chat, upto=upto)
-            previous = compaction_service.previous_summary_block(chat)
+            speaker = chat_service.speaker_for(db, chat, message)
             upto_id = upto.id
 
         generation.status = i18n.t("Summarising earlier messages…")
         generation.touch()
 
-        summary = await chat_service.summarise_for_compaction(
-            endpoint,
-            model_id,
-            transcript=transcript,
-            previous_summary=previous,
-            template=template,
+        summary = await compaction_service.summarise(
+            generation.chat_id, upto_id=upto_id, speaker=speaker
         )
         if not summary:
             return
@@ -1608,16 +1617,18 @@ def _wrap_up(
 ) -> tuple[list, dict]:
     """A budget has run out. Withdraw the tools and ask for an answer.
 
-    Returns the empty tool list and the payload without its `tools` array and
-    with the harness spec's wrap-up message (`loop.json`) as a user turn
-    naming `limit` -- so the next request is one the model can only answer,
-    and it is told why.
+    Returns the tool list unchanged and the payload with the harness spec's
+    wrap-up message (`loop.json`) as a user turn naming `limit`. The tools stay
+    in the request (spec 3.1.0, context.md §10 rule 4: a list that changed here
+    would make the server read the whole chat again), and the message says they
+    are withdrawn; a call in that reply is not run (`_run`), so the next round
+    is one the model can only answer, and it is told why.
 
     Every budget used to end the reply where it was noticed, which is fine for a
     model that narrates as it works and produces nothing at all for one that goes
     straight to tool calls: an empty bubble with a red line under it, and a good
     piece of research thrown away at its sixth search. What it has gathered is
-    already in the transcript, so one more request without tools turns it into
+    already in the transcript, so one more request that runs no tools turns it into
     an answer. That is the same move `plan_submit` makes -- a turn should not end
     mid-sentence -- and it is why the loop runs to `budget + 2`.
 
@@ -1643,7 +1654,7 @@ def _wrap_up(
     generation.touch()
     told = harness_spec.fill(harness_spec.loop()["wrap_up"]["message"], {"limit": limit})
     messages = [*payload.get("messages", []), {"role": "user", "content": told}]
-    return [], {**{k: v for k, v in payload.items() if k != "tools"}, "messages": messages}
+    return list(payload.get("tools") or []), {**payload, "messages": messages}
 
 
 # What `{{limit}}` in the wrap-up message says for each budget.
@@ -1721,14 +1732,16 @@ async def _settle_plan(
     """`plan_submit`: the plan on the card, and what the person decides as the
     call's result.
 
-    Approved: Plan mode ends for the chat, and the tools are resolved again so
-    the rest of this reply has what Plan mode withheld -- the spec says the
-    model carries on and implements. (An agent chat's approval chooses the mode
-    to carry on in, as the device card does; an agent chat never reaches this
-    loop, so only a chat's own mode is cleared here.) Sent back: the feedback,
-    and the model revises and submits again. Put aside, timed out, or nobody
-    there to ask: the tools are withdrawn for a final round, in which the model
-    says what it proposed.
+    Approved: Plan mode ends for the chat, and what it refused works for the
+    rest of this reply -- the spec says the model carries on and implements.
+    The tool list stays as it was (harness spec 3.1.0, context.md §10 rule 4:
+    the same for the whole session); only the context the calls run with is
+    taken again. (An agent chat's approval chooses the mode to carry on in, as
+    the device card does; an agent chat never reaches this loop, so only a
+    chat's own mode is cleared here.) Sent back: the feedback, and the model
+    revises and submits again. Put aside, timed out, or nobody there to ask:
+    the tools are withdrawn for a final round, in which the model says what it
+    proposed.
 
     Returns the content for the tool turn and the context, offered tools and
     payload to carry on with.
@@ -1763,22 +1776,21 @@ async def _settle_plan(
                 # Plan mode is over: the next turn, and the rest of this one,
                 # may change things.
                 chat.agent_mode = ""
+                generation.left_plan_mode = True
                 db.commit()
             if chat is not None:
                 speaker = chat_service.speaker_for(db, chat)
                 toolset = tools_service.resolve_tools(db, chat, owner, speaker)
-                context = tools_service.context_for(
+                fresh = tools_service.context_for(
                     db, owner, chat, tools=toolset, speaker=speaker
                 )
-                context.message_id = generation.message_id
-                offered = toolset.schemas
-                payload = {**payload, "tools": offered} if offered else {
-                    k: v for k, v in payload.items() if k != "tools"
-                }
+                # Only what the calls run with is taken again: the tools
+                # offered are the session's, unchanged.
+                context.planning = fresh.planning
+                context.tools = fresh.tools
         return (
             "The plan was approved. Carry on and implement it now, keeping it current "
-            "with plan_update as you go. The tools that were withheld while planning "
-            "are offered with this request.",
+            "with plan_update as you go. What was refused while planning works now.",
             context,
             offered,
             payload,
@@ -2296,14 +2308,16 @@ def _question_from(payload: dict) -> str:
         if entry.get("role") != ROLE_USER:
             continue
         content = entry.get("content")
+        # The person's words, without the session note the request carried
+        # after them (harness spec 3.1.0): a chat is not titled from it.
         if isinstance(content, str):
-            return content
+            return prefix.strip(content)
         if isinstance(content, list):
-            return " ".join(
+            return prefix.strip(" ".join(
                 part.get("text", "")
                 for part in content
                 if isinstance(part, dict) and part.get("type") == "text"
-            ).strip()
+            )).strip()
     return ""
 
 
@@ -2416,12 +2430,21 @@ def _inject(
 
             waiting.queued = False
             entry = chat_service.message_payload(waiting, vision=vision)
+            # Sent as it is, with no session note: a note waits for a turn
+            # that starts a request (harness spec 3.1.0), and this one must
+            # never be given one afterwards, or the next request differs from
+            # this one where the server has already read it.
+            chat = db.get(Chat, chat_id)
+            placeholder = db.get(Message, generation.message_id)
+            if chat is not None:
+                prefix.sent_without_note(
+                    db, chat, waiting, chat_service.speaker_for(db, chat, placeholder)
+                )
             # The reply that answers it must sort *before* it, or the next
             # turn's transcript reads "answer, then the question it answered"
             # and a small model dutifully answers again. Moving the placeholder
             # rather than the prompt keeps several interjections in the order
             # they were typed.
-            placeholder = db.get(Message, generation.message_id)
             if placeholder is not None:
                 placeholder.created_at = datetime.now(UTC)
             generation.injected_ids.append(waiting.id)
@@ -2519,6 +2542,26 @@ def _persist(generation: Generation, title: str, elapsed: float) -> None:
                 # Which bubble last carried the plan: what `Chat.plan` falls
                 # back to for rows from before `plan_json`.
                 chat.plan_message_id = message.id
+            # What this reply's own tools changed and its model therefore knows
+            # -- a memory it saved, the mode its approved plan left -- so no
+            # session note reports it later (harness spec 3.1.0). A device
+            # reply's model is the device's, whose harness keeps its own.
+            saved_memory = any(
+                event.get("name") == "memory" and event.get("status") == "ok"
+                for event in generation.tool_events
+            )
+            if (saved_memory or generation.left_plan_mode) and not getattr(
+                chat, "device_token_id", None
+            ):
+                prefix.known(
+                    db,
+                    chat,
+                    db.get(User, chat.user_id),
+                    chat_service.speaker_for(db, chat, message),
+                    message,
+                    memory=saved_memory,
+                    mode=generation.left_plan_mode,
+                )
             message.usage_json = metrics_service.to_json(
                 metrics_service.from_generation(generation)
             )

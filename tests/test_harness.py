@@ -28,10 +28,13 @@ def _tools(*names):
 # --- Composition -------------------------------------------------------------
 def test_no_tools_means_no_tool_guidance(db, owner):
     """The core fragments still go out -- a model with no tools has no clock
-    either, and telling it the date is not "tokens that say nothing". What it
-    must not get is instructions about tools it was never offered."""
+    either, and telling it the date is not "tokens that say nothing" (since
+    spec 3.1.0 the date itself is a session note, `test_prefix.py`, and the
+    prompt says where to find it). What it must not get is instructions about
+    tools it was never offered."""
     text = harness.compose(db, owner, [])
-    assert "Today is" in text
+    assert "today's date, which a note on the person's message gives you" in text
+    assert "Today is" not in text
     assert "You have tools" not in text
     assert "Look things up" not in text
     assert harness.compose(db, owner, None) == text

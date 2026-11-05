@@ -291,6 +291,19 @@ class Chat(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
     compacted_through_id: Mapped[str | None] = mapped_column(String(32))
     compacted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    # --- The prefix (harness spec 3.1.0, context.md §10) -----------------------
+    # The system prompt this chat's session was given, made once and resent
+    # byte for byte so a model's server can reuse what it has already read. One
+    # record per speaker (`"<model_id>|<connection_id>"`): a chat whose model was
+    # changed, or a crowd, keeps one each. A record holds the text, what it was
+    # built for (the tools offered, the chat's own prompt) and the state the
+    # model was told then; see services/prefix.py. Emptied by a compaction, which
+    # is when it is made again. Nullable: an older row has none, and is frozen
+    # at its next reply.
+    system_frozen: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONDict, nullable=True, default=dict
+    )
+
     folder: Mapped[Folder | None] = relationship(back_populates="chats")
     messages: Mapped[list[Message]] = relationship(
         back_populates="chat",
@@ -452,6 +465,17 @@ class Message(UUIDPrimaryKey, Timestamps, Base):
     # reason `steps_json` is.
     terminal_attachments_json: Mapped[list[Any] | None] = mapped_column(
         JSONList, nullable=True, default=list
+    )
+    # The `<session-note>` this user turn was sent with (harness spec 3.1.0):
+    # what changed since the session's system prompt was made, after the
+    # person's words. Per speaker, like `Chat.system_frozen`, because a note can
+    # carry one data group's memories: `{"<speaker>": {"text", "state", "rev"}}`.
+    # Once sent it is part of the turn and rebuilt identically, never
+    # recomputed. On a reply, `state` alone records what its own tools changed
+    # (a memory, the mode), which the model therefore knows. Never shown as the
+    # person's words. Nullable for the reason `steps_json` is.
+    note_json: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONDict, nullable=True, default=dict
     )
 
     chat: Mapped[Chat] = relationship(back_populates="messages")

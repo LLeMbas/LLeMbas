@@ -77,6 +77,9 @@ async def run_tool(
             {"name": name, "status": "error", "error": "Unknown tool."},
         )
 
+    if refused := _refused_by_mode(context, tool):
+        return refused
+
     if parsed is None:
         parsed = parse_arguments(tool, arguments)
     # The spec's `purpose` (purpose.json): one sentence for the person, added
@@ -96,6 +99,23 @@ async def run_tool(
     if purpose:
         outcome.event["purpose"] = purpose
     return outcome
+
+
+def _refused_by_mode(context: ToolContext, tool: ToolDef) -> ToolOutcome | None:
+    """A call the chat's mode refuses, answered without running it (harness
+    spec 3.1.0: the tool list is the session's, so the mode decides at the
+    call). Plan mode refuses everything that writes or runs; `plan_submit`
+    (`requires: plan`) outside Plan mode answers the spec's `unavailable`."""
+    from lembas.services.tools.core import RISK_EXECUTE, RISK_WRITE
+
+    if tool.name == "plan_submit" and not context.planning:
+        text = str(harness_spec.tools().get("plan_submit", {}).get("unavailable") or "")
+        return ToolOutcome(text, {"name": tool.name, "status": "error", "error": text[:300]})
+    if context.planning and tool.risk in (RISK_WRITE, RISK_EXECUTE):
+        # The spec's words (permission/modes.json `plan.refused`).
+        text = harness_spec.plan_refused()
+        return ToolOutcome(text, {"name": tool.name, "status": "error", "error": text[:300]})
+    return None
 
 
 def takes_purpose(name: str) -> bool:

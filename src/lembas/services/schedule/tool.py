@@ -89,7 +89,8 @@ RULE_HELP = (
     '- "count": how many times in total, if a number was given.\n'
     '- "until": ISO timestamp to stop after, if one was given.\n'
     'Give both "every" and "at" only for something like "every other Tuesday". '
-    "Times are in the reader's own timezone, which the system prompt states."
+    "Times are in the reader's own timezone, which the system prompt states; "
+    "schedule_list says what time it is there now."
 )
 
 
@@ -194,12 +195,20 @@ async def _run_list(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
 
     with session_scope() as db:
         owner = db.get(User, context.owner_id)
+        # The time now, first: a chat's system prompt carries no clock (harness
+        # spec 3.1.0, it is made once per session), and "in ten minutes" needs
+        # one. `tool.schedule` tells the model to call this first.
+        now = clock.now_for(owner)
+        heading = (
+            f"It is now {now.strftime('%A %-d %B %Y, %H:%M')} "
+            f"({clock.name_for(owner) or clock.server_zone()})."
+        )
         # `visible` is the same narrowing the routes use, and is the whole
         # authorisation: it answers with nothing at all for a missing user.
         rows = list(db.scalars(schedules_service.visible(owner).order_by(Schedule.created_at)))
         if not rows:
             return _outcome(
-                "There are no schedules.",
+                f"{heading}\nThere are no schedules.",
                 {"name": "schedule_list", "status": "ok", "results": []},
             )
         listed = [_row(row, owner) for row in rows]
@@ -209,7 +218,7 @@ async def _run_list(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
             for row in listed
         )
         return _outcome(
-            f"{len(listed)} schedule(s):\n{lines}",
+            f"{heading}\n{len(listed)} schedule(s):\n{lines}",
             {"name": "schedule_list", "status": "ok", "results": listed},
         )
 

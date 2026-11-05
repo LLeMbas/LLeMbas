@@ -208,9 +208,11 @@ async def test_a_model_that_only_ever_calls_tools_is_stopped(db, user_id, monkey
     # Three rounds that may call tools, the one that notices the ceiling, and
     # the one asked for an answer with the tools withdrawn.
     assert len(payloads) == 5
-    # And the last request carried no tools at all, which is what makes it a
-    # round the model can only answer.
-    assert "tools" not in payloads[-1]
+    # The last request keeps the session's tool list (spec 3.1.0: a list that
+    # changed would be a re-read of the whole chat), says the tools are
+    # withdrawn, and the call it made anyway was not run.
+    assert payloads[-1]["tools"] == payloads[0]["tools"]
+    assert "the tools have been withdrawn" in payloads[-1]["messages"][-1]["content"]
     # Recorded rather than silently dropped: an answer that stops here has to
     # be explicable.
     assert generation.tool_events[-1]["status"] == "error"
@@ -236,12 +238,16 @@ async def test_running_out_of_rounds_still_produces_an_answer(db, user_id, monke
 
     async def stream_chat(_endpoint, payload):
         payloads.append(payload)
-        # Exactly what a real model does: call tools while it has them, and
-        # answer when it has none.
-        if payload.get("tools"):
-            yield _tool_call_chunk("web_search", '{"query": "x"}')
-        else:
+        # A model that answers when told the tools are withdrawn -- and then
+        # calls one anyway, which is not run (spec 3.1.0: the wrap-up keeps
+        # the tool list; the text before the call is the answer).
+        last = payload["messages"][-1]
+        if last.get("role") == "user" and "withdrawn" in str(last.get("content")):
             yield {"choices": [{"delta": {"content": "Here is what I found."}}]}
+            yield _tool_call_chunk("web_search", '{"query": "y"}')
+            yield {"choices": [{"delta": {"content": " And more."}}]}
+        else:
+            yield _tool_call_chunk("web_search", '{"query": "x"}')
 
     monkeypatch.setattr(generation_service, "stream_chat", stream_chat)
     monkeypatch.setattr("lembas.services.chat.generate_title", _never_called_title)
@@ -251,6 +257,11 @@ async def test_running_out_of_rounds_still_produces_an_answer(db, user_id, monke
 
     assert generation.text == "Here is what I found."
     assert not generation.error
+    assert payloads[-1]["tools"] == payloads[0]["tools"]
+    # Two rounds of search ran; the ceiling's own notice is the third event,
+    # and the call in the wrap-up was not run at all.
+    ran = [e for e in generation.tool_events if e.get("status") != "error"]
+    assert len(ran) == 2 and len(generation.tool_events) == 3
     # And the reader can still tell this apart from an answer the model chose
     # to give, which is what the event is for.
     assert generation.tool_events[-1]["status"] == "error"
