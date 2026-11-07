@@ -133,6 +133,8 @@ PENDING = {
     "prototype": "prototypes are gone from the server's chat (spec 3.0.0: `show` replaces them)",
     "chunk_tokens": "run in tests/test_index.py",
     "context": "run in tests/test_context.py",
+    "prefix": "the CLI's cases drive its engine (session steps, MCP waits); the server's chat "
+    "keeps the same rules in tests/test_prefix.py, test_compaction.py and test_plans.py",
     "fs_access": "run in tests/test_fs_access.py",
     "instructions": "run in tests/test_workspace.py",
     "unidiff": _ON_THE_DEVICE,

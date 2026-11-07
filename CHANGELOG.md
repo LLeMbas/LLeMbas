@@ -5,6 +5,8 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
+The harness spec is **3.1.0**, pinned to LLeMbas CLI v2.0.0-beta.2.
+
 ### Changed
 
 - **A chat's system prompt is made once and sent unchanged** (harness spec 3.1.0, "the prefix

@@ -1,6 +1,7 @@
 # Context hygiene
 
-Spec 3.0.0. What a session does to keep tool results from filling the model's context — the same in
+Spec 3.1.0. What a session does to keep tool results from filling the model's context, and (§10, from
+3.1.0) what it keeps still so the model's server can reuse what it has already read — the same in
 a chat and in an agent session, in both projects. The texts and numbers are `loop.json` `context`;
 the cases are `conformance/context.json`; what the model is told is `prompts/blocks/context.md`.
 
@@ -125,8 +126,16 @@ two results.
 
 ## 7. Compaction
 
-Compaction is the one deliberate break of the cache, and it already exists. In 3.0.0 two things
-come with it:
+Compaction is the one deliberate break of the cache, and it already exists. **From 3.1.0 the
+summary is asked for as the next turn of the same conversation**: the same system prompt, the same
+tools, every message as it was, and then one more user message — `prompts/tasks/compact.md`, whose
+`{{transcript}}` and `{{previous_summary}}` are empty in this form, since the model has the
+conversation, an earlier summary included, itself. So the request
+that makes the summary costs only that message; a separate request with a pasted transcript was a
+full re-read of everything, and a transcript capped to fit it lost the session's middle. A tool
+call in the summary's reply is not run; its text before the call is the summary, and a reply with
+none fails the compaction as an empty one does. The summary request is never shown as a turn of the
+session, and it is not stored as one. In 3.0.0 two things came with compaction, and still do:
 
 - After the summary the harness adds — itself, not the model — a table of the **reads the summary
   covers**: the full reads made since the previous compaction (or since the session began) in turns
@@ -151,6 +160,61 @@ come with it:
 - **The dedupe table is emptied**, so no stub ever points at content that is no longer in the
   context. A read after compaction is a full read; a `recall` of any earlier id still works.
 
+## 10. The prefix: what the model has already read
+
+A model's server keeps what it has read of a request and reuses it for the next one only as far as
+the two are the same from the first byte. The system prompt and the tool list come first, so **a
+change to either is a full re-read** of everything after them — on a long session minutes of work
+on a local server, and the full input price again on a cloud API. Measured (2026-11-05, a local
+model): a date that changed at midnight sent a 16,912-token session from 99 % cached to 0 %,
+139 seconds. So, from 3.1.0:
+
+1. **The system prompt is made once per session and sent unchanged.** It is built when the session
+   starts, kept with the session, and every request sends those exact bytes. It is built again only
+   where everything is read again anyway: after a compaction (§7), or when the session moves to
+   another model. A session that is resumed sends what it kept.
+2. **Nothing in it is a clock.** No date or time. The date goes in a note (rule 3): the first user
+   message of a session carries it, and so does the next one after the date has changed.
+3. **What changes during a session goes at the end, as a note** on the next user message, never
+   into earlier text: the permission mode (`modes/<mode>.md` as the note's body when it changes,
+   and its first line is in the prompt only as it was at the start), the plan when the person changed
+   it (the model's own `plan_write` and `plan_update` already answer with it), a memory or
+   instruction file the person edited, a personality chosen, an MCP server's instructions that
+   arrived later, the date. The note is a block after the person's words:
+
+   ```
+   <session-note>
+   The permission mode is now plan: …
+   </session-note>
+   ```
+
+   (`loop.json` `context.note`.) Each change is one block of the note, the blocks separated by a
+   blank line, in the order `context.note` lists them; a value that became empty reads
+   `context.note.empty`; the date is the person's own (their zone, else the machine's). A note is
+   part of that message from then on, like anything sent. A request with no user message (a tool
+   step), and words the person adds to a turn already running, carry no note; it waits for the next
+   message that starts a turn. A change the model made itself (its own `plan_write`, `memory`,
+   `settings`, a file it wrote) needs no note: its tool result already said it.
+4. **The tool list is the same for the whole session.** A tool whose `requires` can come and go
+   during a session — `page`, `display`, `forge`, and plan mode for `plan_submit` — is offered from
+   the start whenever the session could ever meet it, and a call made while it is not met answers
+   the tool's `unavailable` text. Only what is fixed for the session may leave a tool out: the
+   session kind (`sessions`), the model (`vision`), a subagent's narrowing, what the project's
+   configuration or the person switched off before the session began. The tools stay listed in
+   the wrap-up request too (`loop.json` `wrap_up`): its message says they are withdrawn, and a call
+   in that reply is not run. A tool withdrawn after its final refusal stays in the list and answers
+   that refusal. **The one exception is an MCP server**: a session waits up to `mcp_wait_ms` for
+   the servers it is configured with before its first request, so their tools are in the first
+   list; a server that connects later adds its tools when it connects — one re-read, once — and its
+   instructions come as a note.
+5. **Nothing already sent is rewritten** — the one rule above, for results; old tool output is
+   never pruned in place.
+6. **Every request's cache use is recorded** where the provider reports it (cached input tokens),
+   beside the request's other usage, so a slow prompt has a cause on record.
+
+What a server does with a matching prefix is its own business; a harness that keeps these rules has
+done what it can.
+
 ## 8. Earlier reasoning
 
 Left to the model's own chat template: the harness sends the history as it does, and neither strips
@@ -160,7 +224,7 @@ reasoning a template keeps nor adds what it drops.
 
 `prompts/blocks/context.md`, in every session that has `recall`.
 
-## Not in 3.0.0
+## Not in 3.1.0
 
 Eliding old content in batches behind a threshold, and measuring quality and tokens with and without
 these measures, are left for a later spec. Every measure above ships with its unit and conformance

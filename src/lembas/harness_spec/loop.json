@@ -23,7 +23,7 @@
     }
   },
   "wrap_up": {
-    "about": "One more request with no tools and a user message saying which limit was reached: answer now — what is done, what is not, what would come next. The transcript says the prompt was stopped, so an answer given because the room ran out is never mistaken for one the model chose to give.",
+    "about": "One more request, with the session's tool list unchanged (context.md §10, rule 4) and a user message saying which limit was reached: answer now — what is done, what is not, what would come next. The transcript says the prompt was stopped, so an answer given because the room ran out is never mistaken for one the model chose to give. A tool call in that reply is not run.",
     "message": "The {{limit}} for this prompt has been reached and the tools have been withdrawn. Answer now from what you have: what is done, what is not, and what would come next."
   },
   "nudges": {
@@ -62,7 +62,7 @@
     "lifecycle": "A subagent's own background commands stop when it ends, and its report says so. A session's jobs stop when the session is deleted. A front end asked to exit while jobs run asks the person first; one with nobody to ask waits for the jobs the prompt started, then stops the rest."
   },
   "context": {
-    "about": "Context hygiene (spec 3.0.0, context.md): every measure acts when a result is inserted, and nothing already sent to the model is ever rewritten — changing earlier context throws away the prompt cache from that point. conformance/context.json gives the texts.",
+    "about": "Context hygiene (spec 3.0.0, the prefix from 3.1.0; context.md): every measure acts when a result is inserted, and nothing already sent to the model is ever rewritten — changing earlier context throws away the prompt cache from that point. conformance/context.json gives the texts.",
     "ids": {
       "about": "Every tool result gets an id: `#` and its number in the session, counting from 1, in lowercase hex, at least 4 digits (`#0001`, `#000a`, `#10000`) — unique in the session and never reused (not after a compaction either), so `recall` finds any of them. It is the first thing in the result, in brackets.",
       "digits": 4
@@ -105,6 +105,23 @@
       "line": "Read a file again for its content; recall shows a result by its id.",
       "rows": 50
     },
-    "reasoning": "Earlier turns' reasoning is left to the model's chat template: the harness sends the history as it does, neither stripping reasoning the template keeps nor adding what it drops."
+    "reasoning": "Earlier turns' reasoning is left to the model's chat template: the harness sends the history as it does, neither stripping reasoning the template keeps nor adding what it drops.",
+    "note": {
+      "about": "A note on the next user message (context.md §10, rule 3): what changed since the system prompt was made, after the person's words. Lines in this order, each only when it applies. `plan_ended` is the mode block for a session that leaves plan mode for a mode with no text of its own (a chat). `plan_own` is the plan block for a session that does not resend earlier tool results (a chat): the model's own plan, as its tools left it. `personal` is the {{path}} of the instructions block for the person's own instructions.",
+      "open": "<session-note>",
+      "close": "</session-note>",
+      "date": "Today is {{date}}.",
+      "mode": "The permission mode is now {{mode}}:\n{{mode_text}}",
+      "plan_ended": "Plan mode has ended: make the changes the work needs; nothing is refused for planning any more.",
+      "plan": "The person changed the plan; it is now:\n{{plan}}",
+      "plan_own": "Your plan, as your plan tools left it:\n{{plan}}",
+      "memory": "The person changed what is remembered; it is now:\n{{memory}}",
+      "instructions": "{{path}} changed; it now reads:\n{{text}}",
+      "personal": "the person's own instructions",
+      "personality": "The person chose a different personality:\n{{personality}}",
+      "mcp": "Instructions from an MCP server that connected since the session began:\n{{instructions}}",
+      "empty": "(none)"
+    },
+    "mcp_wait_ms": 3000
   }
 }

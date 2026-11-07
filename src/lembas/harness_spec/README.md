@@ -46,9 +46,11 @@ page *Harness-parity* in LLeMbas CLI's wiki.
 - **Requires** (spec 3.0.0): what must hold for a tool to be offered at all — `page`: a browser
   page of the chat is open and attached (not a schedule, not a background job); `display`: the
   session is shown somewhere a file can be opened (the web UI, Desktop; not a bare terminal);
-  `forge`: the session's view holds a repository mounted from a forge. A requirement that goes away
-  between the offer and the call makes the call answer the tool's `unavailable` text, word for
-  word, as its result.
+  `forge`: the session's view holds a repository mounted from a forge; `plan`: the session is in
+  plan mode. A requirement that goes away between the offer and the call makes the call answer the
+  tool's `unavailable` text, word for word, as its result. **From 3.1.0 a requirement that can come
+  and go during a session does not take the tool out of the list** (`context.md` §10, rule 4): the
+  tool is offered from the start and answers `unavailable` while the requirement is not met.
 - **Confirm** (spec 3.0.0): `always` — the call is put to the person before it runs, in every mode,
   auto included, and runs on a yes only; nothing remembers the answer (`permission/modes.json`).
 - A tool's other names, per project, are listed in its `aliases` and work as the tool. A former
@@ -57,10 +59,24 @@ page *Harness-parity* in LLeMbas CLI's wiki.
   `in_progress` → `doing`, `completed` → `done`, `cancelled` → `dropped`; `conformance/plan.json`).
 - **The plan** (`plan_write`, `plan_update`, `plan_submit`) is one structure both keep per session —
   title, summary, findings, objectives, phases of tasks with a status each, ids given by the
-  implementation and never by the model — shown as a card in every UI and put into the prompt
-  (`{{plan_context}}`) on every step while it exists. `plan_write` and `plan_update` are offered in
-  every mode; `plan_submit` only in plan mode, where it is the approval. Their permission key is
+  implementation and never by the model — shown as a card in every UI. From 3.1.0 it is in the
+  system prompt (`{{plan_context}}`) only as it was when the prompt was made; the model sees it change
+  in its own `plan_write` / `plan_update` results, and a change by the person comes as a note
+  (`context.md` §10). All three are offered in every mode; `plan_submit` (`requires: plan`) is the
+  approval in plan mode and answers its `unavailable` text outside it. Their permission key is
   `plan` (`permission/defaults.json`), which a rule written for the former `todo` key still reaches.
+
+## 3.1.0
+
+Written ahead of both implementations as `3.1.0-draft`, and `3.1.0` once both carried it (LLeMbas CLI 8e06590, LLeMbas 48e905f). **The prefix stays still** (`context.md` §10). Found on 2026-11-05 by measuring a local model's
+prompt cache: a harness that rebuilds its system prompt for every request re-reads the whole session
+whenever any part of it changes — the date at midnight, a permission mode, a memory, the plan. So:
+the system prompt is made once per session and resent byte for byte; no clock is in it; what
+changes during a session comes as a `<session-note>` on the next user message (`loop.json`
+`context.note`); the tool list is fixed for the session (`requires` that can come and go no longer
+remove a tool — `plan_submit` gains `requires: plan` and an `unavailable` text); compaction asks
+for its summary as the next turn of the same conversation instead of a separate request with a
+pasted transcript (§7); every request records its cached input tokens.
 
 ## 3.0.0
 

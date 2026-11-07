@@ -32,7 +32,8 @@
       "read": "rules",
       "write": "allow only for files under the plans directory; anything else is refused",
       "execute": "only what the rules already allow; anything else is refused",
-      "interact": "rules"
+      "interact": "rules",
+      "refused": "Plan mode: nothing changes but the plan. Put what this would do into the plan with plan_write or plan_update; it can be done once the person approves the plan."
     }
   },
   "unattended": "With nobody to answer, whatever a mode would ask is refused instead, and the model is told so up front (prompts/modes/unattended.md)."

@@ -23,6 +23,4 @@ Leave out pleasantries, retracted ideas and anything already superseded. Do not 
 
 {{previous_summary}}
 
-## Transcript
-
 {{transcript}}

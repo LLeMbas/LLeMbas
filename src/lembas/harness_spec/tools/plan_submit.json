@@ -6,6 +6,10 @@
   "exclusive": true,
   "block": "tool",
   "purpose": false,
+  "requires": [
+    "plan"
+  ],
+  "unavailable": "Not in plan mode: plan_submit is how a plan made in plan mode is put to the person for approval. Carry on with the work; keep the plan current with plan_update.",
   "aliases": {
     "cli": [
       "plan_exit"

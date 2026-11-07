@@ -1,0 +1,535 @@
+{
+  "about": "The prefix (context.md §10, spec 3.1.0): one session's requests, in order — which system prompt each sends, which tools it offers, and the note on a user message. `start` is the session as it begins: `date`, `mode`, and what the prompt is made from that may change (`plan` as rendered, `memory`, `personality`, `files` — instruction texts by path or heading — `mcp` — instructions by server; each \"\" or {} for none), `could` (the requirements the session could ever meet: `plan` for any session that may enter plan mode, `display`, `page`, `forge`) and `met` (those met now besides plan, which is met in plan mode; default: all it could). `tools`: the names a case looks at; a tool's `requires` is the spec's. Steps: `user` (a user message: the request that carries it), `tool` (a tool step's request: no user message), `set` (something changes — any of the start's fields, or `met`; `by: model` when the model's own tool did it, whose result told the model: `plan` from plan_write, `mode` from plan_submit's approval, `memory` and `files` it changed itself; otherwise the person or the clock did), `call` (a call of `tool` now), `compact` (the summary is asked for: `{{transcript}}` and `{{previous_summary}}` empty — an earlier summary is already the first message), `wrapup` (the request after a step limit or a budget: the same prompt and tools, the wrap-up message as its last user message, no note; a call in its reply is not run) and `model` (the session moves to another model). A request answers `{system, tools, note}`: `system` numbers the system prompts the session has made, from 1, the same number being the same bytes; `tools` the case's tools it offers; `note` the note after the person's words, or null. `call` answers the tool's `unavailable` text, or null where it runs; `compact` answers the request's prompt, its tools and `ask`, the user message that follows every message as it was; `wrapup` answers like a request; `set` and `model` answer null; a value that became empty reads `context.note.empty`. `plan_dir` fills modes/plan.md. LLeMbas: services/context.py; CLI: session/prefix.ts, session/engine.ts.",
+  "cases": [
+    {
+      "about": "A date that changes during a session is a note on the next user message; the system prompt and the tools stay the same bytes.",
+      "start": {
+        "date": "2026-11-04",
+        "mode": "manual",
+        "could": [
+          "plan"
+        ]
+      },
+      "tools": [
+        "read",
+        "plan_submit"
+      ],
+      "steps": [
+        {
+          "op": "user"
+        },
+        {
+          "op": "tool"
+        },
+        {
+          "op": "user"
+        },
+        {
+          "op": "set",
+          "date": "2026-11-05"
+        },
+        {
+          "op": "tool"
+        },
+        {
+          "op": "user"
+        }
+      ],
+      "expect": [
+        {
+          "system": 1,
+          "tools": [
+            "read",
+            "plan_submit"
+          ],
+          "note": "<session-note>\nToday is 2026-11-04.\n</session-note>"
+        },
+        {
+          "system": 1,
+          "tools": [
+            "read",
+            "plan_submit"
+          ],
+          "note": null
+        },
+        {
+          "system": 1,
+          "tools": [
+            "read",
+            "plan_submit"
+          ],
+          "note": null
+        },
+        null,
+        {
+          "system": 1,
+          "tools": [
+            "read",
+            "plan_submit"
+          ],
+          "note": null
+        },
+        {
+          "system": 1,
+          "tools": [
+            "read",
+            "plan_submit"
+          ],
+          "note": "<session-note>\nToday is 2026-11-05.\n</session-note>"
+        }
+      ]
+    },
+    {
+      "about": "plan_submit is offered in every mode and answers its unavailable text outside plan mode; a mode the person chose is a note with the mode's text, one the approval set is not.",
+      "start": {
+        "date": "2026-11-05",
+        "mode": "manual",
+        "could": [
+          "plan"
+        ]
+      },
+      "tools": [
+        "read",
+        "plan_write",
+        "plan_submit"
+      ],
+      "steps": [
+        {
+          "op": "user"
+        },
+        {
+          "op": "call",
+          "tool": "plan_submit"
+        },
+        {
+          "op": "set",
+          "mode": "plan"
+        },
+        {
+          "op": "user"
+        },
+        {
+          "op": "call",
+          "tool": "plan_submit"
+        },
+        {
+          "op": "set",
+          "mode": "edit",
+          "by": "model"
+        },
+        {
+          "op": "tool"
+        },
+        {
+          "op": "user"
+        }
+      ],
+      "expect": [
+        {
+          "system": 1,
+          "tools": [
+            "read",
+            "plan_write",
+            "plan_submit"
+          ],
+          "note": "<session-note>\nToday is 2026-11-05.\n</session-note>"
+        },
+        "Not in plan mode: plan_submit is how a plan made in plan mode is put to the person for approval. Carry on with the work; keep the plan current with plan_update.",
+        null,
+        {
+          "system": 1,
+          "tools": [
+            "read",
+            "plan_write",
+            "plan_submit"
+          ],
+          "note": "<session-note>\nThe permission mode is now plan:\nPermission mode: plan. You are planning, not implementing. Read, search and investigate as much as you need, but change nothing: no file but a plan under .agent/plans, no command that is not already allowed, nothing saved to the library.\n\nWrite the plan with plan_write, so that someone else could follow it: findings with file:line references, what will be true when it is done (objectives), and the work as phases of tasks in order, with the risks and how to verify it as the last phase. Ask with ask_user if a decision is the user's. When the plan is written, call plan_submit — that is how the user approves it, and after approval you carry on and implement it, keeping the plan current with plan_update.\n</session-note>"
+        },
+        null,
+        null,
+        {
+          "system": 1,
+          "tools": [
+            "read",
+            "plan_write",
+            "plan_submit"
+          ],
+          "note": null
+        },
+        {
+          "system": 1,
+          "tools": [
+            "read",
+            "plan_write",
+            "plan_submit"
+          ],
+          "note": null
+        }
+      ]
+    },
+    {
+      "about": "The compaction request is the same prompt and tools, every message, then the compaction text with no transcript; after it the prompt is made again and the next user message says the date again.",
+      "start": {
+        "date": "2026-11-05",
+        "mode": "edit",
+        "could": [
+          "plan"
+        ]
+      },
+      "tools": [
+        "read",
+        "plan_submit"
+      ],
+      "steps": [
+        {
+          "op": "user"
+        },
+        {
+          "op": "tool"
+        },
+        {
+          "op": "compact"
+        },
+        {
+          "op": "user"
+        },
+        {
+          "op": "compact"
+        }
+      ],
+      "expect": [
+        {
+          "system": 1,
+          "tools": [
+            "read",
+            "plan_submit"
+          ],
+          "note": "<session-note>\nToday is 2026-11-05.\n</session-note>"
+        },
+        {
+          "system": 1,
+          "tools": [
+            "read",
+            "plan_submit"
+          ],
+          "note": null
+        },
+        {
+          "system": 1,
+          "tools": [
+            "read",
+            "plan_submit"
+          ],
+          "ask": "Summarise the conversation below so it can be carried forward after the earlier turns are dropped from your context. This is a working record, not a report for a reader.\n\nKeep, under these headings and in this order:\n\n## What we are doing\nThe goal, and where we have got to.\n\n## Decisions\nAnything settled, and why. A decision without its reason gets argued again.\n\n## Facts established\nNames, numbers, versions, file paths, commands, URLs and identifiers, copied exactly. Do not round them, paraphrase them or reconstruct one from memory — if it is not in the transcript, leave it out.\n\n## Files touched\nEach file read or changed that still matters, and what was done to it.\n\n## Open threads\nWhat is unfinished, and what was about to happen next.\n\nLeave out pleasantries, retracted ideas and anything already superseded. Do not answer the conversation: you are recording it. Write in the language of the conversation, and stay under 600 words."
+        },
+        {
+          "system": 2,
+          "tools": [
+            "read",
+            "plan_submit"
+          ],
+          "note": "<session-note>\nToday is 2026-11-05.\n</session-note>"
+        },
+        {
+          "system": 2,
+          "tools": [
+            "read",
+            "plan_submit"
+          ],
+          "ask": "Summarise the conversation below so it can be carried forward after the earlier turns are dropped from your context. This is a working record, not a report for a reader.\n\nKeep, under these headings and in this order:\n\n## What we are doing\nThe goal, and where we have got to.\n\n## Decisions\nAnything settled, and why. A decision without its reason gets argued again.\n\n## Facts established\nNames, numbers, versions, file paths, commands, URLs and identifiers, copied exactly. Do not round them, paraphrase them or reconstruct one from memory — if it is not in the transcript, leave it out.\n\n## Files touched\nEach file read or changed that still matters, and what was done to it.\n\n## Open threads\nWhat is unfinished, and what was about to happen next.\n\nLeave out pleasantries, retracted ideas and anything already superseded. Do not answer the conversation: you are recording it. Write in the language of the conversation, and stay under 600 words."
+        }
+      ]
+    },
+    {
+      "about": "What the model changed itself is not said again; what the person changed is, once, in loop.json's order; an MCP server that connected later is said by its own instructions.",
+      "start": {
+        "date": "2026-11-05",
+        "mode": "manual",
+        "plan": "",
+        "memory": "Prefers tabs.",
+        "personality": "",
+        "files": {
+          "/p/AGENTS.md": "Build with make."
+        },
+        "mcp": {
+          "docs": "Search the docs first."
+        },
+        "could": [
+          "plan"
+        ]
+      },
+      "tools": [
+        "read"
+      ],
+      "steps": [
+        {
+          "op": "user"
+        },
+        {
+          "op": "set",
+          "by": "model",
+          "plan": "# Fix\n## p1 P (pending)\n[t1] [ ] a",
+          "memory": "Prefers tabs.\n§\nUses fish.",
+          "files": {
+            "/p/AGENTS.md": "Build with make; test with make test."
+          }
+        },
+        {
+          "op": "tool"
+        },
+        {
+          "op": "user"
+        },
+        {
+          "op": "set",
+          "plan": "",
+          "memory": "Uses fish.",
+          "personality": "Be brief.",
+          "files": {
+            "/p/AGENTS.md": "Build with make; test with make test.",
+            "/p/src/AGENTS.md": "Strict types."
+          },
+          "mcp": {
+            "docs": "Search the docs first.",
+            "tickets": "Name the ticket in every commit."
+          }
+        },
+        {
+          "op": "user"
+        },
+        {
+          "op": "set",
+          "files": {
+            "/p/AGENTS.md": "Build with make; test with make test."
+          }
+        },
+        {
+          "op": "user"
+        }
+      ],
+      "expect": [
+        {
+          "system": 1,
+          "tools": [
+            "read"
+          ],
+          "note": "<session-note>\nToday is 2026-11-05.\n</session-note>"
+        },
+        null,
+        {
+          "system": 1,
+          "tools": [
+            "read"
+          ],
+          "note": null
+        },
+        {
+          "system": 1,
+          "tools": [
+            "read"
+          ],
+          "note": null
+        },
+        null,
+        {
+          "system": 1,
+          "tools": [
+            "read"
+          ],
+          "note": "<session-note>\nThe person changed the plan; it is now:\n(none)\n\nThe person changed what is remembered; it is now:\nUses fish.\n\n/p/src/AGENTS.md changed; it now reads:\nStrict types.\n\nThe person chose a different personality:\nBe brief.\n\nInstructions from an MCP server that connected since the session began:\n<server name=\"tickets\">\nName the ticket in every commit.\n</server>\n</session-note>"
+        },
+        null,
+        {
+          "system": 1,
+          "tools": [
+            "read"
+          ],
+          "note": "<session-note>\n/p/src/AGENTS.md changed; it now reads:\n(none)\n</session-note>"
+        }
+      ]
+    },
+    {
+      "about": "A move to another model makes the prompt again; the date said in the conversation still holds.",
+      "start": {
+        "date": "2026-11-05",
+        "mode": "auto",
+        "could": [
+          "plan"
+        ]
+      },
+      "tools": [
+        "read"
+      ],
+      "steps": [
+        {
+          "op": "user"
+        },
+        {
+          "op": "model"
+        },
+        {
+          "op": "user"
+        }
+      ],
+      "expect": [
+        {
+          "system": 1,
+          "tools": [
+            "read"
+          ],
+          "note": "<session-note>\nToday is 2026-11-05.\n</session-note>"
+        },
+        null,
+        {
+          "system": 2,
+          "tools": [
+            "read"
+          ],
+          "note": null
+        }
+      ]
+    },
+    {
+      "about": "A display the session could have is offered from the start and answers unavailable while there is none; one it never could have leaves show out.",
+      "start": {
+        "date": "2026-11-05",
+        "mode": "manual",
+        "could": [
+          "plan",
+          "display"
+        ],
+        "met": []
+      },
+      "tools": [
+        "read",
+        "show"
+      ],
+      "steps": [
+        {
+          "op": "user"
+        },
+        {
+          "op": "call",
+          "tool": "show"
+        },
+        {
+          "op": "set",
+          "met": [
+            "display"
+          ]
+        },
+        {
+          "op": "call",
+          "tool": "show"
+        }
+      ],
+      "expect": [
+        {
+          "system": 1,
+          "tools": [
+            "read",
+            "show"
+          ],
+          "note": "<session-note>\nToday is 2026-11-05.\n</session-note>"
+        },
+        "Nothing can be shown now: this session has no screen to show a file on. Give the user the path instead.",
+        null,
+        null
+      ]
+    },
+    {
+      "start": {
+        "date": "2026-11-05",
+        "mode": "manual",
+        "could": [
+          "plan"
+        ]
+      },
+      "tools": [
+        "read",
+        "show"
+      ],
+      "steps": [
+        {
+          "op": "user"
+        }
+      ],
+      "expect": [
+        {
+          "system": 1,
+          "tools": [
+            "read"
+          ],
+          "note": "<session-note>\nToday is 2026-11-05.\n</session-note>"
+        }
+      ]
+    },
+    {
+      "about": "The wrap-up keeps the session's tool list and prompt, carries no note, and the next user message carries what changed meanwhile.",
+      "start": {
+        "date": "2026-11-05",
+        "mode": "edit",
+        "could": [
+          "plan"
+        ]
+      },
+      "tools": [
+        "read",
+        "plan_submit"
+      ],
+      "steps": [
+        {
+          "op": "user"
+        },
+        {
+          "op": "tool"
+        },
+        {
+          "op": "set",
+          "date": "2026-11-06"
+        },
+        {
+          "op": "wrapup"
+        },
+        {
+          "op": "user"
+        }
+      ],
+      "expect": [
+        {
+          "system": 1,
+          "tools": [
+            "read",
+            "plan_submit"
+          ],
+          "note": "<session-note>\nToday is 2026-11-05.\n</session-note>"
+        },
+        {
+          "system": 1,
+          "tools": [
+            "read",
+            "plan_submit"
+          ],
+          "note": null
+        },
+        null,
+        {
+          "system": 1,
+          "tools": [
+            "read",
+            "plan_submit"
+          ],
+          "note": null
+        },
+        {
+          "system": 1,
+          "tools": [
+            "read",
+            "plan_submit"
+          ],
+          "note": "<session-note>\nToday is 2026-11-06.\n</session-note>"
+        }
+      ]
+    }
+  ]
+}
