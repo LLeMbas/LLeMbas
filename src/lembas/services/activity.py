@@ -653,6 +653,19 @@ def plan(chat: Chat) -> dict[str, Any] | None:
     return plans.normalise(chat.plan) if chat.plan else None
 
 
+def _context_or_none(db, chat: Chat, user) -> dict[str, Any] | None:
+    """The context, or None where it cannot be measured now (a chat whose
+    model is gone, a device that has not said): the rest of the panel must
+    not go down with it."""
+    import logging
+
+    try:
+        return context(db, chat, user)
+    except Exception:
+        logging.getLogger(__name__).debug("no context for %s", chat.id, exc_info=True)
+        return None
+
+
 async def snapshot(
     db, chat: Chat, user, *, since: int = 0, with_context: bool = True
 ) -> dict[str, Any]:
@@ -669,7 +682,7 @@ async def snapshot(
         "team_offered": team_run.offered(db, chat, user) if team_run.may_have_team(chat) else False,
         "outputs": outputs(db, chat) if not chat.device_token_id else [],
         "plan": plan(chat),
-        "context": context(db, chat, user) if with_context else None,
+        "context": _context_or_none(db, chat, user) if with_context else None,
     }
     out["version"] = fingerprint(
         {"agents": entries, "team": team, "plan": out["plan"], "outputs": out["outputs"]}
