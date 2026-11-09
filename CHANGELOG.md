@@ -3,9 +3,9 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
-## Unreleased
+## 2.0.0-beta.7 — 2026-11-09
 
-The harness spec is **3.3.0** (`subagents.md`).
+The harness spec is **3.3.0**, pinned to LLeMbas CLI v2.0.0-beta.5.
 
 ### Changed
 
