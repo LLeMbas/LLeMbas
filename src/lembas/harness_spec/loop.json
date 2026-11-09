@@ -34,7 +34,7 @@
     "about": "Calls in one step run together, at most 4; a call that waits on the user (ask_user, plan_submit) runs alone; two calls on one file run in order. A tool's error is its result, never the end of the prompt.",
     "max": 4
   },
-  "capacity": "A subagent (task) is not started on a model whose server cannot hold it beside the prompt's own model — or beside the model of a subagent already running: another model of a connection that holds one model at a time, or the same model when it serves one request at a time (models/schema.json capacity).",
+  "capacity": "A subagent (task) is not started on a model whose server cannot hold it beside the prompt's own model — or beside the model of a subagent already running: another model of a connection that holds one model at a time, or the same model when it already serves as many of this session's requests as it can at once (models/schema.json capacity: `parallel`, `single_session` being parallel 1). A team's members are not refused there: they wait for a slot (team.md, Capacity).",
   "jobs": {
     "about": "Background work owned by a session: a command (bash `background: true`, or one still running when its timeout passed) or a subagent (task `background: true`). One id sequence per session (job1, job2, …), one list (job_list), one way to read (job_output), to stop (job_stop) and, for a subagent, to message (job_send); a subagent's own tools see only the jobs it started. A job that ends wakes the session that owns it: while a prompt runs, as a user message at the next step boundary; otherwise as a new turn of its own, marked `machine` so a UI shows it as the harness's, not the person's. A session that is not open keeps the note until it is resumed. Every such message begins with its mark, said rather than hidden: a model refuses an unmarked one as an injection (conformance/jobs.json gives the texts).",
     "marks": {
@@ -60,6 +60,97 @@
       "default": 50
     },
     "lifecycle": "A subagent's own background commands stop when it ends, and its report says so. A session's jobs stop when the session is deleted. A front end asked to exit while jobs run asks the person first; one with nobody to ask waits for the jobs the prompt started, then stops the rest."
+  },
+  "team": {
+    "about": "Teams (spec 3.2.0, team.md): a lead and the members it adds, who talk in the team's room. The texts are said word for word; {{size}} is the team's size after the call (team.md §3), {{names}} names joined with \", \" in tree order. conformance/team.json.",
+    "agents": {
+      "about": "The chat setting agents {min, max}: the agents a team may have, the lead included. 1 ≤ min ≤ max ≤ cap. min and max are a new chat's defaults; cap is the instance's (LLeMbas) or the global configuration's (the CLI).",
+      "min": 1,
+      "max": 4,
+      "cap": 32
+    },
+    "names": {
+      "about": "A member's name: unique in the team; `lead` is the lead's, `all` addresses everyone.",
+      "pattern": "^[a-z][a-z0-9-]{0,31}$",
+      "lead": "lead",
+      "reserved": [
+        "all",
+        "lead"
+      ]
+    },
+    "marks": {
+      "message": "[Team message from {{from}} to {{to}}:]",
+      "report": "[Team report from {{from}} to {{to}}:]"
+    },
+    "unavailable": {
+      "about": "What a team tool answers while its requirement `team` is not met (team.md §2). one_agent is also each team tool's own `unavailable`, and what task answers while a team is offered, max is 1 and the lead has no member.",
+      "one_agent": "The person allows one agent in this chat: there is no team. Do the work yourself.",
+      "one_request": "This model serves one request at a time now, so there is no team. Do the work yourself."
+    },
+    "work": {
+      "about": "What a manager may not do itself (team.md §6): every call whose risk class is write or execute — an MCP tool's is read when it says readOnlyHint, else execute — but `job_stop`, and a `bash` call that the default rules alone allow in manual mode (reading commands). The tool list is unchanged; these answer texts.manager.",
+      "write": [
+        "apply_patch",
+        "edit",
+        "mkdir",
+        "multiedit",
+        "mv",
+        "rm",
+        "skill_manage",
+        "write"
+      ],
+      "execute": [
+        "bash",
+        "branch",
+        "commit",
+        "merge",
+        "pr",
+        "python",
+        "release",
+        "tag"
+      ],
+      "kept": [
+        "job_stop"
+      ]
+    },
+    "read_max": 50,
+    "texts": {
+      "added": "Added {{name}} ({{role}}): it is working. Its report comes to you when it finishes. The team is {{size}} of {{max}} agents.",
+      "added_waiting": "Added {{name}} ({{role}}): it waits for a free slot — the model serves {{parallel}} requests at once and all are busy — and starts when one frees. Its report comes to you when it finishes. The team is {{size}} of {{max}} agents.",
+      "sent": "Sent to {{to}}.",
+      "stopped": "Stopped {{names}}. The team is {{size}} of {{max}} agents.",
+      "manager": "You lead a team: give this to a member (team_add or team_send).",
+      "full": "The team is full: it has as many agents as the person allows ({{max}}). Give the work to a member already on it (team_send), or stop one (team_stop) first.",
+      "bad_name": "{{name}} cannot be a name: use lowercase letters, digits and hyphens, beginning with a letter, at most 32 characters.",
+      "all_name": "all addresses the whole team; it cannot be a name.",
+      "taken": "There is already an agent called {{name}} in this team. Choose another name.",
+      "no_goal": "Say the team's goal in `goal`, in one line, with your first member: every member is told it.",
+      "unknown": "No agent called {{name}} in this team. The team: {{names}}.",
+      "self": "That is you: send it to someone else.",
+      "nobody": "Nobody else is on the team yet: add a member with team_add.",
+      "not_yours": "{{name}} is not under you: you can stop only the members you lead, directly or through your members.",
+      "nobody_to_stop": "No member is under you: there is nobody to stop.",
+      "no_report": "(no report)",
+      "ended": "[ended: {{reason}}]"
+    },
+    "read": {
+      "about": "team_read's answer: the tree, then the room. Agents in tree order (an agent, then its members in the order they were added, depth first), indented two spaces per level below the lead. `last`: `active now` while working, else how long ago its last turn ended (durations as jobs write them: \"5s ago\", \"1m 05s ago\"). A message's text: its first line after the colon, every further line indented two spaces. Messages above `since` the caller may see, oldest first, at most read_max; `more` when there are others after the last shown.",
+      "tree": "Team ({{size}} of {{max}} agents):",
+      "agent": "{{indent}}- {{name}} — {{role}} · {{state}} · {{model}} · {{last}}",
+      "lead_role": "leads the team",
+      "states": {
+        "working": "working",
+        "waiting": "waiting for a slot",
+        "finished": "finished",
+        "idle": "idle"
+      },
+      "active": "active now",
+      "room": "Room since #{{since}}:",
+      "message": "#{{n}} {{from}} → {{to}}: {{text}}",
+      "report": "#{{n}} {{from}} → {{to}} (report): {{text}}",
+      "none": "No messages since #{{since}}.",
+      "more": "More after #{{last}}: team_read with since {{last}}."
+    }
   },
   "context": {
     "about": "Context hygiene (spec 3.0.0, the prefix from 3.1.0; context.md): every measure acts when a result is inserted, and nothing already sent to the model is ever rewritten — changing earlier context throws away the prompt cache from that point. conformance/context.json gives the texts.",
@@ -105,9 +196,14 @@
       "line": "Read a file again for its content; recall shows a result by its id.",
       "rows": 50
     },
-    "reasoning": "Earlier turns' reasoning is left to the model's chat template: the harness sends the history as it does, neither stripping reasoning the template keeps nor adding what it drops.",
+    "reasoning": "Spec 3.2.0 (context.md §8): every assistant message of the current turn — the messages after the last one that started a turn (the person's, or a machine message that starts a turn of its own; a delivery at a step boundary does not) — carries the reasoning it came with (OpenAI chat: `reasoning_content`; Anthropic: its thinking blocks, unchanged); assistant messages of earlier turns carry none. What is stored keeps it. conformance/reasoning.json.",
+    "env": {
+      "about": "Spec 3.2.0 (context.md §11): the environment block's lines about where the session works, in an agent session. `project` always, `name` being the project root's last path component; `started` only when the session started in a directory below the root, `path` being that directory relative to the root. No absolute path. conformance/paths.json.",
+      "project": "Project: {{name}} (paths are relative to its root)",
+      "started": "Started in: {{path}} (relative to the project root)"
+    },
     "note": {
-      "about": "A note on the next user message (context.md §10, rule 3): what changed since the system prompt was made, after the person's words. Lines in this order, each only when it applies. `plan_ended` is the mode block for a session that leaves plan mode for a mode with no text of its own (a chat). `plan_own` is the plan block for a session that does not resend earlier tool results (a chat): the model's own plan, as its tools left it. `personal` is the {{path}} of the instructions block for the person's own instructions.",
+      "about": "A note on the next user message (context.md §10, rule 3): what changed since the system prompt was made, after the person's words. Lines in this order, each only when it applies. `plan_ended` is the mode block for a session that leaves plan mode for a mode with no text of its own (a chat). `plan_own` is the plan block for a session that does not resend earlier tool results (a chat): the model's own plan, as its tools left it. `personal` is the {{path}} of the instructions block for the person's own instructions. Spec 3.2.0, where a team is offered (team.md §10): `team` — the size setting, on the first user message and after it changes, followed in the same block by `team_lead` when min ≥ 2 ({{members}} = min − 1), or `team_one` in its place when max is 1; `team_stopped` — members the person stopped, a block of its own.",
       "open": "<session-note>",
       "close": "</session-note>",
       "date": "Today is {{date}}.",
@@ -120,6 +216,10 @@
       "personal": "the person's own instructions",
       "personality": "The person chose a different personality:\n{{personality}}",
       "mcp": "Instructions from an MCP server that connected since the session began:\n{{instructions}}",
+      "team": "The team may have {{min}} to {{max}} agents, you included.",
+      "team_lead": "Work through a team from the start: you lead, and members do the work — at least {{members}} of them.",
+      "team_one": "The person allows one agent: work alone; the team tools and task are unavailable.",
+      "team_stopped": "The person stopped {{names}}; they have left the team.",
       "empty": "(none)"
     },
     "mcp_wait_ms": 3000

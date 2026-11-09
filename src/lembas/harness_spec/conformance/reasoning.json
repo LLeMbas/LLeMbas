@@ -1,0 +1,323 @@
+{
+  "about": "What a request sends back of the model's reasoning (context.md §8, spec 3.2.0). `messages` is the history a request is built from, in order: `role` user, assistant or tool; `content`; an assistant message's stored `reasoning` (absent: it came with none); a user message's `turn` — false for a delivery at a step boundary (a job's note, a team message, words added to a running turn), which does not start a turn; absent or true for one that does (the person's, or a machine message starting a turn of its own). The answer is the messages as the OpenAI chat dialect sends them — `role`, `content`, and `reasoning_content` on an assistant message after the last user message that started a turn, when its reasoning is not empty (tool calls and ids are left out of the cases: they are sent as always). The Anthropic dialect sends the same messages' thinking blocks. LLeMbas: services/llm/openai_client.py, services/generation.py; CLI: provider/openai-chat.ts, session/engine.ts.",
+  "cases": [
+    {
+      "about": "One turn, three steps: every reply of the turn carries its reasoning back.",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Fix the failing test."
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "reasoning": "The test name points at the parser."
+        },
+        {
+          "role": "tool",
+          "content": "[#0001 src/parse.ts lines 1-40 of 40 sha 1c9e04ab]\n…"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "reasoning": "Line 12 drops the last token."
+        },
+        {
+          "role": "tool",
+          "content": "[#0002 src/parse.ts sha 7d0a91c3]\n@@ -12 +12 @@"
+        }
+      ],
+      "expect": [
+        {
+          "role": "user",
+          "content": "Fix the failing test."
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "reasoning_content": "The test name points at the parser."
+        },
+        {
+          "role": "tool",
+          "content": "[#0001 src/parse.ts lines 1-40 of 40 sha 1c9e04ab]\n…"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "reasoning_content": "Line 12 drops the last token."
+        },
+        {
+          "role": "tool",
+          "content": "[#0002 src/parse.ts sha 7d0a91c3]\n@@ -12 +12 @@"
+        }
+      ]
+    },
+    {
+      "about": "A second turn: the first turn's replies go without their reasoning, the current one's with it.",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Where is the config loaded?"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "reasoning": "Search for load."
+        },
+        {
+          "role": "tool",
+          "content": "[#0001] src/config/load.ts:40"
+        },
+        {
+          "role": "assistant",
+          "content": "In src/config/load.ts.",
+          "reasoning": "Found it at line 40."
+        },
+        {
+          "role": "user",
+          "content": "And who calls it?"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "reasoning": "Grep for loadConfig."
+        },
+        {
+          "role": "tool",
+          "content": "[#0002] src/app.ts:120"
+        }
+      ],
+      "expect": [
+        {
+          "role": "user",
+          "content": "Where is the config loaded?"
+        },
+        {
+          "role": "assistant",
+          "content": ""
+        },
+        {
+          "role": "tool",
+          "content": "[#0001] src/config/load.ts:40"
+        },
+        {
+          "role": "assistant",
+          "content": "In src/config/load.ts."
+        },
+        {
+          "role": "user",
+          "content": "And who calls it?"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "reasoning_content": "Grep for loadConfig."
+        },
+        {
+          "role": "tool",
+          "content": "[#0002] src/app.ts:120"
+        }
+      ]
+    },
+    {
+      "about": "A job's note delivered at a step boundary does not start a turn: the turn's earlier replies keep their reasoning.",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Run the tests in the background and fix the lint."
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "reasoning": "Start the tests, then lint."
+        },
+        {
+          "role": "tool",
+          "content": "[#0001] job1 started"
+        },
+        {
+          "role": "user",
+          "content": "[A background job you started has finished:]\njob1 (npm test) exited with 0 after 5s.",
+          "turn": false
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "reasoning": "Tests pass; now the lint."
+        },
+        {
+          "role": "tool",
+          "content": "[#0002] 0 problems"
+        }
+      ],
+      "expect": [
+        {
+          "role": "user",
+          "content": "Run the tests in the background and fix the lint."
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "reasoning_content": "Start the tests, then lint."
+        },
+        {
+          "role": "tool",
+          "content": "[#0001] job1 started"
+        },
+        {
+          "role": "user",
+          "content": "[A background job you started has finished:]\njob1 (npm test) exited with 0 after 5s."
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "reasoning_content": "Tests pass; now the lint."
+        },
+        {
+          "role": "tool",
+          "content": "[#0002] 0 problems"
+        }
+      ]
+    },
+    {
+      "about": "A machine message that starts a turn of its own (a team report to an idle lead) does: the replies before it go without.",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Split the work."
+        },
+        {
+          "role": "assistant",
+          "content": "Started alice.",
+          "reasoning": "Add one member."
+        },
+        {
+          "role": "user",
+          "content": "[Team report from alice to lead:]\nDone.",
+          "turn": true
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "reasoning": "Review alice's change."
+        },
+        {
+          "role": "tool",
+          "content": "[#0001 src/a.ts lines 1-10 of 10 sha 52b6e3a0]\n…"
+        }
+      ],
+      "expect": [
+        {
+          "role": "user",
+          "content": "Split the work."
+        },
+        {
+          "role": "assistant",
+          "content": "Started alice."
+        },
+        {
+          "role": "user",
+          "content": "[Team report from alice to lead:]\nDone."
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "reasoning_content": "Review alice's change."
+        },
+        {
+          "role": "tool",
+          "content": "[#0001 src/a.ts lines 1-10 of 10 sha 52b6e3a0]\n…"
+        }
+      ]
+    },
+    {
+      "about": "A reply that came with no reasoning, or an empty one, carries no field.",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "reasoning": "Greet."
+        },
+        {
+          "role": "tool",
+          "content": "[#0001] ok"
+        },
+        {
+          "role": "assistant",
+          "content": "Hi."
+        },
+        {
+          "role": "user",
+          "content": "Again"
+        },
+        {
+          "role": "assistant",
+          "content": "Hi again.",
+          "reasoning": ""
+        }
+      ],
+      "expect": [
+        {
+          "role": "user",
+          "content": "Hello"
+        },
+        {
+          "role": "assistant",
+          "content": ""
+        },
+        {
+          "role": "tool",
+          "content": "[#0001] ok"
+        },
+        {
+          "role": "assistant",
+          "content": "Hi."
+        },
+        {
+          "role": "user",
+          "content": "Again"
+        },
+        {
+          "role": "assistant",
+          "content": "Hi again."
+        }
+      ]
+    },
+    {
+      "about": "The last message the person wrote starts the turn even when nothing has answered it yet: every earlier reply goes without.",
+      "messages": [
+        {
+          "role": "user",
+          "content": "One"
+        },
+        {
+          "role": "assistant",
+          "content": "Done.",
+          "reasoning": "Easy."
+        },
+        {
+          "role": "user",
+          "content": "Two"
+        }
+      ],
+      "expect": [
+        {
+          "role": "user",
+          "content": "One"
+        },
+        {
+          "role": "assistant",
+          "content": "Done."
+        },
+        {
+          "role": "user",
+          "content": "Two"
+        }
+      ]
+    }
+  ]
+}

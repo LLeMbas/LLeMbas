@@ -1,0 +1,89 @@
+{
+  "about": "Where an agent session works, as the model is told it and as its tools read a path (context.md §11, spec 3.2.0). `op: env` — `root` is the project root and `started` the directory the session was started in (both absolute); the answer is the environment block's lines about them, in order, from loop.json context.env — none naming an absolute path. `op: resolve` — `path` as a tool call gives it; the answer is the absolute path it means: relative paths against the project root, whatever `started` is, `.` and `..` by their text (filesystem.md, Paths); an absolute path as it is. LLeMbas: not run — a chat's paths are the server's tree's; CLI: prompt/assemble.ts, tool/tool.ts.",
+  "cases": [
+    {
+      "about": "Started at the root: the project's name and nothing else.",
+      "op": "env",
+      "root": "/home/ada/src/app",
+      "started": "/home/ada/src/app",
+      "expect": [
+        "Project: app (paths are relative to its root)"
+      ]
+    },
+    {
+      "about": "Started below the root: that directory, relative to the root.",
+      "op": "env",
+      "root": "/home/ada/src/app",
+      "started": "/home/ada/src/app/packages/web",
+      "expect": [
+        "Project: app (paths are relative to its root)",
+        "Started in: packages/web (relative to the project root)"
+      ]
+    },
+    {
+      "about": "A trailing slash changes nothing.",
+      "op": "env",
+      "root": "/srv/work/site/",
+      "started": "/srv/work/site",
+      "expect": [
+        "Project: site (paths are relative to its root)"
+      ]
+    },
+    {
+      "about": "A relative path is resolved against the project root.",
+      "op": "resolve",
+      "root": "/home/ada/src/app",
+      "started": "/home/ada/src/app",
+      "path": "src/main.ts",
+      "expect": "/home/ada/src/app/src/main.ts"
+    },
+    {
+      "about": "…also when the session started below the root: one base for every relative path.",
+      "op": "resolve",
+      "root": "/home/ada/src/app",
+      "started": "/home/ada/src/app/packages/web",
+      "path": "src/main.ts",
+      "expect": "/home/ada/src/app/src/main.ts"
+    },
+    {
+      "about": "The directory the session started in is reached by its path from the root.",
+      "op": "resolve",
+      "root": "/home/ada/src/app",
+      "started": "/home/ada/src/app/packages/web",
+      "path": "packages/web/index.ts",
+      "expect": "/home/ada/src/app/packages/web/index.ts"
+    },
+    {
+      "about": "An absolute path is still accepted, as it is.",
+      "op": "resolve",
+      "root": "/home/ada/src/app",
+      "started": "/home/ada/src/app/packages/web",
+      "path": "/etc/hosts",
+      "expect": "/etc/hosts"
+    },
+    {
+      "about": ". is the root.",
+      "op": "resolve",
+      "root": "/home/ada/src/app",
+      "started": "/home/ada/src/app/packages/web",
+      "path": ".",
+      "expect": "/home/ada/src/app"
+    },
+    {
+      "about": ".. is resolved by its text (whether it may be reached is the permission rules' business).",
+      "op": "resolve",
+      "root": "/home/ada/src/app",
+      "started": "/home/ada/src/app",
+      "path": "../lib/x.ts",
+      "expect": "/home/ada/src/lib/x.ts"
+    },
+    {
+      "about": "./ and repeated slashes are resolved by their text.",
+      "op": "resolve",
+      "root": "/home/ada/src/app",
+      "started": "/home/ada/src/app",
+      "path": "./docs//guide.md",
+      "expect": "/home/ada/src/app/docs/guide.md"
+    }
+  ]
+}

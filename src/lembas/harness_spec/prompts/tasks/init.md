@@ -1,6 +1,6 @@
 <!-- Source: OpenCode command/template/initialize.txt (MIT, © 2025 opencode), shortened, and made to
      ask about git the way blocks/agents-missing.md does (LLeMbas CLI's /init). -->
-Create or update `AGENTS.md` at the project root, {{root}}/AGENTS.md: the file every later session here starts from. Every line should answer "would an agent likely get this wrong without being told?" — if not, leave it out.
+Create or update `AGENTS.md` at the project root: the file every later session here starts from. Every line should answer "would an agent likely get this wrong without being told?" — if not, leave it out.
 
 {{focus}}
 

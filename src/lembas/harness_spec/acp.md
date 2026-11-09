@@ -112,7 +112,7 @@ Params: `{ cwd: <absolute>, mcpServers?: [], _meta?: { mode?, lembas_model?, mod
 `cwd` must be a directory inside `remote.roots`, in a trusted project when `remote.require_trust`
 (the default) — otherwise `-32602` with the reason. `mode` is lowered to `remote.max_mode`.
 `lembas_model` is the instance's name of a model; `model` a ref the device knows (an editor's
-choice); `effort` a level or `"off"`.
+choice); `effort` one of the model's levels (`models/schema.json` `levels`, spec 3.2.0: `"off"` where the model has `thinking_switch`, `"default"` where it takes no efforts, else an effort); a level the model does not offer is read as its start level, and the result says the level used.
 
 Result: `{ sessionId: "ses_…", modes: { currentModeId, availableModes }, _meta: { lembas: { model, mode, effort, instance } } }`.
 `instance` (spec 3.0.0) is a boolean, with the `model` event's meaning: true exactly when the
@@ -284,7 +284,7 @@ client hears the new limits.
 | `task` | `state: "start" \| "end"`, `turnId` — every turn has one: the client's, or one made here for a turn typed in a terminal |
 | `steered` | `texts`, `ids?` — the `_lembas/steer` message ids taken in at this step |
 | `mode` | `mode` |
-| `model` | `ref` (the device's ref, above), `effort` (a level or `"off"`), `connection` (the device connection it is spoken to through) and **`instance: boolean`** — true exactly when that connection is the login of **this link's** instance, i.e. the model is one the instance serves (its served id is `ref`, or `ref` less a leading `<connection>/`). Whenever either changes, for any reason: `/model`, `/effort`, the settings tool, a fallback, `_lembas/configure` |
+| `model` | `ref` (the device's ref, above), `effort` (one of the model's levels: an effort, `"off"` or `"default"`), `connection` (the device connection it is spoken to through) and **`instance: boolean`** — true exactly when that connection is the login of **this link's** instance, i.e. the model is one the instance serves (its served id is `ref`, or `ref` less a leading `<connection>/`). Whenever either changes, for any reason: `/model`, `/effort`, the settings tool, a fallback, `_lembas/configure` |
 | `plan` | `plan` — the structure, or `null` when cleared (what the `plan` session update carries) |
 | `compacted` | `summary` |
 | `title` | `id`, `title` |
@@ -301,7 +301,7 @@ Only on the link (an error on `serve --stdio`).
 
 ### `_lembas/configure` — client → agent → result
 
-Params `{ sessionId, model?: <instance's name>, effort?: <level> | "off" }` between prompts. Result
+Params `{ sessionId, model?: <instance's name>, effort?: <level> }` between prompts (a level as in `session/new`). Result
 `{ model: <ref>, effort }`. Emits a `model` event when something changed.
 
 ### `_lembas/steer` — client → agent → result

@@ -18,7 +18,8 @@ one access level for the whole working directory, decided by the CLI's permissio
 
 - **Absolute** paths begin with `/`, the root of the tree: the organisation's root on the server,
   the file system's root on a device.
-- **Relative** paths resolve against the session's **start directory** (its working directory).
+- **Relative** paths resolve against the session's **start directory** (its working directory) —
+  on a device, from spec 3.2.0, against the project root (*Node kinds*, below).
 - `.` and `..` are resolved by their text, before anything is looked up; `..` above `/` stays at
   `/`. Repeated `/` count as one, and a trailing `/` changes nothing. On the server there are no
   links: a path is what it says. On a device, a link is followed, and where the CLI's rules look at
@@ -42,7 +43,11 @@ one access level for the whole working directory, decided by the CLI's permissio
 
 A session has a **boundary** (what it may see at all: the root, a directory, one repository) and a
 **start directory** inside it. On a device the boundary is the project root (the directory the
-CLI's trust is given to) and the start directory is where the session started.
+CLI's trust is given to) and the start directory is where the session started. From spec 3.2.0 a
+device resolves relative paths against the **project root**, not the start directory (`context.md`
+§11): the model is told the project and, when it started below the root, that directory relative to
+the root — one base for every relative path, whatever the directory. The start directory still
+ends the instruction chain (below).
 
 ## Access levels
 

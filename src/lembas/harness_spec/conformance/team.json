@@ -1,0 +1,3332 @@
+{
+  "about": "Teams (team.md, spec 3.2.0): one lead session's team, step by step, written from a reference model of the rules. `start`: the size setting `min` and `max`, `subagents` (enabled for the session; default true) and the chat model's `capacity` (models/schema.json: `parallel`, `single_session`; {} — no limit). The lead is `lead`; its first prompt is running as the case begins, and every agent is on the chat's model. Steps and what each answers: `offered` (`by` an agent, default lead) — `{tools, setting}`: the team tools listed for that agent, sorted, and whether the setting is shown; `call` (`by`, `tool`, `args`) — `{result, delivered}`: the call's answer word for word (null where an ordinary tool would run: the case looks only at whether it is refused), and what was delivered to whom by this step, `{name: [message, …]}`; `team_read` answers `{room, delivered}` instead, `room` being the messages it shows as `{n, from, to}` (the tree and the text format are loop.json team.read's, checked by each project's own tests); `task` runs a helper that counts toward the size (and holds a slot) until `helper_done` (`by`) — answers null; `finish` (`by`, `reply`, `reason`: stop by default, or steps, budget, `error — <text>`) — the agent's turn ends: a member's reply is its report — `{delivered}`; `set` (`min`, `max`, `capacity`: the person's setting or the model's metadata changed) — null; `person_stop` (`name`) — the person stopped that member in the UI — null; `user` — the person's message to the lead — `{note}`: the note on it (context.md §10), null when there is none; `state` — the team in tree order as `{name, manager, state}`: working, waiting (for a slot), finished, idle (the lead between turns). Delivering to a finished member or the idle lead wakes it (it is then working, or waiting when its model is full). LLeMbas: services/team.py; CLI: team/.",
+  "cases": [
+    {
+      "about": "Offered on a model that serves two requests at once: the lead has all four tools and the setting is shown.",
+      "start": {
+        "min": 1,
+        "max": 4,
+        "capacity": {
+          "parallel": 2
+        }
+      },
+      "steps": [
+        {
+          "op": "offered"
+        }
+      ],
+      "expect": [
+        {
+          "tools": [
+            "team_add",
+            "team_read",
+            "team_send",
+            "team_stop"
+          ],
+          "setting": true
+        }
+      ]
+    },
+    {
+      "about": "A hosted API (no capacity said) offers a team too.",
+      "start": {
+        "min": 1,
+        "max": 4,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "offered"
+        }
+      ],
+      "expect": [
+        {
+          "tools": [
+            "team_add",
+            "team_read",
+            "team_send",
+            "team_stop"
+          ],
+          "setting": true
+        }
+      ]
+    },
+    {
+      "about": "A model that serves one request at a time offers no team: no tools, no setting.",
+      "start": {
+        "min": 1,
+        "max": 4,
+        "capacity": {
+          "single_session": true
+        }
+      },
+      "steps": [
+        {
+          "op": "offered"
+        }
+      ],
+      "expect": [
+        {
+          "tools": [],
+          "setting": false
+        }
+      ]
+    },
+    {
+      "about": "parallel 1 is the same as single_session.",
+      "start": {
+        "min": 1,
+        "max": 4,
+        "capacity": {
+          "parallel": 1,
+          "single_session": false
+        }
+      },
+      "steps": [
+        {
+          "op": "offered"
+        }
+      ],
+      "expect": [
+        {
+          "tools": [],
+          "setting": false
+        }
+      ]
+    },
+    {
+      "about": "parallel wins over single_session where they disagree.",
+      "start": {
+        "min": 1,
+        "max": 4,
+        "capacity": {
+          "parallel": 3,
+          "single_session": true
+        }
+      },
+      "steps": [
+        {
+          "op": "offered"
+        }
+      ],
+      "expect": [
+        {
+          "tools": [
+            "team_add",
+            "team_read",
+            "team_send",
+            "team_stop"
+          ],
+          "setting": true
+        }
+      ]
+    },
+    {
+      "about": "Subagents switched off: no team.",
+      "start": {
+        "min": 1,
+        "max": 4,
+        "subagents": false,
+        "capacity": {
+          "parallel": 4
+        }
+      },
+      "steps": [
+        {
+          "op": "offered"
+        }
+      ],
+      "expect": [
+        {
+          "tools": [],
+          "setting": false
+        }
+      ]
+    },
+    {
+      "about": "max 1: the tools stay listed (the setting can change during the session) and answer that one agent is allowed; task answers the same.",
+      "start": {
+        "min": 1,
+        "max": 1,
+        "capacity": {
+          "parallel": 2
+        }
+      },
+      "steps": [
+        {
+          "op": "offered"
+        },
+        {
+          "op": "user"
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "parser",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "A parser"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_send",
+          "args": {
+            "to": [
+              "all"
+            ],
+            "message": "hi"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "task",
+          "args": {
+            "prompt": "x"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "write",
+          "args": {}
+        }
+      ],
+      "expect": [
+        {
+          "tools": [
+            "team_add",
+            "team_read",
+            "team_send",
+            "team_stop"
+          ],
+          "setting": true
+        },
+        {
+          "note": "<session-note>\nThe person allows one agent: work alone; the team tools and task are unavailable.\n</session-note>"
+        },
+        {
+          "result": "The person allows one agent in this chat: there is no team. Do the work yourself.",
+          "delivered": {}
+        },
+        {
+          "result": "The person allows one agent in this chat: there is no team. Do the work yourself.",
+          "delivered": {}
+        },
+        {
+          "result": "The person allows one agent in this chat: there is no team. Do the work yourself.",
+          "delivered": {}
+        },
+        {
+          "result": null,
+          "delivered": {}
+        }
+      ]
+    },
+    {
+      "about": "A member that may not lead has team_send and team_read; one that may lead has all four.",
+      "start": {
+        "min": 1,
+        "max": 4,
+        "capacity": {
+          "parallel": 4
+        }
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "parser",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "Ship the parser"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "docs",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "lead": true
+          }
+        },
+        {
+          "op": "offered",
+          "by": "parser"
+        },
+        {
+          "op": "offered",
+          "by": "docs"
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added parser (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 4 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added docs (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 4 agents.",
+          "delivered": {}
+        },
+        {
+          "tools": [
+            "team_read",
+            "team_send"
+          ],
+          "setting": true
+        },
+        {
+          "tools": [
+            "team_add",
+            "team_read",
+            "team_send",
+            "team_stop"
+          ],
+          "setting": true
+        }
+      ]
+    },
+    {
+      "about": "The size is a note on the first user message, and on the next one after it changes — never in the prompt.",
+      "start": {
+        "min": 1,
+        "max": 4,
+        "capacity": {
+          "parallel": 2
+        }
+      },
+      "steps": [
+        {
+          "op": "user"
+        },
+        {
+          "op": "finish",
+          "by": "lead"
+        },
+        {
+          "op": "user"
+        },
+        {
+          "op": "set",
+          "max": 6
+        },
+        {
+          "op": "finish",
+          "by": "lead"
+        },
+        {
+          "op": "user"
+        },
+        {
+          "op": "set",
+          "max": 6
+        },
+        {
+          "op": "finish",
+          "by": "lead"
+        },
+        {
+          "op": "user"
+        }
+      ],
+      "expect": [
+        {
+          "note": "<session-note>\nThe team may have 1 to 4 agents, you included.\n</session-note>"
+        },
+        {
+          "delivered": {}
+        },
+        {
+          "note": null
+        },
+        null,
+        {
+          "delivered": {}
+        },
+        {
+          "note": "<session-note>\nThe team may have 1 to 6 agents, you included.\n</session-note>"
+        },
+        null,
+        {
+          "delivered": {}
+        },
+        {
+          "note": null
+        }
+      ]
+    },
+    {
+      "about": "min 2 or more: the note asks for a team from the start, and the lead is a manager before its first member.",
+      "start": {
+        "min": 3,
+        "max": 5,
+        "capacity": {
+          "parallel": 4
+        }
+      },
+      "steps": [
+        {
+          "op": "user"
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "edit",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "read",
+          "args": {}
+        }
+      ],
+      "expect": [
+        {
+          "note": "<session-note>\nThe team may have 3 to 5 agents, you included.\nWork through a team from the start: you lead, and members do the work — at least 2 of them.\n</session-note>"
+        },
+        {
+          "result": "You lead a team: give this to a member (team_add or team_send).",
+          "delivered": {}
+        },
+        {
+          "result": null,
+          "delivered": {}
+        }
+      ]
+    },
+    {
+      "about": "Lowering max to 1 is said as one agent.",
+      "start": {
+        "min": 1,
+        "max": 4,
+        "capacity": {
+          "parallel": 2
+        }
+      },
+      "steps": [
+        {
+          "op": "user"
+        },
+        {
+          "op": "set",
+          "max": 1
+        },
+        {
+          "op": "finish",
+          "by": "lead"
+        },
+        {
+          "op": "user"
+        }
+      ],
+      "expect": [
+        {
+          "note": "<session-note>\nThe team may have 1 to 4 agents, you included.\n</session-note>"
+        },
+        null,
+        {
+          "delivered": {}
+        },
+        {
+          "note": "<session-note>\nThe person allows one agent: work alone; the team tools and task are unavailable.\n</session-note>"
+        }
+      ]
+    },
+    {
+      "about": "min equal to max: the range and the request for a team.",
+      "start": {
+        "min": 2,
+        "max": 2,
+        "capacity": {
+          "parallel": 2
+        }
+      },
+      "steps": [
+        {
+          "op": "user"
+        }
+      ],
+      "expect": [
+        {
+          "note": "<session-note>\nThe team may have 2 to 2 agents, you included.\nWork through a team from the start: you lead, and members do the work — at least 1 of them.\n</session-note>"
+        }
+      ]
+    },
+    {
+      "about": "Past max, team_add is refused; a stopped member makes room. The size counts the lead.",
+      "start": {
+        "min": 1,
+        "max": 3,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "parser",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "Ship the parser"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "lexer",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "tests",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_stop",
+          "args": {
+            "name": "lexer"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "tests",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "state"
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added parser (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 3 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added lexer (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 3 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "The team is full: it has as many agents as the person allows (3). Give the work to a member already on it (team_send), or stop one (team_stop) first.",
+          "delivered": {}
+        },
+        {
+          "result": "Stopped lexer. The team is 2 of 3 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added tests (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 3 agents.",
+          "delivered": {}
+        },
+        [
+          {
+            "name": "lead",
+            "manager": null,
+            "state": "working"
+          },
+          {
+            "name": "parser",
+            "manager": "lead",
+            "state": "working"
+          },
+          {
+            "name": "tests",
+            "manager": "lead",
+            "state": "working"
+          }
+        ]
+      ]
+    },
+    {
+      "about": "A finished member keeps its place in the size: it can be woken.",
+      "start": {
+        "min": 1,
+        "max": 2,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "parser",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "Ship the parser"
+          }
+        },
+        {
+          "op": "finish",
+          "by": "parser",
+          "reply": "Done."
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "lexer",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "state"
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added parser (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 2 agents.",
+          "delivered": {}
+        },
+        {
+          "delivered": {
+            "lead": [
+              "[Team report from parser to lead:]\nDone."
+            ]
+          }
+        },
+        {
+          "result": "The team is full: it has as many agents as the person allows (2). Give the work to a member already on it (team_send), or stop one (team_stop) first.",
+          "delivered": {}
+        },
+        [
+          {
+            "name": "lead",
+            "manager": null,
+            "state": "working"
+          },
+          {
+            "name": "parser",
+            "manager": "lead",
+            "state": "finished"
+          }
+        ]
+      ]
+    },
+    {
+      "about": "The size is across the whole tree: a member that leads adds within the same max.",
+      "start": {
+        "min": 1,
+        "max": 4,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "backend",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "lead": true,
+            "goal": "Ship v2"
+          }
+        },
+        {
+          "op": "call",
+          "by": "backend",
+          "tool": "team_add",
+          "args": {
+            "name": "db",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "frontend",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "backend",
+          "tool": "team_add",
+          "args": {
+            "name": "api",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "state"
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added backend (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 4 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added db (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 4 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added frontend (owns a part): it is working. Its report comes to you when it finishes. The team is 4 of 4 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "The team is full: it has as many agents as the person allows (4). Give the work to a member already on it (team_send), or stop one (team_stop) first.",
+          "delivered": {}
+        },
+        [
+          {
+            "name": "lead",
+            "manager": null,
+            "state": "working"
+          },
+          {
+            "name": "backend",
+            "manager": "lead",
+            "state": "working"
+          },
+          {
+            "name": "db",
+            "manager": "backend",
+            "state": "working"
+          },
+          {
+            "name": "frontend",
+            "manager": "lead",
+            "state": "working"
+          }
+        ]
+      ]
+    },
+    {
+      "about": "A task helper counts toward max while it runs, inside a team.",
+      "start": {
+        "min": 1,
+        "max": 3,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "parser",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "Ship the parser"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "task",
+          "args": {
+            "prompt": "Find the grammar."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "lexer",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "parser",
+          "tool": "task",
+          "args": {
+            "prompt": "x"
+          }
+        },
+        {
+          "op": "helper_done",
+          "by": "lead"
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "lexer",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added parser (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 3 agents.",
+          "delivered": {}
+        },
+        {
+          "result": null,
+          "delivered": {}
+        },
+        {
+          "result": "The team is full: it has as many agents as the person allows (3). Give the work to a member already on it (team_send), or stop one (team_stop) first.",
+          "delivered": {}
+        },
+        {
+          "result": "The team is full: it has as many agents as the person allows (3). Give the work to a member already on it (team_send), or stop one (team_stop) first.",
+          "delivered": {}
+        },
+        null,
+        {
+          "result": "Added lexer (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 3 agents.",
+          "delivered": {}
+        }
+      ]
+    },
+    {
+      "about": "Lowering max stops nobody: the members stay, and nothing is added until the size is under it. The lead keeps its team tools while it has members.",
+      "start": {
+        "min": 1,
+        "max": 4,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "a",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "G"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "b",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "set",
+          "max": 1
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "c",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_send",
+          "args": {
+            "to": [
+              "a"
+            ],
+            "message": "Wrap up."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_stop",
+          "args": {
+            "name": "all"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_send",
+          "args": {
+            "to": [
+              "all"
+            ],
+            "message": "x"
+          }
+        },
+        {
+          "op": "state"
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added a (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 4 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added b (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 4 agents.",
+          "delivered": {}
+        },
+        null,
+        {
+          "result": "The team is full: it has as many agents as the person allows (1). Give the work to a member already on it (team_send), or stop one (team_stop) first.",
+          "delivered": {}
+        },
+        {
+          "result": "Sent to a.",
+          "delivered": {
+            "a": [
+              "[Team message from lead to a:]\nWrap up."
+            ]
+          }
+        },
+        {
+          "result": "Stopped a, b. The team is 1 of 1 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "The person allows one agent in this chat: there is no team. Do the work yourself.",
+          "delivered": {}
+        },
+        [
+          {
+            "name": "lead",
+            "manager": null,
+            "state": "working"
+          }
+        ]
+      ]
+    },
+    {
+      "about": "The model's capacity changed after the prompt was made: the tools answer one_request.",
+      "start": {
+        "min": 1,
+        "max": 4,
+        "capacity": {
+          "parallel": 2
+        }
+      },
+      "steps": [
+        {
+          "op": "set",
+          "capacity": {
+            "single_session": true
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "parser",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "G"
+          }
+        }
+      ],
+      "expect": [
+        null,
+        {
+          "result": "This model serves one request at a time now, so there is no team. Do the work yourself.",
+          "delivered": {}
+        }
+      ]
+    },
+    {
+      "about": "Names: the pattern, all, lead and a name already on the team are refused; the first member needs the goal.",
+      "start": {
+        "min": 1,
+        "max": 8,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "Parser",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "G"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "all",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "G"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "lead",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "G"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "parser",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "parser",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "G"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "parser",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "G"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "9lives",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "G"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "G"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        }
+      ],
+      "expect": [
+        {
+          "result": "Parser cannot be a name: use lowercase letters, digits and hyphens, beginning with a letter, at most 32 characters.",
+          "delivered": {}
+        },
+        {
+          "result": "all addresses the whole team; it cannot be a name.",
+          "delivered": {}
+        },
+        {
+          "result": "There is already an agent called lead in this team. Choose another name.",
+          "delivered": {}
+        },
+        {
+          "result": "Say the team's goal in `goal`, in one line, with your first member: every member is told it.",
+          "delivered": {}
+        },
+        {
+          "result": "Added parser (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 8 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "There is already an agent called parser in this team. Choose another name.",
+          "delivered": {}
+        },
+        {
+          "result": "9lives cannot be a name: use lowercase letters, digits and hyphens, beginning with a letter, at most 32 characters.",
+          "delivered": {}
+        },
+        {
+          "result": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa cannot be a name: use lowercase letters, digits and hyphens, beginning with a letter, at most 32 characters.",
+          "delivered": {}
+        },
+        {
+          "result": "Added aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 8 agents.",
+          "delivered": {}
+        }
+      ]
+    },
+    {
+      "about": "Once it has a member, the lead does not do the work: writers and executors are refused, readers and the interact tools stay, and bash only for what the default rules allow.",
+      "start": {
+        "min": 1,
+        "max": 4,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "write",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "parser",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "Ship the parser"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "write",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "edit",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "multiedit",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "apply_patch",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "mkdir",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "mv",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "rm",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "skill_manage",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "python",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "commit",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "branch",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "pr",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "merge",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "tag",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "release",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "bash",
+          "args": {
+            "command": "git status"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "bash",
+          "args": {
+            "command": "cat README.md"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "bash",
+          "args": {
+            "command": "grep -r foo ."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "bash",
+          "args": {
+            "command": "npm test"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "bash",
+          "args": {
+            "command": "ls && rm -rf build"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "read",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "glob",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "grep",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "list",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "recall",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "web_fetch",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "ask_user",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "plan_write",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "memory",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "show",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "job_send",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "job_stop",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "task",
+          "args": {}
+        }
+      ],
+      "expect": [
+        {
+          "result": null,
+          "delivered": {}
+        },
+        {
+          "result": "Added parser (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 4 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "You lead a team: give this to a member (team_add or team_send).",
+          "delivered": {}
+        },
+        {
+          "result": "You lead a team: give this to a member (team_add or team_send).",
+          "delivered": {}
+        },
+        {
+          "result": "You lead a team: give this to a member (team_add or team_send).",
+          "delivered": {}
+        },
+        {
+          "result": "You lead a team: give this to a member (team_add or team_send).",
+          "delivered": {}
+        },
+        {
+          "result": "You lead a team: give this to a member (team_add or team_send).",
+          "delivered": {}
+        },
+        {
+          "result": "You lead a team: give this to a member (team_add or team_send).",
+          "delivered": {}
+        },
+        {
+          "result": "You lead a team: give this to a member (team_add or team_send).",
+          "delivered": {}
+        },
+        {
+          "result": "You lead a team: give this to a member (team_add or team_send).",
+          "delivered": {}
+        },
+        {
+          "result": "You lead a team: give this to a member (team_add or team_send).",
+          "delivered": {}
+        },
+        {
+          "result": "You lead a team: give this to a member (team_add or team_send).",
+          "delivered": {}
+        },
+        {
+          "result": "You lead a team: give this to a member (team_add or team_send).",
+          "delivered": {}
+        },
+        {
+          "result": "You lead a team: give this to a member (team_add or team_send).",
+          "delivered": {}
+        },
+        {
+          "result": "You lead a team: give this to a member (team_add or team_send).",
+          "delivered": {}
+        },
+        {
+          "result": "You lead a team: give this to a member (team_add or team_send).",
+          "delivered": {}
+        },
+        {
+          "result": "You lead a team: give this to a member (team_add or team_send).",
+          "delivered": {}
+        },
+        {
+          "result": null,
+          "delivered": {}
+        },
+        {
+          "result": null,
+          "delivered": {}
+        },
+        {
+          "result": null,
+          "delivered": {}
+        },
+        {
+          "result": "You lead a team: give this to a member (team_add or team_send).",
+          "delivered": {}
+        },
+        {
+          "result": "You lead a team: give this to a member (team_add or team_send).",
+          "delivered": {}
+        },
+        {
+          "result": null,
+          "delivered": {}
+        },
+        {
+          "result": null,
+          "delivered": {}
+        },
+        {
+          "result": null,
+          "delivered": {}
+        },
+        {
+          "result": null,
+          "delivered": {}
+        },
+        {
+          "result": null,
+          "delivered": {}
+        },
+        {
+          "result": null,
+          "delivered": {}
+        },
+        {
+          "result": null,
+          "delivered": {}
+        },
+        {
+          "result": null,
+          "delivered": {}
+        },
+        {
+          "result": null,
+          "delivered": {}
+        },
+        {
+          "result": null,
+          "delivered": {}
+        },
+        {
+          "result": null,
+          "delivered": {}
+        },
+        {
+          "result": null,
+          "delivered": {}
+        },
+        {
+          "result": null,
+          "delivered": {}
+        }
+      ]
+    },
+    {
+      "about": "A member works; a member that leads becomes a manager when it adds one; stopping all its members makes the lead a worker again (min 1).",
+      "start": {
+        "min": 1,
+        "max": 6,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "api",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "lead": true,
+            "goal": "Ship v2"
+          }
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "edit",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "team_add",
+          "args": {
+            "name": "routes",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "edit",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "routes",
+          "tool": "edit",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_stop",
+          "args": {
+            "name": "all"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "edit",
+          "args": {}
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added api (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "result": null,
+          "delivered": {}
+        },
+        {
+          "result": "Added routes (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "You lead a team: give this to a member (team_add or team_send).",
+          "delivered": {}
+        },
+        {
+          "result": null,
+          "delivered": {}
+        },
+        {
+          "result": "Stopped api, routes. The team is 1 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "result": null,
+          "delivered": {}
+        }
+      ]
+    },
+    {
+      "about": "A finished member still makes its manager a manager: it can be woken.",
+      "start": {
+        "min": 1,
+        "max": 4,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "parser",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "G"
+          }
+        },
+        {
+          "op": "finish",
+          "by": "parser",
+          "reply": "Done."
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "write",
+          "args": {}
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added parser (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 4 agents.",
+          "delivered": {}
+        },
+        {
+          "delivered": {
+            "lead": [
+              "[Team report from parser to lead:]\nDone."
+            ]
+          }
+        },
+        {
+          "result": "You lead a team: give this to a member (team_add or team_send).",
+          "delivered": {}
+        }
+      ]
+    },
+    {
+      "about": "A message to one name reaches that one only, under the message mark; the answer names who it went to.",
+      "start": {
+        "min": 1,
+        "max": 4,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "parser",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "Ship the parser"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "lexer",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "parser",
+          "tool": "team_send",
+          "args": {
+            "to": [
+              "lexer"
+            ],
+            "message": "I need a token for `=>`."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lexer",
+          "tool": "team_send",
+          "args": {
+            "to": [
+              "parser",
+              "lead"
+            ],
+            "message": "Added; see src/lex.ts:40."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_send",
+          "args": {
+            "to": [
+              "lexer",
+              "lexer"
+            ],
+            "message": "Thanks."
+          }
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added parser (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 4 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added lexer (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 4 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Sent to lexer.",
+          "delivered": {
+            "lexer": [
+              "[Team message from parser to lexer:]\nI need a token for `=>`."
+            ]
+          }
+        },
+        {
+          "result": "Sent to parser, lead.",
+          "delivered": {
+            "parser": [
+              "[Team message from lexer to parser, lead:]\nAdded; see src/lex.ts:40."
+            ],
+            "lead": [
+              "[Team message from lexer to parser, lead:]\nAdded; see src/lex.ts:40."
+            ]
+          }
+        },
+        {
+          "result": "Sent to lexer.",
+          "delivered": {
+            "lexer": [
+              "[Team message from lead to lexer:]\nThanks."
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "about": "all reaches everyone but the sender, across the tree; a message is addressed the same way to every recipient.",
+      "start": {
+        "min": 1,
+        "max": 6,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "api",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "lead": true,
+            "goal": "Ship v2"
+          }
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "team_add",
+          "args": {
+            "name": "routes",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "web",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "routes",
+          "tool": "team_send",
+          "args": {
+            "to": [
+              "all"
+            ],
+            "message": "The API is frozen from now on."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_send",
+          "args": {
+            "to": "all",
+            "message": "Stand-up: post your status."
+          }
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added api (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added routes (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added web (owns a part): it is working. Its report comes to you when it finishes. The team is 4 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Sent to all.",
+          "delivered": {
+            "lead": [
+              "[Team message from routes to all:]\nThe API is frozen from now on."
+            ],
+            "api": [
+              "[Team message from routes to all:]\nThe API is frozen from now on."
+            ],
+            "web": [
+              "[Team message from routes to all:]\nThe API is frozen from now on."
+            ]
+          }
+        },
+        {
+          "result": "Sent to all.",
+          "delivered": {
+            "api": [
+              "[Team message from lead to all:]\nStand-up: post your status."
+            ],
+            "routes": [
+              "[Team message from lead to all:]\nStand-up: post your status."
+            ],
+            "web": [
+              "[Team message from lead to all:]\nStand-up: post your status."
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "about": "Refused sends post nothing: an unknown name (the first), yourself, all with nobody else.",
+      "start": {
+        "min": 1,
+        "max": 4,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_send",
+          "args": {
+            "to": [
+              "all"
+            ],
+            "message": "Anyone?"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "parser",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "G"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_send",
+          "args": {
+            "to": [
+              "parser",
+              "ghost",
+              "spook"
+            ],
+            "message": "x"
+          }
+        },
+        {
+          "op": "call",
+          "by": "parser",
+          "tool": "team_send",
+          "args": {
+            "to": [
+              "parser"
+            ],
+            "message": "x"
+          }
+        },
+        {
+          "op": "call",
+          "by": "parser",
+          "tool": "team_send",
+          "args": {
+            "to": [
+              "lead",
+              "parser"
+            ],
+            "message": "x"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_read",
+          "args": {}
+        }
+      ],
+      "expect": [
+        {
+          "result": "Nobody else is on the team yet: add a member with team_add.",
+          "delivered": {}
+        },
+        {
+          "result": "Added parser (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 4 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "No agent called ghost in this team. The team: lead, parser.",
+          "delivered": {}
+        },
+        {
+          "result": "That is you: send it to someone else.",
+          "delivered": {}
+        },
+        {
+          "result": "That is you: send it to someone else.",
+          "delivered": {}
+        },
+        {
+          "room": [],
+          "delivered": {}
+        }
+      ]
+    },
+    {
+      "about": "A manager is not sent its members' messages to each other; it reads them with team_read. A member sees what it sent and received; a sub-manager what touches its subtree; the lead all.",
+      "start": {
+        "min": 1,
+        "max": 8,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "api",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "lead": true,
+            "goal": "Ship v2"
+          }
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "team_add",
+          "args": {
+            "name": "routes",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "team_add",
+          "args": {
+            "name": "db",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "web",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "routes",
+          "tool": "team_send",
+          "args": {
+            "to": [
+              "db"
+            ],
+            "message": "Which table?"
+          }
+        },
+        {
+          "op": "call",
+          "by": "db",
+          "tool": "team_send",
+          "args": {
+            "to": [
+              "routes"
+            ],
+            "message": "users."
+          }
+        },
+        {
+          "op": "call",
+          "by": "web",
+          "tool": "team_send",
+          "args": {
+            "to": [
+              "lead"
+            ],
+            "message": "Mock data ok?"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_send",
+          "args": {
+            "to": [
+              "web"
+            ],
+            "message": "Yes."
+          }
+        },
+        {
+          "op": "call",
+          "by": "web",
+          "tool": "team_send",
+          "args": {
+            "to": [
+              "routes"
+            ],
+            "message": "Path for login?"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_read",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "team_read",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "db",
+          "tool": "team_read",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "web",
+          "tool": "team_read",
+          "args": {
+            "since": 3
+          }
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added api (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 8 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added routes (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 8 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added db (owns a part): it is working. Its report comes to you when it finishes. The team is 4 of 8 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added web (owns a part): it is working. Its report comes to you when it finishes. The team is 5 of 8 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Sent to db.",
+          "delivered": {
+            "db": [
+              "[Team message from routes to db:]\nWhich table?"
+            ]
+          }
+        },
+        {
+          "result": "Sent to routes.",
+          "delivered": {
+            "routes": [
+              "[Team message from db to routes:]\nusers."
+            ]
+          }
+        },
+        {
+          "result": "Sent to lead.",
+          "delivered": {
+            "lead": [
+              "[Team message from web to lead:]\nMock data ok?"
+            ]
+          }
+        },
+        {
+          "result": "Sent to web.",
+          "delivered": {
+            "web": [
+              "[Team message from lead to web:]\nYes."
+            ]
+          }
+        },
+        {
+          "result": "Sent to routes.",
+          "delivered": {
+            "routes": [
+              "[Team message from web to routes:]\nPath for login?"
+            ]
+          }
+        },
+        {
+          "room": [
+            {
+              "n": 1,
+              "from": "routes",
+              "to": "db"
+            },
+            {
+              "n": 2,
+              "from": "db",
+              "to": "routes"
+            },
+            {
+              "n": 3,
+              "from": "web",
+              "to": "lead"
+            },
+            {
+              "n": 4,
+              "from": "lead",
+              "to": "web"
+            },
+            {
+              "n": 5,
+              "from": "web",
+              "to": "routes"
+            }
+          ],
+          "delivered": {}
+        },
+        {
+          "room": [
+            {
+              "n": 1,
+              "from": "routes",
+              "to": "db"
+            },
+            {
+              "n": 2,
+              "from": "db",
+              "to": "routes"
+            },
+            {
+              "n": 5,
+              "from": "web",
+              "to": "routes"
+            }
+          ],
+          "delivered": {}
+        },
+        {
+          "room": [
+            {
+              "n": 1,
+              "from": "routes",
+              "to": "db"
+            },
+            {
+              "n": 2,
+              "from": "db",
+              "to": "routes"
+            }
+          ],
+          "delivered": {}
+        },
+        {
+          "room": [
+            {
+              "n": 4,
+              "from": "lead",
+              "to": "web"
+            },
+            {
+              "n": 5,
+              "from": "web",
+              "to": "routes"
+            }
+          ],
+          "delivered": {}
+        }
+      ]
+    },
+    {
+      "about": "A member's final reply is its report to its manager, under the report mark, and in the room; an empty one says so; a turn that ended at its limit says how.",
+      "start": {
+        "min": 1,
+        "max": 4,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "parser",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "Ship the parser"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "lexer",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "finish",
+          "by": "lead"
+        },
+        {
+          "op": "finish",
+          "by": "parser",
+          "reply": "The parser handles `=>`; tests in tests/parse.test.ts pass."
+        },
+        {
+          "op": "state"
+        },
+        {
+          "op": "finish",
+          "by": "lexer",
+          "reply": "",
+          "reason": "steps"
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_read",
+          "args": {
+            "since": 0
+          }
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added parser (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 4 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added lexer (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 4 agents.",
+          "delivered": {}
+        },
+        {
+          "delivered": {}
+        },
+        {
+          "delivered": {
+            "lead": [
+              "[Team report from parser to lead:]\nThe parser handles `=>`; tests in tests/parse.test.ts pass."
+            ]
+          }
+        },
+        [
+          {
+            "name": "lead",
+            "manager": null,
+            "state": "working"
+          },
+          {
+            "name": "parser",
+            "manager": "lead",
+            "state": "finished"
+          },
+          {
+            "name": "lexer",
+            "manager": "lead",
+            "state": "working"
+          }
+        ],
+        {
+          "delivered": {
+            "lead": [
+              "[Team report from lexer to lead:]\n(no report)\n\n[ended: steps]"
+            ]
+          }
+        },
+        {
+          "room": [
+            {
+              "n": 1,
+              "from": "parser",
+              "to": "lead"
+            },
+            {
+              "n": 2,
+              "from": "lexer",
+              "to": "lead"
+            }
+          ],
+          "delivered": {}
+        }
+      ]
+    },
+    {
+      "about": "A sub-manager's members report to it, not to the lead; its own final reply is its report to the lead.",
+      "start": {
+        "min": 1,
+        "max": 5,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "api",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "lead": true,
+            "goal": "Ship v2"
+          }
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "team_add",
+          "args": {
+            "name": "routes",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "The REST API"
+          }
+        },
+        {
+          "op": "finish",
+          "by": "api",
+          "reply": ""
+        },
+        {
+          "op": "state"
+        },
+        {
+          "op": "finish",
+          "by": "routes",
+          "reply": "Routes done."
+        },
+        {
+          "op": "state"
+        },
+        {
+          "op": "finish",
+          "by": "api",
+          "reply": "API done: routes by routes."
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added api (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 5 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added routes (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 5 agents.",
+          "delivered": {}
+        },
+        {
+          "delivered": {
+            "lead": [
+              "[Team report from api to lead:]\n(no report)"
+            ]
+          }
+        },
+        [
+          {
+            "name": "lead",
+            "manager": null,
+            "state": "working"
+          },
+          {
+            "name": "api",
+            "manager": "lead",
+            "state": "finished"
+          },
+          {
+            "name": "routes",
+            "manager": "api",
+            "state": "working"
+          }
+        ],
+        {
+          "delivered": {
+            "api": [
+              "[Team report from routes to api:]\nRoutes done."
+            ]
+          }
+        },
+        [
+          {
+            "name": "lead",
+            "manager": null,
+            "state": "working"
+          },
+          {
+            "name": "api",
+            "manager": "lead",
+            "state": "working"
+          },
+          {
+            "name": "routes",
+            "manager": "api",
+            "state": "finished"
+          }
+        ],
+        {
+          "delivered": {
+            "lead": [
+              "[Team report from api to lead:]\nAPI done: routes by routes."
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "about": "A message wakes a finished member with its context; its next final reply is its next report.",
+      "start": {
+        "min": 1,
+        "max": 4,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "parser",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "G"
+          }
+        },
+        {
+          "op": "finish",
+          "by": "parser",
+          "reply": "Done."
+        },
+        {
+          "op": "state"
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_send",
+          "args": {
+            "to": [
+              "parser"
+            ],
+            "message": "Also handle `<=`."
+          }
+        },
+        {
+          "op": "state"
+        },
+        {
+          "op": "finish",
+          "by": "parser",
+          "reply": "Both done."
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added parser (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 4 agents.",
+          "delivered": {}
+        },
+        {
+          "delivered": {
+            "lead": [
+              "[Team report from parser to lead:]\nDone."
+            ]
+          }
+        },
+        [
+          {
+            "name": "lead",
+            "manager": null,
+            "state": "working"
+          },
+          {
+            "name": "parser",
+            "manager": "lead",
+            "state": "finished"
+          }
+        ],
+        {
+          "result": "Sent to parser.",
+          "delivered": {
+            "parser": [
+              "[Team message from lead to parser:]\nAlso handle `<=`."
+            ]
+          }
+        },
+        [
+          {
+            "name": "lead",
+            "manager": null,
+            "state": "working"
+          },
+          {
+            "name": "parser",
+            "manager": "lead",
+            "state": "working"
+          }
+        ],
+        {
+          "delivered": {
+            "lead": [
+              "[Team report from parser to lead:]\nBoth done."
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "about": "A report wakes the idle lead.",
+      "start": {
+        "min": 1,
+        "max": 4,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "parser",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "G"
+          }
+        },
+        {
+          "op": "finish",
+          "by": "lead"
+        },
+        {
+          "op": "state"
+        },
+        {
+          "op": "finish",
+          "by": "parser",
+          "reply": "Done."
+        },
+        {
+          "op": "state"
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added parser (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 4 agents.",
+          "delivered": {}
+        },
+        {
+          "delivered": {}
+        },
+        [
+          {
+            "name": "lead",
+            "manager": null,
+            "state": "idle"
+          },
+          {
+            "name": "parser",
+            "manager": "lead",
+            "state": "working"
+          }
+        ],
+        {
+          "delivered": {
+            "lead": [
+              "[Team report from parser to lead:]\nDone."
+            ]
+          }
+        },
+        [
+          {
+            "name": "lead",
+            "manager": null,
+            "state": "working"
+          },
+          {
+            "name": "parser",
+            "manager": "lead",
+            "state": "finished"
+          }
+        ]
+      ]
+    },
+    {
+      "about": "Stopping a member stops its subtree; they leave the team, and their names are free again. Only members under the caller may be stopped.",
+      "start": {
+        "min": 1,
+        "max": 8,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "api",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "lead": true,
+            "goal": "Ship v2"
+          }
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "team_add",
+          "args": {
+            "name": "routes",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "lead": true
+          }
+        },
+        {
+          "op": "call",
+          "by": "routes",
+          "tool": "team_add",
+          "args": {
+            "name": "auth",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "team_add",
+          "args": {
+            "name": "db",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "web",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "team_stop",
+          "args": {
+            "name": "web"
+          }
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "team_stop",
+          "args": {
+            "name": "api"
+          }
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "team_stop",
+          "args": {
+            "name": "ghost"
+          }
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "team_stop",
+          "args": {
+            "name": "routes"
+          }
+        },
+        {
+          "op": "state"
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "team_add",
+          "args": {
+            "name": "auth",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_stop",
+          "args": {
+            "name": "all"
+          }
+        },
+        {
+          "op": "state"
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_stop",
+          "args": {
+            "name": "all"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added api (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 8 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added routes (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 8 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added auth (owns a part): it is working. Its report comes to you when it finishes. The team is 4 of 8 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added db (owns a part): it is working. Its report comes to you when it finishes. The team is 5 of 8 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added web (owns a part): it is working. Its report comes to you when it finishes. The team is 6 of 8 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "web is not under you: you can stop only the members you lead, directly or through your members.",
+          "delivered": {}
+        },
+        {
+          "result": "api is not under you: you can stop only the members you lead, directly or through your members.",
+          "delivered": {}
+        },
+        {
+          "result": "No agent called ghost in this team. The team: lead, api, routes, auth, db, web.",
+          "delivered": {}
+        },
+        {
+          "result": "Stopped routes, auth. The team is 4 of 8 agents.",
+          "delivered": {}
+        },
+        [
+          {
+            "name": "lead",
+            "manager": null,
+            "state": "working"
+          },
+          {
+            "name": "api",
+            "manager": "lead",
+            "state": "working"
+          },
+          {
+            "name": "db",
+            "manager": "api",
+            "state": "working"
+          },
+          {
+            "name": "web",
+            "manager": "lead",
+            "state": "working"
+          }
+        ],
+        {
+          "result": "Added auth (owns a part): it is working. Its report comes to you when it finishes. The team is 5 of 8 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Stopped api, db, auth, web. The team is 1 of 8 agents.",
+          "delivered": {}
+        },
+        [
+          {
+            "name": "lead",
+            "manager": null,
+            "state": "working"
+          }
+        ],
+        {
+          "result": "No member is under you: there is nobody to stop.",
+          "delivered": {}
+        }
+      ]
+    },
+    {
+      "about": "A member the person stopped is said to the lead in a note, with those under it.",
+      "start": {
+        "min": 1,
+        "max": 6,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "user"
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "api",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "lead": true,
+            "goal": "Ship v2"
+          }
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "team_add",
+          "args": {
+            "name": "routes",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "finish",
+          "by": "lead"
+        },
+        {
+          "op": "person_stop",
+          "name": "api"
+        },
+        {
+          "op": "user"
+        },
+        {
+          "op": "state"
+        }
+      ],
+      "expect": [
+        {
+          "note": "<session-note>\nThe team may have 1 to 6 agents, you included.\n</session-note>"
+        },
+        {
+          "result": "Added api (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added routes (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "delivered": {}
+        },
+        null,
+        {
+          "note": "<session-note>\nThe person stopped api, routes; they have left the team.\n</session-note>"
+        },
+        [
+          {
+            "name": "lead",
+            "manager": null,
+            "state": "working"
+          }
+        ]
+      ]
+    },
+    {
+      "about": "Past the model's parallel capacity a member waits for a slot; slots free in order as turns end; the lead goes first.",
+      "start": {
+        "min": 1,
+        "max": 6,
+        "capacity": {
+          "parallel": 2
+        }
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "a",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "G"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "b",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "c",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "state"
+        },
+        {
+          "op": "finish",
+          "by": "lead"
+        },
+        {
+          "op": "state"
+        },
+        {
+          "op": "finish",
+          "by": "a",
+          "reply": "a done"
+        },
+        {
+          "op": "state"
+        },
+        {
+          "op": "finish",
+          "by": "b",
+          "reply": "b done"
+        },
+        {
+          "op": "state"
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added a (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added b (owns a part): it waits for a free slot — the model serves 2 requests at once and all are busy — and starts when one frees. Its report comes to you when it finishes. The team is 3 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added c (owns a part): it waits for a free slot — the model serves 2 requests at once and all are busy — and starts when one frees. Its report comes to you when it finishes. The team is 4 of 6 agents.",
+          "delivered": {}
+        },
+        [
+          {
+            "name": "lead",
+            "manager": null,
+            "state": "working"
+          },
+          {
+            "name": "a",
+            "manager": "lead",
+            "state": "working"
+          },
+          {
+            "name": "b",
+            "manager": "lead",
+            "state": "waiting"
+          },
+          {
+            "name": "c",
+            "manager": "lead",
+            "state": "waiting"
+          }
+        ],
+        {
+          "delivered": {}
+        },
+        [
+          {
+            "name": "lead",
+            "manager": null,
+            "state": "idle"
+          },
+          {
+            "name": "a",
+            "manager": "lead",
+            "state": "working"
+          },
+          {
+            "name": "b",
+            "manager": "lead",
+            "state": "working"
+          },
+          {
+            "name": "c",
+            "manager": "lead",
+            "state": "waiting"
+          }
+        ],
+        {
+          "delivered": {
+            "lead": [
+              "[Team report from a to lead:]\na done"
+            ]
+          }
+        },
+        [
+          {
+            "name": "lead",
+            "manager": null,
+            "state": "working"
+          },
+          {
+            "name": "a",
+            "manager": "lead",
+            "state": "finished"
+          },
+          {
+            "name": "b",
+            "manager": "lead",
+            "state": "working"
+          },
+          {
+            "name": "c",
+            "manager": "lead",
+            "state": "waiting"
+          }
+        ],
+        {
+          "delivered": {
+            "lead": [
+              "[Team report from b to lead:]\nb done"
+            ]
+          }
+        },
+        [
+          {
+            "name": "lead",
+            "manager": null,
+            "state": "working"
+          },
+          {
+            "name": "a",
+            "manager": "lead",
+            "state": "finished"
+          },
+          {
+            "name": "b",
+            "manager": "lead",
+            "state": "finished"
+          },
+          {
+            "name": "c",
+            "manager": "lead",
+            "state": "working"
+          }
+        ]
+      ]
+    },
+    {
+      "about": "A stopped member's slot goes to the next waiting one; a waiting member that is stopped leaves the queue.",
+      "start": {
+        "min": 1,
+        "max": 6,
+        "capacity": {
+          "parallel": 2
+        }
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "a",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "G"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "b",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "c",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_stop",
+          "args": {
+            "name": "b"
+          }
+        },
+        {
+          "op": "state"
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_stop",
+          "args": {
+            "name": "a"
+          }
+        },
+        {
+          "op": "state"
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added a (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added b (owns a part): it waits for a free slot — the model serves 2 requests at once and all are busy — and starts when one frees. Its report comes to you when it finishes. The team is 3 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added c (owns a part): it waits for a free slot — the model serves 2 requests at once and all are busy — and starts when one frees. Its report comes to you when it finishes. The team is 4 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Stopped b. The team is 3 of 6 agents.",
+          "delivered": {}
+        },
+        [
+          {
+            "name": "lead",
+            "manager": null,
+            "state": "working"
+          },
+          {
+            "name": "a",
+            "manager": "lead",
+            "state": "working"
+          },
+          {
+            "name": "c",
+            "manager": "lead",
+            "state": "waiting"
+          }
+        ],
+        {
+          "result": "Stopped a. The team is 2 of 6 agents.",
+          "delivered": {}
+        },
+        [
+          {
+            "name": "lead",
+            "manager": null,
+            "state": "working"
+          },
+          {
+            "name": "c",
+            "manager": "lead",
+            "state": "working"
+          }
+        ]
+      ]
+    },
+    {
+      "about": "A message to a finished member while the model is full: it waits for a slot.",
+      "start": {
+        "min": 1,
+        "max": 6,
+        "capacity": {
+          "parallel": 2
+        }
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "a",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "G"
+          }
+        },
+        {
+          "op": "finish",
+          "by": "a",
+          "reply": "done"
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "b",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_send",
+          "args": {
+            "to": [
+              "a"
+            ],
+            "message": "One more thing."
+          }
+        },
+        {
+          "op": "state"
+        },
+        {
+          "op": "finish",
+          "by": "b",
+          "reply": "b done"
+        },
+        {
+          "op": "state"
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added a (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "delivered": {
+            "lead": [
+              "[Team report from a to lead:]\ndone"
+            ]
+          }
+        },
+        {
+          "result": "Added b (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Sent to a.",
+          "delivered": {
+            "a": [
+              "[Team message from lead to a:]\nOne more thing."
+            ]
+          }
+        },
+        [
+          {
+            "name": "lead",
+            "manager": null,
+            "state": "working"
+          },
+          {
+            "name": "a",
+            "manager": "lead",
+            "state": "waiting"
+          },
+          {
+            "name": "b",
+            "manager": "lead",
+            "state": "working"
+          }
+        ],
+        {
+          "delivered": {
+            "lead": [
+              "[Team report from b to lead:]\nb done"
+            ]
+          }
+        },
+        [
+          {
+            "name": "lead",
+            "manager": null,
+            "state": "working"
+          },
+          {
+            "name": "a",
+            "manager": "lead",
+            "state": "working"
+          },
+          {
+            "name": "b",
+            "manager": "lead",
+            "state": "finished"
+          }
+        ]
+      ]
+    }
+  ]
+}

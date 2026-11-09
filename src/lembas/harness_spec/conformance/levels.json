@@ -1,0 +1,337 @@
+{
+  "about": "The effort levels a chat offers for a model, and what each sends (models/schema.json `levels`, spec 3.2.0). `op: levels` — `model` is model metadata (`thinking_switch`, `efforts` as given — never absent here, since an absent list is each project's own fallback — `effort`); the answer is `levels` (in offering order), `control` (`none`: one level, no effort control; `switch`: two levels, one of them off — a Thinking on/off switch; `slider`: anything else, a slider or a list) and `start` (the level a new conversation starts with: `effort` when it is one of the levels, else `medium` when offered, else the first effort, else `default`). `op: request` — `level` is the level asked for; the answer is what an OpenAI chat request body carries for it: `reasoning_effort` and `chat_template_kwargs` (only the keys set; `{}` when nothing). A level the model does not offer is read as the start level. LLeMbas: services/generation.py; CLI: provider/effort.ts.",
+  "cases": [
+    {
+      "about": "A model with the switch and one effort: a Thinking switch, on at its effort.",
+      "op": "levels",
+      "model": {
+        "thinking_switch": true,
+        "efforts": [
+          "medium"
+        ]
+      },
+      "expect": {
+        "levels": [
+          "off",
+          "medium"
+        ],
+        "control": "switch",
+        "start": "medium"
+      }
+    },
+    {
+      "about": "The same effort without the switch: one level, no control at all.",
+      "op": "levels",
+      "model": {
+        "efforts": [
+          "medium"
+        ]
+      },
+      "expect": {
+        "levels": [
+          "medium"
+        ],
+        "control": "none",
+        "start": "medium"
+      }
+    },
+    {
+      "about": "The switch and no efforts: off, or the model's own default — still a switch.",
+      "op": "levels",
+      "model": {
+        "thinking_switch": true,
+        "efforts": []
+      },
+      "expect": {
+        "levels": [
+          "off",
+          "default"
+        ],
+        "control": "switch",
+        "start": "default"
+      }
+    },
+    {
+      "about": "Neither: one level, the model's own; nothing is shown and nothing sent.",
+      "op": "levels",
+      "model": {
+        "efforts": []
+      },
+      "expect": {
+        "levels": [
+          "default"
+        ],
+        "control": "none",
+        "start": "default"
+      }
+    },
+    {
+      "about": "The switch and three efforts: a slider, off first; medium is where it starts when nothing is said.",
+      "op": "levels",
+      "model": {
+        "thinking_switch": true,
+        "efforts": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "expect": {
+        "levels": [
+          "off",
+          "low",
+          "medium",
+          "high"
+        ],
+        "control": "slider",
+        "start": "medium"
+      }
+    },
+    {
+      "about": "Three efforts without the switch: a slider without off.",
+      "op": "levels",
+      "model": {
+        "efforts": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "expect": {
+        "levels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "control": "slider",
+        "start": "medium"
+      }
+    },
+    {
+      "about": "The model's own start level, when it offers it.",
+      "op": "levels",
+      "model": {
+        "thinking_switch": true,
+        "efforts": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "effort": "high"
+      },
+      "expect": {
+        "levels": [
+          "off",
+          "low",
+          "medium",
+          "high"
+        ],
+        "control": "slider",
+        "start": "high"
+      }
+    },
+    {
+      "about": "A start of off, with the switch: the conversation starts with thinking off.",
+      "op": "levels",
+      "model": {
+        "thinking_switch": true,
+        "efforts": [
+          "medium"
+        ],
+        "effort": "off"
+      },
+      "expect": {
+        "levels": [
+          "off",
+          "medium"
+        ],
+        "control": "switch",
+        "start": "off"
+      }
+    },
+    {
+      "about": "A start of off without the switch is not a level the model offers: the start rule applies (no medium: the first effort).",
+      "op": "levels",
+      "model": {
+        "efforts": [
+          "low",
+          "high"
+        ],
+        "effort": "off"
+      },
+      "expect": {
+        "levels": [
+          "low",
+          "high"
+        ],
+        "control": "slider",
+        "start": "low"
+      }
+    },
+    {
+      "about": "thinking_switch false is the same as absent.",
+      "op": "levels",
+      "model": {
+        "thinking_switch": false,
+        "efforts": [
+          "high",
+          "xhigh"
+        ]
+      },
+      "expect": {
+        "levels": [
+          "high",
+          "xhigh"
+        ],
+        "control": "slider",
+        "start": "high"
+      }
+    },
+    {
+      "about": "Two efforts and no switch: two levels, neither off — a slider, not a switch.",
+      "op": "levels",
+      "model": {
+        "efforts": [
+          "low",
+          "medium"
+        ]
+      },
+      "expect": {
+        "levels": [
+          "low",
+          "medium"
+        ],
+        "control": "slider",
+        "start": "medium"
+      }
+    },
+    {
+      "about": "off sends enable_thinking false and no effort anywhere.",
+      "op": "request",
+      "model": {
+        "thinking_switch": true,
+        "efforts": [
+          "medium"
+        ]
+      },
+      "level": "off",
+      "expect": {
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      }
+    },
+    {
+      "about": "An effort is sent where effort_style puts it (both, by default), and enable_thinking is not sent.",
+      "op": "request",
+      "model": {
+        "thinking_switch": true,
+        "efforts": [
+          "medium"
+        ]
+      },
+      "level": "medium",
+      "expect": {
+        "reasoning_effort": "medium",
+        "chat_template_kwargs": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "about": "effort_style top: the effort at the top level only.",
+      "op": "request",
+      "model": {
+        "thinking_switch": true,
+        "efforts": [
+          "low",
+          "medium"
+        ],
+        "effort_style": "top"
+      },
+      "level": "low",
+      "expect": {
+        "reasoning_effort": "low"
+      }
+    },
+    {
+      "about": "effort_style kwargs: inside chat_template_kwargs only.",
+      "op": "request",
+      "model": {
+        "efforts": [
+          "low",
+          "medium"
+        ],
+        "effort_style": "kwargs"
+      },
+      "level": "medium",
+      "expect": {
+        "chat_template_kwargs": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "about": "default sends nothing: the model's own.",
+      "op": "request",
+      "model": {
+        "thinking_switch": true,
+        "efforts": []
+      },
+      "level": "default",
+      "expect": {}
+    },
+    {
+      "about": "off, effort_style top: still only enable_thinking, in chat_template_kwargs (the only place a template reads it).",
+      "op": "request",
+      "model": {
+        "thinking_switch": true,
+        "efforts": [
+          "medium"
+        ],
+        "effort_style": "top"
+      },
+      "level": "off",
+      "expect": {
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      }
+    },
+    {
+      "about": "off asked of a model without the switch is read as its start level.",
+      "op": "request",
+      "model": {
+        "efforts": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "level": "off",
+      "expect": {
+        "reasoning_effort": "medium",
+        "chat_template_kwargs": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "about": "A level the model does not take is read as its start level too.",
+      "op": "request",
+      "model": {
+        "thinking_switch": true,
+        "efforts": [
+          "medium"
+        ]
+      },
+      "level": "high",
+      "expect": {
+        "reasoning_effort": "medium",
+        "chat_template_kwargs": {
+          "reasoning_effort": "medium"
+        }
+      }
+    }
+  ]
+}

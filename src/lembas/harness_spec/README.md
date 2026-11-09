@@ -21,10 +21,11 @@ page *Harness-parity* in LLeMbas CLI's wiki.
 | `permission/arity.json` | How much of a command an "always allow" covers |
 | `permission/defaults.json` | The rules every session starts from |
 | `permission/modes.json` | The four modes — manual, edit, auto, plan — as what each does with each risk class |
-| `models/schema.json` | Model metadata: context, output limit, efforts, vision, tools, notes, capacity |
-| `loop.json` | How one prompt runs: the step backstop, budgets, wrap-up, nudges, parallel calls, capacity; `jobs` — background work, its marks and limits; `context` — result ids, stubs, the output cap, the compaction table |
+| `models/schema.json` | Model metadata: context, output limit, efforts and the thinking switch, vision, tools, notes, capacity (`parallel`); `levels` — the effort levels a chat offers and what each sends |
+| `loop.json` | How one prompt runs: the step backstop, budgets, wrap-up, nudges, parallel calls, capacity; `jobs` — background work, its marks and limits; `team` — a team's size, names, marks, refusals and texts; `context` — result ids, stubs, the output cap, the compaction table, the environment lines, the session notes |
 | `filesystem.md` | The file system a session works in: paths, node kinds, the four access levels, errors, listings, search and indexing by tokens, stacked instruction files, skills, memory |
-| `context.md` | Context hygiene: what happens to a tool result when it is inserted, and never afterwards |
+| `context.md` | Context hygiene: what happens to a tool result when it is inserted, and never afterwards; the prefix that stays still; reasoning sent back during its turn; no absolute paths in the prompt |
+| `team.md` | Teams: a lead and the members it adds, the size setting, the room, who receives what, reports, a manager's refusals, capacity, stopping |
 | `quirks.json` | What real servers do, and how both harnesses cope |
 | `conformance/<area>.json` | Cases with their expected results, run by both test suites |
 | `acp.md` | The link between them: ACP plus every `_lembas/*` method, field and capability |
@@ -47,7 +48,8 @@ page *Harness-parity* in LLeMbas CLI's wiki.
   page of the chat is open and attached (not a schedule, not a background job); `display`: the
   session is shown somewhere a file can be opened (the web UI, Desktop; not a bare terminal);
   `forge`: the session's view holds a repository mounted from a forge; `plan`: the session is in
-  plan mode. A requirement that goes away between the offer and the call makes the call answer the
+  plan mode; `team` (3.2.0): the session's team setting allows more than one agent, on a model that
+  serves two requests at once (`team.md` §2). A requirement that goes away between the offer and the call makes the call answer the
   tool's `unavailable` text, word for word, as its result. **From 3.1.0 a requirement that can come
   and go during a session does not take the tool out of the list** (`context.md` §10, rule 4): the
   tool is offered from the start and answers `unavailable` while the requirement is not met.
@@ -65,6 +67,31 @@ page *Harness-parity* in LLeMbas CLI's wiki.
   (`context.md` §10). All three are offered in every mode; `plan_submit` (`requires: plan`) is the
   approval in plan mode and answers its `unavailable` text outside it. Their permission key is
   `plan` (`permission/defaults.json`), which a rule written for the former `todo` key still reaches.
+
+## 3.2.0
+
+Written ahead of both implementations; both carry it in the same round.
+
+- **Effort levels and the thinking switch** (`models/schema.json`). `thinking_switch`: the model's
+  server turns thinking off for `chat_template_kwargs.enable_thinking: false`. The level `off`
+  exists only then, and sends that and no effort — before, `off` sent nothing, which left the model
+  at its server's default effort. A model that takes no efforts has the one level `default`, which
+  sends nothing. The levels a chat offers are `off` (with the switch) and the efforts; one level
+  shows no control, `[off, X]` a Thinking on/off switch, more a slider. `capacity.parallel`: how
+  many requests the model serves at once (`single_session` is `parallel: 1`). Conformance area
+  `levels`; `quirks.json` `thinking-default`; in `acp.md` an `effort` is one of these levels.
+- **Reasoning goes back during its turn** (`context.md` §8): every assistant message after the last
+  message that started a turn carries its reasoning (`reasoning_content`; Anthropic thinking
+  blocks); earlier turns carry none. Area `reasoning`.
+- **No absolute paths in the prompt** (`context.md` §11): an agent session's environment block names
+  the project and says paths are relative to its root (`loop.json` `context.env`); relative paths
+  resolve against the project root, absolute ones are still taken. Area `paths`.
+- **Teams** (`team.md`): `team_add`, `team_send`, `team_read`, `team_stop` (shared, both,
+  `requires: team`); the chat setting `agents {min, max}`; the room and its marks; reports to the
+  manager; the size across the tree, `task` helpers included; a manager's work tools refused with a
+  fixed text while the tool list stays the same; members waiting for a slot past the model's
+  capacity; `blocks/team_lead.md` and `blocks/team_member.md`; size notes in `context.note`. Area
+  `team`.
 
 ## 3.1.0
 

@@ -12,8 +12,9 @@
     "max_output": { "type": "integer", "minimum": 1, "description": "The most tokens one reply may have." },
     "temperature": { "type": "number", "minimum": 0, "maximum": 2, "description": "The sampling temperature the model is set up with. LLeMbas: the administrator's, which it also applies to a request that does not set one." },
     "top_p": { "type": "number", "minimum": 0, "maximum": 1, "description": "Nucleus sampling, as temperature." },
-    "efforts": { "type": "array", "items": { "enum": ["minimal", "low", "medium", "high", "xhigh", "max"] }, "description": "The reasoning efforts the model takes, in offering order. Narrowed when a server refuses one (quirks.json effort-refused)." },
-    "effort": { "enum": ["minimal", "low", "medium", "high", "xhigh", "max", "off"], "description": "The effort a new conversation starts with; off sends none." },
+    "efforts": { "type": "array", "items": { "enum": ["minimal", "low", "medium", "high", "xhigh", "max"] }, "description": "The reasoning efforts the model takes, in offering order. Narrowed when a server refuses one (quirks.json effort-refused). Absent: each project's fallback (the CLI's: low, medium, high); [] — the model takes none, and its one effort level is `default`." },
+    "thinking_switch": { "type": "boolean", "description": "Spec 3.2.0: the model's server turns thinking off for a request that sends `chat_template_kwargs.enable_thinking: false` (Qwen3.x and Nemotron 3.x templates on llama.cpp, vLLM, SGLang). Only then is the level `off` offered. Absent: false." },
+    "effort": { "enum": ["minimal", "low", "medium", "high", "xhigh", "max", "off", "default"], "description": "The level a new conversation starts with, when it is one of the levels the model offers (see `levels`); otherwise `medium` when the model takes it, else its first effort, else `default`. `off` — thinking switched off — exists only with thinking_switch; `default` — no effort sent, the model's own — only for a model that takes no efforts." },
     "effort_style": { "enum": ["top", "kwargs", "both"], "description": "OpenAI Chat dialect: where the effort goes — top-level `reasoning_effort`, `chat_template_kwargs.reasoning_effort` (all llama.cpp reads), or both (the default)." },
     "vision": { "type": "boolean", "description": "Takes images. Never sent images otherwise: most servers refuse the whole request." },
     "tools": { "type": "boolean", "description": "Takes tool calls. false: it can only talk; never sent a tools array." },
@@ -23,10 +24,15 @@
       "description": "How much the model's server can do at once, so a helper or a subagent on it is not started where it would evict or wait for the model already working.",
       "properties": {
         "group": { "type": "string", "description": "Models that share one server holding one model at a time (llama-swap): starting another model of the group unloads this one. The CLI: a model's `group`, or its connection when the connection sets one_model_at_a_time. LLeMbas: the connection's name when it sets one_model_at_a_time, which is what /v1/models says." },
-        "single_session": { "type": "boolean", "description": "The model serves one request at a time: a second one waits behind the first." }
+        "single_session": { "type": "boolean", "description": "The model serves one request at a time: a second one waits behind the first. The same as `parallel: 1`, which a server that knows `parallel` sends beside it for older clients." },
+        "parallel": { "type": "integer", "minimum": 1, "description": "Spec 3.2.0: how many requests the model's server serves at once (llama.cpp's slots, a vLLM or SGLang batch); one more waits behind them. Read as: `parallel` when given, else 1 when single_session is true, else no limit (a hosted API). Where both are given and disagree, `parallel` wins. A team (team.md) is offered only on a model that serves at least 2." }
       },
       "additionalProperties": false
     }
+  },
+  "levels": {
+    "about": "Spec 3.2.0. The effort levels a chat offers for a model, in order: `off` when thinking_switch is true, then the model's `efforts` — or, when it takes none, the one level `default`. What each sends (OpenAI chat): `off` — `chat_template_kwargs.enable_thinking: false` and no `reasoning_effort` anywhere; `default` — neither; an effort — `reasoning_effort` where effort_style puts it, and no `enable_thinking`. The Anthropic dialect: `off` sends no `thinking`. A level the model does not offer (an `off` for a model without the switch, from an older client or a stored chat) is read as the start level (`effort`'s rule). How it is shown: one level — no effort control at all; two, one of them `off` — a Thinking on/off switch, on being the other level; more — a slider or a list, in this order. conformance/levels.json.",
+    "control": ["none", "switch", "slider"]
   },
   "required": ["id"],
   "additionalProperties": true

@@ -1,6 +1,6 @@
 # Context hygiene
 
-Spec 3.1.0. What a session does to keep tool results from filling the model's context, and (§10, from
+Spec 3.2.0. What a session does to keep tool results from filling the model's context, and (§10, from
 3.1.0) what it keeps still so the model's server can reuse what it has already read — the same in
 a chat and in an agent session, in both projects. The texts and numbers are `loop.json` `context`;
 the cases are `conformance/context.json`; what the model is told is `prompts/blocks/context.md`.
@@ -12,7 +12,8 @@ rewritten.** Changing earlier context invalidates the prompt cache from that poi
 server processes everything after it again, and a cloud API charges full input price for it again —
 on a long context that costs more than the measure saves. So no earlier result is ever shortened,
 replaced by a stub or removed afterwards. The one deliberate break is compaction, which already
-replaces the history with a summary.
+replaces the history with a summary. (From 3.2.0 a turn's reasoning is sent back during the turn and
+not after it, §8: the common chat templates render the history the same either way.)
 
 ## 1. Every result has an id
 
@@ -215,16 +216,67 @@ model): a date that changed at midnight sent a 16,912-token session from 99 % ca
 What a server does with a matching prefix is its own business; a harness that keeps these rules has
 done what it can.
 
-## 8. Earlier reasoning
+## 8. Reasoning goes back to the model during its turn
 
-Left to the model's own chat template: the harness sends the history as it does, and neither strips
-reasoning a template keeps nor adds what it drops.
+From 3.2.0 (it was left to the chat template before). A model that thinks before each tool call
+works on from what it thought: sent its own reasoning back, it carries on; sent its calls without it,
+it reasons its way to them again, step after step. Measured on a local model: a step re-read about a
+fifth fewer tokens with its reasoning sent back.
+
+- **The current turn** is every message after the last one that started a turn: a message the
+  person wrote, or a machine message that starts a turn of its own (a job's or a team's note to an
+  idle session, `loop.json` `jobs`). What is delivered at a step boundary while a turn runs — a
+  job's note, a team message, words the person adds — does not start a turn, and a tool result
+  never does.
+- **Every assistant message of the current turn carries the reasoning it came with**, as the
+  model gave it, in full: in the OpenAI chat dialect as `reasoning_content` on the assistant message
+  (beside its `content` and `tool_calls`), and in the Anthropic dialect as its thinking blocks with
+  their signatures, unchanged and first (which that API already requires for tool use). Reasoning
+  read from inline tags (`<think>`; `quirks.json` `reasoning-fields`) goes back the same way, as
+  `reasoning_content`, and never as text in `content`. A message that came with no reasoning
+  carries none — no empty field.
+- **Assistant messages of earlier turns carry none.** The common templates (Qwen3.x, Nemotron's
+  `truncate_history_thinking`, gpt-oss) drop it there themselves, so what the server reads of the
+  history is the same bytes either way and nothing is re-read; with a template that would keep it,
+  the turn boundary re-reads at most the previous turn. A compaction's summary starts the history
+  afresh: nothing before it carries reasoning.
+- **What is stored is unchanged**: a session keeps each message's reasoning as before; this rule
+  is only about what a request carries (`conformance/reasoning.json`).
+- A subagent, a team member and the main agent each have their own turns: a member's turn starts
+  with its brief or with a message that woke it.
+
+## 11. No absolute paths in the prompt
+
+From 3.2.0. An absolute path costs tokens on every request, says where a machine keeps its files,
+and is copied by the model into calls where a relative one would do. So in an agent session (a
+device's disk):
+
+- **The system prompt, every note and the harness's own task messages (`tasks/init.md`) name no
+  absolute path of the machine.** The environment
+  block names the project by its root's last path component and says paths are relative to its
+  root (`loop.json` `context.env`): `Project: app (paths are relative to its root)`. Where the
+  session was started in a directory below the root, one more line names that directory relative
+  to the root: `Started in: packages/web (relative to the project root)`. There is no
+  `Working directory:` or `Project root:` line with an absolute path any more.
+- **A file in the project is named relative to its root** (an instruction file, `docs/AGENTS.md`); a
+  file under the person's home directory outside the project as `~/…` (the global instructions,
+  `~/.config/lembas/AGENTS.md`). Only a file outside both is named by its absolute path.
+- **Relative paths are resolved against the project root** — by every file tool (`read`, `write`,
+  `edit`, `multiedit`, `apply_patch`, `glob`, `grep`, `list`, `view_image`, `show`) and as the
+  directory `bash` starts in (its `cwd` argument, relative, likewise). Where the person started
+  below the root is a fact told to the model, not a second base; it still ends the instruction
+  chain (`filesystem.md`). **Absolute paths are still accepted** everywhere, as before, and answers
+  still name paths as `filesystem.md` says.
+- A chat on the server is not a machine's disk: its paths are the server's tree's, short and the
+  same for every instance (`/home/<name>`, `blocks/workspace.md`). Its prompt names nothing longer.
+
+`conformance/paths.json`: the environment lines, and how a path is resolved.
 
 ## 9. What the model is told
 
 `prompts/blocks/context.md`, in every session that has `recall`.
 
-## Not in 3.1.0
+## Not in 3.2.0
 
 Eliding old content in batches behind a threshold, and measuring quality and tokens with and without
 these measures, are left for a later spec. Every measure above ships with its unit and conformance

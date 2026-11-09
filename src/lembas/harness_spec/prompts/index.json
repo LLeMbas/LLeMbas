@@ -240,6 +240,27 @@
         "show": "when the session has a screen (`show` is offered): the sentence saying to open a file the user should see with show — a page, a chart, a document you made — rather than pasting it; otherwise empty",
         "python": "when `python` is offered: the sentence saying quick calculations and file work can be done in Python in the user's browser, and that it cannot run when no browser page is open; otherwise empty"
       }
+    },
+    "blocks/team_lead.md": {
+      "scope": "shared",
+      "llembas": [],
+      "llembas_text": "identical",
+      "why": "spec 3.2.0: LLeMbas reads it from the vendored spec (harness_spec.prompt), not from a fragment"
+    },
+    "blocks/team_member.md": {
+      "scope": "shared",
+      "llembas": [],
+      "llembas_text": "identical",
+      "why": "spec 3.2.0: LLeMbas reads it from the vendored spec (harness_spec.prompt), not from a fragment",
+      "variables": {
+        "name": "the member's name in the team",
+        "role": "its role as team_add gave it: one line, what it owns",
+        "manager": "the name of the agent that added it (`lead` for the team's lead)",
+        "goal": "the team's goal as it was when the member was added: the `goal` its team_add gave, else its manager's (team.md §4)",
+        "instructions": "its agent's own instructions (prompts/agents/<name>.md for a built-in one), as in blocks/subagent.md",
+        "read_only": "in plan mode: the sentence saying it can read and search but change nothing (as in blocks/subagent.md); otherwise empty",
+        "lead": "for a member added with `lead: true`: the whole of blocks/team_lead.md; otherwise empty"
+      }
     }
   }
 }

@@ -1,0 +1,28 @@
+{
+  "name": "team_read",
+  "scope": "shared",
+  "sessions": "both",
+  "risk": "read",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": false,
+  "requires": [
+    "team"
+  ],
+  "unavailable": "The person allows one agent in this chat: there is no team. Do the work yourself.",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "The team and its room: every agent (name, role, who leads it, state, model, last activity), and the room's messages after `since` that are yours to see — those you sent or received and those of the members under you; the lead sees them all. Messages are numbered: pass the last number you saw as `since` to read only what is new.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "since": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "Show messages after this number (default: 0, from the start)"
+      }
+    }
+  }
+}

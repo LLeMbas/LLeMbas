@@ -1,0 +1,31 @@
+{
+  "name": "team_stop",
+  "scope": "shared",
+  "sessions": "both",
+  "risk": "interact",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": false,
+  "requires": [
+    "team"
+  ],
+  "unavailable": "The person allows one agent in this chat: there is no team. Do the work yourself.",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Stop a member of your team, and the members under it, where they are: their work stops and they leave the team, which makes room for others. Only members under you, directly or through your members; `all` stops every one of them. Nothing they had not reported comes back — ask for a report with team_send first when you need it.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "minLength": 1,
+        "description": "A member under you, or all"
+      }
+    },
+    "required": [
+      "name"
+    ]
+  }
+}

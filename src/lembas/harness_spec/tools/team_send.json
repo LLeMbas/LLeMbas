@@ -1,0 +1,39 @@
+{
+  "name": "team_send",
+  "scope": "shared",
+  "sessions": "both",
+  "risk": "interact",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": false,
+  "requires": [
+    "team"
+  ],
+  "unavailable": "The person allows one agent in this chat: there is no team. Do the work yourself.",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Send a message through your team's room: to one or more agents by name, or to `all`. It reaches each at its next step, or wakes one that has finished, its context intact. Message the agent who owns a thing; use `all` only for what everyone needs. The team's lead is `lead`; your manager is reached by its name.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "to": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Names, or [\"all\"]"
+      },
+      "message": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "to",
+      "message"
+    ]
+  }
+}
