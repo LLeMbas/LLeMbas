@@ -7,6 +7,9 @@ at <https://llembas.eu/changelog.html>.
 
 ### Fixed
 
+- **An embedding model is no longer offered as a chat model.** Switched on for search and memory, it
+  showed in the model picker, the new chat's default and the command palette; it is still served at
+  `/v1/embeddings` and used by the index.
 - **Test & refresh and Check balance on a connection no longer turn the page into an unstyled
   copy of the connection.** The button's request was sent as a save of the whole page, because the
   form's in-place header reached the buttons inside it (htmx merges headers from every parent);

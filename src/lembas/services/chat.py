@@ -13,6 +13,8 @@ from sqlalchemy.orm import Session as DBSession
 
 from lembas.db.models import (
     KIND_AGENT,
+    MODEL_CHAT,
+    MODEL_EMBEDDING,
     ROLE_ASSISTANT,
     ROLE_SYSTEM,
     ROLE_USER,
@@ -1042,7 +1044,7 @@ def default_model(db: DBSession, user=None) -> tuple[str, str] | None:
     from lembas.security import permissions
     from lembas.services import settings_store
 
-    reachable = permissions.models_visible_to(db, user)
+    reachable = chat_models(permissions.models_visible_to(db, user))
     if not reachable:
         return None
 
@@ -1062,6 +1064,13 @@ def default_model(db: DBSession, user=None) -> tuple[str, str] | None:
     return chosen.model_id, chosen.connection_id
 
 
+def chat_models(models: list[Model]) -> list[Model]:
+    """Only the models one can talk to: an embedding model is reached through
+    `/v1/embeddings` and the index, never offered to start or join a chat.
+    Unset kind -- an older row nobody has marked -- counts as a chat model."""
+    return [m for m in models if (m.kind or MODEL_CHAT) != MODEL_EMBEDDING]
+
+
 def available_models(db: DBSession, user=None, group: str | None = None) -> list[Model]:
     """Models this user may start a chat with, in the administrator's order.
 
@@ -1076,7 +1085,7 @@ def available_models(db: DBSession, user=None, group: str | None = None) -> list
     """
     from lembas.security import permissions
 
-    reachable = permissions.models_visible_to(db, user)
+    reachable = chat_models(permissions.models_visible_to(db, user))
     if group is not None:
         from lembas.services import data_groups
 

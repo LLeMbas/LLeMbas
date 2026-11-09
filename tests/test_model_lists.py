@@ -130,3 +130,23 @@ def test_opening_the_picker_on_a_touchscreen_does_not_raise_the_keyboard():
     assert re.search(gated + r"\s*filter\.focus\(\)", body), (
         "the filter is focused on open without asking whether this is a touchscreen"
     )
+
+
+def test_an_embedding_model_is_never_offered_for_a_chat(client, db, models):
+    """An enabled embedding model is for /v1/embeddings and the index: the
+    picker, the new chat's default and the palette never offer it."""
+    from lembas.db.models import MODEL_EMBEDDING
+    from lembas.services import chat as chat_service
+
+    connection = db.query(Connection).filter_by(name="Test").one()
+    db.add(Model(connection_id=connection.id, model_id="vectors", display_name="Vectors",
+                 position=-1, kind=MODEL_EMBEDDING, capabilities_json={"embeddings": True}))
+    db.commit()
+    from lembas.db.models import User
+
+    admin = db.query(User).first()
+    assert "vectors" not in {m.model_id for m in chat_service.available_models(db, admin)}
+    assert chat_service.default_model(db, admin)[0] != "vectors"
+    assert "vectors" not in _options(client.get("/chat").text)
+    palette = client.get("/api/palette?q=vec").json()
+    assert not [item for item in palette.get("items", palette) if item.get("kind") == "model"]

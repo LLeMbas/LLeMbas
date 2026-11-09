@@ -22,6 +22,7 @@ from sqlalchemy import select
 from lembas.api.deps import Db, RequiredUser
 from lembas.db.models import KINDS, Chat
 from lembas.security import permissions
+from lembas.services import chat as chat_service
 from lembas.web.i18n import N_, t
 
 router = APIRouter(tags=["palette"])
@@ -88,7 +89,9 @@ async def palette(db: Db, user: RequiredUser, q: str = "") -> JSONResponse:
                         "url": f"/files/view?path={quote(hit.path)}"})
 
     models = [
-        m for m in permissions.models_visible_to(db, user) if _match(needle, m.label, m.model_id)
+        m
+        for m in chat_service.chat_models(permissions.models_visible_to(db, user))
+        if _match(needle, m.label, m.model_id)
     ]
     for model in models[:EACH]:
         out.append({"kind": "model", "group": t("Models"), "title": model.label,
