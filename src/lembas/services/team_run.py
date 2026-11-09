@@ -61,7 +61,6 @@ from lembas.db.models import Team as TeamRow
 from lembas.db.session import session_scope
 from lembas.services import settings_store
 from lembas.services import team as rules
-from lembas.web.i18n import N_, t
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from lembas.services.tools import ToolContext, ToolDef, ToolOutcome
@@ -69,20 +68,6 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 log = logging.getLogger(__name__)
 
 POLL_SECONDS = 1.0
-
-# An agent's state as the Team panel says it, marked for the catalogue here and
-# translated where shown -- the model reads the spec's own words instead
-# (`loop.json` `team.read.states`).
-STATE_WORDS: dict[str, str] = {
-    rules.WORKING: N_("working"),
-    rules.WAITING: N_("waiting for a slot"),
-    rules.FINISHED: N_("finished"),
-    rules.IDLE: N_("idle"),
-}
-
-
-def state_word(state: str) -> str:
-    return t(STATE_WORDS.get(str(state), str(state)))
 
 _LOCKS: dict[str, asyncio.Lock] = {}
 _SUPERVISORS: dict[str, asyncio.Task] = {}
@@ -215,6 +200,16 @@ def member_row(db, chat_id: str) -> TeamAgent | None:
         return None
     return db.scalars(
         select(TeamAgent).where(TeamAgent.chat_id == chat_id, TeamAgent.left.is_(None))
+    ).first()
+
+
+def member_any(db, lead_id: str, name: str) -> TeamAgent | None:
+    """A member by name, on the team or the latest that left under it -- for
+    the person reading its conversation."""
+    return db.scalars(
+        select(TeamAgent)
+        .where(TeamAgent.lead_chat_id == lead_id, TeamAgent.name == name)
+        .order_by(TeamAgent.left.is_(None).desc(), TeamAgent.created_at.desc())
     ).first()
 
 
@@ -1071,6 +1066,7 @@ __all__ = [
     "forget_for_chats",
     "has_team",
     "load",
+    "member_any",
     "member_row",
     "model_parallel",
     "note_block",

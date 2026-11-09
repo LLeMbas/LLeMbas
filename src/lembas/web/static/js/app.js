@@ -1282,6 +1282,31 @@
     if (target && target.id === "jobpanel-body") setPanel("#jobpanel", true, "side");
   });
 
+  /* --- Folds that survive a poll -------------------------------------------
+     The activity panel's tasks section replaces itself every few seconds while
+     anything works, and every agent in it is a <details> the reader may have
+     opened to watch it. Marked `data-keep-open` with a stable id, each one's
+     state is read before a swap and put back after it, so a poll never folds
+     what somebody is reading. Before any swap, not only this one's: the
+     section also arrives out of band in a stream frame. */
+  var keptOpen = null;
+  function noteOpen() {
+    keptOpen = {};
+    document.querySelectorAll("details[data-keep-open][id]").forEach(function (el) {
+      keptOpen[el.id] = el.open;
+    });
+  }
+  document.body.addEventListener("htmx:beforeSwap", noteOpen);
+  document.body.addEventListener("htmx:sseBeforeMessage", noteOpen);
+  document.body.addEventListener("htmx:afterSettle", function () {
+    if (!keptOpen) return;
+    var was = keptOpen;
+    keptOpen = null;
+    document.querySelectorAll("details[data-keep-open][id]").forEach(function (el) {
+      if (Object.prototype.hasOwnProperty.call(was, el.id)) el.open = was[el.id];
+    });
+  });
+
   /* --- The transcript tail -----------------------------------------------
      A reply can begin without a request from this page: a background job
      finishing wakes the chat server-side. There is no chat-level channel to

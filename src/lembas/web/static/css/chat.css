@@ -2240,89 +2240,206 @@
   color: var(--ink-faint);
 }
 
-/* The Team panel: a head, the tree, the room. The body is the one scroller.
-   A tree row is a fixed grid -- who (gives, cut), the state in a track of a
-   short field's width, the stop button at its control size -- with the model
-   on its own line under the name; depth is an indent of `--depth` steps. */
-.teampanel__body {
+/* The activity panel (`chat/_activity_*.html`): sections stacked in one
+   scroller -- Context, Outputs, Background tasks, Plan -- each a <details>
+   whose summary is its heading. A phone gets it as a full-height sheet (the
+   side-panel rule in app.css, and the width rule below). */
+.activity__body {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-3);
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3) var(--sp-4);
 }
-.teampanel__empty { margin: 0; color: var(--ink-faint); font-size: var(--text-sm); }
-.teampanel__head { display: flex; flex-direction: column; gap: var(--sp-1); }
-.teampanel__size { margin: 0; font-size: var(--text-sm); color: var(--ink-muted); }
-.teampanel__goal { margin: 0; font-size: var(--text-sm); overflow-wrap: anywhere; }
-.teampanel__label {
-  font-family: var(--font-ui);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.teampanel__heading {
-  margin: 0;
-  font-family: var(--font-ui);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.team-tree {
+.activity__section {
   display: flex;
   flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2) 0 var(--sp-3);
+  border-bottom: var(--border-w) solid var(--border);
+}
+.activity__section:last-child { border-bottom: 0; }
+.activity__heading,
+.activity__subheading {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
   margin: 0;
-  padding: 0;
-  list-style: none;
+  min-height: var(--control-h-sm);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+.activity__subheading { cursor: default; margin-top: var(--sp-2); }
+.activity__count { font-family: var(--font-mono); font-weight: 400; }
+.activity__empty { margin: 0; color: var(--ink-faint); font-size: var(--text-sm); }
+.activity__plan { min-width: 0; font-size: var(--text-sm); }
+
+/* Context: a line, a bar of one segment per category, a row per category.
+   A row is a fixed grid -- swatch, name (gives), tokens, share -- so the
+   numbers form columns whatever the names say. Each category's colour is a
+   token, mapped once here. */
+.activity-context { display: flex; flex-direction: column; gap: var(--sp-2); font-size: var(--text-sm); }
+.activity-context__used {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin: 0;
+}
+.activity-context__of { font-family: var(--font-mono); color: var(--ink-muted); }
+.activity-context__bar {
+  display: flex;
+  height: var(--sp-1);
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--border);
+}
+.activity-context__seg { flex: none; width: var(--share, 0); background: var(--ctx, var(--ink-faint)); }
+.activity-context__seg--messages { --ctx: var(--accent); }
+.activity-context__seg--system { --ctx: var(--ink-muted); }
+.activity-context__seg--memory { --ctx: var(--warning); }
+.activity-context__seg--instructions { --ctx: var(--success); }
+.activity-context__seg--tools { --ctx: var(--ink); }
+.activity-context__seg--mcp_tools { --ctx: var(--danger); }
+.activity-context__seg--since { --ctx: var(--ink-faint); }
+.activity-context__seg--buffer { --ctx: var(--border-strong, var(--border)); }
+.activity-context__seg--free { --ctx: transparent; }
+.activity-context__rows { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.activity-context__row {
+  display: grid;
+  grid-template-columns: var(--sp-3) minmax(0, 1fr) var(--w-num) var(--w-num);
+  align-items: center;
+  column-gap: var(--sp-2);
+  min-height: var(--control-h-sm);
+}
+.activity-context__key {
+  width: var(--sp-2);
+  height: var(--sp-2);
+  border-radius: var(--radius-sm);
+  background: var(--ctx, var(--ink-faint));
+  border: var(--border-w) solid var(--border);
+}
+.activity-context__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity-context__num { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-muted); text-align: right; }
+.activity-context__note { margin: 0; font-size: var(--text-xs); color: var(--ink-faint); }
+
+/* Outputs: a file per row -- icon, name (gives, cut), +/- in a column of its
+   own width. */
+.activity-outputs { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.activity-outputs__row {
+  display: grid;
+  grid-template-columns: var(--sp-4) minmax(0, 1fr) var(--w-num);
+  align-items: center;
+  column-gap: var(--sp-2);
+  min-height: var(--control-h);
+  font-size: var(--text-sm);
+}
+.activity-outputs__icon { color: var(--ink-muted); }
+.activity-outputs__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity-outputs__diff { font-family: var(--font-mono); font-size: var(--text-xs); text-align: right; white-space: nowrap; }
+.activity-outputs__add { color: var(--success); }
+.activity-outputs__del { color: var(--danger); }
+
+/* Background tasks: a summary line, the team line, the agents, folded lists. */
+.activity-tasks { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; }
+.activity-tasks__summary { margin: 0; font-size: var(--text-sm); color: var(--ink-muted); }
+.activity-tasks__team {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  min-width: 0;
+}
+.activity-tasks__goal { margin: 0; min-width: 0; overflow-wrap: anywhere; font-size: var(--text-sm); color: var(--ink-muted); }
+.activity-tasks__list { display: flex; flex-direction: column; gap: var(--sp-1); }
+.activity-tasks__more > summary {
+  min-height: var(--control-h-sm);
+  display: flex;
+  align-items: center;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+/* One agent. The summary row is a fixed grid -- state dot, what (gives, cut),
+   elapsed time in a column of its own width, the stop button at its control
+   size -- indented by its depth in the tree. */
+.agent {
+  margin-left: calc(var(--depth, 0) * var(--sp-4));
   border: var(--border-w) solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface-raised);
-  font-size: var(--text-sm);
+  min-width: 0;
 }
-.team-tree__row {
+.agent__row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--w-field-xs) var(--control-h-sm);
+  grid-template-columns: var(--sp-2) minmax(0, 1fr) var(--w-num) var(--control-h);
   align-items: center;
   column-gap: var(--sp-2);
-  padding: var(--sp-1) var(--sp-2) var(--sp-1) calc(var(--sp-2) + var(--depth, 0) * var(--sp-4));
-  border-bottom: var(--border-w) solid var(--border);
+  min-height: var(--control-h);
+  padding: 0 var(--sp-1) 0 var(--sp-2);
+  cursor: pointer;
+  list-style: none;
 }
-.team-tree__row:last-child { border-bottom: 0; }
-.team-tree__who { display: flex; align-items: baseline; gap: var(--sp-2); min-width: 0; }
-.team-tree__icon { flex: none; color: var(--ink-muted); align-self: center; }
-.team-tree__name { font-family: var(--font-mono); white-space: nowrap; }
-.team-tree__role {
+.agent__row::-webkit-details-marker { display: none; }
+.agent__dot {
+  width: var(--sp-2);
+  height: var(--sp-2);
+  border-radius: var(--radius-full);
+  background: var(--ink-faint);
+}
+.agent--working .agent__dot { background: var(--accent); }
+.agent--queued .agent__dot,
+.agent--waiting .agent__dot { background: var(--warning); }
+.agent--done .agent__dot { background: var(--success); }
+.agent--error .agent__dot { background: var(--danger); }
+.agent__what { display: flex; align-items: baseline; gap: var(--sp-2); min-width: 0; font-size: var(--text-sm); }
+.agent__name { flex: none; font-family: var(--font-mono); white-space: nowrap; }
+.agent__role { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-muted); }
+.agent__time { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-faint); text-align: right; white-space: nowrap; }
+.agent__actions { display: flex; justify-content: flex-end; }
+.agent__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  border-top: var(--border-w) solid var(--border);
+  font-size: var(--text-sm);
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+.agent__facts { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-3); margin: 0; font-size: var(--text-xs); color: var(--ink-muted); }
+.agent__model { font-family: var(--font-mono); overflow-wrap: anywhere; }
+.agent__state { color: var(--ink); }
+.agent__brief, .agent__text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.agent__text { color: var(--ink-muted); font-size: var(--text-xs); max-height: calc(var(--sp-4) * 8); overflow-y: auto; }
+
+/* The jobs strip's summary row: opens the activity panel. A tap target. */
+.jobs__summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: var(--control-h);
+  padding: 0 var(--sp-2);
+  border: 0;
+  background: none;
   color: var(--ink-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
 }
-.team-tree__state {
-  font-size: var(--text-xs);
-  color: var(--ink-faint);
-  text-align: right;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.team-tree__state--working { color: var(--accent); }
-.team-tree__actions { display: flex; justify-content: flex-end; }
-.team-tree__model {
-  grid-column: 1 / -1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--ink-faint);
+.jobs__summary:hover { color: var(--ink); }
+.jobs__summary-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 48rem) {
+  .activity { width: 100vw; }
 }
 .team-room {
   display: flex;

@@ -101,27 +101,21 @@ def _chat_context(db: DBSession, user: User, chat: Chat | None) -> dict:
 
 
 def _team_context(db: DBSession, user: User, chat: Chat | None, model) -> dict:
-    """The team (harness spec 3.2.0): whether one is offered here, its size
-    setting for the control beside the effort, and -- on a chat that has one --
-    what the Team panel shows. The new-chat screen recomputes the first two
-    for the model it preselects."""
+    """The team's size setting (harness spec 3.2.0): whether one is offered
+    here, and the setting for the control beside the effort. The new-chat
+    screen recomputes both for the model it preselects."""
     from lembas.services import team_run
 
     if chat is None:
         offered = team_run.offered(db, None, user, model) if model is not None else False
         low, high = team_run.user_default(db, user)
-        team = None
     else:
-        from lembas.api.chats import team_view
-
         offered = team_run.offered(db, chat, user, model)
         low, high = team_run.setting(db, chat)
-        team = team_view(db, chat, user) if (offered or team_run.has_team(db, chat.id)) else None
     return {
         "team_offered": offered,
         "team_setting": {"min": low, "max": high},
         "team_cap": team_run.cap(db),
-        "team": team,
     }
 
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException, Query, status
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
 
 from lembas.api import chats as chats_api
@@ -18,6 +18,7 @@ from lembas.api.deps import Db
 from lembas.api.v2 import serialise
 from lembas.api.v2._common import JsonForm, Me, need, owned_chat, owned_message
 from lembas.db.models import KIND_CHAT, KINDS, Chat, Message
+from lembas.services import activity as activity_service
 from lembas.services import generation as generation_service
 from lembas.services import team_run
 from lembas.web.i18n import t
@@ -321,6 +322,131 @@ async def stop_team_member(caller: Me, db: Db, chat_id: str, name: str) -> dict[
     stopped = await team_run.person_stop(chat.id, name)
     if not stopped:
         raise HTTPException(status.HTTP_404_NOT_FOUND, t("That member is not on the team."))
+    return {"stopped": stopped}
+
+
+# --- The activity panel: context, outputs, background agents, plan -----------------
+@router.get("/chats/{chat_id}/activity")
+async def get_activity(
+    caller: Me,
+    db: Db,
+    chat_id: str,
+    since: int = Query(0, ge=0),
+    context: bool = Query(True),
+) -> dict[str, Any]:
+    """Everything the web's activity panel shows, in one answer: the agents
+    (a team's members as a tree, helpers and commands, each with its state,
+    elapsed time, model and latest step), the team's room after `since`, the
+    context by category (`context=false` leaves it out: it is the costly
+    part), the files written and the plan. Follow it with `/activity/events`."""
+    chat = owned_chat(db, chat_id, caller.user)
+    view = await activity_service.snapshot(db, chat, caller.user, since=since, with_context=context)
+    return {"activity": serialise.activity(view)}
+
+
+@router.get("/chats/{chat_id}/activity/events")
+async def activity_events(caller: Me, db: Db, chat_id: str) -> StreamingResponse:
+    """Server-sent events while somebody looks at the panel: `activity`
+    `{version, summary}` whenever the panel's facts change (the first at
+    once), a keepalive comment in between, and `close` after a while -- open
+    it again. On `activity`, fetch `GET /activity` (or poll that, comparing
+    `version`, where a stream does not suit)."""
+    chat = owned_chat(db, chat_id, caller.user)
+    return StreamingResponse(
+        _activity_frames(chat.id, caller.user.id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+ACTIVITY_POLL = 1.0
+ACTIVITY_LIFETIME = 600.0
+
+
+async def _activity_frames(chat_id: str, user_id: str):
+    import asyncio
+    import json
+    import time
+
+    from lembas.db.models import User
+    from lembas.db.session import session_scope
+    from lembas.services import sse
+
+    sent = ""
+    began = last = time.monotonic()
+    while time.monotonic() - began < ACTIVITY_LIFETIME:
+        with session_scope() as session:
+            chat = session.get(Chat, chat_id)
+            user = session.get(User, user_id)
+            if chat is None or user is None:
+                break
+            view = await activity_service.snapshot(session, chat, user, with_context=False)
+        if view["version"] != sent:
+            sent = view["version"]
+            payload = {"version": sent, "summary": view["summary"]}
+            yield sse.event("activity", json.dumps(payload, separators=(",", ":")))
+            last = time.monotonic()
+        elif time.monotonic() - last > 15:
+            yield sse.KEEPALIVE
+            last = time.monotonic()
+        await asyncio.sleep(ACTIVITY_POLL)
+    yield sse.event("close", "{}")
+
+
+def _find_agent(db, chat: Chat, kind: str, agent_id: str) -> dict[str, Any]:
+    kinds = (activity_service.KIND_MEMBER, activity_service.KIND_JOB)
+    if chat.device_token_id or kind not in kinds:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, t("That agent is not here."))
+    entry = activity_service.find(activity_service.agents(db, chat), kind, agent_id)
+    if entry is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, t("That agent is not here."))
+    return entry
+
+
+@router.get("/chats/{chat_id}/agents/{kind}/{agent_id}")
+async def get_agent(caller: Me, db: Db, chat_id: str, kind: str, agent_id: str) -> dict[str, Any]:
+    """One background agent and its whole conversation, read-only: the brief
+    it was given, the messages it took in (`machine`), and each reply with its
+    tool calls. `kind` is `member` (`agent_id` its name) or `job`. A helper
+    nested under a member is found by its job id."""
+    from lembas.services import team_run
+
+    chat = owned_chat(db, chat_id, caller.user)
+    entry = _find_agent(db, chat, kind, agent_id)
+    child = ""
+    if kind == activity_service.KIND_MEMBER:
+        row = team_run.member_any(db, chat.id, agent_id)
+        child = (row.chat_id or "") if row is not None else ""
+    else:
+        found = activity_service.job_owner(db, chat, agent_id)
+        child = (found[1].child_chat_id or "") if found else ""
+    turns = activity_service.chat_transcript(db, child) if child else []
+    return {"agent": serialise.agent(entry), "transcript": turns}
+
+
+@router.post("/chats/{chat_id}/agents/{kind}/{agent_id}/stop")
+async def stop_agent(caller: Me, db: Db, chat_id: str, kind: str, agent_id: str) -> dict[str, Any]:
+    """Stop a background agent: a member leaves the team with those under it
+    (the lead is told in a note), a job is stopped as `job_stop` stops it."""
+    from lembas.services import subagent as subagent_service
+    from lembas.services import team_run
+
+    chat = owned_chat(db, chat_id, caller.user)
+    entry = _find_agent(db, chat, kind, agent_id)
+    if not entry["stoppable"]:
+        raise HTTPException(status.HTTP_409_CONFLICT, t("That agent is not running."))
+    if kind == activity_service.KIND_MEMBER:
+        stopped = await team_run.person_stop(chat.id, agent_id)
+    else:
+        found = activity_service.job_owner(db, chat, agent_id)
+        owner = found[0] if found else chat.id
+        stopped = [agent_id] if await subagent_service.stop_job(owner, agent_id) else []
+    if not stopped:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, t("That agent is not here."))
     return {"stopped": stopped}
 
 

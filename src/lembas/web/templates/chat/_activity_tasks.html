@@ -1,0 +1,149 @@
+{% from "_macros.html" import icon %}
+{#
+  Background tasks: every agent the chat has working for it -- a team's
+  members (as a tree: a member that leads has its members under it), the
+  `task` helpers and background commands, and a member's own helpers -- then,
+  folded, the finished ones; and, when the chat has a team, its room.
+
+  An agent is a <details>: the summary row is a fixed grid (state dot, what
+  it is -- the one column that gives, cut never wrapped --, elapsed time in a
+  column of its own width, the stop button at its control size), so rows line
+  up whatever each says. Opened, it shows its brief, model, latest step and
+  the tail of what it is writing, and a button to read its whole conversation
+  in the helper panel.
+
+  Everything an agent says, and every name, role and brief, is a model's
+  words: printed by Jinja (escaped), and a room message through the markdown
+  service (`html`), never `|safe` on anything else (rule 6).
+
+  Kept current two ways, both onto this element: the lead's reply stream
+  carries it out of band (`oob`) whenever something moves, and while anything
+  is active it polls itself every three seconds -- only while the panel is
+  open. `<details>` that were open stay open across a swap (`app.js` keeps
+  `data-keep-open` ids).
+#}
+{% macro agent_row(agent) %}
+<details class="agent agent--{{ agent.state }}" id="agent-{{ agent.kind }}-{{ agent.id }}" data-keep-open
+         style="--depth: {{ agent.depth }}">
+  <summary class="agent__row">
+    <span class="agent__dot" aria-hidden="true"></span>
+    <span class="agent__what u-shrink">
+      <span class="agent__name">{{ agent.name }}</span>
+      {% if agent.role %}<span class="agent__role">{{ agent.role }}</span>{% endif %}
+    </span>
+    <span class="agent__time" title="{{ agent_state(agent.state) }}">{{ job_duration(agent.seconds) }}</span>
+    <span class="agent__actions">
+      {% if agent.stoppable %}
+      <button class="btn btn--icon btn--sm" type="button"
+              {% if agent.kind == "member" %}
+              hx-post="/api/chats/{{ chat.id }}/team/{{ agent.id }}/stop"
+              hx-confirm="{{ t('Stop %(name)s and the members under it? They leave the team.', name=agent.name) }}"
+              {% else %}
+              hx-post="/api/chats/{{ chat.id }}/jobs/{{ agent.id }}/stop"
+              {% endif %}
+              hx-swap="none"
+              aria-label="{{ t('Stop %(name)s', name=agent.name) }}" title="{{ t('Stop %(name)s', name=agent.name) }}">
+        {{ icon("stop-circle", "icon--sm") }}
+      </button>
+      {% endif %}
+    </span>
+  </summary>
+  <div class="agent__body">
+    <p class="agent__facts">
+      <span class="agent__state">{{ agent_state(agent.state) }}</span>
+      {% if agent.agent %}<span>{{ agent.agent }}</span>{% endif %}
+      {% if agent.model %}<span class="agent__model">{{ agent.model }}</span>{% endif %}
+      {% if agent.steps %}<span>{{ t("%(steps)s steps, %(tools)s tools", steps=agent.steps, tools=agent.tools) }}</span>{% endif %}
+    </p>
+    {% if agent.brief %}<p class="agent__brief">{{ agent.brief }}</p>{% endif %}
+    {% if agent.step %}
+    <div class="tool-line tool-line--read{{ ' tool-line--error' if agent.step.error }}">
+      {{ icon(tool_icon(agent.step.tool), "icon--sm tool-activity__icon") }}
+      <span class="tool-line__verb">{{ agent.step.label }}</span>
+      {% if agent.step.title %}<code class="tool-line__title">{{ agent.step.title }}</code>{% endif %}
+    </div>
+    {% endif %}
+    {% if agent.text %}<p class="agent__text">{{ agent.text }}</p>{% endif %}
+    {% if agent.transcript %}
+    <button class="btn btn--sm" type="button"
+            {% if agent.kind == "member" %}
+            hx-get="/api/chats/{{ chat.id }}/team/{{ agent.id }}/transcript"
+            {% else %}
+            hx-get="/api/chats/{{ chat.id }}/jobs/{{ agent.id }}"
+            {% endif %}
+            hx-target="#jobpanel-body" hx-swap="innerHTML">
+      {{ icon("eye", "icon--sm") }} {{ t("Open its conversation") }}
+    </button>
+    {% endif %}
+  </div>
+</details>
+{% for child in agent.children %}{{ agent_row(child) }}{% endfor %}
+{% endmacro %}
+
+{% set entries = activity.agents %}
+{% set live = entries | selectattr("state", "in", ["queued", "working", "waiting"]) | list %}
+{% set ended = entries | rejectattr("state", "in", ["queued", "working", "waiting"]) | list %}
+{% set counts = activity.summary %}
+<div class="activity-tasks" id="activity-tasks"{% if oob %} hx-swap-oob="outerHTML"{% endif %}
+     {% if counts.active %}
+     hx-get="/api/chats/{{ chat.id }}/activity?part=tasks" hx-trigger="every 3s [!this.closest('[hidden]')]"
+     hx-target="this" hx-swap="outerHTML" hx-sync="this:drop"
+     {% endif %}
+     aria-live="polite">
+  {% if not entries and not activity.team %}
+  <p class="activity__empty">{{ t("Nothing runs in the background. Helpers, commands and a team's members show here while they work.") }}</p>
+  {% else %}
+  <p class="activity-tasks__summary">{{ summary_text(counts) or t("Nothing running.") }}</p>
+
+  {% if activity.team %}
+  <p class="activity-tasks__team">
+    {{ icon("users", "icon--sm") }}
+    {{ t("Team: %(size)s of %(max)s agents", size=activity.team.size, max=activity.team.max) }}
+  </p>
+  {% if activity.team.goal %}<p class="activity-tasks__goal">{{ activity.team.goal }}</p>{% endif %}
+  {% endif %}
+
+  {% if live %}
+  <div class="activity-tasks__list">
+    {% for agent in live[:6] %}{{ agent_row(agent) }}{% endfor %}
+  </div>
+  {% if live | length > 6 %}
+  <details class="activity-tasks__more" id="activity-more" data-keep-open>
+    <summary>{{ t("Show %(n)s more", n=live | length - 6) }}</summary>
+    <div class="activity-tasks__list">
+      {% for agent in live[6:] %}{{ agent_row(agent) }}{% endfor %}
+    </div>
+  </details>
+  {% endif %}
+  {% endif %}
+
+  {% if ended %}
+  <details class="activity-tasks__more" id="activity-finished" data-keep-open>
+    <summary>{{ t("%(n)s finished", n=ended | length) }}</summary>
+    <div class="activity-tasks__list">
+      {% for agent in ended %}{{ agent_row(agent) }}{% endfor %}
+    </div>
+  </details>
+  {% endif %}
+
+  {% if activity.team %}
+  <h3 class="activity__subheading">{{ t("Room") }}</h3>
+  {% if activity.team.room %}
+  <ol class="team-room">
+    {% for entry in activity.team.room %}
+    <li class="team-room__entry{% if entry.report %} team-room__entry--report{% endif %}">
+      <div class="team-room__meta">
+        <span class="team-room__n">#{{ entry.n }}</span>
+        <span class="team-room__route">{{ entry["from"] }} → {{ entry.to | join(", ") }}</span>
+        {% if entry.report %}<span class="badge team-room__badge">{{ t("report") }}</span>{% endif %}
+      </div>
+      <div class="team-room__text msg__body">{{ entry.html }}</div>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="activity__empty">{{ t("Nothing has been said in the room yet.") }}</p>
+  {% endif %}
+  {% endif %}
+  {% endif %}
+</div>

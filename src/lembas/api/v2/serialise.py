@@ -177,6 +177,116 @@ def team(view: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def agent(entry: dict[str, Any]) -> dict[str, Any]:
+    """One background agent of the activity panel (`services/activity.py`):
+    a team's member (`kind` member, `id` its name) or a job (`kind` job, `id`
+    the job's id; `type` subagent or command), with its own helpers under it.
+    `brief`, `role` and `text` are a model's words: an app shows them as
+    text."""
+    step = entry.get("step")
+    return {
+        "kind": entry["kind"],
+        "id": str(entry["id"]),
+        "type": entry.get("type") or "",
+        "name": entry["name"],
+        "role": entry.get("role") or "",
+        "brief": entry.get("brief") or "",
+        "state": entry["state"],
+        "seconds": int(entry.get("seconds") or 0),
+        "started": entry.get("started") or "",
+        "model": entry.get("model") or "",
+        "agent": entry.get("agent") or "",
+        "manager": entry.get("manager"),
+        "depth": int(entry.get("depth") or 0),
+        "lead": bool(entry.get("lead")),
+        "step": (
+            {
+                "tool": step.get("tool") or "",
+                "label": step.get("label") or "",
+                "title": step.get("title") or "",
+                "error": bool(step.get("error")),
+                "running": bool(step.get("running")),
+            }
+            if isinstance(step, dict)
+            else None
+        ),
+        "text": entry.get("text") or "",
+        "steps": int(entry.get("steps") or 0),
+        "tools": int(entry.get("tools") or 0),
+        "stoppable": bool(entry.get("stoppable")),
+        "transcript": bool(entry.get("transcript")),
+        "children": [agent(child) for child in entry.get("children") or []],
+    }
+
+
+def activity(view: dict[str, Any]) -> dict[str, Any]:
+    """`GET /chats/{chat}/activity`: what the web's activity panel shows --
+    the agents (a forest), a summary of their states, the team's head and
+    room since a cursor, the context by category, the files written, the
+    plan -- and `version`, which changes whenever any of it (but the elapsed
+    seconds) does."""
+    team_view = view.get("team")
+    ctx = view.get("context")
+    return {
+        "version": view["version"],
+        "summary": {k: int(v) for k, v in view["summary"].items()},
+        "agents": [agent(e) for e in view["agents"]],
+        "team": (
+            {
+                "min": int(team_view["min"]),
+                "max": int(team_view["max"]),
+                "size": int(team_view["size"]),
+                "goal": team_view["goal"],
+                "room": [
+                    {
+                        "n": int(m["n"]),
+                        "from": m["from"],
+                        "to": list(m["to"]),
+                        "text": m["text"],
+                        "report": bool(m["report"]),
+                        "created": m["created"],
+                    }
+                    for m in team_view["room"]
+                ],
+                "cursor": int(team_view["cursor"]),
+            }
+            if team_view
+            else None
+        ),
+        "team_offered": bool(view.get("team_offered")),
+        "context": (
+            {
+                "used": int(ctx["used"]),
+                "limit": int(ctx["limit"]),
+                "percent": ctx["percent"],
+                "measured": bool(ctx["measured"]),
+                "threshold": int(ctx["threshold"]),
+                "tools_count": int(ctx["tools_count"]),
+                "mcp_count": int(ctx["mcp_count"]),
+                "categories": [
+                    {"key": c["key"], "tokens": int(c["tokens"]), "percent": c["percent"]}
+                    for c in ctx["categories"]
+                ],
+            }
+            if ctx
+            else None
+        ),
+        "outputs": [
+            {
+                "path": o["path"],
+                "name": o["name"],
+                "writes": int(o["writes"]),
+                "created": bool(o["created"]),
+                "added": o["added"],
+                "removed": o["removed"],
+                "at": o["at"],
+            }
+            for o in view.get("outputs") or []
+        ],
+        "plan": view.get("plan"),
+    }
+
+
 def chat_detail(row: Chat, *, running: bool = False, cap: int | None = None) -> dict[str, Any]:
     """A chat with what its settings sheet shows."""
     from lembas.services import plans

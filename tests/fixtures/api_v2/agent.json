@@ -1,0 +1,98 @@
+{
+  "agent": {
+    "kind": "member",
+    "id": "baker",
+    "type": "member",
+    "name": "baker",
+    "role": "owns the oven",
+    "brief": "Bake the waybread.",
+    "state": "working",
+    "seconds": 95,
+    "started": "2026-01-02T03:04:05+00:00",
+    "model": "local/qwen",
+    "agent": "general",
+    "manager": "lead",
+    "depth": 0,
+    "lead": true,
+    "step": {
+      "tool": "read",
+      "label": "Read",
+      "title": "recipe.md",
+      "error": false,
+      "running": true
+    },
+    "text": "The dough needs…",
+    "steps": 4,
+    "tools": 3,
+    "stoppable": true,
+    "transcript": true,
+    "children": [
+      {
+        "kind": "member",
+        "id": "wrapper",
+        "type": "member",
+        "name": "wrapper",
+        "role": "owns the leaves",
+        "brief": "Wrap each cake.",
+        "state": "queued",
+        "seconds": 0,
+        "started": "2026-01-02T03:04:05+00:00",
+        "model": "local/qwen",
+        "agent": "general",
+        "manager": "baker",
+        "depth": 1,
+        "lead": false,
+        "step": null,
+        "text": "",
+        "steps": 0,
+        "tools": 0,
+        "stoppable": true,
+        "transcript": true,
+        "children": []
+      },
+      {
+        "kind": "job",
+        "id": "baker:job1",
+        "type": "subagent",
+        "name": "baker:job1",
+        "role": "find mallorn leaves",
+        "brief": "Where do mallorn grow?",
+        "state": "done",
+        "seconds": 12,
+        "started": "2026-01-02T03:04:05+00:00",
+        "model": "local/qwen",
+        "agent": "explore",
+        "manager": "baker",
+        "depth": 1,
+        "lead": false,
+        "step": null,
+        "text": "In Lothlórien.",
+        "steps": 2,
+        "tools": 1,
+        "stoppable": false,
+        "transcript": true,
+        "children": []
+      }
+    ]
+  },
+  "transcript": [
+    {
+      "role": "user",
+      "text": "Bake the waybread.",
+      "machine": false
+    },
+    {
+      "role": "assistant",
+      "text": "Baking.",
+      "tools": [
+        {
+          "name": "read",
+          "title": "recipe.md",
+          "isError": false
+        }
+      ],
+      "error": "",
+      "running": true
+    }
+  ]
+}

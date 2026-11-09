@@ -386,8 +386,8 @@
   {# The background jobs: the frame carries the strip marked `hx-swap-oob`,
      which lands above the composer; this is only where it arrives. #}
   <div hidden sse-swap="jobs" hx-swap="none"></div>
-  {# The team (spec 3.2.0): the frame carries the Team panel's body and the
-     strip, both marked `hx-swap-oob`; this is only where they arrive. #}
-  <div hidden sse-swap="team" hx-swap="none"></div>
+  {# The activity panel's tasks and the strip (a team's members moving,
+     spec 3.2.0): both marked `hx-swap-oob`; this is only where they arrive. #}
+  <div hidden sse-swap="activity" hx-swap="none"></div>
   {% endif %}
 </article>

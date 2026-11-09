@@ -387,11 +387,18 @@ def transcript(db, job) -> list[dict[str, Any]]:
     """The helper's conversation in the shape `_lembas/job/transcript` gives:
     `{role: "user", text}` and `{role: "assistant", text, tools: [{name,
     title, isError}]}` -- one shape for a device's subagent and this server's."""
+
+    return chat_transcript(db, job.child_chat_id or "")
+
+
+def chat_transcript(db, child_chat_id: str) -> list[dict[str, Any]]:
+    """A hidden chat's conversation in `transcript`'s shape: a helper's, or a
+    team member's (harness spec 3.2.0), whose chat is not a job."""
     from lembas.db.models import ROLE_ASSISTANT, ROLE_USER
     from lembas.services import tool_blocks
 
     turns: list[dict[str, Any]] = []
-    for row in _rows(db, job.child_chat_id or ""):
+    for row in _rows(db, child_chat_id):
         if row.role == ROLE_USER:
             turns.append({"role": "user", "text": row.content or "", "machine": bool(row.machine)})
         elif row.role == ROLE_ASSISTANT:

@@ -1,0 +1,50 @@
+{% from "_macros.html" import icon %}
+{#
+  The activity panel's sections, stacked: Context, Outputs, Background tasks
+  (with the team's room), Plan. `activity` is `services/activity.snapshot`.
+  Each section is a <details>, open by default, so a long one can be folded
+  away on a phone where they stack in one column.
+#}
+<details class="activity__section" open>
+  <summary class="activity__heading">{{ t("Context") }}</summary>
+  {% include "chat/_activity_context.html" %}
+</details>
+
+<details class="activity__section" open>
+  <summary class="activity__heading">
+    {{ t("Outputs") }}
+    {% if activity.outputs %}<span class="activity__count">{{ activity.outputs | length }}</span>{% endif %}
+  </summary>
+  {% if activity.outputs %}
+  <ul class="activity-outputs">
+    {% for out in activity.outputs %}
+    <li class="activity-outputs__row">
+      {{ icon("file-plus" if out.created else "file-text", "icon--sm activity-outputs__icon") }}
+      <a class="activity-outputs__name u-shrink" href="{{ out.url }}" title="{{ out.path }}">{{ out.name }}</a>
+      <span class="activity-outputs__diff">
+        {% if out.added is not none %}
+        <span class="activity-outputs__add">+{{ out.added }}</span>
+        <span class="activity-outputs__del">−{{ out.removed }}</span>
+        {% endif %}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="activity__empty">{{ t("No files written in this chat yet.") }}</p>
+  {% endif %}
+</details>
+
+<details class="activity__section" open>
+  <summary class="activity__heading">{{ t("Background tasks") }}</summary>
+  {% include "chat/_activity_tasks.html" %}
+</details>
+
+{% if activity.plan %}
+<details class="activity__section" open>
+  <summary class="activity__heading">{{ t("Plan") }}</summary>
+  <div class="activity__plan">
+    {% with plan = activity.plan, plan_actions = false %}{% include "chat/_plan.html" %}{% endwith %}
+  </div>
+</details>
+{% endif %}

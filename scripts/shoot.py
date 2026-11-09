@@ -483,7 +483,80 @@ def build_client():
             owner.settings_json = {**(owner.settings_json or {}), "sidebar_kind": kind}
 
     _seed_devices_reports_schedules()
+    if os.environ.get("SHOOT_TEAM"):
+        _seed_team()
     return client
+
+
+def _seed_team() -> None:
+    """`SHOOT_TEAM=1`: a team at work in `SHOOT_CHAT` (harness spec 3.2.0) --
+    a member that leads with a member queued under it, a finished one, a
+    helper and a command of the lead's, the room, and a file the chat wrote --
+    so the activity panel and the strip's summary are shot full."""
+    from datetime import UTC, datetime, timedelta
+
+    from lembas.db.models import Chat, ChatJob, Message, TeamAgent, TeamMessage, User
+    from lembas.db.models import Team as TeamRow
+    from lembas.db.session import session_scope
+    from lembas.services import fs, settings_store
+
+    now = datetime.now(UTC)
+    with session_scope() as db:
+        settings_store.update(db, {"enabled": True}, key=settings_store.SUBAGENTS)
+        settings_store.update(db, {"default_permissions": {"tools.subagent": True}})
+        lead = db.get(Chat, SHOOT_CHAT)
+        owner = db.query(User).first()
+        lead.agents_min, lead.agents_max = 1, 8
+        db.add(TeamRow(lead_chat_id=SHOOT_CHAT, goal="A loader that reads every config "
+                       "format the project has", seq=4, data_json={}))
+        members = [
+            ("parser", "lead", True, "working", "owns the grammar and the parser", 95),
+            ("lexer", "parser", False, "waiting", "owns the tokens", 0),
+            ("tester", "lead", False, "finished", "owns the test suite", 41),
+        ]
+        for n, (name, manager, may_lead, state, role, ran) in enumerate(members, start=1):
+            child = Chat(user_id=owner.id, title=name, model_id="gemma4-moe",
+                         connection_id=lead.connection_id, parent_chat_id=SHOOT_CHAT,
+                         unattended=True, temporary=True, data_group_id="default")
+            db.add(child)
+            db.flush()
+            db.add(TeamAgent(
+                lead_chat_id=SHOOT_CHAT, name=name, manager=manager, role=role,
+                may_lead=may_lead, agent="general", model="local/gemma4-moe",
+                chat_id=child.id, state=state, position=n,
+                run_started=now - timedelta(seconds=ran),
+                last_ended=now if state == "finished" else None,
+            ))
+            db.add(Message(chat_id=child.id, role="user", complete=True,
+                           content=f"Own {role.removeprefix('owns ')}; report to {manager}."))
+            db.add(Message(
+                chat_id=child.id, role="assistant", complete=state == "finished",
+                content="The grammar covers TOML and YAML; INI next." if name == "parser"
+                else ("All 48 tests pass." if name == "tester" else ""),
+                tool_calls_json=[{"name": "read", "kind": "agent", "status": "ok",
+                                  "query": "src/config/grammar.py", "path":
+                                  "src/config/grammar.py"}] if name != "lexer" else [],
+            ))
+        db.add(ChatJob(chat_id=SHOOT_CHAT, job_id="job1", kind="subagent",
+                       description="find every config file in the repository",
+                       agent="explore", model="local/gemma4-moe", state="running",
+                       started=now - timedelta(seconds=37), data_json={}))
+        db.add(ChatJob(chat_id=SHOOT_CHAT, job_id="job2", kind="command",
+                       description="pytest -q tests/config", state="running",
+                       started=now - timedelta(seconds=12),
+                       data_json={"command": "pytest -q tests/config"}))
+        room = [
+            ("parser", ["lexer"], "Tokens for TOML tables first, please.", False),
+            ("tester", ["all"], "The suite is in `tests/config/`; run it before you report.",
+             False),
+            ("tester", ["lead"], "All 48 tests pass on the TOML and YAML loaders.", True),
+        ]
+        for n, (sender, to, text, report) in enumerate(room, start=1):
+            db.add(TeamMessage(lead_chat_id=SHOOT_CHAT, n=n, sender=sender, to_json=to,
+                               recipients_json=to, text=text, report=report))
+        home = fs.ensure_home(db, owner).path
+        fs.write(fs.view(db, owner, lead), f"{home}/src/config/loader.py",
+                 b"def load(path):\n    return parse(path.read_text())\n")
 
 
 # What the fake `device-1` answers over its link: two background jobs (spec

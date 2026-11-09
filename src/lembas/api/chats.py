@@ -30,6 +30,7 @@ from lembas.db.models import (
 )
 from lembas.db.session import session_scope
 from lembas.security import permissions
+from lembas.services import activity as activity_service
 from lembas.services import audio as audio_service
 from lembas.services import chat as chat_service
 from lembas.services import compaction as compaction_service
@@ -1384,26 +1385,37 @@ async def chat_jobs(db: DBSession, chat: Chat) -> list[dict]:
     return rows + team_run.strip_rows(db, chat.id)
 
 
-def team_view(db: DBSession, chat: Chat | None, user: User | None = None) -> dict | None:
-    """The team as the Team panel shows it: `team_run.snapshot`, each room
+async def activity_view(
+    db: DBSession, chat: Chat, user: User | None, *, with_context: bool = True, since: int = 0
+) -> dict:
+    """The activity panel's facts (`services/activity.snapshot`), each room
     message's text rendered through the markdown service -- a model wrote it
-    (rule 6) -- and nothing for a chat that cannot have a team."""
+    (rule 6)."""
     from markupsafe import Markup
 
-    if chat is None or not team_run.may_have_team(chat):
-        return None
-    view = team_run.snapshot(db, chat.id)
-    if view is None:
-        return None
-    for entry in view["room"]:
-        entry["html"] = Markup(render_markdown(entry["text"]))
+    view = await activity_service.snapshot(
+        db, chat, user, since=since, with_context=with_context
+    )
+    if view["team"]:
+        for entry in view["team"]["room"]:
+            entry["html"] = Markup(render_markdown(entry["text"]))
     return view
 
 
-def _team_panel_html(db: DBSession, chat: Chat, *, oob: bool = True) -> str:
-    return templates.get_template("chat/_team_panel_body.html").render(
-        {"chat": chat, "team": team_view(db, chat), "oob": oob}
-    )
+def _activity_html(chat: Chat, view: dict, *, part: str = "", oob: bool = False) -> str:
+    """The panel's body, or one section of it (`tasks`, `context`)."""
+    name = {
+        "tasks": "chat/_activity_tasks.html",
+        "context": "chat/_activity_context.html",
+    }.get(part, "chat/_activity_body.html")
+    return templates.get_template(name).render({"chat": chat, "activity": view, "oob": oob})
+
+
+async def _activity_tasks_oob(db: DBSession, chat: Chat) -> str:
+    """The tasks section out of band, for a stream frame or a stop's answer."""
+    owner = db.get(User, chat.user_id)
+    view = await activity_view(db, chat, owner, with_context=False)
+    return _activity_html(chat, view, part="tasks", oob=True)
 
 
 def _tail_oob(message_id: str, thinking_tail: str, think_label: str, tail_html: str) -> str:
@@ -1519,8 +1531,8 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
     seen = -1
     last_frame = time.monotonic()
     last_metrics = 0.0
-    # The team's counter as last sent (spec 3.2.0): the Team panel and the
-    # strip, out of band, whenever the chat's team moves during this reply.
+    # The team's counter as last sent (spec 3.2.0): the activity panel's
+    # tasks and the strip, out of band, whenever the team moves in this reply.
     team_seen = team_run.version(chat_id)
     with session_scope() as db:
         team_rows = team_run.strip_rows(db, chat_id)
@@ -1632,10 +1644,10 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
                     team_chat = db.get(Chat, chat_id)
                     if team_chat is not None:
                         team_rows = team_run.strip_rows(db, chat_id)
-                        frame = _team_panel_html(db, team_chat) + _jobs_strip_html(
+                        frame = await _activity_tasks_oob(db, team_chat) + _jobs_strip_html(
                             chat_id, [*generation.jobs.values(), *team_rows]
                         )
-                        yield sse.event("team", frame)
+                        yield sse.event("activity", frame)
 
             if time.monotonic() - last_metrics > METRICS_INTERVAL:
                 last_metrics = time.monotonic()
@@ -1717,10 +1729,10 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
             if generation.jobs or team_rows
             else ""
         )
-        # The Team panel as the reply leaves it: it polls from here while
-        # anybody in the team works.
-        if team_run.has_team(db, chat.id):
-            jobs_html += _team_panel_html(db, chat)
+        # The activity panel's tasks as the reply leaves it: they poll from
+        # here while anything works.
+        if team_rows or generation.jobs or team_run.has_team(db, chat.id):
+            jobs_html += await _activity_tasks_oob(db, chat)
 
     yield sse.event("done", moved_html + final_html + queue_html + title_html + jobs_html)
     yield sse.event("close", "")
@@ -2123,9 +2135,10 @@ async def _job_turns(db: DBSession, chat: Chat, job_id: str) -> tuple[dict, list
         except (device_link.DeviceError, device_link.LinkClosed, TimeoutError) as exc:
             raise _device_or_409(chat, exc) from exc
         return job, turns
-    row = jobs_service.by_id(db, chat.id, job_id)
-    if row is None:
+    found = activity_service.job_owner(db, chat, job_id)
+    if found is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, t("That job is not here any more."))
+    row = found[1]
     return jobs_service.info(db, row), jobs_service.transcript(db, row)
 
 
@@ -2161,17 +2174,23 @@ async def stop_job(db: Db, user: RequiredUser, chat_id: str, job_id: str) -> Res
         except (device_link.DeviceError, device_link.LinkClosed, TimeoutError) as exc:
             raise _device_or_409(chat, exc) from exc
     else:
-        if not await subagent_service.stop_job(chat.id, job_id):
+        # A job of this chat's, or of one of its agents -- a team member's own
+        # helper, stopped from the activity panel.
+        found = activity_service.job_owner(db, chat, job_id)
+        owner = found[0] if found else chat.id
+        if not await subagent_service.stop_job(owner, job_id):
             raise HTTPException(status.HTTP_404_NOT_FOUND, t("That job is not here any more."))
     return HTMLResponse(_jobs_strip_html(chat.id, await chat_jobs(db, chat), oob=False))
 
 
-# --- The team (spec 3.2.0): the panel and the person's stop --------------------------
-@router.get("/{chat_id}/team")
-async def team_panel(db: Db, user: RequiredUser, chat_id: str) -> Response:
-    """The Team panel's body, as it polls itself while the team works."""
+# --- The activity panel, and the team's stop (spec 3.2.0) ------------------------------
+@router.get("/{chat_id}/activity")
+async def activity_panel(db: Db, user: RequiredUser, chat_id: str, part: str = "") -> Response:
+    """The activity panel's body when it is opened, or one section of it:
+    `tasks` as it polls itself while anything works, `context` refreshed."""
     chat = _owned_chat(db, chat_id, user.id)
-    return HTMLResponse(_team_panel_html(db, chat, oob=False))
+    view = await activity_view(db, chat, user, with_context=part != "tasks")
+    return HTMLResponse(_activity_html(chat, view, part=part))
 
 
 @router.post("/{chat_id}/team/{name}/stop")
@@ -2185,9 +2204,32 @@ async def stop_team_member(db: Db, user: RequiredUser, chat_id: str, name: str) 
     # Both out of band: the panel and the strip each show the member gone,
     # whichever of the two the button was in.
     return HTMLResponse(
-        _team_panel_html(db, chat, oob=True)
+        await _activity_tasks_oob(db, chat)
         + _jobs_strip_html(chat.id, await chat_jobs(db, chat), oob=True)
     )
+
+
+@router.get("/{chat_id}/team/{name}/transcript")
+async def team_member_transcript(
+    db: Db, user: RequiredUser, chat_id: str, name: str, part: str = ""
+) -> Response:
+    """A member's whole conversation, read-only, in the helper panel: what it
+    was briefed, the messages it was given and what it did."""
+    chat = _owned_chat(db, chat_id, user.id)
+    entry = activity_service.find(activity_service.agents(db, chat), "member", name)
+    row = team_run.member_any(db, chat.id, name)
+    if entry is None or row is None or not row.chat_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, t("That member is not on the team."))
+    job = {
+        "id": name,
+        "agent": entry["agent"],
+        "state": "running" if entry["state"] in activity_service.ACTIVE else entry["state"],
+        "seconds": entry["seconds"],
+        "description": entry["role"],
+        "member": True,
+    }
+    turns = activity_service.chat_transcript(db, row.chat_id)
+    return HTMLResponse(_panel_html(chat, job, turns, part=part))
 
 
 @router.post("/{chat_id}/jobs/{job_id}/send")

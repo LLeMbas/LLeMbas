@@ -114,13 +114,13 @@
         </button>
         {% endif %}
 
-        {% if chat and team %}
-        {# The chat's team and its room (spec 3.2.0), where one is offered or
-           there is one. #}
-        <button class="btn btn--icon" type="button" aria-label="{{ t('Team') }}"
-                title="{{ t('The team and its room') }}" aria-expanded="false"
-                data-toggle="#teampanel" data-toggle-group="side">
-          {{ icon("users") }}
+        {% if chat and chat.kind != "task" %}
+        {# The activity panel: context, outputs, background agents (a team's
+           members and room among them) and the plan. #}
+        <button class="btn btn--icon" type="button" aria-label="{{ t('Activity') }}"
+                title="{{ t('Context, outputs, background tasks and the plan') }}" aria-expanded="false"
+                data-toggle="#activity" data-toggle-group="side">
+          {{ icon("bolt") }}
         </button>
         {% endif %}
 
@@ -258,8 +258,8 @@
   {% if chat and chat.kind != "task" %}
     {% include "chat/_job_panel.html" %}
   {% endif %}
-  {% if chat and team %}
-    {% include "chat/_team_panel.html" %}
+  {% if chat and chat.kind != "task" %}
+    {% include "chat/_activity_panel.html" %}
   {% endif %}
   {% if terminal_enabled %}
     {% include "chat/_terminal.html" %}
@@ -302,10 +302,10 @@
       {{ icon("sparkle", "icon--sm") }}
     </button>
     {% endif %}
-    {% if chat and team %}
-    <button class="winswitch__btn" type="button" data-window="#teampanel" aria-pressed="false"
-            aria-label="{{ t('Team') }}" title="{{ t('Team') }}">
-      {{ icon("users", "icon--sm") }}
+    {% if chat and chat.kind != "task" %}
+    <button class="winswitch__btn" type="button" data-window="#activity" aria-pressed="false"
+            aria-label="{{ t('Activity') }}" title="{{ t('Activity') }}">
+      {{ icon("bolt", "icon--sm") }}
     </button>
     {% endif %}
     {% if models and (chat or scope_families or scope_skills or scope_allow) and not (chat and chat.kind == "task") %}

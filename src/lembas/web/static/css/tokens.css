@@ -134,6 +134,7 @@
      one that names what it is: a theme can then widen every menu at once, and
      two popovers cannot drift a rem apart by accident. Control heights are
      `--control-h`; these are the boxes around them. */
+  --w-num: 4.5rem;         /* a column of figures: tokens, a share, an elapsed time */
   --w-field-xs: 8rem;      /* a short input: a count, a duration */
   --w-field-sm: 10rem;     /* a short select's floor */
   --w-field: 14rem;        /* a capped field, a label column, a small menu */

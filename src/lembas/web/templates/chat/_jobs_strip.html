@@ -23,42 +23,30 @@
   form, which carries `hx-target="#thread"`, and an inherited target put a
   strip into the transcript once before.
 #}
-{% set running = jobs | selectattr("state", "equalto", "running") | list %}
+{% set running = jobs | selectattr("state", "equalto", "running") | rejectattr("kind", "equalto", "team") | list %}
+{#- A team's members (spec 3.2.0) are not jobs: the strip says how many work
+    and wait in one summary row, which opens the activity panel where each is
+    shown. Helpers and commands keep a row each, as before. -#}
+{% set members = jobs | selectattr("kind", "equalto", "team") | list %}
+{% set working = (running | length) + (members | selectattr("team_state", "equalto", "working") | list | length) %}
+{% set queued = members | selectattr("team_state", "equalto", "waiting") | list | length %}
+{% set shown = running or members %}
 <div id="jobs-strip" class="jobs-strip"{% if oob %} hx-swap-oob="outerHTML"{% endif %}
-     {% if not running %} hidden{% endif %}
-     {% if running and chat %}
+     {% if not shown %} hidden{% endif %}
+     {% if shown and chat %}
      hx-get="/api/chats/{{ chat.id }}/jobs" hx-trigger="every 10s"
      hx-target="this" hx-swap="outerHTML" hx-sync="this:drop"
      {% endif %}
      aria-live="polite" aria-label="{{ t('Background jobs') }}">
+  {% if shown and chat %}
+  <button class="jobs__summary" type="button" data-toggle="#activity" data-toggle-group="side"
+          aria-label="{{ t('Open the activity panel') }}">
+    {{ icon("bolt", "icon--sm jobs__icon") }}
+    <span class="jobs__summary-text u-shrink">{{ summary_text({"working": working, "queued": queued}) }}</span>
+    {{ icon("chevron-right", "icon--sm") }}
+  </button>
+  {% endif %}
   {% for job in running %}
-  {% if job.kind == "team" %}
-  {# A team's member (spec 3.2.0): not a job to the model, shown here with
-     them -- its name and role, working or waiting for a slot; Follow opens
-     the Team panel, Stop takes it and those under it off the team. #}
-  <div class="jobs__row jobs__row--grid" data-team-member="{{ job.id }}">
-    {{ icon("users", "icon--sm jobs__icon") }}
-    <span class="jobs__what u-shrink">
-      <span class="jobs__agent">{{ team_state(job.team_state) }}</span>
-      <span class="jobs__desc">{{ job.description }}</span>
-    </span>
-    <span class="jobs__time" title="{{ t('Running for %(time)s', time=job_duration(job.seconds)) }}">{{ job_duration(job.seconds) }}</span>
-    <span class="jobs__actions">
-      {% if chat %}
-      <button class="btn btn--icon btn--sm" type="button"
-              data-toggle="#teampanel" data-toggle-group="side"
-              aria-label="{{ t('Open the team') }}" title="{{ t('Open the team and its room') }}">
-        {{ icon("eye", "icon--sm") }}
-      </button>
-      <button class="btn btn--icon btn--sm" type="button"
-              hx-post="/api/chats/{{ chat.id }}/team/{{ job.id }}/stop" hx-swap="none"
-              aria-label="{{ t('Stop %(name)s', name=job.id) }}" title="{{ t('Stop this member and those under it') }}">
-        {{ icon("stop-circle", "icon--sm") }}
-      </button>
-      {% endif %}
-    </span>
-  </div>
-  {% else %}
   <div class="jobs__row jobs__row--grid" data-job="{{ job.id }}">
     {{ icon("sparkle" if job.kind == "subagent" else "terminal", "icon--sm jobs__icon") }}
     <span class="jobs__what u-shrink">
@@ -88,6 +76,5 @@
       {% endif %}
     </span>
   </div>
-  {% endif %}
   {% endfor %}
 </div>

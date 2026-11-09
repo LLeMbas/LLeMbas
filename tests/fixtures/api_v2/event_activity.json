@@ -1,0 +1,14 @@
+{
+  "version": "0123456789abcdef",
+  "summary": {
+    "queued": 1,
+    "working": 2,
+    "waiting": 0,
+    "done": 1,
+    "stopped": 0,
+    "error": 0,
+    "active": 3,
+    "finished": 1,
+    "total": 4
+  }
+}

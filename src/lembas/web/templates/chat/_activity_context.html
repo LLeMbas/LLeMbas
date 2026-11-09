@@ -1,0 +1,50 @@
+{#
+  What the chat's next request holds, by category, against the model's window
+  (`services/activity.context`): a line saying how much is used, a bar of one
+  segment per category, then a row per category -- key, name, tokens, share.
+
+  Each row is a fixed grid (the swatch, the name that gives, two number
+  columns of their own width), so the numbers line up in columns whatever the
+  names say in which language. A segment's width and colour are custom
+  properties; the colours are the tokens' (`--ctx-*` in chat.css maps each
+  category to one), never a value here.
+#}
+{% set ctx = activity.context %}
+<div class="activity-context" id="activity-context">
+  {% if not ctx %}
+  <p class="activity__empty">{{ t("Not measured.") }}</p>
+  {% else %}
+  <p class="activity-context__used">
+    {% if ctx.percent is not none %}
+    <span>{{ t("%(percent)s%% used", percent=ctx.percent) }}</span>
+    <span class="activity-context__of">{{ compact_tokens(ctx.used) }} / {{ compact_tokens(ctx.limit) }}</span>
+    {% else %}
+    <span>{{ t("%(tokens)s tokens", tokens=compact_tokens(ctx.used)) }}</span>
+    <span class="activity-context__of">{{ t("window unknown") }}</span>
+    {% endif %}
+  </p>
+  {% if ctx.limit %}
+  <div class="activity-context__bar" role="img"
+       aria-label="{{ t('%(percent)s%% of the context window used', percent=ctx.percent) }}">
+    {% for row in ctx.categories if row.key not in ("free",) and row.tokens %}
+    <span class="activity-context__seg activity-context__seg--{{ row.key }}"
+          style="--share: {{ row.percent }}%"></span>
+    {% endfor %}
+  </div>
+  {% endif %}
+  <ul class="activity-context__rows">
+    {% for row in ctx.categories %}
+    <li class="activity-context__row">
+      <span class="activity-context__key activity-context__seg--{{ row.key }}" aria-hidden="true"></span>
+      <span class="activity-context__name u-shrink">{{ context_word(row.key) }}</span>
+      <span class="activity-context__num">{{ compact_tokens(row.tokens) }}</span>
+      <span class="activity-context__num">{% if row.percent is not none %}{{ row.percent }}%{% else %}—{% endif %}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  <p class="activity-context__note">
+    {% if ctx.measured %}{{ t("Counted by the model at the last reply; the categories are estimated.") }}{% else %}{{ t("Estimated: no reply has been counted yet.") }}{% endif %}
+    {{ t("%(n)s tools offered.", n=ctx.tools_count) }}
+  </p>
+  {% endif %}
+</div>

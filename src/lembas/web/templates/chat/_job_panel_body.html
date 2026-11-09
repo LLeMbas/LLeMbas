@@ -11,14 +11,17 @@
   `render_markdown`, and the tool lines are escaped by Jinja.
 #}
 {% set running = job.state == "running" %}
+{#- A team's member (spec 3.2.0) is read here, never sent to or stopped from
+    here: the team's room and the activity panel do that. -#}
+{% set turns_url = "/api/chats/" ~ chat.id ~ ("/team/" ~ job.id ~ "/transcript" if job.member else "/jobs/" ~ job.id) ~ "?part=turns" %}
 <div class="jobpanel__head">
   <div class="jobpanel__title">
     <span class="jobs__id">{{ job.id }}</span>
-    <span class="jobs__agent">{{ job.agent or t("subagent") }}</span>
+    <span class="jobs__agent">{{ job.agent or t("subagent") }}{% if job.member %} · {{ t("team member") }}{% endif %}</span>
     <span class="jobpanel__state">{{ job_state(job.state) }} · {{ job_duration(job.seconds) }}</span>
   </div>
   <p class="jobpanel__desc">{{ job.description }}</p>
-  {% if running %}
+  {% if running and not job.member %}
   <button class="btn btn--sm" type="button"
           hx-post="/api/chats/{{ chat.id }}/jobs/{{ job.id }}/stop"
           hx-target="#jobs-strip" hx-swap="outerHTML">
@@ -29,12 +32,13 @@
 
 <div class="jobpanel__turns" id="jobpanel-turns"
      {% if running %}
-     hx-get="/api/chats/{{ chat.id }}/jobs/{{ job.id }}?part=turns" hx-trigger="every 5s"
+     hx-get="{{ turns_url }}" hx-trigger="every 5s"
      hx-target="this" hx-swap="innerHTML" hx-sync="this:drop"
      {% endif %}>
   {% include "chat/_job_turns.html" %}
 </div>
 
+{% if not job.member %}
 <form class="jobpanel__send" id="jobpanel-send"
       hx-post="/api/chats/{{ chat.id }}/jobs/{{ job.id }}/send"
       hx-target="#jobpanel-body" hx-swap="innerHTML"
@@ -44,3 +48,4 @@
             placeholder="{{ t('Message the helper — it reads it at its next step; a finished one is started again with it') }}"></textarea>
   <button class="btn btn--sm" type="submit">{{ icon("send", "icon--sm") }} {{ t("Send") }}</button>
 </form>
+{% endif %}

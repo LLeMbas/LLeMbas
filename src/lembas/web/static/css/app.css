@@ -726,7 +726,7 @@ input.visually-hidden[type="checkbox"] {
 .inspector,
 .chat-settings,
 .jobpanel,
-.teampanel {
+.activity {
   width: var(--inspector-width);
   flex: none;
   display: flex;
@@ -863,7 +863,7 @@ input.visually-hidden[type="checkbox"] {
   .inspector,
   .chat-settings,
   .jobpanel,
-  .teampanel {
+  .activity {
     position: fixed;
     inset: 0 0 0 auto;
     z-index: var(--z-panel);
@@ -1954,11 +1954,11 @@ a.picker__option { text-decoration: none; }
     background: var(--bg);
     border-bottom: var(--border-w) solid var(--border);
   }
-  :root[data-window]:not([data-window=""]) :is(.inspector, .chat-settings, .terminal, .jobpanel, .teampanel) {
+  :root[data-window]:not([data-window=""]) :is(.inspector, .chat-settings, .terminal, .jobpanel, .activity) {
     top: calc(var(--header-height) + var(--safe-top));
   }
-  :root[data-window]:not([data-window=""]) :is(.inspector, .chat-settings, .terminal, .jobpanel, .teampanel) > .panel-head,
-  :root[data-window]:not([data-window=""]) :is(.inspector, .chat-settings, .terminal, .jobpanel, .teampanel) > * > .panel-head {
+  :root[data-window]:not([data-window=""]) :is(.inspector, .chat-settings, .terminal, .jobpanel, .activity) > .panel-head,
+  :root[data-window]:not([data-window=""]) :is(.inspector, .chat-settings, .terminal, .jobpanel, .activity) > * > .panel-head {
     height: var(--header-height);
     padding-top: 0;
   }

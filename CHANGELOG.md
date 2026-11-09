@@ -3,6 +3,37 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## Unreleased
+
+### Added
+
+- **Teams: agents that work together** (harness spec 3.2.0). A chat's agent can add **members**:
+  background agents that each own a part of the work, briefed by it and run in parallel, while it
+  leads them -- plans, splits the work, coordinates and reviews. Members message each other and
+  their manager in the team's **room** (to one by name, to several, or to all); a member's final
+  reply is its report to its manager, which wakes it. A member may lead an area with members of its
+  own, so a team can grow from a few agents side by side into a tree. An agent that leads a team
+  does not do the work itself: its calls that change things answer that it should give them to a
+  member, and its reading tools stay for review.
+- **Agents, fewest and most, in the chat settings** beside the effort: how many agents a chat's team
+  may have, its own agent included (1 to 4 by default; up to an instance cap of 32, set under
+  Admin → Agents). Your default for new chats is under Settings. Offered where subagents are on and
+  the chat's model serves at least two requests at once; with the most at 1 there is no team and no
+  helper. Changing it during a chat is told to the agent with your next message. Members beyond
+  what the model serves at once wait for a free slot and start in turn.
+- **The activity panel** beside a chat: what is in its context, by category, against the model's
+  window; the files the chat and its agents wrote, with lines added and removed; every background
+  agent -- a team's members as a tree, helpers and commands -- with what it was asked to do, its
+  state, how long it has run, its model, its latest step and what it is writing, a button to read
+  its whole conversation and one to stop it; the team's room; and the plan. The strip above the
+  message box sums them up ("3 agents working · 1 queued") and opens the panel; on a phone the
+  panel fills the screen.
+- **`/api/v2`**: a chat's `agents` setting; `GET /chats/{chat}/activity` (everything the panel
+  shows, with a `version`), `GET /chats/{chat}/activity/events` (an event whenever it changes),
+  `GET /chats/{chat}/agents/{kind}/{id}` (one agent and its conversation) and
+  `POST /chats/{chat}/agents/{kind}/{id}/stop`; `GET /chats/{chat}/team` and
+  `POST /chats/{chat}/team/{name}/stop`.
+
 ## 2.0.0-beta.4 — 2026-11-07
 
 The harness spec is **3.1.0**, pinned to LLeMbas CLI v2.0.0-beta.2.

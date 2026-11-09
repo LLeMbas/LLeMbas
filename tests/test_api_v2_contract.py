@@ -282,6 +282,79 @@ def _team() -> dict[str, object]:
     }
 
 
+def _activity() -> dict[str, object]:
+    """`GET /chats/{chat}/activity`, `GET .../agents/{kind}/{id}` and the
+    `activity` event: a member that leads with its member and a helper of
+    its own, a command of the lead's, the room, the context and an output."""
+    member = {
+        "kind": "member", "id": "baker", "type": "member", "name": "baker",
+        "role": "owns the oven", "brief": "Bake the waybread.", "state": "working",
+        "seconds": 95, "started": WHEN.isoformat(), "model": "local/qwen", "agent": "general",
+        "manager": "lead", "depth": 0, "lead": True,
+        "step": {"tool": "read", "label": "Read", "title": "recipe.md", "error": False,
+                 "running": True},
+        "text": "The dough needs…", "steps": 4, "tools": 3, "stoppable": True,
+        "transcript": True,
+        "children": [
+            {"kind": "member", "id": "wrapper", "type": "member", "name": "wrapper",
+             "role": "owns the leaves", "brief": "Wrap each cake.", "state": "queued",
+             "seconds": 0, "started": WHEN.isoformat(), "model": "local/qwen",
+             "agent": "general", "manager": "baker", "depth": 1, "lead": False,
+             "step": None, "text": "", "steps": 0, "tools": 0, "stoppable": True,
+             "transcript": True, "children": []},
+            {"kind": "job", "id": "baker:job1", "type": "subagent", "name": "baker:job1",
+             "role": "find mallorn leaves", "brief": "Where do mallorn grow?",
+             "state": "done", "seconds": 12, "started": WHEN.isoformat(),
+             "model": "local/qwen", "agent": "explore", "manager": "baker", "depth": 1,
+             "lead": False, "step": None, "text": "In Lothlórien.", "steps": 2, "tools": 1,
+             "stoppable": False, "transcript": True, "children": []},
+        ],
+    }
+    command = {
+        "kind": "job", "id": "job1", "type": "command", "name": "job1",
+        "role": "pytest", "brief": "pytest -q", "state": "working", "seconds": 30,
+        "started": WHEN.isoformat(), "model": "", "agent": "", "manager": "lead",
+        "depth": 0, "lead": False, "step": None, "text": "", "steps": 0, "tools": 0,
+        "stoppable": True, "transcript": False, "children": [],
+    }
+    summary = {"queued": 1, "working": 2, "waiting": 0, "done": 1, "stopped": 0, "error": 0,
+               "active": 3, "finished": 1, "total": 4}
+    view = {
+        "version": "0123456789abcdef",
+        "summary": summary,
+        "agents": [member, command],
+        "team": {k: v for k, v in _team().items()
+                 if k in ("min", "max", "size", "goal", "room", "cursor")},
+        "team_offered": True,
+        "context": {
+            "used": 41000, "limit": 128000, "percent": 32.0, "measured": True,
+            "threshold": 95, "tools_count": 24, "mcp_count": 2,
+            "categories": [
+                {"key": "messages", "tokens": 30000, "percent": 23.4},
+                {"key": "system", "tokens": 4000, "percent": 3.1},
+                {"key": "free", "tokens": 80600, "percent": 63.0},
+            ],
+        },
+        "outputs": [
+            {"path": "/home/frodo/recipe.md", "name": "recipe.md", "writes": 2,
+             "created": False, "added": 42, "removed": 6, "at": WHEN.isoformat(),
+             "url": "/files/view?path=/home/frodo/recipe.md"},
+        ],
+        "plan": None,
+    }
+    turns = [
+        {"role": "user", "text": "Bake the waybread.", "machine": False},
+        {"role": "assistant", "text": "Baking.", "tools": [
+            {"name": "read", "title": "recipe.md", "isError": False}],
+         "error": "", "running": True},
+    ]
+    return {
+        "activity": {"activity": serialise.activity(view)},
+        "agent": {"agent": serialise.agent(member), "transcript": turns},
+        "event_activity": {"version": "0123456789abcdef", "summary": summary},
+    }
+
+
 def _files() -> dict[str, object]:
     """`GET /files` and `GET /files/content`: a listing, a text file, a withheld one."""
     from lembas.services.file_ui import Opened, Row
@@ -342,6 +415,7 @@ def _shapes() -> dict[str, object]:
         "tool_show": {"calls": [serialise.tool_call(SHOW_TREE), serialise.tool_call(SHOW_DEVICE)]},
         "team": {"team": serialise.team(_team())},
         **_files(),
+        **_activity(),
     }
 
 

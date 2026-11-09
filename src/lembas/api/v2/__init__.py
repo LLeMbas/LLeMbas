@@ -24,7 +24,11 @@ and a chat no `knowledge_bases`; a tool call may carry a `show` card, whose
 file is `GET /chats/{chat}/show`. Added within 2: `GET /files` and
 `GET /files/content`, the person's files (`files.py`); a chat's `agents`
 (its team's size, readable and writable) and `GET /chats/{chat}/team`, the
-team's tree and room since a cursor (harness spec 3.2.0).
+team's tree and room since a cursor (harness spec 3.2.0); the activity panel --
+`GET /chats/{chat}/activity` (agents, room since a cursor, context, outputs,
+plan, `version`), `GET /chats/{chat}/activity/events` (an `activity` event
+whenever `version` moves), `GET /chats/{chat}/agents/{kind}/{id}` (one agent
+and its whole conversation) and `POST .../stop`.
 """
 
 from __future__ import annotations

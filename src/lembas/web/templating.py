@@ -174,14 +174,33 @@ templates.env.globals["job_duration"] = jobs_service.duration
 templates.env.globals["job_state"] = jobs_service.state_word
 
 
-def _team_state(state: str) -> str:
-    """A team agent's state in the reader's language (the Team panel)."""
-    from lembas.services import team_run
+def _agent_state(state: str) -> str:
+    """A background agent's state in the reader's language (the activity
+    panel: queued, working, waiting, done, stopped, failed)."""
+    from lembas.services import activity
 
-    return team_run.state_word(state)
+    return activity.state_word(state)
 
 
-templates.env.globals["team_state"] = _team_state
+def _context_word(key: str) -> str:
+    """A context category's name in the reader's language."""
+    from lembas.services import activity
+
+    return activity.context_word(key)
+
+
+templates.env.globals["agent_state"] = _agent_state
+templates.env.globals["context_word"] = _context_word
+
+
+def _summary_text(counts: dict) -> str:
+    from lembas.services import activity
+
+    return activity.summary_text(counts)
+
+
+templates.env.globals["summary_text"] = _summary_text
+
 
 def asset(path: str) -> str:
     """A static asset's URL, with the release stamped into it.
