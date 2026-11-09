@@ -15,7 +15,8 @@ in `src/` knows it exists.
 clicks selectors once the page has loaded (a popover, a side panel);
 `SHOOT_FILL=#sel=/path,…` puts the fragment served at `/path` inside `#sel`
 first (what htmx would have fetched into it -- the helper panel's body);
-`SHOOT_TAG` names a run; `/chat/<SHOOT_DEVICE_CHAT>` is the linked device's chat
+`SHOOT_TAG` names a run; `SHOOT_TEAM=1` seeds a team at work in the chat (and
+`SHOOT_ONE_REQUEST=1` puts it on a one-request model); `/chat/<SHOOT_DEVICE_CHAT>` is the linked device's chat
 with two fake background jobs, for the jobs strip and the helper panel.
 
 Not a test runner: an instrument. It renders a page through TestClient, rewrites
@@ -528,6 +529,10 @@ def _seed_team() -> None:
 
         for model in db.query(Model).filter(Model.model_id == "gemma4-moe"):
             model.context_length = 131072
+            # `SHOOT_ONE_REQUEST=1`: the chat's model serves one request at a
+            # time, so the Subagents setting says they need a named model.
+            if os.environ.get("SHOOT_ONE_REQUEST"):
+                model.parallel, model.single_session = 1, True
         db.add(TeamRow(lead_chat_id=SHOOT_CHAT, goal="A loader that reads every config "
                        "format the project has", seq=4, data_json={}))
         members = [
