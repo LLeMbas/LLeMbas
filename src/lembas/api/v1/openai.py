@@ -101,11 +101,16 @@ def served_id(model: Model) -> str:
 
 
 def served_models(db: DBSession, user: User) -> list[Served]:
-    from lembas.services import chat as chat_service
+    """Every model this account may reach, embedding models included: this API
+    serves `/v1/embeddings` too, and refuses a chat with one by its kind. (The
+    chat pages' `available_models` leaves them out, which is right there.)"""
+    from lembas.security import permissions
 
     return [
         Served(id=served_id(model), model=model, connection=model.connection)
-        for model in chat_service.available_models(db, user)
+        for model in sorted(
+            permissions.models_visible_to(db, user), key=lambda m: (m.position, m.model_id)
+        )
     ]
 
 

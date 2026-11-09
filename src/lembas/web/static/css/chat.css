@@ -2477,6 +2477,8 @@
 .jobs__summary:hover { color: var(--ink); }
 .jobs__summary-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* On a phone the activity panel is the whole screen: its fixed width beside
+   a chat would leave the chat no room at all. */
 @media (max-width: 48rem) {
   .activity { width: 100vw; }
 }
