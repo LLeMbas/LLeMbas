@@ -318,6 +318,18 @@ def build_client():
                     capabilities_json={"reasoning": name == "gemma4-moe", "tools": True},
                 )
             )
+        # And one whose thinking can be switched off, with a single effort: the
+        # composer draws its Thinking switch instead of the slider.
+        db.add(
+            Model(
+                connection_id=connection.id,
+                model_id="qwen-switch",
+                display_name="qwen-switch",
+                capabilities_json={"reasoning": True, "tools": True},
+                reasoning_efforts=["medium"],
+                thinking_switch=True,
+            )
+        )
 
     # A second data group with a hosted model in it, a memory in each group, a
     # few files in the person's home and a chat with a fixed id (`SHOOT_CHAT`).
