@@ -93,6 +93,42 @@
     </div>
   </section>
 
+  <section class="card">
+    <h2 class="card__title">{{ t("Models for scheduled work") }}</h2>
+    <p class="card__lede">{{ t("A run takes its schedule's own model when it is free, else the first free one of these, in this order. A model is free when it is hosted, when it has a slot nobody is using, or -- on a server that holds one model at a time -- when nothing is being answered there. When none is free, the run waits and tries again. People can untick any of these for their own runs.") }}</p>
+    {% if model_rows %}
+    <ul class="schedule-models">
+      {% for row in model_rows %}
+      <li class="schedule-models__row">
+        <input type="hidden" name="model_ids" value="{{ row.model_id }}">
+        <label class="checkbox schedule-models__name">
+          <input type="checkbox" name="models" value="{{ row.model_id }}" {{ 'checked' if row.used }}>
+          <span>{{ row.label }}</span>
+        </label>
+        <span class="text-xs faint schedule-models__note">
+          {%- if row.one_at_a_time %}{{ t("one model at a time") }}{% elif row.parallel %}{{ t("%(n)s at once", n=row.parallel) }}{% else %}{{ t("no stated limit") }}{% endif -%}
+        </span>
+        <input class="input schedule-models__order" type="number" name="order" min="1" max="99"
+               value="{{ row.order }}" aria-label="{{ t('Order') }}: {{ row.label }}">
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="field__hint">{{ t("Tick the models scheduled work may use and number them in the order they are tried. With none ticked, a run uses its own model only.") }}</p>
+    {% else %}
+    <p class="text-sm faint">{{ t("There are no chat models yet.") }}</p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("History") }}</h2>
+    <div class="field">
+      <label class="field__label" for="runs-days">{{ t("Keep each run's record for") }}</label>
+      <input class="input u-w-field-sm" type="number" id="runs-days" name="runs_days" min="1" max="3650"
+             value="{{ values.runs_days }}">
+      <p class="field__hint">{{ t("Days. Older runs are forgotten, and the chats of fresh runs with them; a schedule's current chat is kept.") }}</p>
+    </div>
+  </section>
+
   <div class="btn-row">
     <button class="btn btn--primary" type="submit">{{ t("Save") }}</button>
   </div>

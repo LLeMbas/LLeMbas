@@ -56,18 +56,6 @@
   #}
   {% include "schedules/_form.html" %}
 
-  {% if models %}
-  <div class="field">
-    <label class="field__label" for="schedule-model">{{ t("Model") }}</label>
-    <select class="select" id="schedule-model" name="model_id">
-      <option value="">{{ t("Whatever is default at the time") }}</option>
-      {% for model in models %}
-      <option value="{{ model.model_id }}">{{ model.display_name }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  {% endif %}
-
   <div class="btn-row">
     <button class="btn btn--primary" type="submit">
       {{ icon("clock", "icon--sm") }} {{ t("Schedule it") }}

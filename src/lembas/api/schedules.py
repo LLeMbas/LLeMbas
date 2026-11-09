@@ -14,7 +14,7 @@ compile step in Phase 3. Clearing `task.schedule_compile` must switch off the
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
@@ -22,10 +22,23 @@ from fastapi.responses import RedirectResponse, Response
 
 from lembas.api.deps import Db, RequiredUser, require_permission
 from lembas.api.pages import sidebar_context
-from lembas.db.models import TARGET_CHAT, TARGET_REPORT, Schedule
+from lembas.db.models import (
+    CATCH_UP_ONE,
+    CATCH_UP_SKIP,
+    MODE_CONTINUE,
+    MODE_FRESH,
+    NOTIFY_ALWAYS,
+    NOTIFY_MATTERS,
+    NOTIFY_NEVER,
+    TARGET_CHAT,
+    TARGET_REPORT,
+    Schedule,
+    ScheduleRun,
+)
 from lembas.services import chat as chat_service
 from lembas.services import schedules as schedules_service
-from lembas.services.schedule import clock, runner
+from lembas.services.schedule import clock, notify, runner, runs
+from lembas.services.schedule import models as models_service
 from lembas.services.schedule import rule as rule_service
 from lembas.web.i18n import t
 from lembas.web.templating import render
@@ -85,6 +98,15 @@ def _rule_from_form(form) -> dict:
         days = str(form.get("month_days") or "").strip()
         if days:
             raw["at"]["days"] = [int(d) for d in days.split(",") if d.strip().isdigit()]
+        # "Its place in the month": the second Monday, the last Friday, the
+        # last day. Replaces the weekdays and dates (`rule.validate` drops them).
+        nth = str(form.get("nth_n") or "").strip()
+        if nth.lstrip("-").isdigit() and int(nth):
+            weekday = str(form.get("nth_weekday") or "").strip()
+            if weekday == "day":
+                raw["at"]["nth"] = [{"n": -1}]
+            elif weekday.isdigit():
+                raw["at"]["nth"] = [{"n": int(nth), "weekday": int(weekday)}]
 
     try:
         count = int(form.get("count") or 0)
@@ -116,6 +138,7 @@ def _form_values(
         values.update(
             title=compiled.title, instruction=compiled.instruction, target=compiled.target
         )
+        values.update(_settings_defaults(None, compiled.rule))
         return values
     values = _rule_defaults_from((schedule.rule_json if schedule else {}) or {})
     values.update(
@@ -123,7 +146,48 @@ def _form_values(
         instruction=schedule.instruction if schedule else "",
         target=schedule.target if schedule else TARGET_CHAT,
     )
+    values.update(_settings_defaults(schedule, (schedule.rule_json if schedule else {}) or {}))
     return values
+
+
+def _settings_defaults(schedule: Schedule | None, rule: dict) -> dict:
+    """The run settings the form shows: the stored ones, or the defaults."""
+    if schedule is None:
+        return {
+            "model_id": "",
+            "notify": notify.default_policy(rule) if rule else "",
+            "mode": MODE_FRESH,
+            "catch_up": CATCH_UP_ONE,
+            "grace_minutes": "",
+            "effort": "",
+            "agents": "",
+            "tools": list(runs.SAFE_TOOLS),
+        }
+    return {
+        "model_id": schedule.model_id or "",
+        "notify": notify.policy(schedule.notify, rule),
+        "mode": schedule.mode or MODE_FRESH,
+        "catch_up": schedule.catch_up or CATCH_UP_ONE,
+        "grace_minutes": schedule.grace_minutes or "",
+        "effort": schedule.effort or "",
+        "agents": schedule.agents or "",
+        "tools": list(runs.tools_for(schedule)),
+    }
+
+
+def _settings_from_form(form) -> dict:
+    """The run settings out of the form, for `schedules.apply_settings`."""
+    settings = {
+        "mode": str(form.get("mode") or ""),
+        "catch_up": str(form.get("catch_up") or ""),
+        "grace_minutes": str(form.get("grace_minutes") or ""),
+        "effort": str(form.get("effort") or ""),
+        "agents": str(form.get("agents") or ""),
+        "tools": [str(t) for t in form.getlist("tools")],
+    }
+    if form.get("notify"):
+        settings["notify"] = str(form.get("notify"))
+    return settings
 
 
 def _rule_defaults_from(rule: dict) -> dict:
@@ -150,10 +214,15 @@ def _rule_defaults_from(rule: dict) -> dict:
         if minutes and not minutes % size:
             unit, amount = name, minutes // size
             break
+    nth = (at.get("nth") or [{}])[0]
     return {
         "repeat": repeat,
         "every_unit": unit,
         "every_amount": amount or 1,
+        "nth_n": nth.get("n", "") if nth else "",
+        "nth_weekday": (
+            "day" if nth and "weekday" not in nth else nth.get("weekday", "") if nth else ""
+        ),
         "weekdays": at.get("weekdays") or [],
         "times": ", ".join(at.get("times") or []),
         "month_days": ", ".join(str(d) for d in at.get("days") or []),
@@ -161,19 +230,110 @@ def _rule_defaults_from(rule: dict) -> dict:
     }
 
 
+def offered_notify() -> tuple[tuple[str, str], ...]:
+    return (
+        (NOTIFY_MATTERS, t("When it matters")),
+        (NOTIFY_ALWAYS, t("Every run")),
+        (NOTIFY_NEVER, t("Never")),
+    )
+
+
+def offered_modes() -> tuple[tuple[str, str], ...]:
+    return (
+        (MODE_FRESH, t("A fresh chat each time")),
+        (MODE_CONTINUE, t("One chat that keeps growing")),
+    )
+
+
+def offered_catch_up() -> tuple[tuple[str, str], ...]:
+    return (
+        (CATCH_UP_ONE, t("Run once when it can")),
+        (CATCH_UP_SKIP, t("Skip it")),
+    )
+
+
+def offered_tools() -> tuple[tuple[str, str], ...]:
+    """The tool families a schedule may switch on, with what each is called on
+    the page. The safe ones first; scheduling, questions and Python never."""
+    return (
+        ("files", t("Files")),
+        ("recall", t("Earlier results")),
+        ("search", t("Web search")),
+        ("fetch", t("Reading web pages")),
+        ("memory", t("Memory")),
+        ("skills", t("Skills")),
+        ("plan", t("Planning")),
+        ("image", t("Pictures")),
+        ("custom", t("Custom tools")),
+        ("mcp", t("MCP servers")),
+        ("subagent", t("Helpers")),
+    )
+
+
+def _levels(models) -> list[str]:
+    """Every level any of these models offers, in the canonical order."""
+    found: set[str] = set()
+    for model in models:
+        found.update(chat_service.levels_for(model).offered)
+    order = (chat_service.LEVEL_OFF, *chat_service.EFFORTS)
+    return [level for level in order if level in found]
+
+
+def _team_offered(db, user, models) -> bool:
+    from lembas.services import team_run
+
+    return any(
+        team_run.subagents_allowed(db, user, m)
+        and (team_run.model_parallel(m) or 0) >= 2
+        for m in models
+    )
+
+
 def _context(db, user, schedule: Schedule | None, *, error: str = "") -> dict:
+    models = models_service.offered_models(db, user)
     return {
         "section": "scheduled",
         "schedule": schedule,
         "targets": offered_targets(),
+        "notify_choices": offered_notify(),
+        "mode_choices": offered_modes(),
+        "catch_up_choices": offered_catch_up(),
+        "tool_choices": offered_tools(),
         "weekday_names": list(
             enumerate(("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
         ),
+        "weekday_long": list(enumerate((
+            t("Monday"), t("Tuesday"), t("Wednesday"), t("Thursday"),
+            t("Friday"), t("Saturday"), t("Sunday"),
+        ))),
         "form": _form_values(schedule=schedule),
         "error": error,
-        "models": chat_service.available_models(db, user),
+        "models": models,
+        "levels": _levels(models),
+        "team_offered": _team_offered(db, user, models),
         "timezone": clock.name_for(user) or str(clock.server_zone()),
+        "preview": _preview_for(schedule.rule_json if schedule else {}, user, schedule)
+        if schedule
+        else None,
         **sidebar_context(db, user),
+    }
+
+
+def _preview_for(rule: dict, user, schedule: Schedule | None = None) -> dict:
+    """The rule in words and its next five runs, in the reader's zone: what
+    every form shows before saving."""
+    zone = clock.zone_for(user)
+    clean = rule_service.validate(rule or {})
+    after = datetime.now(UTC)
+    fired = 0
+    if schedule is not None and schedule.next_fire_at and schedule.enabled:
+        after = clock.as_utc(schedule.next_fire_at) - timedelta(microseconds=1)
+        fired = schedule.fired_count or 0
+    nexts = rule_service.upcoming(clean, now=after, zone=zone, fired=fired) if clean else []
+    return {
+        "summary": rule_service.describe(clean, zone=zone) if clean else "",
+        "next": [m.astimezone(zone) for m in nexts],
+        "valid": bool(clean and nexts),
     }
 
 
@@ -188,6 +348,7 @@ def listed(db, user) -> list[dict]:
         db.scalars(schedules_service.visible(user).order_by(Schedule.created_at.desc()))
     )
     zone = clock.zone_for(user)
+    latest = runs.latest_by_schedule(db, [row.id for row in rows])
     return [
         {
             "row": row,
@@ -195,9 +356,46 @@ def listed(db, user) -> list[dict]:
             "next": clock.as_utc(row.next_fire_at).astimezone(zone)
             if row.next_fire_at
             else None,
+            "last": latest.get(row.id),
+            "last_label": status_label(latest[row.id].status) if row.id in latest else "",
+            "last_badge": status_badge(latest[row.id].status) if row.id in latest else "",
         }
         for row in rows
     ]
+
+
+def status_label(status: str) -> str:
+    """A run's status, as the history and the list say it."""
+    return {
+        "running": t("Running"),
+        "waiting": t("Waiting"),
+        "ok": t("Done"),
+        "silent": t("Nothing new"),
+        "failed": t("Failed"),
+        "skipped": t("Skipped"),
+        "missed": t("Missed"),
+    }.get(status, status)
+
+
+def status_badge(status: str) -> str:
+    """The badge variant a status is drawn in."""
+    return {
+        "ok": "badge--success",
+        "failed": "badge--danger",
+        "skipped": "badge--warning",
+        "missed": "badge--warning",
+        "waiting": "badge--warning",
+        "running": "badge--leaf",
+    }.get(status, "")
+
+
+def timing_label(timing: str) -> str:
+    return {
+        "on_time": t("on time"),
+        "late": t("late"),
+        "catch_up": t("caught up"),
+        "manual": t("run by hand"),
+    }.get(timing, timing)
 
 
 @router.get("/scheduled")
@@ -270,6 +468,74 @@ async def describe_schedule(request: Request, db: Db, user: RequiredUser):
             "summary": rule_service.describe(compiled.rule, zone=clock.zone_for(user))
             if compiled.rule
             else "",
+            "preview": _preview_for(compiled.rule, user) if compiled.rule else None,
+        },
+    )
+
+
+@router.post("/api/schedules/preview")
+async def preview_schedule(request: Request, db: Db, user: RequiredUser):
+    """The form's rule read back -- in words, and its next five runs -- before
+    anything is saved. A fragment, swapped into the form."""
+    form = await request.form()
+    return render(
+        request,
+        "schedules/_preview.html",
+        {"preview": _preview_for(_rule_from_form(form), user)},
+    )
+
+
+@router.post("/api/schedules/models")
+async def choose_models(request: Request, db: Db, user: RequiredUser) -> Response:
+    """This person's narrowing of the scheduling models (Settings → Scheduled)."""
+    form = await request.form()
+    offered = {m.model_id for m in models_service.offered_models(db, user)}
+    chosen = [str(m) for m in form.getlist("models") if str(m) in offered]
+    user.settings_json = {**(user.settings_json or {}), models_service.PERSON_KEY: chosen}
+    db.commit()
+    return RedirectResponse(LIST_URL + "&saved=1", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/scheduled/{schedule_id}")
+async def show_schedule(
+    request: Request,
+    db: Db,
+    user: RequiredUser,
+    schedule_id: str,
+    run: str = "",
+    before: str = "",
+):
+    """One schedule: when, how, and what happened each time (the history)."""
+    schedule = schedules_service.get(db, schedule_id, user)
+    if schedule is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, t("That schedule is not available."))
+    page, more = runs.history(db, schedule, limit=20, before=before)
+    zone = clock.zone_for(user)
+    picked = next((r for r in page if r.id == run), None)
+    if run and picked is None:
+        found = db.get(ScheduleRun, run)
+        picked = found if found is not None and found.schedule_id == schedule.id else None
+        if picked is not None:
+            page = [picked, *page]
+    return render(
+        request,
+        "schedules/show.html",
+        {
+            **_context(db, user, schedule),
+            "runs": page,
+            "more": more,
+            "picked": picked.id if picked is not None else "",
+            "zone": zone,
+            "as_local": lambda moment: clock.as_utc(moment).astimezone(zone) if moment else None,
+            "status_label": status_label,
+            "status_badge": status_badge,
+            "timing_label": timing_label,
+            "notify_label": dict(offered_notify()),
+            "mode_label": dict(offered_modes()),
+            "catch_up_label": dict(offered_catch_up()),
+            "tool_label": dict(offered_tools()),
+            "target_label": dict(offered_targets()),
+            "tools_on": runs.tools_for(schedule),
         },
     )
 
@@ -298,6 +564,7 @@ async def create_schedule(request: Request, db: Db, user: RequiredUser) -> Respo
             rule=_rule_from_form(form),
             target=str(form.get("target") or TARGET_CHAT),
             model_id=str(form.get("model_id") or ""),
+            settings=_settings_from_form(form),
         )
     except schedules_service.ScheduleError as error:
         # Back to the form with the reason, rather than a 400 nobody can act on.
@@ -305,7 +572,7 @@ async def create_schedule(request: Request, db: Db, user: RequiredUser) -> Respo
             f"/scheduled/new?error={quote(error.translated())}",
             status_code=status.HTTP_303_SEE_OTHER,
         )
-    return RedirectResponse(f"/chat/{schedule.chat_id}", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(f"/scheduled/{schedule.id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/api/schedules/{schedule_id}")
@@ -325,18 +592,32 @@ async def save_schedule(
             instruction=str(form.get("instruction") or ""),
             rule=_rule_from_form(form),
             target=str(form.get("target") or TARGET_CHAT),
+            model_id=str(form.get("model_id") or ""),
+            settings=_settings_from_form(form),
         )
     except schedules_service.ScheduleError as error:
         return RedirectResponse(
             f"/scheduled/{schedule_id}/edit?error={quote(error.translated())}",
             status_code=status.HTTP_303_SEE_OTHER,
         )
-    return RedirectResponse(f"/chat/{schedule.chat_id}", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(f"/scheduled/{schedule.id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+def _back(where: str, fallback: str) -> str:
+    """Where a form asked to go back to: one of our own pages, never elsewhere."""
+    where = (where or "").strip()
+    if where.startswith(("/scheduled/", "/settings", "/chat/")) and "//" not in where:
+        return where
+    return fallback
 
 
 @router.post("/api/schedules/{schedule_id}/toggle")
 async def toggle_schedule(
-    db: Db, user: RequiredUser, schedule_id: str, enabled: str = Form("")
+    db: Db,
+    user: RequiredUser,
+    schedule_id: str,
+    enabled: str = Form(""),
+    back: str = Form(""),
 ) -> Response:
     schedule = schedules_service.get(db, schedule_id, user)
     if schedule is None:
@@ -345,8 +626,19 @@ async def toggle_schedule(
         db, schedule, owner=user, enabled=enabled not in ("", "0", "false")
     )
     return RedirectResponse(
-        f"/chat/{schedule.chat_id}", status_code=status.HTTP_303_SEE_OTHER
+        _back(back, f"/scheduled/{schedule.id}"), status_code=status.HTTP_303_SEE_OTHER
     )
+
+
+@router.post("/api/schedules/{schedule_id}/pause", status_code=status.HTTP_204_NO_CONTENT)
+async def pause_schedule(db: Db, user: RequiredUser, schedule_id: str) -> Response:
+    """Pause, with nothing to show: a notification's Pause action, sent by the
+    service worker with the person's cookie."""
+    schedule = schedules_service.get(db, schedule_id, user)
+    if schedule is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, t("That schedule is not available."))
+    schedules_service.set_enabled(db, schedule, owner=user, enabled=False)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/api/schedules/{schedule_id}/run")
@@ -359,13 +651,13 @@ async def run_schedule(db: Db, user: RequiredUser, schedule_id: str) -> Response
     schedule = schedules_service.get(db, schedule_id, user)
     if schedule is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, t("That schedule is not available."))
-    chat_id = schedule.chat_id
-    # Fired, not awaited. `fire` follows the run to its delivery -- for a report
-    # schedule that is the whole reply, up to an hour -- and a browser request
-    # held open that long is a page that appears to hang. The reply is in the
-    # chat the redirect lands on, and the strip there says when it ran.
-    runner.fire_later(schedule_id)
-    return RedirectResponse(f"/chat/{chat_id}", status_code=status.HTTP_303_SEE_OTHER)
+    # Started, not awaited: a run is followed to its end, and a browser request
+    # held open that long is a page that appears to hang. The schedule's page
+    # shows the run from the moment it exists.
+    run_id = runner.start_now(schedule.id)
+    return RedirectResponse(
+        f"/scheduled/{schedule.id}?run={run_id}", status_code=status.HTTP_303_SEE_OTHER
+    )
 
 
 @router.post("/api/schedules/{schedule_id}/delete")

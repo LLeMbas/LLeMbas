@@ -1,0 +1,14 @@
+{#
+  A rule read back before it is saved: in words, and the next five runs, in the
+  reader's own zone. `preview` from `api/schedules.py:_preview_for`.
+#}
+{% if preview.valid %}
+<p class="schedule-preview__summary"><strong>{{ preview.summary }}</strong></p>
+<ol class="schedule-preview__next">
+  {% for moment in preview.next %}
+  <li>{{ stamp(moment, "%a %-d %b %Y, %H:%M") }}</li>
+  {% endfor %}
+</ol>
+{% else %}
+<p class="schedule-preview__summary faint">{{ t("This does not describe a time anything could run at yet.") }}</p>
+{% endif %}

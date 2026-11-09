@@ -827,11 +827,9 @@ MESSAGES: dict[str, str] = {
     "Set something to run later — a daily summary, a check every Monday morning, a reminder in an hour.": "Programmez quelque chose pour plus tard — un résumé quotidien, une vérification chaque lundi matin, un rappel dans une heure.",
     "Work that runs on its own, whether or not you are here. Each one has its own chat, and replies into it every time it comes round.": "Du travail qui s'exécute tout seul, que vous soyez là ou non. Chaque planification a sa propre conversation, et y répond à chaque fois qu'elle revient.",
     "files a report": "dépose un rapport",
-    "paused": "en pause",
     "set up for you": "configurée pour vous",
     "Every Monday morning, check whether the build is passing and write me a report.": "Chaque lundi matin, vérifie si le build passe et écris-moi un rapport.",
     "Say it in your own words": "Dites-le avec vos propres mots",
-    "Whatever is default at the time": "Ce qui sera par défaut à ce moment-là",
     "%(name)s loses access at once, and has to log in again.": "%(name)s perd l'accès immédiatement et doit se reconnecter.",
     "A group of your own, for keeping one provider away from the rest of your data. Nobody else can see it.": "Un groupe à vous, pour tenir un fournisseur à l'écart du reste de vos données. Personne d'autre ne peut le voir.",
     "A register, not a character: how answers sound, never what they say.": "Un registre, pas un personnage : la façon dont les réponses sonnent, jamais ce qu'elles disent.",
@@ -2462,3 +2460,88 @@ MESSAGES["This model offers no choice of effort. An administrator sets what it t
 MESSAGES['Effort is %(level)s. /effort %(levels)s.'] = "L'effort est %(level)s. /effort %(levels)s."
 MESSAGES['“%(level)s” is not a level this model offers. Try %(levels)s.'] = "« %(level)s » n'est pas un niveau que ce modèle propose. Essayez %(levels)s."
 MESSAGES['Thinking switched off.'] = 'Réflexion désactivée.'
+MESSAGES['Models for scheduled work'] = 'Modèles pour les tâches planifiées'
+MESSAGES["A run takes its schedule's own model when it is free, else the first free one of these, in this order. A model is free when it is hosted, when it has a slot nobody is using, or -- on a server that holds one model at a time -- when nothing is being answered there. When none is free, the run waits and tries again. People can untick any of these for their own runs."] = "Une exécution prend le modèle propre à sa planification quand il est libre, sinon le premier libre parmi ceux-ci, dans cet ordre. Un modèle est libre quand il est hébergé, quand il a un emplacement que personne n'utilise, ou -- sur un serveur qui ne garde qu'un modèle à la fois -- quand rien n'y est en train de répondre. Quand aucun n'est libre, l'exécution attend et réessaie. Chacun peut en décocher n'importe lequel pour ses propres exécutions."
+MESSAGES['one model at a time'] = 'un modèle à la fois'
+MESSAGES['%(n)s at once'] = '%(n)s à la fois'
+MESSAGES['no stated limit'] = 'aucune limite indiquée'
+MESSAGES['Order'] = 'Ordre'
+MESSAGES['Tick the models scheduled work may use and number them in the order they are tried. With none ticked, a run uses its own model only.'] = "Cochez les modèles que les tâches planifiées peuvent utiliser et numérotez-les dans l'ordre où ils sont essayés. Si aucun n'est coché, une exécution n'utilise que son propre modèle."
+MESSAGES['There are no chat models yet.'] = "Il n'y a pas encore de modèles de conversation."
+MESSAGES['History'] = 'Historique'
+MESSAGES["Keep each run's record for"] = 'Conserver la trace de chaque exécution pendant'
+MESSAGES["Days. Older runs are forgotten, and the chats of fresh runs with them; a schedule's current chat is kept."] = "Jours. Les exécutions plus anciennes sont oubliées, et avec elles les conversations des exécutions séparées ; la conversation actuelle d'une planification est conservée."
+MESSAGES['Or by its place in the month'] = 'Ou par sa place dans le mois'
+MESSAGES['Not used'] = 'Non utilisé'
+MESSAGES['First'] = 'Premier'
+MESSAGES['Second'] = 'Deuxième'
+MESSAGES['Third'] = 'Troisième'
+MESSAGES['Fourth'] = 'Quatrième'
+MESSAGES['Fifth'] = 'Cinquième'
+MESSAGES['Last'] = 'Dernier'
+MESSAGES['Day'] = 'Jour'
+MESSAGES['day of the month'] = 'jour du mois'
+MESSAGES['The second Monday, the last Friday, the last day of the month. When set, it replaces the days and dates above.'] = "Le deuxième lundi, le dernier vendredi, le dernier jour du mois. S'il est défini, il remplace les jours et les dates ci-dessus."
+MESSAGES['Show the next runs'] = 'Afficher les prochaines exécutions'
+MESSAGES['How it runs'] = "Comment elle s'exécute"
+MESSAGES['The first free one of your scheduling models'] = 'Le premier libre de vos modèles de planification'
+MESSAGES['Tried first. When it is busy answering someone, the next free model runs it instead.'] = "Essayé en premier. S'il est occupé à répondre à quelqu'un, le modèle libre suivant s'en charge à sa place."
+MESSAGES['Tell me'] = 'Me prévenir'
+MESSAGES['As usual for this kind of schedule'] = "Comme d'habitude pour ce type de planification"
+MESSAGES['When it matters: a run with nothing new says so and does not notify you.'] = "Quand c'est important : une exécution sans rien de nouveau le dit et ne vous prévient pas."
+MESSAGES['Each run'] = 'Chaque exécution'
+MESSAGES['A fresh chat is told what the previous run found.'] = "Une nouvelle conversation apprend ce que l'exécution précédente a trouvé."
+MESSAGES["The model's own"] = 'Celle du modèle'
+MESSAGES['Used when the model that runs it offers it.'] = "Utilisé quand le modèle qui l'exécute le propose."
+MESSAGES['When a run was missed'] = 'Quand une exécution a été manquée'
+MESSAGES['A run up to half its period late still runs; past that, this decides.'] = "Une exécution en retard d'au plus la moitié de sa période a encore lieu ; au-delà, ceci décide."
+MESSAGES['Still run when late by up to'] = "Exécuter encore avec un retard jusqu'à"
+MESSAGES['automatic'] = 'automatique'
+MESSAGES['Minutes. Empty: half the time between runs, from 2 minutes to 2 hours.'] = 'Minutes. Vide : la moitié du temps entre les exécutions, de 2 minutes à 2 heures.'
+MESSAGES['Agents working on a run, the lead included, where its model can serve more than one request at once.'] = "Agents travaillant sur une exécution, le principal compris, quand son modèle peut servir plus d'une requête à la fois."
+MESSAGES['Tools a run may use'] = "Outils qu'une exécution peut utiliser"
+MESSAGES['Nobody is there to answer a question during a run, and a run never sets up schedules of its own.'] = "Personne n'est là pour répondre à une question pendant une exécution, et une exécution ne crée jamais ses propres planifications."
+MESSAGES['Last run'] = 'Dernière exécution'
+MESSAGES['Paused'] = 'En pause'
+MESSAGES['This does not describe a time anything could run at yet.'] = "Ceci ne décrit pas encore un moment où quoi que ce soit pourrait s'exécuter."
+MESSAGES['%a %-d %b %Y, %H:%M'] = '%A %-d %B %Y, %H:%M'
+MESSAGES['Times are %(timezone)s.'] = 'Heures en %(timezone)s.'
+MESSAGES['It has not run yet.'] = "Elle ne s'est pas encore exécutée."
+MESSAGES['missed ×%(n)s'] = 'manquées ×%(n)s'
+MESSAGES['%(name)s was busy'] = '%(name)s était occupé'
+MESSAGES['tries again at %(when)s'] = 'nouvel essai à %(when)s'
+MESSAGES['Open the result'] = 'Ouvrir le résultat'
+MESSAGES['Open the report'] = 'Ouvrir le rapport'
+MESSAGES['Older runs'] = 'Exécutions plus anciennes'
+MESSAGES['%H:%M'] = '%H:%M'
+MESSAGES['A run takes its own model when it is free, else the first free one of these, in this order. Untick the ones your runs should not use.'] = 'Une exécution prend son propre modèle quand il est libre, sinon le premier libre parmi ceux-ci, dans cet ordre. Décochez ceux que vos exécutions ne doivent pas utiliser.'
+MESSAGES['When it matters'] = "Quand c'est important"
+MESSAGES['Every run'] = 'À chaque exécution'
+MESSAGES['A fresh chat each time'] = 'Une nouvelle conversation à chaque fois'
+MESSAGES['One chat that keeps growing'] = "Une seule conversation qui s'allonge"
+MESSAGES['Run once when it can'] = "L'exécuter une fois dès que possible"
+MESSAGES['Skip it'] = "L'ignorer"
+MESSAGES['Earlier results'] = 'Résultats précédents'
+MESSAGES['Reading web pages'] = 'Lecture de pages web'
+MESSAGES['Pictures'] = 'Images'
+MESSAGES['Monday'] = 'lundi'
+MESSAGES['Tuesday'] = 'mardi'
+MESSAGES['Wednesday'] = 'mercredi'
+MESSAGES['Thursday'] = 'jeudi'
+MESSAGES['Friday'] = 'vendredi'
+MESSAGES['Saturday'] = 'samedi'
+MESSAGES['Sunday'] = 'dimanche'
+MESSAGES['Nothing new'] = 'Rien de nouveau'
+MESSAGES['Skipped'] = 'Ignorée'
+MESSAGES['Missed'] = 'Manquée'
+MESSAGES['on time'] = "à l'heure"
+MESSAGES['late'] = 'en retard'
+MESSAGES['caught up'] = 'rattrapée'
+MESSAGES['run by hand'] = 'lancée à la main'
+MESSAGES['Say what you want to happen.'] = "Dites ce que vous voulez qu'il se passe."
+MESSAGES['That run is not available.'] = "Cette exécution n'est pas disponible."
+MESSAGES['A scheduled task failed 3 times in a row. Pause it?'] = 'Une tâche planifiée a échoué 3 fois de suite. La mettre en pause ?'
+MESSAGES['A scheduled task failed.'] = 'Une tâche planifiée a échoué.'
+MESSAGES['A scheduled task has finished.'] = 'Une tâche planifiée est terminée.'
+MESSAGES['That model is not one you can use.'] = "Ce modèle n'est pas l'un de ceux que vous pouvez utiliser."
+MESSAGES['Planning'] = 'Planification'

@@ -968,3 +968,163 @@ a.tabs__tab { text-decoration: none; }
 .download-progress::-webkit-progress-bar { background: var(--bg-sunken); }
 .download-progress::-webkit-progress-value { background: var(--leaf); }
 .download-progress::-moz-progress-bar { background: var(--leaf); }
+
+/* --- Scheduled ---------------------------------------------------------------
+   The list, a schedule's page and the run settings in its form.
+
+   The run settings are a grid of fields on one shared track: each field is a
+   subgrid spanning three rows (label, control, hint) and emits all three, so
+   a label that wraps in one language and not in another moves nothing beside
+   it. The track gives up its minimum on a phone rather than the page. */
+.schedule-settings,
+.schedule-tools {
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--sp-4);
+  margin: 0 0 var(--sp-4);
+  min-width: 0;
+}
+.schedule-settings {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--w-field)), 1fr));
+  column-gap: var(--sp-4);
+  row-gap: var(--sp-2);
+}
+.schedule-settings > legend,
+.schedule-tools > legend { padding: 0 var(--sp-2); }
+.schedule-settings > .field {
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: span 3;
+  align-content: start;
+  min-width: 0;
+  margin: 0;
+}
+.schedule-settings > .field > .field__label,
+.schedule-settings > .field > .field__hint { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.schedule-settings > .field > .input,
+.schedule-settings > .field > .select { width: 100%; min-width: 0; align-self: start; }
+
+.schedule-preview { min-width: 0; }
+.schedule-preview__summary { margin: 0 0 var(--sp-2); overflow-wrap: anywhere; }
+.schedule-preview__next {
+  margin: 0 0 var(--sp-2);
+  padding-left: var(--sp-5);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+/* A switch that is a form's submit button: it posts, the page comes back with
+   the new state, and it reads like the tick boxes beside it -- `[x]` running,
+   `[ ]` paused -- at the height every control here has. */
+.schedule-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--tap-min);
+  padding: 0 var(--sp-2);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.schedule-switch::before {
+  content: "[ ]";
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+.schedule-switch[aria-checked="true"]::before { content: "[x]"; color: var(--leaf); }
+.schedule-switch[aria-checked="true"] { color: var(--ink); }
+.schedule-switch:hover { background: var(--surface-hover); }
+.schedule-switch:focus-visible { outline: var(--outline-w) solid var(--accent); outline-offset: var(--outline-offset); }
+
+/* A row: what the schedule is on the left, and on the right what may be
+   designated to give -- the badges wrap under the switch rather than pushing
+   it off the screen. */
+.schedule-list { list-style: none; margin: 0; padding: 0; }
+.schedule-list__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  padding: var(--sp-3) 0;
+  border-bottom: var(--border-w) solid var(--border);
+}
+.schedule-list__item:last-child { border-bottom: 0; }
+.schedule-list__main { min-width: 0; overflow-wrap: anywhere; }
+.schedule-list__side {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.schedule-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--sp-4);
+}
+.schedule-facts dd { overflow-wrap: anywhere; min-width: 0; }
+.schedule-facts__tags { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+
+.schedule-runs { list-style: none; margin: 0; padding: 0; }
+.schedule-run {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) 0;
+  border-bottom: var(--border-w) solid var(--border);
+  min-width: 0;
+}
+.schedule-run:last-child { border-bottom: 0; }
+.schedule-run.is-picked {
+  border-left: var(--border-w-accent) solid var(--accent);
+  padding-left: var(--sp-3);
+}
+.schedule-run__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-2);
+}
+.schedule-run__when { font-family: var(--font-mono); font-size: var(--text-sm); }
+.schedule-run__preview,
+.schedule-run__error {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--text-sm);
+}
+.schedule-run__error { color: var(--danger); }
+
+@media (max-width: 44rem) {
+  .schedule-list__item,
+  .schedule-head { grid-template-columns: minmax(0, 1fr); }
+  .schedule-list__side { justify-content: flex-start; }
+}
+
+/* The scheduling models: name, what kind of capacity, the order. The note and
+   the order have known widths; the name takes the rest and wraps. */
+.schedule-models { list-style: none; margin: 0 0 var(--sp-2); padding: 0; }
+.schedule-models__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto var(--w-num);
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+  border-bottom: var(--border-w) solid var(--border);
+}
+.schedule-models__row:last-child { border-bottom: 0; }
+.schedule-models__name { min-width: 0; overflow-wrap: anywhere; }
+.schedule-models__order { width: 100%; min-width: 0; }
+@media (max-width: 44rem) {
+  .schedule-models__row { grid-template-columns: minmax(0, 1fr) var(--w-num); }
+  .schedule-models__note { grid-column: 1; grid-row: 2; }
+}

@@ -790,6 +790,31 @@ lembas service install</code></pre></li>
               </div>
               {% include "schedules/_list.html" %}
             </div>
+            {% if schedule_models %}
+            {#
+              Which of the instance's scheduling models this person's runs may
+              use. The order is the administrator's; a run takes the first one
+              that is free. None ticked is all of them.
+            #}
+            <div class="card" id="scheduling-models">
+              <h2 class="card__title">{{ t("Models for scheduled work") }}</h2>
+              <p class="card__lede">{{ t("A run takes its own model when it is free, else the first free one of these, in this order. Untick the ones your runs should not use.") }}</p>
+              <form method="post" action="/api/schedules/models">
+                <div class="checkbox-row">
+                  {% for model in schedule_models %}
+                  <label class="checkbox">
+                    <input type="checkbox" name="models" value="{{ model.model_id }}"
+                           {{ 'checked' if not schedule_models_mine or model.model_id in schedule_models_mine }}>
+                    <span>{{ loop.index }}. {{ model.display_name or model.model_id }}</span>
+                  </label>
+                  {% endfor %}
+                </div>
+                <div class="btn-row">
+                  <button class="btn btn--sm btn--primary" type="submit">{{ t("Save") }}</button>
+                </div>
+              </form>
+            </div>
+            {% endif %}
           </section>
           {% endif %}
 

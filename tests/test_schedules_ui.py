@@ -78,7 +78,8 @@ def test_creating_a_schedule_makes_its_chat_too(client: TestClient, db, register
     chat = db.get(Chat, schedule.chat_id)
     assert chat is not None
     assert chat.kind == KIND_TASK
-    assert response.headers["location"] == f"/chat/{chat.id}"
+    # Back to the schedule's own page, where its runs will be listed.
+    assert response.headers["location"] == f"/scheduled/{schedule.id}"
 
 
 def test_a_new_schedule_has_a_next_run(client: TestClient, db, registered):
@@ -396,3 +397,102 @@ def test_the_admin_page_is_admin_only(client: TestClient, db, registered):
     assert client.get("/admin/schedules", follow_redirects=False).status_code in (
         302, 303, 403, 404,
     )
+
+
+
+# --- 2.0.0-beta.6: the schedule's page, the preview, the settings ---------------
+def test_the_schedule_page_shows_when_how_and_the_history(client: TestClient, db, registered):
+    from lembas.db.models import ScheduleRun
+
+    _make(client)
+    schedule = db.scalars(select(Schedule)).one()
+    db.add(ScheduleRun(schedule_id=schedule.id, user_id=schedule.user_id, status="failed",
+                       timing="catch_up", missed=3, error="<b>the endpoint</b> refused",
+                       preview="<script>x</script>"))
+    db.commit()
+    page = client.get(f"/scheduled/{schedule.id}")
+    assert page.status_code == 200
+    assert "Run now" in page.text and "History" in page.text
+    assert "missed ×3" in page.text
+    # Model output and a server's words are escaped, never markup.
+    assert "<script>x</script>" not in page.text and "&lt;script&gt;" in page.text
+    assert "<b>the endpoint</b>" not in page.text
+
+
+def test_the_preview_reads_the_form_back(client: TestClient, registered):
+    fragment = client.post(
+        "/api/schedules/preview",
+        data={"repeat": "calendar", "times": "07:30", "nth_n": "-1", "nth_weekday": "4"},
+    )
+    assert fragment.status_code == 200
+    assert "On the last Friday of each month at 07:30" in fragment.text
+    assert fragment.text.count("<li>") == 5
+
+
+def test_the_form_saves_the_run_settings(client: TestClient, db, registered):
+    _make(client, notify="never", mode="continue", catch_up="skip", grace_minutes="45",
+          tools=["search", "image"])
+    schedule = db.scalars(select(Schedule)).one()
+    assert (schedule.notify, schedule.mode, schedule.catch_up) == ("never", "continue", "skip")
+    assert schedule.grace_minutes == 45
+    assert schedule.tools_json == ["search", "image"]
+
+
+def test_the_list_has_a_pause_switch_that_comes_back_to_the_list(
+    client: TestClient, db, registered
+):
+    _make(client)
+    schedule = db.scalars(select(Schedule)).one()
+    page = client.get("/settings?tab=scheduled")
+    assert 'role="switch"' in page.text
+    answer = client.post(
+        f"/api/schedules/{schedule.id}/toggle",
+        data={"enabled": "0", "back": "/settings?tab=scheduled"},
+        follow_redirects=False,
+    )
+    assert answer.headers["location"] == "/settings?tab=scheduled"
+    db.refresh(schedule)
+    assert schedule.enabled is False
+    elsewhere = client.post(
+        f"/api/schedules/{schedule.id}/toggle",
+        data={"enabled": "1", "back": "https://elsewhere.test/"},
+        follow_redirects=False,
+    )
+    assert elsewhere.headers["location"] == f"/scheduled/{schedule.id}"
+
+
+def test_the_pause_action_pauses(client: TestClient, db, registered):
+    _make(client)
+    schedule = db.scalars(select(Schedule)).one()
+    assert client.post(f"/api/schedules/{schedule.id}/pause").status_code == 204
+    db.refresh(schedule)
+    assert schedule.enabled is False
+
+
+def test_admin_orders_the_scheduling_models(client: TestClient, db, registered):
+    from lembas.db.models import Connection, Model
+    from lembas.services.crypto import encrypt
+
+    connection = Connection(
+        name="c", base_url="http://127.0.0.1:1", api_key_encrypted=encrypt("")
+    )
+    db.add(connection)
+    db.commit()
+    for index, name in enumerate(("a", "b", "c")):
+        db.add(Model(connection_id=connection.id, model_id=name, position=index))
+    db.commit()
+    page = client.get("/admin/schedules")
+    assert page.status_code == 200 and "Models for scheduled work" in page.text
+    client.post(
+        "/admin/schedules",
+        data={"enabled": "true", "model_ids": ["a", "b", "c"], "models": ["a", "c"],
+              "order": ["2", "", "1"], "runs_days": "30"},
+    )
+    values = settings_store.schedules(db)
+    assert values["models"] == ["c", "a"]
+    assert values["runs_days"] == 30
+    # And a person narrows it, in the instance's order.
+    client.post("/api/schedules/models", data={"models": ["a", "zzz"]})
+    db.expire_all()
+    owner = db.scalars(select(User).order_by(User.created_at)).first()
+    assert owner.settings_json["schedule_models"] == ["a"]

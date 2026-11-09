@@ -1,0 +1,110 @@
+{% extends "schedules/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "scheduled" %}
+
+{% block title %}{{ schedule.title }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ schedule.title }}{% endblock %}
+{% block actions %}
+<form method="post" action="/api/schedules/{{ schedule.id }}/run">
+  <button class="btn btn--sm btn--primary" type="submit" title="{{ t('Run it now without using up the next scheduled run') }}">
+    {{ icon("bolt", "icon--sm") }} {{ t("Run now") }}
+  </button>
+</form>
+<a class="btn btn--sm" href="/scheduled/{{ schedule.id }}/edit">{{ icon("pencil", "icon--sm") }} {{ t("Edit") }}</a>
+{% endblock %}
+
+{% block schedules_content %}
+{#
+  One schedule: when it runs, how, and what happened each time. Every result
+  and error below is model output or a server's words, escaped by Jinja; none
+  of it goes through `|safe`.
+#}
+<section class="card schedule-head">
+  <div class="schedule-head__when">
+    <p class="schedule-preview__summary"><strong>{{ preview.summary or t("Never") }}</strong></p>
+    {% if schedule.enabled and preview.next %}
+    <ol class="schedule-preview__next">
+      {% for moment in preview.next %}
+      <li>{{ stamp(moment, "%a %-d %b %Y, %H:%M") }}</li>
+      {% endfor %}
+    </ol>
+    {% elif not schedule.enabled %}
+    <p class="text-sm faint">{{ t("Paused.") }}</p>
+    {% else %}
+    <p class="text-sm faint">{{ t("Nothing left to run.") }}</p>
+    {% endif %}
+    <p class="text-xs faint">{{ t("Times are %(timezone)s.", timezone=timezone) }}</p>
+  </div>
+  <form method="post" action="/api/schedules/{{ schedule.id }}/toggle" class="schedule-head__switch">
+    <input type="hidden" name="enabled" value="{{ '0' if schedule.enabled else '1' }}">
+    <input type="hidden" name="back" value="/scheduled/{{ schedule.id }}">
+    <button class="schedule-switch" type="submit" role="switch"
+            aria-checked="{{ 'true' if schedule.enabled else 'false' }}"
+            aria-label="{{ t('Running') }}">
+      <span class="schedule-switch__label">{{ t("Running") if schedule.enabled else t("Paused") }}</span>
+    </button>
+  </form>
+</section>
+
+{% if schedule.last_error %}
+<div class="alert alert--warning">{{ icon("warning", "alert__icon") }} <span>{{ schedule.last_error }}</span></div>
+{% endif %}
+
+<section class="card">
+  <h2 class="card__title">{{ t("How it runs") }}</h2>
+  <dl class="detail-list schedule-facts">
+    <dt>{{ t("Model") }}</dt>
+    <dd>{{ schedule.model_id or t("The first free one of your scheduling models") }}</dd>
+    <dt>{{ t("Tell me") }}</dt>
+    <dd>{{ notify_label.get(form.notify, form.notify) }}</dd>
+    <dt>{{ t("Each run") }}</dt>
+    <dd>{{ mode_label.get(form.mode, form.mode) }}</dd>
+    <dt>{{ t("Where the result goes") }}</dt>
+    <dd>{{ target_label.get(schedule.target, schedule.target) }}</dd>
+    <dt>{{ t("When a run was missed") }}</dt>
+    <dd>{{ catch_up_label.get(form.catch_up, form.catch_up) }}</dd>
+    <dt>{{ t("Tools a run may use") }}</dt>
+    <dd class="schedule-facts__tags">
+      {% for name in tools_on %}<span class="badge">{{ tool_label.get(name, name) }}</span>{% endfor %}
+    </dd>
+  </dl>
+</section>
+
+<section class="card">
+  <h2 class="card__title">{{ t("History") }}</h2>
+  {% if not runs %}
+  <p class="text-sm faint">{{ t("It has not run yet.") }}</p>
+  {% else %}
+  <ol class="schedule-runs">
+    {% for run in runs %}
+    <li class="schedule-run {{ 'is-picked' if run.id == picked }}" id="run-{{ run.id }}">
+      <div class="schedule-run__head">
+        <span class="badge {{ status_badge(run.status) }}">{{ status_label(run.status) }}</span>
+        <span class="schedule-run__when">{{ stamp(as_local(run.due_at or run.created_at), "%a %-d %b, %H:%M") }}</span>
+        <span class="text-xs faint">
+          {{ timing_label(run.timing) }}
+          {%- if run.missed %} · {{ t("missed ×%(n)s", n=run.missed) }}{% endif %}
+          {%- if run.model_label or run.model_id %} · {{ run.model_label or run.model_id }}{% endif %}
+          {%- if run.model_reason == "switched" and run.switched_from %} · {{ t("%(name)s was busy", name=run.switched_from) }}{% endif %}
+          {%- if run.status == "waiting" and run.retry_at %} · {{ t("tries again at %(when)s", when=stamp(as_local(run.retry_at), "%H:%M")) }}{% endif %}
+        </span>
+      </div>
+      {% if run.preview %}<p class="schedule-run__preview">{{ run.preview }}</p>{% endif %}
+      {% if run.error and run.status != "ok" %}<p class="schedule-run__error text-sm">{{ run.error }}</p>{% endif %}
+      {% if run.chat_id or run.report_path %}
+      <div class="btn-row">
+        {% if run.chat_id %}<a class="btn btn--sm" href="/chat/{{ run.chat_id }}">{{ t("Open the result") }}</a>{% endif %}
+        {% if run.report_path %}<a class="btn btn--sm" href="/files/view?path={{ run.report_path|urlencode }}">{{ t("Open the report") }}</a>{% endif %}
+      </div>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+  {% if more %}
+  <div class="btn-row">
+    <a class="btn btn--sm" href="/scheduled/{{ schedule.id }}?before={{ runs[-1].id }}">{{ t("Older runs") }}</a>
+  </div>
+  {% endif %}
+  {% endif %}
+</section>
+{% endblock %}

@@ -204,6 +204,14 @@ self.addEventListener("push", function (event) {
       for (var i = 0; i < clients.length; i++) {
         if (clients[i].focused) return null;
       }
+      /* A scheduled run that failed may offer Pause: the server names the
+         action and its label (`services/schedule/notify.py`); the click is
+         handled below, with this browser's own sign-in. */
+      var actions = [];
+      if (payload.schedule_id && Array.isArray(payload.actions) &&
+          payload.actions.indexOf("pause") !== -1 && payload.pause_label) {
+        actions.push({ action: "pause", title: String(payload.pause_label) });
+      }
       return self.registration.showNotification(payload.title || "LLeMbas", {
         body: payload.body || "",
         /* One at a time. A browser left closed all day must not be opened to a
@@ -216,7 +224,8 @@ self.addEventListener("push", function (event) {
            to its edges, so what Android rendered was a solid grey square. The
            leaf has transparency, so it survives being masked. */
         badge: "/static/img/badge-72.png",
-        data: { url: payload.url || "/" },
+        actions: actions,
+        data: { url: payload.url || "/", schedule_id: payload.schedule_id || "" },
       });
     })
   );
@@ -267,7 +276,20 @@ self.addEventListener("pushsubscriptionchange", function (event) {
 */
 self.addEventListener("notificationclick", function (event) {
   event.notification.close();
-  var target = (event.notification.data && event.notification.data.url) || "/";
+  var data = event.notification.data || {};
+  var target = data.url || "/";
+
+  /* Pause, from a failed run's notification: done here, with no window. The
+     id is one the server sent; the route checks it is this person's. */
+  if (event.action === "pause" && /^[0-9a-f]{32}$/.test(data.schedule_id || "")) {
+    event.waitUntil(
+      fetch("/api/schedules/" + data.schedule_id + "/pause", {
+        method: "POST",
+        credentials: "same-origin",
+      }).catch(function () { /* Nothing here can ask a person for help. */ })
+    );
+    return;
+  }
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (clients) {

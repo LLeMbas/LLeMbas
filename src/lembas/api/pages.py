@@ -1222,6 +1222,7 @@ async def settings_page(
             # The Scheduled tab. Through the
             # sidebar's `can`, which API-only mode has already narrowed.
             "schedules": _schedules_listed(db, user) if sidebar["can"].get("schedule.use") else [],
+            **_schedule_models(db, user, sidebar["can"].get("schedule.use")),
             **_model_preferences(db, user),
             **context,
             **sidebar,
@@ -1249,6 +1250,19 @@ def _model_preferences(db: DBSession, user: User) -> dict:
             "instance_effort": chat_service.levels_for(model).start,
         })
     return {"model_prefs": entries}
+
+
+def _schedule_models(db: DBSession, user: User, allowed: bool) -> dict:
+    """The instance's scheduling models and this person's narrowing of them, for
+    the Scheduled tab. Shown only once an administrator has made the list."""
+    from lembas.services.schedule import models as models_service
+
+    if not allowed or not models_service.instance_list(db):
+        return {"schedule_models": [], "schedule_models_mine": []}
+    return {
+        "schedule_models": models_service.offered_models(db, user),
+        "schedule_models_mine": models_service.person_list(user),
+    }
 
 
 def _schedules_listed(db: DBSession, user: User) -> list[dict]:

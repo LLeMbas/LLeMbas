@@ -104,7 +104,130 @@
     <input class="input" id="schedule-monthdays" name="month_days"
            value="{{ form.month_days }}" placeholder="1, 15">
     <p class="field__hint">{{ t("Days of the month, if you want it narrower. Optional.") }}</p>
+
+    <label class="field__label" for="schedule-nth">{{ t("Or by its place in the month") }}</label>
+    <div class="btn-row">
+      <select class="select" id="schedule-nth" name="nth_n">
+        <option value="" {{ 'selected' if not form.nth_n }}>{{ t("Not used") }}</option>
+        {% for value, label in [(1, t("First")), (2, t("Second")), (3, t("Third")), (4, t("Fourth")), (5, t("Fifth")), (-1, t("Last"))] %}
+        <option value="{{ value }}" {{ 'selected' if form.nth_n == value }}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <select class="select" name="nth_weekday" aria-label="{{ t('Day') }}">
+        {% for index, name in weekday_long %}
+        <option value="{{ index }}" {{ 'selected' if form.nth_weekday == index }}>{{ name }}</option>
+        {% endfor %}
+        <option value="day" {{ 'selected' if form.nth_weekday == 'day' }}>{{ t("day of the month") }}</option>
+      </select>
+    </div>
+    <p class="field__hint">{{ t("The second Monday, the last Friday, the last day of the month. When set, it replaces the days and dates above.") }}</p>
   </div>
+
+  {#
+    The rule as it will be read, before it is saved: in words, and its next five
+    runs. A rule said back in words can still be wrong in a way only dates show.
+  #}
+  <div class="schedule-preview" id="schedule-preview" aria-live="polite">
+    {% if preview %}{% include "schedules/_preview.html" %}{% endif %}
+  </div>
+  <div class="btn-row">
+    <button class="btn btn--sm" type="button"
+            hx-post="/api/schedules/preview" hx-include="closest form"
+            hx-target="#schedule-preview" hx-swap="innerHTML">
+      {{ icon("clock", "icon--sm") }} {{ t("Show the next runs") }}
+    </button>
+  </div>
+</fieldset>
+
+{#
+  How a run runs. A grid of fields on a shared track: every field emits its
+  label, its control and its hint, even when the hint is empty, so each row
+  lines up whatever the text in it does (the subgrid in admin.css).
+#}
+<fieldset class="schedule-settings">
+  <legend class="field__label">{{ t("How it runs") }}</legend>
+
+  <div class="field">
+    <label class="field__label" for="schedule-model">{{ t("Model") }}</label>
+    <select class="select" id="schedule-model" name="model_id">
+      <option value="">{{ t("The first free one of your scheduling models") }}</option>
+      {% for model in models %}
+      <option value="{{ model.model_id }}" {{ 'selected' if form.model_id == model.model_id }}>{{ model.display_name or model.model_id }}</option>
+      {% endfor %}
+    </select>
+    <p class="field__hint">{{ t("Tried first. When it is busy answering someone, the next free model runs it instead.") }}</p>
+  </div>
+
+  <div class="field">
+    <label class="field__label" for="schedule-notify">{{ t("Tell me") }}</label>
+    <select class="select" id="schedule-notify" name="notify">
+      {% if not form.notify %}<option value="" selected>{{ t("As usual for this kind of schedule") }}</option>{% endif %}
+      {% for value, label in notify_choices %}
+      <option value="{{ value }}" {{ 'selected' if form.notify == value }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <p class="field__hint">{{ t("When it matters: a run with nothing new says so and does not notify you.") }}</p>
+  </div>
+
+  <div class="field">
+    <label class="field__label" for="schedule-mode">{{ t("Each run") }}</label>
+    <select class="select" id="schedule-mode" name="mode">
+      {% for value, label in mode_choices %}
+      <option value="{{ value }}" {{ 'selected' if form.mode == value }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <p class="field__hint">{{ t("A fresh chat is told what the previous run found.") }}</p>
+  </div>
+
+  <div class="field">
+    <label class="field__label" for="schedule-effort">{{ t("Thinking") }}</label>
+    <select class="select" id="schedule-effort" name="effort">
+      <option value="">{{ t("The model's own") }}</option>
+      {% for level in levels %}
+      <option value="{{ level }}" {{ 'selected' if form.effort == level }}>{{ level }}</option>
+      {% endfor %}
+    </select>
+    <p class="field__hint">{{ t("Used when the model that runs it offers it.") }}</p>
+  </div>
+
+  <div class="field">
+    <label class="field__label" for="schedule-catchup">{{ t("When a run was missed") }}</label>
+    <select class="select" id="schedule-catchup" name="catch_up">
+      {% for value, label in catch_up_choices %}
+      <option value="{{ value }}" {{ 'selected' if form.catch_up == value }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <p class="field__hint">{{ t("A run up to half its period late still runs; past that, this decides.") }}</p>
+  </div>
+
+  <div class="field">
+    <label class="field__label" for="schedule-grace">{{ t("Still run when late by up to") }}</label>
+    <input class="input" type="number" id="schedule-grace" name="grace_minutes" min="0"
+           value="{{ form.grace_minutes }}" placeholder="{{ t('automatic') }}">
+    <p class="field__hint">{{ t("Minutes. Empty: half the time between runs, from 2 minutes to 2 hours.") }}</p>
+  </div>
+
+  {% if team_offered %}
+  <div class="field">
+    <label class="field__label" for="schedule-agents">{{ t("Team size") }}</label>
+    <input class="input" type="number" id="schedule-agents" name="agents" min="0" max="8"
+           value="{{ form.agents }}" placeholder="1">
+    <p class="field__hint">{{ t("Agents working on a run, the lead included, where its model can serve more than one request at once.") }}</p>
+  </div>
+  {% endif %}
+</fieldset>
+
+<fieldset class="schedule-tools">
+  <legend class="field__label">{{ t("Tools a run may use") }}</legend>
+  <div class="checkbox-row">
+    {% for value, label in tool_choices %}
+    <label class="checkbox">
+      <input type="checkbox" name="tools" value="{{ value }}" {{ 'checked' if value in form.tools }}>
+      <span>{{ label }}</span>
+    </label>
+    {% endfor %}
+  </div>
+  <p class="field__hint">{{ t("Nobody is there to answer a question during a run, and a run never sets up schedules of its own.") }}</p>
 </fieldset>
 
 <div class="field">

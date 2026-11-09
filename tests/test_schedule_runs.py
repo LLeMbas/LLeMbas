@@ -585,6 +585,60 @@ def test_the_push_payload_carries_ids_and_no_content():
     }
 
 
+@pytest.mark.anyio
+async def test_the_notify_decision_reaches_web_push_and_unifiedpush(db, registered, monkeypatch):
+    """One decision, both channels: a browser's registration (while Web Push is
+    on) and an app's (UnifiedPush, always). The payload is a fixed sentence, the
+    ids and a deep link to the run -- nothing the run wrote."""
+    from lembas.db.models import PushSubscription
+    from lembas.services import push
+
+    settings_store.update(db, {"enabled": True}, key=settings_store.SCHEDULES)
+    settings_store.update(db, {"web_push_enabled": True}, key=settings_store.GENERAL)
+    owner = _owner(db)
+    schedule = schedules_service.create(
+        db, owner=owner, title="Secret project", instruction="Check the build.",
+        rule={"start": T0.isoformat(), "every": {"hours": 1}},
+    )
+    run = ScheduleRun(
+        schedule_id=schedule.id, user_id=owner.id, status="ok", chat_id=schedule.chat_id,
+        preview="The private result the model wrote.",
+    )
+    db.add(run)
+    for endpoint, token in (
+        ("https://push.example/browser", None), ("https://up.example/app", "t" * 32),
+    ):
+        db.add(PushSubscription(
+            user_id=owner.id, endpoint=endpoint, p256dh="k", auth_secret="a", token_id=token,
+        ))
+    db.commit()
+
+    sent: list[tuple[str, dict]] = []
+
+    async def send_one(db_, subscription, payload):
+        sent.append((subscription.endpoint, payload))
+        return True
+
+    monkeypatch.setattr(push, "send_one", send_one)
+    assert await notify.announce(db, owner, schedule=schedule, run=run, failed=False)
+    assert sorted(endpoint for endpoint, _ in sent) == [
+        "https://push.example/browser", "https://up.example/app",
+    ]
+    for _, payload in sent:
+        assert payload["url"] == f"/scheduled/{schedule.id}?run={run.id}"
+        assert payload["schedule_id"] == schedule.id and payload["run_id"] == run.id
+        assert payload["visibility"] == "private"
+        text = str(payload)
+        assert "Secret project" not in text and "private result" not in text
+
+    # Web Push off: the app is still told, the browser is not.
+    sent.clear()
+    settings_store.update(db, {"web_push_enabled": False}, key=settings_store.GENERAL)
+    assert await notify.announce(db, owner, schedule=schedule, run=run, failed=True)
+    assert [endpoint for endpoint, _ in sent] == ["https://up.example/app"]
+    assert sent[0][1]["actions"] == ["open", "pause"]
+
+
 # --- Run settings ----------------------------------------------------------------------------
 @pytest.mark.anyio
 async def test_settings_go_onto_the_run_chat(db, three, script):

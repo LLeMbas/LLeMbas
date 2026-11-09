@@ -12,11 +12,11 @@
   <p class="empty__text">{{ t("Set something to run later — a daily summary, a check every Monday morning, a reminder in an hour.") }}</p>
 </div>
 {% else %}
-<ul class="model-list">
+<ul class="schedule-list">
   {% for item in schedules %}
-  <li class="model-list__item">
-    <div class="u-shrink">
-      <a href="/chat/{{ item.row.chat_id }}"><strong>{{ item.row.title }}</strong></a>
+  <li class="schedule-list__item">
+    <div class="schedule-list__main">
+      <a href="/scheduled/{{ item.row.id }}"><strong>{{ item.row.title }}</strong></a>
       <div class="text-xs faint">
         {{ item.summary }}
         {%- if item.next and item.row.enabled %}
@@ -28,15 +28,21 @@
       <div class="text-xs faint">{{ item.row.last_error }}</div>
       {% endif %}
     </div>
-    <div class="btn-row">
+    <div class="schedule-list__side">
+      {% if item.last %}<span class="badge {{ item.last_badge }}" title="{{ t('Last run') }}">{{ item.last_label }}</span>{% endif %}
       {% if item.row.target == "report" %}<span class="badge">{{ t("files a report") }}</span>{% endif %}
       {# Which of these nobody typed. A schedule is invisible until it fires, so
-         the list is where a model's decision is checkable at all -- and the
-         reader needs to be able to tell one apart from their own without
-         opening it. #}
+         the list is where a model's decision is checkable at all. #}
       {% if item.row.origin == "model" %}<span class="badge">{{ t("set up for you") }}</span>{% endif %}
-      {% if not item.row.enabled %}<span class="badge badge--warning">{{ t("paused") }}</span>{% endif %}
-      <a class="btn btn--sm" href="/scheduled/{{ item.row.id }}/edit">{{ t("Edit") }}</a>
+      <form method="post" action="/api/schedules/{{ item.row.id }}/toggle">
+        <input type="hidden" name="enabled" value="{{ '0' if item.row.enabled else '1' }}">
+        <input type="hidden" name="back" value="/settings?tab=scheduled">
+        <button class="schedule-switch" type="submit" role="switch"
+                aria-checked="{{ 'true' if item.row.enabled else 'false' }}"
+                aria-label="{{ t('Running') }}: {{ item.row.title }}">
+          <span class="schedule-switch__label">{{ t("Running") if item.row.enabled else t("Paused") }}</span>
+        </button>
+      </form>
     </div>
   </li>
   {% endfor %}
