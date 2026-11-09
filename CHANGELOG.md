@@ -3,6 +3,16 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## Unreleased
+
+### Fixed
+
+- **Test & refresh and Check balance on a connection no longer turn the page into an unstyled
+  copy of the connection.** The button's request was sent as a save of the whole page, because the
+  form's in-place header reached the buttons inside it (htmx merges headers from every parent);
+  the header now goes only on a request the form sends itself. The fix in 2.0.0-beta.2 covered
+  everything but the header.
+
 ## 2.0.0-beta.5 — 2026-11-09
 
 The harness spec is **3.2.0**, pinned to LLeMbas CLI v2.0.0-beta.3.

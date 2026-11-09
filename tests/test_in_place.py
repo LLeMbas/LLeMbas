@@ -141,15 +141,36 @@ def test_a_confirmed_form_goes_through_htmx():
 def test_a_request_inside_an_in_place_form_keeps_its_own_swap():
     """htmx hands hx-* down to children: a button inside the form with its own
     hx-post ("Test & refresh") inherited the page swap and its header, and its
-    one-row answer was written over the whole page."""
+    one-row answer was written over the whole page (document.write of a
+    fragment: an unstyled page)."""
     source = (ROOT / "web/static/js/inplace.js").read_text(encoding="utf-8")
     assert "hx-disinherit" in source
-    for name in ("hx-target", "hx-select", "hx-swap", "hx-headers"):
+    for name in ("hx-target", "hx-select", "hx-swap"):
         assert name in source[source.index('"hx-disinherit"') :][:400]
+    # The header is never an attribute on the form: htmx 2 merges `hx-headers`
+    # from every ancestor and does not honour hx-disinherit for it, so the
+    # beta's disinherit "fix" let it through. It is added per request, only to
+    # one the prepared form itself sends.
+    assert 'setAttribute("hx-headers"' not in source
+    hook = source[source.index('"htmx:configRequest"') :][:400]
+    assert "inPlaceReady" in hook and 'elt.tagName === "FORM"' in hook
+    assert 'headers["LMB-In-Place"] = "1"' in hook
     # The header is then the whole test: buttons and htmx.ajax calls that ask
     # for it themselves (the explorer, drag and drop) still count.
     check = source[source.index("function isInPlace") :][:300]
     assert 'headers["LMB-In-Place"]' in check
+
+
+def test_htmx_still_merges_headers_past_disinherit():
+    """What the fix above leans on, said by the vendored htmx itself: its
+    `hx-headers`/`hx-vals` merge walks every parent and never reads
+    hx-disinherit. If a new htmx honours it, this fails and the hook can be
+    reconsidered -- not before."""
+    htmx = (ROOT / "web/static/vendor/htmx.min.js").read_text(encoding="utf-8")
+    merge = re.search(r'Cn\(e,"hx-headers",false,r\)', htmx)
+    assert merge, "the header merge moved: re-check inplace.js's configRequest hook"
+    body = htmx[htmx.index("function Cn(") :][:900]
+    assert "hx-disinherit" not in body
 
 
 def test_rows_swapped_on_their_own_sit_inside_in_place_forms():

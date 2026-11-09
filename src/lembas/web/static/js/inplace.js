@@ -49,20 +49,31 @@
       form.setAttribute("hx-target", "closest " + ROOT);
       form.setAttribute("hx-select", ROOT);
       form.setAttribute("hx-swap", "outerHTML show:none focus-scroll:false");
-      form.setAttribute("hx-headers", JSON.stringify({ "LMB-In-Place": "1" }));
       /* htmx hands an element's hx-* attributes down to everything inside it.
          A button in the form with a request of its own ("Test & refresh",
-         swapping one row) must not inherit the page swap and its header: its
-         answer is a fragment with no root, which would be written over the
-         whole page. */
+         swapping one row) must not inherit the page swap: its answer is a
+         fragment with no root, which would be written over the whole page.
+         The header is not an attribute at all (see `htmx:configRequest`
+         below): htmx 2 merges `hx-headers` from every ancestor and ignores
+         `hx-disinherit` for it, so a header on the form reached the button. */
       var own = (form.getAttribute("hx-disinherit") || "").trim();
       if (own !== "*") {
         form.setAttribute("hx-disinherit",
-                          (own + " hx-target hx-select hx-swap hx-headers").trim());
+                          (own + " hx-target hx-select hx-swap").trim());
       }
       window.htmx.process(form);
     });
   }
+
+  /* The header goes on a request the prepared form itself sends -- never on
+     one sent by something inside it, which htmx would otherwise have handed
+     the form's `hx-headers` (it does not honour `hx-disinherit` there). */
+  document.addEventListener("htmx:configRequest", function (event) {
+    var elt = event.detail && event.detail.elt;
+    if (elt && elt.tagName === "FORM" && elt.dataset && elt.dataset.inPlaceReady) {
+      event.detail.headers["LMB-In-Place"] = "1";
+    }
+  });
 
   /* A request sent with the header: a form prepared here, a button with the
      header in its own attributes (files/_macros.html `in_place`), or htmx.ajax
