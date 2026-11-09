@@ -3,7 +3,9 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
-## Unreleased
+## 2.0.0-beta.6 — 2026-11-09
+
+The harness spec is still **3.2.0** (LLeMbas CLI v2.0.0-beta.3).
 
 ### Added
 
