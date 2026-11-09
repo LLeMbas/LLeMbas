@@ -262,16 +262,17 @@
   function efforts() {
     var select = el("[data-effort]");
     if (!select) return [];
-    return Array.prototype.map
-      .call(select.options, function (option) { return option.value; })
-      .filter(function (value) { return value !== "off"; });
+    return Array.prototype.map.call(select.options, function (option) { return option.value; });
   }
 
+  /* The model's levels are the select's options (harness spec 3.2.0): `off`
+     only where the model can switch thinking off, then its efforts, or the one
+     level `default`. There is no select where there is no choice. */
   function setEffort(rest) {
     var select = el("[data-effort]");
     if (!select) {
       return note(
-        t("This model is not marked as a reasoning model, so effort would do nothing. An administrator can mark it on the model's page."),
+        t("This model offers no choice of effort. An administrator sets what it takes on the model's page."),
         "error"
       );
     }
@@ -279,20 +280,17 @@
     var listed = available.join(", ");
     var wanted = (rest || "").trim().toLowerCase();
     if (!wanted) {
-      return note(
-        available.indexOf(select.value) === -1
-          ? t("No effort is being sent. Try %(levels)s.", { levels: listed })
-          : t("Effort is %(level)s. /effort %(levels)s, or off.", { level: select.value, levels: listed })
-      );
+      return note(t("Effort is %(level)s. /effort %(levels)s.", { level: select.value, levels: listed }));
     }
-    /* "off" is the option's real value, not an empty string: the new-chat form
-       cannot tell an absent field from an empty one, so the picker sends a
-       sentinel and this has to match it. "default" and "none" still work,
-       because somebody's fingers will type them. */
-    if (wanted === "default" || wanted === "none") wanted = "off";
-    else if (wanted !== "off" && available.indexOf(wanted) === -1) {
+    /* Words fingers will type: "none" is off, and "on" is the switch's other
+       level -- the first one that is not off. */
+    if (wanted === "none") wanted = "off";
+    else if (wanted === "on") {
+      wanted = available.filter(function (value) { return value !== "off"; })[0] || wanted;
+    }
+    if (available.indexOf(wanted) === -1) {
       return note(
-        t("“%(level)s” is not an effort this model takes. Try %(levels)s or off.", { level: wanted, levels: listed }),
+        t("“%(level)s” is not a level this model offers. Try %(levels)s.", { level: wanted, levels: listed }),
         "error"
       );
     }
@@ -300,7 +298,7 @@
     select.dispatchEvent(new Event("change", { bubbles: true }));
     note(
       wanted === "off"
-        ? t("Effort cleared; nothing is sent.")
+        ? t("Thinking switched off.")
         : t("Effort set to %(level)s.", { level: wanted })
     );
   }

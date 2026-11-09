@@ -410,16 +410,51 @@ def build_messages(
             payload.append({"role": ROLE_ASSISTANT, "content": ack})
 
     _shown, sent = window(db, chat, upto=upto, through=through)
-    for message in sent:
+    # The current turn's replies carry their reasoning back (harness spec 3.2.0,
+    # context.md §8): the rows after the last user turn -- a reply continued, or
+    # resumed after an answer it waited for. A compaction request asks for a
+    # summary in a turn of its own, so it carries none.
+    current = turn_start(m.role for m in sent) if through is None else len(sent)
+    for index, message in enumerate(sent):
         entry = message_payload(message, vision=vision)
         if notes and (note := notes.get(message.id)) and message.role == ROLE_USER:
             entry = with_note(entry, note)
+        if index > current and message.role == ROLE_ASSISTANT and message.reasoning:
+            entry["reasoning_content"] = message.reasoning
         payload.append(entry)
 
     if speaker is not None:
         payload = _as_one_speaker_sees_it(db, payload, sent, speaker)
 
     return payload
+
+
+def turn_start(roles, turns=None) -> int:
+    """The index of the message that started the current turn: the last user
+    message that starts one (`turns`, per message, False for a delivery at a
+    step boundary -- a job's note, words added to a running turn; absent, every
+    user message does). -1 when there is none."""
+    roles = list(roles)
+    flags = list(turns) if turns is not None else [True] * len(roles)
+    for index in range(len(roles) - 1, -1, -1):
+        if roles[index] == ROLE_USER and flags[index] is not False:
+            return index
+    return -1
+
+
+def reasoning_back(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The OpenAI chat messages for a history whose assistant messages have
+    stored `reasoning` (harness spec 3.2.0, context.md §8; pure, conformance
+    `reasoning.json`): every assistant message of the current turn carries its
+    reasoning as `reasoning_content`, earlier ones none, and none an empty one."""
+    start = turn_start((m.get("role") for m in messages), (m.get("turn") for m in messages))
+    out: list[dict[str, Any]] = []
+    for index, message in enumerate(messages):
+        entry = {"role": message.get("role"), "content": message.get("content")}
+        if index > start and message.get("role") == ROLE_ASSISTANT and message.get("reasoning"):
+            entry["reasoning_content"] = message["reasoning"]
+        out.append(entry)
+    return out
 
 
 def with_note(entry: dict[str, Any], note: str) -> dict[str, Any]:
@@ -687,11 +722,7 @@ def build_request(
     # that id, so getting this wrong would also corrupt other models' lists as a
     # side effect.
     speaking_model = model_row(db, speaker)
-    apply_effort(
-        body,
-        (chat.params_json or {}).get("reasoning_effort"),
-        efforts_for(speaking_model) if speaking_model is not None else None,
-    )
+    apply_level(body, speaking_model, resolved_effort(chat))
     return body
 
 
@@ -748,22 +779,153 @@ def efforts_for(model) -> tuple[str, ...]:
 
 
 def resolved_effort(chat) -> str:
-    """The effort this chat will actually send, or "" for none.
+    """The level this chat has stored, or "" for none.
 
-    Its own value, and nothing else. The model's default is a **seed** applied
-    when the chat is created (`api/chats.py:_new_chat`) and on a model change,
-    and is deliberately not consulted here for two reasons. A chat's request
-    should be a function of the chat row alone -- the same rule that has PDF
-    text extracted once at upload and knowledge attachments copied. And a
-    fallback would break "off": `update_chat` stores `None` for a cleared
-    effort, a fallback would resurrect the model's default underneath it, and
-    the off option would silently do nothing.
-
-    The picker shows exactly this, which is the whole point of it existing:
-    "Effort: default" named no level and was true of nothing in particular.
+    Its own value, and nothing else: which of the *model's* levels it means is
+    `level_of`'s answer (a stored level the model does not offer reads as the
+    model's start level, harness spec 3.2.0). The model's default is a **seed**
+    applied when the chat is created (`api/chats.py:_new_chat`) and on a model
+    change, so a chat's request is a function of the chat row and its model.
+    A helper copies the stored word onto its own row (`subagent.py`).
     """
     value = (getattr(chat, "params_json", None) or {}).get("reasoning_effort")
-    return value if value in EFFORTS else ""
+    return value if value in LEVEL_WORDS else ""
+
+
+# --- Levels (harness spec 3.2.0, `models/schema.json` `levels`) ------------------
+#
+# What a chat offers for a model: `off` when the model's server turns thinking
+# off for a request that asks (`thinking_switch`), then the model's efforts --
+# or, when it takes none, the one level `default`, the model's own. "No effort"
+# is not "no thinking": a Qwen3.x or Nemotron 3.x behind llama.cpp thinks at the
+# effort its server was started with (quirks.json `thinking-default`), so the
+# only honest `off` is the one that sends `enable_thinking: false`.
+LEVEL_OFF = "off"
+LEVEL_DEFAULT = "default"
+LEVEL_WORDS = (*EFFORTS, LEVEL_OFF, LEVEL_DEFAULT)
+# How a set of levels is shown: one level -- nothing; two, one of them off -- a
+# Thinking on/off switch; anything else -- the slider.
+CONTROL_NONE = "none"
+CONTROL_SWITCH = "switch"
+CONTROL_SLIDER = "slider"
+# Where an effort goes in an OpenAI chat request (`effort_style`).
+STYLE_TOP = "top"
+STYLE_KWARGS = "kwargs"
+STYLE_BOTH = "both"
+
+
+def levels(thinking_switch: bool, efforts) -> list[str]:
+    """The levels, in offering order, from the metadata alone (pure)."""
+    taken = list(dict.fromkeys(e for e in (efforts or ()) if e in EFFORTS))
+    return ([LEVEL_OFF] if thinking_switch else []) + (taken or [LEVEL_DEFAULT])
+
+
+def start_level(offered: list[str], efforts, effort: str | None) -> str:
+    """The level a new conversation starts with: the model's own `effort` when
+    it offers it, else medium where taken, else the first effort, else default."""
+    taken = [e for e in (efforts or ()) if e in EFFORTS]
+    if effort and effort in offered:
+        return effort
+    if "medium" in taken:
+        return "medium"
+    return taken[0] if taken else LEVEL_DEFAULT
+
+
+def control(offered: list[str]) -> str:
+    if len(offered) <= 1:
+        return CONTROL_NONE
+    if len(offered) == 2 and LEVEL_OFF in offered:
+        return CONTROL_SWITCH
+    return CONTROL_SLIDER
+
+
+def level_fields(
+    level: str | None,
+    *,
+    thinking_switch: bool = False,
+    efforts=(),
+    effort: str | None = None,
+    effort_style: str = STYLE_BOTH,
+) -> dict[str, Any]:
+    """What an OpenAI chat request carries for a level (pure; conformance
+    `levels.json` `op: request`). A level the model does not offer is read as
+    its start level."""
+    offered = levels(thinking_switch, efforts)
+    chosen = level if level in offered else start_level(offered, efforts, effort)
+    if chosen == LEVEL_OFF:
+        # Only ever in chat_template_kwargs: the template is what reads it.
+        return {"chat_template_kwargs": {"enable_thinking": False}}
+    if chosen == LEVEL_DEFAULT:
+        return {}
+    out: dict[str, Any] = {}
+    if effort_style != STYLE_KWARGS:
+        out["reasoning_effort"] = chosen
+    if effort_style != STYLE_TOP:
+        out["chat_template_kwargs"] = {"reasoning_effort": chosen}
+    return out
+
+
+def model_efforts(model) -> tuple[str, ...]:
+    """The efforts a model row takes: its own list where one is set (an
+    administrator's or what `detect-efforts` found), else the common three on a
+    model marked as reasoning, else none."""
+    if model is None:
+        return DEFAULT_EFFORTS
+    if getattr(model, "reasoning_efforts", None):
+        return efforts_for(model)
+    if not (getattr(model, "capabilities_json", None) or {}).get("reasoning"):
+        return ()
+    return efforts_for(model)
+
+
+def model_meta(model) -> dict[str, Any]:
+    """The spec's level metadata of a model row: `thinking_switch`, `efforts`
+    and `effort` (the administrator's start level, `params_json`)."""
+    effort = ((getattr(model, "params_json", None) or {}) if model is not None else {}).get(
+        "reasoning_effort"
+    )
+    return {
+        "thinking_switch": bool(getattr(model, "thinking_switch", False)),
+        "efforts": list(model_efforts(model)),
+        "effort": effort if effort in LEVEL_WORDS else None,
+    }
+
+
+@dataclass(frozen=True)
+class Levels:
+    """A model's levels as a chat shows them: what is offered, where a chat
+    starts, and which control (`none`, `switch`, `slider`)."""
+
+    offered: tuple[str, ...]
+    start: str
+    control: str
+
+    @property
+    def on(self) -> str:
+        """The switch's "on" level: the one that is not off."""
+        return next((value for value in self.offered if value != LEVEL_OFF), LEVEL_DEFAULT)
+
+    def read(self, stored: str | None) -> str:
+        """A stored level as this model reads it: itself when offered, else the
+        start level -- an `off` from before 3.2.0, a level another model took."""
+        return stored if stored in self.offered else self.start
+
+
+def levels_for(model) -> Levels:
+    meta = model_meta(model)
+    offered = levels(meta["thinking_switch"], meta["efforts"])
+    return Levels(
+        offered=tuple(offered),
+        start=start_level(offered, meta["efforts"], meta["effort"]),
+        control=control(offered),
+    )
+
+
+def chat_level(db: DBSession, chat: Chat, model: Model | None = None) -> str:
+    """The level in force on a chat: what the picker shows and what
+    `build_request` sends."""
+    model = model if model is not None else model_for(db, chat)
+    return levels_for(model).read(resolved_effort(chat))
 
 
 def efforts_from_chat_template(template: str) -> list[str]:
@@ -835,7 +997,8 @@ def apply_effort(
     rather than sent, because the second form below is not advisory: it reaches
     the model's Jinja chat template, and a template that does not know the value
     raises rather than ignoring it -- which fails the whole request, not the
-    parameter.
+    parameter. (A chat's request goes through `apply_level`, which knows the
+    model's levels; this is for a caller with an effort and no model row.)
     """
     allowed = supported or DEFAULT_EFFORTS
     if not effort or effort not in allowed:
@@ -844,6 +1007,28 @@ def apply_effort(
     kwargs = dict(body.get("chat_template_kwargs") or {})
     kwargs["reasoning_effort"] = effort
     body["chat_template_kwargs"] = kwargs
+
+
+def apply_level(body: dict[str, Any], model, stored: str | None) -> None:
+    """Put a chat's level into a request body (harness spec 3.2.0): `off` is
+    `chat_template_kwargs.enable_thinking: false` and no effort, `default` is
+    nothing, an effort goes in both of its forms (`providers.shape_request`
+    moves it to where the provider reads it). A stored level the model does not
+    offer is read as its start level.
+
+    Without a model row (a model removed since) only a stored effort of the
+    common three is sent, as before: there is nothing to say what it takes."""
+    if model is None:
+        apply_effort(body, stored if stored in EFFORTS else None)
+        return
+    fields = level_fields(stored, **model_meta(model))
+    if "reasoning_effort" in fields:
+        body["reasoning_effort"] = fields["reasoning_effort"]
+    if fields.get("chat_template_kwargs"):
+        body["chat_template_kwargs"] = {
+            **(body.get("chat_template_kwargs") or {}),
+            **fields["chat_template_kwargs"],
+        }
 
 
 def default_model(db: DBSession, user=None) -> tuple[str, str] | None:
@@ -918,7 +1103,13 @@ def fallback_title(text: str) -> str:
 
 
 async def generate_title(
-    endpoint: Endpoint, model_id: str, question: str, answer: str, *, template: str
+    endpoint: Endpoint,
+    model_id: str,
+    question: str,
+    answer: str,
+    *,
+    template: str,
+    thinking_off: bool = False,
 ) -> str:
     """Ask the model for a short chat title.
 
@@ -961,6 +1152,14 @@ async def generate_title(
     # caught and turned into a fallback title. That is titling silently
     # switching itself off, which is the failure this whole change is fixing.
     # The token budget above is what makes room for the thinking instead.
+    #
+    # The one exception is a model an administrator marked as one whose thinking
+    # can be switched off (`thinking_switch`, harness spec 3.2.0): that marking
+    # *is* the opt-in for `chat_template_kwargs.enable_thinking`, so the title is
+    # asked for with thinking off -- an answer in a second instead of a reasoned
+    # paragraph about six words.
+    if thinking_off:
+        body["chat_template_kwargs"] = {"enable_thinking": False}
     try:
         raw = await complete(endpoint, body)
     except LLMError as exc:

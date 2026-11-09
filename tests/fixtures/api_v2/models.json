@@ -1,0 +1,64 @@
+{
+  "models": [
+    {
+      "id": "qwen",
+      "name": "Qwen",
+      "vision": false,
+      "tools": true,
+      "efforts": [
+        "medium"
+      ],
+      "thinking_switch": true,
+      "levels": [
+        "off",
+        "medium"
+      ],
+      "effort": "medium",
+      "control": "switch",
+      "parallel": 2,
+      "context": 131072,
+      "image": "/api/v2/models/images/0a1b2c3d4e5f.png",
+      "default": true
+    },
+    {
+      "id": "gpt-oss",
+      "name": "gpt-oss",
+      "vision": false,
+      "tools": true,
+      "efforts": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "thinking_switch": false,
+      "levels": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "effort": "high",
+      "control": "slider",
+      "parallel": 1,
+      "context": 0,
+      "image": null,
+      "default": false
+    },
+    {
+      "id": "vision-small",
+      "name": "Vision",
+      "vision": true,
+      "tools": false,
+      "efforts": [],
+      "thinking_switch": false,
+      "levels": [
+        "default"
+      ],
+      "effort": "default",
+      "control": "none",
+      "parallel": null,
+      "context": 8192,
+      "image": null,
+      "default": false
+    }
+  ]
+}

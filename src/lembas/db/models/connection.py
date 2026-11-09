@@ -290,6 +290,17 @@ class Model(UUIDPrimaryKey, Timestamps, Base):
     # `Connection.one_model_at_a_time`. A column and not a `capabilities_json`
     # key, because that dict is rebuilt from the checkboxes on every save.
     single_session: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # How many requests the model's server serves at once (llama.cpp's slots, a
+    # vLLM batch), harness spec 3.2.0 `capacity.parallel`. NULL is "nobody has
+    # said": 1 when `single_session` is set, else no limit. Where both are set
+    # this wins; the model page keeps `single_session` equal to `parallel == 1`
+    # for what reads only the older column.
+    parallel: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Whether the model's server turns thinking off for a request that sends
+    # `chat_template_kwargs.enable_thinking: false` (Qwen3.x, Nemotron 3.x on
+    # llama.cpp, vLLM, SGLang): only then is the level `off` offered (harness
+    # spec 3.2.0 `thinking_switch`). A column, for the reason `single_session` is.
+    thinking_switch: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Public models are usable by anyone; otherwise access comes from `groups`.
     public: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -382,6 +393,14 @@ class Model(UUIDPrimaryKey, Timestamps, Base):
     @property
     def label(self) -> str:
         return self.display_name or self.model_id
+
+    @property
+    def parallel_limit(self) -> int | None:
+        """Requests at once: `parallel` when set, else 1 for a single-session
+        model, else None -- no limit anybody stated (a hosted API)."""
+        if self.parallel and self.parallel > 0:
+            return int(self.parallel)
+        return 1 if self.single_session else None
 
     @property
     def initial(self) -> str:

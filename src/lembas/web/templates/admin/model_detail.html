@@ -189,14 +189,28 @@
       </p>
     </div>
 
+    {# Harness spec 3.2.0 `thinking_switch`: the level `off` exists only with
+       it, and is the one request that really stops a Qwen3.x or Nemotron 3.x
+       thinking -- sending no effort leaves it at its server's default. #}
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="thinking_switch" value="true"
+               {{ 'checked' if model.thinking_switch }}>
+        <span>{{ t("Can switch thinking off") }}</span>
+      </label>
+      <p class="field__hint">{{ tm("Tick this when the model's server turns thinking off for a request that sends <span class=\"mono\">chat_template_kwargs.enable_thinking: false</span> — Qwen3 and Nemotron 3 models on llama.cpp, vLLM or SGLang. A chat then offers <em>off</em>, which sends exactly that and no effort. Without it there is no off: sending no effort leaves such a model thinking at its server's default.") }}</p>
+    </div>
+
     <div class="field">
       <label class="field__label" for="default-effort">{{ t("Default reasoning effort") }}</label>
       <select class="select" id="default-effort" name="default_effort">
-        <option value="">{{ t("None — send nothing") }}</option>
-        {% for value in model_efforts %}
+        <option value="">{{ t("Not set — medium where offered, else the first effort") }}</option>
+        {% for value in model_levels.offered %}
         <option value="{{ value }}"
                 {{ 'selected' if model.params_json.get('reasoning_effort') == value }}>
-          {{ value }}
+          {%- if value == "off" %}{{ t("off — thinking switched off") }}
+          {%- elif value == "default" %}{{ t("default — the model's own") }}
+          {%- else %}{{ value }}{% endif -%}
         </option>
         {% endfor %}
       </select>
@@ -214,9 +228,11 @@
         and vLLM read <span class=\"mono\">reasoning_effort</span>, while
         llama.cpp drops it silently and reads only
         <span class=\"mono\">chat_template_kwargs</span> — which is the route by
-        which it reaches gpt-oss. Both go out, and only on a chat that has an
-        effort set, so an endpoint strict about unknown parameters is untouched
-        until somebody chooses one.") }}
+        which it reaches gpt-oss. Both go out on every chat with a model marked
+        <strong>Reasoning</strong>: not set here, a chat starts at medium where the
+        model takes it, else at its first effort. <em>Off</em> sends only
+        <span class=\"mono\">enable_thinking: false</span>, and a model not marked
+        <strong>Reasoning</strong> is sent no effort at all.") }}
       </p>
     </div>
 
@@ -337,13 +353,15 @@
       </div>
     </div>
 
+    {# Spec 3.2.0 `capacity.parallel`; the older "one request at a time" box
+       is 1 here and is kept equal to it by the save. #}
     <div class="field">
-      <label class="checkbox">
-        <input type="checkbox" name="single_session" value="true"
-               {{ 'checked' if model.single_session }}>
-        <span>{{ t("Serves one request at a time") }}</span>
-      </label>
-      <p class="field__hint">{{ t("Tick this for a model with a single slot. It then cannot be its own helper, because the helper would take that slot and push out the conversation the server has cached, so the waiting reply would have to read it all again. Other models can still be its helpers.") }}</p>
+      <label class="field__label" for="parallel">{{ t("Requests at once") }}</label>
+      <input class="input" id="parallel" name="parallel" type="number"
+             min="1" max="256" step="1" inputmode="numeric"
+             placeholder="{{ t('no limit') }}"
+             value="{{ model.parallel_limit or '' }}">
+      <p class="field__hint">{{ t("How many requests the model's server answers at the same time — llama.cpp's slots, a vLLM batch. Empty is no limit, right for a hosted API. At 1 the model cannot be its own helper, because the helper would take the only slot and push out the conversation the server has cached, so the waiting reply would have to read it all again. Other models can still be its helpers.") }}</p>
     </div>
 
     <div class="field">

@@ -33,6 +33,32 @@ at <https://llembas.eu/changelog.html>.
   `GET /chats/{chat}/agents/{kind}/{id}` (one agent and its conversation) and
   `POST /chats/{chat}/agents/{kind}/{id}/stop`; `GET /chats/{chat}/team` and
   `POST /chats/{chat}/team/{name}/stop`.
+- **Thinking can really be switched off.** A model's page has **Can switch thinking off**, for
+  models whose server stops thinking when asked (Qwen3 and Nemotron 3 on llama.cpp, vLLM or
+  SGLang). Only such a model offers *off*, and *off* now sends exactly that request and no effort.
+  It used to send nothing, which on these models meant thinking at their server's default.
+- **The chat settings menu shows only what the model offers.** A model with one level has no
+  effort control; a model offering off and one effort gets a **Think before answering** switch;
+  more levels keep the slider. Where the menu would hold nothing, the button opens the chat
+  settings panel directly. Switching a chat's model redraws the menu for the new model. Your
+  per-model default in Settings offers the same levels.
+- **Requests at once** on a model's page (empty: no limit) replaces "Serves one request at a
+  time"; 1 means the same. `/v1/models` reports it as `capacity.parallel`, with `thinking_switch`,
+  `levels` and the start `effort`.
+- **For the apps:** `/api/v2/models` gives each model's levels, start level and control, whether
+  thinking can be switched off, its requests at once and a picture URL readable with the app's
+  token; an agent chat says its `device_session_id`, so it can be continued in a terminal.
+
+### Changed
+
+- **A chat started without choosing a level starts at the model's start level** -- its own
+  default, else medium where offered, else its first effort -- and a level a model does not offer
+  (an *off* from before, or one another model took) is read as that start level.
+- **A reply's thinking goes back to the model during its turn.** Between tool calls, and when a
+  reply is continued, the model is sent what it thought before, so it carries on instead of
+  reasoning its way to the same step again. Earlier turns are sent without it, as before.
+- **Chat titles are asked for with thinking off** on a model that can switch it off: a title in a
+  second instead of a paragraph of reasoning about six words.
 
 ## 2.0.0-beta.4 — 2026-11-07
 

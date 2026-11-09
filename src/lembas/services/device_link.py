@@ -2009,7 +2009,7 @@ def chat_config(db, chat) -> tuple[str, str]:
     if getattr(chat, "device_model", ""):
         # Switched on the device to a model of its own: no model is
         # sent, or the next prompt would switch it back.
-        return "", chat_service.resolved_effort(chat) or "off"
+        return "", chat_service.resolved_effort(chat) or chat_service.chat_level(db, chat)
     owner = db.get(User, chat.user_id)
     served = next(
         (
@@ -2020,7 +2020,11 @@ def chat_config(db, chat) -> tuple[str, str]:
         ),
         chat.model_id or "",
     )
-    return served, chat_service.resolved_effort(chat) or "off"
+    # The chat's level word as stored (harness spec 3.2.0 levels: `off`,
+    # `default` or an effort): the device reads it with its model's metadata --
+    # a level that model does not offer as its start level -- and says which
+    # it used (acp.md). Nothing stored: the level in force here.
+    return served, chat_service.resolved_effort(chat) or chat_service.chat_level(db, chat)
 
 
 def _apply_announced(db, link: Link, chat, info: dict[str, Any]) -> None:
@@ -2044,11 +2048,7 @@ def _apply_announced(db, link: Link, chat, info: dict[str, Any]) -> None:
     if mapped is not None:
         chat.model_id, chat.connection_id = mapped
     effort = str(info.get("effort") or "").lower()
-    if effort == "off":
-        chat.params_json = {
-            k: v for k, v in (chat.params_json or {}).items() if k != "reasoning_effort"
-        }
-    elif effort in chat_service.EFFORTS:
+    if effort in chat_service.LEVEL_WORDS:
         chat.params_json = {**(chat.params_json or {}), "reasoning_effort": effort}
     db.commit()
     link.sessions[chat.id] = str(chat.device_session_id or "")
@@ -2458,11 +2458,7 @@ def _remodel(link: Link, session_id: str, ref: str, effort: str, instance: Any =
         elif ref:
             chat.device_model = ref
         level = effort.strip().lower()
-        if level == "off":
-            chat.params_json = {
-                k: v for k, v in (chat.params_json or {}).items() if k != "reasoning_effort"
-            }
-        elif level in chat_service.EFFORTS:
+        if level in chat_service.LEVEL_WORDS:
             chat.params_json = {**(chat.params_json or {}), "reasoning_effort": level}
         db.commit()
         # Remembered as sent, so the next prompt does not switch it back.

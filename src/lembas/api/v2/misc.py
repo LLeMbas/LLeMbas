@@ -65,21 +65,35 @@ async def models(caller: Me, db: Db, chat: str = Query("")) -> dict[str, Any]:
 
     group = data_groups.for_chat(db, owned_chat(db, chat, caller.user)) if chat else None
     start = chat_service.default_model(db, caller.user)
-    out = []
-    for row in chat_service.available_models(db, caller.user, group):
-        caps = row.capabilities_json or {}
-        out.append(
-            {
-                "id": row.model_id,
-                "name": row.display_name or row.model_id,
-                "vision": bool(caps.get("vision")),
-                "tools": bool(caps.get("tools")),
-                "efforts": list(row.reasoning_efforts or []),
-                "context": int(row.context_length or 0),
-                "default": bool(start and (row.model_id, row.connection_id) == start),
-            }
+    out = [
+        serialise.model(
+            row, default=bool(start and (row.model_id, row.connection_id) == start)
         )
+        for row in chat_service.available_models(db, caller.user, group)
+    ]
     return {"models": out}
+
+
+@router.get("/models/images/{filename}")
+async def model_image(caller: Me, db: Db, filename: str) -> Response:
+    """A model's picture, for the app: the token's door to what the page reads
+    at `/uploads/models/{filename}` with the cookie. Only the picture of a model
+    this person may use -- a name alone opens nothing."""
+    from lembas.services import uploads
+
+    if not any(
+        row.image_path == filename for row in chat_service.available_models(db, caller.user)
+    ):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, t("No such image."))
+    path = uploads.model_image_path(filename)
+    if path is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, t("No such image."))
+    return FileResponse(
+        path,
+        media_type=uploads.media_type_for(filename),
+        # A new picture gets a new name, so a long cache is safe.
+        headers={"Cache-Control": "private, max-age=604800"},
+    )
 
 
 @router.get("/folders")

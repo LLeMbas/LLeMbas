@@ -105,14 +105,14 @@ def _epoch(value: datetime | None) -> float | None:
 
 # --- The setting and when a team is offered (team.md §2) ------------------------------
 def model_parallel(model) -> int | None:
-    """How many requests a model serves at once: its `parallel`, else 1 for a
-    model that serves one at a time, else None (no limit: a hosted API).
-
-    The one place a model's capacity is read for teams, so the model's own
-    `parallel` field (spec 3.2.0 `capacity.parallel`) is a one-line change
-    here when it lands."""
+    """How many requests a model serves at once (spec 3.2.0 `capacity.parallel`):
+    `Model.parallel_limit()` -- its `parallel`, else 1 for a model that serves
+    one at a time, else None (no limit: a hosted API)."""
     if model is None:
         return None
+    limit = getattr(model, "parallel_limit", None)
+    if callable(limit):
+        return limit()
     parallel = getattr(model, "parallel", None)
     if parallel:
         return int(parallel)

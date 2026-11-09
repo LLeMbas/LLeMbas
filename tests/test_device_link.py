@@ -176,7 +176,8 @@ def test_a_reply_is_written_by_the_device(client, db, registered):
         assert new["params"]["_meta"]["mode"] == "auto"  # the device clamps it, not LLeMbas
         # The chat's model, by the name /v1 serves it under, and its effort.
         assert new["params"]["_meta"]["lembas_model"] == "c/m"
-        assert new["params"]["_meta"]["effort"] == "off"
+        # A model that takes no efforts has the one level `default` (spec 3.2.0).
+        assert new["params"]["_meta"]["effort"] == "default"
         ws.send_text(json.dumps({"jsonrpc": "2.0", "id": new["id"], "result": {"sessionId": "s1"}}))
 
         prompt = ws.receive_json()

@@ -147,6 +147,8 @@ def _family(model_id: str) -> str:
 
 def metadata(served: Served) -> dict[str, Any]:
     """One `/v1/models` entry: OpenAI's four fields, then the spec's."""
+    from lembas.services import chat as chat_service
+
     model, connection = served.model, served.connection
     capabilities = model.capabilities_json or {}
     params = model.params_json or {}
@@ -172,8 +174,15 @@ def metadata(served: Served) -> dict[str, Any]:
         entry["max_output"] = max_tokens
     elif model.output_limit:
         entry["max_output"] = int(model.output_limit)
-    if model.reasoning_efforts:
-        entry["efforts"] = list(model.reasoning_efforts)
+    # The efforts as a chat here offers them: a model not marked as reasoning
+    # takes none (`[]`, its one level `default`), an unset list is said as the
+    # common three this server falls back to. Then the spec 3.2.0 levels.
+    levels = chat_service.levels_for(model)
+    if "reasoning" in capabilities or model.reasoning_efforts:
+        entry["efforts"] = list(chat_service.model_efforts(model))
+    if model.thinking_switch:
+        entry["thinking_switch"] = True
+    entry["levels"] = list(levels.offered)
     # The administrator's sampling settings for the model. This server
     # applies them anyway, under whatever a request sets; they are here so a
     # device shows the model as it is set up, and sends the same.
@@ -181,9 +190,8 @@ def metadata(served: Served) -> dict[str, Any]:
         value = params.get(key)
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             entry[key] = value
-    effort = params.get("reasoning_effort")
-    if isinstance(effort, str) and effort:
-        entry["effort"] = effort
+    # The level a new conversation starts with, by the spec's rule.
+    entry["effort"] = levels.start
     if "vision" in capabilities:
         entry["vision"] = bool(capabilities.get("vision"))
     if "tools" in capabilities:
@@ -193,7 +201,12 @@ def metadata(served: Served) -> dict[str, Any]:
     capacity: dict[str, Any] = {}
     if connection.one_model_at_a_time:
         capacity["group"] = connection.name
-    if model.single_session:
+    # `parallel` (spec 3.2.0) where it is known, and `single_session` beside it
+    # at 1 for a client older than that.
+    parallel = model.parallel_limit
+    if parallel is not None:
+        capacity["parallel"] = parallel
+    if parallel == 1:
         capacity["single_session"] = True
     if capacity:
         entry["capacity"] = capacity

@@ -287,16 +287,6 @@ def _new_chat(
     # Left alone entirely on a plain chat, where it means nothing.
     if device is not None and agent_mode.strip() in agent_policy.MODES:
         chat.agent_mode = agent_mode.strip()
-    # After the model's defaults, so choosing one on the new-chat screen wins
-    # over the administrator's.
-    #
-    # `"off"` is a sentinel, and it has to be: `reasoning_effort` arrives as
-    # `Form("")`, so an absent field and an empty one are indistinguishable --
-    # the FastAPI trap this codebase has already been bitten by once. With
-    # `value=""` on the off option, the reader would pick "off", the value would
-    # fall out of EFFORTS, the model's default seeded above would stay, and they
-    # would silently get "high". The picker shows what will be sent, so the two
-    # have to agree.
     # The team's size (spec 3.2.0, team.md §2): this person's default for new
     # chats, or what the new-chat screen was set to. A pair outside the bounds
     # is not stored -- the default stands -- rather than holding the first
@@ -309,10 +299,14 @@ def _new_chat(
             low, high = int(wanted_low), int(wanted_high)
     chat.agents_min, chat.agents_max = low, high
 
+    # After the model's defaults, so choosing one on the new-chat screen wins
+    # over the administrator's. A level word (harness spec 3.2.0: an effort,
+    # `off` or `default`) is stored as chosen; which of the model's levels it
+    # means is read with the model (`chat.levels_for(...).read`), so `off` asked
+    # of a model without the thinking switch is its start level, not "nothing".
+    # Empty -- the field absent -- keeps the seed above.
     wanted_effort = reasoning_effort.strip().lower()
-    if wanted_effort == "off":
-        chat.params_json = {k: v for k, v in chat.params_json.items() if k != "reasoning_effort"}
-    elif wanted_effort in chat_service.EFFORTS:
+    if wanted_effort in chat_service.LEVEL_WORDS:
         chat.params_json = {**chat.params_json, "reasoning_effort": wanted_effort}
 
     # What the scope menu was set to before the first word. Only the *off* ones
@@ -2614,6 +2608,31 @@ async def update_chat(request: Request, db: Db, user: RequiredUser, chat_id: str
             {"chat": None, "user": user, "oob": True, **sidebar_context(db, user)},
         )
 
+    # Another model offers other levels (harness spec 3.2.0) -- maybe a switch
+    # where there was a slider, or nothing at all -- so the composer's settings
+    # menu comes back out of band, as the new model draws it. htmx still swaps
+    # an out-of-band element under the picker's `hx-swap="none"`.
+    # The team setting is offered by the model too (it needs two requests at
+    # once), so the menu's team slot is drawn for the new model as well.
+    if "model_id" in (form := await request.form()) and str(form.get("model_id") or ""):
+        from lembas.api.pages import _team_context
+
+        model = chat_service.model_for(db, chat)
+        return render(
+            request,
+            "chat/_settings_menu.html",
+            {
+                "chat": chat,
+                "oob": True,
+                "model_levels": chat_service.levels_for(model),
+                "chosen_level": chat_service.chat_level(db, chat, model),
+                "scope_families": [],
+                "scope_skills": [],
+                "scope_allow": [],
+                **_team_context(db, user, chat, model),
+            },
+        )
+
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -2750,20 +2769,20 @@ def apply_chat_update(db: DBSession, user: User, chat: Chat, form) -> tuple[bool
             **_clean_params(**{k: str(v) for k, v in submitted_params.items()}),
         }
 
-    # Not a number, so it cannot go through _PARAM_RANGES. `"off"` and empty
-    # both clear it -- the sentinel because that is what the picker sends now,
-    # empty because anything still posting the old value must keep working.
-    # Anything that is neither is ignored rather than refused, so a typo does
-    # not cost a message.
+    # Not a number, so it cannot go through _PARAM_RANGES. A level word is
+    # stored as chosen (`off` included: since harness spec 3.2.0 it is a level,
+    # thinking switched off, not "nothing"); empty clears it, and a cleared
+    # level reads as the model's start level. Anything else is ignored rather
+    # than refused, so a typo does not cost a message.
     if "reasoning_effort" in form:
         if not allowed.get("chat.params"):
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN, t("You may not change sampling parameters.")
             )
         wanted = str(form["reasoning_effort"]).strip().lower()
-        if not wanted or wanted == "off":
+        if not wanted:
             chat.params_json = {**(chat.params_json or {}), "reasoning_effort": None}
-        elif wanted in chat_service.EFFORTS:
+        elif wanted in chat_service.LEVEL_WORDS:
             chat.params_json = {**(chat.params_json or {}), "reasoning_effort": wanted}
 
     # The team's size (spec 3.2.0, team.md §2): `1 ≤ min ≤ max ≤ cap`, either
@@ -2790,16 +2809,16 @@ def apply_chat_update(db: DBSession, user: User, chat: Chat, form) -> tuple[bool
             )
         chat.agents_min, chat.agents_max = int(wanted_low), int(wanted_high)
 
-    # Switching model re-seeds an effort that was never chosen, so "what the
-    # picker shows is what is sent" stays true afterwards. Only when the key is
-    # ABSENT: `None` means somebody cleared it deliberately, and resurrecting
-    # that would make "off" silently do nothing on the next model change.
-    if model_id and "reasoning_effort" not in (chat.params_json or {}):
-        # This person's own default for the new model first, then the
-        # model's.
-        seeded = model_prefs.default_effort(db, user, match)
-        if seeded in chat_service.EFFORTS:
-            chat.params_json = {**(chat.params_json or {}), "reasoning_effort": seeded}
+    # Switching model re-seeds a level the new model does not offer -- this
+    # person's own default for it, else its start level -- so "what the picker
+    # shows is what is sent" stays true afterwards, and a level the new model
+    # does offer is kept.
+    if model_id and "reasoning_effort" not in form:
+        stored = chat_service.resolved_effort(chat)
+        if stored not in chat_service.levels_for(match).offered:
+            seeded = model_prefs.default_effort(db, user, match)
+            if seeded:
+                chat.params_json = {**(chat.params_json or {}), "reasoning_effort": seeded}
 
     db.commit()
     return renamed, archived_changed

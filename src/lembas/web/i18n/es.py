@@ -378,7 +378,6 @@ MESSAGES: dict[str, str] = {
     "Ignored while the model is available to everyone.": "Se ignora mientras el modelo esté disponible para todos.",
     "Model image": "Imagen del modelo",
     "Never shown to a person. It goes into the list of the other models that a model sees when it is allowed to ask one of them a question, so write what would help it choose: size, what this one is good and bad at, a score you trust. Leave it empty and the description above carries that on its own.": "Nunca se muestra a una persona. Va a la lista de los demás modelos que ve un modelo cuando se le permite hacer una pregunta a uno de ellos, así que escriba lo que le ayudaría a elegir: tamaño, en qué es bueno y malo este, una puntuación de su confianza. Si lo deja vacío, la descripción de arriba cumple esa función por sí sola.",
-    "None — send nothing": "Ninguno: no enviar nada",
     "PNG, JPEG, WEBP or GIF, under 2 MB. Without one, the model gets a generated badge whose colour is derived from its id.": "PNG, JPEG, WEBP o GIF, de menos de 2 MB. Sin ella, el modelo recibe una insignia generada cuyo color se deriva de su id.",
     "Parameters, quantisation, a benchmark figure, what it is bad at": "Parámetros, cuantización, una cifra de benchmark, en qué es malo",
     "Pinned — shortcut in the chat sidebar": "Fijado: acceso directo en la barra lateral del chat",
@@ -386,9 +385,7 @@ MESSAGES: dict[str, str] = {
     "Reasoning": "Razonamiento",
     "Reasoning efforts this model accepts": "Esfuerzos de razonamiento que acepta este modelo",
     "Remove image": "Quitar imagen",
-    "Serves one request at a time": "Atiende una solicitud a la vez",
     "Shown instead of the raw id. Empty uses the id.": "Se muestra en lugar del id sin procesar. Vacío usa el id.",
-    "Tick this for a model with a single slot. It then cannot be its own helper, because the helper would take that slot and push out the conversation the server has cached, so the waiting reply would have to read it all again. Other models can still be its helpers.": "Marque esto para un modelo con una sola ranura. Entonces no puede ser su propio ayudante, porque el ayudante ocuparía esa ranura y expulsaría la conversación que el servidor tiene en caché, de modo que la respuesta en espera tendría que volver a leerla entera. Otros modelos sí pueden ser sus ayudantes.",
     "Uncheck to restrict this model to chosen groups. Administrators always have access.": "Desmárquelo para restringir este modelo a los grupos elegidos. Los administradores siempre tienen acceso.",
     "Used by chats on this model that have no prompt of their own. A chat's own prompt overrides this; this overrides the instance prompt.": "Lo usan los chats de este modelo que no tienen un prompt propio. El prompt propio de un chat anula este; este anula el prompt de la instancia.",
     "What is this model good at?": "¿En qué es bueno este modelo?",
@@ -1063,7 +1060,6 @@ MESSAGES.update(
         "The vocabulary is <strong>not the same for every model</strong>, and sending one a model does not know is not ignored — it is rendered into the model's chat template, which raises and fails the whole reply. gpt-oss takes <span class=\"mono\">low/medium/high</span>; Bonsai takes <span class=\"mono\">low/medium/xhigh</span> and refuses <span class=\"mono\">high</span>; OpenAI has added <span class=\"mono\">minimal</span>, <span class=\"mono\">xhigh</span> and <span class=\"mono\">max</span> at various points.": "El vocabulario <strong>no es el mismo para todos los modelos</strong>, y enviar uno que el modelo no conoce no se ignora: se inserta en la plantilla de chat del modelo, que lanza un error y hace fallar toda la respuesta. gpt-oss acepta <span class=\"mono\">low/medium/high</span>; Bonsai acepta <span class=\"mono\">low/medium/xhigh</span> y rechaza <span class=\"mono\">high</span>; OpenAI ha ido añadiendo <span class=\"mono\">minimal</span>, <span class=\"mono\">xhigh</span> y <span class=\"mono\">max</span>.",
         "Tick none and the common three are offered, which is right for almost everything. If an endpoint ever refuses one anyway, that reply is retried without it and this list corrects itself — so this is worth setting by hand only to save that one round trip.": "Si no marca ninguno, se ofrecen los tres habituales, que es lo correcto para casi todo. Si un endpoint rechaza alguno de todos modos, esa respuesta se reintenta sin él y esta lista se corrige sola; así que solo merece la pena configurarlo a mano para ahorrar ese único viaje de ida y vuelta.",
         "A <em>seed</em>, not a per-request setting: it is copied onto a chat when the chat is created and when somebody switches to this model, and from then on the chat's own value is what is sent. Changing it here therefore does nothing to chats that already exist. The composer's picker shows whichever level is actually in force, so what somebody sees there is what goes out. Anyone can change it per chat with <span class=\"mono\">/effort</span>, and the control only appears on a model marked <strong>Reasoning</strong> above.": "Un <em>valor inicial</em>, no un ajuste por solicitud: se copia en un chat cuando se crea y cuando alguien cambia a este modelo, y desde entonces se envía el valor propio del chat. Por eso, cambiarlo aquí no afecta a los chats que ya existen. El selector del editor de mensajes muestra el nivel realmente vigente, así que lo que alguien ve ahí es lo que se envía. Cualquiera puede cambiarlo por chat con <span class=\"mono\">/effort</span>, y el control solo aparece en un modelo marcado arriba con <strong>Razonamiento</strong>.",
-        "Sent two ways at once, because there is no one field that works: OpenAI and vLLM read <span class=\"mono\">reasoning_effort</span>, while llama.cpp drops it silently and reads only <span class=\"mono\">chat_template_kwargs</span> — which is the route by which it reaches gpt-oss. Both go out, and only on a chat that has an effort set, so an endpoint strict about unknown parameters is untouched until somebody chooses one.": "Se envía de dos formas a la vez, porque no hay un único campo que funcione: OpenAI y vLLM leen <span class=\"mono\">reasoning_effort</span>, mientras que llama.cpp lo descarta en silencio y solo lee <span class=\"mono\">chat_template_kwargs</span>, que es la vía por la que llega a gpt-oss. Se envían ambos, y solo en un chat que tenga un esfuerzo definido, así que un endpoint estricto con los parámetros desconocidos no se ve afectado hasta que alguien elija uno.",
         "Shown in the chat settings panel and your users' settings — and, if any model here may ask another one a question, read by those models too.": "Se muestra en el panel de ajustes del chat y en los ajustes de sus usuarios; y, si algún modelo de aquí puede preguntar a otro, también lo leen esos modelos.",
         "No instance prompt is set.": "No hay prompt de instancia.",
         "Leave empty to fall back to the instance prompt shown above.": "Déjelo vacío para recurrir al prompt de la instancia que se muestra arriba.",
@@ -1326,12 +1322,10 @@ MESSAGES.update(
         "not allowed": "no permitido",
         "Which tools a model may use with you, and how hard a reasoning model thinks when a chat starts. These apply to you only, can only narrow what this instance allows, and a chat's own settings still win.": "Qué herramientas puede usar un modelo con usted, y cuánto se esfuerza un modelo de razonamiento al empezar un chat. Se aplica solo a usted, solo puede restringir lo que permite esta instancia, y los ajustes propios de un chat siguen prevaleciendo.",
         "%(n)s tools off": "herramientas desactivadas: %(n)s",
-        "effort off": "esfuerzo desactivado",
         "effort %(level)s": "esfuerzo: %(level)s",
         "Unticked ones are not offered to this model when you chat with it. Only what this instance already offers you is listed.": "Las no marcadas no se ofrecen a este modelo cuando chatea con él. Solo aparece lo que esta instancia ya le ofrece.",
         "This model is offered no tools here.": "Aquí no se ofrece ninguna herramienta a este modelo.",
         "As the instance sets it (%(level)s)": "Como lo define la instancia (%(level)s)",
-        "As the instance sets it (off)": "Como lo define la instancia (desactivado)",
         "Where a new chat with this model starts. Change it in the chat for that chat only.": "Con qué empieza un chat nuevo con este modelo. Cámbielo en el chat para ese chat solamente.",
         "Follow the instance (%(language)s)": "Seguir a la instancia (%(language)s)",
         "dark": "oscuro",
@@ -1740,11 +1734,6 @@ MESSAGES.update(
         "Nothing is being written.": "No se está escribiendo nada.",
         "Your devices: the LLeMbas CLI signed in as you": "Sus dispositivos: la LLeMbas CLI con su sesión iniciada",
         "Your scheduled tasks": "Sus tareas programadas",
-        "This model is not marked as a reasoning model, so effort would do nothing. An administrator can mark it on the model's page.": "Este modelo no está marcado como modelo de razonamiento, así que el esfuerzo no haría nada. Un administrador puede marcarlo en la página del modelo.",
-        "No effort is being sent. Try %(levels)s.": "No se envía ningún esfuerzo. Pruebe %(levels)s.",
-        "Effort is %(level)s. /effort %(levels)s, or off.": "Esfuerzo: %(level)s. /effort %(levels)s, u off.",
-        "“%(level)s” is not an effort this model takes. Try %(levels)s or off.": "«%(level)s» no es un esfuerzo que acepte este modelo. Pruebe %(levels)s u off.",
-        "Effort cleared; nothing is sent.": "Esfuerzo borrado; no se envía nada.",
         "Effort set to %(level)s.": "Esfuerzo: %(level)s.",
         "Already summarising.": "Ya se está resumiendo.",
         "Summarise everything before the last reply? The messages stay in the transcript; they just stop being sent to the model.": "¿Resumir todo lo anterior a la última respuesta? Los mensajes siguen en la transcripción; simplemente dejan de enviarse al modelo.",
@@ -2457,3 +2446,22 @@ MESSAGES['MCP tools'] = 'Herramientas MCP'
 MESSAGES['Since the last reply'] = 'Desde la última respuesta'
 MESSAGES['Compaction buffer'] = 'Reserva para la compactación'
 MESSAGES['Free space'] = 'Espacio libre'
+MESSAGES['waiting for a slot'] = 'esperando un hueco'
+MESSAGES['finished'] = 'terminado'
+MESSAGES['idle'] = 'inactivo'
+
+# Effort levels and the thinking switch, requests at once (2.0.0-beta.5, harness spec 3.2.0).
+MESSAGES['Can switch thinking off'] = 'Puede desactivar el razonamiento'
+MESSAGES['Tick this when the model\'s server turns thinking off for a request that sends <span class="mono">chat_template_kwargs.enable_thinking: false</span> — Qwen3 and Nemotron 3 models on llama.cpp, vLLM or SGLang. A chat then offers <em>off</em>, which sends exactly that and no effort. Without it there is no off: sending no effort leaves such a model thinking at its server\'s default.'] = 'Marque esto cuando el servidor del modelo desactive el razonamiento en una solicitud que envíe <span class="mono">chat_template_kwargs.enable_thinking: false</span>: modelos Qwen3 y Nemotron 3 en llama.cpp, vLLM o SGLang. Un chat ofrece entonces <em>desactivado</em>, que envía exactamente eso y ningún esfuerzo. Sin esto no hay desactivado: sin enviar esfuerzo, ese modelo razona con el valor predeterminado de su servidor.'
+MESSAGES['Not set — medium where offered, else the first effort'] = 'Sin definir: medium donde se ofrezca; si no, el primer esfuerzo'
+MESSAGES['off — thinking switched off'] = 'desactivado: razonamiento desactivado'
+MESSAGES["default — the model's own"] = 'predeterminado: el del propio modelo'
+MESSAGES['Sent two ways at once, because there is no one field that works: OpenAI and vLLM read <span class="mono">reasoning_effort</span>, while llama.cpp drops it silently and reads only <span class="mono">chat_template_kwargs</span> — which is the route by which it reaches gpt-oss. Both go out on every chat with a model marked <strong>Reasoning</strong>: not set here, a chat starts at medium where the model takes it, else at its first effort. <em>Off</em> sends only <span class="mono">enable_thinking: false</span>, and a model not marked <strong>Reasoning</strong> is sent no effort at all.'] = 'Se envía de dos formas a la vez, porque no hay un único campo que funcione: OpenAI y vLLM leen <span class="mono">reasoning_effort</span>, mientras que llama.cpp lo descarta en silencio y solo lee <span class="mono">chat_template_kwargs</span>, que es la vía por la que llega a gpt-oss. Se envían ambos en cada chat con un modelo marcado como <strong>Reasoning</strong>: si aquí no se define nada, un chat empieza en medium donde el modelo lo acepte y, si no, en su primer esfuerzo. <em>Desactivado</em> envía solo <span class="mono">enable_thinking: false</span>, y a un modelo sin la marca <strong>Reasoning</strong> no se le envía ningún esfuerzo.'
+MESSAGES['Requests at once'] = 'Solicitudes a la vez'
+MESSAGES["How many requests the model's server answers at the same time — llama.cpp's slots, a vLLM batch. Empty is no limit, right for a hosted API. At 1 the model cannot be its own helper, because the helper would take the only slot and push out the conversation the server has cached, so the waiting reply would have to read it all again. Other models can still be its helpers."] = 'Cuántas solicitudes atiende a la vez el servidor del modelo: las ranuras de llama.cpp, un lote de vLLM. Vacío es sin límite, lo correcto para una API alojada. Con 1 el modelo no puede ser su propio ayudante, porque el ayudante ocuparía la única ranura y expulsaría la conversación que el servidor tiene en caché, de modo que la respuesta en espera tendría que volver a leerla entera. Otros modelos sí pueden ser sus ayudantes.'
+MESSAGES['Think before answering'] = 'Razonar antes de responder'
+MESSAGES['thinking off'] = 'razonamiento desactivado'
+MESSAGES["This model offers no choice of effort. An administrator sets what it takes on the model's page."] = 'Este modelo no ofrece elegir el esfuerzo. Lo que acepta lo define un administrador en la página del modelo.'
+MESSAGES['Effort is %(level)s. /effort %(levels)s.'] = 'Esfuerzo: %(level)s. /effort %(levels)s.'
+MESSAGES['“%(level)s” is not a level this model offers. Try %(levels)s.'] = '«%(level)s» no es un nivel que ofrezca este modelo. Pruebe %(levels)s.'
+MESSAGES['Thinking switched off.'] = 'Razonamiento desactivado.'

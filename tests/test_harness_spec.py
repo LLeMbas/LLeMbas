@@ -19,6 +19,7 @@ from pathlib import Path
 
 import pytest
 
+from lembas.services import chat as chat_service
 from lembas.services import (
     generation,
     harness_spec,
@@ -59,6 +60,13 @@ AREAS = {
     # model of one lead session's team -- the same functions the chat's team
     # (`services/team_run.py`) applies to its rows.
     "team": lambda c: _team(c),
+    # The effort levels a chat offers and what each sends (spec 3.2.0): pure,
+    # from the model's metadata. `services/chat.py levels`, `level_fields`.
+    "levels": lambda c: _levels(c),
+    # What a request sends back of the model's reasoning (spec 3.2.0,
+    # context.md §8). `services/chat.py reasoning_back`; the tool loop's own
+    # turns carry it through `tools.assistant_turn`.
+    "reasoning": lambda c: chat_service.reasoning_back(c["messages"]),
 }
 
 
@@ -135,6 +143,27 @@ def _team(c):
             raise AssertionError(f"unknown team op {op!r}")
         state.effects.clear()
     return out
+
+
+
+def _levels(c):
+    model = c["model"]
+    if c["op"] == "levels":
+        offered = chat_service.levels(bool(model.get("thinking_switch")), model["efforts"])
+        return {
+            "levels": offered,
+            "control": chat_service.control(offered),
+            "start": chat_service.start_level(offered, model["efforts"], model.get("effort")),
+        }
+    if c["op"] == "request":
+        return chat_service.level_fields(
+            c["level"],
+            thinking_switch=bool(model.get("thinking_switch")),
+            efforts=model["efforts"],
+            effort=model.get("effort"),
+            effort_style=model.get("effort_style", chat_service.STYLE_BOTH),
+        )
+    raise AssertionError(f"unknown levels op {c['op']!r}")
 
 
 def _fill(c):
@@ -219,11 +248,8 @@ PENDING = {
     "instructions": "run in tests/test_workspace.py",
     "unidiff": _ON_THE_DEVICE,
     "envelope": _ON_THE_DEVICE,
-    # Spec 3.2.0's effort levels, the reasoning round-trip and relative paths
-    # are another piece of the same beta, implemented on its own branch.
-    "levels": "spec 3.2.0 effort levels: implemented with the Thinking switch",
-    "reasoning": "spec 3.2.0 reasoning round-trip: implemented with the Thinking switch",
-    "paths": "spec 3.2.0 relative paths: implemented with the Thinking switch",
+    "paths": "a chat's paths are the server's tree's (`/home/<name>`), not a device's project "
+    "root: the environment lines and relative-to-root resolution are the CLI's (context.md §11)",
 }
 
 

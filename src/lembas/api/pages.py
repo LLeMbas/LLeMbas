@@ -85,10 +85,12 @@ def _chat_context(db: DBSession, user: User, chat: Chat | None) -> dict:
         # Bonsai has no `high`, and sending the wrong one does not degrade, it
         # raises inside the chat template and fails the reply. From the service
         # so the command, the control and the request builder cannot disagree.
-        "efforts": chat_service.efforts_for(current) if current else chat_service.DEFAULT_EFFORTS,
-        # What the picker shows, and what `build_request` will send. One
+        # Since harness spec 3.2.0 these are the model's *levels* -- `off` with
+        # the thinking switch, then its efforts -- and which control shows them.
+        "model_levels": chat_service.levels_for(current) if current else None,
+        # What the control shows, and what `build_request` will send. One
         # resolver so the two cannot disagree.
-        "resolved_effort": chat_service.resolved_effort(chat) if chat else "",
+        "chosen_level": chat_service.chat_level(db, chat, current) if chat else "",
         **_scope_context(db, user, chat),
         **_agent_context(db, user, chat),
         **_team_context(db, user, chat, current),
@@ -888,21 +890,17 @@ async def chat_index(
             "bodies": {},
             **context,
             "current_model": preselected,
-            # `_chat_context` reads the efforts off the *chat's* model, and there
+            # `_chat_context` reads the levels off the *chat's* model, and there
             # is no chat here -- so every new chat was offered the generic three
             # whatever it was about to talk to. On Bonsai (low, medium, xhigh)
             # the configured `xhigh` was not among them, and the picker fell
             # through to "off". The chat created from this screen then got
             # `xhigh` anyway, so the control said one thing and the first reply
             # did another.
-            "efforts": (
-                chat_service.efforts_for(preselected)
-                if preselected
-                else chat_service.DEFAULT_EFFORTS
-            ),
-            # What the effort slider starts at: what `_new_chat` will seed --
-            # this person's own default for the model, else the model's.
-            "new_chat_effort": model_prefs.default_effort(db, user, preselected),
+            "model_levels": chat_service.levels_for(preselected) if preselected else None,
+            # What the control starts at: what `_new_chat` will seed -- this
+            # person's own default for the model, else the model's start level.
+            "chosen_level": model_prefs.default_effort(db, user, preselected),
             **_team_context(db, user, None, preselected),
             "starting_temporary": temporary,
             "temporary_toggle_url": new_chat_url(temporary="" if temporary else "1"),
@@ -1239,17 +1237,16 @@ def _model_preferences(db: DBSession, user: User) -> dict:
 
     entries = []
     for model in chat_service.available_models(db, user):
-        reasoning = model_prefs.reasoning(model)
-        seeded = (model.params_json or {}).get("reasoning_effort")
         tools = model_prefs.offered(db, user, model)
         entries.append({
             "model": model,
             "tools": tools,
             "tools_off": sum(1 for tool in tools if not tool["on"]),
-            "efforts": chat_service.efforts_for(model) if reasoning else (),
+            # The model's levels (harness spec 3.2.0), when it offers a choice.
+            "efforts": model_prefs.choosable(model),
             "effort": model_prefs.effort_choice(db, user, model),
             # What "as the instance sets it" currently means, named.
-            "instance_effort": seeded if seeded in chat_service.EFFORTS else "",
+            "instance_effort": chat_service.levels_for(model).start,
         })
     return {"model_prefs": entries}
 

@@ -320,8 +320,9 @@
               Only narrowing, which is why every tool here starts ticked: the
               list is what the model's capabilities, your permissions and the
               instance offer now, and nothing that is not offered can be turned
-              on. The effort exists only on a model an administrator marked as
-              reasoning, and offers only that model's own levels.
+              on. The effort exists only where a model offers a choice, and
+              offers only that model's own levels (harness spec 3.2.0: off only
+              where its thinking can be switched off).
             #}
             {% if model_prefs %}
             <div class="card" id="model-defaults">
@@ -337,7 +338,7 @@
                     <span class="model-prefs__state text-xs faint">
                       {%- if entry.tools_off %}{{ t("%(n)s tools off", n=entry.tools_off) }}{% endif -%}
                       {%- if entry.tools_off and entry.effort %} · {% endif -%}
-                      {%- if entry.effort == "off" %}{{ t("effort off") }}{% elif entry.effort %}{{ t("effort %(level)s", level=entry.effort) }}{% endif -%}
+                      {%- if entry.effort == "off" %}{{ t("thinking off") }}{% elif entry.effort %}{{ t("effort %(level)s", level=entry.effort) }}{% endif -%}
                     </span>
                   </summary>
                   <form class="model-prefs__form" method="post" action="/api/preferences/models">
@@ -364,15 +365,12 @@
                       <label class="field__label" for="effort-{{ model.id }}">{{ t("Reasoning effort") }}</label>
                       <select class="select" id="effort-{{ model.id }}" name="reasoning_effort">
                         <option value="" {{ 'selected' if not entry.effort }}>
-                          {%- if entry.instance_effort -%}
-                            {{ t("As the instance sets it (%(level)s)", level=entry.instance_effort) }}
-                          {%- else -%}
-                            {{ t("As the instance sets it (off)") }}
-                          {%- endif -%}
+                          {{- t("As the instance sets it (%(level)s)", level=(t("off") if entry.instance_effort == "off" else (t("default") if entry.instance_effort == "default" else entry.instance_effort))) -}}
                         </option>
-                        <option value="off" {{ 'selected' if entry.effort == 'off' }}>{{ t("off") }}</option>
                         {% for value in entry.efforts %}
-                        <option value="{{ value }}" {{ 'selected' if entry.effort == value }}>{{ value }}</option>
+                        <option value="{{ value }}" {{ 'selected' if entry.effort == value }}>
+                          {{- t("off") if value == "off" else (t("default") if value == "default" else value) -}}
+                        </option>
                         {% endfor %}
                       </select>
                       <p class="field__hint">{{ t("Where a new chat with this model starts. Change it in the chat for that chat only.") }}</p>
