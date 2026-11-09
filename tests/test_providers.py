@@ -569,9 +569,12 @@ def test_the_fallback_rows_are_drawn_by_the_server_in_order_and_sortable(client,
     assert f'data-id="{backup.id}"' in listed and "data-sortable-handle" in listed
     assert f'name="fallback_model_ids" value="{backup.id}"' in listed
     assert "data-sortable-url" not in card  # the order posts with the form
-    # The keyboard: the handle is a focusable button; add and remove are buttons too.
+    # The keyboard: the handle is a focusable button; remove is a button too.
     assert 'type="button" data-sortable-handle' in listed
-    assert "data-sortable-remove" in listed and "data-sortable-add" in card
+    assert "data-sortable-remove" in listed
+    # Choosing a model in the picker adds it: there is no separate Add button
+    # to forget, which left the choice unsaved (dnd.js `change` -> addPicked).
+    assert "data-sortable-pick" in card and "data-sortable-add" not in card
     assert "<template data-sortable-template>" in card and "__ID__" in card
     # A listed model cannot be added twice.
     option = card[card.index(f'<option value="{backup.id}"'):]

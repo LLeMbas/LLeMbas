@@ -314,6 +314,14 @@
       (focus || parts.pick || document.body).focus();
       return;
     }
+    addPicked(editor, true);
+  });
+
+  /* The chosen option becomes a row. Choosing is adding: a person who picks a
+     model and presses Save expects it saved, and a separate Add button they
+     did not press left the list empty and the choice silently dropped. */
+  function addPicked(editor, focusRow) {
+    var parts = editorParts(editor);
     if (!parts.list || !parts.template || !parts.pick || !parts.pick.value) return;
     var option = parts.pick.selectedOptions[0];
     if (!option || option.disabled) return;
@@ -323,6 +331,12 @@
     parts.pick.value = "";
     syncPick(editor);
     var handle = copy.querySelector("[data-sortable-handle]");
-    if (handle) handle.focus();
+    if (focusRow && handle) handle.focus();
+  }
+
+  document.addEventListener("change", function (event) {
+    var pick = event.target.closest && event.target.closest("[data-sortable-pick]");
+    var editor = pick && pick.closest("[data-sortable-editor]");
+    if (editor) addPicked(editor, false);
   });
 })();

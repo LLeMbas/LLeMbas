@@ -7,6 +7,9 @@ at <https://llembas.eu/changelog.html>.
 
 ### Fixed
 
+- **Choosing a fallback model adds it.** The model page's fallback list needed a separate Add button
+  after choosing; choosing and pressing Save dropped the choice without a word. Now the choice goes
+  straight into the list, and Save keeps it.
 - **An embedding model is no longer offered as a chat model.** Switched on for search and memory, it
   showed in the model picker, the new chat's default and the command palette; it is still served at
   `/v1/embeddings` and used by the index.

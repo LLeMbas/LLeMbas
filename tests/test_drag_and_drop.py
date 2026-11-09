@@ -166,5 +166,8 @@ def test_a_list_without_a_url_is_left_to_its_form():
     save = save[: save.index("\n  }\n")]
     assert "if (!url" in save  # no URL, no request: the hidden inputs carry the order
     assert "[data-sortable-add]" in source and "[data-sortable-remove]" in source
+    # Choosing in the picker is adding (an unpressed Add dropped the choice).
+    change = source[source.index('addEventListener("change"'):][:300]
+    assert "[data-sortable-pick]" in change and "addPicked" in change
     # A name goes in as text, never as markup.
     assert "innerHTML" not in source
