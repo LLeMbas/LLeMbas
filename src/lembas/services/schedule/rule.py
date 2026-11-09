@@ -18,6 +18,7 @@ with two independent generators and a bound:
       "at":    {"weekdays": [0],           # 0 = Monday
                 "days":     [1, 15],       # day of the month
                 "months":   [1, 4, 7, 10],
+                "nth":      [{"n": 2, "weekday": 0}],   # the second Monday
                 "times":    ["15:00"]},    # wall-clock, in the owner's zone
       "count": 5,                          # total firings, 0 = unbounded
       "until": "2026-12-31T00:00:00Z"      # last instant, "" = unbounded
@@ -46,13 +47,26 @@ fires at the first instant that does, rather than being skipped -- a daily repor
 vanishing once a year is precisely the silent failure this file exists to avoid.
 One that occurs twice on a fall-back day fires on the first, once.
 
+## Days counted within the month: `nth`
+
+`at.nth` is a list of `{"n": n, "weekday": w}`. With a weekday, `n` is 1 to 5
+for "the first" to "the fifth" of that weekday in the month and -1 to -5 for
+"the last" to "the fifth from last": `{"n": 2, "weekday": 0}` is the second
+Monday, `{"n": -1, "weekday": 4}` the last Friday. Without one, `n` is -1 to -31
+counted back from the month's end: `{"n": -1}` is the last day of the month.
+A day matches when **any** entry does. `nth` names the day on its own, so a
+rule that has it drops `weekdays` and `days` (`months` still narrows it): two
+ways of saying which day, combined, is a rule nobody can read back.
+
+A fifth Monday that a month does not have is not there: that month is skipped,
+the same as "the 31st" skips a 30-day month.
+
 ## Not expressible
 
-Said plainly, because the gap is the point: "the last Friday of the month", "the
-third Monday", "weekdays except holidays", "the Nth business day", sub-minute
-intervals, sunrise-relative times, and any conditional firing ("only if the
-build is red"). The first two are what people will actually ask for; the rule is
-JSON, so an `nth` key inside `at` adds them later with no migration.
+Said plainly, because the gap is the point: "weekdays except holidays", "the
+Nth business day", sub-minute intervals, sunrise-relative times, a stride in
+months ("every other second Monday"), and any conditional firing ("only if the
+build is red").
 """
 
 from __future__ import annotations
@@ -158,6 +172,52 @@ def _numbers(value: object, *, low: int, high: int) -> list[int]:
     return sorted(found)
 
 
+MAX_NTH = 12
+
+
+def _nth(value: object) -> list[dict[str, int]]:
+    """`at.nth`, cleaned: `{"n", "weekday"}` pairs that mean a day.
+
+    Total like everything here. A model writes `{"n": "2", "weekday": "0"}` and
+    `{"n": 2, "day": "monday"}`; the first is read, the second is not -- naming
+    weekdays in words is the compile's job, and a guess here would be a schedule
+    on the wrong day that looks right.
+    """
+    if isinstance(value, dict):
+        value = [value]
+    if not isinstance(value, (list, tuple)):
+        return []
+    found: list[dict[str, int]] = []
+    for item in list(value)[:MAX_NTH]:
+        if not isinstance(item, dict):
+            continue
+        try:
+            n = int(item.get("n"))  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            continue
+        weekday = item.get("weekday")
+        if weekday is None or weekday == "":
+            # Counted back from the month's end. Counted forward would be
+            # `days`, which already says it.
+            if -31 <= n <= -1:
+                entry = {"n": n}
+            else:
+                continue
+        else:
+            if isinstance(weekday, bool):
+                continue
+            try:
+                day = int(weekday)  # type: ignore[arg-type]
+            except (TypeError, ValueError):
+                continue
+            if not 0 <= day <= 6 or n == 0 or not -5 <= n <= 5:
+                continue
+            entry = {"n": n, "weekday": day}
+        if entry not in found:
+            found.append(entry)
+    return found
+
+
 def _every(value: object) -> dict[str, int]:
     """A stride, clamped to something that can actually be run.
 
@@ -201,12 +261,17 @@ def validate(rule: object) -> dict:
         "weekdays": _numbers(raw_at.get("weekdays"), low=0, high=6),
         "days": _numbers(raw_at.get("days"), low=1, high=31),
         "months": _numbers(raw_at.get("months"), low=1, high=12),
+        "nth": _nth(raw_at.get("nth")),
         "times": [f"{hour:02d}:{minute:02d}" for hour, minute in _times(raw_at.get("times"))],
     }
+    # `nth` names the day by itself (see the module docstring); combined with
+    # weekdays or dates it would be a rule nobody can read back.
+    if at["nth"]:
+        at["weekdays"], at["days"] = [], []
     # A calendar with no time of day has no time of day. Midnight is the only
     # defensible reading and it is what every cron-like thing does, so it is
     # filled in rather than making the whole `at` block meaningless.
-    if any(at[key] for key in ("weekdays", "days", "months")) and not at["times"]:
+    if any(at[key] for key in ("weekdays", "days", "months", "nth")) and not at["times"]:
         at["times"] = ["00:00"]
     if not at["times"]:
         at = {}
@@ -254,11 +319,33 @@ def _matches(moment: datetime, at: dict) -> bool:
     weekdays = at.get("weekdays") or []
     days = at.get("days") or []
     months = at.get("months") or []
+    nth = at.get("nth") or []
+    if months and moment.month not in months:
+        return False
+    if nth:
+        return any(nth_matches(moment, entry) for entry in nth)
     if weekdays and moment.weekday() not in weekdays:
         return False
-    if days and moment.day not in days:
+    return not (days and moment.day not in days)
+
+
+def _month_length(moment: datetime) -> int:
+    following = (moment.replace(day=28) + timedelta(days=4)).replace(day=1)
+    return (following - timedelta(days=1)).day
+
+
+def nth_matches(moment: datetime, entry: dict) -> bool:
+    """Whether a local date is the day one `nth` entry names."""
+    n = int(entry.get("n") or 0)
+    weekday = entry.get("weekday")
+    length = _month_length(moment)
+    if weekday is None:
+        return n < 0 and moment.day == length + 1 + n
+    if moment.weekday() != weekday:
         return False
-    return not (months and moment.month not in months)
+    if n > 0:
+        return (moment.day - 1) // 7 + 1 == n
+    return (length - moment.day) // 7 + 1 == -n
 
 
 def _wall(day: datetime, hour: int, minute: int, zone: tzinfo) -> datetime:
@@ -422,6 +509,40 @@ def advance(
     return True, next_after(rule, now, zone=zone, fired=fired + 1)
 
 
+def upcoming(
+    rule: dict, *, now: datetime, zone: tzinfo, fired: int = 0, count: int = 5
+) -> list[datetime]:
+    """The next `count` instants this rule comes due after `now`, in order.
+
+    What every form shows before anything is saved: a rule read back in words
+    can still be wrong in a way only dates show ("the 31st" in a list of
+    months, a stride counted from a start nobody meant), and five dates are the
+    cheapest proof. Bounded by `count` and by `next_after`'s own horizon.
+    """
+    out: list[datetime] = []
+    after = now
+    for done in range(max(0, min(count, 50))):
+        moment = next_after(rule, after, zone=zone, fired=fired + done)
+        if moment is None:
+            break
+        out.append(moment)
+        after = moment
+    return out
+
+
+def period(rule: dict, *, now: datetime, zone: tzinfo) -> timedelta | None:
+    """How far apart two runs are, near `now`: the stride of a timer, or the
+    gap between the next two calendar occurrences. None for a one-shot or a
+    rule with fewer than two runs left. Read by the catch-up window."""
+    every = _interval(rule)
+    if every and not rule.get("at"):
+        return every
+    following = upcoming(rule, now=now, zone=zone, count=2)
+    if len(following) < 2:
+        return None
+    return following[1] - following[0]
+
+
 # --- Saying it back -------------------------------------------------------------
 _DAY_NAMES = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 _MONTH_NAMES = (
@@ -467,6 +588,26 @@ def _weekday_phrase(days: list[int]) -> str:
     return _join([_DAY_NAMES[day] for day in sorted(chosen)])
 
 
+_ORDINAL_WORDS = {1: "first", 2: "second", 3: "third", 4: "fourth", 5: "fifth"}
+
+
+def _nth_phrase(entry: dict) -> str:
+    """One `nth` entry in words: "second Monday", "last Friday", "last day"."""
+    n = int(entry.get("n") or 0)
+    weekday = entry.get("weekday")
+    if n == -1:
+        count = "last"
+    elif n < 0:
+        count = f"{_ORDINAL_WORDS.get(-n, _ordinal(-n))} from last"
+    else:
+        count = _ORDINAL_WORDS.get(n, _ordinal(n))
+    if weekday is None:
+        if n == -1:
+            return "last day"
+        return f"{_ordinal(-n)} day from the end"
+    return f"{count} {_DAY_NAMES[int(weekday)]}"
+
+
 def _calendar_phrase(at: dict) -> str:
     """How often a calendar rule comes round, in words that parse.
 
@@ -482,6 +623,11 @@ def _calendar_phrase(at: dict) -> str:
     days = at.get("days") or []
     months = at.get("months") or []
     month_names = _join([_MONTH_NAMES[month - 1] for month in months])
+
+    nth = at.get("nth") or []
+    if nth:
+        named = _join([_nth_phrase(entry) for entry in nth])
+        return f"On the {named} of {month_names or 'each month'}"
 
     if days:
         # A day of the month is the subject; the month, if any, qualifies it.

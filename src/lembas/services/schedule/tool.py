@@ -85,7 +85,11 @@ RULE_HELP = (
     'of them. Use this for "every Monday at noon" and "daily at nine". '
     "Weekdays are Monday=0, Tuesday=1, Wednesday=2, Thursday=3, Friday=4, "
     "Saturday=5, Sunday=6 — count them off rather than guessing, because "
-    "naming the wrong day still looks like a working schedule.\n"
+    "naming the wrong day still looks like a working schedule. "
+    'For a day counted within the month put "nth" in "at" instead of weekdays '
+    'and days: [{"n": 2, "weekday": 0}] is the second Monday, '
+    '[{"n": -1, "weekday": 4}] the last Friday, [{"n": -1}] the last day of '
+    "the month.\n"
     '- "count": how many times in total, if a number was given.\n'
     '- "until": ISO timestamp to stop after, if one was given.\n'
     'Give both "every" and "at" only for something like "every other Tuesday". '

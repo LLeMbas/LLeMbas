@@ -1565,6 +1565,10 @@ BUILTIN: tuple[Fragment, ...] = (
             "Thursday=3, Friday=4, Saturday=5, Sunday=6. Count them off rather "
             "than guessing: naming the wrong day is the one mistake here that "
             "still looks like a working schedule.\n"
+            '      For a day counted within the month, put "nth" in "at" instead '
+            'of weekdays and days: [{"n": 2, "weekday": 0}] is the second Monday, '
+            '[{"n": -1, "weekday": 4}] the last Friday, [{"n": -1}] the last day '
+            "of the month.\n"
             '    "count": how many times in total, if they said a number.\n'
             '    "until": an ISO timestamp to stop after, if they gave one.\n'
             "\n"
