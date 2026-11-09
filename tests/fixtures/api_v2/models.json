@@ -18,7 +18,11 @@
       "parallel": 2,
       "context": 131072,
       "image": "/api/v2/models/images/0a1b2c3d4e5f.png",
-      "default": true
+      "default": true,
+      "subagents": {
+        "offered": true,
+        "named_only": false
+      }
     },
     {
       "id": "gpt-oss",
@@ -41,7 +45,11 @@
       "parallel": 1,
       "context": 0,
       "image": null,
-      "default": false
+      "default": false,
+      "subagents": {
+        "offered": true,
+        "named_only": true
+      }
     },
     {
       "id": "vision-small",
@@ -58,7 +66,12 @@
       "parallel": null,
       "context": 8192,
       "image": null,
-      "default": false
+      "default": false,
+      "subagents": {
+        "offered": false,
+        "named_only": false
+      }
     }
-  ]
+  ],
+  "subagents_cap": 32
 }

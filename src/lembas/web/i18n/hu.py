@@ -2385,8 +2385,6 @@ MESSAGES['Remove the uploaded logo and show the LLeMbas mark again?'] = 'Eltávo
 MESSAGES['Remove this model’s image? It gets its generated badge again.'] = 'Eltávolítja a modell képét? Újra a generált jelvényét kapja.'
 
 # Teams: subagents that work together (2.0.0-beta.5, harness spec 3.2.0).
-MESSAGES['Most agents in a team'] = 'Legfeljebb ennyi ügynök egy csapatban'
-MESSAGES["A chat's team is its agent and the members it adds to work beside it, each a whole generation of its own. People choose how many agents a chat's team may have, the agent included, up to this. Offered only on models that serve two requests at once."] = 'Egy csevegés csapata az ügynöke és azok a tagok, akiket maga mellé vesz munkára – mindegyik külön generálás. Mindenki maga választja meg, hány ügynöke lehet egy csevegés csapatának, az ügynököt is beleértve, legfeljebb ennyi. Csak olyan modelleknél érhető el, amelyek egyszerre két kérést szolgálnak ki.'
 MESSAGES['Stop %(name)s'] = '%(name)s leállítása'
 MESSAGES['Stop %(name)s and the members under it? They leave the team.'] = 'Leállítja %(name)s tagot és az alatta lévőket? Kilépnek a csapatból.'
 MESSAGES['Room'] = 'Szoba'
@@ -2394,11 +2392,6 @@ MESSAGES['report'] = 'jelentés'
 MESSAGES['Nothing has been said in the room yet.'] = 'A szobában még senki nem mondott semmit.'
 MESSAGES['Fewest'] = 'Legalább'
 MESSAGES['Most'] = 'Legfeljebb'
-MESSAGES['Its own agent included. Above one, it can add members that do the work while it leads them.'] = 'A saját ügynökét is beleértve. Egynél több esetén tagokat vehet fel, akik elvégzik a munkát, amíg ő vezeti őket.'
-MESSAGES['Team size'] = 'Csapatméret'
-MESSAGES["How many agents a new chat's team may have, its own agent included. With more than one, the agent can add members that work beside it while it leads them; at two or more as the fewest, it leads from the start. Existing chats keep their own."] = 'Hány ügynöke lehet egy új csevegés csapatának, a saját ügynökét is beleértve. Egynél több esetén az ügynök tagokat vehet maga mellé, akik dolgoznak, amíg ő vezeti őket; ha a legkevesebb legalább kettő, kezdettől vezet. A meglévő csevegések megtartják a sajátjukat.'
-MESSAGES['Fewest agents'] = 'Legalább ennyi ügynök'
-MESSAGES['Most agents'] = 'Legfeljebb ennyi ügynök'
 MESSAGES['That member is not on the team.'] = 'Ez a tag nincs a csapatban.'
 MESSAGES["You may not change the team's size."] = 'Ön nem módosíthatja a csapat méretét.'
 MESSAGES['A team has 1 to %(cap)s agents, and the fewest cannot be more than the most.'] = 'Egy csapatban 1–%(cap)s ügynök lehet, és a legkevesebb nem lehet több a legtöbbnél.'
@@ -2433,8 +2426,6 @@ MESSAGES['That agent is not here.'] = 'Ez az ügynök nincs itt.'
 MESSAGES['That agent is not running.'] = 'Ez az ügynök nem fut.'
 MESSAGES['queued'] = 'sorban áll'
 MESSAGES['waiting'] = 'várakozik'
-MESSAGES['1 agent working'] = '1 ügynök dolgozik'
-MESSAGES['%(n)s agents working'] = '%(n)s ügynök dolgozik'
 MESSAGES['%(n)s queued'] = '%(n)s sorban áll'
 MESSAGES['%(n)s waiting'] = '%(n)s várakozik'
 MESSAGES['Messages'] = 'Üzenetek'
@@ -2498,7 +2489,6 @@ MESSAGES['A run up to half its period late still runs; past that, this decides.'
 MESSAGES['Still run when late by up to'] = 'Futtatás késés esetén is legfeljebb'
 MESSAGES['automatic'] = 'automatikus'
 MESSAGES['Minutes. Empty: half the time between runs, from 2 minutes to 2 hours.'] = 'Perc. Üresen: a futtatások közötti idő fele, 2 perctől 2 óráig.'
-MESSAGES['Agents working on a run, the lead included, where its model can serve more than one request at once.'] = 'Egy futtatáson dolgozó ügynökök, a vezetőt is beleértve, ha a modellje egyszerre több kérést is ki tud szolgálni.'
 MESSAGES['Tools a run may use'] = 'Eszközök, amelyeket egy futtatás használhat'
 MESSAGES['Nobody is there to answer a question during a run, and a run never sets up schedules of its own.'] = 'Futtatás közben senki sem válaszol a kérdésekre, és egy futtatás soha nem hoz létre saját ütemezést.'
 MESSAGES['Last run'] = 'Utolsó futtatás'
@@ -2545,3 +2535,20 @@ MESSAGES['A scheduled task failed.'] = 'Egy ütemezett feladat sikertelen volt.'
 MESSAGES['A scheduled task has finished.'] = 'Egy ütemezett feladat befejeződött.'
 MESSAGES['That model is not one you can use.'] = 'Ezt a modellt nem használhatja.'
 MESSAGES['Planning'] = 'Tervezés'
+
+# --- 2.0.0-beta.7: Subagents (harness spec 3.3.0), the activity panel's compaction and tasks ---
+MESSAGES.update(
+    {
+        "Counted with this chat's own agent. Above one, it sends subagents that do the work while it leads them.": 'A beszélgetés saját ügynöke is beleszámít. Egynél több esetén alügynököket küld, akik elvégzik a munkát, amíg ő vezeti őket.',
+        'This model serves one request at a time: subagents need another model, on another server, named in the chat.': 'Ez a modell egyszerre egy kérést szolgál ki: az alügynököknek másik modell kell, egy másik szerveren, a beszélgetésben megnevezve.',
+        "How many a new chat may have, counted with its own agent. With more than one, the agent can send subagents that work beside it while it leads them; at two or more as the fewest, it leads from the start. A subagent runs on the chat's own model, or on another only when you name it in the chat. Existing chats keep their own.": 'Hányat tarthat egy új beszélgetés, a saját ügynökét is beleszámítva. Egynél több esetén az ügynök alügynököket küldhet, akik mellette dolgoznak, amíg ő vezeti őket; ha a legkevesebb kettő vagy több, kezdettől vezet. Egy alügynök a beszélgetés saját modelljén fut, másikon csak akkor, ha azt a beszélgetésben megnevezi. A meglévő beszélgetések megtartják a sajátjukat.',
+        'Most subagents in a chat': 'Legfeljebb ennyi alügynök egy beszélgetésben',
+        "Each subagent is a whole generation of its own. People choose how many a chat may have, counted with its own agent, up to this. Offered where some model can serve as a subagent: the chat's own, serving two requests at once, or another off its one-model server, named by the person in the chat. Nobody sets a subagent's model.": 'Minden alügynök egy teljes, önálló generálás. Az emberek választják meg, hányat tarthat egy beszélgetés, a saját ügynökét is beleszámítva, legfeljebb ennyit. Ott ajánlott, ahol valamely modell alügynökként szolgálhat: a beszélgetés sajátja, ha egyszerre két kérést kiszolgál, vagy egy másik, az egymodelles szerverén kívül, amelyet a személy a beszélgetésben megnevez. Az alügynök modelljét senki sem állítja be.',
+        "Agents working on a run, counted with its own, where its model can serve more than one request at once: a run's subagents run on its model, since nobody names another.": 'Egy futáson dolgozó ügynökök, a sajátját is beleszámítva, ha a modellje egyszerre több kérést is kiszolgál: egy futás alügynökei a modelljén futnak, mivel mást senki sem nevez meg.',
+        '%(tokens)s until auto-compact': '%(tokens)s az automatikus tömörítésig',
+        'Automatic compaction is off.': 'Az automatikus tömörítés ki van kapcsolva.',
+        'Tasks: %(n)s': 'Feladatok: %(n)s',
+        'Finished': 'Befejezve',
+        '%(n)s running': '%(n)s fut',
+    }
+)

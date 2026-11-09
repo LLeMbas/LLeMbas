@@ -357,12 +357,11 @@ def summary(entries: list[dict[str, Any]]) -> dict[str, int]:
 
 
 def summary_text(counts: dict[str, int]) -> str:
-    """'3 agents working · 1 queued · 2 done', in the reader's language."""
+    """'3 running · 1 queued · 2 finished', in the reader's language --
+    subagents, a team's members and background commands alike."""
     parts = []
-    if counts.get(WORKING) == 1:
-        parts.append(t("1 agent working"))
-    elif counts.get(WORKING):
-        parts.append(t("%(n)s agents working", n=counts[WORKING]))
+    if counts.get(WORKING):
+        parts.append(t("%(n)s running", n=counts[WORKING]))
     if counts.get(QUEUED):
         parts.append(t("%(n)s queued", n=counts[QUEUED]))
     if counts.get(WAITING):
@@ -495,12 +494,22 @@ def context(db, chat: Chat, user) -> dict[str, Any]:
                 "percent": round(value * 100 / limit, 1) if limit else None,
             }
         )
+    # How far automatic compaction is (`compaction.should_compact`: at
+    # `threshold`% of the window), and whether the Compact button can work
+    # now -- the reasons it would refuse, checked without spending anything.
+    from lembas.api.chats import compact_refusal
+
+    auto = bool(limit) and 0 < threshold < 100
+    until = max(0, int(limit * threshold / 100) - int(used)) if auto else None
     return {
         "used": int(used),
         "limit": int(limit),
         "percent": round(used * 100 / limit, 1) if limit else None,
         "measured": bool(measured),
         "threshold": threshold,
+        "auto_compact": auto,
+        "until_compact": until,
+        "compactable": not compact_refusal(db, chat),
         "tools_count": len(toolset.defs),
         "mcp_count": len(mcp_defs),
         "categories": rows,

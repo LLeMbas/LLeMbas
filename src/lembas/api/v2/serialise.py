@@ -98,12 +98,15 @@ def _cut(value: Any) -> tuple[Any, bool]:
 MODEL_IMAGE_PATH = "/api/v2/models/images/"
 
 
-def model(row, *, default: bool = False) -> dict[str, Any]:
+def model(row, *, default: bool = False, subagents: dict | None = None) -> dict[str, Any]:
     """One model as the app offers it: what it takes, its levels (harness spec
     3.2.0 -- `levels` in offering order, `effort` the start level, `control`
     `none`/`switch`/`slider` as the chat page draws it), how many requests its
-    server answers at once (`parallel`, null for no stated limit), and its
-    picture's URL (null: none set; the app draws its own badge)."""
+    server answers at once (`parallel`, null for no stated limit), its
+    picture's URL (null: none set; the app draws its own badge), and whether a
+    new chat on it is offered subagents (harness spec 3.3.0, subagents.md §4:
+    `subagents.offered`; `named_only` when only a model the person names in
+    the chat could serve, the setting's `own` note)."""
     from lembas.services import chat as chat_service
 
     caps = row.capabilities_json or {}
@@ -122,7 +125,20 @@ def model(row, *, default: bool = False) -> dict[str, Any]:
         "context": int(row.context_length or 0),
         "image": f"{MODEL_IMAGE_PATH}{row.image_path}" if row.image_path else None,
         "default": default,
+        # Added within APP_API 2 (server 2.0.0-beta.7).
+        "subagents": _subagents(subagents, cap=False),
     }
+
+
+def _subagents(value: dict | None, *, cap: bool = True) -> dict[str, Any]:
+    value = value or {}
+    out: dict[str, Any] = {
+        "offered": bool(value.get("offered")),
+        "named_only": bool(value.get("named_only")),
+    }
+    if cap:
+        out["cap"] = int(value.get("cap") or 0) or None
+    return out
 
 
 # --- Chats -----------------------------------------------------------------------
@@ -139,10 +155,18 @@ def agents(row: Chat, cap: int | None = None) -> dict[str, int]:
 
 
 def chat(
-    row: Chat, *, running: bool = False, cap: int | None = None, level: str | None = None
+    row: Chat,
+    *,
+    running: bool = False,
+    cap: int | None = None,
+    level: str | None = None,
+    subagents: dict | None = None,
 ) -> dict[str, Any]:
     """`level` is the level in force (`chat_service.chat_level`), which the
-    caller reads with the model; without it, the stored word."""
+    caller reads with the model; without it, the stored word. `subagents` is
+    `services.subagents.view` for the chat: whether its Subagents setting is
+    offered, whether they need a named model, and the cap (null where the
+    caller did not work it out -- the list does not)."""
     params = row.params_json or {}
     return {
         "id": row.id,
@@ -169,6 +193,8 @@ def chat(
         "parent_chat_id": row.parent_chat_id,
         # Added within APP_API 2: the team's size setting.
         "agents": agents(row, cap),
+        # Added within APP_API 2 (server 2.0.0-beta.7, harness spec 3.3.0).
+        "subagents": _subagents(subagents),
         "created_at": stamp(row.created_at),
         "updated_at": stamp(row.updated_at),
     }
@@ -293,6 +319,9 @@ def activity(view: dict[str, Any]) -> dict[str, Any]:
             else None
         ),
         "team_offered": bool(view.get("team_offered")),
+        # Added within APP_API 2 (server 2.0.0-beta.7): the same fact under
+        # the word a person reads, and the context's compaction facts.
+        "subagents_offered": bool(view.get("team_offered")),
         "context": (
             {
                 "used": int(ctx["used"]),
@@ -300,6 +329,9 @@ def activity(view: dict[str, Any]) -> dict[str, Any]:
                 "percent": ctx["percent"],
                 "measured": bool(ctx["measured"]),
                 "threshold": int(ctx["threshold"]),
+                "auto_compact": bool(ctx.get("auto_compact")),
+                "until_compact": ctx.get("until_compact"),
+                "compactable": bool(ctx.get("compactable")),
                 "tools_count": int(ctx["tools_count"]),
                 "mcp_count": int(ctx["mcp_count"]),
                 "categories": [
@@ -327,13 +359,18 @@ def activity(view: dict[str, Any]) -> dict[str, Any]:
 
 
 def chat_detail(
-    row: Chat, *, running: bool = False, cap: int | None = None, level: str | None = None
+    row: Chat,
+    *,
+    running: bool = False,
+    cap: int | None = None,
+    level: str | None = None,
+    subagents: dict | None = None,
 ) -> dict[str, Any]:
     """A chat with what its settings sheet shows."""
     from lembas.services import plans
 
     return {
-        **chat(row, running=running, cap=cap, level=level),
+        **chat(row, running=running, cap=cap, level=level, subagents=subagents),
         "system_prompt": row.system_prompt or "",
         "plan": plans.normalise(row.plan) if row.plan else None,
     }

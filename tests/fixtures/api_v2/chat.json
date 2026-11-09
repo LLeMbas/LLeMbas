@@ -18,6 +18,11 @@
     "min": 1,
     "max": 4
   },
+  "subagents": {
+    "offered": true,
+    "named_only": false,
+    "cap": 32
+  },
   "created_at": "2026-01-02T03:04:05+00:00",
   "updated_at": "2026-01-02T03:04:05+00:00"
 }

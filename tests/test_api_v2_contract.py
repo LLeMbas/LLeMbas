@@ -352,7 +352,8 @@ def _activity() -> dict[str, object]:
         "team_offered": True,
         "context": {
             "used": 41000, "limit": 128000, "percent": 32.0, "measured": True,
-            "threshold": 95, "tools_count": 24, "mcp_count": 2,
+            "threshold": 95, "auto_compact": True, "until_compact": 80600,
+            "compactable": True, "tools_count": 24, "mcp_count": 2,
             "categories": [
                 {"key": "messages", "tokens": 30000, "percent": 23.4},
                 {"key": "system", "tokens": 4000, "percent": 3.1},
@@ -486,11 +487,26 @@ def _shapes() -> dict[str, object]:
         card.expires_at = 0.0  # a monotonic deadline means nothing in a file
     assistant = serialise.message(_assistant())
     return {
-        "chat": serialise.chat(_chat(), running=False),
+        "chat": serialise.chat(
+            _chat(), running=False, subagents={"offered": True, "named_only": False, "cap": 32}
+        ),
+        # The first serves its own subagents; the second, one request at a
+        # time, only a model the person names on another server; the third
+        # has no tools, so none (harness spec 3.3.0, subagents.md §4).
         "models": {
             "models": [
-                serialise.model(row, default=index == 0) for index, row in enumerate(_models())
-            ]
+                serialise.model(
+                    row,
+                    default=index == 0,
+                    subagents=[
+                        {"offered": True, "named_only": False},
+                        {"offered": True, "named_only": True},
+                        {"offered": False, "named_only": False},
+                    ][index % 3],
+                )
+                for index, row in enumerate(_models())
+            ],
+            "subagents_cap": 32,
         },
         "chat_agent": serialise.chat(_agent_chat(), running=True),
         "message_user": serialise.message(_user()),

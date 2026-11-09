@@ -2385,8 +2385,6 @@ MESSAGES['Remove the uploaded logo and show the LLeMbas mark again?'] = '¿Quita
 MESSAGES['Remove this model’s image? It gets its generated badge again.'] = '¿Quitar la imagen de este modelo? Volverá a tener su insignia generada.'
 
 # Teams: subagents that work together (2.0.0-beta.5, harness spec 3.2.0).
-MESSAGES['Most agents in a team'] = 'Máximo de agentes en un equipo'
-MESSAGES["A chat's team is its agent and the members it adds to work beside it, each a whole generation of its own. People choose how many agents a chat's team may have, the agent included, up to this. Offered only on models that serve two requests at once."] = 'El equipo de un chat es su agente y los miembros que añade para trabajar a su lado, cada uno una generación propia. Cada persona elige cuántos agentes puede tener el equipo de un chat, el agente incluido, hasta este número. Solo se ofrece en modelos que atienden dos peticiones a la vez.'
 MESSAGES['Stop %(name)s'] = 'Detener %(name)s'
 MESSAGES['Stop %(name)s and the members under it? They leave the team.'] = '¿Detener %(name)s y a los miembros que dependen de él? Dejan el equipo.'
 MESSAGES['Room'] = 'Sala'
@@ -2394,11 +2392,6 @@ MESSAGES['report'] = 'informe'
 MESSAGES['Nothing has been said in the room yet.'] = 'Todavía no se ha dicho nada en la sala.'
 MESSAGES['Fewest'] = 'Mínimo'
 MESSAGES['Most'] = 'Máximo'
-MESSAGES['Its own agent included. Above one, it can add members that do the work while it leads them.'] = 'Su propio agente incluido. Con más de uno, puede añadir miembros que hagan el trabajo mientras los dirige.'
-MESSAGES['Team size'] = 'Tamaño del equipo'
-MESSAGES["How many agents a new chat's team may have, its own agent included. With more than one, the agent can add members that work beside it while it leads them; at two or more as the fewest, it leads from the start. Existing chats keep their own."] = 'Cuántos agentes puede tener el equipo de un chat nuevo, incluido su propio agente. Con más de uno, el agente puede añadir miembros que trabajen a su lado mientras los dirige; con un mínimo de dos o más, dirige desde el principio. Los chats existentes conservan el suyo.'
-MESSAGES['Fewest agents'] = 'Mínimo de agentes'
-MESSAGES['Most agents'] = 'Máximo de agentes'
 MESSAGES['That member is not on the team.'] = 'Ese miembro no está en el equipo.'
 MESSAGES["You may not change the team's size."] = 'No tiene permiso para cambiar el tamaño del equipo.'
 MESSAGES['A team has 1 to %(cap)s agents, and the fewest cannot be more than the most.'] = 'Un equipo tiene de 1 a %(cap)s agentes, y el mínimo no puede ser mayor que el máximo.'
@@ -2433,8 +2426,6 @@ MESSAGES['That agent is not here.'] = 'Ese agente no está aquí.'
 MESSAGES['That agent is not running.'] = 'Ese agente no está en marcha.'
 MESSAGES['queued'] = 'en cola'
 MESSAGES['waiting'] = 'esperando'
-MESSAGES['1 agent working'] = '1 agente trabajando'
-MESSAGES['%(n)s agents working'] = '%(n)s agentes trabajando'
 MESSAGES['%(n)s queued'] = '%(n)s en cola'
 MESSAGES['%(n)s waiting'] = '%(n)s esperando'
 MESSAGES['Messages'] = 'Mensajes'
@@ -2498,7 +2489,6 @@ MESSAGES['A run up to half its period late still runs; past that, this decides.'
 MESSAGES['Still run when late by up to'] = 'Ejecutar aún con un retraso de hasta'
 MESSAGES['automatic'] = 'automático'
 MESSAGES['Minutes. Empty: half the time between runs, from 2 minutes to 2 hours.'] = 'Minutos. Vacío: la mitad del tiempo entre ejecuciones, de 2 minutos a 2 horas.'
-MESSAGES['Agents working on a run, the lead included, where its model can serve more than one request at once.'] = 'Agentes que trabajan en una ejecución, el principal incluido, cuando su modelo puede atender más de una petición a la vez.'
 MESSAGES['Tools a run may use'] = 'Herramientas que puede usar una ejecución'
 MESSAGES['Nobody is there to answer a question during a run, and a run never sets up schedules of its own.'] = 'Durante una ejecución no hay nadie para responder una pregunta, y una ejecución nunca crea programaciones propias.'
 MESSAGES['Last run'] = 'Última ejecución'
@@ -2545,3 +2535,20 @@ MESSAGES['A scheduled task failed.'] = 'Una tarea programada ha fallado.'
 MESSAGES['A scheduled task has finished.'] = 'Una tarea programada ha terminado.'
 MESSAGES['That model is not one you can use.'] = 'Ese modelo no es uno que pueda usar.'
 MESSAGES['Planning'] = 'Planificación'
+
+# --- 2.0.0-beta.7: Subagents (harness spec 3.3.0), the activity panel's compaction and tasks ---
+MESSAGES.update(
+    {
+        "Counted with this chat's own agent. Above one, it sends subagents that do the work while it leads them.": 'Cuenta el propio agente del chat. Con más de uno, envía subagentes que hacen el trabajo mientras él los dirige.',
+        'This model serves one request at a time: subagents need another model, on another server, named in the chat.': 'Este modelo atiende una solicitud a la vez: los subagentes necesitan otro modelo, en otro servidor, nombrado en el chat.',
+        "How many a new chat may have, counted with its own agent. With more than one, the agent can send subagents that work beside it while it leads them; at two or more as the fewest, it leads from the start. A subagent runs on the chat's own model, or on another only when you name it in the chat. Existing chats keep their own.": 'Cuántos puede tener un chat nuevo, contando su propio agente. Con más de uno, el agente puede enviar subagentes que trabajan a su lado mientras él los dirige; con dos o más como mínimo, dirige desde el principio. Un subagente se ejecuta en el propio modelo del chat, o en otro solo cuando usted lo nombra en el chat. Los chats existentes conservan el suyo.',
+        'Most subagents in a chat': 'Máximo de subagentes en un chat',
+        "Each subagent is a whole generation of its own. People choose how many a chat may have, counted with its own agent, up to this. Offered where some model can serve as a subagent: the chat's own, serving two requests at once, or another off its one-model server, named by the person in the chat. Nobody sets a subagent's model.": 'Cada subagente es una generación completa propia. Las personas eligen cuántos puede tener un chat, contando su propio agente, hasta este valor. Se ofrece donde algún modelo puede servir como subagente: el propio del chat, si atiende dos solicitudes a la vez, u otro fuera de su servidor de un solo modelo, nombrado por la persona en el chat. Nadie configura el modelo de un subagente.',
+        "Agents working on a run, counted with its own, where its model can serve more than one request at once: a run's subagents run on its model, since nobody names another.": 'Agentes que trabajan en una ejecución, contando el suyo, cuando su modelo puede atender más de una solicitud a la vez: los subagentes de una ejecución usan su modelo, ya que nadie nombra otro.',
+        '%(tokens)s until auto-compact': '%(tokens)s hasta la compactación automática',
+        'Automatic compaction is off.': 'La compactación automática está desactivada.',
+        'Tasks: %(n)s': 'Tareas: %(n)s',
+        'Finished': 'Terminados',
+        '%(n)s running': '%(n)s en ejecución',
+    }
+)

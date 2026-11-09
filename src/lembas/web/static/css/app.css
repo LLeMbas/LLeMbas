@@ -137,6 +137,8 @@ button, input, textarea, select {
 .icon--lg { width: 1.5em; height: 1.5em; }
 /* The leaf is a filled silhouette, not a stroked pictogram. */
 .icon--leaf { fill: currentColor; stroke: none; }
+/* A stop square: filled, as a media player's is, so it reads at a glance. */
+.icon--solid { fill: currentColor; }
 
 /* --- Buttons ---------------------------------------------------------------
    Every variant is the same height and vertically centres its contents, so a

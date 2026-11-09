@@ -179,11 +179,11 @@
     </div>
 
     <div class="field">
-      <label class="field__label" for="sub_team_cap">{{ t("Most agents in a team") }}</label>
+      <label class="field__label" for="sub_team_cap">{{ t("Most subagents in a chat") }}</label>
       <input class="input" id="sub_team_cap" name="team_cap"
              type="number" min="1" max="{{ team_cap_max }}" step="1"
              value="{{ subagents.team_cap }}">
-      <p class="field__hint">{{ t("A chat's team is its agent and the members it adds to work beside it, each a whole generation of its own. People choose how many agents a chat's team may have, the agent included, up to this. Offered only on models that serve two requests at once.") }}</p>
+      <p class="field__hint">{{ t("Each subagent is a whole generation of its own. People choose how many a chat may have, counted with its own agent, up to this. Offered where some model can serve as a subagent: the chat's own, serving two requests at once, or another off its one-model server, named by the person in the chat. Nobody sets a subagent's model.") }}</p>
     </div>
 
     <div class="field">

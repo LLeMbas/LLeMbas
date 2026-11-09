@@ -628,7 +628,31 @@ async def compact_chat(request: Request, db: Db, user: RequiredUser, chat_id: st
     their own conversation".
     """
     chat = _owned_chat(db, chat_id, user.id)
+    await compact(db, chat, user)
+    return templates.TemplateResponse(
+        request, "chat/_thread.html", {"request": request, **_thread_context(db, chat, user)}
+    )
 
+
+def compact_refusal(db, chat: Chat) -> str:
+    """Why this chat cannot be compacted now, said to a person, or "" -- the
+    refusals `compact` checks before it costs anything, for the activity
+    panel's Compact button and `/api/v2`'s `compactable`."""
+    unfinished = db.scalar(
+        select(Message).where(Message.chat_id == chat.id, Message.complete.is_(False))
+    )
+    if unfinished is not None:
+        return t("Wait for the current reply to finish, then compact.")
+    if compaction_service.last_complete(db, chat) is None:
+        return t("There is nothing here to summarise yet.")
+    if not chat.device_token_id and not prompts_service.resolve(db, "task.compact").strip():
+        return t("Compaction is turned off: its prompt is empty under Admin → Prompts.")
+    return ""
+
+
+async def compact(db, chat: Chat, user) -> None:
+    """Compact a chat, or raise the HTTPException that says why not. One
+    implementation for the page's route and `/api/v2`'s."""
     unfinished = db.scalar(
         select(Message).where(Message.chat_id == chat.id, Message.complete.is_(False))
     )
@@ -663,9 +687,7 @@ async def compact_chat(request: Request, db: Db, user: RequiredUser, chat_id: st
             )
         compaction_service.apply(chat, summary=summary, upto=upto, db=db)
         db.commit()
-        return templates.TemplateResponse(
-            request, "chat/_thread.html", {"request": request, **_thread_context(db, chat, user)}
-        )
+        return
 
     template = prompts_service.resolve(db, "task.compact")
     if not template.strip():
@@ -708,10 +730,6 @@ async def compact_chat(request: Request, db: Db, user: RequiredUser, chat_id: st
     compaction_service.apply(chat, summary=summary, upto=upto, db=db)
     db.commit()
     log.info("chat %s compacted through %s", chat.id, upto.id)
-
-    return templates.TemplateResponse(
-        request, "chat/_thread.html", {"request": request, **_thread_context(db, chat, user)}
-    )
 
 
 @router.post("/{chat_id}/scope")

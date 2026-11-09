@@ -5,12 +5,16 @@
   `task` helpers and background commands, and a member's own helpers -- then,
   folded, the finished ones; and, when the chat has a team, its room.
 
-  An agent is a <details>: the summary row is a fixed grid (state dot, what
-  it is -- the one column that gives, cut never wrapped --, elapsed time in a
-  column of its own width, the stop button at its control size), so rows line
-  up whatever each says. Opened, it shows its brief, model, latest step and
-  the tail of what it is writing, and a button to read its whole conversation
-  in the helper panel.
+  As the reference panel draws it: "Running N", the running ones (six, then
+  "Show N more"), and "Finished N" folded. An agent is a <details>: the
+  summary row is a fixed grid (chevron, state dot, what it is -- the one
+  column that gives, cut never wrapped --, elapsed time in a column of its own
+  width, a stop square at its control size), so rows line up whatever each
+  says. Opened, it shows its brief, model, latest step and the tail of what it
+  is writing, and a button to read its whole conversation in the subagent
+  panel. What an agent started itself -- a member's members and its own
+  subagents and commands -- is folded under it as "Tasks: N", nested by
+  structure rather than by a computed indent.
 
   Everything an agent says, and every name, role and brief, is a model's
   words: printed by Jinja (escaped), and a room message through the markdown
@@ -23,9 +27,9 @@
   `data-keep-open` ids).
 #}
 {% macro agent_row(agent) %}
-<details class="agent agent--{{ agent.state }}" id="agent-{{ agent.kind }}-{{ agent.id }}" data-keep-open
-         style="--depth: {{ agent.depth }}">
+<details class="agent agent--{{ agent.state }}" id="agent-{{ agent.kind }}-{{ agent.id }}" data-keep-open>
   <summary class="agent__row">
+    {{ icon("chevron-right", "icon--sm agent__chevron") }}
     <span class="agent__dot" aria-hidden="true"></span>
     <span class="agent__what u-shrink">
       <span class="agent__name">{{ agent.name }}</span>
@@ -34,7 +38,7 @@
     <span class="agent__time" title="{{ agent_state(agent.state) }}">{{ job_duration(agent.seconds) }}</span>
     <span class="agent__actions">
       {% if agent.stoppable %}
-      <button class="btn btn--icon btn--sm" type="button"
+      <button class="btn btn--icon btn--sm agent__stop" type="button"
               {% if agent.kind == "member" %}
               hx-post="/api/chats/{{ chat.id }}/team/{{ agent.id }}/stop"
               hx-confirm="{{ t('Stop %(name)s and the members under it? They leave the team.', name=agent.name) }}"
@@ -43,7 +47,7 @@
               {% endif %}
               hx-swap="none"
               aria-label="{{ t('Stop %(name)s', name=agent.name) }}" title="{{ t('Stop %(name)s', name=agent.name) }}">
-        {{ icon("stop-circle", "icon--sm") }}
+        {{ icon("stop", "icon--sm icon--solid") }}
       </button>
       {% endif %}
     </span>
@@ -77,7 +81,17 @@
     {% endif %}
   </div>
 </details>
-{% for child in agent.children %}{{ agent_row(child) }}{% endfor %}
+{% if agent.children %}
+<details class="agent-children" id="agent-children-{{ agent.kind }}-{{ agent.id }}" data-keep-open>
+  <summary class="agent-children__row">
+    {{ icon("chevron-right", "icon--sm agent__chevron") }}
+    <span class="u-shrink">{{ t("Tasks: %(n)s", n=agent.children | length) }}</span>
+  </summary>
+  <div class="activity-tasks__list">
+    {% for child in agent.children %}{{ agent_row(child) }}{% endfor %}
+  </div>
+</details>
+{% endif %}
 {% endmacro %}
 
 {% set entries = activity.agents %}
@@ -93,7 +107,7 @@
   {% if not entries and not activity.team %}
   <p class="activity__empty">{{ t("Nothing runs in the background. Subagents, commands and a team's members show here while they work.") }}</p>
   {% else %}
-  <p class="activity-tasks__summary">{{ summary_text(counts) or t("Nothing running.") }}</p>
+  {% if summary_text(counts) %}<p class="activity-tasks__summary">{{ summary_text(counts) }}</p>{% endif %}
 
   {% if activity.team %}
   <p class="activity-tasks__team">
@@ -103,23 +117,26 @@
   {% if activity.team.goal %}<p class="activity-tasks__goal">{{ activity.team.goal }}</p>{% endif %}
   {% endif %}
 
+  <h3 class="activity__subheading">{{ t("Running") }} <span class="activity__count">{{ live | length }}</span></h3>
   {% if live %}
   <div class="activity-tasks__list">
     {% for agent in live[:6] %}{{ agent_row(agent) }}{% endfor %}
   </div>
   {% if live | length > 6 %}
   <details class="activity-tasks__more" id="activity-more" data-keep-open>
-    <summary>{{ t("Show %(n)s more", n=live | length - 6) }}</summary>
+    <summary>{{ icon("chevron-right", "icon--sm agent__chevron") }} {{ t("Show %(n)s more", n=live | length - 6) }}</summary>
     <div class="activity-tasks__list">
       {% for agent in live[6:] %}{{ agent_row(agent) }}{% endfor %}
     </div>
   </details>
   {% endif %}
+  {% else %}
+  <p class="activity__empty">{{ t("Nothing running.") }}</p>
   {% endif %}
 
   {% if ended %}
   <details class="activity-tasks__more" id="activity-finished" data-keep-open>
-    <summary>{{ t("%(n)s finished", n=ended | length) }}</summary>
+    <summary>{{ icon("chevron-right", "icon--sm agent__chevron") }} {{ t("Finished") }} <span class="activity__count">{{ ended | length }}</span></summary>
     <div class="activity-tasks__list">
       {% for agent in ended %}{{ agent_row(agent) }}{% endfor %}
     </div>

@@ -350,6 +350,8 @@
           thread.innerHTML = html;
           if (window.htmx) window.htmx.process(thread);
           if (window.lembas.scrollThread) window.lembas.scrollThread(true);
+          /* The activity panel's Context section measures itself again. */
+          document.body.dispatchEvent(new CustomEvent("lembas:compacted"));
         })
         .catch(function (r) {
           done();

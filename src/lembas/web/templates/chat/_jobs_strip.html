@@ -71,7 +71,7 @@
               hx-post="/api/chats/{{ chat.id }}/jobs/{{ job.id }}/stop"
               hx-target="#jobs-strip" hx-swap="outerHTML"
               aria-label="{{ t('Stop %(job)s', job=job.id) }}" title="{{ t('Stop this job') }}">
-        {{ icon("stop-circle", "icon--sm") }}
+        {{ icon("stop", "icon--sm icon--solid") }}
       </button>
       {% endif %}
     </span>

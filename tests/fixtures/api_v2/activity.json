@@ -143,12 +143,16 @@
       "cursor": 2
     },
     "team_offered": true,
+    "subagents_offered": true,
     "context": {
       "used": 41000,
       "limit": 128000,
       "percent": 32.0,
       "measured": true,
       "threshold": 95,
+      "auto_compact": true,
+      "until_compact": 80600,
+      "compactable": true,
       "tools_count": 24,
       "mcp_count": 2,
       "categories": [

@@ -22,6 +22,10 @@
       "context": 0,
       "image": null,
       "default": false,
+      "subagents": {
+        "offered": false,
+        "named_only": false
+      },
       "free": false,
       "busy": "it is answering someone",
       "chosen": true
@@ -45,6 +49,10 @@
       "context": 131072,
       "image": "/api/v2/models/images/0a1b2c3d4e5f.png",
       "default": false,
+      "subagents": {
+        "offered": false,
+        "named_only": false
+      },
       "free": true,
       "busy": null,
       "chosen": false

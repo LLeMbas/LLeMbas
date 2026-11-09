@@ -15,12 +15,15 @@
   `form="chat-params-form"` keeps them out of every message an existing chat
   sends, as the effort's select does.
 
-  Shown only where a team is offered: subagents on for this chat's model and
-  the model serving at least two requests at once (`team_run.offered`).
+  Shown as **Subagents** (harness spec 3.3.0, subagents.md §4) wherever
+  subagents are offered (`team_run.offered`): enabled, and some model could
+  serve as one -- this chat's own, serving two requests at once, or another
+  off its one-model server. Where only another could (`team_own`), the hint
+  says so: subagents then need a model the person names in the chat.
 #}
 {% if team_offered %}
 <fieldset class="team-setting" data-team-setting>
-  <legend class="team-setting__legend">{{ t("Agents") }}</legend>
+  <legend class="team-setting__legend">{{ t("Subagents") }}</legend>
   <div class="team-setting__field">
     <label class="team-setting__label" for="agents-min">{{ t("Fewest") }}</label>
     <input class="input input--sm team-setting__input" type="number" id="agents-min"
@@ -43,6 +46,9 @@
            hx-include="#agents-min"
            {% endif %}>
   </div>
-  <p class="team-setting__hint">{{ t("Its own agent included. Above one, it can add members that do the work while it leads them.") }}</p>
+  <p class="team-setting__hint">{{ t("Counted with this chat's own agent. Above one, it sends subagents that do the work while it leads them.") }}</p>
+  {% if team_own %}
+  <p class="team-setting__hint team-setting__hint--own">{{ t("This model serves one request at a time: subagents need another model, on another server, named in the chat.") }}</p>
+  {% endif %}
 </fieldset>
 {% endif %}

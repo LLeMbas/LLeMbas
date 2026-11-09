@@ -2278,6 +2278,7 @@
   font-size: var(--text-xs);
   color: var(--ink-faint);
 }
+.team-setting__hint--own { color: var(--warning); }
 
 /* The activity panel (`chat/_activity_*.html`): sections stacked in one
    scroller -- Context, Outputs, Background tasks, Plan -- each a <details>
@@ -2366,6 +2367,22 @@
 .activity-context__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .activity-context__num { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-muted); text-align: right; }
 .activity-context__note { margin: 0; font-size: var(--text-xs); color: var(--ink-faint); }
+/* "N until auto-compact" and the Compact button: the sentence gives, the
+   button keeps its control size, on one shared track. */
+.activity-context__compact {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--sp-2);
+  min-height: var(--control-h);
+}
+.activity-context__until {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
 
 /* Outputs: a file per row -- icon, name (gives, cut), +/- in a column of its
    own width. */
@@ -2397,20 +2414,34 @@
 }
 .activity-tasks__goal { margin: 0; min-width: 0; overflow-wrap: anywhere; font-size: var(--text-sm); color: var(--ink-muted); }
 .activity-tasks__list { display: flex; flex-direction: column; gap: var(--sp-1); }
-.activity-tasks__more > summary {
+.activity-tasks__more > summary,
+.agent-children__row {
   min-height: var(--control-h-sm);
   display: flex;
   align-items: center;
+  gap: var(--sp-2);
+  padding-inline-start: var(--sp-2);
   font-size: var(--text-sm);
   color: var(--ink-muted);
   cursor: pointer;
+  list-style: none;
 }
+.activity-tasks__more > summary::-webkit-details-marker,
+.agent-children__row::-webkit-details-marker { display: none; }
+.activity-tasks__more > .activity-tasks__list { margin-top: var(--sp-1); }
+/* The chevron turns down when its <details> is open: the row, a "Tasks: N"
+   fold, "Show N more", "Finished N". */
+.agent__chevron { color: var(--ink-faint); transition: transform var(--dur-1) ease; }
+details[open] > summary > .agent__chevron { transform: rotate(90deg); }
+/* What an agent started, folded under it and indented by structure: each
+   level of nesting is one more step in, whatever the depth. */
+.agent-children { margin-inline-start: var(--sp-4); min-width: 0; }
+.agent-children > .activity-tasks__list { margin-top: var(--sp-1); }
 
 /* One agent. The summary row is a fixed grid -- state dot, what (gives, cut),
    elapsed time in a column of its own width, the stop button at its control
    size -- indented by its depth in the tree. */
 .agent {
-  margin-left: calc(var(--depth, 0) * var(--sp-4));
   border: var(--border-w) solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface-raised);
@@ -2418,7 +2449,7 @@
 }
 .agent__row {
   display: grid;
-  grid-template-columns: var(--sp-2) minmax(0, 1fr) var(--w-num) var(--control-h);
+  grid-template-columns: var(--sp-3) var(--sp-2) minmax(0, 1fr) var(--w-num) var(--control-h);
   align-items: center;
   column-gap: var(--sp-2);
   min-height: var(--control-h);
@@ -2443,6 +2474,8 @@
 .agent__role { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-muted); }
 .agent__time { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-faint); text-align: right; white-space: nowrap; }
 .agent__actions { display: flex; justify-content: flex-end; }
+.agent__stop { color: var(--ink-muted); }
+.agent__stop:hover { color: var(--danger); }
 .agent__body {
   display: flex;
   flex-direction: column;

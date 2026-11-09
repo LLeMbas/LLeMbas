@@ -8,9 +8,19 @@
   names say in which language. A segment's width and colour are custom
   properties; the colours are the tokens' (`--ctx-*` in chat.css maps each
   category to one), never a value here.
+
+  Under them, as the reference panel has it: how far automatic compaction is
+  ("N until auto-compact", from the compaction threshold) and a Compact
+  button -- the composer's `/compact`, the same code (`commands.js`), so its
+  spinner and its refusals are the ones a person already knows. A shared
+  track: the sentence gives, the button keeps its control size. The section
+  fetches itself again when a compaction lands (`lembas:compacted`).
 #}
+{% from "_macros.html" import icon %}
 {% set ctx = activity.context %}
-<div class="activity-context" id="activity-context">
+<div class="activity-context" id="activity-context"
+     hx-get="/api/chats/{{ chat.id }}/activity?part=context"
+     hx-trigger="lembas:compacted from:body" hx-target="this" hx-swap="outerHTML">
   {% if not ctx %}
   <p class="activity__empty">{{ t("Not measured.") }}</p>
   {% else %}
@@ -42,6 +52,21 @@
     </li>
     {% endfor %}
   </ul>
+  <div class="activity-context__compact">
+    <span class="activity-context__until u-shrink">
+      {% if ctx.until_compact is not none %}
+      {{ t("%(tokens)s until auto-compact", tokens=compact_tokens(ctx.until_compact)) }}
+      {% elif ctx.threshold <= 0 %}
+      {{ t("Automatic compaction is off.") }}
+      {% endif %}
+    </span>
+    <button class="btn btn--sm" type="button" data-compact
+            {% if not ctx.compactable %}disabled{% endif %}
+            title="{{ t('Summarise the earlier turns so they stop costing context') }}"
+            onclick="window.lembasCommands &amp;&amp; window.lembasCommands.run('compact')">
+      {{ icon("archive", "icon--sm") }} {{ t("Compact") }}
+    </button>
+  </div>
   <p class="activity-context__note">
     {% if ctx.measured %}{{ t("Counted by the model at the last reply; the categories are estimated.") }}{% else %}{{ t("Estimated: no reply has been counted yet.") }}{% endif %}
     {{ t("%(n)s tools offered.", n=ctx.tools_count) }}

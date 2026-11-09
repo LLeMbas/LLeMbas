@@ -106,6 +106,7 @@ def _team_context(db: DBSession, user: User, chat: Chat | None, model) -> dict:
     """The team's size setting (harness spec 3.2.0): whether one is offered
     here, and the setting for the control beside the effort. The new-chat
     screen recomputes both for the model it preselects."""
+    from lembas.services import subagents as subagents_rules
     from lembas.services import team_run
 
     if chat is None:
@@ -118,6 +119,9 @@ def _team_context(db: DBSession, user: User, chat: Chat | None, model) -> dict:
         "team_offered": offered,
         "team_setting": {"min": low, "max": high},
         "team_cap": team_run.cap(db),
+        # Harness spec 3.3.0 (subagents.md §4): the chat's model cannot serve
+        # subagents itself; another, named in the chat, could.
+        "team_own": bool(offered and subagents_rules.own_note(db, user, chat, model)),
     }
 
 

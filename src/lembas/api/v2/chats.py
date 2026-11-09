@@ -21,6 +21,7 @@ from lembas.db.models import KIND_CHAT, KINDS, Chat, Message
 from lembas.services import activity as activity_service
 from lembas.services import chat as chat_service
 from lembas.services import generation as generation_service
+from lembas.services import subagents as subagents_rules
 from lembas.services import team_run
 from lembas.web.i18n import t
 
@@ -144,7 +145,11 @@ async def create_chat(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> d
     )
     return {
         "chat": serialise.chat_detail(
-            chat, running=True, cap=team_run.cap(db), level=chat_service.chat_level(db, chat)
+            chat,
+            running=True,
+            cap=team_run.cap(db),
+            level=chat_service.chat_level(db, chat),
+            subagents=subagents_rules.view(db, caller.user, chat),
         ),
         **_turn(user_message, reply),
     }
@@ -181,6 +186,7 @@ async def get_chat(
             running=live is not None,
             cap=team_run.cap(db),
             level=chat_service.chat_level(db, chat),
+            subagents=subagents_rules.view(db, caller.user, chat),
         ),
         "messages": [serialise.message(m) for m in page],
         "more": more,
@@ -231,6 +237,7 @@ async def update_chat(
             running=_running(chat),
             cap=team_run.cap(db),
             level=chat_service.chat_level(db, chat),
+            subagents=subagents_rules.view(db, caller.user, chat),
         )
     }
 
@@ -471,6 +478,19 @@ async def stop_agent(caller: Me, db: Db, chat_id: str, kind: str, agent_id: str)
     if not stopped:
         raise HTTPException(status.HTTP_404_NOT_FOUND, t("That agent is not here."))
     return {"stopped": stopped}
+
+
+@router.post("/chats/{chat_id}/compact")
+async def compact_chat(caller: Me, db: Db, chat_id: str) -> dict[str, Any]:
+    """Summarise the earlier turns and stop sending them -- the activity
+    panel's Compact (`context.compactable` says whether it can now). A 409
+    says why not, in the person's language. Answers the chat's newest page of
+    messages, the divider among them."""
+    chat = owned_chat(db, chat_id, caller.user)
+    await chats_api.compact(db, chat, caller.user)
+    db.refresh(chat)
+    page, more = _page(db, chat, before="", limit=PAGE_DEFAULT)
+    return {"messages": [serialise.message(m) for m in page], "more": more}
 
 
 # --- The plan ---------------------------------------------------------------------------

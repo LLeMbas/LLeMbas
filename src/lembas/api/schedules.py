@@ -280,11 +280,15 @@ def _levels(models) -> list[str]:
 
 
 def _team_offered(db, user, models) -> bool:
+    from lembas.services import team as team_rules
     from lembas.services import team_run
 
+    # A run's subagents run on its own model: nobody is there to name another
+    # (harness spec 3.3.0, subagents.md §2). So its model must serve two at
+    # once -- or state no limit, as a hosted API does.
     return any(
         team_run.subagents_allowed(db, user, m)
-        and (team_run.model_parallel(m) or 0) >= 2
+        and team_rules.capacity_allows(team_run.model_parallel(m))
         for m in models
     )
 

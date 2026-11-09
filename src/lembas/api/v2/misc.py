@@ -65,13 +65,21 @@ async def models(caller: Me, db: Db, chat: str = Query("")) -> dict[str, Any]:
 
     group = data_groups.for_chat(db, owned_chat(db, chat, caller.user)) if chat else None
     start = chat_service.default_model(db, caller.user)
+    from lembas.services import subagents as subagents_rules
+    from lembas.services import team_run
+
+    # Whether a chat on each is offered subagents (harness spec 3.3.0): for a
+    # new chat with no `chat`, for that chat's model switch with one.
+    owned = owned_chat(db, chat, caller.user) if chat else None
     out = [
         serialise.model(
-            row, default=bool(start and (row.model_id, row.connection_id) == start)
+            row,
+            default=bool(start and (row.model_id, row.connection_id) == start),
+            subagents=subagents_rules.view(db, caller.user, None if owned is None else owned, row),
         )
         for row in chat_service.available_models(db, caller.user, group)
     ]
-    return {"models": out}
+    return {"models": out, "subagents_cap": team_run.cap(db)}
 
 
 @router.get("/models/images/{filename}")

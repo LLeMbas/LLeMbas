@@ -522,6 +522,12 @@ def _seed_team() -> None:
         lead = db.get(Chat, SHOOT_CHAT)
         owner = db.query(User).first()
         lead.agents_min, lead.agents_max = 1, 8
+        # A window, so the Context section has a percentage and a distance to
+        # automatic compaction to show.
+        from lembas.db.models import Model
+
+        for model in db.query(Model).filter(Model.model_id == "gemma4-moe"):
+            model.context_length = 131072
         db.add(TeamRow(lead_chat_id=SHOOT_CHAT, goal="A loader that reads every config "
                        "format the project has", seq=4, data_json={}))
         members = [
@@ -560,6 +566,17 @@ def _seed_team() -> None:
                        description="pytest -q tests/config", state="running",
                        started=now - timedelta(seconds=12),
                        data_json={"command": "pytest -q tests/config"}))
+        # Finished ones, for "Finished N" folded under the running.
+        for n, (what, kind) in enumerate(
+            [("read the old INI loader", "subagent"), ("ruff check src/config", "command")],
+            start=3,
+        ):
+            db.add(ChatJob(chat_id=SHOOT_CHAT, job_id=f"job{n}", kind=kind, description=what,
+                           agent="explore" if kind == "subagent" else "",
+                           model="local/gemma4-moe" if kind == "subagent" else "",
+                           state="done", started=now - timedelta(seconds=300 + n * 40),
+                           ended=now - timedelta(seconds=200),
+                           data_json={"command": what} if kind == "command" else {}))
         room = [
             ("parser", ["lexer"], "Tokens for TOML tables first, please.", False),
             ("tester", ["all"], "The suite is in `tests/config/`; run it before you report.",

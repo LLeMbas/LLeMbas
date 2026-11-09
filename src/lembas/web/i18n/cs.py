@@ -2385,8 +2385,6 @@ MESSAGES['Remove the uploaded logo and show the LLeMbas mark again?'] = 'Odstran
 MESSAGES['Remove this model’s image? It gets its generated badge again.'] = 'Odstranit obrázek tohoto modelu? Znovu dostane vygenerovaný odznak.'
 
 # Teams: subagents that work together (2.0.0-beta.5, harness spec 3.2.0).
-MESSAGES['Most agents in a team'] = 'Nejvíce agentů v týmu'
-MESSAGES["A chat's team is its agent and the members it adds to work beside it, each a whole generation of its own. People choose how many agents a chat's team may have, the agent included, up to this. Offered only on models that serve two requests at once."] = 'Tým chatu tvoří jeho agent a členové, které přidá, aby pracovali vedle něj – každý je samostatné generování. Lidé si volí, kolik agentů může mít tým chatu včetně agenta, nejvýše tolik. Nabízí se jen u modelů, které obslouží dva požadavky najednou.'
 MESSAGES['Stop %(name)s'] = 'Zastavit %(name)s'
 MESSAGES['Stop %(name)s and the members under it? They leave the team.'] = 'Zastavit %(name)s a členy pod ním? Opustí tým.'
 MESSAGES['Room'] = 'Místnost'
@@ -2394,11 +2392,6 @@ MESSAGES['report'] = 'hlášení'
 MESSAGES['Nothing has been said in the room yet.'] = 'V místnosti zatím nikdo nic neřekl.'
 MESSAGES['Fewest'] = 'Nejméně'
 MESSAGES['Most'] = 'Nejvíce'
-MESSAGES['Its own agent included. Above one, it can add members that do the work while it leads them.'] = 'Včetně vlastního agenta. Při více než jednom může přidat členy, kteří dělají práci, zatímco je vede.'
-MESSAGES['Team size'] = 'Velikost týmu'
-MESSAGES["How many agents a new chat's team may have, its own agent included. With more than one, the agent can add members that work beside it while it leads them; at two or more as the fewest, it leads from the start. Existing chats keep their own."] = 'Kolik agentů může mít tým nového chatu včetně jeho vlastního agenta. Při více než jednom může agent přidat členy, kteří pracují vedle něj, zatímco je vede; je-li nejmenší počet dva a více, vede od začátku. Stávající chaty si ponechají své nastavení.'
-MESSAGES['Fewest agents'] = 'Nejméně agentů'
-MESSAGES['Most agents'] = 'Nejvíce agentů'
 MESSAGES['That member is not on the team.'] = 'Tento člen není v týmu.'
 MESSAGES["You may not change the team's size."] = 'Velikost týmu nesmíte měnit.'
 MESSAGES['A team has 1 to %(cap)s agents, and the fewest cannot be more than the most.'] = 'Tým má 1 až %(cap)s agentů a nejmenší počet nemůže být větší než největší.'
@@ -2433,8 +2426,6 @@ MESSAGES['That agent is not here.'] = 'Tento agent tu není.'
 MESSAGES['That agent is not running.'] = 'Tento agent neběží.'
 MESSAGES['queued'] = 've frontě'
 MESSAGES['waiting'] = 'čeká'
-MESSAGES['1 agent working'] = '1 agent pracuje'
-MESSAGES['%(n)s agents working'] = 'Pracující agenti: %(n)s'
 MESSAGES['%(n)s queued'] = 'Ve frontě: %(n)s'
 MESSAGES['%(n)s waiting'] = 'Čeká: %(n)s'
 MESSAGES['Messages'] = 'Zprávy'
@@ -2498,7 +2489,6 @@ MESSAGES['A run up to half its period late still runs; past that, this decides.'
 MESSAGES['Still run when late by up to'] = 'Ještě spustit při zpoždění nejvýš'
 MESSAGES['automatic'] = 'automaticky'
 MESSAGES['Minutes. Empty: half the time between runs, from 2 minutes to 2 hours.'] = 'Minuty. Prázdné: polovina času mezi běhy, od 2 minut do 2 hodin.'
-MESSAGES['Agents working on a run, the lead included, where its model can serve more than one request at once.'] = 'Agenti pracující na běhu včetně vedoucího, pokud jeho model zvládne více požadavků najednou.'
 MESSAGES['Tools a run may use'] = 'Nástroje, které smí běh použít'
 MESSAGES['Nobody is there to answer a question during a run, and a run never sets up schedules of its own.'] = 'Během běhu není nikdo, kdo by odpověděl na otázku, a běh si nikdy nevytváří vlastní plány.'
 MESSAGES['Last run'] = 'Poslední běh'
@@ -2545,3 +2535,20 @@ MESSAGES['A scheduled task failed.'] = 'Naplánovaná úloha selhala.'
 MESSAGES['A scheduled task has finished.'] = 'Naplánovaná úloha skončila.'
 MESSAGES['That model is not one you can use.'] = 'Tento model nemůžete používat.'
 MESSAGES['Planning'] = 'Plánování'
+
+# --- 2.0.0-beta.7: Subagents (harness spec 3.3.0), the activity panel's compaction and tasks ---
+MESSAGES.update(
+    {
+        "Counted with this chat's own agent. Above one, it sends subagents that do the work while it leads them.": 'Počítá se i vlastní agent konverzace. Při více než jednom posílá podagenty, kteří dělají práci, zatímco je vede.',
+        'This model serves one request at a time: subagents need another model, on another server, named in the chat.': 'Tento model vyřizuje najednou jeden požadavek: podagenti potřebují jiný model na jiném serveru, pojmenovaný v konverzaci.',
+        "How many a new chat may have, counted with its own agent. With more than one, the agent can send subagents that work beside it while it leads them; at two or more as the fewest, it leads from the start. A subagent runs on the chat's own model, or on another only when you name it in the chat. Existing chats keep their own.": 'Kolik jich smí mít nová konverzace, včetně jejího vlastního agenta. Při více než jednom může agent posílat podagenty, kteří pracují vedle něj, zatímco je vede; při dvou a více jako nejmenším počtu vede od začátku. Podagent běží na vlastním modelu konverzace, na jiném jen tehdy, když ho v konverzaci pojmenujete. Stávající konverzace si ponechají své.',
+        'Most subagents in a chat': 'Nejvíce podagentů v konverzaci',
+        "Each subagent is a whole generation of its own. People choose how many a chat may have, counted with its own agent, up to this. Offered where some model can serve as a subagent: the chat's own, serving two requests at once, or another off its one-model server, named by the person in the chat. Nobody sets a subagent's model.": 'Každý podagent je celé samostatné generování. Lidé si zvolí, kolik jich smí mít konverzace, včetně jejího vlastního agenta, až po tuto hodnotu. Nabízí se tam, kde může jako podagent sloužit nějaký model: vlastní model konverzace, pokud vyřizuje dva požadavky najednou, nebo jiný mimo jeho server s jedním modelem, který člověk v konverzaci pojmenuje. Model podagenta nikdo nenastavuje.',
+        "Agents working on a run, counted with its own, where its model can serve more than one request at once: a run's subagents run on its model, since nobody names another.": 'Agenti pracující na běhu, včetně vlastního, pokud jeho model vyřizuje více než jeden požadavek najednou: podagenti běhu běží na jeho modelu, protože jiný nikdo nepojmenuje.',
+        '%(tokens)s until auto-compact': '%(tokens)s do automatického shrnutí',
+        'Automatic compaction is off.': 'Automatické shrnutí je vypnuté.',
+        'Tasks: %(n)s': 'Úlohy: %(n)s',
+        'Finished': 'Dokončené',
+        '%(n)s running': 'Běží: %(n)s',
+    }
+)

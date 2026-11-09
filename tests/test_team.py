@@ -612,7 +612,7 @@ def test_the_tasks_section_alone_polls_while_something_works(client, db, team_re
     db.commit()
     html = client.get(f"/api/chats/{chat.id}/activity?part=tasks").text
     assert 'id="activity-tasks"' in html and "every 3s" in html
-    assert "1 agent working" in html
+    assert "1 running" in html
 
 
 def test_the_person_stops_a_member_and_those_under_it(client, db, team_ready):
