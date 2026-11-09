@@ -386,7 +386,7 @@ async def test_one_reply_may_only_send_so_many(db, monkeypatch):
     third = await _run(db, parent, {"task": "x"}, generation=generation)
 
     assert third.event["status"] == "error"
-    assert "2 helpers" in third.content
+    assert "2 subagents" in third.content
     assert generation.subagents == 2
 
 

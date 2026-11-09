@@ -652,7 +652,7 @@ def _budget(generation, values: dict[str, Any]) -> str:
         return "This reply cannot delegate."
     if generation.subagents >= int(values["max_per_reply"]):
         return (
-            f"This reply has already used its {values['max_per_reply']} helpers. "
+            f"This reply has already used its {values['max_per_reply']} subagents. "
             "Do the rest yourself, or answer with what you have."
         )
     if len(_LIVE) >= int(values["max_concurrent"]):
@@ -869,7 +869,7 @@ async def _run_subagent(context: ToolContext, args: dict[str, Any]) -> ToolOutco
     if not how and stopped:
         how = ", stopped"
     return _outcome(
-        f"The helper answered:\n\n{answer}{note}\n\n"
+        f"The subagent answered:\n\n{answer}{note}\n\n"
         "This is another model's work, not yours and not the reader's. Check it "
         "against what you know before relying on it, and say what came from it.",
         {
@@ -1061,7 +1061,7 @@ async def _run_job_send(context: ToolContext, args: dict[str, Any]) -> ToolOutco
     state = await send_to_job(context.chat_id, job_id, text)
     if state == "gone":
         return _error(
-            f"{job_id}'s conversation is gone (a helper that waited for its answer is "
+            f"{job_id}'s conversation is gone (a subagent that waited for its answer is "
             "removed once it has answered), so it cannot be spoken to. Start a new task.",
             name="job_send",
         )
@@ -1129,7 +1129,7 @@ def capacity_refusal(db, chat: Chat, target=None) -> str:
         model = chat_service.model_row(
             db, chat_service.Speaker(str(data.get("model_id") or ""), data.get("connection_id"))
         )
-        beside.append((model, f"the helper {job.job_id}"))
+        beside.append((model, f"the subagent {job.job_id}"))
     for other, what in beside:
         if other is None or other.connection_id != target.connection_id:
             continue
@@ -1137,13 +1137,13 @@ def capacity_refusal(db, chat: Chat, target=None) -> str:
             if target.single_session:
                 return (
                     f"{target.label} serves one request at a time, so it cannot run a "
-                    f"helper beside {what}: the helper would take the server's only slot "
+                    f"subagent beside {what}: the subagent would take the server's only slot "
                     "and push the cached prompt out of it."
                 )
         elif getattr(other.connection, "one_model_at_a_time", False):
             return (
                 f"{target.label} and {other.label} are on a connection that holds one "
-                f"model at a time, so a helper on {target.label} cannot run beside {what}."
+                f"model at a time, so a subagent on {target.label} cannot run beside {what}."
             )
     return ""
 

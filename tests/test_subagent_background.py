@@ -509,7 +509,7 @@ def test_capacity_counts_the_connection_and_the_running_helpers(db):
     jobs_service.create(db, parent.id, child_chat_id="x", description="d", agent="explore",
                         model="Test/other", message_id="m", background=True,
                         model_id="other", connection_id=connection.id)
-    assert "the helper job1" in subagent_service.capacity_refusal(db, parent)
+    assert "the subagent job1" in subagent_service.capacity_refusal(db, parent)
 
 
 def test_the_helper_reads_the_specs_preamble_filled_and_the_parent_the_model_list(db):
