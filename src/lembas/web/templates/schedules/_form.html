@@ -210,9 +210,9 @@
   {% if team_offered %}
   <div class="field">
     <label class="field__label" for="schedule-agents">{{ t("Subagents") }}</label>
-    <input class="input" type="number" id="schedule-agents" name="agents" min="0" max="8"
+    <input class="input" type="number" id="schedule-agents" name="agents" min="1" max="8"
            value="{{ form.agents }}" placeholder="1">
-    <p class="field__hint">{{ t("Agents working on a run, counted with its own, where its model can serve more than one request at once: a run's subagents run on its model, since nobody names another.") }}</p>
+    <p class="field__hint">{{ t("Max agents on a run, counted with its own: 1 is the agent alone, no subagents; 4 is the agent and up to 3 subagents. Only where its model can serve more than one request at once: a run's subagents run on its model, since nobody names another.") }}</p>
   </div>
   {% endif %}
 </fieldset>

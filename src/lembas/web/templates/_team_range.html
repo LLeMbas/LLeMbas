@@ -1,0 +1,62 @@
+{#
+  The team's size as one range with two handles, Min and Max (harness spec
+  3.2.0 team.md §2, shown as Subagents by 3.3.0 subagents.md §4): the agents a
+  chat's team may have, **its own agent counted** -- 1 is the agent alone, no
+  subagents; Max 4 is the agent and up to three. `1 ≤ min ≤ max ≤ cap`.
+
+  Two real `<input type=range>` laid over one track, so each is a native
+  slider a keyboard and a screen reader already know (named "Min" and "Max");
+  the track and the filled span between the handles are drawn under them, and
+  only the thumbs take the pointer. ui.js keeps Min from passing Max and
+  repaints the span and the values; without it the server's own bounds check
+  (422, never clamped) still holds.
+
+  Placed like the effort slider: the range is exactly the distance between
+  the first and the last stop plus one thumb, so a thumb's centre sits on its
+  stop, and the stop labels are positioned on those same centres -- by
+  construction, whatever the cap, the popover's width or the language.
+
+  `prefix` names the ids (`agents` -> `agents-min`, `agents-max`); `chat`, when
+  given, makes each save on change with `hx-patch` and the other included, as
+  the fields did, and `form="chat-params-form"` keeps them out of every
+  message the chat sends. With no chat they are plain fields of whatever form
+  holds them: the new-chat composer's, or Settings'.
+#}
+{% macro team_range(low, high, cap, prefix="agents", chat=None, legend="", focus=false, hint_id="") %}
+{% set cap = [cap|int, 1]|max %}
+{% set span = [cap - 1, 1]|max %}
+{% set step = 1 if cap <= 10 else [cap // 4, 1]|max %}
+<div class="team-range" data-team-range
+     style="--lo: {{ (low - 1) / span }}; --hi: {{ (high - 1) / span }}">
+  <div class="team-range__head">
+    {% if legend %}<span class="team-range__legend">{{ legend }}</span>{% endif %}
+    <output class="team-range__value" data-team-output
+            data-min-label="{{ t('Min') }}" data-max-label="{{ t('Max') }}"
+            for="{{ prefix }}-min {{ prefix }}-max">{{ t("Min") }} {{ low }} · {{ t("Max") }} {{ high }}</output>
+  </div>
+  <div class="team-range__body">
+    <div class="team-range__track" aria-hidden="true"><span class="team-range__fill"></span></div>
+    {% for end, value in [("min", low), ("max", high)] %}
+    <input class="team-range__input team-range__input--{{ end }}" type="range"
+           id="{{ prefix }}-{{ end }}" name="agents_{{ end }}"
+           min="1" max="{{ cap }}" step="1" value="{{ value }}"
+           aria-label="{{ t('Min') if end == 'min' else t('Max') }}"
+           {% if hint_id %}aria-describedby="{{ hint_id }}"{% endif %}
+           data-team-{{ end }}
+           {% if focus and end == "min" %}data-picker-focus{% endif %}
+           {% if chat %}
+           form="chat-params-form"
+           hx-patch="/api/chats/{{ chat.id }}" hx-trigger="change" hx-swap="none"
+           hx-include="#{{ prefix }}-{{ 'max' if end == 'min' else 'min' }}"
+           {% endif %}>
+    {% endfor %}
+  </div>
+  <div class="team-range__stops" aria-hidden="true">
+    {% for k in range(1, cap + 1) %}
+    {% if k == 1 or k == cap or (k % step == 0 and cap - k >= step / 2) %}
+    <span style="--at: {{ (k - 1) / span }}">{{ k }}</span>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endmacro %}

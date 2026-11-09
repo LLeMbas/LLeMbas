@@ -1653,6 +1653,60 @@ document.addEventListener("lembas:notify", function (event) {
 })();
 
 /*
+  The team's size: one range with two handles, Min and Max
+  (`_team_range.html`). Each handle is a native range input, so the keyboard
+  and a screen reader work as on any slider; this only keeps Min from passing
+  Max -- the handle being moved stops at the other -- and repaints the filled
+  span (`--lo`, `--hi`), the "Min 1 · Max 4" line and which handle lies on top
+  when the two meet (the one that can still move). Saving is the inputs' own
+  `hx-patch` on `change`, or the form they are in.
+*/
+(function () {
+  function parts(box) {
+    return {
+      low: box.querySelector("[data-team-min]"),
+      high: box.querySelector("[data-team-max]"),
+      out: box.querySelector("[data-team-output]"),
+    };
+  }
+  function paint(box) {
+    var p = parts(box);
+    if (!p.low || !p.high) return;
+    var top = Number(p.high.max) || 1;
+    var span = Math.max(top - 1, 1);
+    var lo = Number(p.low.value);
+    var hi = Number(p.high.value);
+    box.style.setProperty("--lo", String((lo - 1) / span));
+    box.style.setProperty("--hi", String((hi - 1) / span));
+    // Met at the top end only Min can still move; anywhere else Max can.
+    if (lo === hi && hi === top) box.setAttribute("data-top", "min");
+    else box.removeAttribute("data-top");
+    if (p.out) {
+      p.out.textContent =
+        p.out.dataset.minLabel + " " + lo + " · " + p.out.dataset.maxLabel + " " + hi;
+    }
+  }
+  function paintAll() {
+    document.querySelectorAll("[data-team-range]").forEach(paint);
+  }
+  document.addEventListener("input", function (event) {
+    var input = event.target;
+    if (!input || !input.matches || !input.matches("[data-team-min], [data-team-max]")) return;
+    var box = input.closest("[data-team-range]");
+    if (!box) return;
+    var p = parts(box);
+    if (Number(p.low.value) > Number(p.high.value)) {
+      // The moved handle stops at the other; neither pushes it along.
+      if (input === p.low) p.low.value = p.high.value;
+      else p.high.value = p.low.value;
+    }
+    paint(box);
+  });
+  document.addEventListener("DOMContentLoaded", paintAll);
+  document.body && document.body.addEventListener("htmx:afterSettle", paintAll);
+})();
+
+/*
   Continue is offered on the newest reply only. Marked here rather than
   by the server, because the newest one changes under a page that is not
   re-rendered: a reply finishing, a queued turn arriving.

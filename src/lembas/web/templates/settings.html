@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_macros.html" import icon, model_avatar %}
+{% from "_team_range.html" import team_range %}
 
 {% block title %}{{ t("Your settings") }} - {{ brand.name }}{% endblock %}
 
@@ -251,21 +252,10 @@
             {% if team_allowed %}
             <div class="card">
               <h2 class="card__title">{{ t("Subagents") }}</h2>
-              <p class="card__lede">{{ t("How many a new chat may have, counted with its own agent. With more than one, the agent can send subagents that work beside it while it leads them; at two or more as the fewest, it leads from the start. A subagent runs on the chat's own model, or on another only when you name it in the chat. Existing chats keep their own.") }}</p>
+              <p class="card__lede" id="pref-agents-hint">{{ t("How many agents a new chat may have, counted with its own: 1 is the agent alone, no subagents; Max 4 is the agent and up to 3 subagents, working beside it while it leads them. With Min 2 or more it leads from the start. A subagent runs on the chat's own model, or on another only when you name it in the chat. Existing chats keep their own.") }}</p>
               <form method="post" action="/api/preferences/agents" class="team-setting__form">
                 <div class="team-setting team-setting--wide">
-                  <div class="field team-setting__field">
-                    <label class="field__label" for="pref-agents-min">{{ t("Fewest") }}</label>
-                    <input class="input team-setting__input" type="number" id="pref-agents-min"
-                           name="agents_min" min="1" max="{{ team_cap }}" step="1" required
-                           value="{{ team_default.min }}">
-                  </div>
-                  <div class="field team-setting__field">
-                    <label class="field__label" for="pref-agents-max">{{ t("Most") }}</label>
-                    <input class="input team-setting__input" type="number" id="pref-agents-max"
-                           name="agents_max" min="1" max="{{ team_cap }}" step="1" required
-                           value="{{ team_default.max }}">
-                  </div>
+                  {{ team_range(team_default.min, team_default.max, team_cap, prefix="pref-agents", hint_id="pref-agents-hint") }}
                 </div>
                 <button class="btn btn--primary" type="submit">{{ t("Save") }}</button>
               </form>

@@ -352,6 +352,56 @@ def test_the_size_setting_is_saved_on_the_chat_and_refused_outside(client, db, t
     assert (chat.agents_min, chat.agents_max) == (2, 6)
 
 
+def test_the_setting_counts_the_chats_own_agent(client, db, team_ready):
+    """Min and Max count this chat's own agent (the owner, 2026-11-09): Max 1
+    is the agent alone -- no member, no `task` helper -- and Max 4 is the
+    agent and up to three, whatever mix of members and helpers they are."""
+    chat = _chat(db, team_ready)
+    response = client.patch(f"/api/chats/{chat.id}", data={"agents_min": "1", "agents_max": "1"})
+    assert response.status_code < 400, response.text
+    db.refresh(chat)
+    one_agent = rules.spec()["unavailable"]["one_agent"]
+    team = team_run.load(db, chat.id)
+    assert (team.min, team.max, team.size()) == (1, 1, 1)
+    assert team_run.task_refusal(db, chat) == one_agent
+    assert rules.add(team, rules.LEAD, {"name": "x", "role": "r", "task": "t"}).text == one_agent
+
+    response = client.patch(f"/api/chats/{chat.id}", data={"agents_min": "1", "agents_max": "4"})
+    assert response.status_code < 400, response.text
+    db.refresh(chat)
+    team = team_run.load(db, chat.id)
+    assert team.max == 4 and team_run.task_refusal(db, chat) == ""
+    for name in ("one", "two", "three"):
+        assert _add(team, name).agent is not None, name
+    assert team.size() == 4  # the agent and three subagents
+    assert _add(team, "four").text == rules._say("full", max=4)
+    assert rules.task_refusal(team) == rules._say("full", max=4)
+
+
+def test_the_setting_is_one_range_with_a_min_and_a_max_handle(client, db, team_ready):
+    chat = _chat(db, team_ready)
+    chat.agents_min, chat.agents_max = 2, 5
+    db.commit()
+    page = client.get(f"/chat/{chat.id}").text
+    assert "data-team-range" in page
+    for end, value in (("min", 2), ("max", 5)):
+        tag = re.search(rf'<input[^>]*id="agents-{end}"[^>]*>', page, re.S).group(0)
+        assert 'type="range"' in tag and f'value="{value}"' in tag
+        assert f'aria-label="{end.capitalize()}"' in tag
+        assert f'hx-patch="/api/chats/{chat.id}"' in tag
+    assert "Min 2 · Max 5" in page
+    assert "1 is the agent alone, no subagents" in page
+    assert "Fewest" not in page and 'type="number" id="agents-' not in page
+
+    settings = client.get("/settings?tab=models").text
+    assert 'id="pref-agents-min"' in settings and 'id="pref-agents-max"' in settings
+    assert re.search(
+        r'<input[^>]*id="pref-agents-max"[^>]*type="range"|type="range"[^>]*id="pref-agents-max"',
+        settings,
+        re.S,
+    )
+
+
 def test_the_size_note_rides_on_the_first_user_message(db, team_ready):
     from lembas.services import tools as tools_service
 

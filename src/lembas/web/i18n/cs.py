@@ -2390,11 +2390,8 @@ MESSAGES['Stop %(name)s and the members under it? They leave the team.'] = 'Zast
 MESSAGES['Room'] = 'Místnost'
 MESSAGES['report'] = 'hlášení'
 MESSAGES['Nothing has been said in the room yet.'] = 'V místnosti zatím nikdo nic neřekl.'
-MESSAGES['Fewest'] = 'Nejméně'
-MESSAGES['Most'] = 'Nejvíce'
 MESSAGES['That member is not on the team.'] = 'Tento člen není v týmu.'
 MESSAGES["You may not change the team's size."] = 'Velikost týmu nesmíte měnit.'
-MESSAGES['A team has 1 to %(cap)s agents, and the fewest cannot be more than the most.'] = 'Tým má 1 až %(cap)s agentů a nejmenší počet nemůže být větší než největší.'
 MESSAGES['Team size for new chats saved.'] = 'Velikost týmu pro nové chaty je uložena.'
 MESSAGES['working'] = 'pracuje'
 # The activity panel: context, outputs, background tasks and the team's room.
@@ -2539,16 +2536,25 @@ MESSAGES['Planning'] = 'Plánování'
 # --- 2.0.0-beta.7: Subagents (harness spec 3.3.0), the activity panel's compaction and tasks ---
 MESSAGES.update(
     {
-        "Counted with this chat's own agent. Above one, it sends subagents that do the work while it leads them.": 'Počítá se i vlastní agent konverzace. Při více než jednom posílá podagenty, kteří dělají práci, zatímco je vede.',
         'This model serves one request at a time: subagents need another model, on another server, named in the chat.': 'Tento model vyřizuje najednou jeden požadavek: podagenti potřebují jiný model na jiném serveru, pojmenovaný v konverzaci.',
-        "How many a new chat may have, counted with its own agent. With more than one, the agent can send subagents that work beside it while it leads them; at two or more as the fewest, it leads from the start. A subagent runs on the chat's own model, or on another only when you name it in the chat. Existing chats keep their own.": 'Kolik jich smí mít nová konverzace, včetně jejího vlastního agenta. Při více než jednom může agent posílat podagenty, kteří pracují vedle něj, zatímco je vede; při dvou a více jako nejmenším počtu vede od začátku. Podagent běží na vlastním modelu konverzace, na jiném jen tehdy, když ho v konverzaci pojmenujete. Stávající konverzace si ponechají své.',
-        'Most subagents in a chat': 'Nejvíce podagentů v konverzaci',
-        "Each subagent is a whole generation of its own. People choose how many a chat may have, counted with its own agent, up to this. Offered where some model can serve as a subagent: the chat's own, serving two requests at once, or another off its one-model server, named by the person in the chat. Nobody sets a subagent's model.": 'Každý podagent je celé samostatné generování. Lidé si zvolí, kolik jich smí mít konverzace, včetně jejího vlastního agenta, až po tuto hodnotu. Nabízí se tam, kde může jako podagent sloužit nějaký model: vlastní model konverzace, pokud vyřizuje dva požadavky najednou, nebo jiný mimo jeho server s jedním modelem, který člověk v konverzaci pojmenuje. Model podagenta nikdo nenastavuje.',
-        "Agents working on a run, counted with its own, where its model can serve more than one request at once: a run's subagents run on its model, since nobody names another.": 'Agenti pracující na běhu, včetně vlastního, pokud jeho model vyřizuje více než jeden požadavek najednou: podagenti běhu běží na jeho modelu, protože jiný nikdo nepojmenuje.',
         '%(tokens)s until auto-compact': '%(tokens)s do automatického shrnutí',
         'Automatic compaction is off.': 'Automatické shrnutí je vypnuté.',
         'Tasks: %(n)s': 'Úlohy: %(n)s',
         'Finished': 'Dokončené',
         '%(n)s running': 'Běží: %(n)s',
+    }
+)
+
+# --- 2.0.0 Unreleased: the Subagents setting as one Min/Max range; 1 is the agent alone ---
+MESSAGES.update(
+    {
+        'Min': 'Min',
+        'Max': 'Max',
+        "Counted with this chat's own agent: 1 is the agent alone, no subagents; Max 4 is the agent and up to 3 subagents, which do the work while it leads them.": 'Počítá se i vlastní agent konverzace: 1 je agent sám, bez podagentů; Max 4 je agent a nejvýše 3 podagenti, kteří dělají práci, zatímco je vede.',
+        "How many agents a new chat may have, counted with its own: 1 is the agent alone, no subagents; Max 4 is the agent and up to 3 subagents, working beside it while it leads them. With Min 2 or more it leads from the start. A subagent runs on the chat's own model, or on another only when you name it in the chat. Existing chats keep their own.": 'Kolik agentů smí mít nová konverzace, včetně jejího vlastního: 1 je agent sám, bez podagentů; Max 4 je agent a nejvýše 3 podagenti, kteří pracují vedle něj, zatímco je vede. Při Min 2 a více vede od začátku. Podagent běží na vlastním modelu konverzace, na jiném jen tehdy, když ho v konverzaci pojmenujete. Stávající konverzace si ponechají své.',
+        "Max agents on a run, counted with its own: 1 is the agent alone, no subagents; 4 is the agent and up to 3 subagents. Only where its model can serve more than one request at once: a run's subagents run on its model, since nobody names another.": 'Max agentů na běhu, včetně vlastního: 1 je agent sám, bez podagentů; 4 je agent a nejvýše 3 podagenti. Jen pokud jeho model vyřizuje více než jeden požadavek najednou: podagenti běhu běží na jeho modelu, protože jiný nikdo nepojmenuje.',
+        'Max agents in a chat': 'Max agentů v konverzaci',
+        "Each subagent is a whole generation of its own. People choose Min and Max for a chat, counted with its own agent (1 is the agent alone, no subagents), up to this. Offered where some model can serve as a subagent: the chat's own, serving two requests at once, or another off its one-model server, named by the person in the chat. Nobody sets a subagent's model.": 'Každý podagent je celé samostatné generování. Lidé si pro konverzaci volí Min a Max, včetně jejího vlastního agenta (1 je agent sám, bez podagentů), nejvýše do této hodnoty. Nabízí se tam, kde může jako podagent sloužit nějaký model: vlastní model konverzace, pokud vyřizuje dva požadavky najednou, nebo jiný mimo jeho jednomodelový server, který člověk pojmenuje v konverzaci. Model podagenta nikdo nenastavuje.',
+        "Min and Max are 1 to %(cap)s, counted with the chat's own agent, and Min cannot be more than Max.": 'Min a Max jsou od 1 do %(cap)s, včetně vlastního agenta konverzace, a Min nemůže být více než Max.',
     }
 )

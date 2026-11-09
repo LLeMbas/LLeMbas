@@ -1,19 +1,14 @@
 {#
   The team's size (harness spec 3.2.0, team.md §2), in the chat settings menu
   beside the effort: the agents this chat's team may have, its own agent
-  included -- the fewest and the most, `1 ≤ min ≤ max ≤ cap`.
+  included -- Min and Max, `1 ≤ min ≤ max ≤ cap`. 1 is the agent alone.
 
-  Two number steppers on one shared grid: each field is a label over its
-  input, both tracks the same width, so the two inputs sit on one line
-  whatever the labels say in which language. The hint spans both under them.
-
-  On a chat that exists each saves on change, like the effort: `hx-patch` on
-  the chat with the other field included, so the server checks the pair; a
-  pair outside the bounds is refused (422), never clamped, and the reader's
-  browser keeps them inside `min`/`max` to begin with. On the new-chat screen
-  they are fields of the composer's form, carried by the first message.
-  `form="chat-params-form"` keeps them out of every message an existing chat
-  sends, as the effort's select does.
+  One range with two handles (`_team_range.html`), styled as the effort
+  slider above it. On a chat that exists each handle saves on change, like
+  the effort: `hx-patch` on the chat with the other included, so the server
+  checks the pair; a pair outside the bounds is refused (422), never clamped.
+  On the new-chat screen they are fields of the composer's form, carried by
+  the first message.
 
   Shown as **Subagents** (harness spec 3.3.0, subagents.md §4) wherever
   subagents are offered (`team_run.offered`): enabled, and some model could
@@ -21,32 +16,12 @@
   off its one-model server. Where only another could (`team_own`), the hint
   says so: subagents then need a model the person names in the chat.
 #}
+{% from "_team_range.html" import team_range %}
 {% if team_offered %}
-<fieldset class="team-setting" data-team-setting>
-  <legend class="team-setting__legend">{{ t("Subagents") }}</legend>
-  <div class="team-setting__field">
-    <label class="team-setting__label" for="agents-min">{{ t("Fewest") }}</label>
-    <input class="input input--sm team-setting__input" type="number" id="agents-min"
-           name="agents_min" min="1" max="{{ team_cap }}" step="1" inputmode="numeric"
-           value="{{ team_setting.min }}" data-picker-focus
-           {% if chat %}
-           form="chat-params-form"
-           hx-patch="/api/chats/{{ chat.id }}" hx-trigger="change" hx-swap="none"
-           hx-include="#agents-max"
-           {% endif %}>
-  </div>
-  <div class="team-setting__field">
-    <label class="team-setting__label" for="agents-max">{{ t("Most") }}</label>
-    <input class="input input--sm team-setting__input" type="number" id="agents-max"
-           name="agents_max" min="1" max="{{ team_cap }}" step="1" inputmode="numeric"
-           value="{{ team_setting.max }}"
-           {% if chat %}
-           form="chat-params-form"
-           hx-patch="/api/chats/{{ chat.id }}" hx-trigger="change" hx-swap="none"
-           hx-include="#agents-min"
-           {% endif %}>
-  </div>
-  <p class="team-setting__hint">{{ t("Counted with this chat's own agent. Above one, it sends subagents that do the work while it leads them.") }}</p>
+<fieldset class="team-setting" data-team-setting aria-describedby="agents-hint">
+  <legend class="visually-hidden">{{ t("Subagents") }}</legend>
+  {{ team_range(team_setting.min, team_setting.max, team_cap, chat=chat, legend=t("Subagents"), focus=true) }}
+  <p class="team-setting__hint" id="agents-hint">{{ t("Counted with this chat's own agent: 1 is the agent alone, no subagents; Max 4 is the agent and up to 3 subagents, which do the work while it leads them.") }}</p>
   {% if team_own %}
   <p class="team-setting__hint team-setting__hint--own">{{ t("This model serves one request at a time: subagents need another model, on another server, named in the chat.") }}</p>
   {% endif %}

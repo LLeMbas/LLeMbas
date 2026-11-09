@@ -328,7 +328,8 @@ async def set_team_default(
     limit = team_run.cap(db)
     if team_rules.bounds_refusal(agents_min.strip(), agents_max.strip(), limit):
         message = i18n.t(
-            "A team has 1 to %(cap)s agents, and the fewest cannot be more than the most.",
+            "Min and Max are 1 to %(cap)s, counted with the chat's own agent, "
+            "and Min cannot be more than Max.",
             cap=limit,
         )
         return RedirectResponse(f"/settings?tab=models&error={quote(message)}", status_code=303)

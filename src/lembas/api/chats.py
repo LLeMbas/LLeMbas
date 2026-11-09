@@ -2820,8 +2820,8 @@ def apply_chat_update(db: DBSession, user: User, chat: Chat, form) -> tuple[bool
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
                 t(
-                    "A team has 1 to %(cap)s agents, and the fewest cannot be more "
-                    "than the most.",
+                    "Min and Max are 1 to %(cap)s, counted with the chat's own agent, "
+                    "and Min cannot be more than Max.",
                     cap=limit,
                 ),
             )

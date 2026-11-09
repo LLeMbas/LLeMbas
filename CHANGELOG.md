@@ -21,9 +21,12 @@ The harness spec is **3.3.0** (`subagents.md`).
   its own subagent: you name another model, on another server, and nothing is picked for you.
   Another model on the same one-model-at-a-time server as the chat's is refused, because loading
   it would unload the chat's model.
-- **The Subagents setting** (fewest, most; counted with the chat's own agent) is offered whenever
-  some model could serve -- the chat's own, or another off its one-model server -- and says so
-  beside it when only a model you name could.
+- **The Subagents setting** is offered whenever some model could serve -- the chat's own, or another
+  off its one-model server -- and says so beside it when only a model you name could.
+- **Subagents is one slider with two handles, Min and Max**, from 1 to the instance's cap, in the
+  chat's settings and as your default in Settings -- not two number fields called fewest and most.
+  The numbers count the chat's own agent: **1 is the agent alone, with no subagents**, and Max 4 is
+  the agent and up to three. The schedule form's Subagents field and the admin cap say the same.
 
 ### Added
 

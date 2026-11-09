@@ -2390,11 +2390,8 @@ MESSAGES['Stop %(name)s and the members under it? They leave the team.'] = 'Arr�
 MESSAGES['Room'] = 'Salle'
 MESSAGES['report'] = 'rapport'
 MESSAGES['Nothing has been said in the room yet.'] = 'Rien n’a encore été dit dans la salle.'
-MESSAGES['Fewest'] = 'Au moins'
-MESSAGES['Most'] = 'Au plus'
 MESSAGES['That member is not on the team.'] = 'Ce membre ne fait pas partie de l’équipe.'
 MESSAGES["You may not change the team's size."] = "Vous n'avez pas le droit de modifier la taille de l’équipe."
-MESSAGES['A team has 1 to %(cap)s agents, and the fewest cannot be more than the most.'] = 'Une équipe compte de 1 à %(cap)s agents, et le minimum ne peut pas dépasser le maximum.'
 MESSAGES['Team size for new chats saved.'] = 'Taille de l’équipe pour les nouvelles conversations enregistrée.'
 MESSAGES['working'] = 'au travail'
 # The activity panel: context, outputs, background tasks and the team's room.
@@ -2539,16 +2536,25 @@ MESSAGES['Planning'] = 'Planification'
 # --- 2.0.0-beta.7: Subagents (harness spec 3.3.0), the activity panel's compaction and tasks ---
 MESSAGES.update(
     {
-        "Counted with this chat's own agent. Above one, it sends subagents that do the work while it leads them.": 'L’agent propre de la discussion compte. Au-delà d’un, il envoie des sous-agents qui font le travail pendant qu’il les dirige.',
         'This model serves one request at a time: subagents need another model, on another server, named in the chat.': 'Ce modèle traite une requête à la fois : les sous-agents ont besoin d’un autre modèle, sur un autre serveur, nommé dans la discussion.',
-        "How many a new chat may have, counted with its own agent. With more than one, the agent can send subagents that work beside it while it leads them; at two or more as the fewest, it leads from the start. A subagent runs on the chat's own model, or on another only when you name it in the chat. Existing chats keep their own.": 'Combien une nouvelle discussion peut en avoir, son propre agent compris. Au-delà d’un, l’agent peut envoyer des sous-agents qui travaillent à côté de lui pendant qu’il les dirige ; à deux ou plus comme minimum, il dirige dès le départ. Un sous-agent tourne sur le modèle propre de la discussion, ou sur un autre seulement si vous le nommez dans la discussion. Les discussions existantes gardent le leur.',
-        'Most subagents in a chat': 'Nombre maximal de sous-agents par discussion',
-        "Each subagent is a whole generation of its own. People choose how many a chat may have, counted with its own agent, up to this. Offered where some model can serve as a subagent: the chat's own, serving two requests at once, or another off its one-model server, named by the person in the chat. Nobody sets a subagent's model.": 'Chaque sous-agent est une génération entière à part. Les personnes choisissent combien une discussion peut en avoir, son propre agent compris, jusqu’à cette valeur. Proposé là où un modèle peut servir de sous-agent : celui de la discussion, s’il traite deux requêtes à la fois, ou un autre hors de son serveur à modèle unique, nommé par la personne dans la discussion. Personne ne règle le modèle d’un sous-agent.',
-        "Agents working on a run, counted with its own, where its model can serve more than one request at once: a run's subagents run on its model, since nobody names another.": 'Agents travaillant sur une exécution, le sien compris, lorsque son modèle peut traiter plus d’une requête à la fois : les sous-agents d’une exécution tournent sur son modèle, puisque personne n’en nomme un autre.',
         '%(tokens)s until auto-compact': '%(tokens)s avant le compactage automatique',
         'Automatic compaction is off.': 'Le compactage automatique est désactivé.',
         'Tasks: %(n)s': 'Tâches : %(n)s',
         'Finished': 'Terminés',
         '%(n)s running': '%(n)s en cours',
+    }
+)
+
+# --- 2.0.0 Unreleased: the Subagents setting as one Min/Max range; 1 is the agent alone ---
+MESSAGES.update(
+    {
+        'Min': 'Min',
+        'Max': 'Max',
+        "Counted with this chat's own agent: 1 is the agent alone, no subagents; Max 4 is the agent and up to 3 subagents, which do the work while it leads them.": 'L’agent propre de la discussion compte : 1 est l’agent seul, sans sous-agents ; Max 4 est l’agent et jusqu’à 3 sous-agents, qui font le travail pendant qu’il les dirige.',
+        "How many agents a new chat may have, counted with its own: 1 is the agent alone, no subagents; Max 4 is the agent and up to 3 subagents, working beside it while it leads them. With Min 2 or more it leads from the start. A subagent runs on the chat's own model, or on another only when you name it in the chat. Existing chats keep their own.": 'Combien d’agents une nouvelle discussion peut avoir, le sien compris : 1 est l’agent seul, sans sous-agents ; Max 4 est l’agent et jusqu’à 3 sous-agents, qui travaillent à côté de lui pendant qu’il les dirige. À partir de Min 2, il dirige dès le départ. Un sous-agent tourne sur le modèle propre de la discussion, ou sur un autre seulement si vous le nommez dans la discussion. Les discussions existantes gardent le leur.',
+        "Max agents on a run, counted with its own: 1 is the agent alone, no subagents; 4 is the agent and up to 3 subagents. Only where its model can serve more than one request at once: a run's subagents run on its model, since nobody names another.": 'Max d’agents sur une exécution, le sien compris : 1 est l’agent seul, sans sous-agents ; 4 est l’agent et jusqu’à 3 sous-agents. Seulement lorsque son modèle peut traiter plus d’une requête à la fois : les sous-agents d’une exécution tournent sur son modèle, puisque personne n’en nomme un autre.',
+        'Max agents in a chat': 'Max d’agents par discussion',
+        "Each subagent is a whole generation of its own. People choose Min and Max for a chat, counted with its own agent (1 is the agent alone, no subagents), up to this. Offered where some model can serve as a subagent: the chat's own, serving two requests at once, or another off its one-model server, named by the person in the chat. Nobody sets a subagent's model.": 'Chaque sous-agent est une génération entière à part. Les personnes choisissent Min et Max pour une discussion, son propre agent compris (1 est l’agent seul, sans sous-agents), jusqu’à cette valeur. Proposé là où un modèle peut servir de sous-agent : celui de la discussion, s’il traite deux requêtes à la fois, ou un autre hors de son serveur à modèle unique, nommé par la personne dans la discussion. Personne ne règle le modèle d’un sous-agent.',
+        "Min and Max are 1 to %(cap)s, counted with the chat's own agent, and Min cannot be more than Max.": 'Min et Max vont de 1 à %(cap)s, l’agent propre de la discussion compris, et Min ne peut pas dépasser Max.',
     }
 )

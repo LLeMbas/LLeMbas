@@ -2390,11 +2390,8 @@ MESSAGES['Stop %(name)s and the members under it? They leave the team.'] = 'Zatr
 MESSAGES['Room'] = 'Pokój'
 MESSAGES['report'] = 'raport'
 MESSAGES['Nothing has been said in the room yet.'] = 'W pokoju nikt jeszcze nic nie powiedział.'
-MESSAGES['Fewest'] = 'Najmniej'
-MESSAGES['Most'] = 'Najwięcej'
 MESSAGES['That member is not on the team.'] = 'Tego członka nie ma w zespole.'
 MESSAGES["You may not change the team's size."] = 'Brak uprawnień do zmiany wielkości zespołu.'
-MESSAGES['A team has 1 to %(cap)s agents, and the fewest cannot be more than the most.'] = 'Zespół ma od 1 do %(cap)s agentów, a najmniejsza liczba nie może być większa od największej.'
 MESSAGES['Team size for new chats saved.'] = 'Wielkość zespołu dla nowych czatów zapisana.'
 MESSAGES['working'] = 'pracuje'
 # The activity panel: context, outputs, background tasks and the team's room.
@@ -2539,16 +2536,25 @@ MESSAGES['Planning'] = 'Planowanie'
 # --- 2.0.0-beta.7: Subagents (harness spec 3.3.0), the activity panel's compaction and tasks ---
 MESSAGES.update(
     {
-        "Counted with this chat's own agent. Above one, it sends subagents that do the work while it leads them.": 'Liczy się też własny agent czatu. Przy więcej niż jednym wysyła podagentów, którzy wykonują pracę, gdy on nimi kieruje.',
         'This model serves one request at a time: subagents need another model, on another server, named in the chat.': 'Ten model obsługuje jedno żądanie naraz: podagenci potrzebują innego modelu, na innym serwerze, nazwanego w czacie.',
-        "How many a new chat may have, counted with its own agent. With more than one, the agent can send subagents that work beside it while it leads them; at two or more as the fewest, it leads from the start. A subagent runs on the chat's own model, or on another only when you name it in the chat. Existing chats keep their own.": 'Ilu może mieć nowy czat, wliczając jego własnego agenta. Przy więcej niż jednym agent może wysyłać podagentów, którzy pracują obok niego, gdy on nimi kieruje; przy dwóch lub więcej jako minimum kieruje od początku. Podagent działa na własnym modelu czatu, na innym tylko wtedy, gdy nazwiesz go w czacie. Istniejące czaty zachowują swoje ustawienie.',
-        'Most subagents in a chat': 'Najwięcej podagentów w czacie',
-        "Each subagent is a whole generation of its own. People choose how many a chat may have, counted with its own agent, up to this. Offered where some model can serve as a subagent: the chat's own, serving two requests at once, or another off its one-model server, named by the person in the chat. Nobody sets a subagent's model.": 'Każdy podagent to całe osobne generowanie. Ludzie wybierają, ilu może mieć czat, wliczając jego własnego agenta, aż do tej wartości. Oferowane tam, gdzie jakiś model może służyć jako podagent: własny model czatu, jeśli obsługuje dwa żądania naraz, albo inny spoza jego serwera jednego modelu, nazwany przez osobę w czacie. Nikt nie ustawia modelu podagenta.',
-        "Agents working on a run, counted with its own, where its model can serve more than one request at once: a run's subagents run on its model, since nobody names another.": 'Agenci pracujący nad uruchomieniem, wliczając jego własnego, gdy jego model obsługuje więcej niż jedno żądanie naraz: podagenci uruchomienia działają na jego modelu, bo nikt nie nazywa innego.',
         '%(tokens)s until auto-compact': '%(tokens)s do automatycznego streszczenia',
         'Automatic compaction is off.': 'Automatyczne streszczanie jest wyłączone.',
         'Tasks: %(n)s': 'Zadania: %(n)s',
         'Finished': 'Zakończone',
         '%(n)s running': 'Działa: %(n)s',
+    }
+)
+
+# --- 2.0.0 Unreleased: the Subagents setting as one Min/Max range; 1 is the agent alone ---
+MESSAGES.update(
+    {
+        'Min': 'Min',
+        'Max': 'Max',
+        "Counted with this chat's own agent: 1 is the agent alone, no subagents; Max 4 is the agent and up to 3 subagents, which do the work while it leads them.": 'Liczy się też własny agent czatu: 1 to sam agent, bez podagentów; Max 4 to agent i do 3 podagentów, którzy wykonują pracę, gdy on nimi kieruje.',
+        "How many agents a new chat may have, counted with its own: 1 is the agent alone, no subagents; Max 4 is the agent and up to 3 subagents, working beside it while it leads them. With Min 2 or more it leads from the start. A subagent runs on the chat's own model, or on another only when you name it in the chat. Existing chats keep their own.": 'Ilu agentów może mieć nowy czat, wliczając jego własnego: 1 to sam agent, bez podagentów; Max 4 to agent i do 3 podagentów, którzy pracują obok niego, gdy on nimi kieruje. Przy Min 2 lub więcej kieruje od początku. Podagent działa na własnym modelu czatu, na innym tylko wtedy, gdy nazwiesz go w czacie. Istniejące czaty zachowują swoje ustawienie.',
+        "Max agents on a run, counted with its own: 1 is the agent alone, no subagents; 4 is the agent and up to 3 subagents. Only where its model can serve more than one request at once: a run's subagents run on its model, since nobody names another.": 'Max agentów w uruchomieniu, wliczając jego własnego: 1 to sam agent, bez podagentów; 4 to agent i do 3 podagentów. Tylko gdy jego model obsługuje więcej niż jedno żądanie naraz: podagenci uruchomienia działają na jego modelu, bo nikt nie nazywa innego.',
+        'Max agents in a chat': 'Max agentów w czacie',
+        "Each subagent is a whole generation of its own. People choose Min and Max for a chat, counted with its own agent (1 is the agent alone, no subagents), up to this. Offered where some model can serve as a subagent: the chat's own, serving two requests at once, or another off its one-model server, named by the person in the chat. Nobody sets a subagent's model.": 'Każdy podagent to całe osobne generowanie. Ludzie wybierają Min i Max dla czatu, wliczając jego własnego agenta (1 to sam agent, bez podagentów), do tej wartości. Oferowane tam, gdzie jakiś model może służyć jako podagent: własny model czatu, jeśli obsługuje dwa żądania naraz, albo inny spoza jego jednomodelowego serwera, nazwany przez osobę w czacie. Nikt nie ustawia modelu podagenta.',
+        "Min and Max are 1 to %(cap)s, counted with the chat's own agent, and Min cannot be more than Max.": 'Min i Max to od 1 do %(cap)s, wliczając własnego agenta czatu, a Min nie może być większe niż Max.',
     }
 )
