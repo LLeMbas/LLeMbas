@@ -304,6 +304,14 @@ class Chat(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
         JSONDict, nullable=True, default=dict
     )
 
+    # --- Teams (harness spec 3.2.0, team.md §2) --------------------------------
+    # The agents this chat's team may have, the lead included: `1 ≤ min ≤ max ≤
+    # cap`. Null on a row older than teams, read as the spec's defaults
+    # (`services/team_run.py:setting`); a cap lowered under a stored value
+    # narrows it on read and changes nothing here.
+    agents_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    agents_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     folder: Mapped[Folder | None] = relationship(back_populates="chats")
     messages: Mapped[list[Message]] = relationship(
         back_populates="chat",
@@ -564,3 +572,71 @@ class ChatJob(UUIDPrimaryKey, Timestamps, Base):
     # read its output), `runs` (how many times it was started).
     data_json: Mapped[dict[str, Any]] = mapped_column(JSONDict, default=dict)
 
+
+
+class Team(UUIDPrimaryKey, Timestamps, Base):
+    """One lead chat's team (harness spec 3.2.0, team.md): what the rules keep
+    beside the members and the room -- the lead's goal, the order counter,
+    what waits for the lead's next turn, the names the person stopped that the
+    lead has not been told yet, and how far the room is numbered.
+
+    Additive: new tables, and a plain id rather than a ForeignKey for the
+    reason every other reference in this module gives. Deleting the lead chat
+    deletes these rows (`services/chat.py:delete_chats` stops the team first).
+    """
+
+    __tablename__ = "teams"
+
+    lead_chat_id: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    goal: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    seq: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Everything else about the team, additively: `lead_inbox` (texts that
+    # will wake the lead), `lead_waiting_since`, `stopped_unsaid`.
+    data_json: Mapped[dict[str, Any]] = mapped_column(JSONDict, default=dict)
+
+
+class TeamAgent(UUIDPrimaryKey, Timestamps, Base):
+    """A member of a team: its name, who manages it, what it owns, and the
+    hidden chat it works in (the job machinery's, `services/subagent.py`).
+    A stopped member's row is kept with `left` set, so the room still says
+    who spoke; a name is unique among the members that have not left."""
+
+    __tablename__ = "team_agents"
+
+    lead_chat_id: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(40), nullable=False)
+    manager: Mapped[str] = mapped_column(String(40), default="lead", nullable=False)
+    role: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    may_lead: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    agent: Mapped[str] = mapped_column(String(60), default="general", nullable=False)
+    # `connection/model`, as the tree shows it; the row's model and connection
+    # for the slots.
+    model: Mapped[str] = mapped_column(String(300), default="", nullable=False)
+    model_id: Mapped[str] = mapped_column(String(300), default="", nullable=False)
+    connection_id: Mapped[str | None] = mapped_column(String(32))
+    chat_id: Mapped[str | None] = mapped_column(String(32), index=True)
+    state: Mapped[str] = mapped_column(String(16), default="waiting", nullable=False)
+    goal: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    waiting_since: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    inbox_json: Mapped[list[Any]] = mapped_column(JSONList, default=list)
+    run_started: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_ended: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    left: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class TeamMessage(UUIDPrimaryKey, Timestamps, Base):
+    """One message of a team's room, numbered from 1 per team: who sent it,
+    to whom as addressed, who received it (resolved when it was posted), the
+    text, and whether it is a report. A model wrote the text: it is shown
+    through the markdown renderer, never as markup."""
+
+    __tablename__ = "team_messages"
+
+    lead_chat_id: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    n: Mapped[int] = mapped_column(Integer, nullable=False)
+    sender: Mapped[str] = mapped_column(String(40), nullable=False)
+    to_json: Mapped[list[Any]] = mapped_column(JSONList, default=list)
+    recipients_json: Mapped[list[Any]] = mapped_column(JSONList, default=list)
+    text: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    report: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

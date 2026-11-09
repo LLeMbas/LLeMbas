@@ -605,6 +605,32 @@ def _pick_model(db, owner: User, parent: Chat, wanted: str):
     return matches[0] if len(matches) == 1 else None
 
 
+def write_refusal(parent: Chat) -> str:
+    """Why a helper that writes cannot be sent from this chat, or "".
+
+    A temporary chat writes nothing, and a helper is not a way round that: it
+    would write on the chat's behalf into the same library. A chat planning
+    may not change anything either. Refused rather than quietly downgraded,
+    so the model knows to send a reader. A team's member that writes is
+    refused the same way (`team_run`)."""
+    from lembas.services import tools as tools_service
+    from lembas.services.chat import read_only_temporary
+
+    if read_only_temporary(parent):
+        return (
+            "This is a temporary chat, which may read but not change anything, "
+            "so a helper cannot write either. Send the explore agent, or ask the "
+            "reader to keep the chat first."
+        )
+    if tools_service.plan_mode(parent):
+        return (
+            "This chat is in Plan mode, where nothing is changed — so a helper "
+            "cannot write either. Send the explore agent, and make the changes "
+            "once the plan is approved."
+        )
+    return ""
+
+
 def model_ref(model) -> str:
     """`connection/model`, as the spec names a model and `job_list` shows it."""
     if model is None:
@@ -716,27 +742,14 @@ async def _run_subagent(context: ToolContext, args: dict[str, Any]) -> ToolOutco
         if parent.parent_chat_id or parent.unattended:
             return _error("A helper cannot ask for a helper of its own.", task=task)
 
-        # A temporary chat writes nothing, and a helper is not a way round that:
-        # it would write on the chat's behalf into the same library. Refused
-        # rather than quietly downgraded, so the model knows to send a reader.
-        from lembas.services.chat import read_only_temporary
+        if write and (refused := write_refusal(parent)):
+            return _error(refused, task=task)
+        # A team (spec 3.2.0, team.md §3): a helper counts toward the size the
+        # person allows, and with one agent allowed there is none.
+        from lembas.services import team_run
 
-        if write and read_only_temporary(parent):
-            return _error(
-                "This is a temporary chat, which may read but not change anything, "
-                "so a helper cannot write either. Send the explore agent, or ask the "
-                "reader to keep the chat first.",
-                task=task,
-            )
-        # A chat planning may not change anything, and a helper is not a way
-        # round that either.
-        if write and tools_service.plan_mode(parent):
-            return _error(
-                "This chat is in Plan mode, where nothing is changed — so a helper "
-                "cannot write either. Send the explore agent, and make the changes "
-                "once the plan is approved.",
-                task=task,
-            )
+        if refused := team_run.task_refusal(db, parent):
+            return _error(refused, task=task)
         owner = db.get(User, parent.user_id)
         if owner is None:  # pragma: no cover - a chat outliving its owner
             return _error("That account no longer exists.", task=task)
@@ -1047,6 +1060,14 @@ async def _run_job_send(context: ToolContext, args: dict[str, Any]) -> ToolOutco
         if refused is not None:
             return refused
         job_id, was = job.job_id, job.state
+        # Starting a finished helper again makes it count toward a team's
+        # size once more (spec 3.2.0, team.md §3).
+        if was != JOB_RUNNING:
+            from lembas.services import team_run
+
+            chat = db.get(Chat, context.chat_id)
+            if chat is not None and (refused := team_run.task_refusal(db, chat)):
+                return _error(refused, name="job_send")
     state = await send_to_job(context.chat_id, job_id, text)
     if state == "gone":
         return _error(
@@ -1073,6 +1094,12 @@ async def _run_report(context: ToolContext, args: dict[str, Any]) -> ToolOutcome
     text = str(args.get("text") or "").strip()
     if not text:
         return _error("report needs the text to send.", name="report")
+    # A team's member reports to its manager through the room, under the
+    # message mark (spec 3.2.0, team.md §4).
+    from lembas.services import team_run
+
+    if (sent := await team_run.report_from_member(context.chat_id, text)) is not None:
+        return _outcome(sent, {"name": "report", "status": "ok", "query": text[:120], "text": text})
     with session_scope() as db:
         chat = db.get(Chat, context.chat_id) if context.chat_id else None
         if chat is None or not chat.parent_chat_id:

@@ -26,6 +26,7 @@ from lembas.services import (
     plans,
     prompts,
     reasoning,
+    team,
 )
 from lembas.services import tools as tools_service
 from lembas.services.agent import policy, shell
@@ -54,7 +55,86 @@ AREAS = {
     # The note a session is given about a job (spec 2.0.0): pure, from the
     # job's record. `services/jobs.py note`.
     "jobs": lambda c: jobs.note(c),
+    # Teams (spec 3.2.0): the rules, step by step, on `services/team.py`'s
+    # model of one lead session's team -- the same functions the chat's team
+    # (`services/team_run.py`) applies to its rows.
+    "team": lambda c: _team(c),
 }
+
+
+def _team(c):
+    start = c["start"]
+    capacity = start.get("capacity") or {}
+    offered = bool(start.get("subagents", True)) and team.capacity_allows(
+        capacity.get("parallel"), bool(capacity.get("single_session"))
+    )
+    state = team.Team(
+        min=start["min"],
+        max=start["max"],
+        offered=offered,
+        parallel=capacity.get("parallel"),
+        single_session=bool(capacity.get("single_session")),
+    )
+    out = []
+    for step in c["steps"]:
+        op = step["op"]
+        by = step.get("by", team.LEAD)
+        if op == "offered":
+            out.append({"tools": team.offered_tools(state, by), "setting": state.offered})
+        elif op == "call":
+            tool, args = step["tool"], step.get("args") or {}
+            delivered: dict = {}
+            if tool == "team_add":
+                result = team.add(state, by, args).text
+            elif tool == "team_send":
+                result, delivered = team.send(state, by, args.get("to"), args.get("message"))
+            elif tool == "team_stop":
+                result, _names = team.stop(state, by, args.get("name"))
+            elif tool == "team_read":
+                refused = team.unmet(state, by)
+                assert not refused, refused
+                _text, shown = team.read_text(state, by, int(args.get("since") or 0))
+                out.append(
+                    {
+                        "room": [{"n": p.n, "from": p.sender, "to": p.addressed()} for p in shown],
+                        "delivered": {},
+                    }
+                )
+                continue
+            elif tool == "task":
+                result = team.task_refusal(state) or None
+                if result is None and state.offered:
+                    team.helper_started(state, by)
+            else:
+                result = team.manager_refusal(state, by, tool, args=args) or None
+            out.append({"result": result, "delivered": delivered})
+        elif op == "finish":
+            delivered = team.finish(state, by, step.get("reply", ""), step.get("reason", "stop"))
+            out.append({"delivered": delivered})
+        elif op == "set":
+            if "min" in step:
+                state.min = step["min"]
+            if "max" in step:
+                state.max = step["max"]
+            if "capacity" in step:
+                state.parallel = step["capacity"].get("parallel")
+                state.single_session = bool(step["capacity"].get("single_session"))
+            out.append(None)
+        elif op == "person_stop":
+            team.person_stop(state, step["name"])
+            out.append(None)
+        elif op == "user":
+            team.person_message(state)
+            out.append({"note": team.wrap_note(team.note_blocks(state))})
+        elif op == "state":
+            out.append(team.state_rows(state))
+        elif op == "helper_done":
+            team.helper_done(state, by)
+            out.append(None)
+        else:
+            raise AssertionError(f"unknown team op {op!r}")
+        state.effects.clear()
+    return out
 
 
 def _fill(c):
@@ -139,6 +219,11 @@ PENDING = {
     "instructions": "run in tests/test_workspace.py",
     "unidiff": _ON_THE_DEVICE,
     "envelope": _ON_THE_DEVICE,
+    # Spec 3.2.0's effort levels, the reasoning round-trip and relative paths
+    # are another piece of the same beta, implemented on its own branch.
+    "levels": "spec 3.2.0 effort levels: implemented with the Thinking switch",
+    "reasoning": "spec 3.2.0 reasoning round-trip: implemented with the Thinking switch",
+    "paths": "spec 3.2.0 relative paths: implemented with the Thinking switch",
 }
 
 
@@ -238,6 +323,11 @@ SHARED_ADOPTED = (
     "job_stop",
     "job_send",
     "report",
+    # Teams (spec 3.2.0), over the same hidden chats (`services/team_run.py`).
+    "team_add",
+    "team_send",
+    "team_read",
+    "team_stop",
 )
 # Shared tools whose LLeMbas implementation keeps its own name or shape for now,
 # and why -- the parity page lists the same.
@@ -255,10 +345,10 @@ def test_every_shared_tool_is_adopted_or_named_as_pending():
 
 
 def _registry():
-    from lembas.services import subagent
+    from lembas.services import subagent, team_run
 
     book = dict(tools_service.REGISTRY)
-    for tool in subagent.all_tool_defs():
+    for tool in [*subagent.all_tool_defs(), *team_run.tool_defs()]:
         book.setdefault(tool.name, tool)
     return book
 

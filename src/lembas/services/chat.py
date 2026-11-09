@@ -1033,6 +1033,15 @@ def delete_chats(db: DBSession, chats) -> int:
     live = [chat for chat in chats if chat is not None]
     if not live:
         return 0
+    # A lead chat's team goes with it (spec 3.2.0, team.md §4): its members
+    # are stopped, its rows deleted, and the members' hidden chats join this
+    # delete.
+    from lembas.services import team_run
+
+    members = team_run.forget_for_chats(db, [chat.id for chat in live])
+    if members:
+        known = {chat.id for chat in live}
+        live.extend(m for m in members if m.id not in known)
     files_service.remove_files_for_chats(db, [chat.id for chat in live])
     # Files a device showed in them: their blobs released while the rows name them.
     from lembas.services import shown

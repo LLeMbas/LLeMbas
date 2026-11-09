@@ -45,6 +45,9 @@ from lembas.db.models.chat import (
     ChatJob,
     Folder,
     Message,
+    Team,
+    TeamAgent,
+    TeamMessage,
 )
 from lembas.db.models.connection import (
     MODEL_CHAT,
@@ -262,6 +265,9 @@ __all__ = [
     "Schedule",
     "Chat",
     "ChatJob",
+    "Team",
+    "TeamAgent",
+    "TeamMessage",
     "Connection",
     "DEFAULT_GROUP",
     "DataGroup",

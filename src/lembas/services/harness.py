@@ -408,7 +408,10 @@ def context_variables(
             from lembas.services import subagent as subagent_service
 
             agent = subagent_service.agent_of(chat)
-            values["subagent"] = "yes"
+            # A team's member is told what it is by `blocks/team_member.md`,
+            # in place of the helper's preamble (spec 3.2.0, team.md §4):
+            # `team_block` below, and `core.subagent` stays out.
+            values["subagent"] = "" if _team_member(chat) else "yes"
             values["plan_tools"] = ""
             values["ask_tool"] = ""
             values["name"] = agent
@@ -530,7 +533,54 @@ def compose(
     files = instructions_block(db, user, offered, chat)
     if files:
         block = f"{block}\n\n{files}" if block else files
+    team = team_block(db, offered, chat)
+    if team:
+        block = f"{block}\n\n{team}" if block else team
     return block
+
+
+def _team_member(chat) -> dict[str, Any] | None:
+    """The `team` mark a member's hidden chat carries (`team_run._new_member`)."""
+    mark = (getattr(chat, "scope_json", None) or {}).get("team")
+    return mark if isinstance(mark, dict) and mark.get("name") else None
+
+
+def team_block(db: DBSession, tools: list[dict[str, Any]] | None, chat=None) -> str:
+    """The team's text at the end of the system prompt (spec 3.2.0, team.md §4,
+    §10): a member's standing (`blocks/team_member.md`, with the whole of
+    `blocks/team_lead.md` for one that may lead), or, where the team tools are
+    listed, how to lead (`blocks/team_lead.md`). Constant per agent -- the size
+    is a session note -- and read from the vendored spec word for word."""
+    names = set(_tool_names(tools or []).split(", "))
+    if chat is not None and (mark := _team_member(chat)):
+        from lembas.services import subagent as subagent_service
+        from lembas.services import team_run
+        from lembas.services import tools as tools_service
+
+        row = team_run.member_row(db, chat.id)
+        if row is None:
+            return ""
+        agent = subagent_service.agent_of(chat)
+        lead = harness_spec.prompt("blocks/team_lead.md") if row.may_lead else ""
+        return harness_spec.prompt_with(
+            "blocks/team_member.md",
+            {
+                "name": str(mark.get("name") or row.name),
+                "manager": row.manager,
+                "role": row.role,
+                "goal": row.goal,
+                "instructions": harness_spec.prompt(f"agents/{agent}.md"),
+                "read_only": (
+                    subagent_service.READ_ONLY_SENTENCE
+                    if tools_service.scoped_writes_off(chat)
+                    else ""
+                ),
+                "lead": lead,
+            },
+        )
+    if "team_add" in names:
+        return harness_spec.prompt("blocks/team_lead.md")
+    return ""
 
 
 def join(harness: str, authored: str, *, lead: str = "") -> str:

@@ -82,6 +82,16 @@ async def run_tool(
 
     if parsed is None:
         parsed = parse_arguments(tool, arguments)
+    # A manager does not do the work (spec 3.2.0, team.md §6): its calls that
+    # change things answer a fixed refusal before anything else is asked or
+    # run. The tool list is unchanged; only the answer.
+    from lembas.services import team_run
+
+    if refused_text := team_run.refusal_for_call(context, tool, parsed):
+        return ToolOutcome(
+            refused_text,
+            {"name": tool.name, "status": "error", "error": refused_text[:300]},
+        )
     # The spec's `purpose` (purpose.json): one sentence for the person, added
     # to the parameters of every tool whose spec says `purpose: "purpose"`.
     # Shown beside the call in the transcript; the tool itself never sees it.

@@ -365,7 +365,16 @@ def _subagents_defaults() -> dict[str, Any]:
         # for working out why one came back with something odd. Kept chats are
         # temporary either way, so the day-old sweep still gets them.
         "keep_transcript": False,
+        # The most agents one chat's team may have, the lead included (harness
+        # spec 3.2.0, team.md §2: `loop.json` `team.agents.cap`). A person's
+        # setting above it is read as the cap, never stored past it.
+        "team_cap": 32,
     }
+
+
+# The highest cap an administrator may set: a ceiling on the ceiling, so a
+# typo cannot let one chat start a thousand generations.
+TEAM_CAP_MAX = 256
 
 
 _DEFAULTS: dict[str, Any] = {
@@ -663,6 +672,7 @@ def subagents(db: DBSession) -> dict[str, Any]:
     values["max_completion_tokens"] = min(
         max(int(values.get("max_completion_tokens") or 0), 0), 5_000_000
     )
+    values["team_cap"] = min(max(int(values.get("team_cap") or 1), 1), TEAM_CAP_MAX)
     return values
 
 

@@ -108,6 +108,11 @@ class Facts:
     instructions: dict[str, str] | None = None
     personal: str = ""
     personality: str = ""
+    # The team's size block (spec 3.2.0, team.md §10) and the value it tells;
+    # None where no team is offered. Not part of a prompt's `base`: the size
+    # is never in the prompt, so the first user message of a session says it.
+    team: str | None = None
+    team_state: str = ""
 
     def state(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -120,6 +125,8 @@ class Facts:
             out["memory"] = _hash(self.memory)
         if self.instructions is not None:
             out["instructions"] = {name: _hash(text) for name, text in self.instructions.items()}
+        if self.team is not None:
+            out["team"] = self.team_state
         return out
 
 
@@ -143,6 +150,11 @@ def facts(db: DBSession, chat: Chat, user, speaker, tools) -> Facts:
         from lembas.services import fs, workspace
 
         out.instructions = dict(workspace.instruction_texts(fs.view(db, user, chat)))
+    from lembas.services import team_run
+
+    block, state = team_run.note_block(db, chat, tools)
+    if block:
+        out.team, out.team_state = block, state
     return out
 
 
@@ -183,7 +195,11 @@ def _record(
         "rev": uuid.uuid4().hex[:12],
         **wanted,
         "built_at": datetime.now(UTC).isoformat(),
-        "base": now.state(),
+        # The team's size is told in a note, never in the prompt.
+        "base": {k: v for k, v in now.state().items() if k != "team"},
+        # Whether the team tools are in this prompt's list: they stay while
+        # the prompt does, whatever the model's metadata does later.
+        "team": now.team is not None,
     }
     if persist:
         frozen[key(speaker)] = record
@@ -237,7 +253,7 @@ def _mode_words(db: DBSession, mode: str) -> tuple[str, str]:
 
 
 def _note(
-    db: DBSession, chat: Chat, user, told: dict[str, Any], now: Facts
+    db: DBSession, chat: Chat, user, told: dict[str, Any], now: Facts, *, persist: bool = False
 ) -> tuple[str, dict[str, Any]]:
     """The note for the next user message, and the state it tells."""
     texts = harness_spec.note()
@@ -284,6 +300,18 @@ def _note(
     if told.get("personality") != current["personality"]:
         lines.append(_fill(texts["personality"], personality=now.personality or nothing))
         changed["personality"] = current["personality"]
+
+    # The team (spec 3.2.0, team.md §10): the size on the first user message
+    # and after it changed, then the members the person stopped.
+    if "team" in current and told.get("team") != current["team"]:
+        lines.append(now.team or "")
+        changed["team"] = current["team"]
+    if now.team is not None:
+        from lembas.services import team, team_run
+
+        stopped = team_run.take_stopped(db, chat, persist=persist)
+        if stopped:
+            lines.append(team.stopped_block(stopped))
 
     if not lines:
         return "", changed
@@ -335,7 +363,7 @@ def prepare(
     for row in sent:
         entry = (row.note_json or {}).get(who)
         if entry is None and row is newest and new_note:
-            text, changed = _note(db, chat, user, told, now)
+            text, changed = _note(db, chat, user, told, now, persist=persist)
             entry = {"text": text, "state": changed, "rev": record["rev"]}
             if persist:
                 _store(row, who, entry)

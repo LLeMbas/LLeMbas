@@ -158,8 +158,9 @@ def _subagent_registry_defs() -> list[ToolDef]:
     a name to its family, and `harness._families` has to find `report`'s or the
     preamble never learns the helper may report."""
     from lembas.services import subagent as subagent_service
+    from lembas.services import team_run
 
-    return subagent_service.all_tool_defs()
+    return [*subagent_service.all_tool_defs(), *team_run.tool_defs()]
 
 
 def _subagent_defs(db: DBSession, chat: Chat, user: User | None) -> list[ToolDef]:
@@ -177,14 +178,20 @@ def _subagent_defs(db: DBSession, chat: Chat, user: User | None) -> list[ToolDef
     refused is one a model finds out about one wasted round at a time.
     """
     from lembas.services import subagent as subagent_service
+    from lembas.services import team_run
 
+    # A team's tools (spec 3.2.0, team.md §2, §4): all four in a chat whose
+    # model serves two requests at once, `team_send` and `team_read` to a
+    # member (and the four to one that may lead). Listed for the session: a
+    # call they cannot serve answers their `unavailable` text.
+    team = team_run.defs_for(db, chat, user)
     if getattr(chat, "parent_chat_id", None):
-        return subagent_service.child_tool_defs()
+        return [*subagent_service.child_tool_defs(), *team]
     if unattended(chat):
         return []
     if subagent_service.capacity_refusal(db, chat):
         return []
-    return subagent_service.tool_defs()
+    return [*subagent_service.tool_defs(), *team]
 
 
 def _image_defs(db: DBSession, values: dict | None = None) -> list[ToolDef]:
