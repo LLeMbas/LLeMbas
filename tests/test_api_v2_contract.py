@@ -24,7 +24,7 @@ import pytest
 
 from lembas.api.v2 import APP_API, serialise
 from lembas.api.v2.stream import frame
-from lembas.db.models import Chat, Message
+from lembas.db.models import Chat, Message, Model
 from lembas.services import generation as generation_service
 from lembas.services import interaction
 from lembas.services import metrics as metrics_service
@@ -58,7 +58,31 @@ def _agent_chat() -> Chat:
     chat = _chat()
     chat.id, chat.kind, chat.agent_mode = "chat2", "agent", "edit"
     chat.device_token_id, chat.project_dir = "token1", "/home/dev/project"
+    chat.device_session_id = "ses_01waybread"
     return chat
+
+
+def _models() -> list[Model]:
+    """Three models, one per control a chat draws for their levels (harness
+    spec 3.2.0): a Thinking switch, a slider, and none at all."""
+    switch = Model(
+        model_id="qwen", display_name="Qwen", context_length=131072,
+        capabilities_json={"reasoning": True, "vision": False, "tools": True},
+        reasoning_efforts=["medium"], thinking_switch=True, parallel=2,
+        image_path="0a1b2c3d4e5f.png", params_json={},
+    )
+    slider = Model(
+        model_id="gpt-oss", display_name="", context_length=0,
+        capabilities_json={"reasoning": True, "vision": False, "tools": True},
+        reasoning_efforts=["low", "medium", "high"], thinking_switch=False,
+        single_session=True, image_path="", params_json={"reasoning_effort": "high"},
+    )
+    plain = Model(
+        model_id="vision-small", display_name="Vision", context_length=8192,
+        capabilities_json={"reasoning": False, "vision": True, "tools": False},
+        reasoning_efforts=[], thinking_switch=False, image_path="", params_json={},
+    )
+    return [switch, slider, plain]
 
 
 THINKING = "The reader wants a recipe."
@@ -321,6 +345,11 @@ def _shapes() -> dict[str, object]:
     assistant = serialise.message(_assistant())
     return {
         "chat": serialise.chat(_chat(), running=False),
+        "models": {
+            "models": [
+                serialise.model(row, default=index == 0) for index, row in enumerate(_models())
+            ]
+        },
         "chat_agent": serialise.chat(_agent_chat(), running=True),
         "message_user": serialise.message(_user()),
         "message_assistant": assistant,

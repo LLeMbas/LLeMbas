@@ -93,6 +93,38 @@ def _cut(value: Any) -> tuple[Any, bool]:
     return value, False
 
 
+# --- Models ----------------------------------------------------------------------
+# Where an app fetches a model's picture with its token (`misc.model_image`).
+MODEL_IMAGE_PATH = "/api/v2/models/images/"
+
+
+def model(row, *, default: bool = False) -> dict[str, Any]:
+    """One model as the app offers it: what it takes, its levels (harness spec
+    3.2.0 -- `levels` in offering order, `effort` the start level, `control`
+    `none`/`switch`/`slider` as the chat page draws it), how many requests its
+    server answers at once (`parallel`, null for no stated limit), and its
+    picture's URL (null: none set; the app draws its own badge)."""
+    from lembas.services import chat as chat_service
+
+    caps = row.capabilities_json or {}
+    levels = chat_service.levels_for(row)
+    return {
+        "id": row.model_id,
+        "name": row.display_name or row.model_id,
+        "vision": bool(caps.get("vision")),
+        "tools": bool(caps.get("tools")),
+        "efforts": list(chat_service.model_efforts(row)),
+        "thinking_switch": bool(row.thinking_switch),
+        "levels": list(levels.offered),
+        "effort": levels.start,
+        "control": levels.control,
+        "parallel": row.parallel_limit,
+        "context": int(row.context_length or 0),
+        "image": f"{MODEL_IMAGE_PATH}{row.image_path}" if row.image_path else None,
+        "default": default,
+    }
+
+
 # --- Chats -----------------------------------------------------------------------
 def agents(row: Chat, cap: int | None = None) -> dict[str, int]:
     """The chat's team size (harness spec 3.2.0, team.md §2), as it is read:
@@ -106,7 +138,11 @@ def agents(row: Chat, cap: int | None = None) -> dict[str, int]:
     return {"min": low, "max": high}
 
 
-def chat(row: Chat, *, running: bool = False, cap: int | None = None) -> dict[str, Any]:
+def chat(
+    row: Chat, *, running: bool = False, cap: int | None = None, level: str | None = None
+) -> dict[str, Any]:
+    """`level` is the level in force (`chat_service.chat_level`), which the
+    caller reads with the model; without it, the stored word."""
     params = row.params_json or {}
     return {
         "id": row.id,
@@ -121,12 +157,15 @@ def chat(row: Chat, *, running: bool = False, cap: int | None = None) -> dict[st
         "running": running,
         # A chat's mode is "" or "plan"; an agent chat's, one of the four.
         "mode": row.agent_mode or "",
-        "effort": params.get("reasoning_effort") or None,
+        "effort": level if level is not None else (params.get("reasoning_effort") or None),
         "device": (
             {"token_id": row.device_token_id, "directory": row.project_dir or ""}
             if row.device_token_id
             else None
         ),
+        # An agent chat's session on its device: `lembas -s <id>` continues it
+        # in a terminal there. Null until the device has opened one.
+        "device_session_id": (row.device_session_id or None) if row.device_token_id else None,
         "parent_chat_id": row.parent_chat_id,
         # Added within APP_API 2: the team's size setting.
         "agents": agents(row, cap),
@@ -177,12 +216,14 @@ def team(view: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
-def chat_detail(row: Chat, *, running: bool = False, cap: int | None = None) -> dict[str, Any]:
+def chat_detail(
+    row: Chat, *, running: bool = False, cap: int | None = None, level: str | None = None
+) -> dict[str, Any]:
     """A chat with what its settings sheet shows."""
     from lembas.services import plans
 
     return {
-        **chat(row, running=running, cap=cap),
+        **chat(row, running=running, cap=cap, level=level),
         "system_prompt": row.system_prompt or "",
         "plan": plans.normalise(row.plan) if row.plan else None,
     }

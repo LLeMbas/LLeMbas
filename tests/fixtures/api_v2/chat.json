@@ -12,6 +12,7 @@
   "mode": "",
   "effort": "low",
   "device": null,
+  "device_session_id": null,
   "parent_chat_id": null,
   "agents": {
     "min": 1,

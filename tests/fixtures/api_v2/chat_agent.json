@@ -15,6 +15,7 @@
     "token_id": "token1",
     "directory": "/home/dev/project"
   },
+  "device_session_id": "ses_01waybread",
   "parent_chat_id": null,
   "agents": {
     "min": 1,

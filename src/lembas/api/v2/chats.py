@@ -18,6 +18,7 @@ from lembas.api.deps import Db
 from lembas.api.v2 import serialise
 from lembas.api.v2._common import JsonForm, Me, need, owned_chat, owned_message
 from lembas.db.models import KIND_CHAT, KINDS, Chat, Message
+from lembas.services import chat as chat_service
 from lembas.services import generation as generation_service
 from lembas.services import team_run
 from lembas.web.i18n import t
@@ -84,8 +85,16 @@ async def list_chats(
             query = query.where(Chat.updated_at < anchor.updated_at)
     rows = list(db.scalars(query.order_by(Chat.updated_at.desc()).limit(_limit(limit) + 1)))
     page = rows[: _limit(limit)]
+    levels: dict[tuple[str, str | None], Any] = {}
+
+    def level(c: Chat) -> str:
+        key = (c.model_id, c.connection_id)
+        if key not in levels:
+            levels[key] = chat_service.levels_for(chat_service.model_for(db, c))
+        return levels[key].read(chat_service.resolved_effort(c))
+
     return {
-        "chats": [serialise.chat(c, running=_running(c)) for c in page],
+        "chats": [serialise.chat(c, running=_running(c), level=level(c)) for c in page],
         "more": len(rows) > len(page),
     }
 
@@ -133,7 +142,9 @@ async def create_chat(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> d
         **_agents_fields(body),
     )
     return {
-        "chat": serialise.chat_detail(chat, running=True, cap=team_run.cap(db)),
+        "chat": serialise.chat_detail(
+            chat, running=True, cap=team_run.cap(db), level=chat_service.chat_level(db, chat)
+        ),
         **_turn(user_message, reply),
     }
 
@@ -164,7 +175,12 @@ async def get_chat(
     page, more = _page(db, chat, before="", limit=limit)
     live = generation_service.running_for(chat.id)
     return {
-        "chat": serialise.chat_detail(chat, running=live is not None, cap=team_run.cap(db)),
+        "chat": serialise.chat_detail(
+            chat,
+            running=live is not None,
+            cap=team_run.cap(db),
+            level=chat_service.chat_level(db, chat),
+        ),
         "messages": [serialise.message(m) for m in page],
         "more": more,
         "live": live.message_id if live is not None else None,
@@ -208,7 +224,14 @@ async def update_chat(
             items.append((field, ""))
     chats_api.apply_chat_update(db, caller.user, chat, JsonForm(items))
     db.refresh(chat)
-    return {"chat": serialise.chat_detail(chat, running=_running(chat), cap=team_run.cap(db))}
+    return {
+        "chat": serialise.chat_detail(
+            chat,
+            running=_running(chat),
+            cap=team_run.cap(db),
+            level=chat_service.chat_level(db, chat),
+        )
+    }
 
 
 @router.delete("/chats/{chat_id}", status_code=status.HTTP_204_NO_CONTENT)
