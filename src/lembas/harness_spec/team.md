@@ -1,6 +1,6 @@
 # Teams
 
-Spec 3.2.0. **Subagents that work together.** A session's agent — the **lead** — may add
+Spec 3.2.0; the model a member runs on and when a team is offered, 3.3.0 (`subagents.md`). **Subagents that work together.** A session's agent — the **lead** — may add
 **members**, background agents that each own a part of the work, and lead them as a manager: it
 plans, splits the work, coordinates and reviews, and the members do it. Members talk to each other
 and to their managers in the team's **room**. A member may itself lead an area with members of its
@@ -46,23 +46,27 @@ system prompt — when both hold, and only then:
 
 1. Subagents are enabled for the session: LLeMbas — the instance allows them and the chat's model
    has its subagent tool; the CLI — its subagents are not switched off in the configuration.
-2. **The chat's model serves at least two requests at once**: `capacity.parallel ≥ 2`, or neither
-   `parallel` nor `single_session` is set (a hosted API; `models/schema.json`).
+2. **At least one model could serve as a subagent** (spec 3.3.0, `subagents.md` §4): the chat's
+   model, when it serves at least two requests at once (`capacity.parallel ≥ 2`, or neither
+   `parallel` nor `single_session` is set — a hosted API; `models/schema.json`); or any other model
+   the person may use that is not on the chat's model's one-model server (`capacity.group`).
+
+The setting is shown as **Subagents**, *fewest* to *most* (`loop.json` `subagents.setting`).
 
 Both are fixed for as long as the system prompt is (`context.md` §10, rule 4: a model switch makes
 a new prompt and a new list). Otherwise the setting is not shown and none of the four tools is
 listed, and the session's `task` works as before.
 
-While the tools are listed they need **`team`** (`requires`): met when `max ≥ 2` and the model still
-serves two at once — or, for the lead, when its team still has a member (so a lead whose person
+While the tools are listed they need **`team`** (`requires`): met when `max ≥ 2` and a model could
+still serve as a subagent (rule 2) — or, for the lead, when its team still has a member (so a lead whose person
 lowered `max` to 1 can still talk to, read and stop the members it has). A call while it is not
-met answers, word for word, `team.unavailable.one_request` when the model's capacity no longer
-allows a team (its metadata changed after the prompt was made), else `team.unavailable.one_agent`
+met answers, word for word, `team.unavailable.one_request` when no model could serve as a subagent
+any more (the model's metadata changed after the prompt was made), else `team.unavailable.one_agent`
 — which is also the tools' own `unavailable` text.
 
 The meaning of the setting:
 
-- **`max = 1`**: one agent, no team, and no helper of any kind: `task` answers `one_agent` too
+- **`max = 1`**: one agent, no team, and no subagent of any kind: `task` answers `one_agent` too
   (while the lead has no member; with members left from a larger setting, `full`).
 - **`min ≥ 2`**: the lead works through a team from the start — it is a manager before its first
   member (§6), and the note asks for at least `min − 1` members.
@@ -72,14 +76,14 @@ The meaning of the setting:
 ## 3. Size, and what counts
 
 **The size** of a team is: the lead, every member (whatever its state — a finished member can be
-woken by a message, so it keeps its place), and every `task` helper running in the team, started by
+woken by a message, so it keeps its place), and every `task` subagent running in the team, started by
 any agent in it (the CLI's background `task` jobs and foreground ones alike, while they run).
 A stopped member does not count: stopping is how room is made.
 
 - **`team_add` is refused past `max`** — when the size would become more than `max`, with
   `team.texts.full`. So is `task`, while a team is offered: with `full`, or with `one_agent` when
   `max` is 1 and the lead has no member. A `job_send` that would start a finished background
-  `task` helper again is refused the same way.
+  `task` subagent again is refused the same way.
 - **Lowering `max` stops nobody.** Members already there stay; nothing new is added until the size
   is under the new `max`.
 - The size is across **the whole tree**: a member that leads adds within the same `max` as the lead.
@@ -90,8 +94,9 @@ A stopped member does not count: stopping is how room is made.
   machinery (a hidden chat on LLeMbas with its `chat_jobs` row, a subagent job in the CLI), running
   unattended — no `ask_user`, the chat's own permission ceiling, its mode no looser than its
   manager's (`permission/modes.json`).
-- **Its agent** is `general` (the default: it does the work) or `explore` (read-only); `model` is
-  as `task`'s — a model the person may use, the default being the caller's.
+- **Its agent** is `general` (the default: it does the work) or `explore` (read-only). **Its model**
+  is the session's (the lead's) unless `model` gives one the person named in this session — as
+  `task`'s, refused with `subagents.texts` otherwise (`subagents.md` §2, §3).
 - **Its tools** are those its agent gives a subagent, plus `team_send` and `team_read`; one added
   with `lead: true` also has `team_add` and `team_stop`. They are fixed when it is made (§10 rule 4:
   a subagent's narrowing). `report` (`offered: subagent`) sends its manager a message before its
@@ -108,7 +113,8 @@ A stopped member does not count: stopping is how room is made.
   `unavailable` (§2); `all_name` (the name `all`); `bad_name` (not `team.names.pattern`); `taken`
   (the name of an agent on the team, `lead` included); `no_goal`; `full`. Then the member is added:
   `added`, or `added_waiting` when it has to wait for a slot (§8). An unknown `agent` or `model`
-  answers as `task` does.
+  answers as `task` does; then `model`'s refusals, `not_named`, `same_group`, `one_request`
+  (`subagents.md`), in that order — before anything is added.
 - **Members are not jobs to the model.** `job_list` does not show them and the `job_*` tools do not
   take them; the team tools do. (An implementation may run them on its job machinery.)
 - **States**: `working` (a turn is running), `waiting` (it has work, and waits for a slot, §8),
@@ -171,7 +177,7 @@ class.
 **The tool list does not change** when an agent becomes a manager (`context.md` §10, rule 4): the
 same tools are listed and the refused ones answer the refusal. An agent is a manager while it has
 a member — a finished one included; one whose members were all stopped is not, unless it is the
-lead and `min ≥ 2` with the team offered. `task` stays: a one-off helper is delegation, and counts
+lead and `min ≥ 2` with the team offered. `task` stays: a one-off subagent is delegation, and counts
 toward the size (§3).
 
 ## 7. Delivery, and waking
@@ -180,7 +186,7 @@ A message or a report reaches its recipient **as a marked message** — the jobs
 (`loop.json` `jobs`): while the recipient's turn runs, as a user message at its next step boundary
 (which does not start a turn: `context.md` §8); otherwise it **wakes** the recipient — a finished
 member, or the idle lead — as a new turn of its own, marked `machine`, with its context intact, as
-`job_send` restarts a finished helper. A woken agent needs a slot (§8). Several waiting at one step
+`job_send` restarts a finished subagent. A woken agent needs a slot (§8). Several waiting at one step
 boundary go in one user message, in room order, separated by a blank line.
 
 Every one begins with its mark, on a line of its own, then the text:
@@ -199,14 +205,16 @@ A session that is not open keeps them until it is resumed, as a job's note.
 ## 8. Capacity: a member waits for a slot
 
 A model serves `parallel` requests at once (`models/schema.json`). **An agent holds a slot of its
-model while its turn runs** — the lead, a member, a `task` helper. An agent with work (added, woken,
+model while its turn runs** — the lead, a member, a `task` subagent. An agent with work (added, woken,
 given a message while finished, the lead given the person's message) starts when its model has a
 free slot and none of its `capacity.group`'s other models is busy; otherwise it is `waiting`.
-`team_add` is never refused for capacity (only for size): its answer says the member waits.
+`team_add` is never refused for a full model (only for size, and for the model rules of
+`subagents.md` §3: another model on the lead's one-model server, or a one-request session model):
+its answer says the member waits.
 
 Waiting agents start **in order**: the lead first (the person waits on it), then the others in the
 order they began waiting. A slot frees when a turn ends or an agent is stopped. `task` keeps its own
-rule (`loop.json` `capacity`: refused where its model is full), and its helper holds a slot.
+rule (`loop.json` `capacity`: refused where its model is full), and its subagent holds a slot.
 
 ## 9. Stopping
 

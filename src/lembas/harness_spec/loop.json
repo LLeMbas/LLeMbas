@@ -34,7 +34,7 @@
     "about": "Calls in one step run together, at most 4; a call that waits on the user (ask_user, plan_submit) runs alone; two calls on one file run in order. A tool's error is its result, never the end of the prompt.",
     "max": 4
   },
-  "capacity": "A subagent (task) is not started on a model whose server cannot hold it beside the prompt's own model — or beside the model of a subagent already running: another model of a connection that holds one model at a time, or the same model when it already serves as many of this session's requests as it can at once (models/schema.json capacity: `parallel`, `single_session` being parallel 1). A team's members are not refused there: they wait for a slot (team.md, Capacity).",
+  "capacity": "A subagent (task) is not started on a model whose server cannot hold it beside the prompt's own model — or beside the model of a subagent already running: another model of a connection that holds one model at a time, or the same model when it already serves as many of this session's requests as it can at once (models/schema.json capacity: `parallel`, `single_session` being parallel 1). Spec 3.3.0: which model a subagent may run on at all, and the refusals for the session's own one-model server and a one-request model, are subagents.md and `subagents` below, checked first. A team's members are not refused for a full model: they wait for a slot (team.md, Capacity).",
   "jobs": {
     "about": "Background work owned by a session: a command (bash `background: true`, or one still running when its timeout passed) or a subagent (task `background: true`). One id sequence per session (job1, job2, …), one list (job_list), one way to read (job_output), to stop (job_stop) and, for a subagent, to message (job_send); a subagent's own tools see only the jobs it started. A job that ends wakes the session that owns it: while a prompt runs, as a user message at the next step boundary; otherwise as a new turn of its own, marked `machine` so a UI shows it as the harness's, not the person's. A session that is not open keeps the note until it is resumed. Every such message begins with its mark, said rather than hidden: a model refuses an unmarked one as an injection (conformance/jobs.json gives the texts).",
     "marks": {
@@ -61,8 +61,28 @@
     },
     "lifecycle": "A subagent's own background commands stop when it ends, and its report says so. A session's jobs stop when the session is deleted. A front end asked to exit while jobs run asks the person first; one with nobody to ask waits for the jobs the prompt started, then stops the rest."
   },
+  "subagents": {
+    "about": "Spec 3.3.0 (subagents.md): which model a subagent — a task subagent or a team member — runs on, and when subagents are offered. The session's own model unless the person named another in this session; no setting chooses one. The texts are said word for word, checked in this order: not_named, same_group, one_request. conformance/subagents.json.",
+    "texts": {
+      "not_named": "Use another model for subagents only when the person names it.",
+      "same_group": "That model is on the same one-model server as this chat's model; name a model on another server.",
+      "one_request": "This model serves one request at a time: name another model, on another server, for subagents."
+    },
+    "named": {
+      "about": "A model is named when its served id, its id at its connection or its display name occurs as a whole word, without case, in a message the person typed in this session (never model text, tool output, files, notes, marked messages or reports; a compacted message still counts). Before the name: not a letter, digit, _, -, /, . or :. After it: not a letter, digit, _, - or /, nor a . or : followed by a letter or digit. White space in a display name matches any run of white space.",
+      "before": "[\\p{L}\\p{N}_\\-/.:]",
+      "after": "[\\p{L}\\p{N}_\\-/]|[.:][\\p{L}\\p{N}]"
+    },
+    "setting": {
+      "about": "How the agents {min, max} setting (team.md §2) is shown to a person: label, the names of min and max, and `own` beside it when the session's model cannot serve subagents itself (subagents.md §4).",
+      "label": "Subagents",
+      "min": "fewest",
+      "max": "most",
+      "own": "This model serves one request at a time: subagents need another model, on another server, named in the chat."
+    }
+  },
   "team": {
-    "about": "Teams (spec 3.2.0, team.md): a lead and the members it adds, who talk in the team's room. The texts are said word for word; {{size}} is the team's size after the call (team.md §3), {{names}} names joined with \", \" in tree order. conformance/team.json.",
+    "about": "Teams (spec 3.2.0, team.md; which model a member runs on and when a team is offered: spec 3.3.0, subagents.md): a lead and the members it adds, who talk in the team's room. The texts are said word for word; {{size}} is the team's size after the call (team.md §3), {{names}} names joined with \", \" in tree order. conformance/team.json.",
     "agents": {
       "about": "The chat setting agents {min, max}: the agents a team may have, the lead included. 1 ≤ min ≤ max ≤ cap. min and max are a new chat's defaults; cap is the instance's (LLeMbas) or the global configuration's (the CLI).",
       "min": 1,
@@ -83,7 +103,7 @@
       "report": "[Team report from {{from}} to {{to}}:]"
     },
     "unavailable": {
-      "about": "What a team tool answers while its requirement `team` is not met (team.md §2). one_agent is also each team tool's own `unavailable`, and what task answers while a team is offered, max is 1 and the lead has no member.",
+      "about": "What a team tool answers while its requirement `team` is not met (team.md §2). one_agent is also each team tool's own `unavailable`, and what task answers while a team is offered, max is 1 and the lead has no member. one_request: no model can serve as a subagent any more (subagents.md §4) — the session's model's capacity changed after the prompt was made.",
       "one_agent": "The person allows one agent in this chat: there is no team. Do the work yourself.",
       "one_request": "This model serves one request at a time now, so there is no team. Do the work yourself."
     },
@@ -203,7 +223,7 @@
       "started": "Started in: {{path}} (relative to the project root)"
     },
     "note": {
-      "about": "A note on the next user message (context.md §10, rule 3): what changed since the system prompt was made, after the person's words. Lines in this order, each only when it applies. `plan_ended` is the mode block for a session that leaves plan mode for a mode with no text of its own (a chat). `plan_own` is the plan block for a session that does not resend earlier tool results (a chat): the model's own plan, as its tools left it. `personal` is the {{path}} of the instructions block for the person's own instructions. Spec 3.2.0, where a team is offered (team.md §10): `team` — the size setting, on the first user message and after it changes, followed in the same block by `team_lead` when min ≥ 2 ({{members}} = min − 1), or `team_one` in its place when max is 1; `team_stopped` — members the person stopped, a block of its own.",
+      "about": "A note on the next user message (context.md §10, rule 3): what changed since the system prompt was made, after the person's words. Lines in this order, each only when it applies. `plan_ended` is the mode block for a session that leaves plan mode for a mode with no text of its own (a chat). `plan_own` is the plan block for a session that does not resend earlier tool results (a chat): the model's own plan, as its tools left it. `personal` is the {{path}} of the instructions block for the person's own instructions. Spec 3.2.0, where a team is offered (team.md §10): `team` — the size setting, on the first user message and after it changes, followed in the same block by `team_lead` when min ≥ 2 ({{members}} = min − 1), or `team_one` in its place when max is 1; `team_stopped` — members the person stopped, a block of its own. Spec 3.3.0 (subagents.md §4): `team_own` after `team` (and after `team_lead`) in the same block when the session's model cannot serve subagents itself — it serves one request at a time — and another server's model could.",
       "open": "<session-note>",
       "close": "</session-note>",
       "date": "Today is {{date}}.",
@@ -219,6 +239,7 @@
       "team": "The team may have {{min}} to {{max}} agents, you included.",
       "team_lead": "Work through a team from the start: you lead, and members do the work — at least {{members}} of them.",
       "team_one": "The person allows one agent: work alone; the team tools and task are unavailable.",
+      "team_own": "This model serves one request at a time, so subagents cannot run on it: they need another model, on another server, that the person names in this chat.",
       "team_stopped": "The person stopped {{names}}; they have left the team.",
       "empty": "(none)"
     },

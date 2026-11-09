@@ -67,7 +67,52 @@ AREAS = {
     # context.md §8). `services/chat.py reasoning_back`; the tool loop's own
     # turns carry it through `tools.assistant_turn`.
     "reasoning": lambda c: chat_service.reasoning_back(c["messages"]),
+    # Which model a subagent runs on, and when subagents are offered (spec
+    # 3.3.0, subagents.md): pure, from the models and what the person said.
+    # `services/subagents.py`.
+    "subagents": lambda c: _subagents(c),
 }
+
+
+def _seat(served: str, model: dict):
+    from lembas.services import subagents
+
+    capacity = model.get("capacity") or {}
+    parallel = capacity.get("parallel")
+    if parallel is None and capacity.get("single_session"):
+        parallel = 1
+    return subagents.Seat(
+        key=served,
+        names=(model["id"], served, model.get("name") or ""),
+        parallel=parallel,
+        group=capacity.get("group"),
+    )
+
+
+def _subagents(c):
+    from lembas.services import subagents
+
+    seats = {served: _seat(served, m) for served, m in c["models"].items()}
+    session = seats[c["session"]]
+    if c["op"] == "offer":
+        offered = bool(c.get("subagents", True)) and subagents.could_serve(
+            session, seats.values()
+        )
+        own = session.serves_two
+        return {
+            "offered": offered,
+            "own": own,
+            "note": subagents.note_own() if offered and not own else None,
+        }
+    target = seats[c["model"]] if c.get("model") else None
+    if target is not None and target.key == session.key:
+        target = None
+    # Only the person's words: `other` (the model's, a tool's) is never read.
+    named = target is not None and subagents.named_in(c.get("said") or [], target.names)
+    refused = subagents.refusal(session, target, named=named)
+    if refused:
+        return {"refused": refused}
+    return {"model": (target or session).key}
 
 
 def _team(c):
@@ -112,7 +157,7 @@ def _team(c):
             elif tool == "task":
                 result = team.task_refusal(state) or None
                 if result is None and state.offered:
-                    team.helper_started(state, by)
+                    team.task_started(state, by)
             else:
                 result = team.manager_refusal(state, by, tool, args=args) or None
             out.append({"result": result, "delivered": delivered})
@@ -136,8 +181,8 @@ def _team(c):
             out.append({"note": team.wrap_note(team.note_blocks(state))})
         elif op == "state":
             out.append(team.state_rows(state))
-        elif op == "helper_done":
-            team.helper_done(state, by)
+        elif op == "task_done":
+            team.task_done(state, by)
             out.append(None)
         else:
             raise AssertionError(f"unknown team op {op!r}")

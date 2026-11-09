@@ -12,7 +12,7 @@
       "subagent_run"
     ]
   },
-  "description": "Hand a self-contained piece of work to a subagent, which works on its own and returns only its final report — keeping the searching and reading out of your context.\n\n- Use it for broad research (\"where is X handled, and what calls it?\") or a separable job. For one file you already know, just read it.\n- `prompt` must stand on its own: the subagent sees nothing of this conversation. Say what to find or do, and what to report back.\n- `background: true` returns at once with a job id and you carry on; the report comes to you as a message when it ends. Meanwhile job_output shows its progress, job_send gives it a message, job_stop stops it. Without it, the call waits for the report.\n- Independent tasks can run in the same turn. Subagents that change files at the same time should each have `worktree: true`, so they work on separate branches.\n- Agents: {{agents}}",
+  "description": "Hand a self-contained piece of work to a subagent, which works on its own and returns only its final report — keeping the searching and reading out of your context.\n\n- Use it for broad research (\"where is X handled, and what calls it?\") or a separable job. For one file you already know, just read it.\n- `prompt` must stand on its own: the subagent sees nothing of this conversation. Say what to find or do, and what to report back.\n- `background: true` returns at once with a job id and you carry on; the report comes to you as a message when it ends. Meanwhile job_output shows its progress, job_send gives it a message, job_stop stops it. Without it, the call waits for the report.\n- Independent tasks can run in the same turn. Subagents that change files at the same time should each have `worktree: true`, so they work on separate branches.\n- It runs on your model. Another model only when the person named it in this conversation; nothing else chooses one.\n- Agents: {{agents}}",
   "parameters": {
     "type": "object",
     "properties": {
@@ -38,7 +38,7 @@
         "type": "boolean"
       },
       "model": {
-        "description": "Run it on another configured model (connection/model, from the list in your instructions) — a second opinion, or a model better at this kind of work. Default: the agent's own model, else yours.",
+        "description": "Run it on another model — only one the person named in this conversation (its id or name, as in the list in your instructions). Default: your model.",
         "type": "string"
       }
     },

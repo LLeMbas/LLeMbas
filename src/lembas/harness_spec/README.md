@@ -22,10 +22,11 @@ page *Harness-parity* in LLeMbas CLI's wiki.
 | `permission/defaults.json` | The rules every session starts from |
 | `permission/modes.json` | The four modes — manual, edit, auto, plan — as what each does with each risk class |
 | `models/schema.json` | Model metadata: context, output limit, efforts and the thinking switch, vision, tools, notes, capacity (`parallel`); `levels` — the effort levels a chat offers and what each sends |
-| `loop.json` | How one prompt runs: the step backstop, budgets, wrap-up, nudges, parallel calls, capacity; `jobs` — background work, its marks and limits; `team` — a team's size, names, marks, refusals and texts; `context` — result ids, stubs, the output cap, the compaction table, the environment lines, the session notes |
+| `loop.json` | How one prompt runs: the step backstop, budgets, wrap-up, nudges, parallel calls, capacity; `jobs` — background work, its marks and limits; `subagents` — the model refusals, what names a model, the setting's label; `team` — a team's size, names, marks, refusals and texts; `context` — result ids, stubs, the output cap, the compaction table, the environment lines, the session notes |
 | `filesystem.md` | The file system a session works in: paths, node kinds, the four access levels, errors, listings, search and indexing by tokens, stacked instruction files, skills, memory |
 | `context.md` | Context hygiene: what happens to a tool result when it is inserted, and never afterwards; the prefix that stays still; reasoning sent back during its turn; no absolute paths in the prompt |
 | `team.md` | Teams: a lead and the members it adds, the size setting, the room, who receives what, reports, a manager's refusals, capacity, stopping |
+| `subagents.md` | Subagents: the word, which model one runs on (the session's, or one the person named), the capacity refusals, and when the Subagents setting is offered |
 | `quirks.json` | What real servers do, and how both harnesses cope |
 | `conformance/<area>.json` | Cases with their expected results, run by both test suites |
 | `acp.md` | The link between them: ACP plus every `_lembas/*` method, field and capability |
@@ -33,7 +34,7 @@ page *Harness-parity* in LLeMbas CLI's wiki.
 ## Vocabulary
 
 - **Risk classes:** `read`, `write`, `execute`, `interact`. **Reading and writing are never one
-  tool** among the shared ones, so a read-only helper is given exactly the readers.
+  tool** among the shared ones, so a read-only subagent is given exactly the readers.
 - **Modes:** `manual`, `edit`, `auto`, `plan` (`unrestricted` is read as `auto`).
 - **Scopes:** `shared` — both projects implement it; `cli` or `llembas` — only that one. The same
   two names key what is per project elsewhere: a tool's `aliases`, `loop.json`'s budgets, a
@@ -48,8 +49,9 @@ page *Harness-parity* in LLeMbas CLI's wiki.
   page of the chat is open and attached (not a schedule, not a background job); `display`: the
   session is shown somewhere a file can be opened (the web UI, Desktop; not a bare terminal);
   `forge`: the session's view holds a repository mounted from a forge; `plan`: the session is in
-  plan mode; `team` (3.2.0): the session's team setting allows more than one agent, on a model that
-  serves two requests at once (`team.md` §2). A requirement that goes away between the offer and the call makes the call answer the
+  plan mode; `team` (3.2.0): the session's team setting allows more than one agent, and a model could
+  serve as a subagent (3.3.0: `subagents.md` §4; before, the chat's model serving two requests at
+  once). A requirement that goes away between the offer and the call makes the call answer the
   tool's `unavailable` text, word for word, as its result. **From 3.1.0 a requirement that can come
   and go during a session does not take the tool out of the list** (`context.md` §10, rule 4): the
   tool is offered from the start and answers `unavailable` while the requirement is not met.
@@ -67,6 +69,32 @@ page *Harness-parity* in LLeMbas CLI's wiki.
   (`context.md` §10). All three are offered in every mode; `plan_submit` (`requires: plan`) is the
   approval in plan mode and answers its `unavailable` text outside it. Their permission key is
   `plan` (`permission/defaults.json`), which a rule written for the former `todo` key still reaches.
+
+## 3.3.0
+
+Written ahead of both implementations as LLeMbas CLI 02c7282; both carry it in the same round (`subagents.md`).
+
+- **Subagent** is the word everywhere a person or a model reads one — a `task` subagent and a
+  team's member alike; *helper* is retired. Tool names and aliases are unchanged. The `team`
+  conformance area's step `helper_done` is now **`task_done`**.
+- **The model**: a subagent runs on the session's model, unless the person named another one in
+  this session's own messages (its served id, its id at its connection or its display name, a whole
+  word, without case — never the model's text or a tool's output). `task`'s and `team_add`'s
+  `model` is refused otherwise: "Use another model for subagents only when the person names it."
+  No setting chooses a subagent's model; an agent definition's own `model` is not used for one.
+- **Capacity, the logical restrictions only**: another model on the session's model's one-model
+  server is refused ("That model is on the same one-model server as this chat's model; name a
+  model on another server."); the session's model as its own subagent needs `parallel ≥ 2` or no
+  limit, else "This model serves one request at a time: name another model, on another server,
+  for subagents." — and nothing else is picked. A member is refused for these too, and still only
+  waits for a full model.
+- **The offer**: the `agents {min, max}` setting is shown as **Subagents** (*fewest*, *most*;
+  `loop.json` `subagents.setting`), and with it the team tools, when subagents are enabled and at
+  least one model could serve: the session's, with the capacity, or any usable model off its
+  one-model server. `context.note.team_own` tells the model, and `subagents.setting.own` the
+  person, when the session's model cannot serve subagents itself.
+- `task`'s and `team_add`'s `model` descriptions, `task`'s description (a line on the model),
+  `models/schema.json` capacity texts, `team.md` §2, §4, §8. Conformance area **`subagents`**.
 
 ## 3.2.0
 

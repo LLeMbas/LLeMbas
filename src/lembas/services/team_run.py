@@ -739,9 +739,9 @@ async def _run_team_add(context: ToolContext, args: dict[str, Any]) -> ToolOutco
                 return _outcome(text, _event("team_add", text, name, ok=False))
             if session_model is not None and model.id == session_model.id:
                 model = None
-        refusal = subagents_rules.check(db, owner, lead_chat, model, session=session_model)
-        if refusal:
-            return _outcome(refusal, _event("team_add", refusal, name, ok=False))
+        # Said after the team's own refusals (`rules.add`), before anything
+        # is added (team.md §4).
+        model_refusal = subagents_rules.check(db, owner, lead_chat, model, session=session_model)
         if model is None and session_model is not None:
             # A member's default is the session's model, not its manager's.
             model = session_model
@@ -756,7 +756,9 @@ async def _run_team_add(context: ToolContext, args: dict[str, Any]) -> ToolOutco
         model_id = model.id if model is not None else None
 
     def change(db, team: rules.Team):
-        added = rules.add(team, by, {**args, "agent": wanted_agent}, model=ref)
+        added = rules.add(
+            team, by, {**args, "agent": wanted_agent}, model=ref, model_refusal=model_refusal
+        )
         if added.agent is not None:
             owner_row = db.get(User, owner_id)
             from lembas.db.models import Model

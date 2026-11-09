@@ -1,5 +1,5 @@
 {
-  "about": "Teams (team.md, spec 3.2.0): one lead session's team, step by step, written from a reference model of the rules. `start`: the size setting `min` and `max`, `subagents` (enabled for the session; default true) and the chat model's `capacity` (models/schema.json: `parallel`, `single_session`; {} — no limit). The lead is `lead`; its first prompt is running as the case begins, and every agent is on the chat's model. Steps and what each answers: `offered` (`by` an agent, default lead) — `{tools, setting}`: the team tools listed for that agent, sorted, and whether the setting is shown; `call` (`by`, `tool`, `args`) — `{result, delivered}`: the call's answer word for word (null where an ordinary tool would run: the case looks only at whether it is refused), and what was delivered to whom by this step, `{name: [message, …]}`; `team_read` answers `{room, delivered}` instead, `room` being the messages it shows as `{n, from, to}` (the tree and the text format are loop.json team.read's, checked by each project's own tests); `task` runs a helper that counts toward the size (and holds a slot) until `helper_done` (`by`) — answers null; `finish` (`by`, `reply`, `reason`: stop by default, or steps, budget, `error — <text>`) — the agent's turn ends: a member's reply is its report — `{delivered}`; `set` (`min`, `max`, `capacity`: the person's setting or the model's metadata changed) — null; `person_stop` (`name`) — the person stopped that member in the UI — null; `user` — the person's message to the lead — `{note}`: the note on it (context.md §10), null when there is none; `state` — the team in tree order as `{name, manager, state}`: working, waiting (for a slot), finished, idle (the lead between turns). Delivering to a finished member or the idle lead wakes it (it is then working, or waiting when its model is full). LLeMbas: services/team.py; CLI: team/.",
+  "about": "Teams (team.md, spec 3.2.0): one lead session's team, step by step, written from a reference model of the rules. `start`: the size setting `min` and `max`, `subagents` (enabled for the session; default true) and the chat model's `capacity` (models/schema.json: `parallel`, `single_session`; {} — no limit). The lead is `lead`; its first prompt is running as the case begins, and every agent is on the chat's model, and it is the only model there is (spec 3.3.0: other models are subagents.json's). Steps and what each answers: `offered` (`by` an agent, default lead) — `{tools, setting}`: the team tools listed for that agent, sorted, and whether the setting is shown; `call` (`by`, `tool`, `args`) — `{result, delivered}`: the call's answer word for word (null where an ordinary tool would run: the case looks only at whether it is refused), and what was delivered to whom by this step, `{name: [message, …]}`; `team_read` answers `{room, delivered}` instead, `room` being the messages it shows as `{n, from, to}` (the tree and the text format are loop.json team.read's, checked by each project's own tests); `task` runs a subagent that counts toward the size (and holds a slot) until `task_done` (`by`) — answers null; `finish` (`by`, `reply`, `reason`: stop by default, or steps, budget, `error — <text>`) — the agent's turn ends: a member's reply is its report — `{delivered}`; `set` (`min`, `max`, `capacity`: the person's setting or the model's metadata changed) — null; `person_stop` (`name`) — the person stopped that member in the UI — null; `user` — the person's message to the lead — `{note}`: the note on it (context.md §10), null when there is none; `state` — the team in tree order as `{name, manager, state}`: working, waiting (for a slot), finished, idle (the lead between turns). Delivering to a finished member or the idle lead wakes it (it is then working, or waiting when its model is full). LLeMbas: services/team.py; CLI: team/.",
   "cases": [
     {
       "about": "Offered on a model that serves two requests at once: the lead has all four tools and the setting is shown.",
@@ -52,7 +52,7 @@
       ]
     },
     {
-      "about": "A model that serves one request at a time offers no team: no tools, no setting.",
+      "about": "A model that serves one request at a time, with no other model, offers no team: no tools, no setting.",
       "start": {
         "min": 1,
         "max": 4,
@@ -727,7 +727,7 @@
       ]
     },
     {
-      "about": "A task helper counts toward max while it runs, inside a team.",
+      "about": "A task subagent counts toward max while it runs, inside a team.",
       "start": {
         "min": 1,
         "max": 3,
@@ -772,7 +772,7 @@
           }
         },
         {
-          "op": "helper_done",
+          "op": "task_done",
           "by": "lead"
         },
         {

@@ -554,11 +554,16 @@ class Added:
     agent: Agent | None = None
 
 
-def add(team: Team, by: str, args: dict[str, Any], *, model: str = "") -> Added:
+def add(
+    team: Team, by: str, args: dict[str, Any], *, model: str = "", model_refusal: str = ""
+) -> Added:
     """`team_add`: refusals in the spec's order, then the member, working or
     waiting for a slot. `model` is what the runtime resolved `args.model` to
     (shown in the tree); an unknown agent or model is the runtime's to refuse,
-    as `task` does, before this is called."""
+    as `task` does, before this is called. `model_refusal` is the model's
+    (spec 3.3.0, subagents.md §2-3: `not_named`, `same_group`,
+    `one_request`), said after the team's own refusals and before anything
+    is added (team.md §4)."""
     if refused := unmet(team, by):
         return Added(refused)
     name = str(args.get("name") or "").strip()
@@ -573,6 +578,8 @@ def add(team: Team, by: str, args: dict[str, Any], *, model: str = "") -> Added:
         return Added(texts()["no_goal"])
     if team.size() + 1 > team.max:
         return Added(_say("full", max=team.max))
+    if model_refusal:
+        return Added(model_refusal)
     role = " ".join(str(args.get("role") or "").split())
     brief = str(args.get("task") or "").strip()
     if not role or not brief:
@@ -690,11 +697,11 @@ def person_message(team: Team) -> None:
         lead.inbox = []
 
 
-def helper_started(team: Team, by: str) -> None:
+def task_started(team: Team, by: str) -> None:
     team.helpers.append(by)
 
 
-def helper_done(team: Team, by: str) -> None:
+def task_done(team: Team, by: str) -> None:
     if by in team.helpers:
         team.helpers.remove(by)
     schedule(team)
@@ -787,8 +794,8 @@ __all__ = [
     "capacity_allows",
     "defaults",
     "finish",
-    "helper_done",
-    "helper_started",
+    "task_done",
+    "task_started",
     "is_manager",
     "is_work",
     "manager_refusal",

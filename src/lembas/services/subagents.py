@@ -39,33 +39,6 @@ from sqlalchemy import select
 
 from lembas.services import harness_spec
 
-# Until the vendored spec carries `loop.json` `subagents` (3.3.0): the same
-# words, so the server behaves the same on either side of the pin.
-_TEXTS = {
-    "not_named": "Use another model for subagents only when the person names it.",
-    "same_group": (
-        "That model is on the same one-model server as this chat's model; "
-        "name a model on another server."
-    ),
-    "one_request": (
-        "This model serves one request at a time: name another model, on another "
-        "server, for subagents."
-    ),
-}
-_SETTING = {
-    "label": "Subagents",
-    "min": "fewest",
-    "max": "most",
-    "own": (
-        "This model serves one request at a time: subagents need another model, on "
-        "another server, named in the chat."
-    ),
-}
-_NOTE_OWN = (
-    "This model serves one request at a time, so subagents cannot run on it: they need "
-    "another model, on another server, that the person names in this chat."
-)
-
 # A whole word (subagents.md §2): before the name, not a letter, digit, `_`,
 # `-`, `/`, `.` or `:`; after it, not a letter, digit, `_`, `-` or `/`, nor a
 # `.` or `:` followed by a letter or a digit. `\w` is a letter, a digit or `_`.
@@ -74,19 +47,23 @@ _AFTER = r"(?![\w\-/]|[.:][^\W_])"
 
 
 def _spec() -> dict[str, Any]:
-    return harness_spec.loop().get("subagents") or {}
+    return harness_spec.loop()["subagents"]
 
 
 def texts() -> dict[str, str]:
-    return {**_TEXTS, **(_spec().get("texts") or {})}
+    """`not_named`, `same_group`, `one_request`: said to a model, word for word."""
+    return dict(_spec()["texts"])
 
 
 def setting_texts() -> dict[str, str]:
-    return {**_SETTING, **(_spec().get("setting") or {})}
+    """How the setting is shown (`label`, `min`, `max`) and `own`, the line
+    beside it where the chat's model cannot serve subagents itself."""
+    return dict(_spec()["setting"])
 
 
 def note_own() -> str:
-    return harness_spec.note().get("team_own") or _NOTE_OWN
+    """The session note's `team_own` line."""
+    return harness_spec.note()["team_own"]
 
 
 # --- Named (§2) ------------------------------------------------------------------------
@@ -248,6 +225,22 @@ def own_note(db, user, chat=None, model=None) -> str:
     return setting_texts()["own"] if needs_named(seat(model), usable) else ""
 
 
+def view(db, user, chat=None, model=None) -> dict[str, Any]:
+    """What a UI needs to know before it shows the Subagents setting -- for a
+    chat, or before one exists for `model` (`/api/v2`): whether subagents are
+    offered (`team_run.offered`: enabled, permitted, some model could serve),
+    whether they need a model the person names (`named_only`: the chat's own
+    serves one request at a time), and the instance's cap on the setting."""
+    from lembas.services import team_run
+
+    offered = team_run.offered(db, chat, user, model) if (chat or model) else False
+    return {
+        "offered": bool(offered),
+        "named_only": bool(offered and own_note(db, user, chat, model)),
+        "cap": team_run.cap(db),
+    }
+
+
 def check(db, owner, lead_chat, target, *, session=None) -> str:
     """The refusal for a subagent of `lead_chat`'s session on `target` (None:
     the session's model), or "". `lead_chat` is the chat whose person's words
@@ -294,4 +287,5 @@ __all__ = [
     "setting_texts",
     "texts",
     "usable_models",
+    "view",
 ]

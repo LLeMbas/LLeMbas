@@ -47,7 +47,7 @@
       },
       "model": {
         "type": "string",
-        "description": "Run it on another model you may use (from the list in your instructions). Default: yours."
+        "description": "Run it on another model — only one the person named in this conversation (its id or name, as in the list in your instructions). Default: the session's model."
       }
     },
     "required": [

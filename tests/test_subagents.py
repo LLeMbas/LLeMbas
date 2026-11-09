@@ -152,3 +152,22 @@ async def test_task_refuses_an_unnamed_model_with_the_specs_words(db):
         context, {"prompt": "read the logs", "model": "B/coder-30b"}
     )
     assert outcome.content == rules.texts()["not_named"]
+
+
+async def test_team_add_refuses_after_the_teams_own_refusals(db):
+    main = _model(db, _connection(db, "A"), "lead-model", parallel=4)
+    _model(db, _connection(db, "B"), "coder-30b")
+    chat = _chat(db, main)
+    _say(db, chat, "Build the loader as a team.")
+    context = tools_service.context_for(db, _user(db), chat)
+    base = {"role": "owns the parser", "task": "Write it.", "goal": "A loader"}
+    # A bad name is the team's refusal, said first.
+    outcome = await team_run._run_team_add(
+        context, {**base, "name": "Bad Name", "model": "coder-30b"}
+    )
+    assert outcome.content != rules.texts()["not_named"]
+    # Then the model's.
+    outcome = await team_run._run_team_add(
+        context, {**base, "name": "parser", "model": "coder-30b"}
+    )
+    assert outcome.content == rules.texts()["not_named"]

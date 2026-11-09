@@ -21,11 +21,11 @@
     "notes": { "type": "string", "maxLength": 300, "description": "What the model is good at, in a line: other models are told about it in the roster, for handing work over." },
     "capacity": {
       "type": "object",
-      "description": "How much the model's server can do at once, so a helper or a subagent on it is not started where it would evict or wait for the model already working.",
+      "description": "How much the model's server can do at once, so a subagent on it is not started where it would evict or wait for the model already working (subagents.md §3).",
       "properties": {
-        "group": { "type": "string", "description": "Models that share one server holding one model at a time (llama-swap): starting another model of the group unloads this one. The CLI: a model's `group`, or its connection when the connection sets one_model_at_a_time. LLeMbas: the connection's name when it sets one_model_at_a_time, which is what /v1/models says." },
+        "group": { "type": "string", "description": "Models that share one server holding one model at a time (llama-swap): starting another model of the group unloads this one, so a subagent on another model of the session's model's group is refused (spec 3.3.0, subagents.md §3). The CLI: a model's `group`, or its connection when the connection sets one_model_at_a_time. LLeMbas: the connection's name when it sets one_model_at_a_time, which is what /v1/models says." },
         "single_session": { "type": "boolean", "description": "The model serves one request at a time: a second one waits behind the first. The same as `parallel: 1`, which a server that knows `parallel` sends beside it for older clients." },
-        "parallel": { "type": "integer", "minimum": 1, "description": "Spec 3.2.0: how many requests the model's server serves at once (llama.cpp's slots, a vLLM or SGLang batch); one more waits behind them. Read as: `parallel` when given, else 1 when single_session is true, else no limit (a hosted API). Where both are given and disagree, `parallel` wins. A team (team.md) is offered only on a model that serves at least 2." }
+        "parallel": { "type": "integer", "minimum": 1, "description": "Spec 3.2.0: how many requests the model's server serves at once (llama.cpp's slots, a vLLM or SGLang batch); one more waits behind them. Read as: `parallel` when given, else 1 when single_session is true, else no limit (a hosted API). Where both are given and disagree, `parallel` wins. The session's model is its own subagents' model only when it serves at least 2; a one-request session needs a named model on another server (spec 3.3.0, subagents.md §3, §4)." }
       },
       "additionalProperties": false
     }
