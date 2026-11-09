@@ -2446,9 +2446,6 @@ MESSAGES['MCP tools'] = 'Outils MCP'
 MESSAGES['Since the last reply'] = 'Depuis la dernière réponse'
 MESSAGES['Compaction buffer'] = 'Réserve de compactage'
 MESSAGES['Free space'] = 'Espace libre'
-MESSAGES['waiting for a slot'] = 'attend une place libre'
-MESSAGES['finished'] = 'terminé'
-MESSAGES['idle'] = 'inactif'
 
 # Effort levels and the thinking switch, requests at once (2.0.0-beta.5, harness spec 3.2.0).
 MESSAGES['Can switch thinking off'] = 'Peut désactiver la réflexion'

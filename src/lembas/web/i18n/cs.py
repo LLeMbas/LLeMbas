@@ -2446,9 +2446,6 @@ MESSAGES['MCP tools'] = 'Nástroje MCP'
 MESSAGES['Since the last reply'] = 'Od poslední odpovědi'
 MESSAGES['Compaction buffer'] = 'Rezerva na zhuštění'
 MESSAGES['Free space'] = 'Volné místo'
-MESSAGES['waiting for a slot'] = 'čeká na volné místo'
-MESSAGES['finished'] = 'skončil'
-MESSAGES['idle'] = 'nečinný'
 
 # Effort levels and the thinking switch, requests at once (2.0.0-beta.5, harness spec 3.2.0).
 MESSAGES['Can switch thinking off'] = 'Umí vypnout přemýšlení'

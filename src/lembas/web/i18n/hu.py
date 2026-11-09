@@ -2446,9 +2446,6 @@ MESSAGES['MCP tools'] = 'MCP-eszközök'
 MESSAGES['Since the last reply'] = 'Az utolsó válasz óta'
 MESSAGES['Compaction buffer'] = 'Tömörítési tartalék'
 MESSAGES['Free space'] = 'Szabad hely'
-MESSAGES['waiting for a slot'] = 'szabad helyre vár'
-MESSAGES['finished'] = 'befejezte'
-MESSAGES['idle'] = 'tétlen'
 
 # Effort levels and the thinking switch, requests at once (2.0.0-beta.5, harness spec 3.2.0).
 MESSAGES['Can switch thinking off'] = 'Ki tudja kapcsolni a gondolkodást'
