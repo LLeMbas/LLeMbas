@@ -172,10 +172,10 @@ def _subagent_defs(db: DBSession, chat: Chat, user: User | None) -> list[ToolDef
     a fan-out with no bound anybody set. Any other unattended chat (a
     scheduled task's) gets none: nobody is there to be told about a job.
 
-    An ordinary chat gets `task` and the job tools, unless its model cannot be
-    its own helper (it serves one request at a time and the spec's
-    `capacity` rule refuses every call) -- a tool every call of which is
-    refused is one a model finds out about one wasted round at a time.
+    An ordinary chat gets `task`, the job tools and the team tools where
+    subagents are offered (`team_run.offered`, harness spec 3.3.0
+    subagents.md §4): a model that could serve as a subagent -- its own, or
+    another usable one off its one-model server, once the person names it.
     """
     from lembas.services import subagent as subagent_service
     from lembas.services import team_run
@@ -192,7 +192,10 @@ def _subagent_defs(db: DBSession, chat: Chat, user: User | None) -> list[ToolDef
         # (`team_run.may_have_team`), and nothing else of the family: nobody
         # is there to be told about a background job.
         return team if getattr(chat, "kind", "") == KIND_TASK else []
-    if subagent_service.capacity_refusal(db, chat):
+    if not team:
+        # Not offered (harness spec 3.3.0, subagents.md §4): no model could
+        # serve as a subagent here -- a tool every call of which is refused is
+        # one a model finds out about one wasted round at a time.
         return []
     return [*subagent_service.tool_defs(), *team]
 
@@ -545,7 +548,7 @@ GATE_LABELS = {
     "plan": N_("Keeping a plan"),
     "image": N_("Generating images"),
     "schedule": N_("Scheduling work"),
-    "subagent": N_("Sending helpers"),
+    "subagent": N_("Sending subagents"),
     "agent": N_("Running commands"),
     "custom": N_("Custom tools"),
     "mcp": N_("MCP servers"),

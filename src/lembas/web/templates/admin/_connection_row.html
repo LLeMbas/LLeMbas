@@ -230,7 +230,7 @@
                {{ 'checked' if connection.one_model_at_a_time }}>
         <span>{{ t("Holds one model at a time") }}</span>
       </label>
-      <p class="field__hint">{{ t("Tick this for llama-swap in front of one GPU, or anything else that unloads one model to serve another. A model here may then be its own helper, but never send a helper to another model on this connection: loading it would unload the model whose reply is waiting.") }}</p>
+      <p class="field__hint">{{ t("Tick this for llama-swap in front of one GPU, or anything else that unloads one model to serve another. A model here may then be its own subagent, but never send a subagent to another model on this connection: loading it would unload the model whose reply is waiting.") }}</p>
     </div>
 
     <div class="field">

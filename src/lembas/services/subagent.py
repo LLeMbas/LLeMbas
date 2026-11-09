@@ -261,7 +261,7 @@ def _create_child(
     child = Chat(
         user_id=parent.user_id,
         kind=KIND_CHAT,
-        title=title[:200] or "Helper",
+        title=title[:200] or "Subagent",
         model_id=model.model_id if model is not None else parent.model_id,
         connection_id=model.connection_id if model is not None else parent.connection_id,
         data_group_id=data_groups.for_chat(db, parent),
@@ -385,13 +385,13 @@ def _harvest(db, chat_id: str) -> tuple[str, str, bool]:
         .limit(1)
     ).first()
     if message is None:
-        return "", "The helper's reply could not be found.", False
+        return "", "The subagent's reply could not be found.", False
     text = (message.content or "").strip()
     stopped = bool(message.stopped)
     if message.error:
         return text, str(message.error), stopped
     if not text:
-        return "", "The helper produced no answer.", stopped
+        return "", "The subagent produced no answer.", stopped
     return text, "", stopped
 
 
@@ -526,9 +526,9 @@ async def _watch(job_row_id: str, child_id: str, parent_id: str, deadline: float
     except asyncio.CancelledError:
         raise
     except Exception:  # a job that dies silently is worse
-        log.exception("background helper %s failed", child_id)
+        log.exception("background subagent %s failed", child_id)
         facts = _finish_job(
-            job_row_id, FINISHED, answer="", problem="The helper failed.", stopped=False
+            job_row_id, FINISHED, answer="", problem="The subagent failed.", stopped=False
         )
     finally:
         _LIVE.discard(child_id)
@@ -582,29 +582,6 @@ def _error(message: str, *, task: str = "", name: str = "task") -> ToolOutcome:
     )
 
 
-def _pick_model(db, owner: User, parent: Chat, wanted: str):
-    """The model a `task` names, among those this person may use in the
-    parent's data group: `connection/model`, or the model id alone when that
-    is unambiguous, or the label the pickers show. None when there is no such
-    model."""
-    from lembas.services import chat as chat_service
-
-    candidates = chat_service.available_models(db, owner, data_groups.for_chat(db, parent))
-    connection, _, model_id = wanted.rpartition("/")
-    matches = [
-        m
-        for m in candidates
-        if m.model_id == (model_id if connection else wanted)
-        and (
-            not connection
-            or (m.connection is not None and m.connection.name.casefold() == connection.casefold())
-        )
-    ]
-    if len(matches) != 1:
-        matches = [m for m in candidates if m.label == wanted]
-    return matches[0] if len(matches) == 1 else None
-
-
 def write_refusal(parent: Chat) -> str:
     """Why a helper that writes cannot be sent from this chat, or "".
 
@@ -619,12 +596,12 @@ def write_refusal(parent: Chat) -> str:
     if read_only_temporary(parent):
         return (
             "This is a temporary chat, which may read but not change anything, "
-            "so a helper cannot write either. Send the explore agent, or ask the "
+            "so a subagent cannot write either. Send the explore agent, or ask the "
             "reader to keep the chat first."
         )
     if tools_service.plan_mode(parent):
         return (
-            "This chat is in Plan mode, where nothing is changed — so a helper "
+            "This chat is in Plan mode, where nothing is changed — so a subagent "
             "cannot write either. Send the explore agent, and make the changes "
             "once the plan is approved."
         )
@@ -641,12 +618,18 @@ def model_ref(model) -> str:
 
 
 def helper_models(db, owner: User, chat: Chat) -> str:
-    """The models a `task` may name here, as the prompt lists them: every one
-    the reader may use in this chat's data group, `connection/model`."""
-    from lembas.services import chat as chat_service
+    """The models the person may name for a subagent here, as the prompt lists
+    them (harness spec 3.3.0, subagents.md §2): every one usable in this chat's
+    data group, `connection/model` with its display name where it has one."""
+    from lembas.services import subagents as subagents_rules
 
-    models = chat_service.available_models(db, owner, data_groups.for_chat(db, chat))
-    return ", ".join(ref for ref in (model_ref(m) for m in models) if ref)
+    out = []
+    for model in subagents_rules.usable_models(db, owner, chat):
+        ref = model_ref(model)
+        name = (model.display_name or "").strip()
+        if ref:
+            out.append(f"{ref} ({name})" if name and name != model.model_id else ref)
+    return ", ".join(out)
 
 
 def _budget(generation, values: dict[str, Any]) -> str:
@@ -674,7 +657,7 @@ def _budget(generation, values: dict[str, Any]) -> str:
         )
     if len(_LIVE) >= int(values["max_concurrent"]):
         return (
-            "Too many helpers are running on this instance right now. "
+            "Too many subagents are running on this instance right now. "
             "Do this part yourself rather than waiting."
         )
     generation.subagents += 1
@@ -696,7 +679,9 @@ async def _run_subagent(context: ToolContext, args: dict[str, Any]) -> ToolOutco
     may still carry `write` -- which means the `general` agent. `worktree` is
     the CLI's: accepted and ignored, with a note in the result so the model is
     not left believing it got it."""
+    from lembas.services import chat as chat_service
     from lembas.services import generation as generation_service
+    from lembas.services import subagents as subagents_rules
     from lembas.services import tools as tools_service
     from lembas.services import wake as wake_service
 
@@ -718,11 +703,11 @@ async def _run_subagent(context: ToolContext, args: dict[str, Any]) -> ToolOutco
     write = agent == AGENT_GENERAL
     ignored = []
     if args.get("worktree"):
-        ignored.append("a helper here works in no checkout, so worktree was ignored")
+        ignored.append("a subagent here works in no checkout, so worktree was ignored")
 
     if not task:
         return _error(
-            "A helper needs a prompt: what to find out or do, written out in full. "
+            "A subagent needs a prompt: what to find out or do, written out in full. "
             "It starts with none of this conversation, so say everything it needs."
         )
 
@@ -740,7 +725,7 @@ async def _run_subagent(context: ToolContext, args: dict[str, Any]) -> ToolOutco
         # call that arrived by some other path is refused rather than opening
         # a third level.
         if parent.parent_chat_id or parent.unattended:
-            return _error("A helper cannot ask for a helper of its own.", task=task)
+            return _error("A subagent cannot ask for a subagent of its own.", task=task)
 
         if write and (refused := write_refusal(parent)):
             return _error(refused, task=task)
@@ -754,17 +739,23 @@ async def _run_subagent(context: ToolContext, args: dict[str, Any]) -> ToolOutco
         if owner is None:  # pragma: no cover - a chat outliving its owner
             return _error("That account no longer exists.", task=task)
 
-        # Another model the reader may use, named as the spec says
-        # (`connection/model`, or the model id alone); else the parent's own.
+        # The model (harness spec 3.3.0, subagents.md §2-3): this chat's own,
+        # unless the person named another in this chat; refused, never
+        # replaced, where it cannot serve -- there is no fallback.
         model_override = None
         if wanted_model:
-            model_override = _pick_model(db, owner, parent, wanted_model)
+            model_override = subagents_rules.pick(db, owner, parent, wanted_model)
             if model_override is None:
                 return _error(
                     f"There is no model called {wanted_model!r} that this chat may use. "
-                    "Leave `model` out to run the helper on this chat's own model.",
+                    "Leave `model` out to run the subagent on this chat's own model.",
                     task=task,
                 )
+            own = chat_service.model_for(db, parent)
+            if own is not None and own.id == model_override.id:
+                model_override = None
+        if refused := subagents_rules.check(db, owner, parent, model_override):
+            return _error(refused, task=task)
 
         # The spec's capacity rule: not on a model the server cannot hold
         # beside this conversation's, or beside a helper already running.
@@ -792,7 +783,6 @@ async def _run_subagent(context: ToolContext, args: dict[str, Any]) -> ToolOutco
             db, parent, title=title, write=write, agent=agent, model=model_override
         )
         child_id = child.id
-        from lembas.services import chat as chat_service
 
         model_row = model_override or chat_service.model_row(
             db, chat_service.speaker_for(db, parent)
@@ -805,7 +795,7 @@ async def _run_subagent(context: ToolContext, args: dict[str, Any]) -> ToolOutco
     message_id = await wake_service.wake_chat(child_id, _task_turn(task, briefing))
     if not message_id:
         _cleanup(child_id, keep=False)
-        return _error("The helper could not be started.", task=task)
+        return _error("The subagent could not be started.", task=task)
 
     with session_scope() as db:
         job = jobs_service.create(
@@ -862,7 +852,7 @@ async def _run_subagent(context: ToolContext, args: dict[str, Any]) -> ToolOutco
     _cleanup(child_id, keep=keep)
 
     if not answer:
-        return _error(problem or "The helper produced no answer.", task=task)
+        return _error(problem or "The subagent produced no answer.", task=task)
 
     # The account of what it did goes in the *event*, where the transcript shows
     # it; the answer goes to the model. Putting the tool list in front of the

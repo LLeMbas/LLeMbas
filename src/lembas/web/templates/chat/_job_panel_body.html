@@ -43,9 +43,9 @@
       hx-post="/api/chats/{{ chat.id }}/jobs/{{ job.id }}/send"
       hx-target="#jobpanel-body" hx-swap="innerHTML"
       hx-on::after-request="if (event.target === this && event.detail.successful) this.reset()">
-  <label class="visually-hidden" for="jobpanel-text">{{ t("A message to the helper") }}</label>
+  <label class="visually-hidden" for="jobpanel-text">{{ t("A message to the subagent") }}</label>
   <textarea class="textarea" id="jobpanel-text" name="text" rows="2" required
-            placeholder="{{ t('Message the helper — it reads it at its next step; a finished one is started again with it') }}"></textarea>
+            placeholder="{{ t('Message the subagent — it reads it at its next step; a finished one is started again with it') }}"></textarea>
   <button class="btn btn--sm" type="submit">{{ icon("send", "icon--sm") }} {{ t("Send") }}</button>
 </form>
 {% endif %}

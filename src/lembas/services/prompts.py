@@ -163,57 +163,57 @@ VARIABLES: tuple[Variable, ...] = (
     ),
     Variable(
         "subagent",
-        "Is a helper",
-        "Set inside the chat of a helper another model sent, and empty "
-        "everywhere else — so it is the gate on the guidance a helper reads "
+        "Is a subagent",
+        "Set inside the chat of a subagent another model sent, and empty "
+        "everywhere else — so it is the gate on the guidance a subagent reads "
         "about being one. It carries no text worth printing; it is a flag "
         "wearing a variable's clothes, because `requires` is how a fragment "
         "gates itself and a flag has nowhere else to live.",
     ),
     Variable(
         "name",
-        "The helper's agent",
-        "In a helper's chat: which kind of helper it is -- `explore` or `general`, "
+        "The subagent's agent",
+        "In a subagent's chat: which kind of subagent it is -- `explore` or `general`, "
         "the harness spec's built-in agents. Empty everywhere else.",
     ),
     Variable(
         "instructions",
-        "The helper's instructions",
-        "In a helper's chat: the agent's own instructions (the spec's "
+        "The subagent's instructions",
+        "In a subagent's chat: the agent's own instructions (the spec's "
         "`prompts/agents/<name>.md`). Empty everywhere else.",
     ),
     Variable(
         "report",
-        "The helper may report",
-        "In a helper's chat that has the `report` tool: the sentence saying a "
+        "The subagent may report",
+        "In a subagent's chat that has the `report` tool: the sentence saying a "
         "finding or a question may be sent to the main agent before the final "
         "reply, and that a message from it may arrive meanwhile. Empty otherwise.",
     ),
     Variable(
         "read_only",
-        "The helper reads only",
-        "In the chat of a helper that may change nothing (the `explore` agent): "
+        "The subagent reads only",
+        "In the chat of a subagent that may change nothing (the `explore` agent): "
         "the sentence saying so. Empty otherwise.",
     ),
     Variable(
         "plan_tools",
         "The planning bullet",
         "The shared system text's bullet about plan_write and plan_update: the same "
-        "words the LLeMbas CLI sends, and empty in a helper's chat, which has no plan "
+        "words the LLeMbas CLI sends, and empty in a subagent's chat, which has no plan "
         "tools -- the bullet goes with it.",
     ),
     Variable(
         "ask_tool",
         "The asking bullet",
         "The shared system text's bullet about ask_user, the same words the LLeMbas "
-        "CLI sends, and empty in a helper's chat, which has nobody to ask.",
+        "CLI sends, and empty in a subagent's chat, which has nobody to ask.",
     ),
     Variable(
         "helper_models",
-        "Models a helper may run on",
+        "Models a subagent may run on",
         "Where `task` is offered: the models this person may use in the chat's "
         "data group, as `connection/model` -- what `task`'s `model` may name. "
-        "Empty where there is no helper tool.",
+        "Empty where there is no subagent tool.",
     ),
     Variable(
         "start",
@@ -262,7 +262,7 @@ VARIABLES: tuple[Variable, ...] = (
         "temporary",
         "This is a temporary chat",
         "Set in a person's temporary chat, which reads but writes nothing, and "
-        "empty otherwise -- including a helper's chat, which is also temporary. "
+        "empty otherwise -- including a subagent's chat, which is also temporary. "
         "A flag: the gate on the temporary-chat guidance.",
     ),
     Variable(
@@ -1235,7 +1235,7 @@ BUILTIN: tuple[Fragment, ...] = (
     ),
     Fragment(
         key="tool.subagent",
-        label="Helpers",
+        label="Subagents",
         group=GROUP_TOOLS,
         order=252,
         families=("subagent",),
@@ -1243,10 +1243,10 @@ BUILTIN: tuple[Fragment, ...] = (
         hint="Appears when task is offered. Two things a model gets "
         "wrong about delegation and neither is in the schema. It under-uses it "
         "— answering four independent questions one after another when they "
-        "could have run at once — and then over-uses it, sending a helper to "
+        "could have run at once — and then over-uses it, sending a subagent to "
         "do a single search. The dividing line is whether the pieces are "
         "independent, so that is what the wording is built around. The last "
-        "line is the list task's description promises: the models a helper may "
+        "line is the list task's description promises: the models a subagent may "
         "run on, which only this instance knows.",
         default=(
             "- You can delegate. task hands one self-contained piece of work to "
@@ -1257,33 +1257,33 @@ BUILTIN: tuple[Fragment, ...] = (
             "- Delegate when the work splits into independent parts, each worth more "
             "than one lookup — different sources to read, different areas to survey, "
             "two approaches to compare. Do it yourself when it is one search, one page "
-            "or one file: a helper costs a whole reply, so using one to save a single "
+            "or one file: a subagent costs a whole reply, so using one to save a single "
             "call is slower than not.\n"
-            "- Write each task as if to somebody who has just walked in. A helper starts "
+            "- Write each task as if to somebody who has just walked in. A subagent starts "
             "with none of this conversation, and cannot ask you or the reader anything "
             "— so say what is wanted, what a good answer contains, and any name, path "
             "or decision it could not look up. Half a task produces half an answer with "
             "no sign that anything was missing.\n"
-            "- Give each helper a different piece. Two with the same task come back with "
+            "- Give each subagent a different piece. Two with the same task come back with "
             "the same answer twice, at twice the cost.\n"
             "- What comes back is another model's work. Read it, say where it disagrees "
             "with what you already had, and do not repeat a claim you cannot check just "
-            "because a helper made it.\n"
-            "- Models a helper may run on, as `connection/model` for task's `model`: "
-            "{{helper_models}}"
+            "because a subagent made it.\n"
+            "- A subagent runs on your model. Another model only when the person names "
+            "it in this conversation — by its id or its name, from these: {{helper_models}}"
         ),
     ),
     Fragment(
         key="core.subagent",
-        label="You are the helper",
+        label="You are the subagent",
         group=GROUP_CORE,
         order=36,
         requires=("subagent",),
         variables=("name", "instructions", "report", "read_only"),
-        hint="Only inside a helper's own chat: the harness spec's subagent "
+        hint="Only inside a subagent's own chat: the harness spec's subagent "
         "preamble (blocks/subagent.md), the same words the LLeMbas CLI gives "
         "its subagents, with the agent's name and instructions filled in. The "
-        "things a helper cannot work out for itself: it works for the main "
+        "things a subagent cannot work out for itself: it works for the main "
         "agent rather than the person, it cannot ask anybody anything, and its "
         "final reply is its whole report. This is the prompt half; the "
         "enforcement is that ask_user and task are not offered here at all, "

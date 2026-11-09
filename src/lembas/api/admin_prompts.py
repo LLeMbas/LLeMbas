@@ -77,7 +77,7 @@ def situations() -> tuple[tuple[str, str], ...]:
     return (
         (SITUATION_ORDINARY, t("An ordinary chat")),
         (SITUATION_TASK, t("A scheduled task, running unattended")),
-        (SITUATION_HELPER, t("A helper sent by another model")),
+        (SITUATION_HELPER, t("A subagent sent by another model")),
     )
 
 

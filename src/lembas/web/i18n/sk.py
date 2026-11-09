@@ -457,7 +457,7 @@ MESSAGES.update(
         "Image generation": "Generovanie obrázkov",
         "Extraction": "Extrakcia",
         "Memory": "Pamäť",
-        "Helpers": "Pomocníci",
+        'Subagents': 'Podagenti',
         "Custom tools": "Vlastné nástroje",
         "MCP servers": "Servery MCP",
         "Guidance": "Vedenie",
@@ -694,18 +694,18 @@ MESSAGES.update(
         "Let a model delegate": "Nechať model delegovať",
         "Let people write their own answer": "Nechať ľudí napísať vlastnú odpoveď",
         "Let scheduled work run": "Nechať bežať naplánovanú prácu",
-        "Delegate to a helper": "Delegovať pomocníkovi",
+        'Delegate to a subagent': 'Delegovať podagentovi',
         "Ask another model": "Spýtať sa iného modelu",
         "Open a terminal": "Otvoriť terminál",
         "Connection": "Spojenie",
         "Close a shell after": "Zavrieť shell po",
         "Most shells at once": "Najviac shellov naraz",
         "Most shells per person": "Najviac shellov na osobu",
-        "Most a helper may write": "Najviac, čo smie napísať pomocník",
-        "Most helpers one reply may send": "Najviac pomocníkov, ktorých smie odpoveď poslať",
-        "Longest a helper may take": "Najdlhšie, čo smie trvať pomocník",
+        'Most a subagent may write': 'Najviac, čo smie napísať podagent',
+        'Most subagents one reply may send': 'Najviac podagentov, ktorých smie odpoveď poslať',
+        'Longest a subagent may take': 'Najdlhšie, čo smie trvať podagent',
         "How long a question waits": "Ako dlho otázka čaká",
-        "Keep a helper's own chat afterwards": "Nechať potom vlastnú konverzáciu pomocníka",
+        "Keep a subagent's own chat afterwards": 'Nechať potom vlastnú konverzáciu podagenta',
         "Each is a whole generation against the same endpoint the reply that asked for it is waiting on. Past this a model is told to do the work itself rather than made to wait.": (
             "Každý je celá generácia proti tomu istému endpointu, na ktorý čaká "
             "odpoveď, ktorá si ho vyžiadala. Nad týmto sa modelu povie, aby prácu "
@@ -717,10 +717,8 @@ MESSAGES.update(
             "počítajú do toho istého čísla, takže jedna odpoveď nemôže limit "
             "spotrebovať dvakrát."
         ),
-        "In tokens, across every round. A helper answers one question, so this should run out well before the reply that asked does. Zero means no ceiling.": (
-            "V tokenoch, cez všetky kolá. Pomocník odpovedá na jednu otázku, takže "
-            "toto by malo skončiť výrazne skôr než odpoveď, ktorá sa pýtala. Nula "
-            "znamená bez stropu."
+        'In tokens, across every round. A subagent answers one question, so this should run out well before the reply that asked does. Zero means no ceiling.': (
+            'V tokenoch, cez všetky kolá. Podagent odpovedá na jednu otázku, takže toto by malo skončiť výrazne skôr než odpoveď, ktorá sa pýtala. Nula znamená bez stropu.'
         ),
         "Every restart ends every open terminal session — a command still running on the far side is cut off. A reply being written is saved with whatever it has.": (
             "Každý restart ukončí každé otvorené sedenie terminálu — príkaz, ktorý na "
@@ -1338,7 +1336,7 @@ MESSAGES.update(
 MESSAGES.update(
     {
         'Holds one model at a time': 'Drží naraz jeden model',
-        'Tick this for llama-swap in front of one GPU, or anything else that unloads one model to serve another. A model here may then be its own helper, but never send a helper to another model on this connection: loading it would unload the model whose reply is waiting.': 'Označte pri llama-swap pred jednou GPU alebo čomkoľvek, čo jeden model uvoľní, aby obslúžilo iný. Model tu potom môže byť vlastným pomocníkom, ale nikdy nepošle pomocníka inému modelu na tomto spojení: jeho načítanie by uvoľnilo model, ktorého odpoveď čaká.',
+        'Tick this for llama-swap in front of one GPU, or anything else that unloads one model to serve another. A model here may then be its own subagent, but never send a subagent to another model on this connection: loading it would unload the model whose reply is waiting.': 'Označte pri llama-swap pred jednou GPU alebo čomkoľvek, čo jeden model uvoľní, aby obslúžilo iný. Model tu potom môže byť vlastným podagentom, ale nikdy nepošle podagenta inému modelu na tomto spojení: jeho načítanie by uvoľnilo model, ktorého odpoveď čaká.',
     }
 )
 
@@ -1653,7 +1651,7 @@ MESSAGES.update(
         "Let a model call tools from the MCP servers an administrator has added. Which ones depends on the groups each server is restricted to.": "Model môže volať nástroje zo serverov MCP, ktoré pridal správca. Ktoré, závisí od skupín, na ktoré je každý server obmedzený.",
         "Let them start agent chats on a LLeMbas CLI they have linked: its model reads files, writes files and runs commands on that machine, within the CLI's own limits and the chat's mode. Nothing runs on this server.": "Môže začínať agentské konverzácie na prepojenom LLeMbas CLI: jeho model na tom stroji číta a zapisuje súbory a spúšťa príkazy, v medziach samotného CLI a režimu konverzácie. Na tomto serveri sa nespúšťa nič.",
         "Open an interactive shell on their linked device, from inside an agent chat, where the device allows it. What they type there is theirs: the chat's mode governs the model, not the person at the keyboard.": "Otvoriť interaktívny shell na prepojenom zariadení priamo z agentskej konverzácie, ak to zariadenie dovoľuje. Čo tam napíše, je jeho vec: režim konverzácie riadi model, nie človeka pri klávesnici.",
-        "Let a model hand a self-contained piece of work to a second one that runs on its own and reports back — reading and searching in parallel rather than one thing at a time. A helper cannot ask questions, cannot spawn helpers of its own, and can only do what this chat could already do without stopping to ask.": "Model môže odovzdať samostatnú časť práce druhému, ktorý pracuje sám a podá správu — číta a hľadá súbežne namiesto jednej veci po druhej. Pomocník sa nemôže pýtať, nemôže spúšťať vlastných pomocníkov a smie len to, čo by táto konverzácia smela aj bez pýtania.",
+        'Let a model hand a self-contained piece of work to a second one that runs on its own and reports back — reading and searching in parallel rather than one thing at a time. A subagent cannot ask questions, cannot spawn subagents of its own, and can only do what this chat could already do without stopping to ask.': 'Model môže odovzdať samostatnú časť práce druhému, ktorý pracuje sám a podá správu — číta a hľadá súbežne namiesto jednej veci po druhej. Podagent sa nemôže pýtať, nemôže spúšťať vlastných podagentov a smie len to, čo by táto konverzácia smela aj bez pýtania.',
         "Be asked questions": "Dostávať otázky",
         "Let a model stop mid-reply and ask you something, with answers to pick from or a box to write your own.": "Model sa môže uprostred odpovede zastaviť a na niečo sa vás opýtať — s odpoveďami na výber alebo s políčkom na vlastnú.",
         "Set things to run later, on their own — once, or on a repeating timetable. This spends model time with nobody at the keyboard, so it is a capability chosen on purpose rather than one everybody has.": "Nastaviť veci, aby bežali neskôr samy — raz alebo podľa opakovaného rozvrhu. Míňa to čas modelu bez nikoho pri klávesnici, preto je to schopnosť udelená zámerne, nie samozrejmosť pre všetkých.",
@@ -1693,7 +1691,7 @@ MESSAGES.update(
         "Draw pictures in the conversation.": "Kresliť obrázky do konverzácie.",
         "Call the HTTP tools an administrator has defined.": "Volať nástroje HTTP, ktoré definoval správca.",
         "Use tools from the MCP servers an administrator has added.": "Používať nástroje zo serverov MCP, ktoré pridal správca.",
-        "Hand a self-contained task to a helper model.": "Odovzdať samostatnú úlohu pomocnému modelu.",
+        'Hand a self-contained task to a subagent.': 'Odovzdať samostatnú úlohu podagentovi.',
         "Stop mid-reply and ask you a question.": "Zastaviť sa uprostred odpovede a niečo sa vás opýtať.",
         "Start agent chats on a LLeMbas CLI you have linked.": "Začínať agentské konverzácie na prepojenom LLeMbas CLI.",
         "Open a shell on your linked device from an agent chat.": "Z agentskej konverzácie otvoriť shell na prepojenom zariadení.",
@@ -1803,8 +1801,8 @@ MESSAGES.update(
         "%(name)s answered.": "%(name)s odpovedal.",
         "Seconds with nobody watching <em>and</em> nothing typed. Closing the panel does not end the session — a build carries on and is still there on the way back — so this is what eventually ends one.": "Sekundy, keď sa nikto nepozerá <em>a</em> nič sa nepíše. Zatvorenie panela reláciu neukončí — zostavovanie pokračuje a po návrate tam stále je — takže práve toto ju nakoniec ukončí.",
         "<strong>Asking another model a question uses the same switch and the same allowance below</strong>, because it costs the same thing: one reply setting another reply going. Which people may do it is a separate permission — <strong>%(permission)s</strong> — and which models may is a switch on each model's own page.": "<strong>Otázka pre iný model používa ten istý prepínač a ten istý limit nižšie</strong>, pretože stojí to isté: jedna odpoveď spúšťa ďalšiu. Ktorí ľudia to smú, určuje samostatné oprávnenie — <strong>%(permission)s</strong> — a ktoré modely, prepínač na stránke každého modelu.",
-        "People also need the <strong>%(permission)s</strong> permission, and the model needs the <strong>%(capability)s</strong> capability. Off by default: a reply that spawns helpers spends model time multiplicatively, and on one local endpoint four at once is four times the queue rather than four times the speed.": "Ľudia potrebujú aj oprávnenie <strong>%(permission)s</strong> a model schopnosť <strong>%(capability)s</strong>. Predvolene vypnuté: odpoveď, ktorá spúšťa pomocníkov, míňa čas modelu násobne a na jednom lokálnom endpointe sú štyria naraz štvornásobný rad, nie štvornásobná rýchlosť.",
-        "Seconds. Past it the helper is <em>stopped</em>, not abandoned: what it had written is kept and handed back with a note saying it is partial.": "Sekundy. Potom sa pomocník <em>zastaví</em>, no neopustí: čo stihol napísať, sa ponechá a odovzdá s poznámkou, že je to neúplné.",
+        'People also need the <strong>%(permission)s</strong> permission, and the model needs the <strong>%(capability)s</strong> capability. Off by default: a reply that spawns subagents spends model time multiplicatively, and on one local endpoint four at once is four times the queue rather than four times the speed.': 'Ľudia potrebujú aj oprávnenie <strong>%(permission)s</strong> a model schopnosť <strong>%(capability)s</strong>. Predvolene vypnuté: odpoveď, ktorá spúšťa podagentov, míňa čas modelu násobne a na jednom lokálnom endpointe sú štyria naraz štvornásobný rad, nie štvornásobná rýchlosť.',
+        'Seconds. Past it the subagent is <em>stopped</em>, not abandoned: what it had written is kept and handed back with a note saying it is partial.': 'Sekundy. Potom sa podagent <em>zastaví</em>, no neopustí: čo stihol napísať, sa ponechá a odovzdá s poznámkou, že je to neúplné.',
         "Where <code>/v1/audio/transcriptions</code> lives — whisper.cpp's <code>whisper-server</code>, Speaches, or anything else speaking it. With or without <code>/v1</code>; either is understood.": "Kde sa nachádza <code>/v1/audio/transcriptions</code> — <code>whisper-server</code> z whisper.cpp, Speaches alebo čokoľvek iné, čo ho podporuje. S <code>/v1</code> aj bez; rozumie sa obom.",
         "None needed for a local server": "Pre lokálny server netreba",
         "A server hosting one model <strong>ignores this</strong> and uses whatever it was started with — <code>whisper-1</code> is then just a label. It only selects anything on a server that hosts several.": "Server s jedným modelom <strong>toto ignoruje</strong> a použije to, s čím bol spustený — <code>whisper-1</code> je potom len označenie. Niečo vyberá len na serveri, ktorý ich má niekoľko.",
@@ -2105,7 +2103,7 @@ MESSAGES.update(
         "No such image.": "Taký obrázok neexistuje.",
         "An ordinary chat": "Bežná konverzácia",
         "A scheduled task, running unattended": "Naplánovaná úloha, ktorá beží bez dozoru",
-        "A helper sent by another model": "Pomocník, ktorého poslal iný model",
+        'A subagent sent by another model': 'Podagent, ktorého poslal iný model',
         "%(provider)s returned 1 result.": "%(provider)s vrátil 1 výsledok.",
         "%(provider)s returned %(n)s results.": "%(provider)s – výsledky: %(n)s.",
         "That suggestion no longer exists.": "Ten návrh už neexistuje.",
@@ -2214,7 +2212,7 @@ MESSAGES.update(
         "Asking you questions": "Otázky pre vás",
         "Generating images": "Generovanie obrázkov",
         "Scheduling work": "Plánovanie práce",
-        "Sending helpers": "Posielanie pomocníkov",
+        'Sending subagents': 'Posielanie podagentov',
         "Running commands": "Spúšťanie príkazov",
         "You cannot manage folders.": "Priečinky spravovať nemôžete.",
         "Default model updated.": "Predvolený model aktualizovaný.",
@@ -2544,22 +2542,22 @@ MESSAGES.update(
 )
 
 # --- 1.6.0: background jobs, the helper panel, the subagent preamble ---
-MESSAGES["A reply can hand a self-contained piece of work to a second model that runs on its own and reports back — several at once, which is what makes research fan out instead of queueing, and in the background, so the reply carries on and is told when the helper is done. There are two kinds: explore, which reads and searches only, and general, which may also change things the chat itself may change. An agent chat's helpers run on its linked device instead, under the device's own limits."] = 'Odpoveď môže samostatný kus práce podať druhému modelu, ktorý beží sám a ohlási sa — aj viacerým naraz, a práve preto sa výskum rozvetví namiesto toho, aby stál v rade; a aj na pozadí, takže odpoveď pokračuje a dozvie sa, keď pomocník skončí. Sú dva druhy: explore, ktorý len číta a vyhľadáva, a general, ktorý smie meniť aj to, čo smie meniť samotná konverzácia. Pomocníci agentskej konverzácie bežia namiesto toho na pripojenom zariadení, v jeho vlastných limitoch.'
+MESSAGES["A reply can hand a self-contained piece of work to a second model that runs on its own and reports back — several at once, which is what makes research fan out instead of queueing, and in the background, so the reply carries on and is told when the subagent is done. There are two kinds: explore, which reads and searches only, and general, which may also change things the chat itself may change. An agent chat's subagents run on its linked device instead, under the device's own limits."] = 'Odpoveď môže samostatný kus práce podať druhému modelu, ktorý beží sám a ohlási sa — aj viacerým naraz, a práve preto sa výskum rozvetví namiesto toho, aby stál v rade; a aj na pozadí, takže odpoveď pokračuje a dozvie sa, keď podagent skončí. Sú dva druhy: explore, ktorý len číta a vyhľadáva, a general, ktorý smie meniť aj to, čo smie meniť samotná konverzácia. Podagenti agentskej konverzácie bežia namiesto toho na pripojenom zariadení, v jeho vlastných limitoch.'
 MESSAGES['%(job)s asks:'] = '%(job)s sa pýta:'
-MESSAGES['Helper'] = 'Pomocník'
-MESSAGES['Close the helper panel'] = 'Zatvoriť panel pomocníka'
-MESSAGES['Open a helper from the strip above the composer to follow it here.'] = 'Otvorte pomocníka z lišty nad poľom správy a sledujte ho tu.'
+MESSAGES['Subagent'] = 'Podagent'
+MESSAGES['Close the subagent panel'] = 'Zatvoriť panel podagenta'
+MESSAGES['Open a subagent from the strip above the composer to follow it here.'] = 'Otvorte podagenta z lišty nad poľom správy a sledujte ho tu.'
 MESSAGES['subagent'] = 'podagent'
 MESSAGES['Stop'] = 'Zastaviť'
-MESSAGES['A message to the helper'] = 'Správa pre pomocníka'
-MESSAGES['Message the helper — it reads it at its next step; a finished one is started again with it'] = 'Napíšte pomocníkovi — prečíta si to v ďalšom kroku; skončený sa s tým spustí znova'
+MESSAGES['A message to the subagent'] = 'Správa pre podagenta'
+MESSAGES['Message the subagent — it reads it at its next step; a finished one is started again with it'] = 'Napíšte podagentovi — prečíta si to v ďalšom kroku; skončený sa s tým spustí znova'
 MESSAGES['From the main agent'] = 'Od hlavného agenta'
 MESSAGES['The task'] = 'Úloha'
 MESSAGES['Working…'] = 'Pracuje…'
 MESSAGES['Background jobs'] = 'Úlohy na pozadí'
 MESSAGES['Running for %(time)s'] = 'Beží %(time)s'
-MESSAGES['Follow this helper'] = 'Sledovať tohto pomocníka'
-MESSAGES['Follow this helper and message it'] = 'Sledovať tohto pomocníka a písať mu'
+MESSAGES['Follow this subagent'] = 'Sledovať tohto podagenta'
+MESSAGES['Follow this subagent and message it'] = 'Sledovať tohto podagenta a písať mu'
 MESSAGES['Stop %(job)s'] = 'Zastaviť %(job)s'
 MESSAGES['Stop this job'] = 'Zastaviť túto úlohu'
 MESSAGES['Scheduled run'] = 'Plánovaný beh'
@@ -2567,7 +2565,7 @@ MESSAGES['The device did not answer in time.'] = 'Zariadenie neodpovedalo včas.
 MESSAGES['Not done: %(error)s'] = 'Nevykonané: %(error)s'
 MESSAGES['That job is not here any more.'] = 'Táto úloha tu už nie je.'
 MESSAGES['Write something to send.'] = 'Napíšte niečo na odoslanie.'
-MESSAGES["That helper's conversation is gone, so it cannot be messaged."] = 'Konverzácia tohto pomocníka je preč, takže mu nemožno písať.'
+MESSAGES["That subagent's conversation is gone, so it cannot be messaged."] = 'Konverzácia tohto podagenta je preč, takže mu nemožno písať.'
 MESSAGES['running'] = 'beží'
 MESSAGES['done'] = 'hotovo'
 MESSAGES['lost'] = 'stratená'
@@ -2967,7 +2965,7 @@ MESSAGES['user groups not here: %(names)s'] = 'používateľské skupiny, ktoré
 MESSAGES['with %(count)s earlier versions'] = 's %(count)s staršími verziami'
 # --- 2.0: files, memory and money in place of the library and credits ---------
 MESSAGES["Its models read only this group's memories, and a chat started on one of them stays in it. Moving a connection does not move any data: it starts reading the other group."] = 'Jeho modely čítajú len pamäť tejto oblasti a konverzácia začatá na niektorom z nich v nej zostáva. Presunutie spojenia nepresúva žiadne dáta: začne čítať druhú oblasť.'
-MESSAGES["A helper cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads and searches files and the web, and the general kind writes what the chat may write. It cannot send helpers of its own; it can message the main agent, and be messaged, while it works. <strong>%(mode)s</strong> is not inherited: a helper's task text can have come from a page it read."] = 'Pomocník sa nemôže nikoho na nič spýtať, takže nič v jeho konverzácii sa nemôže zastaviť kvôli schváleniu. Dostane preto len to, čo táto konverzácia už smie <em>bez</em> pýtania: číta a vyhľadáva v súboroch a na webe a druh general píše to, čo smie písať konverzácia. Vlastných pomocníkov posielať nemôže; počas práce môže písať hlavnému agentovi a ten jemu. Režim <strong>%(mode)s</strong> sa nededí: text úlohy pomocníka mohol prísť zo stránky, ktorú si prečítal.'
+MESSAGES["A subagent cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads and searches files and the web, and the general kind writes what the chat may write. It cannot send subagents of its own; it can message the main agent, and be messaged, while it works. <strong>%(mode)s</strong> is not inherited: a subagent's task text can have come from a page it read."] = 'Podagent sa nemôže nikoho na nič spýtať, takže nič v jeho konverzácii sa nemôže zastaviť kvôli schváleniu. Dostane preto len to, čo táto konverzácia už smie <em>bez</em> pýtania: číta a vyhľadáva v súboroch a na webe a druh general píše to, čo smie písať konverzácia. Vlastných podagentov posielať nemôže; počas práce môže písať hlavnému agentovi a ten jemu. Režim <strong>%(mode)s</strong> sa nededí: text úlohy podagenta mohol prísť zo stránky, ktorú si prečítal.'
 MESSAGES['What speech costs, in %(currency)s — in the browser and through the API alike. 0 is free, which is what a server of your own usually is.'] = 'Koľko stojí reč v mene %(currency)s — v prehliadači aj cez API rovnako. 0 je zadarmo, čo je zvyčajne prípad vlastného servera.'
 MESSAGES["A data group keeps one provider's models away from the data another provider's models have been given. Every connection is in one group. Its models read only that group's memories and personalities, and a chat stays in the group it was started in."] = 'Dátová oblasť drží modely jedného poskytovateľa ďalej od dát, ktoré dostali modely iného poskytovateľa. Každé spojenie patrí do jednej oblasti. Jeho modely čítajú len pamäť a osobnosti tejto oblasti a konverzácia zostáva v oblasti, v ktorej začala.'
 MESSAGES['Prices'] = 'Ceny'
@@ -3083,7 +3081,7 @@ MESSAGES['Close the activity panel'] = 'Zavrieť panel aktivity'
 MESSAGES['Loading…'] = 'Načítava sa…'
 MESSAGES['%(steps)s steps, %(tools)s tools'] = 'Kroky: %(steps)s, nástroje: %(tools)s'
 MESSAGES['Open its conversation'] = 'Otvoriť jeho konverzáciu'
-MESSAGES["Nothing runs in the background. Helpers, commands and a team's members show here while they work."] = 'Na pozadí nič nebeží. Pomocníci, príkazy a členovia tímu sa tu zobrazia, kým pracujú.'
+MESSAGES["Nothing runs in the background. Subagents, commands and a team's members show here while they work."] = 'Na pozadí nič nebeží. Podagenti, príkazy a členovia tímu sa tu zobrazia, kým pracujú.'
 MESSAGES['Nothing running.'] = 'Nič nebeží.'
 MESSAGES['Team: %(size)s of %(max)s agents'] = 'Tím: %(size)s z %(max)s agentov'
 MESSAGES['Show %(n)s more'] = 'Zobraziť ďalšie (%(n)s)'
@@ -3115,7 +3113,7 @@ MESSAGES['off — thinking switched off'] = 'vypnuté — premýšľanie vypnut�
 MESSAGES["default — the model's own"] = 'predvolené — vlastné nastavenie modelu'
 MESSAGES['Sent two ways at once, because there is no one field that works: OpenAI and vLLM read <span class="mono">reasoning_effort</span>, while llama.cpp drops it silently and reads only <span class="mono">chat_template_kwargs</span> — which is the route by which it reaches gpt-oss. Both go out on every chat with a model marked <strong>Reasoning</strong>: not set here, a chat starts at medium where the model takes it, else at its first effort. <em>Off</em> sends only <span class="mono">enable_thinking: false</span>, and a model not marked <strong>Reasoning</strong> is sent no effort at all.'] = 'Posiela sa dvoma spôsobmi naraz, lebo neexistuje jedno pole, ktoré by fungovalo všade: OpenAI a vLLM čítajú <span class="mono">reasoning_effort</span>, kým llama.cpp ho potichu zahodí a číta len <span class="mono">chat_template_kwargs</span> — práve touto cestou sa hodnota dostane ku gpt-oss. Obe odchádzajú pri každej konverzácii s modelom označeným <strong>Reasoning</strong>: keď tu nič nie je nastavené, konverzácia začne na medium, kde ho model prijíma, inak na jeho prvej náročnosti. <em>Vypnuté</em> pošle len <span class="mono">enable_thinking: false</span> a model bez označenia <strong>Reasoning</strong> nedostane žiadnu náročnosť.'
 MESSAGES['Requests at once'] = 'Požiadavky naraz'
-MESSAGES["How many requests the model's server answers at the same time — llama.cpp's slots, a vLLM batch. Empty is no limit, right for a hosted API. At 1 the model cannot be its own helper, because the helper would take the only slot and push out the conversation the server has cached, so the waiting reply would have to read it all again. Other models can still be its helpers."] = 'Koľko požiadaviek server modelu vybavuje súčasne — sloty llama.cpp, dávka vLLM. Prázdne znamená bez limitu, čo je správne pre hosťované API. Pri 1 nemôže byť model vlastným pomocníkom, lebo pomocník by obsadil jediný slot a vytlačil z neho rozhovor, ktorý má server uložený, takže čakajúca odpoveď by ho musela načítať celý znova. Iné modely môžu byť jeho pomocníkmi aj tak.'
+MESSAGES["How many requests the model's server answers at the same time — llama.cpp's slots, a vLLM batch. Empty is no limit, right for a hosted API. At 1 the model cannot be its own subagent, because the subagent would take the only slot and push out the conversation the server has cached, so the waiting reply would have to read it all again. Other models can still be its subagents."] = 'Koľko požiadaviek server modelu vybavuje súčasne — sloty llama.cpp, dávka vLLM. Prázdne znamená bez limitu, čo je správne pre hosťované API. Pri 1 nemôže byť model vlastným podagentom, lebo podagent by obsadil jediný slot a vytlačil z neho rozhovor, ktorý má server uložený, takže čakajúca odpoveď by ho musela načítať celý znova. Iné modely môžu byť jeho podagentmi aj tak.'
 MESSAGES['Think before answering'] = 'Premýšľať pred odpoveďou'
 MESSAGES['thinking off'] = 'premýšľanie vypnuté'
 MESSAGES["This model offers no choice of effort. An administrator sets what it takes on the model's page."] = 'Tento model neponúka výber náročnosti. Čo prijíma, nastavuje správca na stránke modelu.'

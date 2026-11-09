@@ -2250,7 +2250,7 @@ async def send_job(
         if state == "gone":
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
-                t("That helper's conversation is gone, so it cannot be messaged."),
+                t("That subagent's conversation is gone, so it cannot be messaged."),
             )
     job, turns = await _job_turns(db, chat, job_id)
     return HTMLResponse(_panel_html(chat, job, turns))

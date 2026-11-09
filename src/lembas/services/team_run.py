@@ -177,12 +177,15 @@ def subagents_allowed(db, user, model) -> bool:
 
 
 def offered(db, chat: Chat | None, user, model=None) -> bool:
-    """Whether a team is offered in this chat (or, with no chat, a new one on
-    `model`): subagents enabled, and the model serving at least two requests
-    at once. Kept for as long as the chat's system prompt is: a chat whose
-    prompt was made with the team tools keeps them when the model's metadata
-    changes later (they then answer `one_request`)."""
+    """Whether subagents -- the size setting, `task` and the team tools -- are
+    offered in this chat (or, with no chat, a new one on `model`), harness spec
+    3.3.0 subagents.md §4: subagents enabled, and at least one model that could
+    serve as a subagent -- the chat's own, serving two requests at once, or any
+    other usable model not on its one-model server. Kept for as long as the
+    chat's system prompt is: a chat whose prompt was made with the team tools
+    keeps them when the models change later (they then answer `one_request`)."""
     from lembas.services import chat as chat_service
+    from lembas.services import subagents as subagents_rules
 
     if not may_have_team(chat):
         return False
@@ -190,7 +193,7 @@ def offered(db, chat: Chat | None, user, model=None) -> bool:
         model = chat_service.model_for(db, chat)
     if not subagents_allowed(db, user, model):
         return False
-    if rules.capacity_allows(model_parallel(model)):
+    if subagents_rules.offered_for(db, user, chat, model):
         return True
     return chat is not None and _prompt_had_team(chat)
 
@@ -281,6 +284,7 @@ def load(db, lead_id: str) -> rules.Team | None:
     """The team of a lead chat as the rules see it, or None for no such chat."""
     from lembas.services import chat as chat_service
     from lembas.services import subagent as subagent_service
+    from lembas.services import subagents as subagents_rules
 
     chat = db.get(Chat, lead_id)
     if chat is None:
@@ -307,6 +311,7 @@ def load(db, lead_id: str) -> rules.Team | None:
         offered=offered(db, chat, owner, model),
         parallel=model_parallel(model),
         single_session=False,
+        serves=subagents_rules.offered_for(db, owner, chat, model) if owner else None,
         agents=[lead],
         goal=row.goal if row is not None else "",
         seq=row.seq if row is not None else 0,
@@ -716,16 +721,30 @@ async def _run_team_add(context: ToolContext, args: dict[str, Any]) -> ToolOutco
         if caller_chat is None or owner is None:
             text = "That conversation no longer exists."
             return _outcome(text, _event("team_add", text, name, ok=False))
+        # The model (harness spec 3.3.0, subagents.md §2-3): the session's --
+        # the lead chat's -- unless the person named another there.
+        from lembas.services import subagents as subagents_rules
+
+        lead_chat = db.get(Chat, lead_id) or caller_chat
+        session_model = chat_service.model_for(db, lead_chat)
         model = None
         wanted_model = str(args.get("model") or "").strip()
         if wanted_model:
-            model = subagent_service._pick_model(db, owner, caller_chat, wanted_model)
+            model = subagents_rules.pick(db, owner, caller_chat, wanted_model)
             if model is None:
                 text = (
                     f"There is no model called {wanted_model!r} that this chat may use. "
-                    "Leave `model` out to run the member on this chat's own model."
+                    "Leave `model` out to run the member on the session's own model."
                 )
                 return _outcome(text, _event("team_add", text, name, ok=False))
+            if session_model is not None and model.id == session_model.id:
+                model = None
+        refusal = subagents_rules.check(db, owner, lead_chat, model, session=session_model)
+        if refusal:
+            return _outcome(refusal, _event("team_add", refusal, name, ok=False))
+        if model is None and session_model is not None:
+            # A member's default is the session's model, not its manager's.
+            model = session_model
         if wanted_agent == subagent_service.AGENT_GENERAL:
             refusal = subagent_service.write_refusal(caller_chat)
             if refusal:
@@ -938,8 +957,12 @@ def note_block(db, chat: Chat, tools: list[dict[str, Any]] | None) -> tuple[str,
     names = {(t.get("function") or {}).get("name") for t in tools or []}
     if "team_add" not in names or getattr(chat, "parent_chat_id", None):
         return "", ""
+    from lembas.services import subagents as subagents_rules
+
     low, high = setting(db, chat)
-    return rules.size_block(low, high), rules.size_state(low, high)
+    owner = db.get(User, chat.user_id)
+    own = bool(owner is not None and subagents_rules.own_note(db, owner, chat))
+    return rules.size_block(low, high, own), rules.size_state(low, high, own)
 
 
 def take_stopped(db, chat: Chat, *, persist: bool) -> list[str]:

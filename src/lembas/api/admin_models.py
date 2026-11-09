@@ -60,7 +60,7 @@ def tool_capabilities() -> tuple[tuple[str, str], ...]:
         ("tool_ask", i18n.t("Ask the reader")),
         ("tool_image", i18n.t("Image generation")),
         ("tool_schedule", i18n.t("Scheduling")),
-        ("tool_subagent", i18n.t("Helpers")),
+        ("tool_subagent", i18n.t("Subagents")),
     )
 
 

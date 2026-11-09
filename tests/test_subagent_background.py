@@ -535,7 +535,7 @@ def test_the_helper_reads_the_specs_preamble_filled_and_the_parent_the_model_lis
     assert values["ask_tool"] == harness.ASK_TOOL
     assert values["helper_models"] == "Test/test-model"
     block = harness.compose(db, user, offered, parent)
-    assert "Models a helper may run on" in block and "Test/test-model" in block
+    assert "Another model only when the person names it" in block and "Test/test-model" in block
 
 
 async def test_a_general_helper_writes_and_an_explore_helper_does_not(db, monkeypatch):

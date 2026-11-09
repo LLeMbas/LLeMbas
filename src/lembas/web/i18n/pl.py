@@ -73,7 +73,7 @@ MESSAGES: dict[str, str] = {
     "No unload call": "Bez wywołania zwalniającego",
     "POST": "POST",
     "Save": "Zapisz",
-    "Tick this for llama-swap in front of one GPU, or anything else that unloads one model to serve another. A model here may then be its own helper, but never send a helper to another model on this connection: loading it would unload the model whose reply is waiting.": "Zaznacz dla llama-swap przed jednym GPU lub czegokolwiek innego, co zwalnia jeden model, by obsłużyć inny. Model może wtedy być własnym pomocnikiem, ale nigdy nie wysyła pomocnika do innego modelu na tym połączeniu: jego załadowanie zwolniłoby model, na którego odpowiedź się czeka.",
+    'Tick this for llama-swap in front of one GPU, or anything else that unloads one model to serve another. A model here may then be its own subagent, but never send a subagent to another model on this connection: loading it would unload the model whose reply is waiting.': 'Zaznacz dla llama-swap przed jednym GPU lub czegokolwiek innego, co zwalnia jeden model, by obsłużyć inny. Model może wtedy być własnym podagentem, ale nigdy nie wysyła podagenta do innego modelu na tym połączeniu: jego załadowanie zwolniłoby model, na którego odpowiedź się czeka.',
     "Unload URL": "URL zwalniania",
     "disabled": "wyłączone",
     "Administration": "Administracja",
@@ -114,18 +114,18 @@ MESSAGES: dict[str, str] = {
     "Asking you things": "Pytania do użytkownika",
     "Auto": "Automatycznie",
     "Close a shell after": "Zamknij powłokę po",
-    "Delegate to a helper": "Deleguj do pomocnika",
+    'Delegate to a subagent': 'Deleguj do podagenta',
     "Each is a whole generation against the same endpoint the reply that asked for it is waiting on. Past this a model is told to do the work itself rather than made to wait.": "Każdy to pełne generowanie na tym samym punkcie końcowym, na który czeka odpowiedź, która go zażądała. Powyżej tej liczby model dostaje polecenie, by wykonał pracę sam, zamiast czekać.",
     "Fanning out across a handful of independent questions is what this is for. A reply that wants twenty has misread the tool. Questions put to other models count against this same number, so one reply cannot spend the allowance twice.": "Służy to rozgałęzieniu na kilka niezależnych pytań. Odpowiedź, która chce dwudziestu, źle zrozumiała narzędzie. Pytania zadane innym modelom wliczają się do tej samej liczby, więc jedna odpowiedź nie może wykorzystać limitu dwukrotnie.",
-    "Helpers": "Pomocnicy",
+    'Subagents': 'Podagenci',
     "How long a question waits": "Jak długo czeka pytanie",
-    "In tokens, across every round. A helper answers one question, so this should run out well before the reply that asked does. Zero means no ceiling.": "W tokenach, łącznie ze wszystkich rund. Pomocnik odpowiada na jedno pytanie, więc ten limit powinien wyczerpać się znacznie wcześniej niż odpowiedź, która pytała. Zero oznacza brak limitu.",
-    "Keep a helper's own chat afterwards": "Zachowaj potem własny czat pomocnika",
+    'In tokens, across every round. A subagent answers one question, so this should run out well before the reply that asked does. Zero means no ceiling.': 'W tokenach, łącznie ze wszystkich rund. Podagent odpowiada na jedno pytanie, więc ten limit powinien wyczerpać się znacznie wcześniej niż odpowiedź, która pytała. Zero oznacza brak limitu.',
+    "Keep a subagent's own chat afterwards": 'Zachowaj potem własny czat podagenta',
     "Let a model delegate": "Pozwól modelowi delegować",
     "Let people write their own answer": "Pozwól użytkownikom wpisać własną odpowiedź",
-    "Longest a helper may take": "Najdłuższy czas pracy pomocnika",
-    "Most a helper may write": "Najwięcej, ile może napisać pomocnik",
-    "Most helpers one reply may send": "Najwięcej pomocników na jedną odpowiedź",
+    'Longest a subagent may take': 'Najdłuższy czas pracy podagenta',
+    'Most a subagent may write': 'Najwięcej, ile może napisać podagent',
+    'Most subagents one reply may send': 'Najwięcej podagentów na jedną odpowiedź',
     "Most rounds of tool calls": "Najwięcej rund wywołań narzędzi",
     "Most shells at once": "Najwięcej powłok naraz",
     "Most shells per person": "Najwięcej powłok na osobę",
@@ -983,8 +983,8 @@ MESSAGES.update(
         "People also need the permission “%(permission)s” and a linked LLeMbas CLI (Settings → Devices).": "Użytkownicy potrzebują też uprawnienia „%(permission)s” i połączonego LLeMbas CLI (Ustawienia → Urządzenia).",
         "Seconds with nobody watching <em>and</em> nothing typed. Closing the panel does not end the session — a build carries on and is still there on the way back — so this is what eventually ends one.": "Sekundy, gdy nikt nie patrzy <em>i</em> nic nie jest wpisywane. Zamknięcie panelu nie kończy sesji — build trwa dalej i czeka po powrocie — więc to właśnie ostatecznie ją kończy.",
         "<strong>Asking another model a question uses the same switch and the same allowance below</strong>, because it costs the same thing: one reply setting another reply going. Which people may do it is a separate permission — <strong>%(permission)s</strong> — and which models may is a switch on each model's own page.": "<strong>Zadanie pytania innemu modelowi korzysta z tego samego przełącznika i tego samego limitu poniżej</strong>, bo kosztuje tyle samo: jedna odpowiedź uruchamia drugą. Kto może to robić, to osobne uprawnienie — <strong>%(permission)s</strong> — a które modele mogą, to przełącznik na stronie każdego modelu.",
-        "People also need the <strong>%(permission)s</strong> permission, and the model needs the <strong>%(capability)s</strong> capability. Off by default: a reply that spawns helpers spends model time multiplicatively, and on one local endpoint four at once is four times the queue rather than four times the speed.": "Użytkownicy potrzebują też uprawnienia <strong>%(permission)s</strong>, a model — możliwości <strong>%(capability)s</strong>. Domyślnie wyłączone: odpowiedź, która uruchamia pomocników, zużywa czas modelu wielokrotnie, a na jednym lokalnym punkcie końcowym cztery naraz to czterokrotnie dłuższa kolejka, a nie czterokrotna prędkość.",
-        "Seconds. Past it the helper is <em>stopped</em>, not abandoned: what it had written is kept and handed back with a note saying it is partial.": "Sekundy. Po ich upływie pomocnik zostaje <em>zatrzymany</em>, nie porzucony: to, co napisał, jest zachowywane i oddawane z adnotacją, że jest niepełne.",
+        'People also need the <strong>%(permission)s</strong> permission, and the model needs the <strong>%(capability)s</strong> capability. Off by default: a reply that spawns subagents spends model time multiplicatively, and on one local endpoint four at once is four times the queue rather than four times the speed.': 'Użytkownicy potrzebują też uprawnienia <strong>%(permission)s</strong>, a model — możliwości <strong>%(capability)s</strong>. Domyślnie wyłączone: odpowiedź, która uruchamia podagentów, zużywa czas modelu wielokrotnie, a na jednym lokalnym punkcie końcowym cztery naraz to czterokrotnie dłuższa kolejka, a nie czterokrotna prędkość.',
+        'Seconds. Past it the subagent is <em>stopped</em>, not abandoned: what it had written is kept and handed back with a note saying it is partial.': 'Sekundy. Po ich upływie podagent zostaje <em>zatrzymany</em>, nie porzucony: to, co napisał, jest zachowywane i oddawane z adnotacją, że jest niepełne.',
         "Where <code>/v1/audio/transcriptions</code> lives — whisper.cpp's <code>whisper-server</code>, Speaches, or anything else speaking it. With or without <code>/v1</code>; either is understood.": "Gdzie znajduje się <code>/v1/audio/transcriptions</code> — <code>whisper-server</code> z whisper.cpp, Speaches lub cokolwiek innego, co go obsługuje. Z <code>/v1</code> lub bez; oba warianty są rozumiane.",
         "None needed for a local server": "Niepotrzebny dla lokalnego serwera",
         "A server hosting one model <strong>ignores this</strong> and uses whatever it was started with — <code>whisper-1</code> is then just a label. It only selects anything on a server that hosts several.": "Serwer z jednym modelem <strong>ignoruje to</strong> i używa tego, z czym został uruchomiony — <code>whisper-1</code> jest wtedy tylko etykietą. Coś wybiera tylko na serwerze z kilkoma modelami.",
@@ -1384,7 +1384,7 @@ MESSAGES.update(
         "No such image.": "Nie ma takiego obrazu.",
         "An ordinary chat": "Zwykły czat",
         "A scheduled task, running unattended": "Zaplanowane zadanie działające bez nadzoru",
-        "A helper sent by another model": "Pomocnik wysłany przez inny model",
+        'A subagent sent by another model': 'Podagent wysłany przez inny model',
         "%(provider)s returned 1 result.": "%(provider)s zwrócił 1 wynik.",
         "%(provider)s returned %(n)s results.": "%(provider)s zwrócił wyniki: %(n)s.",
         "That suggestion no longer exists.": "Ta sugestia już nie istnieje.",
@@ -1547,7 +1547,7 @@ MESSAGES.update(
         "Let a model call tools from the MCP servers an administrator has added. Which ones depends on the groups each server is restricted to.": "Pozwala modelowi wywoływać narzędzia z serwerów MCP dodanych przez administratora. Które — zależy od grup, do których ograniczono każdy serwer.",
         "Let them start agent chats on a LLeMbas CLI they have linked: its model reads files, writes files and runs commands on that machine, within the CLI's own limits and the chat's mode. Nothing runs on this server.": "Pozwala rozpoczynać czaty agentów na połączonym LLeMbas CLI: jego model czyta pliki, zapisuje pliki i uruchamia polecenia na tamtej maszynie, w ramach własnych ograniczeń CLI i trybu czatu. Na tym serwerze nic nie działa.",
         "Open an interactive shell on their linked device, from inside an agent chat, where the device allows it. What they type there is theirs: the chat's mode governs the model, not the person at the keyboard.": "Otwieranie interaktywnej powłoki na połączonym urządzeniu z poziomu czatu agenta, jeśli urządzenie na to pozwala. To, co się tam wpisuje, należy do wpisującego: tryb czatu dotyczy modelu, nie osoby przy klawiaturze.",
-        "Let a model hand a self-contained piece of work to a second one that runs on its own and reports back — reading and searching in parallel rather than one thing at a time. A helper cannot ask questions, cannot spawn helpers of its own, and can only do what this chat could already do without stopping to ask.": "Pozwala modelowi przekazać samodzielny fragment pracy drugiemu, który działa sam i zdaje relację — czytanie i wyszukiwanie równolegle zamiast po kolei. Pomocnik nie może zadawać pytań, nie może uruchamiać własnych pomocników i może robić tylko to, co ten czat mógł już robić bez zatrzymywania się, by zapytać.",
+        'Let a model hand a self-contained piece of work to a second one that runs on its own and reports back — reading and searching in parallel rather than one thing at a time. A subagent cannot ask questions, cannot spawn subagents of its own, and can only do what this chat could already do without stopping to ask.': 'Pozwala modelowi przekazać samodzielny fragment pracy drugiemu, który działa sam i zdaje relację — czytanie i wyszukiwanie równolegle zamiast po kolei. Podagent nie może zadawać pytań, nie może uruchamiać własnych podagentów i może robić tylko to, co ten czat mógł już robić bez zatrzymywania się, by zapytać.',
         "Be asked questions": "Odpowiadaj na pytania",
         "Let a model stop mid-reply and ask you something, with answers to pick from or a box to write your own.": "Pozwala modelowi zatrzymać się w trakcie odpowiedzi i o coś zapytać, z odpowiedziami do wyboru lub polem na własną.",
         "Set things to run later, on their own — once, or on a repeating timetable. This spends model time with nobody at the keyboard, so it is a capability chosen on purpose rather than one everybody has.": "Ustawianie rzeczy do samodzielnego uruchomienia później — raz lub według powtarzalnego harmonogramu. To zużywa czas modelu, gdy nikt nie siedzi przy klawiaturze, więc jest to możliwość przyznawana świadomie, a nie dla wszystkich.",
@@ -1587,7 +1587,7 @@ MESSAGES.update(
         "Draw pictures in the conversation.": "Rysowanie obrazów w rozmowie.",
         "Call the HTTP tools an administrator has defined.": "Wywoływanie narzędzi HTTP zdefiniowanych przez administratora.",
         "Use tools from the MCP servers an administrator has added.": "Używanie narzędzi z serwerów MCP dodanych przez administratora.",
-        "Hand a self-contained task to a helper model.": "Przekazywanie samodzielnego zadania modelowi pomocniczemu.",
+        'Hand a self-contained task to a subagent.': 'Przekazywanie samodzielnego zadania modelowi pomocniczemu.',
         "Stop mid-reply and ask you a question.": "Zatrzymanie się w trakcie odpowiedzi, by zadać pytanie.",
         "Start agent chats on a LLeMbas CLI you have linked.": "Rozpoczynanie czatów agentów na połączonym LLeMbas CLI.",
         "Open a shell on your linked device from an agent chat.": "Otwieranie powłoki na połączonym urządzeniu z czatu agenta.",
@@ -1663,7 +1663,7 @@ MESSAGES.update(
         "Asking you questions": "Zadawanie pytań",
         "Generating images": "Generowanie obrazów",
         "Scheduling work": "Planowanie pracy",
-        "Sending helpers": "Wysyłanie pomocników",
+        'Sending subagents': 'Wysyłanie podagentów',
         "Running commands": "Uruchamianie poleceń",
         "Updating in a moment — try again shortly.": "Aktualizacja za chwilę — należy spróbować ponownie za moment.",
         "The backup before the update failed, so nothing was requested: %(error)s": "Kopia zapasowa przed aktualizacją nie powiodła się, więc nic nie zostało zlecone: %(error)s",
@@ -1882,22 +1882,22 @@ MESSAGES.update(
 )
 
 # --- 1.6.0: background jobs, the helper panel, the subagent preamble ---
-MESSAGES["A reply can hand a self-contained piece of work to a second model that runs on its own and reports back — several at once, which is what makes research fan out instead of queueing, and in the background, so the reply carries on and is told when the helper is done. There are two kinds: explore, which reads and searches only, and general, which may also change things the chat itself may change. An agent chat's helpers run on its linked device instead, under the device's own limits."] = 'Odpowiedź może przekazać samodzielny kawałek pracy drugiemu modelowi, który pracuje sam i raportuje — kilku naraz, dlatego badanie rozgałęzia się, zamiast stać w kolejce; i w tle, więc odpowiedź trwa dalej i dowiaduje się, gdy pomocnik skończy. Są dwa rodzaje: explore, który tylko czyta i wyszukuje, oraz general, który może też zmieniać to, co może zmieniać sam czat. Pomocnicy czatu agenta działają zamiast tego na jego połączonym urządzeniu, w granicach tego urządzenia.'
+MESSAGES["A reply can hand a self-contained piece of work to a second model that runs on its own and reports back — several at once, which is what makes research fan out instead of queueing, and in the background, so the reply carries on and is told when the subagent is done. There are two kinds: explore, which reads and searches only, and general, which may also change things the chat itself may change. An agent chat's subagents run on its linked device instead, under the device's own limits."] = 'Odpowiedź może przekazać samodzielny kawałek pracy drugiemu modelowi, który pracuje sam i raportuje — kilku naraz, dlatego badanie rozgałęzia się, zamiast stać w kolejce; i w tle, więc odpowiedź trwa dalej i dowiaduje się, gdy podagent skończy. Są dwa rodzaje: explore, który tylko czyta i wyszukuje, oraz general, który może też zmieniać to, co może zmieniać sam czat. Podagenci czatu agenta działają zamiast tego na jego połączonym urządzeniu, w granicach tego urządzenia.'
 MESSAGES['%(job)s asks:'] = '%(job)s pyta:'
-MESSAGES['Helper'] = 'Pomocnik'
-MESSAGES['Close the helper panel'] = 'Zamknąć panel pomocnika'
-MESSAGES['Open a helper from the strip above the composer to follow it here.'] = 'Otwórz pomocnika z paska nad polem wiadomości, aby śledzić go tutaj.'
+MESSAGES['Subagent'] = 'Podagent'
+MESSAGES['Close the subagent panel'] = 'Zamknąć panel podagenta'
+MESSAGES['Open a subagent from the strip above the composer to follow it here.'] = 'Otwórz podagenta z paska nad polem wiadomości, aby śledzić go tutaj.'
 MESSAGES['subagent'] = 'podagent'
 MESSAGES['Stop'] = 'Zatrzymać'
-MESSAGES['A message to the helper'] = 'Wiadomość do pomocnika'
-MESSAGES['Message the helper — it reads it at its next step; a finished one is started again with it'] = 'Napisz do pomocnika — przeczyta to w następnym kroku; zakończony zostanie z tym uruchomiony ponownie'
+MESSAGES['A message to the subagent'] = 'Wiadomość do podagenta'
+MESSAGES['Message the subagent — it reads it at its next step; a finished one is started again with it'] = 'Napisz do podagenta — przeczyta to w następnym kroku; zakończony zostanie z tym uruchomiony ponownie'
 MESSAGES['From the main agent'] = 'Od głównego agenta'
 MESSAGES['The task'] = 'Zadanie'
 MESSAGES['Working…'] = 'Pracuje…'
 MESSAGES['Background jobs'] = 'Zadania w tle'
 MESSAGES['Running for %(time)s'] = 'Działa od %(time)s'
-MESSAGES['Follow this helper'] = 'Śledzić tego pomocnika'
-MESSAGES['Follow this helper and message it'] = 'Śledzić tego pomocnika i pisać do niego'
+MESSAGES['Follow this subagent'] = 'Śledzić tego podagenta'
+MESSAGES['Follow this subagent and message it'] = 'Śledzić tego podagenta i pisać do niego'
 MESSAGES['Stop %(job)s'] = 'Zatrzymać %(job)s'
 MESSAGES['Stop this job'] = 'Zatrzymać to zadanie'
 MESSAGES['Scheduled run'] = 'Zaplanowane uruchomienie'
@@ -1905,7 +1905,7 @@ MESSAGES['The device did not answer in time.'] = 'Urządzenie nie odpowiedziało
 MESSAGES['Not done: %(error)s'] = 'Nie wykonano: %(error)s'
 MESSAGES['That job is not here any more.'] = 'Tego zadania już tu nie ma.'
 MESSAGES['Write something to send.'] = 'Napisz coś do wysłania.'
-MESSAGES["That helper's conversation is gone, so it cannot be messaged."] = 'Rozmowa tego pomocnika zniknęła, więc nie można do niego pisać.'
+MESSAGES["That subagent's conversation is gone, so it cannot be messaged."] = 'Rozmowa tego podagenta zniknęła, więc nie można do niego pisać.'
 MESSAGES['running'] = 'działa'
 MESSAGES['done'] = 'gotowe'
 MESSAGES['lost'] = 'utracone'
@@ -2305,7 +2305,7 @@ MESSAGES['user groups not here: %(names)s'] = 'grupy użytkowników, których tu
 MESSAGES['with %(count)s earlier versions'] = 'z %(count)s wcześniejszymi wersjami'
 # --- 2.0: files, memory and money in place of the library and credits ---------
 MESSAGES["Its models read only this group's memories, and a chat started on one of them stays in it. Moving a connection does not move any data: it starts reading the other group."] = 'Jego modele czytają tylko pamięć tej grupy, a czat rozpoczęty na jednym z nich w niej pozostaje. Przeniesienie połączenia nie przenosi żadnych danych: zaczyna ono czytać drugą grupę.'
-MESSAGES["A helper cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads and searches files and the web, and the general kind writes what the chat may write. It cannot send helpers of its own; it can message the main agent, and be messaged, while it works. <strong>%(mode)s</strong> is not inherited: a helper's task text can have come from a page it read."] = 'Pomocnik nie może nikogo o nic pytać, więc nic w jego czacie nie może zatrzymać się na zgodę. Dostaje zatem tylko to, co ten czat już mógł <em>bez</em> pytania: czyta i wyszukuje w plikach i w sieci, a rodzaj general pisze to, co czat może pisać. Nie może wysyłać własnych pomocników; w trakcie pracy może pisać do głównego agenta i odbierać od niego wiadomości. Tryb <strong>%(mode)s</strong> nie jest dziedziczony: tekst zadania pomocnika mógł pochodzić ze strony, którą przeczytał.'
+MESSAGES["A subagent cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads and searches files and the web, and the general kind writes what the chat may write. It cannot send subagents of its own; it can message the main agent, and be messaged, while it works. <strong>%(mode)s</strong> is not inherited: a subagent's task text can have come from a page it read."] = 'Podagent nie może nikogo o nic pytać, więc nic w jego czacie nie może zatrzymać się na zgodę. Dostaje zatem tylko to, co ten czat już mógł <em>bez</em> pytania: czyta i wyszukuje w plikach i w sieci, a rodzaj general pisze to, co czat może pisać. Nie może wysyłać własnych podagentów; w trakcie pracy może pisać do głównego agenta i odbierać od niego wiadomości. Tryb <strong>%(mode)s</strong> nie jest dziedziczony: tekst zadania podagenta mógł pochodzić ze strony, którą przeczytał.'
 MESSAGES['What speech costs, in %(currency)s — in the browser and through the API alike. 0 is free, which is what a server of your own usually is.'] = 'Ile kosztuje mowa, w %(currency)s — w przeglądarce i przez API tak samo. 0 to za darmo, czyli zwykle własny serwer.'
 MESSAGES["A data group keeps one provider's models away from the data another provider's models have been given. Every connection is in one group. Its models read only that group's memories and personalities, and a chat stays in the group it was started in."] = 'Grupa danych odgradza modele jednego dostawcy od danych, które otrzymały modele innego. Każde połączenie należy do jednej grupy. Jego modele czytają tylko pamięć i osobowości tej grupy, a czat pozostaje w grupie, w której został rozpoczęty.'
 MESSAGES['Prices'] = 'Ceny'
@@ -2421,7 +2421,7 @@ MESSAGES['Close the activity panel'] = 'Zamknij panel aktywności'
 MESSAGES['Loading…'] = 'Wczytywanie…'
 MESSAGES['%(steps)s steps, %(tools)s tools'] = 'Kroki: %(steps)s, narzędzia: %(tools)s'
 MESSAGES['Open its conversation'] = 'Otwórz jego rozmowę'
-MESSAGES["Nothing runs in the background. Helpers, commands and a team's members show here while they work."] = 'W tle nic nie działa. Pomocnicy, polecenia i członkowie zespołu pojawiają się tu, gdy pracują.'
+MESSAGES["Nothing runs in the background. Subagents, commands and a team's members show here while they work."] = 'W tle nic nie działa. Podagenci, polecenia i członkowie zespołu pojawiają się tu, gdy pracują.'
 MESSAGES['Nothing running.'] = 'Nic nie działa.'
 MESSAGES['Team: %(size)s of %(max)s agents'] = 'Zespół: %(size)s z %(max)s agentów'
 MESSAGES['Show %(n)s more'] = 'Pokaż jeszcze %(n)s'
@@ -2453,7 +2453,7 @@ MESSAGES['off — thinking switched off'] = 'wył. — rozumowanie wyłączone'
 MESSAGES["default — the model's own"] = 'domyślna — własne ustawienie modelu'
 MESSAGES['Sent two ways at once, because there is no one field that works: OpenAI and vLLM read <span class="mono">reasoning_effort</span>, while llama.cpp drops it silently and reads only <span class="mono">chat_template_kwargs</span> — which is the route by which it reaches gpt-oss. Both go out on every chat with a model marked <strong>Reasoning</strong>: not set here, a chat starts at medium where the model takes it, else at its first effort. <em>Off</em> sends only <span class="mono">enable_thinking: false</span>, and a model not marked <strong>Reasoning</strong> is sent no effort at all.'] = 'Wysyłane na dwa sposoby naraz, bo nie ma jednego pola, które działa: OpenAI i vLLM czytają <span class="mono">reasoning_effort</span>, a llama.cpp po cichu je pomija i czyta tylko <span class="mono">chat_template_kwargs</span> — tą drogą dociera to do gpt-oss. Oba są wysyłane w każdym czacie z modelem oznaczonym jako <strong>Reasoning</strong>: jeśli nic tu nie ustawiono, czat zaczyna od medium, gdzie model go przyjmuje, a w przeciwnym razie od jego pierwszego poziomu. <em>Wył.</em> wysyła tylko <span class="mono">enable_thinking: false</span>, a model bez oznaczenia <strong>Reasoning</strong> nie dostaje żadnego poziomu.'
 MESSAGES['Requests at once'] = 'Żądania naraz'
-MESSAGES["How many requests the model's server answers at the same time — llama.cpp's slots, a vLLM batch. Empty is no limit, right for a hosted API. At 1 the model cannot be its own helper, because the helper would take the only slot and push out the conversation the server has cached, so the waiting reply would have to read it all again. Other models can still be its helpers."] = 'Ile żądań serwer modelu obsługuje jednocześnie — sloty llama.cpp, partia vLLM. Puste oznacza brak limitu, właściwy dla hostowanego API. Przy 1 model nie może być własnym pomocnikiem, bo pomocnik zająłby jedyny slot i wypchnął z niego rozmowę zapisaną w pamięci podręcznej serwera, więc czekająca odpowiedź musiałaby wczytać ją całą od nowa. Inne modele nadal mogą być jego pomocnikami.'
+MESSAGES["How many requests the model's server answers at the same time — llama.cpp's slots, a vLLM batch. Empty is no limit, right for a hosted API. At 1 the model cannot be its own subagent, because the subagent would take the only slot and push out the conversation the server has cached, so the waiting reply would have to read it all again. Other models can still be its subagents."] = 'Ile żądań serwer modelu obsługuje jednocześnie — sloty llama.cpp, partia vLLM. Puste oznacza brak limitu, właściwy dla hostowanego API. Przy 1 model nie może być własnym podagentem, bo podagent zająłby jedyny slot i wypchnął z niego rozmowę zapisaną w pamięci podręcznej serwera, więc czekająca odpowiedź musiałaby wczytać ją całą od nowa. Inne modele nadal mogą być jego podagentami.'
 MESSAGES['Think before answering'] = 'Rozumuj przed odpowiedzią'
 MESSAGES['thinking off'] = 'rozumowanie wyłączone'
 MESSAGES["This model offers no choice of effort. An administrator sets what it takes on the model's page."] = 'Ten model nie oferuje wyboru poziomu rozumowania. To, co przyjmuje, ustawia administrator na stronie modelu.'

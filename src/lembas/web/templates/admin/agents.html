@@ -112,8 +112,8 @@
 #}
 <form method="post" action="/admin/agents/subagents" class="form-grid">
   <section class="card">
-    <h2 class="card__title">{{ t("Helpers") }}</h2>
-    <p class="field__hint">{{ t("A reply can hand a self-contained piece of work to a second model that runs on its own and reports back — several at once, which is what makes research fan out instead of queueing, and in the background, so the reply carries on and is told when the helper is done. There are two kinds: explore, which reads and searches only, and general, which may also change things the chat itself may change. An agent chat's helpers run on its linked device instead, under the device's own limits.") }}</p>
+    <h2 class="card__title">{{ t("Subagents") }}</h2>
+    <p class="field__hint">{{ t("A reply can hand a self-contained piece of work to a second model that runs on its own and reports back — several at once, which is what makes research fan out instead of queueing, and in the background, so the reply carries on and is told when the subagent is done. There are two kinds: explore, which reads and searches only, and general, which may also change things the chat itself may change. An agent chat's subagents run on its linked device instead, under the device's own limits.") }}</p>
     <p class="field__hint">
       {{ tm("<strong>Asking another model a question uses the same switch and the same allowance below</strong>, because it costs the same thing: one reply setting another reply going. Which people may do it is a separate permission — <strong>%(permission)s</strong> — and which models may is a switch on each model's own page.", permission=t("Ask another model")) }}
     </p>
@@ -121,7 +121,7 @@
     <div class="alert">
       {{ icon("shield", "icon--sm") }}
       <span>
-        {{ tm("A helper cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads and searches files and the web, and the general kind writes what the chat may write. It cannot send helpers of its own; it can message the main agent, and be messaged, while it works. <strong>%(mode)s</strong> is not inherited: a helper's task text can have come from a page it read.", mode=t("Auto")) }}
+        {{ tm("A subagent cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads and searches files and the web, and the general kind writes what the chat may write. It cannot send subagents of its own; it can message the main agent, and be messaged, while it works. <strong>%(mode)s</strong> is not inherited: a subagent's task text can have come from a page it read.", mode=t("Auto")) }}
       </span>
     </div>
 
@@ -132,12 +132,12 @@
         <span>{{ t("Let a model delegate") }}</span>
       </label>
       <p class="field__hint">
-        {{ tm("People also need the <strong>%(permission)s</strong> permission, and the model needs the <strong>%(capability)s</strong> capability. Off by default: a reply that spawns helpers spends model time multiplicatively, and on one local endpoint four at once is four times the queue rather than four times the speed.", permission=t("Delegate to a helper"), capability=t("Tools")) }}
+        {{ tm("People also need the <strong>%(permission)s</strong> permission, and the model needs the <strong>%(capability)s</strong> capability. Off by default: a reply that spawns subagents spends model time multiplicatively, and on one local endpoint four at once is four times the queue rather than four times the speed.", permission=t("Delegate to a subagent"), capability=t("Tools")) }}
       </p>
     </div>
 
     <div class="field">
-      <label class="field__label" for="sub_max_per_reply">{{ t("Most helpers one reply may send") }}</label>
+      <label class="field__label" for="sub_max_per_reply">{{ t("Most subagents one reply may send") }}</label>
       <input class="input" id="sub_max_per_reply" name="max_per_reply"
              type="number" min="1" max="20" step="1"
              value="{{ subagents.max_per_reply }}">
@@ -153,20 +153,20 @@
     </div>
 
     <div class="field">
-      <label class="field__label" for="sub_max_completion_tokens">{{ t("Most a helper may write") }}</label>
+      <label class="field__label" for="sub_max_completion_tokens">{{ t("Most a subagent may write") }}</label>
       <input class="input" id="sub_max_completion_tokens" name="max_completion_tokens"
              type="number" min="0" max="5000000" step="1000"
              value="{{ subagents.max_completion_tokens }}">
-      <p class="field__hint">{{ t("In tokens, across every round. A helper answers one question, so this should run out well before the reply that asked does. Zero means no ceiling.") }}</p>
+      <p class="field__hint">{{ t("In tokens, across every round. A subagent answers one question, so this should run out well before the reply that asked does. Zero means no ceiling.") }}</p>
     </div>
 
     <div class="field">
-      <label class="field__label" for="sub_wall_seconds">{{ t("Longest a helper may take") }}</label>
+      <label class="field__label" for="sub_wall_seconds">{{ t("Longest a subagent may take") }}</label>
       <input class="input" id="sub_wall_seconds" name="wall_seconds"
              type="number" min="30" max="7200" step="30"
              value="{{ subagents.wall_seconds }}">
       <p class="field__hint">
-        {{ tm("Seconds. Past it the helper is <em>stopped</em>, not abandoned: what it had written is kept and handed back with a note saying it is partial.") }}
+        {{ tm("Seconds. Past it the subagent is <em>stopped</em>, not abandoned: what it had written is kept and handed back with a note saying it is partial.") }}
       </p>
     </div>
 
@@ -190,7 +190,7 @@
       <label class="checkbox">
         <input type="checkbox" name="keep_transcript" value="true"
                {{ 'checked' if subagents.keep_transcript }}>
-        <span>{{ t("Keep a helper's own chat afterwards") }}</span>
+        <span>{{ t("Keep a subagent's own chat afterwards") }}</span>
       </label>
       <p class="field__hint">{{ t("Off means it is deleted once its answer has been handed over, which is what keeps this cheap to use. Turn it on to work out why one came back with something odd. Kept chats are temporary either way and are swept a day later, and neither appears in anybody's sidebar.") }}</p>
     </div>

@@ -361,7 +361,7 @@
              min="1" max="256" step="1" inputmode="numeric"
              placeholder="{{ t('no limit') }}"
              value="{{ model.parallel_limit or '' }}">
-      <p class="field__hint">{{ t("How many requests the model's server answers at the same time — llama.cpp's slots, a vLLM batch. Empty is no limit, right for a hosted API. At 1 the model cannot be its own helper, because the helper would take the only slot and push out the conversation the server has cached, so the waiting reply would have to read it all again. Other models can still be its helpers.") }}</p>
+      <p class="field__hint">{{ t("How many requests the model's server answers at the same time — llama.cpp's slots, a vLLM batch. Empty is no limit, right for a hosted API. At 1 the model cannot be its own subagent, because the subagent would take the only slot and push out the conversation the server has cached, so the waiting reply would have to read it all again. Other models can still be its subagents.") }}</p>
     </div>
 
     <div class="field">

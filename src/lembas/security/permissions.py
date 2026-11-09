@@ -141,11 +141,11 @@ PERMISSION_DEFS: tuple[PermissionDef, ...] = (
     ),
     PermissionDef(
         "tools.subagent",
-        N_("Delegate to a helper"),
+        N_("Delegate to a subagent"),
         N_("Let a model hand a self-contained piece of work to a second one that "
         "runs on its own and reports back — reading and searching in parallel "
-        "rather than one thing at a time. A helper cannot ask questions, "
-        "cannot spawn helpers of its own, and can only do what this chat could "
+        "rather than one thing at a time. A subagent cannot ask questions, "
+        "cannot spawn subagents of its own, and can only do what this chat could "
         "already do without stopping to ask."),
         False,
         "Chat",
@@ -311,7 +311,7 @@ FOR_PEOPLE: dict[str, tuple[str, str]] = {
     "tools.image": (TOOLS, N_("Draw pictures in the conversation.")),
     "tools.custom": (TOOLS, N_("Call the HTTP tools an administrator has defined.")),
     "tools.mcp": (TOOLS, N_("Use tools from the MCP servers an administrator has added.")),
-    "tools.subagent": (TOOLS, N_("Hand a self-contained task to a helper model.")),
+    "tools.subagent": (TOOLS, N_("Hand a self-contained task to a subagent.")),
     "tools.ask": (TOOLS, N_("Stop mid-reply and ask you a question.")),
     "tools.agent": (DEVICES, N_("Start agent chats on a LLeMbas CLI you have linked.")),
     "agent.terminal": (DEVICES, N_("Open a shell on your linked device from an agent chat.")),
@@ -453,7 +453,7 @@ LIMIT_DEFS: tuple[tuple[str, str, str], ...] = (
     ),
     (
         "helpers_per_reply",
-        "Helpers per reply",
+        "Subagents per reply",
         "How many subagents one reply may send, if lower than the instance's "
         "own.",
     ),

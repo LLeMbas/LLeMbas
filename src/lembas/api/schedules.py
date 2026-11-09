@@ -266,7 +266,7 @@ def offered_tools() -> tuple[tuple[str, str], ...]:
         ("image", t("Pictures")),
         ("custom", t("Custom tools")),
         ("mcp", t("MCP servers")),
-        ("subagent", t("Helpers")),
+        ("subagent", t("Subagents")),
     )
 
 

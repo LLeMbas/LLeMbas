@@ -369,7 +369,7 @@ async def test_a_helper_cannot_ask_for_a_helper(db, monkeypatch):
     )
 
     assert outcome.event["status"] == "error"
-    assert "helper" in outcome.content
+    assert "subagent" in outcome.content
     assert db.scalar(select(Chat).where(Chat.parent_chat_id == child.id)) is None
 
 

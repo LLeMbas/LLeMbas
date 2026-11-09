@@ -178,6 +178,10 @@ class Team:
     # The model's capacity now (it may have changed since the prompt was made).
     parallel: int | None = None
     single_session: bool = False
+    # Spec 3.3.0 (subagents.md §4): whether any model could serve as a
+    # subagent -- the lead's, serving two at once, or another usable one off
+    # its one-model server. None: judged by the lead's model alone, as 3.2.0.
+    serves: bool | None = None
     # The lead and every member on the team (stopped ones are gone from it).
     agents: list[Agent] = field(default_factory=lambda: [Agent(LEAD, state=WORKING)])
     room: list[Post] = field(default_factory=list)
@@ -245,6 +249,8 @@ class Team:
         return len(self.agents) + len(self.helpers)
 
     def capacity_ok(self) -> bool:
+        if self.serves is not None:
+            return self.serves
         return capacity_allows(self.parallel, self.single_session)
 
     def slots(self) -> int | None:
@@ -708,20 +714,26 @@ def task_refusal(team: Team) -> str:
 
 
 # --- §10: the note --------------------------------------------------------------------
-def size_state(low: int, high: int) -> str:
+def size_state(low: int, high: int, own: bool = False) -> str:
     """What the lead is told of the size, as one comparable value."""
-    return f"{low}-{high}"
+    return f"{low}-{high}" + ("+own" if own else "")
 
 
-def size_block(low: int, high: int) -> str:
+def size_block(low: int, high: int, own: bool = False) -> str:
     """The note's block for the size setting: `team`, with `team_lead` after
-    it when `min ≥ 2`; `team_one` in its place when `max` is 1."""
+    it when `min ≥ 2`; `team_one` in its place when `max` is 1. With `own`
+    (spec 3.3.0, subagents.md §4: the session's model cannot serve subagents
+    itself, another could), `team_own` after them in the same block."""
+    from lembas.services import subagents as subagents_rules
+
     note = harness_spec.note()
     if high <= 1:
         return note["team_one"]
     block = harness_spec.fill(note["team"], {"min": str(low), "max": str(high)})
     if low >= 2:
         block += "\n" + harness_spec.fill(note["team_lead"], {"members": str(low - 1)})
+    if own:
+        block += "\n" + subagents_rules.note_own()
     return block
 
 
@@ -734,9 +746,10 @@ def note_blocks(team: Team) -> list[str]:
     if not team.offered:
         return []
     blocks: list[str] = []
-    now = size_state(team.min, team.max)
+    own = bool(team.offered and team.serves and not capacity_allows(team.parallel))
+    now = size_state(team.min, team.max, own)
     if team.told != now:
-        blocks.append(size_block(team.min, team.max))
+        blocks.append(size_block(team.min, team.max, own))
         team.told = now
     if team.stopped_unsaid:
         blocks.append(stopped_block(team.stopped_unsaid))

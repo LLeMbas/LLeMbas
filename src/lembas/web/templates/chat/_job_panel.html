@@ -10,16 +10,16 @@
   transcript into `#jobpanel-body`, and app.js opens the panel when the swap
   lands. Nothing is fetched for a panel nobody opened.
 #}
-<aside class="jobpanel" id="jobpanel" hidden aria-label="{{ t('Helper') }}">
+<aside class="jobpanel" id="jobpanel" hidden aria-label="{{ t('Subagent') }}">
   <div class="panel-head">
-    <h2 class="panel-head__title">{{ icon("sparkle", "icon--sm") }} {{ t("Helper") }}</h2>
+    <h2 class="panel-head__title">{{ icon("sparkle", "icon--sm") }} {{ t("Subagent") }}</h2>
     <button class="btn btn--icon btn--sm" type="button" data-toggle="#jobpanel" data-toggle-group="side"
-            aria-label="{{ t('Close the helper panel') }}">
+            aria-label="{{ t('Close the subagent panel') }}">
       {{ icon("x", "icon--sm") }}
     </button>
   </div>
 
   <div class="jobpanel__body" id="jobpanel-body">
-    <p class="jobpanel__empty">{{ t("Open a helper from the strip above the composer to follow it here.") }}</p>
+    <p class="jobpanel__empty">{{ t("Open a subagent from the strip above the composer to follow it here.") }}</p>
   </div>
 </aside>

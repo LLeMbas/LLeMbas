@@ -73,7 +73,7 @@ MESSAGES: dict[str, str] = {
     "No unload call": "Nincs kiürítési hívás",
     "POST": "POST",
     "Save": "Mentés",
-    "Tick this for llama-swap in front of one GPU, or anything else that unloads one model to serve another. A model here may then be its own helper, but never send a helper to another model on this connection: loading it would unload the model whose reply is waiting.": "Jelölje be egyetlen GPU előtt álló llama-swap esetén, vagy bármi más esetén, ami egy modellt kiürít, hogy egy másikat szolgáljon ki. Egy itteni modell ekkor lehet a saját segédje, de soha ne küldjön segédet egy másik modellhez ezen a kapcsolaton: a betöltése kiürítené azt a modellt, amelynek a válaszára várnak.",
+    'Tick this for llama-swap in front of one GPU, or anything else that unloads one model to serve another. A model here may then be its own subagent, but never send a subagent to another model on this connection: loading it would unload the model whose reply is waiting.': 'Jelölje be egyetlen GPU előtt álló llama-swap esetén, vagy bármi más esetén, ami egy modellt kiürít, hogy egy másikat szolgáljon ki. Egy itteni modell ekkor lehet a saját alügynöke, de soha ne küldjön alügynököt egy másik modellhez ezen a kapcsolaton: a betöltése kiürítené azt a modellt, amelynek a válaszára várnak.',
     "Unload URL": "Kiürítési URL",
     "disabled": "letiltva",
     "Administration": "Adminisztráció",
@@ -114,18 +114,18 @@ MESSAGES: dict[str, str] = {
     "Asking you things": "Kérdések Önhöz",
     "Auto": "Automatikus",
     "Close a shell after": "Shell bezárása ennyi idő után",
-    "Delegate to a helper": "Átadás egy segédnek",
+    'Delegate to a subagent': 'Átadás egy alügynöknek',
     "Each is a whole generation against the same endpoint the reply that asked for it is waiting on. Past this a model is told to do the work itself rather than made to wait.": "Mindegyik egy teljes generálás ugyanazon a végponton, amelyen az azt kérő válasz is vár. Ezen túl a modell azt az utasítást kapja, hogy maga végezze el a munkát, ahelyett hogy várakoztatnák.",
     "Fanning out across a handful of independent questions is what this is for. A reply that wants twenty has misread the tool. Questions put to other models count against this same number, so one reply cannot spend the allowance twice.": "Erre való: néhány független kérdésre való szétágazás. Az a válasz, amely húszat akar, félreértette az eszközt. A más modelleknek feltett kérdések ugyanebbe a számba számítanak bele, így egy válasz nem költheti el kétszer a keretet.",
-    "Helpers": "Segédek",
+    'Subagents': 'Alügynökök',
     "How long a question waits": "Meddig vár egy kérdés",
-    "In tokens, across every round. A helper answers one question, so this should run out well before the reply that asked does. Zero means no ceiling.": "Tokenben, az összes körre együtt. Egy segéd egyetlen kérdésre válaszol, így ennek jóval előbb el kell fogynia, mint az azt kérő válaszé. A nulla korlátlant jelent.",
-    "Keep a helper's own chat afterwards": "A segéd saját csevegésének megtartása utána",
+    'In tokens, across every round. A subagent answers one question, so this should run out well before the reply that asked does. Zero means no ceiling.': 'Tokenben, az összes körre együtt. Egy alügynök egyetlen kérdésre válaszol, így ennek jóval előbb el kell fogynia, mint az azt kérő válaszé. A nulla korlátlant jelent.',
+    "Keep a subagent's own chat afterwards": 'Az alügynök saját csevegésének megtartása utána',
     "Let a model delegate": "Átadás engedélyezése a modellnek",
     "Let people write their own answer": "A felhasználók saját választ is írhatnak",
-    "Longest a helper may take": "Egy segéd leghosszabb futásideje",
-    "Most a helper may write": "Egy segéd legfeljebb ennyit írhat",
-    "Most helpers one reply may send": "Egy válasz legfeljebb ennyi segédet küldhet",
+    'Longest a subagent may take': 'Egy alügynök leghosszabb futásideje',
+    'Most a subagent may write': 'Egy alügynök legfeljebb ennyit írhat',
+    'Most subagents one reply may send': 'Egy válasz legfeljebb ennyi alügynököt küldhet',
     "Most rounds of tool calls": "Eszközhívási körök legnagyobb száma",
     "Most shells at once": "Egyszerre legfeljebb ennyi shell",
     "Most shells per person": "Személyenként legfeljebb ennyi shell",
@@ -983,8 +983,8 @@ MESSAGES.update(
         "People also need the permission “%(permission)s” and a linked LLeMbas CLI (Settings → Devices).": "Ezen felül kell a(z) „%(permission)s” jogosultság és egy kapcsolt LLeMbas CLI (Beállítások → Eszközök).",
         "Seconds with nobody watching <em>and</em> nothing typed. Closing the panel does not end the session — a build carries on and is still there on the way back — so this is what eventually ends one.": "Másodperc, amíg senki sem figyel <em>és</em> semmit sem gépel. A panel bezárása nem fejezi be a munkamenetet – egy build tovább fut, és visszatéréskor is ott van –, így végül ez vet neki véget.",
         "<strong>Asking another model a question uses the same switch and the same allowance below</strong>, because it costs the same thing: one reply setting another reply going. Which people may do it is a separate permission — <strong>%(permission)s</strong> — and which models may is a switch on each model's own page.": "<strong>Egy másik modellnek feltett kérdés ugyanazt a kapcsolót és ugyanazt az alábbi keretet használja</strong>, mert ugyanannyiba kerül: egy válasz elindít egy másik választ. Hogy kik tehetik meg, az külön jogosultság – <strong>%(permission)s</strong> –, hogy mely modellek, az pedig egy kapcsoló az egyes modellek saját oldalán.",
-        "People also need the <strong>%(permission)s</strong> permission, and the model needs the <strong>%(capability)s</strong> capability. Off by default: a reply that spawns helpers spends model time multiplicatively, and on one local endpoint four at once is four times the queue rather than four times the speed.": "Ezen felül kell a <strong>%(permission)s</strong> jogosultság, a modellnek pedig a <strong>%(capability)s</strong> képesség. Alapértelmezésként kikapcsolva: a segédeket indító válasz megsokszorozza a modellidőt, és egyetlen helyi végponton négy egyszerre négyszeres sort jelent, nem négyszeres sebességet.",
-        "Seconds. Past it the helper is <em>stopped</em>, not abandoned: what it had written is kept and handed back with a note saying it is partial.": "Másodperc. Ezen túl a segéd <em>leáll</em>, nem marad magára: amit addig megírt, azt megtartjuk és visszaadjuk egy megjegyzéssel, hogy részleges.",
+        'People also need the <strong>%(permission)s</strong> permission, and the model needs the <strong>%(capability)s</strong> capability. Off by default: a reply that spawns subagents spends model time multiplicatively, and on one local endpoint four at once is four times the queue rather than four times the speed.': 'Ezen felül kell a <strong>%(permission)s</strong> jogosultság, a modellnek pedig a <strong>%(capability)s</strong> képesség. Alapértelmezésként kikapcsolva: az alügynököket indító válasz megsokszorozza a modellidőt, és egyetlen helyi végponton négy egyszerre négyszeres sort jelent, nem négyszeres sebességet.',
+        'Seconds. Past it the subagent is <em>stopped</em>, not abandoned: what it had written is kept and handed back with a note saying it is partial.': 'Másodperc. Ezen túl az alügynök <em>leáll</em>, nem marad magára: amit addig megírt, azt megtartjuk és visszaadjuk egy megjegyzéssel, hogy részleges.',
         "Where <code>/v1/audio/transcriptions</code> lives — whisper.cpp's <code>whisper-server</code>, Speaches, or anything else speaking it. With or without <code>/v1</code>; either is understood.": "Ahol a <code>/v1/audio/transcriptions</code> található – a whisper.cpp <code>whisper-server</code>-e, a Speaches vagy bármi más, ami ezt beszéli. <code>/v1</code> végződéssel vagy anélkül; mindkettőt megértjük.",
         "None needed for a local server": "Helyi szerverhez nem szükséges",
         "A server hosting one model <strong>ignores this</strong> and uses whatever it was started with — <code>whisper-1</code> is then just a label. It only selects anything on a server that hosts several.": "Az egyetlen modellt kiszolgáló szerver <strong>figyelmen kívül hagyja ezt</strong>, és azt használja, amivel elindították – a <code>whisper-1</code> ekkor csak címke. Csak a több modellt kiszolgáló szerveren választ ki bármit.",
@@ -1384,7 +1384,7 @@ MESSAGES.update(
         "No such image.": "Nincs ilyen kép.",
         "An ordinary chat": "Hagyományos csevegés",
         "A scheduled task, running unattended": "Ütemezett feladat, felügyelet nélkül futva",
-        "A helper sent by another model": "Egy másik modell által küldött segéd",
+        'A subagent sent by another model': 'Egy másik modell által küldött alügynök',
         "%(provider)s returned 1 result.": "%(provider)s 1 találatot adott vissza.",
         "%(provider)s returned %(n)s results.": "%(provider)s %(n)s találatot adott vissza.",
         "That suggestion no longer exists.": "Ez a javaslat már nem létezik.",
@@ -1547,7 +1547,7 @@ MESSAGES.update(
         "Let a model call tools from the MCP servers an administrator has added. Which ones depends on the groups each server is restricted to.": "A modell meghívhatja a rendszergazda által hozzáadott MCP-szerverek eszközeit. Hogy melyeket, az attól függ, mely csoportokra van korlátozva az egyes szerver.",
         "Let them start agent chats on a LLeMbas CLI they have linked: its model reads files, writes files and runs commands on that machine, within the CLI's own limits and the chat's mode. Nothing runs on this server.": "Ügynök-csevegéseket indíthat egy általa kapcsolt LLeMbas CLI-n: annak modellje fájlokat olvas, fájlokat ír és parancsokat futtat azon a gépen, a CLI saját korlátain és a csevegés módján belül. Ezen a szerveren semmi sem fut.",
         "Open an interactive shell on their linked device, from inside an agent chat, where the device allows it. What they type there is theirs: the chat's mode governs the model, not the person at the keyboard.": "Interaktív shellt nyithat a kapcsolt eszközén, egy ügynök-csevegésből, ahol az eszköz engedi. Amit ott begépel, az az övé: a csevegés módja a modellre vonatkozik, nem a billentyűzetnél ülőre.",
-        "Let a model hand a self-contained piece of work to a second one that runs on its own and reports back — reading and searching in parallel rather than one thing at a time. A helper cannot ask questions, cannot spawn helpers of its own, and can only do what this chat could already do without stopping to ask.": "A modell átadhat egy önálló munkadarabot egy másodiknak, amely magától fut, és beszámol az eredményről – párhuzamosan olvasva és keresve, nem egyenként. Egy segéd nem tehet fel kérdéseket, nem indíthat saját segédeket, és csak azt teheti, amit ez a csevegés is megtehetett volna kérdezés nélkül.",
+        'Let a model hand a self-contained piece of work to a second one that runs on its own and reports back — reading and searching in parallel rather than one thing at a time. A subagent cannot ask questions, cannot spawn subagents of its own, and can only do what this chat could already do without stopping to ask.': 'A modell átadhat egy önálló munkadarabot egy másodiknak, amely magától fut, és beszámol az eredményről – párhuzamosan olvasva és keresve, nem egyenként. Egy alügynök nem tehet fel kérdéseket, nem indíthat saját alügynököket, és csak azt teheti, amit ez a csevegés is megtehetett volna kérdezés nélkül.',
         "Be asked questions": "Kérdések fogadása",
         "Let a model stop mid-reply and ask you something, with answers to pick from or a box to write your own.": "A modell válasz közben megállhat, és kérdezhet Öntől valamit, választható válaszokkal vagy egy mezővel a saját válaszához.",
         "Set things to run later, on their own — once, or on a repeating timetable. This spends model time with nobody at the keyboard, so it is a capability chosen on purpose rather than one everybody has.": "Dolgok beállítása későbbi, önálló futtatásra – egyszer vagy ismétlődő menetrend szerint. Ez úgy költ modellidőt, hogy senki sem ül a billentyűzetnél, ezért tudatosan kiválasztott képesség, nem olyan, ami mindenkinek jár.",
@@ -1587,7 +1587,7 @@ MESSAGES.update(
         "Draw pictures in the conversation.": "Képek rajzolása a beszélgetésbe.",
         "Call the HTTP tools an administrator has defined.": "A rendszergazda által definiált HTTP-eszközök meghívása.",
         "Use tools from the MCP servers an administrator has added.": "A rendszergazda által hozzáadott MCP-szerverek eszközeinek használata.",
-        "Hand a self-contained task to a helper model.": "Önálló feladat átadása egy segédmodellnek.",
+        'Hand a self-contained task to a subagent.': 'Önálló feladat átadása egy alügynöknek.',
         "Stop mid-reply and ask you a question.": "Megállás válasz közben, és kérdés feltevése Önnek.",
         "Start agent chats on a LLeMbas CLI you have linked.": "Ügynök-csevegések indítása egy Ön által kapcsolt LLeMbas CLI-n.",
         "Open a shell on your linked device from an agent chat.": "Shell megnyitása a kapcsolt eszközén egy ügynök-csevegésből.",
@@ -1663,7 +1663,7 @@ MESSAGES.update(
         "Asking you questions": "Kérdések Önhöz",
         "Generating images": "Képek generálása",
         "Scheduling work": "Munka ütemezése",
-        "Sending helpers": "Segédek küldése",
+        'Sending subagents': 'Alügynökök küldése',
         "Running commands": "Parancsok futtatása",
         "Updating in a moment — try again shortly.": "Frissítés egy pillanat múlva – próbálja újra hamarosan.",
         "The backup before the update failed, so nothing was requested: %(error)s": "A frissítés előtti biztonsági mentés sikertelen volt, így semmit sem kértünk: %(error)s",
@@ -1882,22 +1882,22 @@ MESSAGES.update(
 )
 
 # --- 1.6.0: background jobs, the helper panel, the subagent preamble ---
-MESSAGES["A reply can hand a self-contained piece of work to a second model that runs on its own and reports back — several at once, which is what makes research fan out instead of queueing, and in the background, so the reply carries on and is told when the helper is done. There are two kinds: explore, which reads and searches only, and general, which may also change things the chat itself may change. An agent chat's helpers run on its linked device instead, under the device's own limits."] = 'Egy válasz átadhat egy önálló munkát egy második modellnek, amely magában dolgozik és beszámol — több is egyszerre, ezért ágazik szét a kutatás, ahelyett hogy sorban állna; és a háttérben is, így a válasz folytatódik, és értesül, amikor a segítő elkészült. Két fajta van: az explore, amely csak olvas és keres, és a general, amely azt is módosíthatja, amit maga a beszélgetés módosíthat. Az ügynök-beszélgetés segítői helyette a csatolt eszközön futnak, annak saját korlátai között.'
+MESSAGES["A reply can hand a self-contained piece of work to a second model that runs on its own and reports back — several at once, which is what makes research fan out instead of queueing, and in the background, so the reply carries on and is told when the subagent is done. There are two kinds: explore, which reads and searches only, and general, which may also change things the chat itself may change. An agent chat's subagents run on its linked device instead, under the device's own limits."] = 'Egy válasz átadhat egy önálló munkát egy második modellnek, amely magában dolgozik és beszámol — több is egyszerre, ezért ágazik szét a kutatás, ahelyett hogy sorban állna; és a háttérben is, így a válasz folytatódik, és értesül, amikor az alügynök elkészült. Két fajta van: az explore, amely csak olvas és keres, és a general, amely azt is módosíthatja, amit maga a beszélgetés módosíthat. Az ügynök-beszélgetés alügynökei helyette a csatolt eszközön futnak, annak saját korlátai között.'
 MESSAGES['%(job)s asks:'] = '%(job)s kérdezi:'
-MESSAGES['Helper'] = 'Segítő'
-MESSAGES['Close the helper panel'] = 'Segítő-panel bezárása'
-MESSAGES['Open a helper from the strip above the composer to follow it here.'] = 'Nyisson meg egy segítőt az üzenetmező feletti sávból, hogy itt kövesse.'
+MESSAGES['Subagent'] = 'Alügynök'
+MESSAGES['Close the subagent panel'] = 'Alügynök-panel bezárása'
+MESSAGES['Open a subagent from the strip above the composer to follow it here.'] = 'Nyisson meg egy alügynököt az üzenetmező feletti sávból, hogy itt kövesse.'
 MESSAGES['subagent'] = 'alügynök'
 MESSAGES['Stop'] = 'Leállítás'
-MESSAGES['A message to the helper'] = 'Üzenet a segítőnek'
-MESSAGES['Message the helper — it reads it at its next step; a finished one is started again with it'] = 'Írjon a segítőnek — a következő lépésénél elolvassa; a befejezett ezzel újraindul'
+MESSAGES['A message to the subagent'] = 'Üzenet az alügynöknek'
+MESSAGES['Message the subagent — it reads it at its next step; a finished one is started again with it'] = 'Írjon az alügynöknek — a következő lépésénél elolvassa; a befejezett ezzel újraindul'
 MESSAGES['From the main agent'] = 'A főügynöktől'
 MESSAGES['The task'] = 'A feladat'
 MESSAGES['Working…'] = 'Dolgozik…'
 MESSAGES['Background jobs'] = 'Háttérfeladatok'
 MESSAGES['Running for %(time)s'] = 'Fut: %(time)s'
-MESSAGES['Follow this helper'] = 'A segítő követése'
-MESSAGES['Follow this helper and message it'] = 'A segítő követése és üzenet neki'
+MESSAGES['Follow this subagent'] = 'Az alügynök követése'
+MESSAGES['Follow this subagent and message it'] = 'Az alügynök követése és üzenet neki'
 MESSAGES['Stop %(job)s'] = '%(job)s leállítása'
 MESSAGES['Stop this job'] = 'A feladat leállítása'
 MESSAGES['Scheduled run'] = 'Ütemezett futás'
@@ -1905,7 +1905,7 @@ MESSAGES['The device did not answer in time.'] = 'Az eszköz nem válaszolt idő
 MESSAGES['Not done: %(error)s'] = 'Nem történt meg: %(error)s'
 MESSAGES['That job is not here any more.'] = 'Ez a feladat már nincs itt.'
 MESSAGES['Write something to send.'] = 'Írjon valamit az elküldéshez.'
-MESSAGES["That helper's conversation is gone, so it cannot be messaged."] = 'A segítő beszélgetése már nincs meg, így nem lehet neki írni.'
+MESSAGES["That subagent's conversation is gone, so it cannot be messaged."] = 'Az alügynök beszélgetése már nincs meg, így nem lehet neki írni.'
 MESSAGES['running'] = 'fut'
 MESSAGES['done'] = 'kész'
 MESSAGES['lost'] = 'elveszett'
@@ -2305,7 +2305,7 @@ MESSAGES['user groups not here: %(names)s'] = 'itt nem létező felhasználói c
 MESSAGES['with %(count)s earlier versions'] = '%(count)s korábbi verzióval'
 # --- 2.0: files, memory and money in place of the library and credits ---------
 MESSAGES["Its models read only this group's memories, and a chat started on one of them stays in it. Moving a connection does not move any data: it starts reading the other group."] = 'Modelljei csak ennek a csoportnak a memóriáit olvassák, és az egyikükkel indított csevegés ebben a csoportban marad. Egy kapcsolat áthelyezése nem helyez át adatot: egyszerűen a másik csoportot kezdi olvasni.'
-MESSAGES["A helper cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads and searches files and the web, and the general kind writes what the chat may write. It cannot send helpers of its own; it can message the main agent, and be messaged, while it works. <strong>%(mode)s</strong> is not inherited: a helper's task text can have come from a page it read."] = 'A segítő senkitől nem kérdezhet semmit, így a beszélgetésében semmi nem állhat meg jóváhagyásra. Ezért csak azt kapja, amit ez a beszélgetés már kérdezés <em>nélkül</em> is megtehetett: olvas és keres a fájlokban és a weben, a general fajta pedig írja, amit a beszélgetés írhat. Saját segítőket nem küldhet; munka közben írhat a főügynöknek, és az is neki. A(z) <strong>%(mode)s</strong> mód nem öröklődik: a segítő feladatának szövege egy általa olvasott oldalról is származhat.'
+MESSAGES["A subagent cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads and searches files and the web, and the general kind writes what the chat may write. It cannot send subagents of its own; it can message the main agent, and be messaged, while it works. <strong>%(mode)s</strong> is not inherited: a subagent's task text can have come from a page it read."] = 'Az alügynök senkitől nem kérdezhet semmit, így a beszélgetésében semmi nem állhat meg jóváhagyásra. Ezért csak azt kapja, amit ez a beszélgetés már kérdezés <em>nélkül</em> is megtehetett: olvas és keres a fájlokban és a weben, a general fajta pedig írja, amit a beszélgetés írhat. Saját alügynököket nem küldhet; munka közben írhat a főügynöknek, és az is neki. A(z) <strong>%(mode)s</strong> mód nem öröklődik: az alügynök feladatának szövege egy általa olvasott oldalról is származhat.'
 MESSAGES['What speech costs, in %(currency)s — in the browser and through the API alike. 0 is free, which is what a server of your own usually is.'] = 'Mennyibe kerül a beszéd %(currency)s pénznemben — a böngészőben és az API-n át egyaránt. A 0 ingyenes, ami a saját szerver általában.'
 MESSAGES["A data group keeps one provider's models away from the data another provider's models have been given. Every connection is in one group. Its models read only that group's memories and personalities, and a chat stays in the group it was started in."] = 'Az adatcsoport távol tartja az egyik szolgáltató modelljeit azoktól az adatoktól, amelyeket egy másik szolgáltató modelljei kaptak. Minden kapcsolat egy csoportban van. Modelljei csak ennek a csoportnak a memóriáit és személyiségeit olvassák, és a csevegés abban a csoportban marad, amelyben elindították.'
 MESSAGES['Prices'] = 'Árak'
@@ -2421,7 +2421,7 @@ MESSAGES['Close the activity panel'] = 'A tevékenységpanel bezárása'
 MESSAGES['Loading…'] = 'Betöltés…'
 MESSAGES['%(steps)s steps, %(tools)s tools'] = '%(steps)s lépés, %(tools)s eszköz'
 MESSAGES['Open its conversation'] = 'A beszélgetésének megnyitása'
-MESSAGES["Nothing runs in the background. Helpers, commands and a team's members show here while they work."] = 'A háttérben semmi sem fut. A segítők, a parancsok és egy csapat tagjai itt jelennek meg, amíg dolgoznak.'
+MESSAGES["Nothing runs in the background. Subagents, commands and a team's members show here while they work."] = 'A háttérben semmi sem fut. Az alügynökök, a parancsok és egy csapat tagjai itt jelennek meg, amíg dolgoznak.'
 MESSAGES['Nothing running.'] = 'Semmi sem fut.'
 MESSAGES['Team: %(size)s of %(max)s agents'] = 'Csapat: %(size)s / %(max)s ügynök'
 MESSAGES['Show %(n)s more'] = 'Még %(n)s megjelenítése'
@@ -2453,7 +2453,7 @@ MESSAGES['off — thinking switched off'] = 'ki — gondolkodás kikapcsolva'
 MESSAGES["default — the model's own"] = 'alapértelmezett — a modell sajátja'
 MESSAGES['Sent two ways at once, because there is no one field that works: OpenAI and vLLM read <span class="mono">reasoning_effort</span>, while llama.cpp drops it silently and reads only <span class="mono">chat_template_kwargs</span> — which is the route by which it reaches gpt-oss. Both go out on every chat with a model marked <strong>Reasoning</strong>: not set here, a chat starts at medium where the model takes it, else at its first effort. <em>Off</em> sends only <span class="mono">enable_thinking: false</span>, and a model not marked <strong>Reasoning</strong> is sent no effort at all.'] = 'Egyszerre kétféleképpen küldjük, mert nincs egyetlen mező, amely mindenhol működne: az OpenAI és a vLLM a <span class="mono">reasoning_effort</span> mezőt olvassa, a llama.cpp viszont csendben elveti, és csak a <span class="mono">chat_template_kwargs</span> mezőt olvassa – ezen az úton jut el a gpt-oss-hoz. Mindkettő kimegy minden olyan csevegésben, amelynek modellje <strong>Reasoning</strong> jelölésű: ha itt nincs beállítva semmi, a csevegés medium szinten indul, ahol a modell elfogadja, különben az első erőfeszítésén. A <em>ki</em> csak ezt küldi: <span class="mono">enable_thinking: false</span>, a <strong>Reasoning</strong> jelölés nélküli modell pedig semmilyen erőfeszítést nem kap.'
 MESSAGES['Requests at once'] = 'Egyszerre kiszolgált kérések'
-MESSAGES["How many requests the model's server answers at the same time — llama.cpp's slots, a vLLM batch. Empty is no limit, right for a hosted API. At 1 the model cannot be its own helper, because the helper would take the only slot and push out the conversation the server has cached, so the waiting reply would have to read it all again. Other models can still be its helpers."] = 'Hány kérést válaszol meg egyszerre a modell szervere — a llama.cpp slotjai, egy vLLM-köteg. Üresen nincs korlát, ez a helyes egy hosztolt API-nál. 1 esetén a modell nem lehet a saját segédje, mert a segéd elfoglalná az egyetlen slotot, és kiszorítaná a szerver által gyorsítótárazott beszélgetést, így a várakozó válasznak mindent újra be kellene olvasnia. Más modellek továbbra is lehetnek a segédjei.'
+MESSAGES["How many requests the model's server answers at the same time — llama.cpp's slots, a vLLM batch. Empty is no limit, right for a hosted API. At 1 the model cannot be its own subagent, because the subagent would take the only slot and push out the conversation the server has cached, so the waiting reply would have to read it all again. Other models can still be its subagents."] = 'Hány kérést válaszol meg egyszerre a modell szervere — a llama.cpp slotjai, egy vLLM-köteg. Üresen nincs korlát, ez a helyes egy hosztolt API-nál. 1 esetén a modell nem lehet a saját alügynöke, mert az alügynök elfoglalná az egyetlen slotot, és kiszorítaná a szerver által gyorsítótárazott beszélgetést, így a várakozó válasznak mindent újra be kellene olvasnia. Más modellek továbbra is lehetnek az alügynökei.'
 MESSAGES['Think before answering'] = 'Gondolkodjon válasz előtt'
 MESSAGES['thinking off'] = 'gondolkodás kikapcsolva'
 MESSAGES["This model offers no choice of effort. An administrator sets what it takes on the model's page."] = 'Ennél a modellnél nem lehet erőfeszítést választani. Hogy mit fogad el, azt egy rendszergazda állítja be a modell oldalán.'
