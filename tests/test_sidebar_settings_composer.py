@@ -471,11 +471,13 @@ def test_the_effort_default_seeds_a_new_chat_and_the_chat_wins(
     chat = db.scalars(select(Chat).order_by(Chat.created_at.desc())).first()
     assert chat.params_json["reasoning_effort"] == "medium"
 
-    # "off" as a default sends none.
+    # "off" is no level of a model without the thinking switch (spec 3.2.0):
+    # not kept as a default, and a new chat starts at the model's start level
+    # (the administrator's `high`).
     client.post("/api/preferences/models", data={"model_id": "m", "reasoning_effort": "off"})
     client.post("/api/chats/start", data={"content": "hi", "model_id": "m"})
     chat = db.scalars(select(Chat).order_by(Chat.created_at.desc())).first()
-    assert "reasoning_effort" not in chat.params_json
+    assert chat.params_json["reasoning_effort"] == "high"
 
 
 def test_an_effort_the_model_does_not_take_is_not_stored(client: TestClient, db, registered):
@@ -539,8 +541,9 @@ def test_the_composer_popover_is_an_effort_slider_and_more_settings(
 
     menu = composer[composer.index("picker__menu--settings"):]
     assert 'type="range"' in menu
-    assert 'data-levels=\'["off", "low", "medium", "high"]\'' in menu
-    assert 'min="0" max="3"' in menu
+    # No thinking switch on this model: its levels are its efforts (spec 3.2.0).
+    assert 'data-levels=\'["low", "medium", "high"]\'' in menu
+    assert 'min="0" max="2"' in menu
     assert "aria-valuetext=" in menu
     assert ">More settings<" in menu
     assert 'data-toggle="#chat-settings"' in menu

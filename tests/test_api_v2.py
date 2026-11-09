@@ -269,9 +269,11 @@ def test_patch_goes_through_the_page_rules(client, db, registered, make_chat):
     chat = changed.json()["chat"]
     assert (chat["title"], chat["effort"], chat["archived"]) == ("Waybread", "low", True)
 
-    # Absent is left alone; present and empty clears.
+    # Absent is left alone; present and empty clears -- and a chat with no level
+    # is at its model's start level (spec 3.2.0): no medium here, the first.
+    client.patch(f"/api/v2/chats/{chat_id}", headers=headers, json={"effort": "high"})
     kept = client.patch(f"/api/v2/chats/{chat_id}", headers=headers, json={"effort": None})
-    assert kept.json()["chat"]["title"] == "Waybread" and kept.json()["chat"]["effort"] is None
+    assert kept.json()["chat"]["title"] == "Waybread" and kept.json()["chat"]["effort"] == "low"
 
     # A chat's connection is fixed when it is made -- the page's 409.
     assert client.patch(

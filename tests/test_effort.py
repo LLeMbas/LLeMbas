@@ -59,11 +59,24 @@ def test_an_effort_goes_out_in_both_forms(client: TestClient, db, registered):
     assert body["chat_template_kwargs"] == {"reasoning_effort": "high"}
 
 
-def test_no_effort_means_neither_field(client: TestClient, db, registered):
-    """The whole safety of sending both. A chat nobody has set an effort on is
-    byte-for-byte the request it was before this existed, so a provider that
-    refuses unknown parameters is untouched until somebody opts in."""
+def test_no_effort_reads_as_the_start_level(client: TestClient, db, registered):
+    """Harness spec 3.2.0: a chat with no level stored is at its model's start
+    level -- medium here -- not "nothing", which on a model whose server thinks
+    by default was thinking at an effort nobody chose or could see."""
+    body = chat_service.build_request(db, _chat(db))
+
+    assert body["reasoning_effort"] == "medium"
+    assert body["chat_template_kwargs"] == {"reasoning_effort": "medium"}
+
+
+def test_a_model_that_takes_no_effort_is_sent_neither_field(client: TestClient, db, registered):
+    """The safety of sending both forms: a model not marked as reasoning, with
+    no efforts of its own, has the one level `default` and is sent nothing --
+    so a provider that refuses unknown parameters is untouched."""
     chat = _chat(db)
+    model = db.scalar(select(Model))
+    model.capabilities_json = {"reasoning": False}
+    db.commit()
 
     body = chat_service.build_request(db, chat)
 
@@ -71,21 +84,22 @@ def test_no_effort_means_neither_field(client: TestClient, db, registered):
     assert "chat_template_kwargs" not in body
 
 
-def test_a_cleared_effort_means_neither_field(client: TestClient, db, registered):
+def test_a_cleared_effort_reads_as_the_start_level(client: TestClient, db, registered):
     """Cleared is stored as None, like every other parameter here."""
-    chat = _chat(db, None)
+    body = chat_service.build_request(db, _chat(db, None))
 
-    body = chat_service.build_request(db, chat)
-
-    assert "reasoning_effort" not in body
+    assert body["reasoning_effort"] == "medium"
 
 
 @pytest.mark.parametrize("junk", ["sudo", "HIGH ", "maximum", "1"])
 def test_a_value_that_is_not_an_effort_is_not_sent(client: TestClient, db, registered, junk):
-    """Never trusted from the row: it could predate a change to the list."""
+    """Never trusted from the row: it could predate a change to the list. It
+    reads as the start level instead."""
     chat = _chat(db, junk)
 
-    assert "reasoning_effort" not in chat_service.build_request(db, chat)
+    body = chat_service.build_request(db, chat)
+    assert body["reasoning_effort"] == "medium"
+    assert junk not in str(body.get("chat_template_kwargs"))
 
 
 def test_existing_chat_template_kwargs_are_kept(client: TestClient, db, registered):
@@ -158,12 +172,14 @@ def test_a_new_chat_starts_from_the_models_defaults(client: TestClient, db, regi
     assert chat.params_json["reasoning_effort"] == "high"
 
 
-def test_a_model_with_no_defaults_starts_a_plain_chat(client: TestClient, db, registered):
+def test_a_model_with_no_defaults_starts_at_its_start_level(client: TestClient, db, registered):
+    """Written onto the row (spec 3.2.0's start rule), so the chat keeps what it
+    was shown when the model's own default changes later."""
     _model(db)
 
     client.post("/api/chats/start", data={"content": "hello", "model_id": "m"})
 
-    assert db.scalars(select(Chat)).one().params_json == {}
+    assert db.scalars(select(Chat)).one().params_json == {"reasoning_effort": "medium"}
 
 
 # --- Choosable before the first prompt ---------------------------------------
@@ -243,12 +259,12 @@ def test_the_resolver_is_what_the_request_carries(client: TestClient, db, regist
     assert chat_service.build_request(db, chat)["reasoning_effort"] == "high"
 
 
-def test_a_cleared_effort_is_not_resurrected_by_the_models_default(
+def test_a_cleared_effort_reads_as_the_models_start_level(
     client: TestClient, db, registered
 ):
-    """What the no-fallback decision buys. If `build_request` fell back to the
-    model, `update_chat` storing None for a cleared effort would be undone
-    underneath it and the off option would silently do nothing."""
+    """Since spec 3.2.0 a cleared level is not "nothing": it reads as the
+    model's start level, here the administrator's `high`. Switching thinking
+    off is a level of its own (`off`, only with the thinking switch)."""
     model = _model(db)
     model.params_json = {"reasoning_effort": "high"}
     user = db.scalars(select(User)).first()
@@ -262,19 +278,15 @@ def test_a_cleared_effort_is_not_resurrected_by_the_models_default(
     db.commit()
 
     assert chat_service.resolved_effort(chat) == ""
-    body = chat_service.build_request(db, chat)
-    assert "reasoning_effort" not in body
-    assert "chat_template_kwargs" not in body
+    assert chat_service.build_request(db, chat)["reasoning_effort"] == "high"
 
 
-def test_choosing_off_before_the_chat_exists_sends_nothing(
+def test_off_before_the_chat_exists_on_a_model_without_the_switch(
     client: TestClient, db, registered
 ):
-    """The one that would otherwise ship broken. `start_chat` declares
-    `Form("")`, so an absent field and an empty one are the same thing there --
-    with `value=""` on the off option the reader picks off, the value falls out
-    of EFFORTS, and the model's default seeded onto the row stays. They get
-    "high"."""
+    """`off` is stored as chosen and read with the model: without the thinking
+    switch it is not a level, so the chat is at the start level -- never a
+    request that sends nothing and lets the server think at its default."""
     model = _model(db)
     model.params_json = {"reasoning_effort": "high"}
     db.commit()
@@ -285,16 +297,21 @@ def test_choosing_off_before_the_chat_exists_sends_nothing(
     )
     chat = db.scalars(select(Chat)).first()
 
-    assert not (chat.params_json or {}).get("reasoning_effort")
-    assert "reasoning_effort" not in chat_service.build_request(db, chat)
+    assert chat.params_json["reasoning_effort"] == "off"
+    body = chat_service.build_request(db, chat)
+    assert body["reasoning_effort"] == "high"
+    assert "enable_thinking" not in body["chat_template_kwargs"]
 
 
-def test_patching_off_clears_it(client: TestClient, db, registered):
+def test_patching_off_stores_off(client: TestClient, db, registered):
     chat = _chat(db, "high")
     client.patch(f"/api/chats/{chat.id}", data={"reasoning_effort": "off"})
 
     db.expire_all()
-    assert chat_service.resolved_effort(db.get(Chat, chat.id)) == ""
+    chat = db.get(Chat, chat.id)
+    assert chat_service.resolved_effort(chat) == "off"
+    # No thinking switch on this model: off reads as its start level.
+    assert chat_service.chat_level(db, chat) == "medium"
 
 
 def test_switching_model_seeds_an_effort_that_was_never_chosen(
@@ -336,11 +353,11 @@ def test_switching_model_does_not_overwrite_a_chosen_effort(
     assert chat_service.resolved_effort(db.get(Chat, chat.id)) == "low"
 
 
-def test_switching_model_does_not_resurrect_a_cleared_effort(
+def test_switching_model_reseeds_a_level_the_new_model_does_not_offer(
     client: TestClient, db, registered
 ):
-    """`None` means somebody cleared it deliberately. Only an ABSENT key is
-    seeded, or "off" would silently undo itself on the next model change."""
+    """`off` on a model without the thinking switch is no level of the next
+    one either: the switch seeds the new model's start level."""
     chat = _chat(db, "high")
     client.patch(f"/api/chats/{chat.id}", data={"reasoning_effort": "off"})
     second = Model(
@@ -355,17 +372,18 @@ def test_switching_model_does_not_resurrect_a_cleared_effort(
     client.patch(f"/api/chats/{chat.id}", data={"model_id": "m2"})
 
     db.expire_all()
-    assert chat_service.resolved_effort(db.get(Chat, chat.id)) == ""
+    assert chat_service.resolved_effort(db.get(Chat, chat.id)) == "high"
 
 
 def test_the_picker_never_says_default(client: TestClient, db, registered):
-    """The one markup assertion. It named no level and was true of nothing."""
+    """The one markup assertion. It named no level and was true of nothing.
+    Without the thinking switch there is no off among the levels either."""
     chat = _chat(db, "medium")
-    html = client.get(f"/chat/{chat.id}").text
+    html = client.get(f"/chat/{chat.id}").text.replace("\n", "").replace("  ", "")
 
     assert "Effort: default" not in html
-    assert '<option value="off" >off</option>' in html.replace("\n", "").replace("  ", "")
-    assert '<option value="medium" selected>' in html.replace("\n", "").replace("  ", "")
+    assert '<option value="off"' not in html
+    assert '<option value="medium" selected>' in html
 
 
 # --- A vocabulary that is not the same for every model -----------------------

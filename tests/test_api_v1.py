@@ -109,7 +109,8 @@ def test_models_lists_the_spec_metadata(client, db, registered):
     assert entry["efforts"] == ["low", "high"]
     assert entry["tools"] is True and entry["vision"] is False
     assert entry["notes"] == "Good at code."
-    assert entry["capacity"] == {"group": "local", "single_session": True}
+    # Spec 3.2.0: `parallel`, and `single_session` beside it at 1 for older clients.
+    assert entry["capacity"] == {"group": "local", "parallel": 1, "single_session": True}
 
 
 def test_the_same_id_on_two_connections_is_named_by_both(client, db, registered):

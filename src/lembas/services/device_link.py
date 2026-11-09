@@ -2009,7 +2009,7 @@ def chat_config(db, chat) -> tuple[str, str]:
     if getattr(chat, "device_model", ""):
         # Switched on the device to a model of its own: no model is
         # sent, or the next prompt would switch it back.
-        return "", chat_service.chat_level(db, chat)
+        return "", chat_service.resolved_effort(chat) or chat_service.chat_level(db, chat)
     owner = db.get(User, chat.user_id)
     served = next(
         (
@@ -2020,10 +2020,11 @@ def chat_config(db, chat) -> tuple[str, str]:
         ),
         chat.model_id or "",
     )
-    # The level in force (harness spec 3.2.0 levels): `off`, `default` or an
-    # effort -- a level the device's model does not offer it reads as that
-    # model's start level, and says which it used.
-    return served, chat_service.chat_level(db, chat)
+    # The chat's level word as stored (harness spec 3.2.0 levels: `off`,
+    # `default` or an effort): the device reads it with its model's metadata --
+    # a level that model does not offer as its start level -- and says which
+    # it used (acp.md). Nothing stored: the level in force here.
+    return served, chat_service.resolved_effort(chat) or chat_service.chat_level(db, chat)
 
 
 def _apply_announced(db, link: Link, chat, info: dict[str, Any]) -> None:

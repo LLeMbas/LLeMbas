@@ -866,10 +866,13 @@ def level_fields(
 
 
 def model_efforts(model) -> tuple[str, ...]:
-    """The efforts a model row takes: its own list (or the common three) on a
-    model an administrator marked as reasoning, none on any other."""
+    """The efforts a model row takes: its own list where one is set (an
+    administrator's or what `detect-efforts` found), else the common three on a
+    model marked as reasoning, else none."""
     if model is None:
         return DEFAULT_EFFORTS
+    if getattr(model, "reasoning_efforts", None):
+        return efforts_for(model)
     if not (getattr(model, "capabilities_json", None) or {}).get("reasoning"):
         return ()
     return efforts_for(model)

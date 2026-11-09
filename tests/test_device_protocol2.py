@@ -693,7 +693,8 @@ def test_a_model_switched_on_the_device_follows_into_the_chat(
     db.expire_all()
     chat = db.get(Chat, chat_id)
     assert chat.device_model == "local/qwen3" and chat.model_id == "m"
-    assert "reasoning_effort" not in chat.params_json
+    # `off` is a level since spec 3.2.0, stored as said.
+    assert chat.params_json.get("reasoning_effort") == "off"
     assert device_link.chat_config(db, chat) == ("", "off")
     badge = client.get(f"/api/chats/{chat_id}/device-model").text
     assert "on the device: local/qwen3" in badge and "hidden" not in badge.split(">")[0]
