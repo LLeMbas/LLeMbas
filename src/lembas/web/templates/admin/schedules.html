@@ -95,7 +95,7 @@
 
   <section class="card">
     <h2 class="card__title">{{ t("Models for scheduled work") }}</h2>
-    <p class="card__lede">{{ t("A run takes its schedule's own model when it is free, else the first free one of these, in this order. A model is free when it is hosted, when it has a slot nobody is using, or -- on a server that holds one model at a time -- when nothing is being answered there. When none is free, the run waits and tries again. People can untick any of these for their own runs.") }}</p>
+    <p class="card__lede">{{ t("A run takes its schedule's own model when it is free, else the first free one of these, in this order. A model is free when it is hosted, when it has a slot nobody is using, or — on a server that holds one model at a time — when nothing is being answered there. When none is free, the run waits and tries again. People can untick any of these for their own runs.") }}</p>
     {% if model_rows %}
     <ul class="schedule-models">
       {% for row in model_rows %}

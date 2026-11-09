@@ -276,6 +276,9 @@ SHOOT_CHAT = "5" * 32
 # `/chat/<SHOOT_DEVICE_CHAT>` and shoot the jobs strip and the helper panel.
 SHOOT_DEVICE_CHAT = "6" * 32
 
+# A schedule with a history, so `/scheduled/<SHOOT_SCHEDULE>` has every kind of run.
+SHOOT_SCHEDULE = "7" * 32
+
 
 def build_client():
     import lembas.config as config_mod
@@ -622,9 +625,18 @@ def _seed_devices_reports_schedules() -> None:
     shot empty -- the screens nobody measured."""
     from datetime import UTC, datetime, timedelta
 
-    from lembas.db.models import TOKEN_DEVICE, ApiToken, Chat, Connection, Schedule, User
+    from lembas.db.models import (
+        TOKEN_DEVICE,
+        ApiToken,
+        Chat,
+        Connection,
+        Schedule,
+        ScheduleRun,
+        User,
+    )
     from lembas.db.session import session_scope
-    from lembas.services import device_link, fs
+    from lembas.services import device_link, fs, settings_store
+    from lembas.services.schedule import rule as rule_service
 
     with session_scope() as db:
         owner = db.query(User).first()
@@ -669,12 +681,45 @@ def _seed_devices_reports_schedules() -> None:
             b"failing.*\n\nThree pull requests merged.\n",
         )
         db.add(Schedule(
+            id=SHOOT_SCHEDULE,
             user_id=owner.id, title="Weekly digest", data_group_id="default",
             request="Every Monday at nine, summarise last week's work.",
             instruction="Summarise last week's work.", model_id="gemma4-moe",
-            rule_json={"at": {"times": ["09:00"]}},
-            next_fire_at=datetime.now(UTC) + timedelta(days=2),
+            rule_json={"at": {"weekdays": [0], "times": ["09:00"]}},
+            next_fire_at=rule_service.upcoming(
+                {"at": {"weekdays": [0], "times": ["09:00"]}}, now=datetime.now(UTC), zone=UTC
+            )[0],
         ))
+        db.add(Schedule(
+            user_id=owner.id, title="Check the build and say only when something broke",
+            data_group_id="default", request="Every hour, check the build.",
+            instruction="Check the build.", enabled=False,
+            rule_json={"every": {"minutes": 60}, "start": "2026-01-05T08:00:00Z"},
+        ))
+        # `/scheduled/<SHOOT_SCHEDULE>`: one of each thing a run's history says.
+        now = datetime.now(UTC)
+        for days, status, timing, extra in (
+            (1, "waiting", "on_time", {"retry_at": now + timedelta(minutes=10),
+                                       "model_label": "gemma4-moe"}),
+            (7, "ok", "on_time", {"model_label": "qwen3-coder", "model_reason": "switched",
+                                  "switched_from": "gemma4-moe", "chat_id": SHOOT_CHAT,
+                                  "preview": "Three pull requests merged, one release cut, "
+                                             "nothing failing. The loader refactor is "
+                                             "halfway: two of its five files are done."}),
+            (14, "silent", "late", {"model_label": "gemma4-moe", "chat_id": SHOOT_CHAT}),
+            (21, "failed", "catch_up", {"missed": 2, "model_label": "gemma4-moe",
+                                        "error": "The model's server was not reached."}),
+            (28, "skipped", "on_time", {"error": "No scheduling model was free."}),
+        ):
+            db.add(ScheduleRun(
+                schedule_id=SHOOT_SCHEDULE, user_id=owner.id, status=status, timing=timing,
+                due_at=now - timedelta(days=days), started_at=now - timedelta(days=days),
+                created_at=now - timedelta(days=days), **extra,
+            ))
+        settings_store.update(
+            db, {"enabled": True, "models": ["gemma4-moe", "qwen3-coder"]},
+            key=settings_store.SCHEDULES,
+        )
 
 
 def rewrite(html: str, client, assets: Path) -> str:

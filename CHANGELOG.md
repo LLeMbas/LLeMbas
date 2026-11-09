@@ -5,6 +5,44 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
+### Added
+
+- **Scheduled work keeps a history.** Every run is recorded: when it was due and when it ran (on
+  time, late or caught up, and how many runs were missed), whether it found something, found nothing
+  new, waited, was skipped or failed and why, which model ran it and why that one, what it cost, and
+  where its result is. Records are kept 90 days by default (Admin → Scheduling).
+- **Models for scheduled work.** Admin → Scheduling lists the chat models to tick and order; a
+  person can narrow that list under Settings → Scheduled. A run takes its schedule's own model when
+  it is free, else the first free one in order: a hosted model is free, a model with a request slot
+  nobody is using is free, and a model on a server that holds one model at a time is free only when
+  nothing is being answered there -- a run never pushes out a model that is answering someone. When
+  none is free the run waits, tries again at 2, 5, 10 and 15 minutes and then every 15, and is
+  skipped once it is too late to be worth running.
+- **Each run in a fresh chat, or one chat that keeps growing**, per schedule. A fresh run is told
+  what the previous run found.
+- **Notifications when it matters.** Per schedule: every run, when it matters (the default for
+  anything that repeats), or never. A run with nothing new answers so and is recorded without a
+  notification. Failures are told the first time, then at most once every six hours for the same
+  error, and after three in a row the notification asks whether to pause it, with a Pause action.
+  The same decision drives the browser's notifications and the phone's (UnifiedPush); neither
+  carries anything the run wrote, and tapping one opens that run.
+- **Missed runs.** A run late by up to half its period (between 2 minutes and 2 hours, or the
+  schedule's own setting) still runs; past that, one catch-up run or none, per schedule.
+- **Safe retries.** A run whose model's server was never reached is tried again at 5, 15 and 30
+  minutes; a rate limit holds until the time it names; a real failure is not retried. A run that
+  writes nothing for 10 minutes is stopped, instead of being waited on for an hour.
+- **Run settings per schedule**: the model, thinking, team size where the model offers it, and the
+  tools a run may use (a safe set by default). A run is never offered the scheduling tools.
+- **The place in the month**: the second Monday, the last Friday, the last day of the month.
+- **The next five runs** are shown in every schedule form before saving, with the rule in words.
+- **The Scheduled list** shows each schedule's next run and last status, with a switch to pause and
+  resume it. **A schedule's page** shows when it runs, how, and its history, with Run now and Edit.
+- **The model's scheduling tools** take the notify setting, fresh or continuing and the model, and
+  `schedule_list` shows each schedule's last status and next runs.
+- **`/api/v2`**: `/schedules` (list, create, get, change, delete, pause, resume, run), `compile`
+  (words to a rule and its next runs), `preview`, `runs` (paged) and one run, `/schedules/models`
+  (read and narrow), and a `schedules` event on `GET /events`.
+
 ### Fixed
 
 - **Choosing a fallback model adds it.** The model page's fallback list needed a separate Add button

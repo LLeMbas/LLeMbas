@@ -988,7 +988,8 @@ a.tabs__tab { text-decoration: none; }
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--w-field)), 1fr));
   column-gap: var(--sp-4);
-  row-gap: var(--sp-2);
+  row-gap: var(--sp-3);
+  min-width: 0;
 }
 .schedule-settings > legend,
 .schedule-tools > legend { padding: 0 var(--sp-2); }
