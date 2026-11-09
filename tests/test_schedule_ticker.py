@@ -21,6 +21,7 @@ from lembas.db.models import (
     Chat,
     Message,
     Schedule,
+    ScheduleRun,
     User,
 )
 from lembas.services import settings_store
@@ -262,9 +263,13 @@ async def test_a_firing_writes_a_machine_turn_and_starts_a_reply(
     assert turns[0].machine is True
     assert "started by a schedule" in turns[0].content
     assert "Do the thing." in turns[0].content
-    # And a reply was opened for it.
+    # And a reply was opened for it -- and followed to its end: with no model
+    # configured it fails, and the run says so.
     assert turns[-1].role == ROLE_ASSISTANT
-    assert turns[-1].complete is False
+    run = db.scalars(select(ScheduleRun).where(ScheduleRun.schedule_id == schedule.id)).one()
+    assert run.message_id == turns[-1].id
+    assert run.status == "failed"
+    assert run.error_class == "model"
 
 
 @pytest.mark.anyio
@@ -272,8 +277,9 @@ async def test_a_deleted_chat_switches_the_schedule_off(
     client: TestClient, db, registered, make_chat
 ):
     """Rather than firing into nothing on every tick from now on — which is a
-    schedule that looks alive and produces nothing."""
-    schedule = _schedule(db, chat_id="nosuchchat")
+    schedule that looks alive and produces nothing. (A `continue` schedule: a
+    fresh one makes each run a chat of its own.)"""
+    schedule = _schedule(db, chat_id="nosuchchat", mode="continue")
 
     await runner.fire(schedule.id)
 
@@ -296,7 +302,7 @@ async def test_a_backlog_skips_rather_than_queues_for_ever(
             Message(chat_id=chat.id, role="user", content=f"waiting {index}", queued=True)
         )
     db.commit()
-    schedule = _schedule(db, chat_id=chat_id)
+    schedule = _schedule(db, chat_id=chat_id, mode="continue")
 
     await runner.fire(schedule.id)
 

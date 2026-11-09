@@ -68,6 +68,20 @@ router = APIRouter(prefix="/v1", tags=["openai"])
 
 # Replies in flight through this API, per account, for `concurrent_replies`.
 _IN_FLIGHT: dict[str, int] = {}
+# The same, per model row: whether a model is answering somebody through this
+# door, which a scheduled run reads before taking it (`schedule/models.py`).
+_IN_FLIGHT_MODELS: dict[str, int] = {}
+
+
+def in_flight_on(model_row_id: str) -> int:
+    """Requests this API is relaying to one model right now."""
+    return _IN_FLIGHT_MODELS.get(model_row_id, 0)
+
+
+def _hold(user_id: str, model_row_id: str) -> None:
+    _IN_FLIGHT[user_id] = _IN_FLIGHT.get(user_id, 0) + 1
+    if model_row_id:
+        _IN_FLIGHT_MODELS[model_row_id] = _IN_FLIGHT_MODELS.get(model_row_id, 0) + 1
 
 
 @dataclass(frozen=True)
@@ -410,7 +424,7 @@ async def chat_completions(request: Request, db: Db, caller: ModelsCaller):
     user_id = caller.user.id
     streaming = bool(body.get("stream"))
 
-    _IN_FLIGHT[user_id] = _IN_FLIGHT.get(user_id, 0) + 1
+    _hold(user_id, model_row_id)
     if endpoint.is_anthropic:
         return await _anthropic(served, endpoint, upstream, streaming, user_id, model_row_id,
                                 token_id)
@@ -437,7 +451,7 @@ async def chat_completions(request: Request, db: Db, caller: ModelsCaller):
                 502, "The model's server answered with something that is not JSON."
             )
         finally:
-            _IN_FLIGHT[user_id] = max(0, _IN_FLIGHT.get(user_id, 1) - 1)
+            _release(user_id, model_row_id)
         if isinstance(data, dict):
             await asyncio.to_thread(
                 _record, user_id, data.get("usage"), 1, model_row_id, token_id
@@ -463,14 +477,14 @@ async def chat_completions(request: Request, db: Db, caller: ModelsCaller):
         )
     except httpx.RequestError as exc:
         await client.aclose()
-        _IN_FLIGHT[user_id] = max(0, _IN_FLIGHT.get(user_id, 1) - 1)
+        _release(user_id, model_row_id)
         return error_response(
             502, f"The model's server could not be reached: {exc}", "upstream_error"
         )
     if upstream_response.status_code >= 400:
         await upstream_response.aread()
         await client.aclose()
-        _IN_FLIGHT[user_id] = max(0, _IN_FLIGHT.get(user_id, 1) - 1)
+        _release(user_id, model_row_id)
         try:
             upstream_response.raise_for_status()
         except httpx.HTTPStatusError as exc:
@@ -478,7 +492,9 @@ async def chat_completions(request: Request, db: Db, caller: ModelsCaller):
                 upstream_response.status_code, describe_http_error(exc), "upstream_error"
             )
 
-    cleanup = _once(upstream_response.aclose, client.aclose, partial(_release, user_id))
+    cleanup = _once(
+        upstream_response.aclose, client.aclose, partial(_release, user_id, model_row_id)
+    )
 
     async def relay() -> AsyncIterator[bytes]:
         usage: dict[str, Any] | None = None
@@ -516,8 +532,10 @@ async def chat_completions(request: Request, db: Db, caller: ModelsCaller):
     return _Relay(relay(), cleanup)
 
 
-def _release(user_id: str) -> None:
+def _release(user_id: str, model_row_id: str = "") -> None:
     _IN_FLIGHT[user_id] = max(0, _IN_FLIGHT.get(user_id, 1) - 1)
+    if model_row_id:
+        _IN_FLIGHT_MODELS[model_row_id] = max(0, _IN_FLIGHT_MODELS.get(model_row_id, 1) - 1)
 
 
 def _once(*steps: Callable[[], Awaitable[None] | None]) -> Callable[[], Awaitable[None]]:
@@ -590,7 +608,7 @@ async def _anthropic(
         except LLMError as exc:
             return error_response(exc.status_code or 502, exc.message, "upstream_error")
         finally:
-            _release(user_id)
+            _release(user_id, model_row_id)
         await asyncio.to_thread(_record, user_id, data.get("usage"), 1, model_row_id, token_id)
         data["model"] = served.id
         return JSONResponse(data)
@@ -601,10 +619,10 @@ async def _anthropic(
     except StopAsyncIteration:
         first = None
     except LLMError as exc:
-        _release(user_id)
+        _release(user_id, model_row_id)
         return error_response(exc.status_code or 502, exc.message, "upstream_error")
 
-    cleanup = _once(stream.aclose, partial(_release, user_id))
+    cleanup = _once(stream.aclose, partial(_release, user_id, model_row_id))
 
     async def relay() -> AsyncIterator[bytes]:
         usage: dict[str, Any] | None = None

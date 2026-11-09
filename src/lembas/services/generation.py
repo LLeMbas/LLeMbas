@@ -28,7 +28,15 @@ from typing import Any
 
 from sqlalchemy import select
 
-from lembas.db.models import KIND_AGENT, ROLE_ASSISTANT, ROLE_USER, Chat, Message, User
+from lembas.db.models import (
+    KIND_AGENT,
+    KIND_TASK,
+    ROLE_ASSISTANT,
+    ROLE_USER,
+    Chat,
+    Message,
+    User,
+)
 from lembas.db.session import session_scope
 from lembas.services import chat as chat_service
 from lembas.services import compaction as compaction_service
@@ -179,6 +187,12 @@ class Generation:
     elapsed_ms: int = 0
 
     error: str = ""
+    # When `error` came from the model's server: its HTTP status (None for one
+    # that was never reached) and the `Retry-After` it sent. Read by a
+    # scheduled run (`schedule/runs.py`) and nothing else.
+    error_status: int | None = None
+    error_retry_after: float | None = None
+    error_unreachable: bool = False
     stopped: bool = False
     done: bool = False
 
@@ -1405,6 +1419,12 @@ async def _run(generation: Generation) -> None:
 
     except LLMError as exc:
         generation.error = exc.message
+        # What a scheduled run reads to decide whether trying again is safe
+        # (`schedule/runs.py`): the status (None: the server was not reached)
+        # and how long it asked us to wait.
+        generation.error_status = exc.status_code
+        generation.error_retry_after = exc.retry_after
+        generation.error_unreachable = bool(getattr(exc, "unreachable", False))
         log.info("generation failed for chat %s: %s", generation.chat_id, exc.message)
     except asyncio.CancelledError:
         # Shutdown, not a reader navigating away -- that no longer reaches here.
@@ -2665,14 +2685,17 @@ def _persist(generation: Generation, title: str, elapsed: float) -> None:
                 # page, and this is exactly the case where there is not one:
                 # `followers == 0` says so. Fire and forget -- the reply is
                 # finished and nothing about it should wait on a push service.
-                push_service.announce_later(
-                    chat.user_id,
-                    title=chat.title or i18n.t("New reply"),
-                    body=i18n.t("Your reply is ready."),
-                    url=f"/chat/{chat.id}",
-                    kind="chat",
-                    extra={"chat_id": chat.id, "message_id": message.id},
-                )
+                # Not a scheduled run's: its schedule decides whether it is
+                # news (`schedule/notify.py`), and says which run it was.
+                if chat.kind != KIND_TASK:
+                    push_service.announce_later(
+                        chat.user_id,
+                        title=chat.title or i18n.t("New reply"),
+                        body=i18n.t("Your reply is ready."),
+                        url=f"/chat/{chat.id}",
+                        kind="chat",
+                        extra={"chat_id": chat.id, "message_id": message.id},
+                    )
 
             db.commit()
             log.debug(

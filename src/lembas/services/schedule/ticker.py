@@ -40,10 +40,10 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 
-from lembas.db.models import Schedule, User
+from lembas.db.models import RUN_MISSED, RUN_WAITING, Schedule, ScheduleRun, User
 from lembas.db.session import session_scope
 from lembas.services import settings_store
-from lembas.services.schedule import clock, runner
+from lembas.services.schedule import clock, runner, runs
 from lembas.services.schedule import rule as rule_service
 
 log = logging.getLogger(__name__)
@@ -104,15 +104,55 @@ def claim(schedule: Schedule, *, now: datetime, zone) -> tuple[bool, datetime | 
     return fire_now, following
 
 
-async def sweep(*, now: datetime | None = None) -> int:
-    """One pass. Returns how many schedules were fired.
+def _waiting(now: datetime):
+    """Runs waiting for a free model or a retry whose time has come."""
+    return (
+        select(ScheduleRun)
+        .where(
+            ScheduleRun.status == RUN_WAITING,
+            ScheduleRun.retry_at.is_not(None),
+            ScheduleRun.retry_at <= now,
+        )
+        .order_by(ScheduleRun.retry_at)
+    )
 
-    Claims every due row and commits, then starts the firings — in that order,
-    and with the commit in between, which is the property `test_schedule_ticker`
-    checks by making a firing raise.
+
+def _open_run(db, schedule: Schedule, owner: User, *, due_at: datetime, fired_before: int,
+              now: datetime) -> ScheduleRun | None:
+    """The run row for a schedule that just came due: which slot, how late, what
+    was missed (`runs.slot`). A slot past its window that the schedule does
+    not catch up is recorded as `missed` and nothing runs (None)."""
+    zone = clock.zone_for(owner)
+    found = runs.slot(schedule, due=due_at, now=now, zone=zone, fired=fired_before)
+    run = ScheduleRun(
+        schedule_id=schedule.id,
+        user_id=schedule.user_id,
+        due_at=found.slot_at,
+        timing=found.timing,
+        missed=found.missed,
+        status="running",
+        deadline=runs.deadline_for(schedule, slot_at=found.slot_at, now=now, zone=zone),
+    )
+    if not found.run:
+        run.status = RUN_MISSED
+        run.finished_at = now
+        run.error_class = "missed"
+        run.error = "Its time passed while nothing was running, and it does not catch up."
+    db.add(run)
+    db.flush()
+    return run if found.run else None
+
+
+async def sweep(*, now: datetime | None = None) -> int:
+    """One pass. Returns how many runs were started (or taken up again).
+
+    Claims every due row, opens its run row and commits, then starts the
+    firings — in that order, and with the commit in between, which is the
+    property `test_schedule_ticker` checks by making a firing raise. Runs
+    waiting for a free model or a retry whose time has come go too.
     """
     now = now or datetime.now(tz=UTC)
-    to_fire: list[tuple[str, datetime]] = []
+    to_fire: list[tuple[str, datetime, str | None]] = []
 
     async with _SWEEPING:
         with session_scope() as db:
@@ -132,14 +172,25 @@ async def sweep(*, now: datetime | None = None) -> int:
                         schedule.enabled = False
                         continue
                     due_at = clock.as_utc(schedule.next_fire_at) if schedule.next_fire_at else now
+                    fired_before = schedule.fired_count or 0
                     fire_now, _ = claim(schedule, now=now, zone=clock.zone_for(owner))
                     if fire_now:
-                        to_fire.append((schedule.id, due_at))
+                        run = _open_run(
+                            db, schedule, owner, due_at=due_at, fired_before=fired_before,
+                            now=now,
+                        )
+                        if run is not None:
+                            to_fire.append((schedule.id, due_at, run.id))
                 except Exception:  # one bad row must not stop the sweep
                     log.exception("could not claim schedule %s", schedule.id)
                     with contextlib.suppress(Exception):
                         schedule.enabled = False
                         schedule.last_error = "This schedule could not be read, so it was stopped."
+            for run in db.scalars(_waiting(now)):
+                # Pushed on, so the next sweep does not take it up again while
+                # this attempt is under way; the attempt sets it again.
+                run.retry_at = None
+                to_fire.append((run.schedule_id, clock.as_utc(run.due_at or now), run.id))
             # Committed before a single firing starts. This is the claim.
             db.commit()
 
@@ -148,12 +199,12 @@ async def sweep(*, now: datetime | None = None) -> int:
 
     semaphore = asyncio.Semaphore(max(1, limit))
 
-    async def _guarded(schedule_id: str, due_at: datetime) -> None:
+    async def _guarded(schedule_id: str, due_at: datetime, run_id: str | None) -> None:
         async with semaphore:
-            await runner.fire(schedule_id, due_at=due_at)
+            await runner.fire(schedule_id, due_at=due_at, run_id=run_id)
 
-    for schedule_id, due_at in to_fire:
-        task = asyncio.create_task(_guarded(schedule_id, due_at))
+    for schedule_id, due_at, run_id in to_fire:
+        task = asyncio.create_task(_guarded(schedule_id, due_at, run_id))
         _FIRING.add(task)
         task.add_done_callback(_FIRING.discard)
     return len(to_fire)
@@ -200,6 +251,8 @@ def tidy(*, force: bool = False) -> None:
             from lembas.services import blobs
 
             blobs.sweep(db)
+            # Schedule runs past the history's retention.
+            runs.sweep(db)
     except Exception:  # housekeeping must never stop the ticker
         log.exception("the ticker's housekeeping raised")
 
@@ -311,9 +364,10 @@ async def shutdown() -> None:
 def release_claims() -> int:
     """Clear `claimed_at` on rows whose firing did not survive the last run.
 
-    A restart abandons a reply in flight -- that is already true of every
-    generation here -- so a schedule whose firing was interrupted would
-    otherwise carry a claim stamp for ever and read as permanently running.
+    A restart abandons a reply in flight -- and `generation.resume_interrupted`
+    takes it up again, which `runner.resume_following` follows -- so a schedule
+    whose firing was interrupted would otherwise carry a claim stamp for ever
+    and read as permanently running.
     """
     with session_scope() as db:
         stuck = list(db.scalars(select(Schedule).where(Schedule.claimed_at.is_not(None))))

@@ -44,7 +44,9 @@ def lock_for(chat_id: str) -> asyncio.Lock:
     return existing
 
 
-async def wake_chat(chat_id: str, content: str, *, model_id: str = "") -> str:
+async def wake_chat(
+    chat_id: str, content: str, *, model_id: str = "", connection_id: str | None = None
+) -> str:
     """Put a turn into a chat and get it answered. Returns the assistant message
     id if a reply was started, or "" if the turn was queued for one already
     running.
@@ -54,6 +56,7 @@ async def wake_chat(chat_id: str, content: str, *, model_id: str = "") -> str:
 
     `model_id` overrides the chat's own, which is what lets a schedule name the
     model it wants without editing the chat. Empty means the chat decides.
+    `connection_id` names which connection's, when the same id is served by two.
     """
     from lembas.db.models import ROLE_ASSISTANT, ROLE_USER, Chat
     from lembas.db.session import session_scope
@@ -97,6 +100,9 @@ async def wake_chat(chat_id: str, content: str, *, model_id: str = "") -> str:
                         complete_=False,
                         model_id=model_id or chat.model_id,
                     )
+                    if model_id and connection_id:
+                        assistant.connection_id = connection_id
+                        db.commit()
                     assistant_id = assistant.id
         except Exception:  # a failed wake must not kill its caller
             log.exception("could not wake chat %s", chat_id)

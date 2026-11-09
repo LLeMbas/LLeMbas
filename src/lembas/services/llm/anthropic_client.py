@@ -584,7 +584,13 @@ def _error_from(response: httpx.Response) -> LLMError:
         body: Any = response.json()
     except ValueError:
         body = response.text
-    return LLMError(describe_error(response.status_code, body), status_code=response.status_code)
+    from lembas.services.llm.openai_client import retry_after_of
+
+    return LLMError(
+        describe_error(response.status_code, body),
+        status_code=response.status_code,
+        retry_after=retry_after_of(response),
+    )
 
 
 # --- The stream --------------------------------------------------------------

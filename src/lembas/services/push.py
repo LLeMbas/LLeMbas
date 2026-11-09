@@ -100,6 +100,11 @@ RECORD_SIZE = 4096
 # and there is nothing here worth more than a title and a line.
 MAX_PAYLOAD_BYTES = 3000
 
+# What a payload may carry besides ids: what kind of card is waiting, a run's
+# status, whether the app keeps the text off the lock screen, the actions it may
+# offer and the label of one. Never content.
+EXTRA_KEYS = ("id", "ask", "status", "visibility", "actions", "pause_label")
+
 SETTING_PRIVATE = "push_private_key"
 SETTING_PUBLIC = "push_public_key"
 
@@ -337,8 +342,12 @@ async def announce(
     url: str = "",
     kind: str = "",
     extra: dict[str, Any] | None = None,
+    plain_body: bool = False,
 ) -> int:
     """Tell every device this person has registered. Returns how many took it.
+
+    `plain_body`: the caller's `body` is one of our own fixed sentences ("A
+    scheduled task failed."), never anybody's content, and is sent as it is.
 
     Called at the moment something arrives rather than from the poll, because
     the whole point is the case where no page is open to poll. A device with a
@@ -365,11 +374,11 @@ async def announce(
     from lembas.services import branding
     from lembas.web.i18n import t
 
-    del title, body
+    del title
     payload = {
-        **{k: v for k, v in (extra or {}).items() if k.endswith("_id") or k in ("id", "ask")},
+        **{k: v for k, v in (extra or {}).items() if k.endswith("_id") or k in EXTRA_KEYS},
         "title": branding.for_db(db).name,
-        "body": t("Something new is waiting for you."),
+        "body": body if plain_body else t("Something new is waiting for you."),
         "url": url,
         "kind": kind,
     }

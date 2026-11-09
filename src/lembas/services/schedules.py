@@ -14,13 +14,18 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DBSession
 
 from lembas.db.models import (
+    CATCH_UPS,
     KIND_TASK,
+    MODE_FRESH,
+    MODES,
+    NOTIFY_POLICIES,
     ORIGIN_USER,
     ORIGINS,
     TARGET_CHAT,
     TARGETS,
     Chat,
     Schedule,
+    ScheduleRun,
     User,
 )
 from lembas.services import settings_store
@@ -66,8 +71,11 @@ def get(db: DBSession, schedule_id: str, user: User | None) -> Schedule | None:
 
 
 def for_chat(db: DBSession, chat: Chat) -> Schedule | None:
-    """The schedule a task chat belongs to, if any."""
-    return db.scalars(select(Schedule).where(Schedule.chat_id == chat.id)).first()
+    """The schedule a task chat belongs to, if any: its current chat, or the
+    chat of one of its earlier fresh runs."""
+    from lembas.services.schedule import runs
+
+    return runs.schedule_for_chat(db, chat)
 
 
 def group_for(db: DBSession, owner: User, model_id: str) -> str:
@@ -95,6 +103,71 @@ def count_for(db: DBSession, user: User) -> int:
     )
 
 
+MAX_AGENTS = 8
+MAX_GRACE_MINUTES = 7 * 24 * 60
+# What `settings` accepts, and nothing else.
+SETTING_KEYS = (
+    "mode", "notify", "catch_up", "grace_minutes", "effort", "agents", "tools",
+)
+
+
+def apply_settings(schedule: Schedule, settings: dict | None) -> None:
+    """A schedule's run settings from a form, the API or a model's tool call.
+
+    Total like `rule.validate`: what it does not recognise it leaves alone, and
+    every value is clamped, because the tool hands it model output. A key that
+    is present and empty clears (back to the default)."""
+    from lembas.services.schedule import runs
+
+    settings = settings or {}
+    if "mode" in settings:
+        value = str(settings.get("mode") or "")
+        schedule.mode = value if value in MODES else MODE_FRESH
+    if "notify" in settings:
+        value = str(settings.get("notify") or "")
+        schedule.notify = value if value in NOTIFY_POLICIES else ""
+    if "catch_up" in settings:
+        value = str(settings.get("catch_up") or "")
+        schedule.catch_up = value if value in CATCH_UPS else CATCH_UPS[0]
+    if "grace_minutes" in settings:
+        try:
+            minutes = int(settings.get("grace_minutes") or 0)
+        except (TypeError, ValueError):
+            minutes = 0
+        schedule.grace_minutes = min(minutes, MAX_GRACE_MINUTES) if minutes > 0 else None
+    if "effort" in settings:
+        schedule.effort = str(settings.get("effort") or "")[:16]
+    if "agents" in settings:
+        try:
+            agents = int(settings.get("agents") or 0)
+        except (TypeError, ValueError):
+            agents = 0
+        schedule.agents = min(agents, MAX_AGENTS) if agents >= 2 else None
+    if "tools" in settings:
+        raw = settings.get("tools")
+        chosen = [str(t) for t in raw] if isinstance(raw, (list, tuple)) else []
+        kept = [t for t in runs.TOOL_CHOICES if t in chosen]
+        # The safe set exactly is stored as "the default", so a later change to
+        # the default reaches it.
+        schedule.tools_json = [] if tuple(kept) == runs.SAFE_TOOLS else kept
+
+
+def model_choice(db: DBSession, owner: User, model_id: str) -> tuple[str, str | None]:
+    """A first-choice model id, checked against what the person may use: the
+    id and its connection, or ("", None) for "the scheduling list decides"."""
+    from lembas.services import chat as chat_service
+
+    model_id = (model_id or "").strip()
+    if not model_id:
+        return "", None
+    row = next(
+        (m for m in chat_service.available_models(db, owner) if m.model_id == model_id), None
+    )
+    if row is None:
+        raise ScheduleError(N_("That model is not one you can use."))
+    return row.model_id, row.connection_id
+
+
 def create(
     db: DBSession,
     *,
@@ -106,6 +179,7 @@ def create(
     target: str = TARGET_CHAT,
     model_id: str = "",
     origin: str = ORIGIN_USER,
+    settings: dict | None = None,
 ) -> Schedule:
     """Write a schedule and the chat it fires into.
 
@@ -136,6 +210,7 @@ def create(
         # on, so it is refused at the only moment somebody is present to be told.
         raise ScheduleError(N_("That schedule has no next run — its time has already passed."))
 
+    chosen = model_choice(db, owner, model_id)
     group = group_for(db, owner, model_id)
     target = target if target in TARGETS else TARGET_CHAT
 
@@ -182,6 +257,13 @@ def create(
         ),
         compiled_at=datetime.now(tz=UTC),
     )
+    from lembas.services.schedule import notify
+
+    schedule.notify = notify.default_policy(clean)
+    if chosen[0]:
+        schedule.model_id, schedule.connection_id = chosen
+        chat.connection_id = chosen[1]
+    apply_settings(schedule, settings)
     db.add(schedule)
     db.commit()
     return schedule
@@ -196,6 +278,8 @@ def update(
     instruction: str | None = None,
     rule: dict | None = None,
     target: str | None = None,
+    model_id: str | None = None,
+    settings: dict | None = None,
 ) -> Schedule:
     """Change a schedule. Absent arguments are left alone."""
     if title is not None and title.strip():
@@ -204,6 +288,9 @@ def update(
         schedule.instruction = instruction.strip()[:MAX_INSTRUCTION_CHARS]
     if target is not None and target in TARGETS:
         schedule.target = target
+    if model_id is not None:
+        schedule.model_id, schedule.connection_id = model_choice(db, owner, model_id)
+    apply_settings(schedule, settings)
     if rule is not None:
         clean = rule_service.validate(rule)
         if not clean:
@@ -259,14 +346,25 @@ def delete(db: DBSession, schedule: Schedule, *, keep_chat: bool = True) -> None
     elsewhere. The chat becomes an ordinary one so it is reachable again — a
     `KIND_TASK` chat with no schedule behind it would be in no list at all.
     """
-    chat = db.get(Chat, schedule.chat_id) if schedule.chat_id else None
-    if chat is not None:
-        if keep_chat:
+    ids = {schedule.chat_id} if schedule.chat_id else set()
+    ids |= {
+        cid
+        for cid in db.scalars(
+            select(ScheduleRun.chat_id).where(ScheduleRun.schedule_id == schedule.id)
+        )
+        if cid
+    }
+    chats = [
+        c for c in (db.get(Chat, cid) for cid in ids)
+        if c is not None and c.user_id == schedule.user_id
+    ]
+    if keep_chat:
+        for chat in chats:
             chat.kind = "chat"
-        else:
-            from lembas.services import chat as chat_service
+    elif chats:
+        from lembas.services import chat as chat_service
 
-            chat_service.delete_chats(db, [chat])
+        chat_service.delete_chats(db, chats)
     db.delete(schedule)
     db.commit()
 

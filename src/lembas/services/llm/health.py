@@ -47,11 +47,12 @@ def _root(base_url: str) -> str:
     return base[: -len("/v1")] if base.endswith("/v1") else base
 
 
-async def _llama_swap(endpoint: Endpoint) -> dict[str, Any] | None:
-    """llama-swap's `/running`, when the connection is one: whether a model is
-    being started. None for anything else."""
+async def running(endpoint: Endpoint, *, timeout: float = TIMEOUT) -> list[dict[str, str]] | None:
+    """llama-swap's `/running`: `[{"model", "state"}]` for what it holds now, or
+    None when the connection does not answer it (it is not llama-swap, or it is
+    down). Read by the health check and by a scheduled run choosing a model."""
     try:
-        async with httpx.AsyncClient(timeout=TIMEOUT, follow_redirects=False) as client:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
             response = await client.get(
                 f"{_root(endpoint.base_url)}/running",
                 headers={k: v for k, v in endpoint.headers().items() if k != "Content-Type"},
@@ -61,12 +62,25 @@ async def _llama_swap(endpoint: Endpoint) -> dict[str, Any] | None:
         return None
     if not isinstance(payload, dict) or not isinstance(payload.get("running"), list):
         return None
-    starting = [
-        str(item.get("model") or "")
+    return [
+        {"model": str(item.get("model") or ""), "state": str(item.get("state") or "").lower()}
         for item in payload["running"]
-        if isinstance(item, dict) and str(item.get("state") or "").lower() in _STARTING
+        if isinstance(item, dict)
     ]
-    return {"loading": starting[0] if starting else ""}
+
+
+def starting(entries: list[dict[str, str]]) -> str:
+    """The model llama-swap is starting, or ""."""
+    return next((e["model"] for e in entries if e["state"] in _STARTING), "")
+
+
+async def _llama_swap(endpoint: Endpoint) -> dict[str, Any] | None:
+    """llama-swap's `/running`, when the connection is one: whether a model is
+    being started. None for anything else."""
+    entries = await running(endpoint)
+    if entries is None:
+        return None
+    return {"loading": starting(entries)}
 
 
 async def probe(endpoint: Endpoint, server: str = "") -> dict[str, Any]:

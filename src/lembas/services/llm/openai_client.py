@@ -39,10 +39,45 @@ class LLMError(Exception):
     the chat UI always has something intelligible to display.
     """
 
-    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+    def __init__(
+        self, message: str, *, status_code: int | None = None, retry_after: float | None = None
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.status_code = status_code
+        # Seconds the server asked us to wait (a 429's or 503's `Retry-After`),
+        # when it said. Read by a scheduled run deciding when to try again.
+        self.retry_after = retry_after
+        # The server was not reached at all (`wrap_transport_error`).
+        self.unreachable = False
+
+
+def retry_after_of(response: httpx.Response | None) -> float | None:
+    """`Retry-After` as seconds: a number, or an HTTP date. None when absent or
+    unreadable. Capped at a day: a server asking for longer is not one to wait
+    on."""
+    if response is None:
+        return None
+    value = (response.headers.get("retry-after") or "").strip()
+    if not value:
+        return None
+    try:
+        seconds = float(value)
+    except ValueError:
+        from email.utils import parsedate_to_datetime
+
+        try:
+            when = parsedate_to_datetime(value)
+        except (TypeError, ValueError):
+            return None
+        if when is None:
+            return None
+        from datetime import UTC, datetime
+
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=UTC)
+        seconds = (when - datetime.now(UTC)).total_seconds()
+    return max(0.0, min(seconds, 86400.0))
 
 
 class StreamError(LLMError):
@@ -239,16 +274,20 @@ def require_openai(endpoint: Endpoint, what: str) -> None:
 
 def wrap_transport_error(exc: httpx.RequestError, endpoint: Endpoint) -> LLMError:
     if isinstance(exc, httpx.ConnectError):
-        return LLMError(
+        error = LLMError(
             f"Could not reach {endpoint.base_url}. Is the endpoint running and "
             f"the URL correct?"
         )
-    if isinstance(exc, httpx.TimeoutException):
-        return LLMError(
+    elif isinstance(exc, httpx.TimeoutException):
+        error = LLMError(
             f"{endpoint.base_url} did not respond within "
             f"{settings.request_timeout:.0f}s."
         )
-    return LLMError(f"Could not reach {endpoint.base_url}: {exc}")
+    else:
+        error = LLMError(f"Could not reach {endpoint.base_url}: {exc}")
+    # The request never got an answer: trying again later is safe.
+    error.unreachable = True
+    return error
 
 
 async def list_models(endpoint: Endpoint) -> list[dict[str, Any]]:
@@ -437,7 +476,11 @@ async def _stream_once(
                 yield chunk
 
     except httpx.HTTPStatusError as exc:
-        raise LLMError(describe_http_error(exc), status_code=exc.response.status_code) from exc
+        raise LLMError(
+            describe_http_error(exc),
+            status_code=exc.response.status_code,
+            retry_after=retry_after_of(exc.response),
+        ) from exc
     except httpx.RequestError as exc:
         raise wrap_transport_error(exc, endpoint) from exc
 

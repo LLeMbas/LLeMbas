@@ -138,6 +138,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         released = release_claims()
         if released:
             log.info("released %s interrupted schedule claim(s)", released)
+        from lembas.services.schedule.runner import resume_following
+
+        resume_following()
         start_ticker()
     except Exception:  # scheduling failing must not block startup
         log.exception("could not start the schedule ticker")

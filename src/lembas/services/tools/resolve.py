@@ -188,7 +188,10 @@ def _subagent_defs(db: DBSession, chat: Chat, user: User | None) -> list[ToolDef
     if getattr(chat, "parent_chat_id", None):
         return [*subagent_service.child_tool_defs(), *team]
     if unattended(chat):
-        return []
+        # A scheduled run gets a team when its schedule asked for one
+        # (`team_run.may_have_team`), and nothing else of the family: nobody
+        # is there to be told about a background job.
+        return team if getattr(chat, "kind", "") == KIND_TASK else []
     if subagent_service.capacity_refusal(db, chat):
         return []
     return [*subagent_service.tool_defs(), *team]
@@ -338,6 +341,11 @@ def resolve_tools(
     # tool a helper has in it can be offered.
     if unattended(chat):
         off = off | {FAMILY_ASK}
+    # A scheduled run never sets up schedules: an instruction saying "every
+    # Monday" describes the schedule it is a run of, and a model reading it as
+    # a request would make the schedule copy itself (Hermes's rule, kept).
+    if unattended(chat) and getattr(chat, "kind", "") == KIND_TASK:
+        off = off | {FAMILY_SCHEDULE}
     # A helper has one reply and nobody reading it, so a plan would be a plan
     # for no one.
     if getattr(chat, "parent_chat_id", None):

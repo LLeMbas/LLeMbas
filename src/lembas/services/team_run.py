@@ -139,9 +139,18 @@ def user_default(db, user) -> tuple[int, int]:
 
 
 def may_have_team(chat: Chat | None) -> bool:
-    """A chat a person leads: not a helper's or a member's hidden chat, not a
-    schedule's, not an agent chat (whose team runs on its device, §11)."""
+    """A chat a person leads: not a helper's or a member's hidden chat, not an
+    agent chat (whose team runs on its device, §11), and a schedule's only when
+    the schedule asked for a team."""
     if chat is None:
+        return True
+    if (
+        chat.kind == KIND_TASK
+        and not getattr(chat, "parent_chat_id", None)
+        and (getattr(chat, "agents_max", None) or 0) >= 2
+    ):
+        # A scheduled run whose schedule asked for a team (the size is set on
+        # the run's chat by `schedule/runner.py` and nowhere else).
         return True
     return not (
         getattr(chat, "parent_chat_id", None)

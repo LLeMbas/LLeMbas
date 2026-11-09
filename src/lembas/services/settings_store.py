@@ -328,6 +328,12 @@ def _schedules_defaults() -> dict[str, Any]:
         # skipped instead of queued. `_drain` takes one per reply, so an
         # unbounded queue is a backlog that outlives the day that caused it.
         "max_queued": 3,
+        # The models scheduled work may run on, in order (model ids). A run
+        # takes its schedule's first choice, else the first of these that is
+        # free (`services/schedule/models.py`). Empty: the first choice only.
+        "models": [],
+        # Days a schedule's run history is kept.
+        "runs_days": 90,
     }
 
 
@@ -653,6 +659,11 @@ def schedules(db: DBSession) -> dict[str, Any]:
         max(int(values.get("min_interval_seconds") or 60), 60), 86400
     )
     values["max_queued"] = min(max(int(values.get("max_queued") or 3), 1), 50)
+    values["runs_days"] = min(max(int(values.get("runs_days") or 90), 1), 3650)
+    models = values.get("models")
+    values["models"] = [
+        str(m) for m in (models if isinstance(models, list) else []) if str(m or "").strip()
+    ][:50]
     return values
 
 
