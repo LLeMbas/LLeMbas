@@ -29,6 +29,8 @@ and numbers `loop.json` `team` (and the size notes in `context.note`); the promp
 ## 2. The size setting, and when a team is offered
 
 A chat has the setting **`agents: {min, max}`** — the agents the team may have, the lead included.
+**The numbers count the chat's own agent**: `1` is that agent alone, with no subagents; `max` 4 is
+that agent and up to three subagents. Nothing that shows or reads the setting counts subagents only.
 
 - `1 ≤ min ≤ max ≤ cap`. `cap` is the instance's (LLeMbas) or the global configuration's (the CLI),
   default `loop.json` `team.agents.cap` (32); a project's configuration never raises it. A value
@@ -51,7 +53,11 @@ system prompt — when both hold, and only then:
    `parallel` nor `single_session` is set — a hosted API; `models/schema.json`); or any other model
    the person may use that is not on the chat's model's one-model server (`capacity.group`).
 
-The setting is shown as **Subagents**, *fewest* to *most* (`loop.json` `subagents.setting`).
+The setting is shown as **Subagents**, with **Min** and **Max** (`loop.json` `subagents.setting`):
+**one range from 1 to `cap` with two handles**, Min and Max, where Min never passes Max — a slider in
+a graphical UI; in a terminal, the two numbers on one line, each moved on its own. Beside it, its
+hint (`subagents.setting.hint`, or `short` where a line has no room): the count includes the agent,
+and 1 is the agent alone. Never *fewest* / *most*, and never a count of subagents alone.
 
 Both are fixed for as long as the system prompt is (`context.md` §10, rule 4: a model switch makes
 a new prompt and a new list). Otherwise the setting is not shown and none of the four tools is

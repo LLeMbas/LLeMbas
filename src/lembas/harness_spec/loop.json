@@ -74,10 +74,12 @@
       "after": "[\\p{L}\\p{N}_\\-/]|[.:][\\p{L}\\p{N}]"
     },
     "setting": {
-      "about": "How the agents {min, max} setting (team.md §2) is shown to a person: label, the names of min and max, and `own` beside it when the session's model cannot serve subagents itself (subagents.md §4).",
+      "about": "How the agents {min, max} setting (team.md §2) is shown to a person: one range from 1 to the cap with two handles, `min` and `max` naming them; `label` beside it, `hint` (or `short` where one line has no room) saying what the numbers count — the session's own agent included, so 1 is that agent alone and Max 4 is it and up to 3 subagents; and `own` beside it when the session's model cannot serve subagents itself (subagents.md §4).",
       "label": "Subagents",
-      "min": "fewest",
-      "max": "most",
+      "min": "Min",
+      "max": "Max",
+      "hint": "The count includes this agent: 1 is this agent alone, with no subagents; Max 4 is this agent and up to 3 subagents.",
+      "short": "1 is this agent alone",
       "own": "This model serves one request at a time: subagents need another model, on another server, named in the chat."
     }
   },

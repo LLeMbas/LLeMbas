@@ -811,6 +811,59 @@
       ]
     },
     {
+      "about": "The count includes the lead: max 2 is the lead and one subagent. A second task while the first runs is refused; once it is done there is room again.",
+      "start": {
+        "min": 1,
+        "max": 2,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "task",
+          "args": {
+            "prompt": "Find the grammar."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "task",
+          "args": {
+            "prompt": "x"
+          }
+        },
+        {
+          "op": "task_done",
+          "by": "lead"
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "task",
+          "args": {
+            "prompt": "x"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "result": null,
+          "delivered": {}
+        },
+        {
+          "result": "The team is full: it has as many agents as the person allows (2). Give the work to a member already on it (team_send), or stop one (team_stop) first.",
+          "delivered": {}
+        },
+        null,
+        {
+          "result": null,
+          "delivered": {}
+        }
+      ]
+    },
+    {
       "about": "Lowering max stops nobody: the members stay, and nothing is added until the size is under it. The lead keeps its team tools while it has members.",
       "start": {
         "min": 1,

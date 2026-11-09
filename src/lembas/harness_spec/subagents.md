@@ -69,8 +69,11 @@ and `task` keeps its rule for a model that is already full (`loop.json` `capacit
 ## 4. When subagents are offered
 
 The size setting `agents {min, max}` (`team.md` §2) is shown as **Subagents** — `subagents.setting`:
-the label, and *fewest* and *most* for `min` and `max` (defaults 1 and 4, at most `cap` 32, kept
-with the chat). It, the team tools and `blocks/team_lead.md` are **offered** when both hold:
+the label, and **Min** and **Max** for `min` and `max` (defaults 1 and 4, at most `cap` 32, kept
+with the chat). **The numbers count the session's own agent**: Min 1 / Max 1 is the agent alone,
+with no subagents; Max 4 is the agent and up to three subagents (`subagents.setting.hint`). A UI
+shows the setting as **one range from 1 to `cap` with two handles, Min and Max** (Min never past
+Max): a slider in a graphical UI, two numbers on one line in a terminal, each moved on its own. It, the team tools and `blocks/team_lead.md` are **offered** when both hold:
 
 1. Subagents are enabled for the session (`team.md` §2, rule 1).
 2. **At least one model could serve as a subagent**: S itself, when it serves two or more requests

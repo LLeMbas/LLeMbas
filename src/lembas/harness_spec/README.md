@@ -88,8 +88,10 @@ Written ahead of both implementations as LLeMbas CLI 02c7282; both carry it in t
   limit, else "This model serves one request at a time: name another model, on another server,
   for subagents." — and nothing else is picked. A member is refused for these too, and still only
   waits for a full model.
-- **The offer**: the `agents {min, max}` setting is shown as **Subagents** (*fewest*, *most*;
-  `loop.json` `subagents.setting`), and with it the team tools, when subagents are enabled and at
+- **The offer**: the `agents {min, max}` setting is shown as **Subagents** (**Min**, **Max**;
+  `loop.json` `subagents.setting`) — one range from 1 to the cap with two handles, and a hint that
+  the numbers count the session's own agent: 1 is the agent alone, Max 4 the agent and up to three
+  subagents — and with it the team tools, when subagents are enabled and at
   least one model could serve: the session's, with the capacity, or any usable model off its
   one-model server. `context.note.team_own` tells the model, and `subagents.setting.own` the
   person, when the session's model cannot serve subagents itself.
