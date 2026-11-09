@@ -115,8 +115,24 @@ def _summary(schedule: Schedule, owner: User | None) -> str:
     return rule_service.describe(schedule.rule_json or {}, zone=clock.zone_for(owner))
 
 
-def _row(schedule: Schedule, owner: User | None) -> dict[str, Any]:
+def _row(schedule: Schedule, owner: User | None, db=None) -> dict[str, Any]:
     """One schedule as the transcript shows it, and as the model reads it back."""
+    from datetime import UTC, datetime, timedelta
+
+    from lembas.services.schedule import notify, runs
+
+    zone = clock.zone_for(owner)
+    nexts: list[str] = []
+    if schedule.enabled and schedule.next_fire_at:
+        start = clock.as_utc(schedule.next_fire_at) - timedelta(microseconds=1)
+        nexts = [
+            m.astimezone(zone).strftime("%a %-d %b %H:%M")
+            for m in rule_service.upcoming(
+                schedule.rule_json or {}, now=start, zone=zone,
+                fired=schedule.fired_count or 0, count=3,
+            )
+        ]
+    last = runs.latest(db, schedule) if db is not None else None
     return {
         "id": schedule.id,
         "title": schedule.title,
@@ -124,7 +140,58 @@ def _row(schedule: Schedule, owner: User | None) -> dict[str, Any]:
         "target": schedule.target,
         "enabled": bool(schedule.enabled),
         "next": schedule.next_fire_at.isoformat() if schedule.next_fire_at else "",
+        "next_runs": nexts,
+        "notify": notify.policy(schedule.notify, schedule.rule_json or {}),
+        "mode": schedule.mode,
+        "model": schedule.model_id or "",
+        "last_status": last.status if last is not None else "",
+        "last_at": (
+            clock.as_utc(last.finished_at or last.created_at).astimezone(zone)
+            .strftime("%a %-d %b %H:%M")
+            if last is not None and (last.finished_at or last.created_at)
+            else ""
+        ),
+        "now": datetime.now(UTC).isoformat(),
     }
+
+
+NOTIFY_HELP = (
+    'When the person is notified of a result: "always" (every run), "matters" '
+    "(every run except one that answers [SILENT] because there was nothing new; "
+    'the default for anything that repeats) or "never" (it is only kept in the '
+    "history). A one-off reminder defaults to always."
+)
+MODE_HELP = (
+    '"fresh" (the default): each run starts a chat of its own and is told what the '
+    'previous run found. "continue": every run goes into the one chat, which keeps '
+    "growing -- right only when each run needs the whole conversation before it."
+)
+MODEL_HELP = (
+    "The model to run it on first, by id; omit for the person's scheduling list. "
+    "When it is busy, the next free model of that list runs it."
+)
+
+
+def _settings_from(args: dict[str, Any]) -> dict[str, Any]:
+    """The run settings a model may pass, under the names the form uses."""
+    settings: dict[str, Any] = {}
+    for key in ("notify", "mode"):
+        if args.get(key) is not None:
+            settings[key] = str(args.get(key) or "")
+    return settings
+
+
+def _model_for(db, owner: User, args: dict[str, Any], context) -> str:
+    """The model a model asked for, else the chat's own when the person may
+    schedule on it, else "" (the scheduling list decides)."""
+    asked = str(args.get("model") or "").strip()
+    if asked:
+        return asked
+    from lembas.services import chat as chat_service
+
+    own = context.model_id or ""
+    usable = {m.model_id for m in chat_service.available_models(db, owner)}
+    return own if own in usable else ""
 
 
 # --- Making one ----------------------------------------------------------------
@@ -160,11 +227,12 @@ async def _run_create(context: ToolContext, args: dict[str, Any]) -> ToolOutcome
                 instruction=instruction,
                 rule=raw_rule,
                 target=target,
-                model_id=context.model_id or "",
+                model_id=_model_for(db, owner, args, context),
                 # The value that has been declared and unwritten since the
                 # feature shipped. It is what lets the Scheduled list say which
                 # of these nobody typed.
                 origin=ORIGIN_MODEL,
+                settings=_settings_from(args),
             )
         except schedules_service.ScheduleError as exc:
             # Its message is written for a person and reads correctly to a
@@ -188,7 +256,7 @@ async def _run_create(context: ToolContext, args: dict[str, Any]) -> ToolOutcome
                 "query": schedule.title,
                 "status": "ok",
                 "detail": summary,
-                "results": [_row(schedule, owner)],
+                "results": [_row(schedule, owner, db)],
             },
         )
 
@@ -215,12 +283,20 @@ async def _run_list(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
                 f"{heading}\nThere are no schedules.",
                 {"name": "schedule_list", "status": "ok", "results": []},
             )
-        listed = [_row(row, owner) for row in rows]
-        lines = "\n".join(
-            f"- {row['id']}: {row['title']} — {row['summary']}, to {row['target']}"
-            + ("" if row["enabled"] else " (paused)")
-            for row in listed
-        )
+        listed = [_row(row, owner, db) for row in rows]
+
+        def line(row: dict[str, Any]) -> str:
+            text = f"- {row['id']}: {row['title']} — {row['summary']}, to {row['target']}"
+            text += f", notify {row['notify']}, {row['mode']}"
+            if not row["enabled"]:
+                text += " (paused)"
+            elif row["next_runs"]:
+                text += f"; next: {', '.join(row['next_runs'])}"
+            if row["last_status"]:
+                text += f"; last run {row['last_status']} ({row['last_at']})"
+            return text
+
+        lines = "\n".join(line(row) for row in listed)
         return _outcome(
             f"{heading}\n{len(listed)} schedule(s):\n{lines}",
             {"name": "schedule_list", "status": "ok", "results": listed},
@@ -244,7 +320,15 @@ async def _run_update(context: ToolContext, args: dict[str, Any]) -> ToolOutcome
         raw_rule = args.get("schedule") or args.get("rule")
         enabled = args.get("enabled")
         try:
-            if raw_rule is not None or args.get("title") or args.get("instruction") is not None:
+            settings = _settings_from(args)
+            if (
+                raw_rule is not None
+                or args.get("title")
+                or args.get("instruction") is not None
+                or args.get("target")
+                or args.get("model") is not None
+                or settings
+            ):
                 schedules_service.update(
                     db,
                     schedule,
@@ -253,6 +337,8 @@ async def _run_update(context: ToolContext, args: dict[str, Any]) -> ToolOutcome
                     instruction=args.get("instruction"),
                     rule=raw_rule if isinstance(raw_rule, dict) else None,
                     target=str(args.get("target") or "") or None,
+                    model_id=str(args.get("model")) if args.get("model") is not None else None,
+                    settings=settings,
                 )
             if enabled is not None:
                 schedules_service.set_enabled(db, schedule, owner=owner, enabled=bool(enabled))
@@ -269,7 +355,7 @@ async def _run_update(context: ToolContext, args: dict[str, Any]) -> ToolOutcome
                 "query": schedule.title,
                 "status": "ok",
                 "detail": summary,
-                "results": [_row(schedule, owner)],
+                "results": [_row(schedule, owner, db)],
             },
         )
 
@@ -338,6 +424,17 @@ def tool_defs() -> list[ToolDef]:
                         "description": TARGET_HELP,
                     },
                     "schedule": {"type": "object", "description": RULE_HELP},
+                    "notify": {
+                        "type": "string",
+                        "enum": ["always", "matters", "never"],
+                        "description": NOTIFY_HELP,
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": ["fresh", "continue"],
+                        "description": MODE_HELP,
+                    },
+                    "model": {"type": "string", "description": MODEL_HELP},
                 },
                 "required": ["instruction", "schedule"],
             },
@@ -348,8 +445,9 @@ def tool_defs() -> list[ToolDef]:
             name="schedule_list",
             family=FAMILY_SCHEDULE,
             description=(
-                "Everything already scheduled, with its id, its timing in words "
-                "and when it next runs. Worth calling before setting something "
+                "Everything already scheduled, with its id, its timing in words, "
+                "its next runs, how it notifies and how its last run went. Worth "
+                "calling before setting something "
                 "up, so an existing one is changed rather than duplicated, and "
                 "before answering a question about what is scheduled."
             ),
@@ -362,7 +460,8 @@ def tool_defs() -> list[ToolDef]:
             family=FAMILY_SCHEDULE,
             description=(
                 "Change a schedule: its timing, its instruction, its title, where "
-                "its result goes, or whether it is paused. Omit a field to leave "
+                "its result goes, when the person is notified, fresh or continuing "
+                "runs, its model, or whether it is paused. Omit a field to leave "
                 "it alone. Changing the timing restarts the count, because an "
                 "edited schedule is a new intention. Ids come from schedule_list."
             ),
@@ -374,6 +473,17 @@ def tool_defs() -> list[ToolDef]:
                     "instruction": {"type": "string"},
                     "target": {"type": "string", "enum": list(TARGETS)},
                     "schedule": {"type": "object", "description": RULE_HELP},
+                    "notify": {
+                        "type": "string",
+                        "enum": ["always", "matters", "never"],
+                        "description": NOTIFY_HELP,
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": ["fresh", "continue"],
+                        "description": MODE_HELP,
+                    },
+                    "model": {"type": "string", "description": MODEL_HELP},
                     "enabled": {
                         "type": "boolean",
                         "description": (

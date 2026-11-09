@@ -369,3 +369,65 @@ def test_the_list_says_which_ones_nobody_typed(client, db, registered):
 
     assert "Set up by a model" in body
     assert "set up for you" in body
+
+
+# --- What 2.0.0-beta.6 added: notify, fresh or continue, the model, the history ---
+async def test_a_model_sets_notify_mode_and_model(db, registered):
+    from lembas.db.models import Connection, Model
+
+    connection = Connection(
+        name="c", base_url="http://127.0.0.1:1", api_key_encrypted=encrypt("")
+    )
+    db.add(connection)
+    db.commit()
+    db.add(Model(connection_id=connection.id, model_id="small", capabilities_json={"tools": True}))
+    db.commit()
+    outcome = await _run(
+        db,
+        "schedule_create",
+        {
+            "instruction": "Check the build.",
+            "schedule": {"at": {"nth": [{"n": -1, "weekday": 4}], "times": ["16:00"]}},
+            "notify": "never",
+            "mode": "continue",
+            "model": "small",
+        },
+    )
+    schedule = db.scalars(select(Schedule)).one()
+    assert (schedule.notify, schedule.mode, schedule.model_id) == ("never", "continue", "small")
+    assert "last Friday" in outcome.content
+    row = outcome.event["results"][0]
+    assert row["notify"] == "never" and len(row["next_runs"]) == 3
+
+
+async def test_a_model_it_may_not_use_is_refused_in_words(db, registered):
+    outcome = await _run(
+        db,
+        "schedule_create",
+        {"instruction": "x", "schedule": {"at": {"times": ["09:00"]}}, "model": "nope"},
+    )
+    assert outcome.event["status"] == "error"
+    assert "not one you can use" in outcome.content
+
+
+async def test_the_list_says_the_next_runs_and_the_last_run(db, registered):
+    from lembas.db.models import ScheduleRun
+
+    daily = {"instruction": "x", "schedule": {"at": {"times": ["09:00"]}}}
+    await _run(db, "schedule_create", daily)
+    schedule = db.scalars(select(Schedule)).one()
+    db.add(ScheduleRun(schedule_id=schedule.id, user_id=schedule.user_id, status="silent"))
+    db.commit()
+    outcome = await _run(db, "schedule_list", {})
+    assert "next:" in outcome.content
+    assert "last run silent" in outcome.content
+    assert "notify matters" in outcome.content
+
+
+async def test_update_changes_notify(db, registered):
+    daily = {"instruction": "x", "schedule": {"at": {"times": ["09:00"]}}}
+    await _run(db, "schedule_create", daily)
+    schedule = db.scalars(select(Schedule)).one()
+    await _run(db, "schedule_update", {"id": schedule.id, "notify": "always"})
+    db.refresh(schedule)
+    assert schedule.notify == "always"
