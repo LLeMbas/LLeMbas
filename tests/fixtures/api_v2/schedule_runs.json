@@ -1,0 +1,68 @@
+{
+  "runs": [
+    {
+      "id": "run2",
+      "schedule_id": "sched1",
+      "status": "waiting",
+      "timing": "on_time",
+      "missed": 2,
+      "due_at": "2026-01-02T03:04:05+00:00",
+      "started_at": null,
+      "finished_at": null,
+      "waiting_for": "model",
+      "retry_at": "2026-01-02T03:09:05+00:00",
+      "attempts": 2,
+      "model": {
+        "id": null,
+        "name": null,
+        "reason": null,
+        "switched_from": null
+      },
+      "tokens": {
+        "prompt": 0,
+        "completion": 0
+      },
+      "cost": null,
+      "chat_id": null,
+      "message_id": null,
+      "report_path": null,
+      "preview": "",
+      "error": {
+        "class": "no_model",
+        "text": "Waiting for a free model: Qwen: it is answering someone."
+      },
+      "notified": false
+    },
+    {
+      "id": "run1",
+      "schedule_id": "sched1",
+      "status": "ok",
+      "timing": "late",
+      "missed": 0,
+      "due_at": "2026-01-02T03:04:05+00:00",
+      "started_at": "2026-01-02T03:04:05+00:00",
+      "finished_at": "2026-01-02T03:04:05+00:00",
+      "waiting_for": null,
+      "retry_at": null,
+      "attempts": 1,
+      "model": {
+        "id": "gpt-oss",
+        "name": "GPT-OSS",
+        "reason": "switched",
+        "switched_from": "Qwen"
+      },
+      "tokens": {
+        "prompt": 1200,
+        "completion": 340
+      },
+      "cost": null,
+      "chat_id": "chat1",
+      "message_id": "msg2",
+      "report_path": null,
+      "preview": "All the waybread is wrapped.",
+      "error": null,
+      "notified": true
+    }
+  ],
+  "more": false
+}

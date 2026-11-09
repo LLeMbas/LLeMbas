@@ -754,6 +754,23 @@ def fire_later(schedule_id: str) -> None:
     task.add_done_callback(_FIRINGS.discard)
 
 
+def start_now(schedule_id: str) -> str:
+    """Open a manual run (Run now) and start it in the background. Returns the
+    run's id at once, so a caller can point at it; "" when there is no such
+    schedule. Does not advance the schedule (see `run_now`)."""
+    with session_scope() as db:
+        schedule = db.get(Schedule, schedule_id)
+        if schedule is None:
+            return ""
+        run = _new_run(db, schedule, due_at=None, timing=TIMING_MANUAL)
+        db.commit()
+        run_id = run.id
+    task = asyncio.get_running_loop().create_task(fire(schedule_id, run_id=run_id))
+    _FIRINGS.add(task)
+    task.add_done_callback(_FIRINGS.discard)
+    return run_id
+
+
 def follow_later(run_id: str) -> None:
     task = asyncio.get_running_loop().create_task(follow(run_id))
     _FIRINGS.add(task)
@@ -789,4 +806,5 @@ __all__ = [
     "resume_following",
     "run_now",
     "settle",
+    "start_now",
 ]

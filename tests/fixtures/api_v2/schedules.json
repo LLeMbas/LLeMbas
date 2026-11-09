@@ -1,0 +1,88 @@
+{
+  "schedules": [
+    {
+      "id": "sched1",
+      "title": "Waybread check",
+      "instruction": "Check the waybread is wrapped.",
+      "request": "every second Monday at 7:30",
+      "rule": {
+        "at": {
+          "nth": [
+            {
+              "n": 2,
+              "weekday": 0
+            }
+          ],
+          "times": [
+            "07:30"
+          ]
+        }
+      },
+      "description": "On the second Monday of each month at 07:30",
+      "timezone": "UTC",
+      "enabled": true,
+      "next_run": "2026-01-12T07:30:00+00:00",
+      "next_runs": [
+        "2026-01-12T07:30:00+00:00",
+        "2026-02-09T07:30:00+00:00",
+        "2026-03-09T07:30:00+00:00",
+        "2026-04-13T07:30:00+00:00",
+        "2026-05-11T07:30:00+00:00"
+      ],
+      "target": "chat",
+      "mode": "fresh",
+      "notify": "matters",
+      "catch_up": "one",
+      "grace_minutes": null,
+      "model": "qwen",
+      "effort": "high",
+      "agents": null,
+      "tools": [
+        "files",
+        "recall",
+        "search",
+        "fetch",
+        "memory",
+        "skills",
+        "plan"
+      ],
+      "origin": "user",
+      "chat_id": "chat1",
+      "fired_count": 3,
+      "failure_streak": 0,
+      "last_error": null,
+      "last_run": {
+        "id": "run1",
+        "schedule_id": "sched1",
+        "status": "ok",
+        "timing": "late",
+        "missed": 0,
+        "due_at": "2026-01-02T03:04:05+00:00",
+        "started_at": "2026-01-02T03:04:05+00:00",
+        "finished_at": "2026-01-02T03:04:05+00:00",
+        "waiting_for": null,
+        "retry_at": null,
+        "attempts": 1,
+        "model": {
+          "id": "gpt-oss",
+          "name": "GPT-OSS",
+          "reason": "switched",
+          "switched_from": "Qwen"
+        },
+        "tokens": {
+          "prompt": 1200,
+          "completion": 340
+        },
+        "cost": null,
+        "chat_id": "chat1",
+        "message_id": "msg2",
+        "report_path": null,
+        "preview": "All the waybread is wrapped.",
+        "error": null,
+        "notified": true
+      },
+      "running": false,
+      "created_at": "2026-01-02T03:04:05+00:00"
+    }
+  ]
+}

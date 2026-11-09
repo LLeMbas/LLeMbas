@@ -1,0 +1,29 @@
+{
+  "ok": true,
+  "reason": null,
+  "title": "Waybread check",
+  "instruction": "Check the waybread is wrapped.",
+  "target": "chat",
+  "rule": {
+    "at": {
+      "nth": [
+        {
+          "n": 2,
+          "weekday": 0
+        }
+      ],
+      "times": [
+        "07:30"
+      ]
+    }
+  },
+  "description": "On the second Monday of each month at 07:30",
+  "next_runs": [
+    "2026-01-12T07:30:00+00:00",
+    "2026-02-09T07:30:00+00:00",
+    "2026-03-09T07:30:00+00:00",
+    "2026-04-13T07:30:00+00:00",
+    "2026-05-11T07:30:00+00:00"
+  ],
+  "timezone": "UTC"
+}

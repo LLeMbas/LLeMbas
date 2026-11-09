@@ -410,6 +410,75 @@ def _files() -> dict[str, object]:
     }
 
 
+def _schedules() -> dict[str, object]:
+    """`/schedules`, a run, the compile, the preview, the scheduling models and
+    the `schedules` event of `GET /events`."""
+    from lembas.api.v2.schedules import version_of
+    from lembas.db.models import Schedule, ScheduleRun, User
+    from lembas.services.schedule import rule, runs
+
+    owner = User(id="user1", settings_json={"timezone": "UTC"})
+    schedule = Schedule(
+        id="sched1", user_id="user1", title="Waybread check",
+        instruction="Check the waybread is wrapped.", request="every second Monday at 7:30",
+        rule_json=rule.validate({"at": {"nth": [{"n": 2, "weekday": 0}], "times": ["07:30"]}}),
+        target="chat", chat_id="chat1", model_id="qwen", enabled=True,
+        next_fire_at=datetime(2026, 1, 12, 7, 30, tzinfo=UTC), fired_count=3,
+        last_error="", origin="user", mode="fresh", notify="matters", catch_up="one",
+        grace_minutes=None, effort="high", agents=None, tools_json=[], failure_streak=0,
+        created_at=WHEN,
+    )
+    run = ScheduleRun(
+        id="run1", schedule_id="sched1", user_id="user1", status="ok", timing="late",
+        missed=0, due_at=WHEN, first_try_at=WHEN, started_at=WHEN, finished_at=WHEN,
+        waiting_for="", retry_at=None, attempts=1, retries=0, model_id="gpt-oss",
+        connection_id="conn1", model_label="GPT-OSS", model_reason="switched",
+        switched_from="Qwen", prompt_tokens=1200, completion_tokens=340, cost_micro=0,
+        currency="", chat_id="chat1", message_id="msg2", report_path="",
+        preview="All the waybread is wrapped.", error_class="", error="", notified=True,
+    )
+    waiting = ScheduleRun(
+        id="run2", schedule_id="sched1", user_id="user1", status="waiting", timing="on_time",
+        missed=2, due_at=WHEN, first_try_at=WHEN, started_at=None, finished_at=None,
+        waiting_for="model", retry_at=datetime(2026, 1, 2, 3, 9, 5, tzinfo=UTC), attempts=2,
+        retries=0, model_id="", connection_id=None, model_label="", model_reason="",
+        switched_from="", prompt_tokens=0, completion_tokens=0, cost_micro=0, currency="",
+        chat_id="", message_id="", report_path="", preview="", error_class="no_model",
+        error="Waiting for a free model: Qwen: it is answering someone.", notified=False,
+    )
+    listed = [runs.schedule_dict(None, schedule, owner=owner, last=run)]
+    models = _models()
+    return {
+        "schedule": {"schedule": listed[0]},
+        "schedules": {"schedules": listed},
+        "schedule_runs": {"runs": [runs.run_dict(waiting), runs.run_dict(run)], "more": False},
+        "schedule_run": {"run": runs.run_dict(run), "text": "All the waybread is *wrapped*."},
+        "schedule_compile": {
+            "ok": True, "reason": None, "title": "Waybread check",
+            "instruction": "Check the waybread is wrapped.", "target": "chat",
+            "rule": schedule.rule_json,
+            "description": "On the second Monday of each month at 07:30",
+            "next_runs": ["2026-01-12T07:30:00+00:00", "2026-02-09T07:30:00+00:00",
+                          "2026-03-09T07:30:00+00:00", "2026-04-13T07:30:00+00:00",
+                          "2026-05-11T07:30:00+00:00"],
+            "timezone": "UTC",
+        },
+        "schedule_preview": {
+            "rule": {}, "description": None, "next_runs": [], "timezone": "UTC",
+        },
+        "schedule_models": {
+            "models": [
+                {**serialise.model(models[1]), "free": False,
+                 "busy": "it is answering someone", "chosen": True},
+                {**serialise.model(models[0]), "free": True, "busy": None, "chosen": False},
+            ],
+            "instance": ["gpt-oss", "qwen"],
+            "mine": ["gpt-oss"],
+        },
+        "event_schedules": {"version": version_of(listed), "schedules": listed},
+    }
+
+
 def _shapes() -> dict[str, object]:
     generation = _generation()
     tail = serialise.tail(generation, "4s")
@@ -445,6 +514,7 @@ def _shapes() -> dict[str, object]:
         "team": {"team": serialise.team(_team())},
         **_files(),
         **_activity(),
+        **_schedules(),
     }
 
 

@@ -28,7 +28,10 @@ team's tree and room since a cursor (harness spec 3.2.0); the activity panel --
 `GET /chats/{chat}/activity` (agents, room since a cursor, context, outputs,
 plan, `version`), `GET /chats/{chat}/activity/events` (an `activity` event
 whenever `version` moves), `GET /chats/{chat}/agents/{kind}/{id}` (one agent
-and its whole conversation) and `POST .../stop`.
+and its whole conversation) and `POST .../stop`; scheduled work -- `/schedules`
+and its runs, the compile and the preview, the scheduling models
+(`schedules.py`) -- and `GET /events`, the person's own stream (a `schedules`
+event).
 """
 
 from __future__ import annotations
@@ -41,9 +44,10 @@ router = APIRouter(prefix="/api/v2", tags=["app"])
 
 
 def _include() -> None:
-    from lembas.api.v2 import chats, files, misc, stream
+    from lembas.api.v2 import chats, files, misc, schedules, stream
 
     router.include_router(chats.router)
+    router.include_router(schedules.router)
     router.include_router(files.router)
     router.include_router(stream.router)
     router.include_router(misc.router)
