@@ -139,6 +139,7 @@ def assistant_turn(
     calls: list[dict[str, Any]],
     content: str,
     blocks: list[dict[str, Any]] | None = None,
+    reasoning: str = "",
 ) -> dict[str, Any]:
     """The assistant message to send back with the tool results.
 
@@ -149,6 +150,11 @@ def assistant_turn(
     (Anthropic, whose thinking has to come back unchanged, signature and all, with
     the tool calls it led to). Carried only when there is one, so an OpenAI
     endpoint sees exactly the message it always did.
+
+    `reasoning` is what the model thought before these calls. It goes back with
+    them as `reasoning_content` (harness spec 3.2.0, context.md §8): a model sent
+    its own reasoning carries on from it instead of reasoning its way to the
+    same calls again. Only when there was some -- never an empty field.
     """
     turn: dict[str, Any] = {
         "role": "assistant",
@@ -162,6 +168,8 @@ def assistant_turn(
             for call in calls
         ],
     }
+    if reasoning:
+        turn["reasoning_content"] = reasoning
     if blocks:
         turn["assistant_blocks"] = list(blocks)
     return turn

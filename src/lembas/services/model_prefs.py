@@ -8,9 +8,10 @@ instance for this person only, and both only ever **narrow**:
   model's capabilities, the person's permissions and the instance already
   offer (`offered`), and `tools.resolve_tools` applies the row *after* those
   gates -- so a crafted POST naming something else switches off what was not on.
-- effort: one of the model's own levels, or off, and only on a model an
-  administrator marked as reasoning. Checked again where it is read, because a
-  model's vocabulary can narrow after it was saved (`generation._narrow_efforts`).
+- effort: one of the levels a chat offers on the model (harness spec 3.2.0:
+  `off` only with the thinking switch, then its efforts), and only where it
+  offers more than one. Checked again where it is read, because a model's
+  vocabulary can narrow after it was saved (`generation._narrow_efforts`).
 
 **A chat's own setting wins.** The effort is a seed, like the model's own
 default: `_new_chat` writes it onto the row, and from then on the row is what is
@@ -27,8 +28,8 @@ from sqlalchemy.orm import Session as DBSession
 from lembas.db.models import UserModelSetting
 
 # What `reasoning_effort` holds besides a level.
-FOLLOW = ""  # the model's default, as an administrator set it
-OFF = "off"  # no effort sent
+FOLLOW = ""  # the model's start level, as an administrator set it
+OFF = "off"  # thinking switched off (a level of its own since spec 3.2.0)
 
 
 def row(db: DBSession, user, model_id: str) -> UserModelSetting | None:
@@ -53,45 +54,45 @@ def reasoning(model) -> bool:
     return bool((getattr(model, "capabilities_json", None) or {}).get("reasoning"))
 
 
-def effort_choice(db: DBSession, user, model) -> str:
-    """This person's effort for this model as stored and still valid: "" (follow
-    the model), "off", or one of the model's levels."""
+def choosable(model) -> tuple[str, ...]:
+    """The levels a person may pick a default from: the model's, when there is
+    more than one (one level is no choice)."""
     from lembas.services import chat as chat_service
 
-    if model is None or not reasoning(model):
+    if model is None:
+        return ()
+    offered = chat_service.levels_for(model).offered
+    return offered if len(offered) > 1 else ()
+
+
+def effort_choice(db: DBSession, user, model) -> str:
+    """This person's level for this model as stored and still offered: ""
+    (follow the model) or one of the model's levels. A stored `off` from before
+    spec 3.2.0 on a model without the thinking switch follows the model."""
+    if model is None:
         return FOLLOW
     found = row(db, user, model.model_id)
     value = (found.reasoning_effort if found is not None else "") or FOLLOW
-    if value == OFF or value in chat_service.efforts_for(model):
-        return value
-    return FOLLOW
+    return value if value in choosable(model) else FOLLOW
 
 
 def default_effort(db: DBSession, user, model) -> str:
-    """The effort a new chat with this model starts at, or "" for none: this
-    person's choice, else the model's own default."""
+    """The level a new chat with this model starts at: this person's choice,
+    else the model's start level (the spec's rule). "" without a model."""
     from lembas.services import chat as chat_service
 
     if model is None:
         return ""
-    chosen = effort_choice(db, user, model)
-    if chosen == OFF:
-        return ""
-    if chosen:
-        return chosen
-    seeded = (model.params_json or {}).get("reasoning_effort")
-    return seeded if seeded in chat_service.EFFORTS else ""
+    return effort_choice(db, user, model) or chat_service.levels_for(model).start
 
 
 def seed(db: DBSession, user, model, params: dict) -> dict:
-    """`params` (the model's defaults, as `_new_chat` copies them) with this
-    person's effort in place of the model's."""
-    chosen = effort_choice(db, user, model)
-    if chosen == OFF:
-        return {k: v for k, v in params.items() if k != "reasoning_effort"}
-    if chosen:
-        return {**params, "reasoning_effort": chosen}
-    return params
+    """`params` (the model's defaults, as `_new_chat` copies them) with the
+    level a new chat starts at written onto them: this person's, else the
+    model's start level. Written, not left to be worked out later, so a chat
+    keeps what it was shown when the model's own default changes."""
+    level = default_effort(db, user, model)
+    return {**params, "reasoning_effort": level} if level else params
 
 
 def offered(db: DBSession, user, model) -> list[dict]:
@@ -123,8 +124,6 @@ def save(
     """Store this person's choices for this model. Only gates that were
     offered can be switched off; an effort that is not the model's is ignored.
     A row that would say nothing is removed rather than kept empty."""
-    from lembas.services import chat as chat_service
-
     found = row(db, user, model.model_id)
     kept = sorted(gate for gate in tools_off_now if gate in offered_gates)
     # A gate switched off earlier that this model no longer offers stays off:
@@ -134,7 +133,7 @@ def save(
             {*kept, *(g for g in (found.tools_off_json or []) if g not in offered_gates)}
         )
     wanted = (effort or "").strip().lower()
-    if not reasoning(model) or (wanted != OFF and wanted not in chat_service.efforts_for(model)):
+    if wanted not in choosable(model):
         wanted = FOLLOW
     if not kept and wanted == FOLLOW:
         if found is not None:

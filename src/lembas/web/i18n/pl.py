@@ -378,7 +378,6 @@ MESSAGES: dict[str, str] = {
     "Ignored while the model is available to everyone.": "Ignorowane, dopóki model jest dostępny dla wszystkich.",
     "Model image": "Obraz modelu",
     "Never shown to a person. It goes into the list of the other models that a model sees when it is allowed to ask one of them a question, so write what would help it choose: size, what this one is good and bad at, a score you trust. Leave it empty and the description above carries that on its own.": "Nigdy nie jest pokazywane człowiekowi. Trafia na listę innych modeli, którą widzi model, gdy może zadać któremuś pytanie — warto więc wpisać to, co pomoże mu wybrać: rozmiar, w czym ten jest dobry, a w czym słaby, wiarygodny wynik. Jeśli pole zostanie puste, wystarczy sam opis powyżej.",
-    "None — send nothing": "Brak — nic nie wysyłaj",
     "PNG, JPEG, WEBP or GIF, under 2 MB. Without one, the model gets a generated badge whose colour is derived from its id.": "PNG, JPEG, WEBP lub GIF, poniżej 2 MB. Bez obrazu model dostaje wygenerowaną plakietkę, której kolor wynika z jego id.",
     "Parameters, quantisation, a benchmark figure, what it is bad at": "Parametry, kwantyzacja, wynik benchmarku, w czym jest słaby",
     "Pinned — shortcut in the chat sidebar": "Przypięty — skrót na pasku bocznym czatu",
@@ -386,9 +385,7 @@ MESSAGES: dict[str, str] = {
     "Reasoning": "Rozumowanie",
     "Reasoning efforts this model accepts": "Poziomy rozumowania akceptowane przez ten model",
     "Remove image": "Usuń obraz",
-    "Serves one request at a time": "Obsługuje jedno żądanie naraz",
     "Shown instead of the raw id. Empty uses the id.": "Wyświetlana zamiast surowego id. Puste = id.",
-    "Tick this for a model with a single slot. It then cannot be its own helper, because the helper would take that slot and push out the conversation the server has cached, so the waiting reply would have to read it all again. Other models can still be its helpers.": "Zaznacz dla modelu z jednym slotem. Nie może on wtedy być własnym pomocnikiem, bo pomocnik zająłby ten slot i wypchnął z niego rozmowę zapisaną w pamięci podręcznej serwera, więc czekająca odpowiedź musiałaby wczytać ją całą od nowa. Inne modele nadal mogą być jego pomocnikami.",
     "Uncheck to restrict this model to chosen groups. Administrators always have access.": "Odznaczenie ogranicza ten model do wybranych grup. Administratorzy mają dostęp zawsze.",
     "Used by chats on this model that have no prompt of their own. A chat's own prompt overrides this; this overrides the instance prompt.": "Używany przez czaty na tym modelu, które nie mają własnego promptu. Własny prompt czatu go nadpisuje; ten nadpisuje prompt instancji.",
     "What is this model good at?": "W czym ten model jest dobry?",
@@ -1063,7 +1060,6 @@ MESSAGES.update(
         "The vocabulary is <strong>not the same for every model</strong>, and sending one a model does not know is not ignored — it is rendered into the model's chat template, which raises and fails the whole reply. gpt-oss takes <span class=\"mono\">low/medium/high</span>; Bonsai takes <span class=\"mono\">low/medium/xhigh</span> and refuses <span class=\"mono\">high</span>; OpenAI has added <span class=\"mono\">minimal</span>, <span class=\"mono\">xhigh</span> and <span class=\"mono\">max</span> at various points.": "Słownik <strong>nie jest taki sam dla każdego modelu</strong>, a wartość, której model nie zna, nie jest ignorowana — trafia do szablonu czatu modelu, który zgłasza błąd i psuje całą odpowiedź. gpt-oss przyjmuje <span class=\"mono\">low/medium/high</span>; Bonsai przyjmuje <span class=\"mono\">low/medium/xhigh</span> i odrzuca <span class=\"mono\">high</span>; OpenAI w różnych momentach dodało <span class=\"mono\">minimal</span>, <span class=\"mono\">xhigh</span> i <span class=\"mono\">max</span>.",
         "Tick none and the common three are offered, which is right for almost everything. If an endpoint ever refuses one anyway, that reply is retried without it and this list corrects itself — so this is worth setting by hand only to save that one round trip.": "Gdy nic nie jest zaznaczone, oferowane są trzy typowe poziomy, co pasuje prawie do wszystkiego. Jeśli punkt końcowy mimo to któryś odrzuci, odpowiedź jest ponawiana bez niego, a ta lista sama się poprawia — więc ręczne ustawianie ma sens tylko po to, by zaoszczędzić tę jedną rundę.",
         "A <em>seed</em>, not a per-request setting: it is copied onto a chat when the chat is created and when somebody switches to this model, and from then on the chat's own value is what is sent. Changing it here therefore does nothing to chats that already exist. The composer's picker shows whichever level is actually in force, so what somebody sees there is what goes out. Anyone can change it per chat with <span class=\"mono\">/effort</span>, and the control only appears on a model marked <strong>Reasoning</strong> above.": "To <em>wartość początkowa</em>, nie ustawienie dla każdego żądania: jest kopiowana do czatu przy jego utworzeniu i gdy ktoś przełącza na ten model, a od tej chwili wysyłana jest własna wartość czatu. Zmiana tutaj nie wpływa więc na istniejące czaty. Wybór w polu wiadomości pokazuje poziom faktycznie obowiązujący, więc to, co ktoś tam widzi, jest tym, co zostanie wysłane. Każdy może to zmienić w danym czacie przez <span class=\"mono\">/effort</span>, a kontrolka pojawia się tylko przy modelu oznaczonym powyżej jako <strong>Reasoning</strong>.",
-        "Sent two ways at once, because there is no one field that works: OpenAI and vLLM read <span class=\"mono\">reasoning_effort</span>, while llama.cpp drops it silently and reads only <span class=\"mono\">chat_template_kwargs</span> — which is the route by which it reaches gpt-oss. Both go out, and only on a chat that has an effort set, so an endpoint strict about unknown parameters is untouched until somebody chooses one.": "Wysyłane na dwa sposoby naraz, bo nie ma jednego pola, które działa: OpenAI i vLLM czytają <span class=\"mono\">reasoning_effort</span>, a llama.cpp po cichu je pomija i czyta tylko <span class=\"mono\">chat_template_kwargs</span> — tą drogą dociera to do gpt-oss. Wysyłane są oba i tylko w czacie z ustawionym poziomem, więc punkt końcowy surowy wobec nieznanych parametrów pozostaje nietknięty, dopóki ktoś go nie wybierze.",
         "Shown in the chat settings panel and your users' settings — and, if any model here may ask another one a question, read by those models too.": "Pokazywane w panelu ustawień czatu i w ustawieniach użytkowników — a jeśli któryś model może zadawać pytania innemu, czytane także przez te modele.",
         "No instance prompt is set.": "Prompt instancji nie jest ustawiony.",
         "Leave empty to fall back to the instance prompt shown above.": "Puste pole oznacza powrót do powyższego promptu instancji.",
@@ -1326,12 +1322,10 @@ MESSAGES.update(
         "not allowed": "niedozwolone",
         "Which tools a model may use with you, and how hard a reasoning model thinks when a chat starts. These apply to you only, can only narrow what this instance allows, and a chat's own settings still win.": "Których narzędzi model może używać w rozmowie i jak intensywnie model rozumujący myśli na początku czatu. Dotyczy to tylko tego konta, może jedynie zawęzić to, na co pozwala instancja, a własne ustawienia czatu nadal wygrywają.",
         "%(n)s tools off": "Wyłączone narzędzia: %(n)s",
-        "effort off": "rozumowanie wyłączone",
         "effort %(level)s": "rozumowanie: %(level)s",
         "Unticked ones are not offered to this model when you chat with it. Only what this instance already offers you is listed.": "Niezaznaczone nie są oferowane temu modelowi w rozmowie z nim. Na liście jest tylko to, co ta instancja już udostępnia.",
         "This model is offered no tools here.": "Temu modelowi nie są tu oferowane żadne narzędzia.",
         "As the instance sets it (%(level)s)": "Jak ustawia instancja (%(level)s)",
-        "As the instance sets it (off)": "Jak ustawia instancja (wyłączone)",
         "Where a new chat with this model starts. Change it in the chat for that chat only.": "Od czego zaczyna nowy czat z tym modelem. Zmiana w czacie dotyczy tylko tego czatu.",
         "Follow the instance (%(language)s)": "Jak w instancji (%(language)s)",
         "dark": "ciemny",
@@ -1740,11 +1734,6 @@ MESSAGES.update(
         "Nothing is being written.": "Nic nie jest pisane.",
         "Your devices: the LLeMbas CLI signed in as you": "Urządzenia: LLeMbas CLI zalogowane na tym koncie",
         "Your scheduled tasks": "Zaplanowane zadania",
-        "This model is not marked as a reasoning model, so effort would do nothing. An administrator can mark it on the model's page.": "Ten model nie jest oznaczony jako rozumujący, więc poziom rozumowania nic by nie zmienił. Administrator może go oznaczyć na stronie modelu.",
-        "No effort is being sent. Try %(levels)s.": "Poziom rozumowania nie jest wysyłany. Spróbuj %(levels)s.",
-        "Effort is %(level)s. /effort %(levels)s, or off.": "Poziom rozumowania: %(level)s. /effort %(levels)s lub off.",
-        "“%(level)s” is not an effort this model takes. Try %(levels)s or off.": "„%(level)s” to nie poziom, który ten model przyjmuje. Spróbuj %(levels)s lub off.",
-        "Effort cleared; nothing is sent.": "Poziom rozumowania wyczyszczony; nic nie jest wysyłane.",
         "Effort set to %(level)s.": "Ustawiono poziom rozumowania %(level)s.",
         "Already summarising.": "Streszczanie już trwa.",
         "Summarise everything before the last reply? The messages stay in the transcript; they just stop being sent to the model.": "Streścić wszystko przed ostatnią odpowiedzią? Wiadomości zostaną w zapisie; po prostu przestaną być wysyłane do modelu.",
@@ -2431,3 +2420,19 @@ MESSAGES['working'] = 'pracuje'
 MESSAGES['waiting for a slot'] = 'czeka na wolne miejsce'
 MESSAGES['finished'] = 'skończył'
 MESSAGES['idle'] = 'bezczynny'
+
+# Effort levels and the thinking switch, requests at once (2.0.0-beta.5, harness spec 3.2.0).
+MESSAGES['Can switch thinking off'] = 'Potrafi wyłączyć rozumowanie'
+MESSAGES['Tick this when the model\'s server turns thinking off for a request that sends <span class="mono">chat_template_kwargs.enable_thinking: false</span> — Qwen3 and Nemotron 3 models on llama.cpp, vLLM or SGLang. A chat then offers <em>off</em>, which sends exactly that and no effort. Without it there is no off: sending no effort leaves such a model thinking at its server\'s default.'] = 'Zaznacz, gdy serwer modelu wyłącza rozumowanie dla żądania, które wysyła <span class="mono">chat_template_kwargs.enable_thinking: false</span> — modele Qwen3 i Nemotron 3 na llama.cpp, vLLM lub SGLang. Czat oferuje wtedy <em>wył.</em>, które wysyła dokładnie to i żadnego poziomu. Bez tego nie ma wyłączenia: bez wysłanego poziomu taki model rozumuje według domyślnego ustawienia swojego serwera.'
+MESSAGES['Not set — medium where offered, else the first effort'] = 'Nieustawione — medium, gdzie jest dostępny, w przeciwnym razie pierwszy poziom'
+MESSAGES['off — thinking switched off'] = 'wył. — rozumowanie wyłączone'
+MESSAGES["default — the model's own"] = 'domyślna — własne ustawienie modelu'
+MESSAGES['Sent two ways at once, because there is no one field that works: OpenAI and vLLM read <span class="mono">reasoning_effort</span>, while llama.cpp drops it silently and reads only <span class="mono">chat_template_kwargs</span> — which is the route by which it reaches gpt-oss. Both go out on every chat with a model marked <strong>Reasoning</strong>: not set here, a chat starts at medium where the model takes it, else at its first effort. <em>Off</em> sends only <span class="mono">enable_thinking: false</span>, and a model not marked <strong>Reasoning</strong> is sent no effort at all.'] = 'Wysyłane na dwa sposoby naraz, bo nie ma jednego pola, które działa: OpenAI i vLLM czytają <span class="mono">reasoning_effort</span>, a llama.cpp po cichu je pomija i czyta tylko <span class="mono">chat_template_kwargs</span> — tą drogą dociera to do gpt-oss. Oba są wysyłane w każdym czacie z modelem oznaczonym jako <strong>Reasoning</strong>: jeśli nic tu nie ustawiono, czat zaczyna od medium, gdzie model go przyjmuje, a w przeciwnym razie od jego pierwszego poziomu. <em>Wył.</em> wysyła tylko <span class="mono">enable_thinking: false</span>, a model bez oznaczenia <strong>Reasoning</strong> nie dostaje żadnego poziomu.'
+MESSAGES['Requests at once'] = 'Żądania naraz'
+MESSAGES["How many requests the model's server answers at the same time — llama.cpp's slots, a vLLM batch. Empty is no limit, right for a hosted API. At 1 the model cannot be its own helper, because the helper would take the only slot and push out the conversation the server has cached, so the waiting reply would have to read it all again. Other models can still be its helpers."] = 'Ile żądań serwer modelu obsługuje jednocześnie — sloty llama.cpp, partia vLLM. Puste oznacza brak limitu, właściwy dla hostowanego API. Przy 1 model nie może być własnym pomocnikiem, bo pomocnik zająłby jedyny slot i wypchnął z niego rozmowę zapisaną w pamięci podręcznej serwera, więc czekająca odpowiedź musiałaby wczytać ją całą od nowa. Inne modele nadal mogą być jego pomocnikami.'
+MESSAGES['Think before answering'] = 'Rozumuj przed odpowiedzią'
+MESSAGES['thinking off'] = 'rozumowanie wyłączone'
+MESSAGES["This model offers no choice of effort. An administrator sets what it takes on the model's page."] = 'Ten model nie oferuje wyboru poziomu rozumowania. To, co przyjmuje, ustawia administrator na stronie modelu.'
+MESSAGES['Effort is %(level)s. /effort %(levels)s.'] = 'Poziom rozumowania: %(level)s. /effort %(levels)s.'
+MESSAGES['“%(level)s” is not a level this model offers. Try %(levels)s.'] = '„%(level)s” to nie poziom, który ten model oferuje. Spróbuj %(levels)s.'
+MESSAGES['Thinking switched off.'] = 'Rozumowanie wyłączone.'

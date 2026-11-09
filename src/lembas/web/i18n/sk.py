@@ -1176,7 +1176,6 @@ MESSAGES.update(
             "O vzdialenej strane sa zatiaľ nič nevie. Overte ju vyššie."
         ),
         "None — keyword search only": "Žiadny — len hľadanie podľa slov",
-        "None — send nothing": "Žiadne — neposielať nič",
         "The new-chat screen shows its empty state instead.": (
             "Obrazovka novej konverzácie namiesto toho zobrazí svoj prázdny stav."
         ),
@@ -1342,8 +1341,6 @@ MESSAGES.update(
     {
         'Holds one model at a time': 'Drží naraz jeden model',
         'Tick this for llama-swap in front of one GPU, or anything else that unloads one model to serve another. A model here may then be its own helper, but never send a helper to another model on this connection: loading it would unload the model whose reply is waiting.': 'Označte pri llama-swap pred jednou GPU alebo čomkoľvek, čo jeden model uvoľní, aby obslúžilo iný. Model tu potom môže byť vlastným pomocníkom, ale nikdy nepošle pomocníka inému modelu na tomto spojení: jeho načítanie by uvoľnilo model, ktorého odpoveď čaká.',
-        'Serves one request at a time': 'Obsluhuje naraz jednu požiadavku',
-        'Tick this for a model with a single slot. It then cannot be its own helper, because the helper would take that slot and push out the conversation the server has cached, so the waiting reply would have to read it all again. Other models can still be its helpers.': 'Označte pri modeli s jedným slotom. Potom nemôže byť vlastným pomocníkom, lebo pomocník by obsadil ten slot a vytlačil z neho rozhovor, ktorý má server uložený, takže čakajúca odpoveď by ho musela načítať celý znova. Iné modely môžu byť jeho pomocníkmi aj tak.',
     }
 )
 
@@ -1758,11 +1755,6 @@ MESSAGES.update(
         "There is no reply to continue yet.": "Zatiaľ nie je odpoveď, v ktorej by sa dalo pokračovať.",
         "Stop the reply being written": "Zastaviť písanú odpoveď",
         "Nothing is being written.": "Nič sa práve nepíše.",
-        "This model is not marked as a reasoning model, so effort would do nothing. An administrator can mark it on the model's page.": "Tento model nie je označený ako uvažujúci, takže náročnosť by nič nezmenila. Správca ho môže označiť na stránke modelu.",
-        "No effort is being sent. Try %(levels)s.": "Neposiela sa žiadna náročnosť. Skúste %(levels)s.",
-        "Effort is %(level)s. /effort %(levels)s, or off.": "Náročnosť je %(level)s. /effort %(levels)s alebo off.",
-        "“%(level)s” is not an effort this model takes. Try %(levels)s or off.": "„%(level)s“ nie je náročnosť, ktorú tento model prijíma. Skúste %(levels)s alebo off.",
-        "Effort cleared; nothing is sent.": "Náročnosť je zrušená; nič sa neposiela.",
         "Effort set to %(level)s.": "Náročnosť je nastavená na %(level)s.",
         "Already summarising.": "Zhrnutie už prebieha.",
         "Summarise everything before the last reply? The messages stay in the transcript; they just stop being sent to the model.": "Zhrnúť všetko pred poslednou odpoveďou? Správy v prepise zostanú; len sa prestanú posielať modelu.",
@@ -1884,7 +1876,6 @@ MESSAGES.update(
         "The vocabulary is <strong>not the same for every model</strong>, and sending one a model does not know is not ignored — it is rendered into the model's chat template, which raises and fails the whole reply. gpt-oss takes <span class=\"mono\">low/medium/high</span>; Bonsai takes <span class=\"mono\">low/medium/xhigh</span> and refuses <span class=\"mono\">high</span>; OpenAI has added <span class=\"mono\">minimal</span>, <span class=\"mono\">xhigh</span> and <span class=\"mono\">max</span> at various points.": "Slovník <strong>nie je rovnaký pre každý model</strong> a hodnota, ktorú model nepozná, sa neignoruje — dostane sa do šablóny konverzácie modelu, tá vyhodí chybu a zlyhá celá odpoveď. gpt-oss berie <span class=\"mono\">low/medium/high</span>; Bonsai berie <span class=\"mono\">low/medium/xhigh</span> a odmieta <span class=\"mono\">high</span>; OpenAI postupne pridalo <span class=\"mono\">minimal</span>, <span class=\"mono\">xhigh</span> a <span class=\"mono\">max</span>.",
         "Tick none and the common three are offered, which is right for almost everything. If an endpoint ever refuses one anyway, that reply is retried without it and this list corrects itself — so this is worth setting by hand only to save that one round trip.": "Ak nezaškrtnete nič, ponúknu sa bežné tri, čo takmer vždy stačí. Ak endpoint niektorú hodnotu predsa odmietne, odpoveď sa zopakuje bez nej a tento zoznam sa sám opraví — ručne to teda oplatí nastaviť len na ušetrenie tej jednej cesty tam a späť.",
         "A <em>seed</em>, not a per-request setting: it is copied onto a chat when the chat is created and when somebody switches to this model, and from then on the chat's own value is what is sent. Changing it here therefore does nothing to chats that already exist. The composer's picker shows whichever level is actually in force, so what somebody sees there is what goes out. Anyone can change it per chat with <span class=\"mono\">/effort</span>, and the control only appears on a model marked <strong>Reasoning</strong> above.": "Ide o <em>počiatočnú hodnotu</em>, nie o nastavenie pre každú požiadavku: skopíruje sa do konverzácie, keď sa konverzácia vytvorí a keď na tento model niekto prepne, a odvtedy sa posiela vlastná hodnota konverzácie. Zmena tu preto na existujúce konverzácie nemá vplyv. Výber v poli na písanie ukazuje úroveň, ktorá naozaj platí, takže čo tam niekto vidí, to sa aj odošle. Ktokoľvek ju môže zmeniť pre konkrétnu konverzáciu cez <span class=\"mono\">/effort</span> a ovládanie sa zobrazí len pri modeli, ktorý má vyššie označené <strong>Uvažovanie</strong>.",
-        "Sent two ways at once, because there is no one field that works: OpenAI and vLLM read <span class=\"mono\">reasoning_effort</span>, while llama.cpp drops it silently and reads only <span class=\"mono\">chat_template_kwargs</span> — which is the route by which it reaches gpt-oss. Both go out, and only on a chat that has an effort set, so an endpoint strict about unknown parameters is untouched until somebody chooses one.": "Posiela sa dvoma spôsobmi naraz, lebo neexistuje jedno pole, ktoré by fungovalo všade: OpenAI a vLLM čítajú <span class=\"mono\">reasoning_effort</span>, kým llama.cpp ho potichu zahodí a číta len <span class=\"mono\">chat_template_kwargs</span> — práve touto cestou sa hodnota dostane ku gpt-oss. Odchádzajú obe, a len pri konverzácii, ktorá má úsilie nastavené, takže endpoint prísny na neznáme parametre zostane nedotknutý, kým si niekto nejaké nevyberie.",
         "Shown in the chat settings panel and your users' settings — and, if any model here may ask another one a question, read by those models too.": "Zobrazuje sa v paneli nastavení konverzácie a v nastaveniach vašich používateľov — a ak tu niektorý model smie položiť otázku inému, čítajú ho aj tieto modely.",
         "No instance prompt is set.": "Pokyn instancie nie je nastavený.",
         "Leave empty to fall back to the instance prompt shown above.": "Nechajte prázdne a použije sa pokyn instancie uvedený vyššie.",
@@ -2380,7 +2371,6 @@ MESSAGES.update(
         ),
         "This model is offered no tools here.": "Tento model tu nemá ponúknuté žiadne nástroje.",
         "As the instance sets it (%(level)s)": "Podľa instancie (%(level)s)",
-        "As the instance sets it (off)": "Podľa instancie (vypnuté)",
         "Where a new chat with this model starts. Change it in the chat for that chat only.": (
             "Od tejto úrovne začne nová konverzácia s týmto modelom. V konverzácii ju zmeníte "
             "len pre ňu."
@@ -2388,7 +2378,6 @@ MESSAGES.update(
         "Saved for %(model)s.": "Uložené pre %(model)s.",
         "%(n)s tools off": "vypnuté nástroje: %(n)s",
         "effort %(level)s": "náročnosť %(level)s",
-        "effort off": "náročnosť vypnutá",
         "Your devices: the LLeMbas CLI signed in as you": "Vaše zariadenia: LLeMbas CLI prihlásené za vás",
         "Your scheduled tasks": "Vaše naplánované úlohy",
     }
@@ -3093,3 +3082,19 @@ MESSAGES['working'] = 'pracuje'
 MESSAGES['waiting for a slot'] = 'čaká na voľné miesto'
 MESSAGES['finished'] = 'skončil'
 MESSAGES['idle'] = 'nečinný'
+
+# Effort levels and the thinking switch, requests at once (2.0.0-beta.5, harness spec 3.2.0).
+MESSAGES['Can switch thinking off'] = 'Vie vypnúť premýšľanie'
+MESSAGES['Tick this when the model\'s server turns thinking off for a request that sends <span class="mono">chat_template_kwargs.enable_thinking: false</span> — Qwen3 and Nemotron 3 models on llama.cpp, vLLM or SGLang. A chat then offers <em>off</em>, which sends exactly that and no effort. Without it there is no off: sending no effort leaves such a model thinking at its server\'s default.'] = 'Označte, keď server modelu vypne premýšľanie pri požiadavke, ktorá pošle <span class="mono">chat_template_kwargs.enable_thinking: false</span> — modely Qwen3 a Nemotron 3 na llama.cpp, vLLM alebo SGLang. Konverzácia potom ponúkne <em>vypnuté</em>, ktoré pošle presne toto a žiadnu náročnosť. Bez toho vypnutie neexistuje: keď sa nepošle žiadna náročnosť, taký model premýšľa podľa predvoľby svojho servera.'
+MESSAGES['Not set — medium where offered, else the first effort'] = 'Nenastavené — medium, kde ho model ponúka, inak prvá náročnosť'
+MESSAGES['off — thinking switched off'] = 'vypnuté — premýšľanie vypnuté'
+MESSAGES["default — the model's own"] = 'predvolené — vlastné nastavenie modelu'
+MESSAGES['Sent two ways at once, because there is no one field that works: OpenAI and vLLM read <span class="mono">reasoning_effort</span>, while llama.cpp drops it silently and reads only <span class="mono">chat_template_kwargs</span> — which is the route by which it reaches gpt-oss. Both go out on every chat with a model marked <strong>Reasoning</strong>: not set here, a chat starts at medium where the model takes it, else at its first effort. <em>Off</em> sends only <span class="mono">enable_thinking: false</span>, and a model not marked <strong>Reasoning</strong> is sent no effort at all.'] = 'Posiela sa dvoma spôsobmi naraz, lebo neexistuje jedno pole, ktoré by fungovalo všade: OpenAI a vLLM čítajú <span class="mono">reasoning_effort</span>, kým llama.cpp ho potichu zahodí a číta len <span class="mono">chat_template_kwargs</span> — práve touto cestou sa hodnota dostane ku gpt-oss. Obe odchádzajú pri každej konverzácii s modelom označeným <strong>Reasoning</strong>: keď tu nič nie je nastavené, konverzácia začne na medium, kde ho model prijíma, inak na jeho prvej náročnosti. <em>Vypnuté</em> pošle len <span class="mono">enable_thinking: false</span> a model bez označenia <strong>Reasoning</strong> nedostane žiadnu náročnosť.'
+MESSAGES['Requests at once'] = 'Požiadavky naraz'
+MESSAGES["How many requests the model's server answers at the same time — llama.cpp's slots, a vLLM batch. Empty is no limit, right for a hosted API. At 1 the model cannot be its own helper, because the helper would take the only slot and push out the conversation the server has cached, so the waiting reply would have to read it all again. Other models can still be its helpers."] = 'Koľko požiadaviek server modelu vybavuje súčasne — sloty llama.cpp, dávka vLLM. Prázdne znamená bez limitu, čo je správne pre hosťované API. Pri 1 nemôže byť model vlastným pomocníkom, lebo pomocník by obsadil jediný slot a vytlačil z neho rozhovor, ktorý má server uložený, takže čakajúca odpoveď by ho musela načítať celý znova. Iné modely môžu byť jeho pomocníkmi aj tak.'
+MESSAGES['Think before answering'] = 'Premýšľať pred odpoveďou'
+MESSAGES['thinking off'] = 'premýšľanie vypnuté'
+MESSAGES["This model offers no choice of effort. An administrator sets what it takes on the model's page."] = 'Tento model neponúka výber náročnosti. Čo prijíma, nastavuje správca na stránke modelu.'
+MESSAGES['Effort is %(level)s. /effort %(levels)s.'] = 'Náročnosť je %(level)s. /effort %(levels)s.'
+MESSAGES['“%(level)s” is not a level this model offers. Try %(levels)s.'] = '„%(level)s“ nie je úroveň, ktorú tento model ponúka. Skúste %(levels)s.'
+MESSAGES['Thinking switched off.'] = 'Premýšľanie je vypnuté.'

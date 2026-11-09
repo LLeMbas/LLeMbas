@@ -1377,6 +1377,45 @@
   white-space: nowrap;
 }
 
+/* The settings button's slot: out of the toolbar's layout (its button is the
+   flex item), and the target a model switch swaps out of band. */
+.composer__settings-slot { display: contents; }
+
+/*
+  Thinking on or off (harness spec 3.2.0: a model offering only off and one
+  other level). One row, three tracks whose sizes are known: the label takes
+  what is left, the state word and the box their own width -- so the box sits
+  at the same place whatever the label says in whichever language. The whole
+  row is the label, and the tap target, at least --tap-min high.
+*/
+.thinking-switch {
+  padding: var(--sp-1) var(--sp-2);
+  border-bottom: var(--border-w) solid var(--border);
+  margin-bottom: var(--sp-1);
+}
+.thinking-switch__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--tap-min);
+}
+.thinking-switch__label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.thinking-switch__value {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--accent);
+}
+
 /* The one thing allowed to give. It shrinks past its content and scrolls
    sideways rather than wrapping. The scrollbar is hidden: the controls are
    already visibly cut off, and a scrollbar under a --control-h row would change

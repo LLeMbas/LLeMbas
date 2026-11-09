@@ -1570,22 +1570,27 @@ document.addEventListener("lembas:notify", function (event) {
 })();
 
 /*
-  The effort: a slider in the composer's settings, over the select that
-  holds the state. `/effort`, htmx and a model switch all read and write the
-  select, as they did when it was the visible control -- so the slider only
-  repaints from it, and moving the slider writes the select and fires its
-  `change`, which is what saves it. The settings button is a plain icon; the
-  level is shown only beside the slider.
+  The level: a slider in the composer's settings, or a Thinking switch when the
+  model offers only off and one other level (harness spec 3.2.0), over the
+  select that holds the state. `/effort`, htmx and a model switch all read and
+  write the select, as they did when it was the visible control -- so the
+  slider and the switch only repaint from it, and moving one writes the select
+  and fires its `change`, which is what saves it. The settings button is a
+  plain icon; the level is shown only beside its control.
 
   `input` moves the words as the thumb moves; `change` (released, or a key)
   is the one that saves -- a drag across four levels is one PATCH, not four.
+  A model switch in an existing chat swaps the whole menu out of band
+  (`#composer-settings`), so the control is always the new model's.
 */
 (function () {
   function levels(range) {
     try { return JSON.parse(range.dataset.levels || "[]"); } catch (e) { return []; }
   }
   function said(range, value) {
-    return value === "off" ? (range.dataset.offLabel || "off") : value;
+    if (value === "off") return range.dataset.offLabel || "off";
+    if (value === "default") return range.dataset.defaultLabel || "default";
+    return value;
   }
   function boxOf(el) { return el.closest(".composer__settings"); }
 
@@ -1593,12 +1598,18 @@ document.addEventListener("lembas:notify", function (event) {
     document.querySelectorAll("[data-effort]").forEach(function (select) {
       var box = boxOf(select);
       if (!box) return;
-      var value = String(select.value || "off");
+      var value = String(select.value || "");
       var range = box.querySelector("[data-effort-range]");
-      if (!range) return;
-      var at = levels(range).indexOf(value);
-      if (at !== -1) range.value = String(at);
-      show(range, value);
+      if (range) {
+        var at = levels(range).indexOf(value);
+        if (at !== -1) range.value = String(at);
+        show(range, value);
+      }
+      var toggle = box.querySelector("[data-thinking-switch]");
+      if (toggle) {
+        toggle.checked = value !== "off";
+        showSwitch(toggle);
+      }
     });
   }
   function show(range, value) {
@@ -1606,22 +1617,33 @@ document.addEventListener("lembas:notify", function (event) {
     var out = boxOf(range) && boxOf(range).querySelector("[data-effort-output]");
     if (out) out.textContent = said(range, value);
   }
+  function showSwitch(toggle) {
+    var out = boxOf(toggle) && boxOf(toggle).querySelector("[data-thinking-output]");
+    if (out) out.textContent = toggle.checked ? out.dataset.onLabel : out.dataset.offLabel;
+  }
+  function write(el, value) {
+    var select = boxOf(el) && boxOf(el).querySelector("[data-effort]");
+    if (select && value && select.value !== value) {
+      select.value = value;
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  }
 
   document.addEventListener("input", function (event) {
     var range = event.target;
     if (!range.matches || !range.matches("[data-effort-range]")) return;
-    show(range, levels(range)[Number(range.value)] || "off");
+    show(range, levels(range)[Number(range.value)] || "");
   });
   document.addEventListener("change", function (event) {
     var target = event.target;
     if (!target || !target.matches) return;
     if (target.matches("[data-effort-range]")) {
-      var select = boxOf(target) && boxOf(target).querySelector("[data-effort]");
-      var value = levels(target)[Number(target.value)] || "off";
-      if (select && select.value !== value) {
-        select.value = value;
-        select.dispatchEvent(new Event("change", { bubbles: true }));
-      }
+      write(target, levels(target)[Number(target.value)] || "");
+      return;
+    }
+    if (target.matches("[data-thinking-switch]")) {
+      showSwitch(target);
+      write(target, target.checked ? target.dataset.onLevel : "off");
       return;
     }
     if (target.matches("[data-effort]")) paint();

@@ -1,0 +1,130 @@
+{#
+  The chat's settings button, in the composer's toolbar. Its own file because a
+  model switch in an existing chat re-renders it out of band (`update_chat`):
+  another model offers other levels, and maybe another control.
+
+  It used to be two -- a menu of tool and skill switches here, and the effort as
+  a chip of its own -- with a third, Chat settings, up in the header's overflow
+  menu. Now the tools are a default per model in Settings -> Models, the
+  switches for this chat live in the settings panel with every other tweak, and
+  this keeps what is reached for while writing: how hard the model thinks, the
+  team's size, and the way into the panel.
+
+  The levels are the harness spec's (3.2.0, `models/schema.json` `levels`): `off`
+  when the model can switch thinking off, then its efforts, or the one level
+  `default`. One level is no control at all; two, one of them off, is a
+  Thinking on/off switch; more is the slider. A menu holding only the way into
+  the panel is a menu you open to press a button -- so with nothing else to
+  hold, the button opens the panel itself.
+
+  Needs `chat`, `model_levels` (a `chat.Levels`, or None), `chosen_level`, for
+  the panel `scope_families`, `scope_skills` and `scope_allow`, and for the team
+  slot below `team_offered` (and what `chat/_team_setting.html` reads).
+#}
+{% from "_macros.html" import icon %}
+{% set has_panel = chat or scope_families or scope_skills or scope_allow %}
+{% set lv = model_levels %}
+{% set effort_control = lv.control if lv else "none" %}
+{#
+  ===== TEAM SETTING SLOT (teams, harness spec 3.2.0 team.md) =====
+  `chat/_team_setting.html` is the chat's team size control (Agents min/max),
+  shown in this menu under the effort control. The menu button exists when
+  `team_offered` (context, default false: `pages._team_context`) is true or the
+  included template renders anything at all -- so the slot is safe both where
+  the feature is absent (`ignore missing`, `team_offered` unset) and where it
+  draws its own guard. Its fields: on the new-chat screen inside the composer's
+  form (posted with the first message); on an existing chat
+  `form="chat-params-form"` with its own `hx-patch`, as the effort select does.
+#}
+{% set team_slot %}{% include "chat/_team_setting.html" ignore missing %}{% endset %}
+{% set has_team = (team_offered|default(false)) or (team_slot|trim|length > 0) %}
+<div class="composer__settings-slot" id="composer-settings"{% if oob %} hx-swap-oob="true"{% endif %}>
+{% if effort_control != "none" or has_team %}
+{% set chosen = lv.read(chosen_level) if lv else "" %}
+{% set offered = lv.offered|list if lv else [] %}
+{# An icon button, the attach button's twin -- same classes, same icon size.
+   No short form of the level beside it (L, M, XH): that would make it the one
+   control in the row whose width depends on a setting. The level is in the
+   popover, on the control that sets it. #}
+<div class="picker picker--up composer__settings" data-picker>
+  <button class="btn btn--icon composer__btn" type="button" data-picker-toggle
+          aria-haspopup="dialog" aria-expanded="false"
+          aria-label="{{ t('Chat settings') }}" title="{{ t('Chat settings') }}">
+    {{ icon("sliders") }}
+  </button>
+
+  <div class="picker__menu picker__menu--settings" data-picker-menu role="dialog"
+       hidden aria-label="{{ t('Chat settings') }}">
+    {% if effort_control == "switch" %}
+    {#
+      Thinking on or off: a real checkbox with the switch role, so a screen
+      reader says "Thinking, switch, on", Space flips it, and the label is the
+      tap target. The select below is still the state, as for the slider.
+    #}
+    <div class="thinking-switch">
+      <label class="thinking-switch__row checkbox" for="thinking-switch">
+        <span class="thinking-switch__label">{{ t("Think before answering") }}</span>
+        <output class="thinking-switch__value" for="thinking-switch" data-thinking-output
+                data-on-label="{{ t('on') }}" data-off-label="{{ t('off') }}">{{ t("off") if chosen == "off" else t("on") }}</output>
+        <input type="checkbox" role="switch" id="thinking-switch"
+               data-thinking-switch data-picker-focus
+               data-on-level="{{ lv.on }}"
+               {{ 'checked' if chosen != 'off' }}>
+      </label>
+    {% elif effort_control == "slider" %}
+    <div class="effort-slider" style="--levels: {{ offered|length }}">
+      <label class="effort-slider__label" for="effort-range">
+        {{ t("Reasoning effort") }}
+        <output class="effort-slider__value" for="effort-range" data-effort-output>{{ t("off") if chosen == "off" else (t("default") if chosen == "default" else chosen) }}</output>
+      </label>
+      {# The slider is the control; the select under it is the state.
+         `/effort`, htmx and a model switch all read and write the
+         select, as they did when it was the visible control, and the
+         slider follows it (ui.js). Out of the tab order and hidden
+         from a screen reader, which is given the slider instead. #}
+      <input class="effort-slider__range" type="range" id="effort-range"
+             min="0" max="{{ offered|length - 1 }}" step="1"
+             value="{{ offered.index(chosen) }}"
+             data-effort-range data-picker-focus
+             data-levels='{{ offered|tojson }}'
+             data-off-label="{{ t('off') }}"
+             data-default-label="{{ t('default') }}"
+             aria-valuetext="{{ t('off') if chosen == 'off' else (t('default') if chosen == 'default' else chosen) }}">
+      <div class="effort-slider__ticks" aria-hidden="true">
+        {% for value in offered %}<span>{{ t("off") if value == "off" else (t("default") if value == "default" else value) }}</span>{% endfor %}
+      </div>
+    {% endif %}
+    {% if effort_control != "none" %}
+      <select class="visually-hidden" name="reasoning_effort" data-effort
+              tabindex="-1" aria-hidden="true"
+              {% if chat %}
+              form="chat-params-form"
+              hx-patch="/api/chats/{{ chat.id }}" hx-swap="none"
+              {% endif %}>
+        {% for value in offered %}
+        <option value="{{ value }}" {{ 'selected' if chosen == value }}>{{ value }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    {% if has_team %}{{ team_slot }}{% endif %}
+    {% if has_panel %}
+    <button class="picker__option" type="button" role="menuitem"
+            data-toggle="#chat-settings" data-toggle-group="side">
+      {{ icon("sliders", "icon--sm") }}
+      <span class="picker__option-body">
+        <span class="picker__option-name">{{ t("More settings") }}</span>
+        <span class="picker__option-note">{{ t("Tools, skills, prompt, sampling") }}</span>
+      </span>
+    </button>
+    {% endif %}
+  </div>
+</div>
+{% elif has_panel %}
+<button class="btn btn--icon composer__btn" type="button"
+        data-toggle="#chat-settings" data-toggle-group="side" aria-expanded="false"
+        aria-label="{{ t('Chat settings') }}" title="{{ t('Chat settings') }}">
+  {{ icon("sliders") }}
+</button>
+{% endif %}
+</div>

@@ -725,7 +725,11 @@ async def _stream_once(endpoint, payload, generation, model_id: str):
             yield chunk
         return
     except LLMError as exc:
-        refused = str((payload.get("chat_template_kwargs") or {}).get("reasoning_effort") or "")
+        refused = str(
+            (payload.get("chat_template_kwargs") or {}).get("reasoning_effort")
+            or payload.get("reasoning_effort")
+            or ""
+        )
         if sent or not refused or not _effort_was_refused(exc.message):
             raise
         log.info("retrying without reasoning effort %r: %s", refused, exc.message)
@@ -735,6 +739,9 @@ async def _stream_once(endpoint, payload, generation, model_id: str):
     retry.pop("reasoning_effort", None)
     kwargs = dict(retry.get("chat_template_kwargs") or {})
     kwargs.pop("reasoning_effort", None)
+    # And without the thinking switch (quirks.json `effort-refused`, spec 3.2.0):
+    # the retry is the model's own default, nothing asked of its template.
+    kwargs.pop("enable_thinking", None)
     if kwargs:
         retry["chat_template_kwargs"] = kwargs
     else:
@@ -817,6 +824,9 @@ async def _run(generation: Generation) -> None:
     needs_title = False
     title_from_prompt = False
     title_prompt = ""
+    # Whether the chat's model can be asked not to think: a title is six
+    # words, and a model that thinks first spends seconds on them.
+    title_quiet = False
     device: dict | None = None
     # Bound before the try, because the finally clears the credential on it and
     # a chat that has been deleted returns before it would otherwise be set.
@@ -941,6 +951,7 @@ async def _run(generation: Generation) -> None:
             # how a reply fails with no explanation in it.
             model = chat_service.model_row(db, speaker)
             generation.context_limit = model.context_length if model is not None else 0
+            title_quiet = bool(model is not None and model.thinking_switch)
             # The model and, when it lists any, its fallbacks (opt-in).
             route = fallback_service.plan(db, chat, owner, model, endpoint, model_id)
             # Kept for `_inject`, which builds a user turn after this session
@@ -1009,6 +1020,9 @@ async def _run(generation: Generation) -> None:
             # Text the model produced in *this* round, needed separately from
             # generation.content when echoing the assistant turn back.
             round_text: list[str] = []
+            # Where this round's reasoning starts in the reply's: it goes back
+            # with the round's turn (harness spec 3.2.0, context.md §8).
+            round_reasoning_from = len(generation.reasoning)
             # When this round's thinking started and when it was last seen, so
             # the interval can be added to `generation.thinking_ms` at the
             # round's end. Per round, because the thinking block is per round:
@@ -1176,7 +1190,10 @@ async def _run(generation: Generation) -> None:
                     generation.touch()
                     messages = [*payload["messages"]]
                     if "".join(round_text).strip():
-                        messages.append({"role": "assistant", "content": "".join(round_text)})
+                        said: dict[str, Any] = {"role": "assistant", "content": "".join(round_text)}
+                        if thought_text := "".join(generation.reasoning[round_reasoning_from:]):
+                            said["reasoning_content"] = thought_text
+                        messages.append(said)
                     messages.append(
                         {"role": "user", "content": harness_spec.prompt("tasks/continue.md")}
                     )
@@ -1270,7 +1287,12 @@ async def _run(generation: Generation) -> None:
                 # proposed while a different one ran, and every later round
                 # reasoned from a transcript that was quietly false.
                 *payload["messages"],
-                tools_service.assistant_turn(calls, "".join(round_text), round_blocks),
+                tools_service.assistant_turn(
+                    calls,
+                    "".join(round_text),
+                    round_blocks,
+                    "".join(generation.reasoning[round_reasoning_from:]),
+                ),
             ]
 
             generation.status = _tool_status(calls)
@@ -1431,6 +1453,9 @@ async def _run(generation: Generation) -> None:
                         question,
                         generation.text,
                         template=title_prompt,
+                        # The chat's own model only: a fallback may not take it.
+                        thinking_off=title_quiet and route is not None
+                        and route.model_id == model_id,
                     )
                 title = title or chat_service.fallback_title(question)
 

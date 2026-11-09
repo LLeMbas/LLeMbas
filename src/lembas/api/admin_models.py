@@ -25,6 +25,10 @@ log = logging.getLogger(__name__)
 
 router = APIRouter(tags=["admin-models"])
 
+# The most "Requests at once" a model page takes: more than any one server's
+# slots, few enough that a typo is not taken for a number.
+MAX_PARALLEL = 256
+
 # What the endpoint can do. Endpoints do not advertise any of this reliably, so
 # these are an administrator's assertion.
 # `embeddings` is the odd one out and is worth naming as such: the other three
@@ -294,6 +298,9 @@ async def model_detail(
             # current answer, which is the common three until somebody says.
             "efforts": chat_service.EFFORTS,
             "model_efforts": chat_service.efforts_for(model),
+            # What a chat offers on this model (spec 3.2.0 levels), for the
+            # default's choices.
+            "model_levels": chat_service.levels_for(model),
             # What `detect-efforts` found, if it has just run. Escaped by the
             # template like every other value; it is prose the endpoint or this
             # application wrote, not markup.
@@ -359,6 +366,8 @@ async def update_model(
     pinned: bool = Form(False),
     public: bool = Form(False),
     single_session: bool = Form(False),
+    parallel: str | None = Form(None),
+    thinking_switch: bool = Form(False),
     position: str = Form(""),
     context_length: str = Form(""),
     default_effort: str = Form(""),
@@ -428,7 +437,25 @@ async def update_model(
     model.enabled = enabled
     model.pinned = pinned
     model.public = public
-    model.single_session = single_session
+    # Requests at once (spec 3.2.0 `capacity.parallel`): a number, or empty for
+    # "no limit anybody stated". The older "one request at a time" box is the
+    # same as 1, so it is kept equal for whatever reads only that column; a
+    # form that posts no `parallel` (an older one) still sets the box. FastAPI
+    # reads an empty field as None too, so an emptied field lands here: with
+    # the box unticked it clears a 1 and keeps any larger number.
+    if parallel is None:
+        model.single_session = single_session
+        if single_session:
+            model.parallel = 1
+        elif model.parallel == 1:
+            model.parallel = None
+    else:
+        typed = None
+        with contextlib.suppress(ValueError):
+            typed = int(parallel.strip()) if parallel.strip() else None
+        model.parallel = typed if typed is not None and 1 <= typed <= MAX_PARALLEL else None
+        model.single_session = model.parallel == 1
+    model.thinking_switch = thinking_switch
 
     # Merged rather than rebuilt, unlike the capabilities below: params_json
     # holds whatever sampling defaults an administrator has set and this form
@@ -442,14 +469,13 @@ async def update_model(
 
     params = dict(model.params_json or {})
     wanted = default_effort.strip().lower()
-    # Checked against what this model takes, not against everything this
+    # Checked against the levels this model offers, not against everything this
     # application has heard of -- a default of `high` on a model whose template
-    # refuses it is a chat that fails on its first turn.
-    if wanted in chat_service.efforts_for(model):
-        params["reasoning_effort"] = wanted
-    else:
-        params.pop("reasoning_effort", None)
+    # refuses it is a chat that fails on its first turn, and `off` exists only
+    # with the thinking switch. Read after the capabilities below are saved,
+    # because whether the model reasons decides its levels.
     model.params_json = params
+
 
     # Absent checkboxes are simply missing from a form post, so the submitted
     # list IS the complete new state -- rebuild rather than merge. The four
@@ -474,6 +500,13 @@ async def update_model(
             rebuilt[name] = bool(detected.get(name, False))
     model.capabilities_json = rebuilt
     capabilities_service.set_override(model, override)
+
+    params = dict(model.params_json or {})
+    if wanted in chat_service.levels_for(model).offered:
+        params["reasoning_effort"] = wanted
+    else:
+        params.pop("reasoning_effort", None)
+    model.params_json = params
 
     # The fallback list, in the order posted; only other chat models that
     # exist (validated again when a reply uses it, `services/fallback.py`).
