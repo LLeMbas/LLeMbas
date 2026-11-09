@@ -2228,7 +2228,7 @@
    Two native range inputs lie on one box over a drawn track; only their
    thumbs take the pointer, so either can be grabbed where it is. The track,
    the filled span and the stop labels are all placed on the thumbs' centres,
-   which run from half a thumb in at one end to half a thumb in at the other:
+   which run from half a handle in at one end to half a handle in at the other:
    `--lo` and `--hi` (0..1, written by the server and repainted by ui.js) are
    fractions of that run, as is each stop's `--at`. Nothing lines up by
    coincidence of text length. */
@@ -2240,13 +2240,17 @@
   min-width: 0;
 }
 .team-setting--wide {
-  max-width: calc(var(--w-field-sm) * 2);
+  max-width: calc(var(--w-field-sm) * 3);
   padding: 0;
   border-bottom: 0;
   margin-bottom: var(--sp-3);
 }
 .team-range {
+  /* A handle is a slim bar the height of a control, not a square: with a cap
+     of 32 a step is a few pixels, and square handles a few steps apart
+     would cover each other. */
   --thumb: var(--control-h-sm);
+  --thumb-w: var(--sp-4);
   min-width: 0;
 }
 .team-range__head {
@@ -2274,8 +2278,8 @@
 }
 .team-range__track {
   position: absolute;
-  left: calc(var(--thumb) / 2);
-  right: calc(var(--thumb) / 2);
+  left: calc(var(--thumb-w) / 2);
+  right: calc(var(--thumb-w) / 2);
   top: calc((var(--thumb) - var(--border-w-thick)) / 2);
   height: var(--border-w-thick);
   background: var(--border-strong);
@@ -2307,7 +2311,7 @@
 .team-range__input::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: var(--thumb);
+  width: var(--thumb-w);
   height: var(--thumb);
   border: var(--border-w-thick) solid var(--accent);
   border-radius: var(--radius);
@@ -2318,7 +2322,7 @@
 }
 .team-range__input::-moz-range-thumb {
   box-sizing: border-box;
-  width: var(--thumb);
+  width: var(--thumb-w);
   height: var(--thumb);
   border: var(--border-w-thick) solid var(--accent);
   border-radius: var(--radius);
@@ -2338,7 +2342,7 @@
 .team-range__stops {
   position: relative;
   height: calc(var(--text-xs) * var(--leading-tight));
-  margin: var(--sp-1) calc(var(--thumb) / 2) 0;
+  margin: var(--sp-1) calc(var(--thumb-w) / 2) 0;
   font-family: var(--font-ui);
   font-size: var(--text-xs);
   color: var(--ink-faint);
