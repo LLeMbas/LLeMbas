@@ -315,6 +315,33 @@ async def set_default_model(
     )
 
 
+@router.post("/agents")
+async def set_team_default(
+    db: Db, user: RequiredUser, agents_min: str = Form(""), agents_max: str = Form("")
+) -> Response:
+    """This person's team size for new chats (harness spec 3.2.0, team.md §2):
+    `1 ≤ min ≤ max ≤ cap`, refused with the bounds rather than clamped.
+    Existing chats keep their own."""
+    from lembas.services import team as team_rules
+    from lembas.services import team_run
+
+    limit = team_run.cap(db)
+    if team_rules.bounds_refusal(agents_min.strip(), agents_max.strip(), limit):
+        message = i18n.t(
+            "A team has 1 to %(cap)s agents, and the fewest cannot be more than the most.",
+            cap=limit,
+        )
+        return RedirectResponse(f"/settings?tab=models&error={quote(message)}", status_code=303)
+    settings_map = {**(user.settings_json or {})}
+    settings_map["agents"] = {"min": int(agents_min), "max": int(agents_max)}
+    user.settings_json = settings_map
+    db.commit()
+    return RedirectResponse(
+        f"/settings?tab=models&saved={quote(i18n.t('Team size for new chats saved.'))}",
+        status_code=303,
+    )
+
+
 @router.post("/models")
 async def set_model_preferences(
     db: Db,

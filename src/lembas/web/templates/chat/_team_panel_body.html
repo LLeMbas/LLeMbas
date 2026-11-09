@@ -1,0 +1,78 @@
+{% from "_macros.html" import icon %}
+{#
+  What the Team panel holds: the team's head, its tree and its room. Returned
+  by `GET /api/chats/{id}/team`, and carried by the reply stream's `team` frame
+  with `oob` set.
+
+  Everything here but the names of states is a model's words or the person's
+  setting: names, roles, models and goals are printed by Jinja, escaped; a
+  room message's text went through `render_markdown` (`html` on each entry),
+  which is the one way model output becomes markup (rule 6).
+
+  The tree is a list of fixed rows: the name column gives (cut, never
+  wrapped), the state sits in a track of its own width, the stop button at its
+  control size -- so rows line up whatever each one says. Depth is an indent
+  in `--sp` steps, set as a custom property from the row's depth.
+#}
+{% set active = team and (team.agents | selectattr("state", "in", ["working", "waiting"]) | list) %}
+<div class="teampanel__body" id="teampanel-body"{% if oob %} hx-swap-oob="outerHTML"{% endif %}
+     {% if chat and active %}
+     hx-get="/api/chats/{{ chat.id }}/team" hx-trigger="every 4s [!this.closest('[hidden]')]"
+     hx-target="this" hx-swap="outerHTML" hx-sync="this:drop"
+     {% endif %}
+     aria-live="polite">
+  {% if not team or (not team.offered and team.agents | length < 2) %}
+  <p class="teampanel__empty">{{ t("This chat has no team. Where a team is offered, set how many agents it may have in the chat settings beside the effort; with more than one, the chat's agent can add members that work beside it while it leads them.") }}</p>
+  {% else %}
+  <div class="teampanel__head">
+    <p class="teampanel__size">{{ t("%(size)s of %(max)s agents", size=team.size, max=team.max) }}</p>
+    {% if team.goal %}
+    <p class="teampanel__goal"><span class="teampanel__label">{{ t("Goal") }}</span> {{ team.goal }}</p>
+    {% endif %}
+  </div>
+
+  <ul class="team-tree" aria-label="{{ t('Who leads whom') }}">
+    {% for agent in team.agents %}
+    <li class="team-tree__row" style="--depth: {{ agent.depth }}" data-agent="{{ agent.name }}">
+      <span class="team-tree__who u-shrink">
+        {{ icon("star" if agent.lead else "user", "icon--sm team-tree__icon") }}
+        <span class="team-tree__name">{{ agent.name }}</span>
+        <span class="team-tree__role">{{ t("leads the team") if agent.name == "lead" else agent.role }}</span>
+      </span>
+      <span class="team-tree__state team-tree__state--{{ agent.state }}">{{ team_state(agent.state) }}</span>
+      <span class="team-tree__actions">
+        {% if agent.name != "lead" and chat %}
+        <button class="btn btn--icon btn--sm" type="button"
+                hx-post="/api/chats/{{ chat.id }}/team/{{ agent.name }}/stop" hx-swap="none"
+                hx-confirm="{{ t('Stop %(name)s and the members under it? They leave the team.', name=agent.name) }}"
+                aria-label="{{ t('Stop %(name)s', name=agent.name) }}" title="{{ t('Stop %(name)s', name=agent.name) }}">
+          {{ icon("stop-circle", "icon--sm") }}
+        </button>
+        {% endif %}
+      </span>
+      {% if agent.model %}
+      <span class="team-tree__model">{{ agent.model }}</span>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+
+  <h3 class="teampanel__heading">{{ t("Room") }}</h3>
+  {% if team.room %}
+  <ol class="team-room">
+    {% for entry in team.room %}
+    <li class="team-room__entry{% if entry.report %} team-room__entry--report{% endif %}">
+      <div class="team-room__meta">
+        <span class="team-room__n">#{{ entry.n }}</span>
+        <span class="team-room__route">{{ entry["from"] }} → {{ entry.to | join(", ") }}</span>
+        {% if entry.report %}<span class="badge team-room__badge">{{ t("report") }}</span>{% endif %}
+      </div>
+      <div class="team-room__text msg__body">{{ entry.html }}</div>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="teampanel__empty">{{ t("Nothing has been said in the room yet.") }}</p>
+  {% endif %}
+  {% endif %}
+</div>

@@ -725,7 +725,8 @@ input.visually-hidden[type="checkbox"] {
    the `hidden` attribute, which the rule at the top of this file forces to win. */
 .inspector,
 .chat-settings,
-.jobpanel {
+.jobpanel,
+.teampanel {
   width: var(--inspector-width);
   flex: none;
   display: flex;
@@ -861,7 +862,8 @@ input.visually-hidden[type="checkbox"] {
 @media (max-width: 64rem) {
   .inspector,
   .chat-settings,
-  .jobpanel {
+  .jobpanel,
+  .teampanel {
     position: fixed;
     inset: 0 0 0 auto;
     z-index: var(--z-panel);
@@ -1952,11 +1954,11 @@ a.picker__option { text-decoration: none; }
     background: var(--bg);
     border-bottom: var(--border-w) solid var(--border);
   }
-  :root[data-window]:not([data-window=""]) :is(.inspector, .chat-settings, .terminal, .jobpanel) {
+  :root[data-window]:not([data-window=""]) :is(.inspector, .chat-settings, .terminal, .jobpanel, .teampanel) {
     top: calc(var(--header-height) + var(--safe-top));
   }
-  :root[data-window]:not([data-window=""]) :is(.inspector, .chat-settings, .terminal, .jobpanel) > .panel-head,
-  :root[data-window]:not([data-window=""]) :is(.inspector, .chat-settings, .terminal, .jobpanel) > * > .panel-head {
+  :root[data-window]:not([data-window=""]) :is(.inspector, .chat-settings, .terminal, .jobpanel, .teampanel) > .panel-head,
+  :root[data-window]:not([data-window=""]) :is(.inspector, .chat-settings, .terminal, .jobpanel, .teampanel) > * > .panel-head {
     height: var(--header-height);
     padding-top: 0;
   }

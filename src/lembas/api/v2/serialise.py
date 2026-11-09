@@ -94,7 +94,19 @@ def _cut(value: Any) -> tuple[Any, bool]:
 
 
 # --- Chats -----------------------------------------------------------------------
-def chat(row: Chat, *, running: bool = False) -> dict[str, Any]:
+def agents(row: Chat, cap: int | None = None) -> dict[str, int]:
+    """The chat's team size (harness spec 3.2.0, team.md §2), as it is read:
+    the spec's defaults on an older row, narrowed by the instance's cap."""
+    from lembas.services import team as team_rules
+
+    limit = cap if cap is not None else team_rules.defaults()[2]
+    low, high = team_rules.read_setting(
+        getattr(row, "agents_min", None), getattr(row, "agents_max", None), limit
+    )
+    return {"min": low, "max": high}
+
+
+def chat(row: Chat, *, running: bool = False, cap: int | None = None) -> dict[str, Any]:
     params = row.params_json or {}
     return {
         "id": row.id,
@@ -116,17 +128,61 @@ def chat(row: Chat, *, running: bool = False) -> dict[str, Any]:
             else None
         ),
         "parent_chat_id": row.parent_chat_id,
+        # Added within APP_API 2: the team's size setting.
+        "agents": agents(row, cap),
         "created_at": stamp(row.created_at),
         "updated_at": stamp(row.updated_at),
     }
 
 
-def chat_detail(row: Chat, *, running: bool = False) -> dict[str, Any]:
+def team(view: dict[str, Any] | None) -> dict[str, Any]:
+    """A chat's team for the apps (`GET /chats/{chat}/team`): whether one is
+    offered, the setting, the tree in tree order and the room since a cursor.
+    A room message's `text` is a model's: an app renders it as untrusted
+    markdown, as it does a reply."""
+    if view is None:
+        return {"offered": False, "agents": [], "room": [], "cursor": 0}
+    return {
+        "offered": bool(view["offered"]),
+        "min": int(view["min"]),
+        "max": int(view["max"]),
+        "size": int(view["size"]),
+        "parallel": view["parallel"],
+        "goal": view["goal"],
+        "agents": [
+            {
+                "name": a["name"],
+                "manager": a["manager"],
+                "role": a["role"],
+                "state": a["state"],
+                "model": a["model"],
+                "agent": a["agent"],
+                "lead": bool(a["lead"]),
+                "depth": int(a["depth"]),
+            }
+            for a in view["agents"]
+        ],
+        "room": [
+            {
+                "n": int(m["n"]),
+                "from": m["from"],
+                "to": list(m["to"]),
+                "text": m["text"],
+                "report": bool(m["report"]),
+                "created": m["created"],
+            }
+            for m in view["room"]
+        ],
+        "cursor": int(view["cursor"]),
+    }
+
+
+def chat_detail(row: Chat, *, running: bool = False, cap: int | None = None) -> dict[str, Any]:
     """A chat with what its settings sheet shows."""
     from lembas.services import plans
 
     return {
-        **chat(row, running=running),
+        **chat(row, running=running, cap=cap),
         "system_prompt": row.system_prompt or "",
         "plan": plans.normalise(row.plan) if row.plan else None,
     }

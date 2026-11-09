@@ -181,7 +181,7 @@
           #}
           {% set reasons = current_model and current_model.capabilities_json.get("reasoning") %}
           {% set has_panel = chat or scope_families or scope_skills or scope_allow %}
-          {% if reasons %}
+          {% if reasons or team_offered %}
           {#
             "off" is a sentinel and NOT an empty value. `start_chat` declares
             `reasoning_effort: str = Form("")`, so absent and empty are
@@ -211,6 +211,7 @@
 
             <div class="picker__menu picker__menu--settings" data-picker-menu role="dialog"
                  hidden aria-label="{{ t('Chat settings') }}">
+              {% if reasons %}
               <div class="effort-slider" style="--levels: {{ levels|length }}">
                 <label class="effort-slider__label" for="effort-range">
                   {{ t("Reasoning effort") }}
@@ -242,6 +243,9 @@
                   {% endfor %}
                 </select>
               </div>
+              {% endif %}
+              {# The team's size, beside the effort (spec 3.2.0). #}
+              {% include "chat/_team_setting.html" %}
               {% if has_panel %}
               <button class="picker__option" type="button" role="menuitem"
                       data-toggle="#chat-settings" data-toggle-group="side">

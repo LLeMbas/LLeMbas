@@ -248,6 +248,30 @@
               {% endif %}
             </div>
 
+            {% if team_allowed %}
+            <div class="card">
+              <h2 class="card__title">{{ t("Team size") }}</h2>
+              <p class="card__lede">{{ t("How many agents a new chat's team may have, its own agent included. With more than one, the agent can add members that work beside it while it leads them; at two or more as the fewest, it leads from the start. Existing chats keep their own.") }}</p>
+              <form method="post" action="/api/preferences/agents" class="team-setting__form">
+                <div class="team-setting team-setting--wide">
+                  <div class="field team-setting__field">
+                    <label class="field__label" for="pref-agents-min">{{ t("Fewest agents") }}</label>
+                    <input class="input team-setting__input" type="number" id="pref-agents-min"
+                           name="agents_min" min="1" max="{{ team_cap }}" step="1" required
+                           value="{{ team_default.min }}">
+                  </div>
+                  <div class="field team-setting__field">
+                    <label class="field__label" for="pref-agents-max">{{ t("Most agents") }}</label>
+                    <input class="input team-setting__input" type="number" id="pref-agents-max"
+                           name="agents_max" min="1" max="{{ team_cap }}" step="1" required
+                           value="{{ team_default.max }}">
+                  </div>
+                </div>
+                <button class="btn btn--primary" type="submit">{{ t("Save") }}</button>
+              </form>
+            </div>
+            {% endif %}
+
             {% if models %}
             <div class="card">
               <h2 class="card__title">{{ t("Available to you") }}</h2>

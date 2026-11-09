@@ -1,0 +1,48 @@
+{#
+  The team's size (harness spec 3.2.0, team.md §2), in the chat settings menu
+  beside the effort: the agents this chat's team may have, its own agent
+  included -- the fewest and the most, `1 ≤ min ≤ max ≤ cap`.
+
+  Two number steppers on one shared grid: each field is a label over its
+  input, both tracks the same width, so the two inputs sit on one line
+  whatever the labels say in which language. The hint spans both under them.
+
+  On a chat that exists each saves on change, like the effort: `hx-patch` on
+  the chat with the other field included, so the server checks the pair; a
+  pair outside the bounds is refused (422), never clamped, and the reader's
+  browser keeps them inside `min`/`max` to begin with. On the new-chat screen
+  they are fields of the composer's form, carried by the first message.
+  `form="chat-params-form"` keeps them out of every message an existing chat
+  sends, as the effort's select does.
+
+  Shown only where a team is offered: subagents on for this chat's model and
+  the model serving at least two requests at once (`team_run.offered`).
+#}
+{% if team_offered %}
+<fieldset class="team-setting" data-team-setting>
+  <legend class="team-setting__legend">{{ t("Agents") }}</legend>
+  <div class="team-setting__field">
+    <label class="team-setting__label" for="agents-min">{{ t("Fewest") }}</label>
+    <input class="input input--sm team-setting__input" type="number" id="agents-min"
+           name="agents_min" min="1" max="{{ team_cap }}" step="1" inputmode="numeric"
+           value="{{ team_setting.min }}" data-picker-focus
+           {% if chat %}
+           form="chat-params-form"
+           hx-patch="/api/chats/{{ chat.id }}" hx-trigger="change" hx-swap="none"
+           hx-include="#agents-max"
+           {% endif %}>
+  </div>
+  <div class="team-setting__field">
+    <label class="team-setting__label" for="agents-max">{{ t("Most") }}</label>
+    <input class="input input--sm team-setting__input" type="number" id="agents-max"
+           name="agents_max" min="1" max="{{ team_cap }}" step="1" inputmode="numeric"
+           value="{{ team_setting.max }}"
+           {% if chat %}
+           form="chat-params-form"
+           hx-patch="/api/chats/{{ chat.id }}" hx-trigger="change" hx-swap="none"
+           hx-include="#agents-min"
+           {% endif %}>
+  </div>
+  <p class="team-setting__hint">{{ t("Its own agent included. Above one, it can add members that do the work while it leads them.") }}</p>
+</fieldset>
+{% endif %}

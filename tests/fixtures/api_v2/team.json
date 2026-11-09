@@ -1,0 +1,65 @@
+{
+  "team": {
+    "offered": true,
+    "min": 1,
+    "max": 4,
+    "size": 3,
+    "parallel": 2,
+    "goal": "Bake for the journey",
+    "agents": [
+      {
+        "name": "lead",
+        "manager": null,
+        "role": "",
+        "state": "working",
+        "model": "local/qwen",
+        "agent": "",
+        "lead": true,
+        "depth": 0
+      },
+      {
+        "name": "baker",
+        "manager": "lead",
+        "role": "owns the oven",
+        "state": "working",
+        "model": "local/qwen",
+        "agent": "general",
+        "lead": true,
+        "depth": 1
+      },
+      {
+        "name": "wrapper",
+        "manager": "baker",
+        "role": "owns the leaves",
+        "state": "waiting",
+        "model": "local/qwen",
+        "agent": "general",
+        "lead": false,
+        "depth": 2
+      }
+    ],
+    "room": [
+      {
+        "n": 1,
+        "from": "baker",
+        "to": [
+          "wrapper"
+        ],
+        "text": "Leaves by noon?",
+        "report": false,
+        "created": "2026-01-02T03:04:05+00:00"
+      },
+      {
+        "n": 2,
+        "from": "wrapper",
+        "to": [
+          "baker"
+        ],
+        "text": "Done: *mallorn* leaves.",
+        "report": true,
+        "created": "2026-01-02T03:04:05+00:00"
+      }
+    ],
+    "cursor": 2
+  }
+}

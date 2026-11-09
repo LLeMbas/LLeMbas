@@ -179,6 +179,14 @@
     </div>
 
     <div class="field">
+      <label class="field__label" for="sub_team_cap">{{ t("Most agents in a team") }}</label>
+      <input class="input" id="sub_team_cap" name="team_cap"
+             type="number" min="1" max="{{ team_cap_max }}" step="1"
+             value="{{ subagents.team_cap }}">
+      <p class="field__hint">{{ t("A chat's team is its agent and the members it adds to work beside it, each a whole generation of its own. People choose how many agents a chat's team may have, the agent included, up to this. Offered only on models that serve two requests at once.") }}</p>
+    </div>
+
+    <div class="field">
       <label class="checkbox">
         <input type="checkbox" name="keep_transcript" value="true"
                {{ 'checked' if subagents.keep_transcript }}>

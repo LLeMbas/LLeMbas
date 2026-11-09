@@ -1,0 +1,25 @@
+{% from "_macros.html" import icon %}
+{#
+  The Team panel (harness spec 3.2.0, team.md §5): the chat's team beside the
+  conversation -- the tree (who leads whom, each one's state, model and role)
+  and the room's whole transcript, which the person sees in full. A side panel
+  in the slot the settings and the helper panel share (`data-toggle-group`
+  side), opened from the header's Team button or a member in the jobs strip.
+
+  Kept current two ways, both onto `#teampanel-body`: the lead's reply stream
+  carries a `team` frame out of band whenever the team moves, and while
+  anybody in it works or waits the body asks for itself every few seconds --
+  only while the panel is open, and never into a hidden one.
+#}
+<aside class="teampanel" id="teampanel" hidden aria-label="{{ t('Team') }}">
+  <div class="panel-head">
+    <h2 class="panel-head__title">{{ icon("users", "icon--sm") }} {{ t("Team") }}</h2>
+    <button class="btn btn--icon btn--sm" type="button" data-toggle="#teampanel" data-toggle-group="side"
+            aria-label="{{ t('Close the team panel') }}">
+      {{ icon("x", "icon--sm") }}
+    </button>
+  </div>
+  {% with oob = false %}
+    {% include "chat/_team_panel_body.html" %}
+  {% endwith %}
+</aside>

@@ -91,11 +91,37 @@ def _chat_context(db: DBSession, user: User, chat: Chat | None) -> dict:
         "resolved_effort": chat_service.resolved_effort(chat) if chat else "",
         **_scope_context(db, user, chat),
         **_agent_context(db, user, chat),
+        **_team_context(db, user, chat, current),
         **audio_service.template_flags(db, user),
         # How long a temporary chat lives, for the badge, the Keep menu and the
         # toggle. Read from the setting every render: it is one cached group.
         "temporary_after": chat_service.lifetime_words(chat_service.temporary_lifetime(db)),
         "temporary_leaves": chat_service.temporary_lifetime(db) == 0,
+    }
+
+
+def _team_context(db: DBSession, user: User, chat: Chat | None, model) -> dict:
+    """The team (harness spec 3.2.0): whether one is offered here, its size
+    setting for the control beside the effort, and -- on a chat that has one --
+    what the Team panel shows. The new-chat screen recomputes the first two
+    for the model it preselects."""
+    from lembas.services import team_run
+
+    if chat is None:
+        offered = team_run.offered(db, None, user, model) if model is not None else False
+        low, high = team_run.user_default(db, user)
+        team = None
+    else:
+        from lembas.api.chats import team_view
+
+        offered = team_run.offered(db, chat, user, model)
+        low, high = team_run.setting(db, chat)
+        team = team_view(db, chat, user) if (offered or team_run.has_team(db, chat.id)) else None
+    return {
+        "team_offered": offered,
+        "team_setting": {"min": low, "max": high},
+        "team_cap": team_run.cap(db),
+        "team": team,
     }
 
 
@@ -883,6 +909,7 @@ async def chat_index(
             # What the effort slider starts at: what `_new_chat` will seed --
             # this person's own default for the model, else the model's.
             "new_chat_effort": model_prefs.default_effort(db, user, preselected),
+            **_team_context(db, user, None, preselected),
             "starting_temporary": temporary,
             "temporary_toggle_url": new_chat_url(temporary="" if temporary else "1"),
             "model_navigate_url": without_model + ("&" if "?" in without_model else "?") + "model=",
@@ -1100,6 +1127,21 @@ def _linked_now(user: User) -> set[str]:
     return {link.token_id for link in device_link.linked_for(user.id)}
 
 
+def _team_settings(db, user) -> dict:
+    from lembas.security import permissions
+    from lembas.services import team_run
+
+    allowed = bool(settings_store.subagents(db).get("enabled")) and bool(
+        permissions.resolve(db, user).get("tools.subagent")
+    )
+    low, high = team_run.user_default(db, user)
+    return {
+        "team_allowed": allowed,
+        "team_default": {"min": low, "max": high},
+        "team_cap": team_run.cap(db),
+    }
+
+
 @router.get("/settings")
 async def settings_page(
     request: Request,
@@ -1178,6 +1220,9 @@ async def settings_page(
             ),
             "timezones": sorted(available_timezones()),
             "timezone": clock.name_for(user),
+            # The team's size for new chats (harness spec 3.2.0, team.md §2):
+            # shown where this person may have a team at all.
+            **_team_settings(db, user),
             "server_timezone": str(clock.server_zone()),
             # Through `i18n.stamp`, not `strftime`: `%A` and `%B` are C-locale
             # English whatever the page is in, and this one is read by a person.

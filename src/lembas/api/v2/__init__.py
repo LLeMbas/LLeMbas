@@ -22,7 +22,9 @@ frame carries that an existing client would misread is a new number, not a
 tweak; adding a field is not. 2 (with 2.0): the stream has no `canvas` frame
 and a chat no `knowledge_bases`; a tool call may carry a `show` card, whose
 file is `GET /chats/{chat}/show`. Added within 2: `GET /files` and
-`GET /files/content`, the person's files (`files.py`).
+`GET /files/content`, the person's files (`files.py`); a chat's `agents`
+(its team's size, readable and writable) and `GET /chats/{chat}/team`, the
+team's tree and room since a cursor (harness spec 3.2.0).
 """
 
 from __future__ import annotations

@@ -36,6 +36,7 @@ async def agents_page(request: Request, db: Db, user: AdminUser, saved: bool = F
             # reply is allowed to set going on its own, and a nav entry for one
             # card would be worse than the near-miss.
             "subagents": settings_store.subagents(db),
+            "team_cap_max": settings_store.TEAM_CAP_MAX,
             "saved": saved,
         },
     )
@@ -52,6 +53,7 @@ async def save_subagents(
     wall_seconds: int = Form(600),
     max_completion_tokens: int = Form(60_000),
     keep_transcript: bool = Form(False),
+    team_cap: int = Form(32),
 ) -> Response:
     """Its own route because it is its own settings group.
 
@@ -74,6 +76,7 @@ async def save_subagents(
             "wall_seconds": min(max(wall_seconds, 30), 7200),
             "max_completion_tokens": min(max(max_completion_tokens, 0), 5_000_000),
             "keep_transcript": keep_transcript,
+            "team_cap": min(max(team_cap, 1), settings_store.TEAM_CAP_MAX),
         },
         key=settings_store.SUBAGENTS,
     )

@@ -114,6 +114,16 @@
         </button>
         {% endif %}
 
+        {% if chat and team %}
+        {# The chat's team and its room (spec 3.2.0), where one is offered or
+           there is one. #}
+        <button class="btn btn--icon" type="button" aria-label="{{ t('Team') }}"
+                title="{{ t('The team and its room') }}" aria-expanded="false"
+                data-toggle="#teampanel" data-toggle-group="side">
+          {{ icon("users") }}
+        </button>
+        {% endif %}
+
         {% if chat and user.is_admin %}
         <button class="btn btn--icon" type="button" aria-label="{{ t('Inspect this chat') }}"
                 title="{{ t('Inspect this chat') }}" aria-expanded="false" data-toggle="#inspector"
@@ -248,6 +258,9 @@
   {% if chat and chat.kind != "task" %}
     {% include "chat/_job_panel.html" %}
   {% endif %}
+  {% if chat and team %}
+    {% include "chat/_team_panel.html" %}
+  {% endif %}
   {% if terminal_enabled %}
     {% include "chat/_terminal.html" %}
   {% endif %}
@@ -287,6 +300,12 @@
     <button class="winswitch__btn" type="button" data-window="#jobpanel" aria-pressed="false"
             aria-label="{{ t('Helper') }}" title="{{ t('Helper') }}">
       {{ icon("sparkle", "icon--sm") }}
+    </button>
+    {% endif %}
+    {% if chat and team %}
+    <button class="winswitch__btn" type="button" data-window="#teampanel" aria-pressed="false"
+            aria-label="{{ t('Team') }}" title="{{ t('Team') }}">
+      {{ icon("users", "icon--sm") }}
     </button>
     {% endif %}
     {% if models and (chat or scope_families or scope_skills or scope_allow) and not (chat and chat.kind == "task") %}

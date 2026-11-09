@@ -2182,3 +2182,175 @@
 }
 .tool-chip--bad { color: var(--danger); }
 .tool-activity__empty { margin: 0; color: var(--ink-faint); font-size: var(--text-xs); }
+
+/* --- Teams (spec 3.2.0) ---------------------------------------------------------
+   The size setting in the chat settings menu, beside the effort: two number
+   fields on one grid, each a label over its input in a column of the same
+   width, so the inputs share a line whatever the labels say; the hint spans
+   both. In Settings the same grid, wider. */
+.team-setting {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: auto auto;
+  column-gap: var(--sp-3);
+  row-gap: var(--sp-1);
+  margin: 0 0 var(--sp-1);
+  padding: var(--sp-2) var(--sp-2) var(--sp-3);
+  border: 0;
+  border-bottom: var(--border-w) solid var(--border);
+  min-width: 0;
+}
+.team-setting--wide {
+  grid-template-columns: repeat(2, minmax(0, var(--w-field-sm)));
+  padding: 0;
+  border-bottom: 0;
+  margin-bottom: var(--sp-3);
+}
+.team-setting__legend {
+  grid-column: 1 / -1;
+  float: left;
+  width: 100%;
+  margin-bottom: var(--sp-2);
+  padding: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.team-setting__field {
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: span 2;
+  min-width: 0;
+  margin: 0;
+}
+.team-setting__label {
+  align-self: end;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+.team-setting__input { width: 100%; min-width: 0; }
+.team-setting__hint {
+  grid-column: 1 / -1;
+  margin: var(--sp-1) 0 0;
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+}
+
+/* The Team panel: a head, the tree, the room. The body is the one scroller.
+   A tree row is a fixed grid -- who (gives, cut), the state in a track of a
+   short field's width, the stop button at its control size -- with the model
+   on its own line under the name; depth is an indent of `--depth` steps. */
+.teampanel__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--sp-3);
+}
+.teampanel__empty { margin: 0; color: var(--ink-faint); font-size: var(--text-sm); }
+.teampanel__head { display: flex; flex-direction: column; gap: var(--sp-1); }
+.teampanel__size { margin: 0; font-size: var(--text-sm); color: var(--ink-muted); }
+.teampanel__goal { margin: 0; font-size: var(--text-sm); overflow-wrap: anywhere; }
+.teampanel__label {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.teampanel__heading {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.team-tree {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  font-size: var(--text-sm);
+}
+.team-tree__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--w-field-xs) var(--control-h-sm);
+  align-items: center;
+  column-gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2) var(--sp-1) calc(var(--sp-2) + var(--depth, 0) * var(--sp-4));
+  border-bottom: var(--border-w) solid var(--border);
+}
+.team-tree__row:last-child { border-bottom: 0; }
+.team-tree__who { display: flex; align-items: baseline; gap: var(--sp-2); min-width: 0; }
+.team-tree__icon { flex: none; color: var(--ink-muted); align-self: center; }
+.team-tree__name { font-family: var(--font-mono); white-space: nowrap; }
+.team-tree__role {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-muted);
+}
+.team-tree__state {
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.team-tree__state--working { color: var(--accent); }
+.team-tree__actions { display: flex; justify-content: flex-end; }
+.team-tree__model {
+  grid-column: 1 / -1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+}
+.team-room {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.team-room__entry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+  padding: var(--sp-2);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+}
+.team-room__entry--report { box-shadow: inset var(--border-w-thick) 0 0 var(--accent); }
+.team-room__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+.team-room__n { font-family: var(--font-mono); color: var(--ink-faint); }
+.team-room__route { font-family: var(--font-mono); overflow-wrap: anywhere; }
+.team-room__text { min-width: 0; font-size: var(--text-sm); overflow-wrap: anywhere; }

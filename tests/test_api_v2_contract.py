@@ -253,6 +253,35 @@ def _generation() -> generation_service.Generation:
     return generation
 
 
+def _team() -> dict[str, object]:
+    """`GET /chats/{chat}/team`: a lead, a member that leads an area and its
+    member, and the room -- a message and a report."""
+    agent = {"agent": "general", "lead": False, "model": "local/qwen"}
+    return {
+        "offered": True,
+        "min": 1,
+        "max": 4,
+        "size": 3,
+        "parallel": 2,
+        "goal": "Bake for the journey",
+        "agents": [
+            {**agent, "name": "lead", "manager": None, "role": "", "state": "working",
+             "agent": "", "lead": True, "depth": 0},
+            {**agent, "name": "baker", "manager": "lead", "role": "owns the oven",
+             "state": "working", "lead": True, "depth": 1},
+            {**agent, "name": "wrapper", "manager": "baker", "role": "owns the leaves",
+             "state": "waiting", "depth": 2},
+        ],
+        "room": [
+            {"n": 1, "from": "baker", "to": ["wrapper"], "text": "Leaves by noon?",
+             "report": False, "created": WHEN.isoformat()},
+            {"n": 2, "from": "wrapper", "to": ["baker"], "text": "Done: *mallorn* leaves.",
+             "report": True, "created": WHEN.isoformat()},
+        ],
+        "cursor": 2,
+    }
+
+
 def _files() -> dict[str, object]:
     """`GET /files` and `GET /files/content`: a listing, a text file, a withheld one."""
     from lembas.services.file_ui import Opened, Row
@@ -311,6 +340,7 @@ def _shapes() -> dict[str, object]:
         },
         "event_close": {},
         "tool_show": {"calls": [serialise.tool_call(SHOW_TREE), serialise.tool_call(SHOW_DEVICE)]},
+        "team": {"team": serialise.team(_team())},
         **_files(),
     }
 

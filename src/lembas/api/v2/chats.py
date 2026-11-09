@@ -19,6 +19,7 @@ from lembas.api.v2 import serialise
 from lembas.api.v2._common import JsonForm, Me, need, owned_chat, owned_message
 from lembas.db.models import KIND_CHAT, KINDS, Chat, Message
 from lembas.services import generation as generation_service
+from lembas.services import team_run
 from lembas.web.i18n import t
 
 router = APIRouter()
@@ -129,8 +130,24 @@ async def create_chat(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> d
         project_dir=str(body.get("directory") or ""),
         agent_mode=str(body.get("mode") or ""),
         reasoning_effort=str(body.get("effort") or ""),
+        **_agents_fields(body),
     )
-    return {"chat": serialise.chat_detail(chat, running=True), **_turn(user_message, reply)}
+    return {
+        "chat": serialise.chat_detail(chat, running=True, cap=team_run.cap(db)),
+        **_turn(user_message, reply),
+    }
+
+
+def _agents_fields(body: dict[str, Any]) -> dict[str, str]:
+    """`agents: {min, max}` from a body, as the page's two fields."""
+    wanted = body.get("agents")
+    if not isinstance(wanted, dict):
+        return {}
+    out: dict[str, str] = {}
+    for key in ("min", "max"):
+        if key in wanted and wanted[key] is not None:
+            out[f"agents_{key}"] = str(wanted[key])
+    return out
 
 
 @router.get("/chats/{chat_id}")
@@ -147,7 +164,7 @@ async def get_chat(
     page, more = _page(db, chat, before="", limit=limit)
     live = generation_service.running_for(chat.id)
     return {
-        "chat": serialise.chat_detail(chat, running=live is not None),
+        "chat": serialise.chat_detail(chat, running=live is not None, cap=team_run.cap(db)),
         "messages": [serialise.message(m) for m in page],
         "more": more,
         "live": live.message_id if live is not None else None,
@@ -180,6 +197,9 @@ async def update_chat(
             items.append((field, "" if value is None else str(value)))
     if "archived" in body:
         items.append(("archived", "1" if body["archived"] else "0"))
+    # The team's size: `agents: {min, max}`, either alone (the other as
+    # stored); refused outside `1 ≤ min ≤ max ≤ cap` with the bounds (422).
+    items.extend(_agents_fields(body).items())
     # A chat's connection is fixed when it is made; naming one is the page's
     # 409, so it is passed through to be refused rather than quietly dropped.
     locked = (("kind", "kind"), ("device", "device_token_id"), ("directory", "project_dir"))
@@ -188,7 +208,7 @@ async def update_chat(
             items.append((field, ""))
     chats_api.apply_chat_update(db, caller.user, chat, JsonForm(items))
     db.refresh(chat)
-    return {"chat": serialise.chat_detail(chat, running=_running(chat))}
+    return {"chat": serialise.chat_detail(chat, running=_running(chat), cap=team_run.cap(db))}
 
 
 @router.delete("/chats/{chat_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -277,6 +297,31 @@ async def continue_chat(caller: Me, db: Db, chat_id: str) -> dict[str, Any]:
         db, chat, caller.user, harness_spec.prompt("tasks/continue.md")
     )
     return _turn(user_message, reply)
+
+
+# --- The team (spec 3.2.0) ------------------------------------------------------------
+@router.get("/chats/{chat_id}/team")
+async def get_team(
+    caller: Me, db: Db, chat_id: str, since: int = Query(0, ge=0)
+) -> dict[str, Any]:
+    """The chat's team: the tree, and the room's messages after `since` --
+    all of them, for the person sees the whole room. `cursor` is the last
+    message's number, to pass as `since` next time."""
+    chat = owned_chat(db, chat_id, caller.user)
+    view = team_run.snapshot(db, chat.id, since) if team_run.may_have_team(chat) else None
+    if view is not None:
+        view["offered"] = team_run.offered(db, chat, caller.user)
+    return {"team": serialise.team(view)}
+
+
+@router.post("/chats/{chat_id}/team/{name}/stop")
+async def stop_team_member(caller: Me, db: Db, chat_id: str, name: str) -> dict[str, Any]:
+    """The person stops a member and those under it (the Team panel's Stop)."""
+    chat = owned_chat(db, chat_id, caller.user)
+    stopped = await team_run.person_stop(chat.id, name)
+    if not stopped:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, t("That member is not on the team."))
+    return {"stopped": stopped}
 
 
 # --- The plan ---------------------------------------------------------------------------

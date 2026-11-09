@@ -42,6 +42,7 @@ from lembas.services import (
     prefix,
     settings_store,
     sse,
+    team_run,
 )
 from lembas.services import files as files_service
 from lembas.services import generation as generation_service
@@ -50,6 +51,7 @@ from lembas.services import metrics as metrics_service
 from lembas.services import prompts as prompts_service
 from lembas.services import steps as steps_service
 from lembas.services import subagent as subagent_service
+from lembas.services import team as team_rules
 from lembas.services import tokens as tokens_service
 from lembas.services import tools as tools_service
 from lembas.services.agent import policy as agent_policy
@@ -187,6 +189,8 @@ def _new_chat(
     scope_off: frozenset[str] = frozenset(),
     scope_on: frozenset[str] = frozenset(),
     skills_off: frozenset[str] = frozenset(),
+    agents_min: str = "",
+    agents_max: str = "",
 ) -> Chat:
     """Create a chat row, resolving which model it should use.
 
@@ -292,6 +296,18 @@ def _new_chat(
     # fall out of EFFORTS, the model's default seeded above would stay, and they
     # would silently get "high". The picker shows what will be sent, so the two
     # have to agree.
+    # The team's size (spec 3.2.0, team.md §2): this person's default for new
+    # chats, or what the new-chat screen was set to. A pair outside the bounds
+    # is not stored -- the default stands -- rather than holding the first
+    # message hostage; the composer's fields carry the bounds already.
+    low, high = team_run.user_default(db, user)
+    if agents_min.strip() or agents_max.strip():
+        wanted_low = agents_min.strip() or str(low)
+        wanted_high = agents_max.strip() or str(high)
+        if not team_rules.bounds_refusal(wanted_low, wanted_high, team_run.cap(db)):
+            low, high = int(wanted_low), int(wanted_high)
+    chat.agents_min, chat.agents_max = low, high
+
     wanted_effort = reasoning_effort.strip().lower()
     if wanted_effort == "off":
         chat.params_json = {k: v for k, v in chat.params_json.items() if k != "reasoning_effort"}
@@ -341,6 +357,8 @@ async def start_chat(
     project_dir: str = Form(""),
     agent_mode: str = Form(""),
     reasoning_effort: str = Form(""),
+    agents_min: str = Form(""),
+    agents_max: str = Form(""),
     # The scope menu, as it stood before the first word. `scope_all` names every
     # gate the menu drew and is always submitted; `scope_on` names only the
     # ticked ones, because that is all a browser sends. The difference is what
@@ -375,6 +393,8 @@ async def start_chat(
         project_dir=project_dir,
         agent_mode=agent_mode,
         reasoning_effort=reasoning_effort,
+        agents_min=agents_min,
+        agents_max=agents_max,
         scope_off=frozenset(scope_all) - frozenset(scope_on),
         scope_on=frozenset(scope_on),
         skills_off=frozenset(scope_skill_all) - frozenset(scope_skill_on),
@@ -1358,7 +1378,32 @@ async def chat_jobs(db: DBSession, chat: Chat) -> list[dict]:
             return await device_link.list_jobs(chat.device_token_id, chat.device_session_id)
         except (device_link.DeviceError, device_link.LinkClosed, TimeoutError):
             return []
-    return [jobs_service.info(db, job) for job in jobs_service.for_chat(db, chat.id)]
+    rows = [jobs_service.info(db, job) for job in jobs_service.for_chat(db, chat.id)]
+    # The team's members working or waiting (spec 3.2.0, team.md §11): in the
+    # strip with the jobs, though to the model they are not jobs.
+    return rows + team_run.strip_rows(db, chat.id)
+
+
+def team_view(db: DBSession, chat: Chat | None, user: User | None = None) -> dict | None:
+    """The team as the Team panel shows it: `team_run.snapshot`, each room
+    message's text rendered through the markdown service -- a model wrote it
+    (rule 6) -- and nothing for a chat that cannot have a team."""
+    from markupsafe import Markup
+
+    if chat is None or not team_run.may_have_team(chat):
+        return None
+    view = team_run.snapshot(db, chat.id)
+    if view is None:
+        return None
+    for entry in view["room"]:
+        entry["html"] = Markup(render_markdown(entry["text"]))
+    return view
+
+
+def _team_panel_html(db: DBSession, chat: Chat, *, oob: bool = True) -> str:
+    return templates.get_template("chat/_team_panel_body.html").render(
+        {"chat": chat, "team": team_view(db, chat), "oob": oob}
+    )
 
 
 def _tail_oob(message_id: str, thinking_tail: str, think_label: str, tail_html: str) -> str:
@@ -1474,6 +1519,11 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
     seen = -1
     last_frame = time.monotonic()
     last_metrics = 0.0
+    # The team's counter as last sent (spec 3.2.0): the Team panel and the
+    # strip, out of band, whenever the chat's team moves during this reply.
+    team_seen = team_run.version(chat_id)
+    with session_scope() as db:
+        team_rows = team_run.strip_rows(db, chat_id)
     # The HTML of every step already rendered, and how many *marks* that covers.
     # Two counters and not one: a mark can produce up to three steps -- thinking,
     # prose, tools -- so the length of the list is not an index into the marks.
@@ -1560,7 +1610,8 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
                 # composer -- only once there are any: an empty frame would
                 # clear a strip the page filled for itself.
                 if generation.jobs and changed(
-                    "jobs", _jobs_strip_html(chat_id, list(generation.jobs.values()))
+                    "jobs",
+                    _jobs_strip_html(chat_id, [*generation.jobs.values(), *team_rows]),
                 ):
                     yield sse.event("jobs", sent["jobs"])
                 last_frame = time.monotonic()
@@ -1575,6 +1626,17 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
             # throughout, so tok/s has to be allowed to fall; frozen chips
             # beside a spinner read as a hang. One small swap a second, and
             # only while the reply is live.
+            if team_run.version(chat_id) != team_seen:
+                team_seen = team_run.version(chat_id)
+                with session_scope() as db:
+                    team_chat = db.get(Chat, chat_id)
+                    if team_chat is not None:
+                        team_rows = team_run.strip_rows(db, chat_id)
+                        frame = _team_panel_html(db, team_chat) + _jobs_strip_html(
+                            chat_id, [*generation.jobs.values(), *team_rows]
+                        )
+                        yield sse.event("team", frame)
+
             if time.monotonic() - last_metrics > METRICS_INTERVAL:
                 last_metrics = time.monotonic()
                 if changed("metrics", _metrics_html(generation)):
@@ -1649,9 +1711,16 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
         moved_html, queue_html = _queue_frames(db, chat, owner, generation)
         # The strip as the reply leaves it: with rows, it polls from here on,
         # because no frame of this stream reaches the page after this one.
+        team_rows = team_run.strip_rows(db, chat.id)
         jobs_html = (
-            _jobs_strip_html(chat.id, list(generation.jobs.values())) if generation.jobs else ""
+            _jobs_strip_html(chat.id, [*generation.jobs.values(), *team_rows])
+            if generation.jobs or team_rows
+            else ""
         )
+        # The Team panel as the reply leaves it: it polls from here while
+        # anybody in the team works.
+        if team_run.has_team(db, chat.id):
+            jobs_html += _team_panel_html(db, chat)
 
     yield sse.event("done", moved_html + final_html + queue_html + title_html + jobs_html)
     yield sse.event("close", "")
@@ -2095,6 +2164,30 @@ async def stop_job(db: Db, user: RequiredUser, chat_id: str, job_id: str) -> Res
         if not await subagent_service.stop_job(chat.id, job_id):
             raise HTTPException(status.HTTP_404_NOT_FOUND, t("That job is not here any more."))
     return HTMLResponse(_jobs_strip_html(chat.id, await chat_jobs(db, chat), oob=False))
+
+
+# --- The team (spec 3.2.0): the panel and the person's stop --------------------------
+@router.get("/{chat_id}/team")
+async def team_panel(db: Db, user: RequiredUser, chat_id: str) -> Response:
+    """The Team panel's body, as it polls itself while the team works."""
+    chat = _owned_chat(db, chat_id, user.id)
+    return HTMLResponse(_team_panel_html(db, chat, oob=False))
+
+
+@router.post("/{chat_id}/team/{name}/stop")
+async def stop_team_member(db: Db, user: RequiredUser, chat_id: str, name: str) -> Response:
+    """The person stops a member, and every member under it: they leave the
+    team and the lead is told in a note on its next message (team.md §5)."""
+    chat = _owned_chat(db, chat_id, user.id)
+    if not await team_run.person_stop(chat.id, name):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, t("That member is not on the team."))
+    db.expire_all()
+    # Both out of band: the panel and the strip each show the member gone,
+    # whichever of the two the button was in.
+    return HTMLResponse(
+        _team_panel_html(db, chat, oob=True)
+        + _jobs_strip_html(chat.id, await chat_jobs(db, chat), oob=True)
+    )
 
 
 @router.post("/{chat_id}/jobs/{job_id}/send")
@@ -2630,6 +2723,30 @@ def apply_chat_update(db: DBSession, user: User, chat: Chat, form) -> tuple[bool
             chat.params_json = {**(chat.params_json or {}), "reasoning_effort": None}
         elif wanted in chat_service.EFFORTS:
             chat.params_json = {**(chat.params_json or {}), "reasoning_effort": wanted}
+
+    # The team's size (spec 3.2.0, team.md §2): `1 ≤ min ≤ max ≤ cap`, either
+    # field alone with the other as stored. Refused with the bounds, never
+    # clamped. A change during a session is told to the lead as a note on its
+    # next message (`services/prefix.py`), never by changing its prompt.
+    if "agents_min" in form or "agents_max" in form:
+        if not allowed.get("tools.subagent"):
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN, t("You may not change the team's size.")
+            )
+        low, high = team_run.setting(db, chat)
+        wanted_low = str(form["agents_min"]).strip() if "agents_min" in form else str(low)
+        wanted_high = str(form["agents_max"]).strip() if "agents_max" in form else str(high)
+        limit = team_run.cap(db)
+        if team_rules.bounds_refusal(wanted_low, wanted_high, limit):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                t(
+                    "A team has 1 to %(cap)s agents, and the fewest cannot be more "
+                    "than the most.",
+                    cap=limit,
+                ),
+            )
+        chat.agents_min, chat.agents_max = int(wanted_low), int(wanted_high)
 
     # Switching model re-seeds an effort that was never chosen, so "what the
     # picker shows is what is sent" stays true afterwards. Only when the key is

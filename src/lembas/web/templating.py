@@ -173,6 +173,16 @@ templates.env.globals["tool_icon"] = tool_labels.icon_for
 templates.env.globals["job_duration"] = jobs_service.duration
 templates.env.globals["job_state"] = jobs_service.state_word
 
+
+def _team_state(state: str) -> str:
+    """A team agent's state in the reader's language (the Team panel)."""
+    from lembas.services import team_run
+
+    return team_run.state_word(state)
+
+
+templates.env.globals["team_state"] = _team_state
+
 def asset(path: str) -> str:
     """A static asset's URL, with the release stamped into it.
 
