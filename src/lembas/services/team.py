@@ -182,6 +182,11 @@ class Team:
     # subagent -- the lead's, serving two at once, or another usable one off
     # its one-model server. None: judged by the lead's model alone, as 3.2.0.
     serves: bool | None = None
+    # Spec 3.3.0: how many requests at once each *other* model a member runs on
+    # serves (its `connection/model` ref → `parallel`, None for no limit). A
+    # member on the lead's model shares the lead's slots; one on a model the
+    # person named has that model's own (team.md §8: a slot of *its* model).
+    model_slots: dict[str, int | None] = field(default_factory=dict)
     # The lead and every member on the team (stopped ones are gone from it).
     agents: list[Agent] = field(default_factory=lambda: [Agent(LEAD, state=WORKING)])
     room: list[Post] = field(default_factory=list)
@@ -356,9 +361,34 @@ def manager_refusal(team: Team, by: str, tool: str, risk: str = "", args=None) -
 
 
 # --- §8: slots ----------------------------------------------------------------------
-def _has_slot(team: Team) -> bool:
-    limit = team.slots()
-    return limit is None or team.busy() < limit
+def _model_of(team: Team, agent: Agent) -> str:
+    return agent.model or team.lead.model
+
+
+def _own_model(team: Team, model: str) -> bool:
+    return model == team.lead.model or model not in team.model_slots
+
+
+def _has_slot(team: Team, agent: Agent | None = None) -> bool:
+    """A free slot on the model `agent` runs on (the lead's when None): the
+    lead's slots are shared by everything on its model and the `task`
+    subagents; another model's, by the members on it."""
+    model = _model_of(team, agent) if agent is not None else team.lead.model
+    if _own_model(team, model):
+        limit = team.slots()
+        busy = len(
+            [
+                a
+                for a in team.agents
+                if a.state == WORKING and _own_model(team, _model_of(team, a))
+            ]
+        ) + len(team.helpers)
+    else:
+        limit = team.model_slots[model]
+        busy = len(
+            [a for a in team.agents if a.state == WORKING and _model_of(team, a) == model]
+        )
+    return limit is None or busy < max(int(limit), 1)
 
 
 def _start(team: Team, agent: Agent) -> None:
@@ -379,14 +409,14 @@ def _wants(team: Team, agent: Agent) -> None:
 
 
 def schedule(team: Team) -> None:
-    """Start waiting agents while slots are free: the lead first (the person
-    waits on it), then the others in the order they began waiting."""
-    while _has_slot(team):
-        waiting = [a for a in team.agents if a.state == WAITING]
-        if not waiting:
-            return
-        waiting.sort(key=lambda a: (a.name != LEAD, a.waiting_since))
-        _start(team, waiting[0])
+    """Start waiting agents while their models have free slots: the lead first
+    (the person waits on it), then the others in the order they began
+    waiting -- each against its own model's slots."""
+    waiting = [a for a in team.agents if a.state == WAITING]
+    waiting.sort(key=lambda a: (a.name != LEAD, a.waiting_since))
+    for agent in waiting:
+        if _has_slot(team, agent):
+            _start(team, agent)
 
 
 # --- §5, §7: the room and delivery --------------------------------------------------
@@ -608,7 +638,9 @@ def add(
     values = {"name": name, "role": role, "size": team.size(), "max": team.max}
     if member.state == WORKING:
         return Added(_say("added", **values), member)
-    return Added(_say("added_waiting", parallel=team.slots() or 0, **values), member)
+    model = _model_of(team, member)
+    limit = team.slots() if _own_model(team, model) else team.model_slots[model]
+    return Added(_say("added_waiting", parallel=limit or 0, **values), member)
 
 
 # --- §9: stopping -------------------------------------------------------------------

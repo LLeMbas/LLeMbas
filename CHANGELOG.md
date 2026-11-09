@@ -3,6 +3,42 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## Unreleased
+
+The harness spec is **3.3.0** (`subagents.md`).
+
+### Changed
+
+- **Subagents, not helpers.** Everything a model sends to work for it -- a `task` subagent, in the
+  foreground or in the background, and a team's member -- is a *subagent* everywhere you read it:
+  the chat, the activity panel, Settings, the admin pages, the permissions, and what the models
+  themselves are told.
+- **A subagent runs on the chat's own model** unless you name another model in the chat -- its id,
+  its name, or connection/model, in your own words. There is no setting for a subagent's model, and
+  a model that tries to pick one you did not name is told to use the chat's own.
+- **Only the logical limits.** The chat's own model serves its subagents when it can answer two
+  requests at once (or has no stated limit). A model that serves one request at a time cannot be
+  its own subagent: you name another model, on another server, and nothing is picked for you.
+  Another model on the same one-model-at-a-time server as the chat's is refused, because loading
+  it would unload the chat's model.
+- **The Subagents setting** (fewest, most; counted with the chat's own agent) is offered whenever
+  some model could serve -- the chat's own, or another off its one-model server -- and says so
+  beside it when only a model you name could.
+
+### Added
+
+- **The activity panel, as a side panel should be.** Context shows the share used, tokens against
+  the window, a bar by category, the categories with tokens and share, how far it is to automatic
+  compaction, and a **Compact** button. Background tasks lists every running subagent, team member
+  and background command with its elapsed time and a stop button, each opening to its latest step,
+  what it is writing and its whole conversation; what one started is folded under it ("Tasks: N"),
+  and the finished ones are folded at the end. The room and the plan follow. On a phone it is a
+  full-height sheet.
+- **`/api/v2`**: a chat says whether it offers subagents, whether they need a model you name, and
+  the instance's cap (`subagents`); so does every model before a chat exists (`/models`); the
+  activity's context says how far automatic compaction is and whether Compact can run now
+  (`until_compact`, `auto_compact`, `compactable`); and `POST /api/v2/chats/{chat}/compact`.
+
 ## 2.0.0-beta.6 — 2026-11-09
 
 The harness spec is still **3.2.0** (LLeMbas CLI v2.0.0-beta.3).

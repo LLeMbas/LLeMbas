@@ -318,6 +318,14 @@ def load(db, lead_id: str) -> rules.Team | None:
         stopped_unsaid=list(data.get("stopped_unsaid") or []),
     )
     members = _member_rows(db, lead_id)
+    # The slots of each other model a member runs on (spec 3.3.0: one the
+    # person named): its own, not the lead's.
+    for member in members:
+        if member.model and member.model != lead.model and member.model not in team.model_slots:
+            other = chat_service.model_row(
+                db, chat_service.Speaker(member.model_id or "", member.connection_id)
+            )
+            team.model_slots[member.model] = model_parallel(other) if other else None
     for member in members:
         team.agents.append(
             rules.Agent(

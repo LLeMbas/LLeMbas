@@ -171,3 +171,20 @@ async def test_team_add_refuses_after_the_teams_own_refusals(db):
         context, {**base, "name": "parser", "model": "coder-30b"}
     )
     assert outcome.content == rules.texts()["not_named"]
+
+
+def test_a_member_on_a_named_model_takes_that_models_slots():
+    """team.md §8 counts a slot of the member's own model: a lead on a
+    one-request model does not hold up a member on another server's."""
+    from lembas.services import team as team_rules
+
+    team = team_rules.Team(min=1, max=4, parallel=1, serves=True)
+    team.lead.model = "A/lead-model"
+    team.model_slots = {"B/coder-30b": 2}
+    base = {"role": "owns the parser", "task": "Write it.", "goal": "A loader"}
+    first = team_rules.add(team, team_rules.LEAD, {**base, "name": "one"}, model="B/coder-30b")
+    second = team_rules.add(team, team_rules.LEAD, {**base, "name": "two"}, model="B/coder-30b")
+    third = team_rules.add(team, team_rules.LEAD, {**base, "name": "three"}, model="B/coder-30b")
+    assert first.agent.state == team_rules.WORKING
+    assert second.agent.state == team_rules.WORKING
+    assert third.agent.state == team_rules.WAITING

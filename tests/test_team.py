@@ -83,13 +83,13 @@ def test_the_size_counts_members_whatever_their_state_and_running_helpers():
     team = _team(high=4)
     _add(team, "parser")
     rules.finish(team, "parser", "done")
-    rules.helper_started(team, rules.LEAD)
+    rules.task_started(team, rules.LEAD)
     assert team.size() == 3  # lead, a finished member, a helper
     assert _add(team, "tester").agent is not None
     assert _add(team, "third").text == rules._say("full", max=4)
     # task past the size answers `full`; a helper ending makes room.
     assert rules.task_refusal(team) == rules._say("full", max=4)
-    rules.helper_done(team, rules.LEAD)
+    rules.task_done(team, rules.LEAD)
     assert rules.task_refusal(team) == ""
 
 
