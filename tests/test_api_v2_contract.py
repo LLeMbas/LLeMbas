@@ -827,10 +827,28 @@ def _shapes() -> dict[str, object]:
         "event_close": {},
         "tool_show": {"calls": [serialise.tool_call(SHOW_TREE), serialise.tool_call(SHOW_DEVICE)]},
         "team": {"team": serialise.team(_team())},
+        **_apps(),
         **_files(),
         **_parity(),
         **_activity(),
         **_schedules(),
+    }
+
+
+def _apps() -> dict[str, object]:
+    """`GET /apps`: what a beta server recommends (a beta of each app, or a
+    newer stable), and what a stable one does from the same pins (never a
+    beta; null when it has no stable to name)."""
+    from lembas.services import app_releases
+
+    pins = {"android": {"stable": "1.0.0", "beta": "1.1.0-beta.2"},
+            "desktop": {"stable": "1.0.1", "beta": "1.0.0-beta.9"}}
+    return {
+        "apps": app_releases.recommended(server_version="2.1.0-beta.3", pinned=pins),
+        "apps_stable": app_releases.recommended(
+            server_version="2.0.0", pinned={"android": {"stable": None, "beta": "1.1.0-beta.2"},
+                                            "desktop": pins["desktop"]}
+        ),
     }
 
 

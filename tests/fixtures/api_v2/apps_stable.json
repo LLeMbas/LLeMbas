@@ -1,0 +1,15 @@
+{
+  "server": {
+    "version": "2.0.0",
+    "channel": "stable"
+  },
+  "apps": {
+    "android": null,
+    "desktop": {
+      "version": "1.0.1",
+      "tag": "v1.0.1",
+      "channel": "stable",
+      "page": "https://github.com/LLeMbas/LLeMbas-Desktop/releases/tag/v1.0.1"
+    }
+  }
+}

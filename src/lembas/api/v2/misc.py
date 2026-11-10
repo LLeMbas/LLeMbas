@@ -96,6 +96,16 @@ async def update_me(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> dic
     return _me(caller, db)
 
 
+@router.get("/apps")
+async def apps(caller: Me) -> dict[str, Any]:
+    """Which Android and Desktop release this server recommends (its own
+    channel's: a beta server may name a beta app, a stable one never does);
+    an app compares it with itself and offers the update."""
+    from lembas.services import app_releases
+
+    return app_releases.recommended()
+
+
 @router.get("/models")
 async def models(
     caller: Me, db: Db, chat: str = Query(""), kind: str = Query(""), device: str = Query("")

@@ -1,0 +1,20 @@
+{
+  "server": {
+    "version": "2.1.0-beta.3",
+    "channel": "beta"
+  },
+  "apps": {
+    "android": {
+      "version": "1.1.0-beta.2",
+      "tag": "v1.1.0-beta.2",
+      "channel": "beta",
+      "page": "https://github.com/LLeMbas/LLeMbas-Android/releases/tag/v1.1.0-beta.2"
+    },
+    "desktop": {
+      "version": "1.0.1",
+      "tag": "v1.0.1",
+      "channel": "stable",
+      "page": "https://github.com/LLeMbas/LLeMbas-Desktop/releases/tag/v1.0.1"
+    }
+  }
+}
