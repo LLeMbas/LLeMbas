@@ -189,11 +189,11 @@ def test_an_empty_folder_shows_on_the_chats_side_only(client: TestClient, db, re
     only side with folders."""
     _add_connection(db)
     _enable_agents(db)
-    _folder(db, "Waiting")
+    _folder(db, "Second breakfast")
 
-    assert "Waiting" in client.get("/chat").text
+    assert "Second breakfast" in client.get("/chat").text
     client.post("/api/preferences/sidebar-kind", data={"kind": "agent"})
-    assert "Waiting" not in client.get("/chat").text
+    assert "Second breakfast" not in client.get("/chat").text
 
 
 def test_a_folder_holding_both_kinds_shows_the_right_half(client: TestClient, db, registered):
