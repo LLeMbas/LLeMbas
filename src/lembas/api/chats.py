@@ -408,10 +408,13 @@ def start_new_chat(
     content: str,
     *,
     file_ids: list[str] | None = None,
+    force_tool: str = "",
     **settings,
 ) -> tuple[Chat, Message, Message]:
     """Make a chat from its first message and start the reply: `(chat, the
-    person's row, the reply's row)`. `settings` are `_new_chat`'s.
+    person's row, the reply's row)`. `settings` are `_new_chat`'s;
+    `force_tool` is a later turn's (`FORCEABLE_TOOLS` only, anything else is
+    dropped), so the first message may be `/image` too.
 
     The core of `start_chat`, shared with the app's JSON door. The quota is
     checked *before* `_new_chat`, not after: a refusal that has already written
@@ -436,7 +439,8 @@ def start_new_chat(
     assistant = chat_service.create_message(
         db, chat, ROLE_ASSISTANT, "", complete_=False, model_id=chat.model_id
     )
-    generation_service.ensure(chat.id, assistant.id)
+    forced = force_tool.strip() if force_tool.strip() in FORCEABLE_TOOLS else ""
+    generation_service.ensure(chat.id, assistant.id, force_tool=forced)
     return chat, user_message, assistant
 
 

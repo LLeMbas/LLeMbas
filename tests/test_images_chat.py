@@ -403,3 +403,30 @@ def test_the_admin_page_offers_the_models_own_id_as_the_value(client, db, vision
     row = db.scalar(select(Model).where(Model.model_id == "reviewer"))
     assert 'value="reviewer"' in page
     assert f'value="{row.id}"' not in page
+
+
+def test_a_new_chat_on_the_apps_api_may_start_with_a_picture(
+    client: TestClient, db, registered, vision_chat, monkeypatch
+):
+    """`POST /api/v2/chats` takes `force_tool` as a later turn does, from the
+    same allow-list, so "Generate images" works on an app's first message."""
+    from sqlalchemy import select
+
+    from lembas.api import chats as chats_api
+    from lembas.db.models import User
+    from lembas.security import api_tokens
+
+    seen: list[str] = []
+    monkeypatch.setattr(
+        chats_api.generation_service,
+        "ensure",
+        lambda chat_id, message_id, *, force_tool="": seen.append(force_tool),
+    )
+    user = db.scalar(select(User))
+    _, raw = api_tokens.create(db, user, name="LLeMbas for Android", scopes=["app"])
+    headers = {"Authorization": f"Bearer {raw}"}
+    for asked in ("image_generate", "shell_run", ""):
+        made = client.post("/api/v2/chats", headers=headers,
+                           json={"text": "a bicycle", "force_tool": asked})
+        assert made.status_code == 201, made.text
+    assert seen == ["image_generate", "", ""]

@@ -121,7 +121,8 @@ async def unread(caller: Me, db: Db) -> dict[str, Any]:
 @router.post("/chats", status_code=status.HTTP_201_CREATED)
 async def create_chat(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """A chat from its first message, as the page makes one: there is no empty
-    chat, so `text` (or an attachment) is required."""
+    chat, so `text` (or an attachment) is required. `force_tool` as on
+    `POST /chats/{id}/messages`."""
     need(db, caller.user, "chat.create")
     text = _text(body)
     files = _ids(body)
@@ -141,6 +142,8 @@ async def create_chat(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> d
         project_dir=str(body.get("directory") or ""),
         agent_mode=str(body.get("mode") or ""),
         reasoning_effort=str(body.get("effort") or ""),
+        # As on a later turn: `image_generate` makes the first reply a picture.
+        force_tool=str(body.get("force_tool") or ""),
         **_agents_fields(body),
     )
     return {

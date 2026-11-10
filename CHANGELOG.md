@@ -59,6 +59,9 @@ The harness spec is **3.5.0** (scheduled work on a linked computer), copied from
   `app_releases.json`, moved with every release, so an app offers an update its server's `/api/v2`
   speaks. A beta server may recommend a beta app (or a newer stable); a stable server never names
   a beta. Fixtures: new `apps.json`, `apps_stable.json`.
+- **A new chat from an app may start with a picture.** `POST /api/v2/chats` takes `force_tool`
+  (`image_generate`, the same allow-list as `POST /chats/{id}/messages`), so "Generate images"
+  works on the first message too, not only in a chat that already exists.
 - **Pinned chats.** A pin on each chat's row in the sidebar puts it in a **Pinned chats** section
   above `[ CHATS ]` (wherever it is filed) and takes it out again; on `/api/v2`, `PATCH
   /chats/{id}` takes `pinned`. The column was read for the sidebar's order but nothing ever set it.
