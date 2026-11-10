@@ -2633,3 +2633,16 @@ MESSAGES.update(
         'Run again': 'Futtatás újra',
     }
 )
+
+# Monitor mode: a schedule that watches a web address.
+MESSAGES.update(
+    {
+        'Only when this page changes': 'Csak ha ez az oldal megváltozik',
+        'Optional. Each run first looks at this address; when nothing changed since the last look, the run stops there and you are not told.': 'Nem kötelező. Minden futás először megnézi ezt a címet; ha a legutóbbi óta semmi sem változott, a futás ott véget ér, és nem kap értesítést.',
+        'Unchanged': 'Változatlan',
+        'Only a web address can be watched for now.': 'Egyelőre csak webcím figyelhető.',
+        'Say which address to watch.': 'Adja meg, melyik címet figyelje.',
+        'That address is too long.': 'Ez a cím túl hosszú.',
+        'Only http and https addresses can be watched.': 'Csak http és https címek figyelhetők.',
+    }
+)

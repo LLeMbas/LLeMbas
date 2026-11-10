@@ -52,8 +52,11 @@ RUN_SILENT = "silent"
 RUN_FAILED = "failed"
 RUN_SKIPPED = "skipped"
 RUN_MISSED = "missed"
+# A monitor schedule's look found nothing changed: no model ran, nobody told.
+RUN_UNCHANGED = "unchanged"
 RUN_STATUSES = (
     RUN_RUNNING, RUN_WAITING, RUN_OK, RUN_SILENT, RUN_FAILED, RUN_SKIPPED, RUN_MISSED,
+    RUN_UNCHANGED,
 )
 # What a run is waiting for, while it is `waiting`.
 WAIT_MODEL = "model"
@@ -144,6 +147,14 @@ class Schedule(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
     # error's notification last went out ({signature: ISO time}).
     failure_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     failure_notes_json: Mapped[dict] = mapped_column(JSONDict, default=dict)
+    # Monitor mode (`schedule/monitor.py`): what it watches ("" none, "url"),
+    # the address, and what the last look that changed saw -- its hash, its
+    # text (for the next diff) and when.
+    watch_kind: Mapped[str] = mapped_column(String(16), default="", nullable=False)
+    watch_target: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    watch_hash: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    watch_last: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    watch_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     def __repr__(self) -> str:
         return f"<Schedule {self.title!r} {'on' if self.enabled else 'off'}>"
@@ -216,6 +227,9 @@ class ScheduleRun(UUIDPrimaryKey, Timestamps, Base):
     # (`notify.notification`): the full version, the lock screen's public one
     # and the actions. Empty: nobody was told. Its body is model output.
     notification_json: Mapped[dict] = mapped_column(JSONDict, default=dict)
+    # A monitor schedule's look for this run: kind, hash, bytes, changed,
+    # first, error -- and `block`, the turn's text about it, kept for a retry.
+    watch_json: Mapped[dict] = mapped_column(JSONDict, default=dict)
 
     def __repr__(self) -> str:
         return f"<ScheduleRun {self.schedule_id} {self.status}>"

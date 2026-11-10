@@ -162,6 +162,7 @@ def _settings_defaults(schedule: Schedule | None, rule: dict) -> dict:
             "effort": "",
             "agents": "",
             "tools": list(runs.SAFE_TOOLS),
+            "watch_url": "",
         }
     return {
         "model_id": schedule.model_id or "",
@@ -172,6 +173,7 @@ def _settings_defaults(schedule: Schedule | None, rule: dict) -> dict:
         "effort": schedule.effort or "",
         "agents": schedule.agents or "",
         "tools": list(runs.tools_for(schedule)),
+        "watch_url": schedule.watch_target if schedule.watch_kind == "url" else "",
     }
 
 
@@ -184,6 +186,7 @@ def _settings_from_form(form) -> dict:
         "effort": str(form.get("effort") or ""),
         "agents": str(form.get("agents") or ""),
         "tools": [str(t) for t in form.getlist("tools")],
+        "watch": str(form.get("watch_url") or "").strip(),
     }
     if form.get("notify"):
         settings["notify"] = str(form.get("notify"))
@@ -375,6 +378,7 @@ def status_label(status: str) -> str:
         "waiting": t("Waiting"),
         "ok": t("Done"),
         "silent": t("Nothing new"),
+        "unchanged": t("Unchanged"),
         "failed": t("Failed"),
         "skipped": t("Skipped"),
         "missed": t("Missed"),

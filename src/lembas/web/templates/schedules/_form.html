@@ -39,6 +39,16 @@
   </select>
 </div>
 
+{# Monitor mode (`services/schedule/monitor.py`): the run looks first, and
+   its model runs only when what it watches changed. #}
+<div class="field">
+  <label class="field__label" for="schedule-watch">{{ t("Only when this page changes") }}</label>
+  <input class="input" type="url" id="schedule-watch" name="watch_url" maxlength="2000"
+         inputmode="url" autocomplete="off" value="{{ form.watch_url }}"
+         placeholder="https://">
+  <p class="field__hint">{{ t("Optional. Each run first looks at this address; when nothing changed since the last look, the run stops there and you are not told.") }}</p>
+</div>
+
 <fieldset class="schedule-repeat">
   <legend class="field__label">{{ t("When") }}</legend>
 

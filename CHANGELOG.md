@@ -26,6 +26,14 @@ at <https://llembas.eu/changelog.html>.
   end, and on `/api/v2` every run has `notification` (null when nobody was told), so an app
   following the `schedules` event shows the same. Fixtures: new `push_schedule.json`,
   `push_schedule_failed.json`; `schedule*.json` and `event_schedules.json` gain `notification`.
+- **Monitor mode: run only when a page changed.** A schedule may watch a web address ("Only when
+  this page changes" in the form, `watch` on `/api/v2`, `watch_url` in the model's scheduling
+  tools). Each run fetches it first -- on the server, through the same private-address guard as
+  web fetching, every redirect checked, at most 256 KB and 30 seconds -- and when it is byte for
+  byte what the last look saw the run is recorded **Unchanged**: no model runs and nobody is
+  told. When it changed (and on the first look) the run is told what changed and what is there
+  now, as data. A look that fails fails the run and never counts as a change. Fixtures: new
+  `schedule_watching.json`; schedules and runs gain `watch` (null when nothing is watched).
 
 ## 2.0.0-beta.8 — 2026-11-10
 

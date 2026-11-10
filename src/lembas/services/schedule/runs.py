@@ -45,6 +45,7 @@ from lembas.db.models import (
     RUN_RUNNING,
     RUN_SILENT,
     RUN_SKIPPED,
+    RUN_UNCHANGED,
     RUN_WAITING,
     TIMING_CATCH_UP,
     TIMING_LATE,
@@ -95,7 +96,7 @@ OPTIONAL_TOOLS = ("image", "custom", "mcp", "subagent")
 NEVER_TOOLS = ("ask", "schedule", "python")
 TOOL_CHOICES = (*SAFE_TOOLS, *OPTIONAL_TOOLS)
 
-FINISHED = (RUN_OK, RUN_SILENT, RUN_FAILED, RUN_SKIPPED, RUN_MISSED)
+FINISHED = (RUN_OK, RUN_SILENT, RUN_FAILED, RUN_SKIPPED, RUN_MISSED, RUN_UNCHANGED)
 
 
 def tools_for(schedule: Schedule) -> tuple[str, ...]:
@@ -353,6 +354,22 @@ def run_dict(row: ScheduleRun) -> dict[str, Any]:
         # What the notify decision told (`notify.notification`), or null:
         # an app following the `schedules` event shows it as it would a push.
         "notification": dict(row.notification_json) if row.notification_json else None,
+        "watch": watch_dict(row.watch_json),
+    }
+
+
+def watch_dict(record: dict | None) -> dict[str, Any] | None:
+    """A run's look at what its schedule watches, as the API says it: null
+    for a schedule that watches nothing. The turn's own text stays here."""
+    if not record:
+        return None
+    return {
+        "kind": record.get("kind") or "",
+        "changed": bool(record.get("changed")),
+        "first": bool(record.get("first")),
+        "hash": record.get("hash") or None,
+        "bytes": int(record.get("bytes") or 0),
+        "error": record.get("error") or None,
     }
 
 
@@ -402,6 +419,11 @@ def schedule_dict(
         "chat_id": schedule.chat_id or None,
         "fired_count": int(schedule.fired_count or 0),
         "failure_streak": int(schedule.failure_streak or 0),
+        "watch": (
+            {"kind": schedule.watch_kind, "target": schedule.watch_target,
+             "changed_at": _iso(schedule.watch_changed_at)}
+            if schedule.watch_kind else None
+        ),
         "last_error": schedule.last_error or None,
         "last_run": run_dict(last) if last is not None else None,
         "running": bool(last is not None and last.status == RUN_RUNNING),

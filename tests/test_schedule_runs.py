@@ -751,3 +751,116 @@ async def test_a_paged_history(db, three, script):
     assert len(page) == 3 and more
     rest, more = runs.history(db, schedule, limit=3, before=page[-1].id)
     assert len(rest) == 2 and not more
+
+
+# --- Monitor mode ------------------------------------------------------------------------------
+def _watching(monkeypatch, pages: list):
+    """`monitor.fetch_url` answering from `pages` in order: text, or an
+    exception to raise. Returns the list of addresses looked at."""
+    from lembas.services.schedule import monitor
+
+    looked: list[str] = []
+
+    async def fetch_url(url, *, allow_private=False):
+        looked.append(url)
+        page = pages.pop(0)
+        if isinstance(page, Exception):
+            raise page
+        raw = page.encode()
+        return monitor.Look(page, monitor.digest(raw), len(raw))
+
+    monkeypatch.setattr(monitor, "fetch_url", fetch_url)
+    return looked
+
+
+@pytest.mark.anyio
+async def test_a_monitor_runs_the_model_only_when_the_page_changed(
+    db, three, script, monkeypatch
+):
+    from lembas.services.schedule import monitor
+
+    looked = _watching(monkeypatch, ["Price: 10", "Price: 10", "Price: 12"])
+    schedule = _make(db, model_id="hosted", notify="always", watch="https://shop.example/item")
+    assert (schedule.watch_kind, schedule.watch_target) == ("url", "https://shop.example/item")
+
+    # First look: the model runs, told it is the first look.
+    await _sweep(script, T0)
+    # Same page: recorded unchanged, no model, nobody told.
+    await _sweep(script, T0 + timedelta(hours=1))
+    # Changed: the model runs with the diff.
+    await _sweep(script, T0 + timedelta(hours=2))
+
+    first, same, changed = _runs(db, schedule)
+    assert looked == ["https://shop.example/item"] * 3
+    assert [first.status, same.status, changed.status] == ["ok", "unchanged", "ok"]
+    assert len(script.turns) == 2
+    assert "first look" in script.turns[0] and "<watched>\nPrice: 10\n</watched>" in script.turns[0]
+    assert "-Price: 10" in script.turns[1] and "+Price: 12" in script.turns[1]
+    assert [t["run"] for t in script.told] == [first.id, changed.id]
+    assert same.chat_id in (None, "") and not same.notified
+    assert runs.watch_dict(same.watch_json)["changed"] is False
+    assert runs.watch_dict(changed.watch_json)["changed"] is True
+    assert "block" not in runs.watch_dict(changed.watch_json)
+    db.refresh(schedule)
+    assert schedule.watch_hash == monitor.digest(b"Price: 12")
+    assert runs.schedule_dict(db, schedule, owner=_owner(db))["watch"]["target"] == (
+        "https://shop.example/item"
+    )
+
+
+@pytest.mark.anyio
+async def test_a_failed_look_fails_the_run_and_is_never_a_change(db, three, script, monkeypatch):
+    from lembas.services.schedule import monitor
+
+    _watching(monkeypatch, ["v1", monitor.WatchError("example answered HTTP 503."), "v1"])
+    schedule = _make(db, model_id="hosted", watch="https://status.example/")
+    await _sweep(script, T0)
+    await _sweep(script, T0 + timedelta(hours=1))
+    await _sweep(script, T0 + timedelta(hours=2))
+    first, broken, after = _runs(db, schedule)
+    assert broken.status == "failed" and broken.error_class == runner.ERROR_WATCH
+    assert "HTTP 503" in broken.error
+    # The kept hash was left alone: the same page after the failure is unchanged.
+    assert after.status == "unchanged"
+    assert len(script.turns) == 1
+
+
+def test_a_new_address_starts_afresh_and_bad_ones_are_refused(db, three, script):
+    schedule = _make(db, model_id="hosted", watch="https://a.example/")
+    schedule.watch_hash, schedule.watch_last = "abc", "old"
+    schedules_service.apply_settings(schedule, {"watch": "https://a.example/"})
+    assert schedule.watch_hash == "abc"
+    schedules_service.apply_settings(schedule, {"watch": {"kind": "url", "target": "https://b.example/"}})
+    assert (schedule.watch_target, schedule.watch_hash, schedule.watch_last) == (
+        "https://b.example/", "", ""
+    )
+    for bad in ("ftp://a.example/", {"kind": "command", "target": "ls"}):
+        with pytest.raises(schedules_service.ScheduleError):
+            schedules_service.apply_settings(schedule, {"watch": bad})
+    schedules_service.apply_settings(schedule, {"watch": ""})
+    assert (schedule.watch_kind, schedule.watch_target) == ("", "")
+
+
+@pytest.mark.anyio
+async def test_the_look_goes_through_the_ssrf_guard_and_is_bounded(mock_http):
+    import httpx
+
+    from lembas.services.schedule import monitor
+
+    # A private address is refused before anything is sent.
+    with pytest.raises(monitor.WatchError):
+        await monitor.fetch_url("http://127.0.0.1:9/")
+
+    # A redirect to one is refused at the hop.
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/hop":
+            return httpx.Response(302, headers={"location": "http://127.0.0.1:9/secret"})
+        return httpx.Response(200, content=b"x" * (monitor.MAX_BYTES + 10))
+
+    mock_http(handler)
+    look = await monitor.fetch_url("http://192.0.2.9/big", allow_private=True)
+    assert look.truncated and look.size == monitor.MAX_BYTES
+    assert look.digest == monitor.digest(b"x" * monitor.MAX_BYTES)
+    with pytest.raises(monitor.WatchError):
+        # allow_private=False on the hop: the first address is a public literal.
+        await monitor.fetch_url("http://93.184.215.14/hop")

@@ -1787,6 +1787,7 @@ a.picker__option { text-decoration: none; }
    slack *and* give it back; the second is the one that gets forgotten. */
 .u-grow { flex: 1; }
 .u-shrink { min-width: 0; }
+.u-break { overflow-wrap: anywhere; }
 .u-none { flex: none; }
 .u-w-auto { width: auto; }
 .u-w-field-xs { max-width: var(--w-field-xs); }

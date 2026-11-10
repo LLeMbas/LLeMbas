@@ -3293,3 +3293,16 @@ MESSAGES.update(
         'Run again': 'Spustiť znova',
     }
 )
+
+# Monitor mode: a schedule that watches a web address.
+MESSAGES.update(
+    {
+        'Only when this page changes': 'Len keď sa táto stránka zmení',
+        'Optional. Each run first looks at this address; when nothing changed since the last look, the run stops there and you are not told.': 'Voliteľné. Každé spustenie sa najprv pozrie na túto adresu; ak sa od posledného pohľadu nič nezmenilo, spustenie sa tam skončí a nedostanete upozornenie.',
+        'Unchanged': 'Bez zmeny',
+        'Only a web address can be watched for now.': 'Zatiaľ sa dá sledovať len webová adresa.',
+        'Say which address to watch.': 'Uveďte, ktorú adresu sledovať.',
+        'That address is too long.': 'Táto adresa je príliš dlhá.',
+        'Only http and https addresses can be watched.': 'Sledovať sa dajú len adresy http a https.',
+    }
+)

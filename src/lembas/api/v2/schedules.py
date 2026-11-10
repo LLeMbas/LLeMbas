@@ -22,6 +22,10 @@ so a rule cannot hold through one door and not the other. Every route needs
 | `GET /schedules/models` | the scheduling models, in order, and which are free now |
 | `PUT /schedules/models` | `{"models": [id]}`: the person's narrowing of the list |
 | `GET /events` | server-sent events: `schedules` whenever the list changes |
+
+Monitor mode: `watch` among the settings -- an address (`"https://…"`), or
+`{"kind": "url", "target"}`, or `""` to stop watching. A run whose look found
+nothing changed ends `unchanged`, with no model run and no notification.
 """
 
 from __future__ import annotations

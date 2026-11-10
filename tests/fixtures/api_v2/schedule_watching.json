@@ -1,0 +1,87 @@
+{
+  "schedule": {
+    "id": "sched2",
+    "title": "Mallorn price",
+    "instruction": "Say the new price.",
+    "request": "every hour, when the page changes",
+    "rule": {
+      "every": {
+        "minutes": 60
+      }
+    },
+    "description": "Every 1 hour",
+    "timezone": "UTC",
+    "enabled": true,
+    "next_run": "2026-01-02T04:04:05+00:00",
+    "next_runs": [],
+    "target": "chat",
+    "mode": "fresh",
+    "notify": "matters",
+    "catch_up": "one",
+    "grace_minutes": null,
+    "model": null,
+    "effort": null,
+    "agents": null,
+    "tools": [
+      "files",
+      "recall",
+      "search",
+      "fetch",
+      "memory",
+      "skills",
+      "plan"
+    ],
+    "origin": "user",
+    "chat_id": null,
+    "fired_count": 7,
+    "failure_streak": 0,
+    "watch": {
+      "kind": "url",
+      "target": "https://shop.example/mallorn",
+      "changed_at": "2026-01-02T03:04:05+00:00"
+    },
+    "last_error": null,
+    "last_run": {
+      "id": "run4",
+      "schedule_id": "sched2",
+      "status": "unchanged",
+      "timing": "on_time",
+      "missed": 0,
+      "due_at": "2026-01-02T03:04:05+00:00",
+      "started_at": "2026-01-02T03:04:05+00:00",
+      "finished_at": "2026-01-02T03:04:05+00:00",
+      "waiting_for": null,
+      "retry_at": null,
+      "progress": null,
+      "attempts": 1,
+      "model": {
+        "id": null,
+        "name": null,
+        "reason": null,
+        "switched_from": null
+      },
+      "tokens": {
+        "prompt": 0,
+        "completion": 0
+      },
+      "cost": null,
+      "chat_id": null,
+      "message_id": null,
+      "report_path": null,
+      "preview": "",
+      "error": null,
+      "notified": false,
+      "notification": null,
+      "watch": {
+        "kind": "url",
+        "changed": false,
+        "first": false,
+        "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "bytes": 5120,
+        "error": null
+      }
+    },
+    "running": false,
+    "created_at": "2026-01-02T03:04:05+00:00"
+  }
+}

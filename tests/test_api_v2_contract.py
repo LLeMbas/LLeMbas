@@ -508,6 +508,26 @@ def _schedules() -> dict[str, object]:
             extra=asked_extra,
         ),
     }
+    # Monitor mode: a schedule watching a page, whose last look found it unchanged.
+    watching = Schedule(
+        id="sched2", user_id="user1", title="Mallorn price", instruction="Say the new price.",
+        request="every hour, when the page changes",
+        rule_json=rule.validate({"every": {"hours": 1}}),
+        target="chat", chat_id=None, model_id="", enabled=True,
+        next_fire_at=datetime(2026, 1, 2, 4, 4, 5, tzinfo=UTC), fired_count=7, last_error="",
+        origin="user", mode="fresh", notify="matters", catch_up="one", grace_minutes=None,
+        effort="", agents=None, tools_json=[], failure_streak=0, created_at=WHEN,
+        watch_kind="url", watch_target="https://shop.example/mallorn", watch_hash="a" * 64,
+        watch_changed_at=WHEN,
+    )
+    unchanged = ScheduleRun(
+        id="run4", schedule_id="sched2", user_id="user1", status="unchanged", timing="on_time",
+        missed=0, due_at=WHEN, first_try_at=WHEN, started_at=WHEN, finished_at=WHEN,
+        attempts=1, retries=0, chat_id="", message_id="", preview="", error_class="",
+        error="", notified=False,
+        watch_json={"kind": "url", "hash": "a" * 64, "bytes": 5120, "truncated": False,
+                    "changed": False, "looked_at": WHEN.isoformat()},
+    )
     listed = [runs.schedule_dict(None, schedule, owner=owner, last=run)]
     models = _models()
     return {
@@ -538,6 +558,9 @@ def _schedules() -> dict[str, object]:
             "mine": ["gpt-oss"],
         },
         "event_schedules": {"version": version_of(listed), "schedules": listed},
+        "schedule_watching": {
+            "schedule": runs.schedule_dict(None, watching, owner=owner, last=unchanged)
+        },
         **pushes,
     }
 

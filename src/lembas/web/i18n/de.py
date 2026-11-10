@@ -2633,3 +2633,16 @@ MESSAGES.update(
         'Run again': 'Erneut ausführen',
     }
 )
+
+# Monitor mode: a schedule that watches a web address.
+MESSAGES.update(
+    {
+        'Only when this page changes': 'Nur wenn sich diese Seite ändert',
+        'Optional. Each run first looks at this address; when nothing changed since the last look, the run stops there and you are not told.': 'Optional. Jeder Lauf sieht zuerst diese Adresse an; hat sich seit dem letzten Mal nichts geändert, endet der Lauf dort und Sie werden nicht benachrichtigt.',
+        'Unchanged': 'Unverändert',
+        'Only a web address can be watched for now.': 'Vorerst kann nur eine Webadresse beobachtet werden.',
+        'Say which address to watch.': 'Geben Sie an, welche Adresse beobachtet werden soll.',
+        'That address is too long.': 'Diese Adresse ist zu lang.',
+        'Only http and https addresses can be watched.': 'Nur http- und https-Adressen können beobachtet werden.',
+    }
+)

@@ -47,6 +47,7 @@ from lembas.db.models import (
     RUN_RUNNING,
     RUN_SILENT,
     RUN_SKIPPED,
+    RUN_UNCHANGED,
     RUN_WAITING,
     TARGET_CHAT,
     TARGET_REPORT,
@@ -63,7 +64,7 @@ from lembas.db.models import (
 )
 from lembas.db.session import session_scope
 from lembas.services import wake as wake_service
-from lembas.services.schedule import clock, notify, runs
+from lembas.services.schedule import clock, monitor, notify, runs
 from lembas.services.schedule import models as models_service
 from lembas.services.schedule import rule as rule_service
 
@@ -82,6 +83,8 @@ ERROR_INTERNAL = "internal"
 ERROR_NO_MODEL = "no_model"
 ERROR_BACKLOG = "backlog"
 ERROR_NO_CHAT = "no_chat"
+# A monitor schedule could not look at what it watches.
+ERROR_WATCH = "watch"
 
 
 def _now() -> datetime:
@@ -105,6 +108,7 @@ def _preamble(
     due_at: datetime | None,
     previous: ScheduleRun | None = None,
     previous_text: str = "",
+    watched: str = "",
 ) -> str:
     """The turn a firing puts into the chat.
 
@@ -146,6 +150,8 @@ def _preamble(
             "</previous-run>",
             "Do not repeat what is already there unless it changed.",
         ]
+    if watched:
+        lines += ["", watched]
     if notify.policy(schedule.notify, schedule.rule_json or {}) == "matters":
         lines += ["", notify.HINT]
     lines += ["", schedule.instruction or schedule.request or ""]
@@ -300,6 +306,8 @@ async def attempt(run_id: str) -> None:
     from lembas.services import generation as generation_service
 
     choice: models_service.Choice | None = None
+    if not await _look(run_id):
+        return
     with session_scope() as db:
         run = db.get(ScheduleRun, run_id)
         if run is None or run.status not in (RUN_RUNNING, RUN_WAITING):
@@ -378,6 +386,47 @@ async def attempt(run_id: str) -> None:
         await follow(run_id)
 
 
+async def _look(run_id: str) -> bool:
+    """A monitor schedule's look, once per run (`monitor.py`): True when the
+    run goes on -- it watches nothing, it already looked, or what it watches
+    changed -- and False when the run ended here, `unchanged` or failed."""
+    from lembas.services import settings_store
+
+    with session_scope() as db:
+        run = db.get(ScheduleRun, run_id)
+        schedule = db.get(Schedule, run.schedule_id) if run else None
+        if run is None or schedule is None or run.status not in (RUN_RUNNING, RUN_WAITING):
+            return True
+        if not schedule.watch_kind or run.watch_json:
+            return True
+        allow_private = bool(settings_store.search(db).get("allow_private_fetch"))
+        # Looked at outside a held write: the session stays open (the
+        # schedule's state is kept on it), but the fetch is bounded in time.
+        outcome = await monitor.check(schedule, allow_private=allow_private)
+        record = dict(outcome.record)
+        if outcome.block:
+            record["block"] = outcome.block
+        run.watch_json = record
+        if outcome.ok and outcome.changed:
+            db.commit()
+            return True
+        schedule.claimed_at = None
+        if outcome.ok:
+            _finish(run, RUN_UNCHANGED)
+            schedule.failure_streak = 0
+            schedule.last_error = ""
+            db.commit()
+            return False
+        _finish(run, RUN_FAILED, error_class=ERROR_WATCH,
+                error=f"Could not look at what it watches: {outcome.error}"[:2000])
+        schedule.failure_streak = int(schedule.failure_streak or 0) + 1
+        schedule.last_error = run.error[:500]
+        db.commit()
+        schedule_id = schedule.id
+    _notify_failure_later(schedule_id, run_id)
+    return False
+
+
 def _prepare(db, schedule, owner, run, choice, model, *, now: datetime):
     """Everything up to the turn, in the run's session: the chat (or, for a
     safe retry, the reply blanked for `restart`), the settings and the words.
@@ -437,6 +486,7 @@ def _prepare(db, schedule, owner, run, choice, model, *, now: datetime):
         due_at=run.due_at if run.timing != TIMING_MANUAL else None,
         previous=previous,
         previous_text=previous_text,
+        watched=str((run.watch_json or {}).get("block") or ""),
     )
     db.commit()
     return restart, chat.id, content, limit

@@ -61,6 +61,10 @@
     <dd>{{ mode_label.get(form.mode, form.mode) }}</dd>
     <dt>{{ t("Where the result goes") }}</dt>
     <dd>{{ target_label.get(schedule.target, schedule.target) }}</dd>
+    {% if form.watch_url %}
+    <dt>{{ t("Only when this page changes") }}</dt>
+    <dd class="u-break">{{ form.watch_url }}</dd>
+    {% endif %}
     <dt>{{ t("When a run was missed") }}</dt>
     <dd>{{ catch_up_label.get(form.catch_up, form.catch_up) }}</dd>
     <dt>{{ t("Tools a run may use") }}</dt>

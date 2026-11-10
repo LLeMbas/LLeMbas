@@ -107,7 +107,7 @@ MAX_AGENTS = 8
 MAX_GRACE_MINUTES = 7 * 24 * 60
 # What `settings` accepts, and nothing else.
 SETTING_KEYS = (
-    "mode", "notify", "catch_up", "grace_minutes", "effort", "agents", "tools",
+    "mode", "notify", "catch_up", "grace_minutes", "effort", "agents", "tools", "watch",
 )
 
 
@@ -143,6 +143,8 @@ def apply_settings(schedule: Schedule, settings: dict | None) -> None:
         except (TypeError, ValueError):
             agents = 0
         schedule.agents = min(agents, MAX_AGENTS) if agents >= 2 else None
+    if "watch" in settings:
+        apply_watch(schedule, settings.get("watch"))
     if "tools" in settings:
         raw = settings.get("tools")
         chosen = [str(t) for t in raw] if isinstance(raw, (list, tuple)) else []
@@ -150,6 +152,25 @@ def apply_settings(schedule: Schedule, settings: dict | None) -> None:
         # The safe set exactly is stored as "the default", so a later change to
         # the default reaches it.
         schedule.tools_json = [] if tuple(kept) == runs.SAFE_TOOLS else kept
+
+
+def apply_watch(schedule: Schedule, value: object) -> None:
+    """Monitor mode (`schedule/monitor.py`): what the schedule watches, from
+    `{"kind", "target"}`, a bare address, or empty to watch nothing. A new
+    target starts afresh: the first look after it is a first look."""
+    from lembas.services.schedule import monitor
+
+    if isinstance(value, dict):
+        kind, target = str(value.get("kind") or ""), str(value.get("target") or "")
+    else:
+        kind, target = "", str(value or "")
+    try:
+        kind, target = monitor.validate(kind, target)
+    except monitor.WatchError as exc:
+        raise ScheduleError(exc.message) from exc
+    if (kind, target) != (schedule.watch_kind or "", schedule.watch_target or ""):
+        schedule.watch_hash, schedule.watch_last, schedule.watch_changed_at = "", "", None
+    schedule.watch_kind, schedule.watch_target = kind, target
 
 
 def model_choice(db: DBSession, owner: User, model_id: str) -> tuple[str, str | None]:

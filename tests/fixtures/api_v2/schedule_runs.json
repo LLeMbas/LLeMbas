@@ -38,7 +38,8 @@
         "text": "Waiting for a free model: Qwen: it is answering someone."
       },
       "notified": false,
-      "notification": null
+      "notification": null,
+      "watch": null
     },
     {
       "id": "run1",
@@ -86,7 +87,8 @@
           "run_again": "Run again"
         },
         "ask": ""
-      }
+      },
+      "watch": null
     }
   ],
   "more": false

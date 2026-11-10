@@ -144,6 +144,7 @@ def _row(schedule: Schedule, owner: User | None, db=None) -> dict[str, Any]:
         "notify": notify.policy(schedule.notify, schedule.rule_json or {}),
         "mode": schedule.mode,
         "model": schedule.model_id or "",
+        "watch_url": schedule.watch_target if schedule.watch_kind == "url" else "",
         "last_status": last.status if last is not None else "",
         "last_at": (
             clock.as_utc(last.finished_at or last.created_at).astimezone(zone)
@@ -166,6 +167,14 @@ MODE_HELP = (
     'previous run found. "continue": every run goes into the one chat, which keeps '
     "growing -- right only when each run needs the whole conversation before it."
 )
+WATCH_HELP = (
+    "A web address to watch (http or https). Each run first fetches it; when "
+    "nothing changed since the last run that looked, the run stops there "
+    "(recorded as unchanged, nobody is told) and the instruction is not run. When "
+    "it changed -- and on the first look -- the run is told what changed and what "
+    "is there now. Use it for \"tell me when this page changes\". An empty string "
+    "stops watching."
+)
 MODEL_HELP = (
     "The model to run it on first, by id; omit for the person's scheduling list. "
     "When it is busy, the next free model of that list runs it."
@@ -178,6 +187,8 @@ def _settings_from(args: dict[str, Any]) -> dict[str, Any]:
     for key in ("notify", "mode"):
         if args.get(key) is not None:
             settings[key] = str(args.get(key) or "")
+    if args.get("watch_url") is not None:
+        settings["watch"] = str(args.get("watch_url") or "")
     return settings
 
 
@@ -288,6 +299,8 @@ async def _run_list(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
         def line(row: dict[str, Any]) -> str:
             text = f"- {row['id']}: {row['title']} — {row['summary']}, to {row['target']}"
             text += f", notify {row['notify']}, {row['mode']}"
+            if row["watch_url"]:
+                text += f", watching {row['watch_url']}"
             if not row["enabled"]:
                 text += " (paused)"
             elif row["next_runs"]:
@@ -435,6 +448,7 @@ def tool_defs() -> list[ToolDef]:
                         "description": MODE_HELP,
                     },
                     "model": {"type": "string", "description": MODEL_HELP},
+                    "watch_url": {"type": "string", "description": WATCH_HELP},
                 },
                 "required": ["instruction", "schedule"],
             },
@@ -484,6 +498,7 @@ def tool_defs() -> list[ToolDef]:
                         "description": MODE_HELP,
                     },
                     "model": {"type": "string", "description": MODEL_HELP},
+                    "watch_url": {"type": "string", "description": WATCH_HELP},
                     "enabled": {
                         "type": "boolean",
                         "description": (
