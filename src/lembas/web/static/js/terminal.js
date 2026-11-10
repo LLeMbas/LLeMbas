@@ -128,9 +128,11 @@
     closedOnPurpose = false;
 
     var base = location.protocol === "https:" ? "wss://" : "ws://";
+    /* A shell before the chat carries its directory in the query already. */
     var url =
       base + location.host + panel.dataset.url +
-      "?cols=" + (term.cols || 80) + "&rows=" + (term.rows || 24);
+      (panel.dataset.url.indexOf("?") < 0 ? "?" : "&") +
+      "cols=" + (term.cols || 80) + "&rows=" + (term.rows || 24);
 
     say(t("Connecting…"));
     /* Held in a local as well as in `socket`, because every handler below has
@@ -496,6 +498,9 @@
      is: a streaming pair, or a single queued bubble if a reply is already being
      written. Nothing here needs to know which. */
   function sendStraightToChat(text) {
+    /* No chat yet (a shell opened before the first message): there is no
+       thread to send to, so it goes into the box, which will start one. */
+    if (panel.dataset.url.indexOf("/api/chats/") !== 0) return intoComposer(text, true);
     var url = panel.dataset.url.replace(/\/terminal\/ws$/, "/messages");
     if (!window.htmx) return;
     window.htmx.ajax("POST", url, {
@@ -641,6 +646,26 @@
 
        Reconnecting is left to the panel being opened, so a target changed while
        the terminal is shut costs nothing. */
+    /* The new-chat screen: the shell follows the device and the directory
+       chosen in the composer (`lembas:agent-target`, ui.js). Read off the
+       composer once on start as well, because its first announcement may come
+       before this script is wired. */
+    if (panel.hasAttribute("data-terminal-draft")) {
+      document.addEventListener("lembas:agent-target", function (event) {
+        aim(event.detail || {});
+      });
+      var picker = document.querySelector('select[name="ssh_profile_id"]');
+      var option = picker && picker.options[picker.selectedIndex];
+      var dirField = document.querySelector("[data-dir-value]");
+      if (picker && picker.value.indexOf("device:") === 0) {
+        aim({
+          device: picker.value.slice(7),
+          projectDir: dirField ? dirField.value : "",
+          terminal: !!(option && option.hasAttribute("data-opens-terminal"))
+        });
+      }
+    }
+
     window.lembas = window.lembas || {};
     window.lembas.repointTerminal = function () {
       if (socket) {
@@ -654,6 +679,23 @@
       showMarkControls();
       if (panel && !panel.hidden && panel.dataset.url) connect();
     };
+  }
+
+  /* Point a shell opened before its chat at this device and directory: the
+     URL the panel connects to, and the heading. Nothing chosen (or a device
+     that opens no terminal) empties it, and the panel says to choose. */
+  function aim(target) {
+    if (!panel) return;
+    var url = target.terminal && target.device && target.projectDir
+      ? "/api/devices/" + encodeURIComponent(target.device) +
+        "/terminal/ws?directory=" + encodeURIComponent(target.projectDir)
+      : "";
+    if (url === (panel.dataset.url || "")) return;
+    panel.dataset.url = url;
+    panel.dataset.dir = target.projectDir || "";
+    var where = panel.querySelector("[data-terminal-where]");
+    if (where) where.textContent = target.projectDir || "";
+    if (window.lembas && window.lembas.repointTerminal) window.lembas.repointTerminal();
   }
 
   if (document.readyState === "loading") {

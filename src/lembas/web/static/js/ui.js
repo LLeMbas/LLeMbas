@@ -1218,9 +1218,19 @@ document.addEventListener("lembas:notify", function (event) {
     }
 
     function announce() {
-      var chosen = kind && kind.value === "agent" && !onDevice() ? (picker ? picker.value : "") : "";
+      var agent = kind && kind.value === "agent";
+      var chosen = agent && !onDevice() ? (picker ? picker.value : "") : "";
+      /* A linked device and the directory chosen on it: what the terminal opens
+         on before the chat exists, where the device opens one (`data-terminal`). */
+      var option = picker && picker.options[picker.selectedIndex];
+      var device = agent && onDevice() ? picker.value.slice(7) : "";
       document.dispatchEvent(new CustomEvent("lembas:agent-target", {
-        detail: { profileId: chosen, projectDir: dir ? dir.value : "" }
+        detail: {
+          profileId: chosen,
+          projectDir: dir ? dir.value : "",
+          device: device,
+          terminal: !!(device && option && option.hasAttribute("data-opens-terminal"))
+        }
       }));
     }
 
@@ -1475,7 +1485,8 @@ document.addEventListener("lembas:notify", function (event) {
      still pointed at the old connection, and leaving it open would show one
      machine's files under a heading naming another. */
   document.addEventListener("lembas:agent-target", function (event) {
-    var ready = !!(event.detail && event.detail.profileId);
+    var detail = event.detail || {};
+    var ready = !!(detail.profileId || (detail.terminal && detail.projectDir));
     document.querySelectorAll("[data-agent-only]").forEach(function (button) {
       button.hidden = !ready;
       if (ready) return;

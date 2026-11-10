@@ -285,6 +285,10 @@ def _agent_context(db: DBSession, user: User, chat: Chat | None) -> dict:
         from lembas.services import device_link
 
         links = device_link.linked_for(user.id)
+        terminal_here = bool(
+            permissions.has(db, user, "agent.terminal")
+            and settings_store.agents(db).get("terminal_enabled", True)
+        )
         recent = chat_service.recent_dirs(db, user.id, [link.token_id for link in links])
         hosts = device_link.token_hosts(db, user.id, [link.token_id for link in links])
         devices = [
@@ -292,7 +296,9 @@ def _agent_context(db: DBSession, user: User, chat: Chat | None) -> dict:
              **local_device.label(
                  device_link.short_name(link), hosts.get(link.token_id), link.host
              ),
-             "recent": recent.get(link.token_id, []), "mode": link.max_mode}
+             "recent": recent.get(link.token_id, []), "mode": link.max_mode,
+             # Whether a Terminal is offered on it before the chat exists.
+             "terminal": terminal_here and link.can("terminal")}
             for link in links
         ]
         # Local first; `sort` is stable, so the rest keep their order.
@@ -910,6 +916,11 @@ async def chat_index(
             "temporary_toggle_url": new_chat_url(temporary="" if temporary else "1"),
             "model_navigate_url": without_model + ("&" if "?" in without_model else "?") + "model=",
             "starting_kind": kind if kind in KINDS else KIND_CHAT,
+            # The Terminal before the first message: on the agent screen, where
+            # a device that opens one for this person is offered. Its buttons
+            # start hidden and follow the device and directory chosen (ui.js).
+            "terminal_enabled": kind == KIND_AGENT
+            and any(d.get("terminal") for d in context["agent_devices"]),
             "starting_folder": starting_folder,
             "starting_device": f"device:{carried['device']}" if carried["device"] else "",
             "suggestions": suggestions_service.visible(db),

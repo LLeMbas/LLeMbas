@@ -196,3 +196,40 @@ def test_someone_elses_device_is_refused(client, db, registered):
     with client.websocket_connect(url, headers=_app_bearer(db)) as term:
         frame = json.loads(term.receive_text())
     assert frame == {"t": "error", "message": "That device is not yours."}
+
+
+def test_the_new_agent_chat_screen_offers_the_terminal_where_the_device_opens_one(
+    client, db, registered
+):
+    token_id, raw = _device(db)
+    with client.websocket_connect(
+        "/api/devices/link", headers={"Authorization": f"Bearer {raw}"}
+    ) as ws:
+        _hello(ws, [*ALL])
+        _wait_linked(token_id)
+        page = client.get("/chat?kind=agent").text
+        # The panel is there, waiting for a device and a directory, and the
+        # device says it opens one; xterm is loaded for it.
+        assert "data-terminal-draft" in page and "data-opens-terminal" in page
+        # `terminal.js` finds its panel by `[data-terminal]`: nothing earlier in
+        # the page -- a device's option in the composer -- may carry it.
+        import re
+
+        assert len(re.findall(r"\sdata-terminal(?=[\s>=])", page)) == 1
+        assert "js/terminal.js" in page
+        # Not on an ordinary new chat.
+        assert "js/terminal.js" not in client.get("/chat").text
+
+
+def test_a_device_that_opens_no_terminal_is_not_offered_one(client, db, registered):
+    token_id, raw = _device(db)
+    with client.websocket_connect(
+        "/api/devices/link", headers={"Authorization": f"Bearer {raw}"}
+    ) as ws:
+        _hello(ws, [c for c in ALL if c != "terminal"])
+        _wait_linked(token_id)
+        page = client.get("/chat?kind=agent").text
+        assert "data-terminal-draft" not in page and "js/terminal.js" not in page
+        headers = _app_bearer(db)
+        devices = client.get("/api/v2/devices", headers=headers).json()["devices"]
+        assert [d["terminal"] for d in devices] == [False]

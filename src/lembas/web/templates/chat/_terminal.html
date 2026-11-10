@@ -12,10 +12,13 @@
 #}
 <aside class="terminal" id="terminal" hidden aria-label="{{ t('Terminal') }}"
        data-terminal
-       {# Empty before a chat exists: `draft.js` writes a draft id in as soon as
-          the composer has a connection selected. Explicit rather than relying on
-          Jinja rendering `None.id` as nothing. #}
+       {# Empty before a chat exists: `terminal.js` writes the device's
+          (`/api/devices/<device>/terminal/ws?directory=`) in as soon as the
+          composer has a device and a directory chosen (`lembas:agent-target`),
+          and the first message's chat takes that shell over. Explicit rather
+          than relying on Jinja rendering `None.id` as nothing. #}
        data-url="{{ "/api/chats/" ~ chat.id ~ "/terminal/ws" if chat else "" }}"
+       {% if not chat %}data-terminal-draft{% endif %}
        data-label="{{ agent_device_name or t('the device') }}"
        data-dir="{{ chat.project_dir if chat else "" }}"
        data-say-nothing-yet="{{ t('Nothing has been run in this shell yet.') }}"
