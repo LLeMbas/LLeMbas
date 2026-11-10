@@ -13,7 +13,7 @@ from lembas import __version__
 from lembas.api.deps import Db
 from lembas.api.v2 import serialise
 from lembas.api.v2._common import Me, need
-from lembas.db.models import Attachment, Folder, PushSubscription
+from lembas.db.models import KIND_AGENT, Attachment, Folder, PushSubscription
 from lembas.security import api_tokens, permissions
 from lembas.services import chat as chat_service
 from lembas.services import files as files_service
@@ -55,9 +55,19 @@ async def me(caller: Me, db: Db) -> dict[str, Any]:
 
 
 @router.get("/models")
-async def models(caller: Me, db: Db, chat: str = Query("")) -> dict[str, Any]:
+async def models(
+    caller: Me, db: Db, chat: str = Query(""), kind: str = Query(""), device: str = Query("")
+) -> dict[str, Any]:
     """What this person may start a chat with -- or, with `chat`, what that chat
-    may switch to: its data group's models only, the page's rule."""
+    may switch to: its data group's models only, the page's rule.
+
+    `kind=agent` (spec 3.4.0, subagents.md §14): for a new agent chat, whose
+    subagents run on its device -- each model's `subagents` is the agent
+    chat's fact (offered where the instance and the person allow them, the
+    same `team_run.agent_offered` the web's new-chat slider reads), and
+    `agent_subagents` says it once, with `device_runs` for `device` (one of
+    the person's devices): whether it lists `agents` and `tree`, null while
+    it is not linked or none is named."""
     from lembas.api.v2._common import owned_chat
     from lembas.services import data_groups
 
@@ -69,15 +79,39 @@ async def models(caller: Me, db: Db, chat: str = Query("")) -> dict[str, Any]:
     # Whether a chat on each is offered subagents (harness spec 3.3.0): for a
     # new chat with no `chat`, for that chat's model switch with one.
     owned = owned_chat(db, chat, caller.user) if chat else None
+    agent = kind == KIND_AGENT and owned is None
+    agent_offered = team_run.agent_offered(db, caller.user) if agent else False
     out = [
         serialise.model(
             row,
             default=bool(start and (row.model_id, row.connection_id) == start),
-            subagents=subagents_rules.view(db, caller.user, None if owned is None else owned, row),
+            subagents=(
+                {"offered": agent_offered, "named_only": False}
+                if agent
+                else subagents_rules.view(db, caller.user, None if owned is None else owned, row)
+            ),
         )
         for row in chat_service.available_models(db, caller.user, group)
     ]
-    return {"models": out, "subagents_cap": team_run.cap(db)}
+    answer: dict[str, Any] = {"models": out, "subagents_cap": team_run.cap(db)}
+    if agent:
+        answer["agent_subagents"] = {
+            "offered": agent_offered,
+            "device_runs": _device_runs(db, caller.user, device) if device else None,
+        }
+    return answer
+
+
+def _device_runs(db, user, token_id: str) -> bool | None:
+    """Whether one of this person's devices runs subagents (lists `agents`
+    and `tree`); None while it is not linked, or not theirs."""
+    from lembas.db.models import ApiToken
+    from lembas.services import device_link
+
+    token = db.get(ApiToken, token_id)
+    if token is None or token.user_id != user.id or device_link.link_for(token_id) is None:
+        return None
+    return device_link.offers(token_id, "agents") and device_link.offers(token_id, "tree")
 
 
 @router.get("/models/images/{filename}")

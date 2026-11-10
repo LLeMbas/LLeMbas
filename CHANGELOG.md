@@ -44,6 +44,11 @@ before its tag; the pin to a release tag comes with the release.
   any subagent's conversation (read-only, live or after it ended) or its findings, or stop it and
   those under it. Ended subagents are listed after, with how they ended. An agent chat's tree is
   its computer's, as last sent.
+- **`/api/v2/models?kind=agent&device=`**: for a new agent chat, every model's `subagents` is the
+  agent chat's fact (offered where the instance and the person allow subagents -- what the web's
+  new-chat slider reads), and `agent_subagents {offered, device_runs}` says it once, `device_runs`
+  being whether that device lists `agents` and `tree` (null while it is not linked). Fixture: new
+  `models_agent.json`.
 - **`/api/v2`: reading a subagent.** `GET /api/v2/chats/{chat}/tree` (the tree and the room,
   `live` false when an agent chat's device is away and the kept tree is sent),
   `GET .../subagents/{id}/transcript` (its conversation, read-only, live or after it ended),

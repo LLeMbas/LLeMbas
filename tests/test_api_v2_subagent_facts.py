@@ -151,3 +151,20 @@ def test_off_on_the_instance_is_off_everywhere(client, db):
     facts = _facts(client, _bearer(db), _chat(db, model))
     assert facts["chat"]["offered"] is False
     assert facts["models_new"]["wide"]["offered"] is False
+
+
+def test_a_new_agent_chat_asks_models_with_kind_agent(client, db):
+    """Spec 3.4.0: a new agent chat's Subagents setting is offered by the
+    instance and the person, not by a model -- the fact the web's new-chat
+    slider reads -- and switched off on the instance it is off."""
+    _model(db, _connection(db, "A"), "m", parallel=1)
+    headers = _bearer(db)
+    got = client.get("/api/v2/models?kind=agent", headers=headers).json()
+    assert got["agent_subagents"] == {"offered": True, "device_runs": None}
+    assert all(m["subagents"] == {"offered": True, "named_only": False} for m in got["models"])
+    unknown = client.get("/api/v2/models?kind=agent&device=nope", headers=headers).json()
+    assert unknown["agent_subagents"]["device_runs"] is None
+    settings_store.update(db, {"enabled": False}, key=settings_store.SUBAGENTS)
+    off = client.get("/api/v2/models?kind=agent", headers=headers).json()
+    assert off["agent_subagents"]["offered"] is False
+    assert "agent_subagents" not in client.get("/api/v2/models", headers=headers).json()

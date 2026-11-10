@@ -616,6 +616,17 @@ def _shapes() -> dict[str, object]:
             ],
             "subagents_cap": 32,
         },
+        # `/models?kind=agent&device=` for a new agent chat (spec 3.4.0):
+        # every model says the agent chat's fact, and `agent_subagents` once.
+        "models_agent": {
+            "models": [
+                serialise.model(row, default=index == 0,
+                                subagents={"offered": True, "named_only": False})
+                for index, row in enumerate(_models())
+            ],
+            "subagents_cap": 32,
+            "agent_subagents": {"offered": True, "device_runs": True},
+        },
         # An agent chat's subagents are its device's (spec 3.4.0, subagents.md
         # §14): offered where the instance and the person allow them; the
         # setting goes down with every turn.
