@@ -735,3 +735,53 @@
      rectangles keep up. */
   window.lembas.paintComposer = paint;
 })();
+
+/*
+  Draw a picture: a switch for one message (`[data-picture]` in
+  chat/_composer.html). Pressed, it enables the hidden `force_tool` field, so
+  the next message carries `force_tool=image_generate` -- the same field
+  `/image` sends -- and the box says what it wants. The message sent, both let
+  go: it is a choice about one message, not a mode the chat is left in.
+
+  "Sent" is the form's own successful request, `event.target === form` for the
+  reason the form's `hx-on` gives: htmx events bubble, and every control in the
+  composer that fetches would otherwise count as a send.
+*/
+(function () {
+  "use strict";
+
+  function parts(button) {
+    var form = button.closest("form");
+    return {
+      form: form,
+      field: form && form.querySelector("[data-picture-value]"),
+      box: form && form.querySelector("[data-composer-input]")
+    };
+  }
+
+  function set(button, on) {
+    var p = parts(button);
+    if (!p.field) return;
+    button.setAttribute("aria-pressed", on ? "true" : "false");
+    p.field.disabled = !on;
+    if (p.box) {
+      if (!("placeholderOff" in p.box.dataset)) p.box.dataset.placeholderOff = p.box.placeholder;
+      p.box.placeholder = on ? (button.dataset.picturePlaceholder || "") : p.box.dataset.placeholderOff;
+    }
+  }
+
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest("[data-picture]");
+    if (!button) return;
+    set(button, button.getAttribute("aria-pressed") !== "true");
+    var box = parts(button).box;
+    if (box) box.focus();
+  });
+
+  document.addEventListener("htmx:afterRequest", function (event) {
+    var form = event.target;
+    if (!form || form.id !== "composer-form" || !event.detail.successful) return;
+    var button = form.querySelector("[data-picture]");
+    if (button) set(button, false);
+  });
+})();

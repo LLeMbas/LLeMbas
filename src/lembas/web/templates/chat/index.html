@@ -73,7 +73,24 @@
       {% endif %}
       {% endif %}
 
-      <div class="topbar__actions">
+      {#
+        The chat's controls: one toolbar at the top right (`.chatbar`), in this
+        order -- the temporary toggle (a new chat only), the model, the effort
+        and Subagents, then the fold: the mode, Terminal, Activity, the chat's
+        settings (tools, skills, prompt, sampling) and the inspector. The
+        composer below keeps only the message.
+
+        The fold is ONE set of controls with two layouts, never a copy: wide,
+        its items stand in the bar as icon buttons; when the bar is narrow
+        (`@container topbar` in app.css) they fold behind More as a menu with
+        their names showing. What decides is the bar's own width, not the
+        window's -- the sidebar and a side panel take from it. The model's name
+        is the one thing in the bar that gives (it truncates), and the title
+        has a floor; everything else has a known size, which is what makes the
+        threshold a sum rather than a guess. `tests/test_chatbar.py` proves it
+        in a browser at 1920, 1280, 1024, 800 and 390.
+      #}
+      <div class="topbar__actions chatbar" data-chatbar>
         {#
           A link, not a script: the flag lives in the URL, so it survives a
           reload and can be bookmarked. The URL is built in `chat_index` so it
@@ -92,49 +109,124 @@
           {% if can.get("chat.model_select") or not chat %}
             {% include "chat/_model_picker.html" %}
           {% elif current_model %}
-          <span class="badge">{{ current_model.label }}</span>
+          <span class="badge chatbar__model">{{ current_model.label }}</span>
           {% endif %}
         {% endif %}
 
-        {# Before a chat exists, both of these depend on a decision being made in
-           the browser -- the kind toggle and the connection select -- which the
-           server cannot see. So they render carrying `data-agent-only` and start
-           `hidden`; `ui.js` shows them when `lembas:agent-target` names a
-           connection and hides them again when it stops. On a chat that exists
-           the server's answer is complete and neither attribute appears. #}
+        {# Effort and Subagents: a popover of its own, never folded -- a menu
+           inside a menu is two layers of "where did it go". On the new-chat
+           screen its fields are the composer form's (`form="composer-form"`). #}
+        {% if models and not (chat and chat.kind == "task") %}
+          {% include "chat/_settings_menu.html" %}
+        {% endif %}
 
+        {% set fold %}
+        {% if chat and chat.kind == "chat" and not chat.parent_chat_id %}
+        {# Plan or Normal. A chat has one mode worth a control: planning --
+           reading freely, changing nothing, and finishing with a plan for you
+           to approve. The same column `agent_mode` holds an agent chat's four;
+           for a chat, empty is normal.
+
+           The verb is on the select, `form=` scopes the values to an empty
+           form of their own (`#agent-mode-form`, by the composer): without it
+           htmx would gather the composer's `content` and `project_dir`, and
+           `update_chat` answers `project_dir` with a 409. #}
+        <label class="chatbar__field">
+          <span class="chatbar__label" aria-hidden="true">{{ t("Mode") }}</span>
+          <select class="select select--sm chatbar__mode" name="agent_mode" aria-label="{{ t('Mode') }}"
+                  form="agent-mode-form"
+                  hx-patch="/api/chats/{{ chat.id }}" hx-swap="none">
+            <option value="" title="{{ t('Answers and acts as usual.') }}"
+                    {{ 'selected' if chat.agent_mode != 'plan' }}>{{ t("Normal") }}</option>
+            <option value="plan" title="{{ t('Reads freely, changes nothing, and finishes by proposing a plan.') }}"
+                    {{ 'selected' if chat.agent_mode == 'plan' }}>Plan</option>
+          </select>
+        </label>
+        {% elif chat and chat.kind == "agent" %}
+        {# The approval mode. The connection and the directory are beside the
+           title: they cannot change (update_chat refuses both with a 409). A
+           temporary chat is held at Plan until it is kept. #}
+        <label class="chatbar__field">
+          <span class="chatbar__label" aria-hidden="true">{{ t("Approval mode") }}</span>
+          {% if chat.temporary and not chat.parent_chat_id %}
+          <select class="select select--sm chatbar__mode" aria-label="{{ t('Approval mode') }}" disabled
+                  title="{{ t('A temporary chat reads and changes nothing. Keep it to choose another mode.') }}">
+            {% for value, label, hint in agent_modes if value == "plan" %}
+            <option value="{{ value }}" selected>{{ label }}</option>
+            {% endfor %}
+          </select>
+          {% else %}
+          <select class="select select--sm chatbar__mode" name="agent_mode" aria-label="{{ t('Approval mode') }}"
+                  form="agent-mode-form"
+                  hx-patch="/api/chats/{{ chat.id }}" hx-swap="none">
+            {% for value, label, hint in agent_modes %}
+            <option value="{{ value }}" title="{{ t(hint) }}"
+                    {{ 'selected' if value == chat.agent_mode }}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          {% endif %}
+        </label>
+        {% endif %}
+
+        {# Before a chat exists, the terminal depends on a decision made in the
+           browser -- the connection select -- which the server cannot see. So
+           it renders carrying `data-agent-only` and starts `hidden`; `ui.js`
+           shows it when `lembas:agent-target` names a connection. On a chat
+           that exists the server's answer is complete. #}
         {% if terminal_enabled %}
-        {# To the left of the inspector, and never open beside it: see the
-           toggle group in app.js. #}
-        <button class="btn btn--icon" type="button" aria-label="{{ t('Terminal') }}"
+        <button class="btn btn--icon chatbar__item" type="button" aria-label="{{ t('Terminal') }}"
                 title="{{ t('Open a shell on %(device)s', device=agent_device_name or t('the device')) }}"
-                {% if not chat %}data-agent-only hidden{% endif %}
+                {% if not chat %}data-agent-only hidden{% endif %} data-picker-close
                 aria-expanded="false" data-toggle="#terminal" data-toggle-group="side">
-          {{ icon("terminal") }}
+          {{ icon("terminal") }}<span class="chatbar__label" aria-hidden="true">{{ t("Terminal") }}</span>
         </button>
         {% endif %}
 
         {% if chat and chat.kind != "task" %}
         {# The activity panel: context, outputs, background agents (a team's
            members and room among them) and the plan. #}
-        <button class="btn btn--icon" type="button" aria-label="{{ t('Activity') }}"
+        <button class="btn btn--icon chatbar__item" type="button" aria-label="{{ t('Activity') }}"
                 title="{{ t('Context, outputs, background tasks and the plan') }}" aria-expanded="false"
-                data-toggle="#activity" data-toggle-group="side">
-          {{ icon("bolt") }}
+                data-picker-close data-toggle="#activity" data-toggle-group="side">
+          {{ icon("bolt") }}<span class="chatbar__label" aria-hidden="true">{{ t("Activity") }}</span>
+        </button>
+        {% endif %}
+
+        {# The chat's tools and skills, with its prompt and sampling: the
+           settings panel. Keep this chat and Compact are in there too. #}
+        {% if models and (chat or scope_families or scope_skills or scope_allow) and not (chat and chat.kind == "task") %}
+        <button class="btn btn--icon chatbar__item" type="button" aria-label="{{ t('Chat settings') }}"
+                title="{{ t('Tools, skills, prompt, sampling') }}" aria-expanded="false"
+                data-picker-close data-toggle="#chat-settings" data-toggle-group="side">
+          {{ icon("gear") }}<span class="chatbar__label" aria-hidden="true">{{ t("Chat settings") }}</span>
         </button>
         {% endif %}
 
         {% if chat and user.is_admin %}
-        <button class="btn btn--icon" type="button" aria-label="{{ t('Inspect this chat') }}"
-                title="{{ t('Inspect this chat') }}" aria-expanded="false" data-toggle="#inspector"
-                data-toggle-group="side">
-          {{ icon("search") }}
+        <button class="btn btn--icon chatbar__item" type="button" aria-label="{{ t('Inspect this chat') }}"
+                title="{{ t('Inspect this chat') }}" aria-expanded="false"
+                data-picker-close data-toggle="#inspector" data-toggle-group="side">
+          {{ icon("search") }}<span class="chatbar__label" aria-hidden="true">{{ t("Inspect this chat") }}</span>
         </button>
         {% endif %}
+        {% endset %}
 
-        {# No overflow menu here: Keep this chat, Chat settings and Compact
-           are all in the chat's settings panel, opened from the composer's
-           settings, and Compact is `/compact` too. #}
+        {% if fold|trim %}
+        {# `data-picker`: the same menu machinery as the model picker (ui.js),
+           and the menu's `hidden` is what the narrow layout obeys; the wide
+           one shows the items whatever it says. #}
+        <div class="picker chatbar__fold" data-picker>
+          <div class="picker__menu chatbar__items" id="chatbar-items" data-picker-menu hidden
+               aria-label="{{ t('More') }}">
+            {{ fold }}
+          </div>
+          <button class="btn btn--icon chatbar__more" type="button" data-picker-toggle
+                  aria-haspopup="true" aria-expanded="false" aria-controls="chatbar-items"
+                  aria-label="{{ t('More') }}" title="{{ t('More') }}">
+            {{ icon("dots") }}
+          </button>
+        </div>
+        {% endif %}
       </div>
     </header>
 

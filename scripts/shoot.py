@@ -18,7 +18,9 @@ first (what htmx would have fetched into it -- the helper panel's body);
 `SHOOT_TAG` names a run; `SHOOT_TEAM=1` seeds a team at work in the chat (and
 `SHOOT_ONE_REQUEST=1` puts it on a one-request model); `/chat/<SHOOT_DEVICE_CHAT>`
 is the linked device's chat with two fake background jobs, for the jobs strip
-and the helper panel.
+and the helper panel. `SHOOT_LONG_MODEL=1` gives the measured chat's model a
+long display name, and `SHOOT_ATTACH=1` puts three attachment chips in the
+composer -- the two things a composer or header that fits only by luck meets.
 
 Not a test runner: an instrument. It renders a page through TestClient, rewrites
 every asset URL to a file:// path, and refuses to continue if even one is left
@@ -487,6 +489,13 @@ def build_client():
         settings_store.update(
             db, {"stt_enabled": True, "tts_enabled": True}, key=settings_store.AUDIO
         )
+        # Pictures on, with no ComfyUI behind them: the composer's "Draw a
+        # picture" chip exists only where this server draws.
+        settings_store.update(
+            db,
+            {"enabled": True, "base_url": "http://127.0.0.1:3", "checkpoints": ["sdxl"]},
+            key=settings_store.IMAGES,
+        )
         # `SHOOT_LANG=sk` shoots the pages in that language: the one person's own
         # choice, exactly as the settings screen stores it.
         language = os.environ.get("SHOOT_LANG", "")
@@ -502,6 +511,12 @@ def build_client():
     _seed_devices_reports_schedules()
     if os.environ.get("SHOOT_TEAM"):
         _seed_team()
+    if os.environ.get("SHOOT_LONG_MODEL"):
+        with session_scope() as db:
+            model = db.query(Model).filter_by(model_id="gemma4-moe").first()
+            model.display_name = (
+                "Qwen3.6 Coder 480B A35B Instruct · Q4_K_M · 256k context · thinking"
+            )
     return client
 
 
@@ -763,6 +778,20 @@ def rewrite(html: str, client, assets: Path) -> str:
     # cannot do. The helper panel's body is the case: it is filled by a request
     # the strip's button makes.
     fills = []
+    # `SHOOT_ATTACH=1`: three chips in the composer, from the upload route itself.
+    if os.environ.get("SHOOT_ATTACH"):
+        chips = "".join(
+            client.post(
+                "/api/files", files={"file": (name, body, kind)}
+            ).text
+            for name, body, kind in (
+                ("a-rather-long-report-name-for-the-quarter.pdf", b"%PDF-1.4\n%%EOF\n",
+                 "application/pdf"),
+                ("notes.md", b"# Notes\n", "text/markdown"),
+                ("config.yaml", b"a: 1\n", "text/yaml"),
+            )
+        )
+        fills.append(("#attachments", chips))
     for spec in (os.environ.get("SHOOT_FILL") or "").split(","):
         if "=" not in spec:
             continue

@@ -1,28 +1,27 @@
 {#
-  The chat's settings button, in the composer's toolbar. Its own file because a
-  model switch in an existing chat re-renders it out of band (`update_chat`):
-  another model offers other levels, and maybe another control.
+  Effort and Subagents, in the chat's toolbar at the top right (`.chatbar`).
+  Its own file because a model switch in an existing chat re-renders it out of
+  band (`update_chat`): another model offers other levels, and maybe another
+  control.
 
-  It used to be two -- a menu of tool and skill switches here, and the effort as
-  a chip of its own -- with a third, Chat settings, up in the header's overflow
-  menu. Now the tools are a default per model in Settings -> Models, the
-  switches for this chat live in the settings panel with every other tweak, and
-  this keeps what is reached for while writing: how hard the model thinks, the
-  team's size, and the way into the panel.
+  What is reached for while writing: how hard the model thinks and how many
+  subagents may help. Tools, skills, the prompt and sampling are the settings
+  panel, opened by the toolbar's own button beside this one -- so this popover
+  holds only the two, and with neither there is no button at all.
 
   The levels are the harness spec's (3.2.0, `models/schema.json` `levels`): `off`
   when the model can switch thinking off, then its efforts, or the one level
   `default`. One level is no control at all; two, one of them off, is a
-  Thinking on/off switch; more is the slider. A menu holding only the way into
-  the panel is a menu you open to press a button -- so with nothing else to
-  hold, the button opens the panel itself.
+  Thinking on/off switch; more is the slider.
 
-  Needs `chat`, `model_levels` (a `chat.Levels`, or None), `chosen_level`, for
-  the panel `scope_families`, `scope_skills` and `scope_allow`, and for the team
-  slot below `team_offered` (and what `chat/_team_setting.html` reads).
+  On the new-chat screen the fields belong to the composer's form by
+  `form="composer-form"` and go with the first message; on a chat that exists
+  each saves on change (`form="chat-params-form"` and its own `hx-patch`).
+
+  Needs `chat`, `model_levels` (a `chat.Levels`, or None), `chosen_level`, and
+  for the team slot `team_offered` (and what `chat/_team_setting.html` reads).
 #}
 {% from "_macros.html" import icon %}
-{% set has_panel = chat or scope_families or scope_skills or scope_allow %}
 {% set lv = model_levels %}
 {% set effort_control = lv.control if lv else "none" %}
 {#
@@ -38,23 +37,23 @@
 #}
 {% set team_slot %}{% include "chat/_team_setting.html" ignore missing %}{% endset %}
 {% set has_team = (team_offered|default(false)) or (team_slot|trim|length > 0) %}
-<div class="composer__settings-slot" id="composer-settings"{% if oob %} hx-swap-oob="true"{% endif %}>
+<div class="chatbar__settings-slot" id="chatbar-settings"{% if oob %} hx-swap-oob="true"{% endif %}>
 {% if effort_control != "none" or has_team %}
 {% set chosen = lv.read(chosen_level) if lv else "" %}
 {% set offered = lv.offered|list if lv else [] %}
-{# An icon button, the attach button's twin -- same classes, same icon size.
-   No short form of the level beside it (L, M, XH): that would make it the one
-   control in the row whose width depends on a setting. The level is in the
-   popover, on the control that sets it. #}
-<div class="picker picker--up composer__settings" data-picker>
-  <button class="btn btn--icon composer__btn" type="button" data-picker-toggle
+{# An icon button like the bar's others. No short form of the level beside it
+   (L, M, XH): that would make it the one control in the bar whose width
+   depends on a setting. The level is in the popover, on the control that
+   sets it. #}
+<div class="picker chatbar__settings" data-picker>
+  <button class="btn btn--icon" type="button" data-picker-toggle
           aria-haspopup="dialog" aria-expanded="false"
-          aria-label="{{ t('Chat settings') }}" title="{{ t('Chat settings') }}">
+          aria-label="{{ t('Effort and subagents') }}" title="{{ t('Effort and subagents') }}">
     {{ icon("sliders") }}
   </button>
 
   <div class="picker__menu picker__menu--settings" data-picker-menu role="dialog"
-       hidden aria-label="{{ t('Chat settings') }}">
+       hidden aria-label="{{ t('Effort and subagents') }}">
     {% if effort_control == "switch" %}
     {#
       Thinking on or off: a real checkbox with the switch role, so a screen
@@ -100,6 +99,8 @@
               {% if chat %}
               form="chat-params-form"
               hx-patch="/api/chats/{{ chat.id }}" hx-swap="none"
+              {% else %}
+              form="composer-form"
               {% endif %}>
         {% for value in offered %}
         <option value="{{ value }}" {{ 'selected' if chosen == value }}>{{ value }}</option>
@@ -108,23 +109,7 @@
     </div>
     {% endif %}
     {% if has_team %}{{ team_slot }}{% endif %}
-    {% if has_panel %}
-    <button class="picker__option" type="button" role="menuitem"
-            data-toggle="#chat-settings" data-toggle-group="side">
-      {{ icon("sliders", "icon--sm") }}
-      <span class="picker__option-body">
-        <span class="picker__option-name">{{ t("More settings") }}</span>
-        <span class="picker__option-note">{{ t("Tools, skills, prompt, sampling") }}</span>
-      </span>
-    </button>
-    {% endif %}
   </div>
 </div>
-{% elif has_panel %}
-<button class="btn btn--icon composer__btn" type="button"
-        data-toggle="#chat-settings" data-toggle-group="side" aria-expanded="false"
-        aria-label="{{ t('Chat settings') }}" title="{{ t('Chat settings') }}">
-  {{ icon("sliders") }}
-</button>
 {% endif %}
 </div>

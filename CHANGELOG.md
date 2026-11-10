@@ -3,6 +3,35 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## Unreleased
+
+### Changed
+
+- **The chat's controls are one toolbar at the top right of the chat.** The model, Effort and
+  Subagents, the mode (Normal/Plan, or an agent chat's approval mode), Terminal, Activity, the
+  chat's settings (tools, skills, prompt, sampling) and the inspector sit in the chat's header, in
+  that order. When the header is narrow -- a phone, or a window with the sidebar and a panel open
+  -- everything after Effort and Subagents folds behind **More**, the same controls with their
+  names showing. The composer keeps the message: the text, Attach, **Draw a picture**, Dictate and
+  Send/Stop. Checked in a browser at 1920, 1280, 1024, 800 and 390 px with a long model name,
+  attachments and every control drawn: nothing is cut off and everything can be pressed.
+- **Where a new agent chat runs is a row of its own** above the composer's buttons (the computer,
+  the directory, the approval mode), and it wraps. It used to share the buttons' line and scroll
+  sideways with its scrollbar hidden, so on a phone the mode was cut off out of sight.
+
+### Added
+
+- **Draw a picture, in the composer.** A switch for one message: pressed, the reply to the next
+  message is a picture drawn from it (the same as `/image`); it lets go once the message is sent.
+  Shown where this server draws pictures for the person. The first message of a new chat may be
+  one too (`POST /api/chats/start` takes `force_tool`).
+
+### Fixed
+
+- **Rename stayed reachable only while the chat's name was short.** The button sat after the name
+  inside the heading's clipped box, so a long name pushed it out of reach; the name now truncates
+  beside it.
+
 ## 2.0.0-beta.9 — 2026-11-10
 
 The harness spec is **3.5.0** (scheduled work on a linked computer), pinned from LLeMbas CLI

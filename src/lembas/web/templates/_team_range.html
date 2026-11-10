@@ -20,9 +20,10 @@
   given, makes each save on change with `hx-patch` and the other included, as
   the fields did, and `form="chat-params-form"` keeps them out of every
   message the chat sends. With no chat they are plain fields of whatever form
-  holds them: the new-chat composer's, or Settings'.
+  holds them (Settings'), or of the one `form` names: the new-chat composer's,
+  from the chat's toolbar outside it.
 #}
-{% macro team_range(low, high, cap, prefix="agents", chat=None, legend="", focus=false, hint_id="") %}
+{% macro team_range(low, high, cap, prefix="agents", chat=None, legend="", focus=false, hint_id="", form="") %}
 {% set cap = [cap|int, 1]|max %}
 {% set span = [cap - 1, 1]|max %}
 {% set step = 1 if cap <= 10 else [cap // 4, 1]|max %}
@@ -48,6 +49,8 @@
            form="chat-params-form"
            hx-patch="/api/chats/{{ chat.id }}" hx-trigger="change" hx-swap="none"
            hx-include="#{{ prefix }}-{{ 'max' if end == 'min' else 'min' }}"
+           {% elif form %}
+           form="{{ form }}"
            {% endif %}>
     {% endfor %}
   </div>

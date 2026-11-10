@@ -365,6 +365,9 @@ async def start_chat(
     scope_on: list[str] = Form(default=[]),
     scope_skill_all: list[str] = Form(default=[]),
     scope_skill_on: list[str] = Form(default=[]),
+    # The composer's "Draw a picture" chip on the first message, as on a later
+    # one (`FORCEABLE_TOOLS` only; `start_new_chat` drops anything else).
+    force_tool: str = Form(""),
 ) -> Response:
     """Create a chat from its first message.
 
@@ -395,6 +398,7 @@ async def start_chat(
         scope_off=frozenset(scope_all) - frozenset(scope_on),
         scope_on=frozenset(scope_on),
         skills_off=frozenset(scope_skill_all) - frozenset(scope_skill_on),
+        force_tool=force_tool,
     )
 
     response = Response(status_code=status.HTTP_204_NO_CONTENT)

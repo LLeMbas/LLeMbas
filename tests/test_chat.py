@@ -983,13 +983,14 @@ def test_the_send_button_is_the_last_thing_in_the_toolbar(client: TestClient, db
     assert "data-composer-action" in toolbar
 
 
-def test_the_agent_controls_shrink_rather_than_pushing_send_off_the_row(
+def test_the_agent_controls_are_a_row_of_their_own_that_wraps(
     client: TestClient, db, registered
 ):
-    """They live in `.composer__context`, which is the only flex child allowed
-    to shrink and scroll. Anything moved out of it stops shrinking and starts
-    pushing Send onto a second line again -- which is what this whole row was
-    rearranged to stop."""
+    """Where a new agent chat runs -- the computer, the directory and the mode --
+    is `.composer__target`, a row of its own above the toolbar. It used to sit
+    in the toolbar's line as `.composer__context`, scrolling sideways with its
+    scrollbar hidden, so on a phone the mode was off the end of the row: cut
+    off, out of sight. Inside the toolbar again, it would push Send off it."""
     from lembas.db.models import TOKEN_DEVICE, User
     from lembas.security import api_tokens
     from lembas.services import device_link, settings_store
@@ -1019,14 +1020,12 @@ def test_the_agent_controls_shrink_rather_than_pushing_send_off_the_row(
         device_link.reset()
     assert 'data-agent-picker' in html, "the agent fork offered nothing; this test went blind"
 
-    # The three that appear on an agent chat sit between the start of
-    # `.composer__context` and the start of `.composer__actions` -- which is
-    # what puts them inside the one child that is allowed to give, and keeps
-    # the actions last.
-    opens = html.index('class="composer__context"')
-    actions = html.index('class="composer__actions"')
+    # The three sit between the start of `.composer__target` and the start of
+    # the toolbar: their own row, never in the toolbar's line.
+    opens = html.index('class="composer__target"')
+    toolbar = html.index('class="composer__toolbar"')
     for control in ("ssh_profile_id", "data-dir-browse", 'name="agent_mode"'):
-        assert opens < html.index(control) < actions, control
+        assert opens < html.index(control) < toolbar, control
 
 
 def _chat_css() -> str:
@@ -1061,10 +1060,16 @@ def test_the_composer_toolbar_can_never_wrap(client: TestClient):
     assert "flex: none" in actions
     assert "flex-wrap" not in actions
 
-    # The one child allowed to give, and the reason the rest never have to.
-    context = css.split(".composer__context {", 1)[1].split("}", 1)[0]
-    assert "min-width: 0" in context
-    assert "overflow-x: auto" in context
+    # The one group allowed to give (attach and the picture chip, whose name
+    # truncates), and the reason the actions never have to.
+    tools = css.split(".composer__tools {", 1)[1].split("}", 1)[0]
+    assert "min-width: 0" in tools and "flex: 0 1 auto" in tools
+
+    # Where a new agent chat runs is a row of its own, and it wraps: a row that
+    # scrolls sideways with its scrollbar hidden is a row that cuts things off.
+    target = css.split(".composer__target {", 1)[1].split("}", 1)[0]
+    assert "flex-wrap: wrap" in target
+    assert "overflow-x" not in target
 
     # And the effort: a chip of its own in the row, fixed at `flex: none`,
     # pushes Send off a phone. So the effort lives in the settings button, an

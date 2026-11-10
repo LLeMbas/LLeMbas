@@ -179,7 +179,7 @@ def test_switching_model_reseeds_a_level_the_new_one_does_not_offer(client, db, 
     assert chat.params_json["reasoning_effort"] == "low"
     # The composer's menu comes back out of band, drawn for the new model.
     assert response.status_code == 200
-    assert 'id="composer-settings"' in response.text and "hx-swap-oob" in response.text
+    assert 'id="chatbar-settings"' in response.text and "hx-swap-oob" in response.text
     assert "data-effort-range" in response.text and "data-thinking-switch" not in response.text
 
 
@@ -214,7 +214,7 @@ def _composer(client, chat) -> str:
     response = client.get(f"/chat/{chat.id}")
     assert response.status_code == 200
     html = response.text
-    start = html.index('id="composer-settings"')
+    start = html.index('id="chatbar-settings"')
     return html[start : start + 6000]
 
 
@@ -238,19 +238,24 @@ def test_more_levels_are_the_slider(client, db, registered):
     assert '["off", "low", "medium", "high"]' in html
 
 
-def test_one_level_and_no_team_is_no_menu_only_the_panel_button(client, db, registered):
+def test_one_level_and_no_team_is_no_menu_and_the_panel_has_its_own_button(
+    client, db, registered
+):
+    """Nothing to set while writing: no Effort and Subagents button at all. The
+    chat's settings panel (tools, skills, prompt, sampling) is the toolbar's
+    own button, there either way."""
     model = _model(db, reasoning_efforts=["medium"])
     html = _composer(client, _chat(db, model))
 
     assert "data-picker-toggle" not in html.split("</div>", 1)[0]
-    assert 'data-toggle="#chat-settings"' in html
     assert "data-effort" not in html.split("</div>", 1)[0]
+    assert 'data-toggle="#chat-settings"' in html
 
 
 def test_the_new_chat_page_draws_the_switch(client, db, registered):
     _qwen(db)
     html = client.get("/chat?model=qwen").text
-    start = html.index('id="composer-settings"')
+    start = html.index('id="chatbar-settings"')
 
     assert 'role="switch"' in html[start : start + 6000]
 

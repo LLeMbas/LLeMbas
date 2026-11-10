@@ -2349,7 +2349,10 @@ MESSAGES.update(
             "Agentské konverzácie bežia na počítači s LLeMbas CLI, ktoré je prihlásené do tejto "
             "instancie a pripojené. Teraz nie je pripojené žiadne."
         ),
-        "More settings": "Ďalšie nastavenia",
+        "Effort and subagents": "Náročnosť a podagenti",
+        "More": "Viac",
+        "What to draw…": "Čo nakresliť…",
+        "The reply to the next message is a picture drawn from it.": "Odpoveďou na ďalšiu správu bude obrázok nakreslený podľa nej.",
         "Close chat settings": "Zavrieť nastavenia konverzácie",
         "Switched off here only. What is on to begin with is your default for this model, in Settings → Models.": (
             "Vypnuté len tu. Čo je na začiatku zapnuté, je vaša predvoľba pre tento model "

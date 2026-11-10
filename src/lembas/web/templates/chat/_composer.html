@@ -14,12 +14,14 @@
   the message. Keeping them outside and reaching for hx-include does not work:
   that attribute only has an effect on the element issuing the request.
 
-  Layout: chips, then the text, then one toolbar row underneath carrying
-  everything that acts on the message. The kind selector and the connection
-  used to sit in a strip *above* the text, inside the same bordered card, where
-  they read as debris floating in the input rather than as controls. Below the
-  text they are in the same place as attach and send, which is where the hand
-  already is.
+  Layout: the attachment chips, then the text, then -- on a new agent chat
+  only -- where it will run (`.composer__target`: the computer, the directory
+  and the approval mode, a row that wraps and never scrolls), then one toolbar
+  row: attach and "Draw a picture" on the left (`.composer__tools`), dictate
+  and send/stop on the right (`.composer__actions`). That is all the composer
+  holds: the message. The chat's own controls -- model, effort and Subagents,
+  mode, Terminal, Activity, tools and skills -- are the toolbar at the top
+  right of the chat (`.chatbar`, in `chat/index.html`).
 #}
 {# The chat, the connection and the directory, where composer.js can read them
    without parsing them back out of a URL. On a new chat the connection is
@@ -122,66 +124,16 @@
                   aria-label="{{ t('Message') }}" {{ 'autofocus' if not chat }}></textarea>
       </div>
 
-      <div class="composer__toolbar">
-        <div class="composer__tools">
-          {% if can.get("files.upload") %}
-          {# A menu rather than the file picker straight away: there are four ways
-             to attach something now, and only one of them is a file on disk.
-             Uses the same picker machinery as the model chooser -- see ui.js. #}
-          <div class="picker picker--up" data-picker>
-            <button class="btn btn--icon composer__btn" type="button" data-picker-toggle
-                    aria-haspopup="menu" aria-expanded="false"
-                    aria-label="{{ t('Attach') }}" title="{{ t('Attach') }}">
-              {{ icon("attach") }}
-            </button>
-
-            <div class="picker__menu picker__menu--compact" data-picker-menu role="menu"
-                 hidden aria-label="{{ t('Attach') }}">
-              <button class="picker__option" type="button" role="menuitem"
-                      data-attach="file">
-                {{ icon("attach", "icon--sm") }}
-                <span class="picker__option-body">
-                  <span class="picker__option-name">{{ t("File") }}</span>
-                  <span class="picker__option-note">{{ t("PDF, text, code") }}</span>
-                </span>
-              </button>
-              <button class="picker__option" type="button" role="menuitem"
-                      data-attach="image">
-                {{ icon("image", "icon--sm") }}
-                <span class="picker__option-body">
-                  <span class="picker__option-name">{{ t("Image") }}</span>
-                  <span class="picker__option-note">{{ t("Sent only to vision models") }}</span>
-                </span>
-              </button>
-              <button class="picker__option" type="button" role="menuitem"
-                      data-attach="link">
-                {{ icon("link", "icon--sm") }}
-                <span class="picker__option-body">
-                  <span class="picker__option-name">{{ t("Link") }}</span>
-                  <span class="picker__option-note">{{ t("Fetch a page and attach its text") }}</span>
-                </span>
-              </button>
-            </div>
-          </div>
-
-          {% endif %}
-
-          {% include "chat/_settings_menu.html" %}
-
-        </div>
-
-        {#
-          What this conversation is and where it runs.
-
-          On a new chat all of it is editable. On an existing one the kind, the
-          connection and the directory are fixed -- update_chat refuses them
-          with a 409, because a transcript whose earlier turns ran somewhere
-          else is not one conversation -- so they render as a read-only chip and
-          only the mode stays live. The mode is the exception on purpose: it
-          decides what gets asked about, not what the conversation is.
-        #}
+      {#
+        Where a new agent chat runs: the computer, the directory and the
+        approval mode, on a row of their own above the toolbar. It wraps
+        rather than scrolling: it used to share the toolbar's line and scroll
+        sideways with its scrollbar hidden, so on a phone the mode was cut off
+        out of sight. On a chat that exists all three are facts (the computer
+        and the directory beside the title, the mode in the chat's toolbar).
+      #}
         {% if not chat and starting_kind == 'agent' and agent_devices %}
-        <div class="composer__context" data-agent-picker>
+        <div class="composer__target" data-agent-picker>
           {# No Chat/Agent switch here any more: the sidebar's Agent side
              opens this screen with `?kind=agent`, and that is the whole choice.
              The switch took the width of two controls in a row that has none to
@@ -236,65 +188,69 @@
             {% endif %}
           </span>
         </div>
+        {% endif %}
 
-        {% elif chat and chat.kind == "chat" and not chat.parent_chat_id %}
-        {# Plan or Normal. A chat has one mode worth a control: planning --
-           reading freely, changing nothing, and finishing with a plan for you
-           to approve. The same column `agent_mode` holds an agent chat's four;
-           for a chat, empty is normal. Its own form, for the reason the agent
-           select below gives. #}
-        <div class="composer__context">
-          <select class="select select--sm" name="agent_mode" aria-label="{{ t('Mode') }}"
-                  form="agent-mode-form"
-                  hx-patch="/api/chats/{{ chat.id }}" hx-swap="none">
-            <option value="" title="{{ t('Answers and acts as usual.') }}"
-                    {{ 'selected' if chat.agent_mode != 'plan' }}>{{ t("Normal") }}</option>
-            <option value="plan" title="{{ t('Reads freely, changes nothing, and finishes by proposing a plan.') }}"
-                    {{ 'selected' if chat.agent_mode == 'plan' }}>Plan</option>
-          </select>
-        </div>
+      <div class="composer__toolbar">
+        <div class="composer__tools">
+          {% if can.get("files.upload") %}
+          {# A menu rather than the file picker straight away: there are four ways
+             to attach something now, and only one of them is a file on disk.
+             Uses the same picker machinery as the model chooser -- see ui.js. #}
+          <div class="picker picker--up" data-picker>
+            <button class="btn btn--icon composer__btn" type="button" data-picker-toggle
+                    aria-haspopup="menu" aria-expanded="false"
+                    aria-label="{{ t('Attach') }}" title="{{ t('Attach') }}">
+              {{ icon("attach") }}
+            </button>
 
-        {% elif chat and chat.kind == "agent" %}
-        {# Only the mode. The connection and the directory moved to the topbar:
-           they cannot change -- update_chat refuses both with a 409 -- so they
-           are facts about the chat rather than controls on the message, and
-           they were taking a slot in a row that has work to do.
+            <div class="picker__menu picker__menu--compact" data-picker-menu role="menu"
+                 hidden aria-label="{{ t('Attach') }}">
+              <button class="picker__option" type="button" role="menuitem"
+                      data-attach="file">
+                {{ icon("attach", "icon--sm") }}
+                <span class="picker__option-body">
+                  <span class="picker__option-name">{{ t("File") }}</span>
+                  <span class="picker__option-note">{{ t("PDF, text, code") }}</span>
+                </span>
+              </button>
+              <button class="picker__option" type="button" role="menuitem"
+                      data-attach="image">
+                {{ icon("image", "icon--sm") }}
+                <span class="picker__option-body">
+                  <span class="picker__option-name">{{ t("Image") }}</span>
+                  <span class="picker__option-note">{{ t("Sent only to vision models") }}</span>
+                </span>
+              </button>
+              <button class="picker__option" type="button" role="menuitem"
+                      data-attach="link">
+                {{ icon("link", "icon--sm") }}
+                <span class="picker__option-body">
+                  <span class="picker__option-name">{{ t("Link") }}</span>
+                  <span class="picker__option-note">{{ t("Fetch a page and attach its text") }}</span>
+                </span>
+              </button>
+            </div>
+          </div>
 
-           Its own form: nesting one inside the composer's form is invalid HTML
-           and the browser drops the inner one.
+          {% endif %}
 
-           The verb is on the select, not on that form. htmx binds a trigger to
-           the annotated element itself, and `change` fires here and bubbles
-           through this element's *ancestors* -- which a sibling form is not.
-           `form=` scopes the values, and only the values. #}
-        <div class="composer__context">
-          {# A temporary chat is held at Plan until it is kept, so the select
-             shows that and does not offer the others. #}
-          {% if chat.temporary and not chat.parent_chat_id %}
-          <select class="select select--sm" aria-label="{{ t('Approval mode') }}" disabled
-                  title="{{ t('A temporary chat reads and changes nothing. Keep it to choose another mode.') }}">
-            {% for value, label, hint in agent_modes if value == "plan" %}
-            <option value="{{ value }}" selected>{{ label }}</option>
-            {% endfor %}
-          </select>
-          {% else %}
-          <select class="select select--sm" name="agent_mode" aria-label="{{ t('Approval mode') }}"
-                  form="agent-mode-form"
-                  hx-patch="/api/chats/{{ chat.id }}" hx-swap="none">
-            {% for value, label, hint in agent_modes %}
-            <option value="{{ value }}" title="{{ t(hint) }}"
-                    {{ 'selected' if value == chat.agent_mode }}>{{ label }}</option>
-            {% endfor %}
-          </select>
+          {#
+            Draw a picture: the reply to the next message is a picture drawn
+            from it (`force_tool=image_generate`, the same field `/image`
+            sends). A switch for one message: ui.js enables the hidden field
+            while it is pressed and lets go of both once the message is sent.
+            The one thing in this row whose width is a word, so it is the one
+            that gives: its name truncates, its icon stays.
+          #}
+          {% if can_draw and ((chat and chat.kind == "chat") or (not chat and starting_kind != "agent")) %}
+          <button class="btn composer__chip" type="button" data-picture
+                  aria-pressed="false" data-picture-placeholder="{{ t('What to draw…') }}"
+                  title="{{ t('The reply to the next message is a picture drawn from it.') }}">
+            {{ icon("image", "icon--sm") }}<span class="composer__chip-label">{{ t("Draw a picture") }}</span>
+          </button>
+          <input type="hidden" name="force_tool" value="image_generate" data-picture-value disabled>
           {% endif %}
         </div>
-        {# The background jobs are not in here any more: they are the strip
-           above the composer (`chat/_jobs_strip.html`), outside this form --
-           because htmx INHERITS `hx-target`, this form carries `#thread`, and
-           a chip in here without a target of its own once replaced the whole
-           transcript with itself. Anything that fetches says where its answer
-           goes. There is a test. #}
-        {% endif %}
 
         <div class="composer__actions">
           {% if can_dictate %}

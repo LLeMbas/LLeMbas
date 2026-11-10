@@ -1267,7 +1267,31 @@
   gap: var(--sp-2);
   min-width: 0;
 }
-.composer__tools { display: flex; align-items: center; gap: var(--sp-1); flex: none; }
+/* Attach and "Draw a picture". The group gives -- `0 1 auto` with
+   `min-width: 0` -- because the chip's name is the one width in this row that
+   is a word rather than a control; the actions on the right never do. */
+.composer__tools { display: flex; align-items: center; gap: var(--sp-1); flex: 0 1 auto; min-width: 0; }
+
+/* Draw a picture: a switch for one message. Its icon has a known size and stays;
+   its name truncates. Pressed reads as pressed (`aria-pressed`, the state a
+   screen reader says too). */
+.composer__chip {
+  flex: 0 1 auto;
+  min-width: var(--control-h);
+  max-width: 100%;
+  gap: var(--sp-1);
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-full);
+  color: var(--ink-muted);
+  box-shadow: none;
+}
+.composer__chip .icon { flex: none; }
+.composer__chip-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.composer__chip[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
 
 /* Never shrinks, never wraps, always at the end of the line. This is where the
    hand is going. */
@@ -1383,9 +1407,10 @@
   white-space: nowrap;
 }
 
-/* The settings button's slot: out of the toolbar's layout (its button is the
-   flex item), and the target a model switch swaps out of band. */
-.composer__settings-slot { display: contents; }
+/* The settings button's slot, in the chat's toolbar: out of the bar's layout
+   (its button is the flex item), and the target a model switch swaps out of
+   band. */
+.chatbar__settings-slot { display: contents; }
 
 /*
   Thinking on or off (harness spec 3.2.0: a model offering only off and one
@@ -1422,36 +1447,33 @@
   color: var(--accent);
 }
 
-/* The one thing allowed to give. It shrinks past its content and scrolls
-   sideways rather than wrapping. The scrollbar is hidden: the controls are
-   already visibly cut off, and a scrollbar under a --control-h row would change
-   the row's height, which is the one thing --control-h exists to prevent. */
-.composer__context {
+/* Where a new agent chat runs: a row of its own above the toolbar, which WRAPS.
+   It used to share the toolbar's line and scroll sideways with its scrollbar
+   hidden -- so on a phone the approval mode was off the end of the row, out of
+   sight, which is "cut off" whatever a scroller says. Each control has a floor
+   and may grow; a row that runs out of room starts another. */
+.composer__target {
   display: flex;
   align-items: center;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: var(--sp-2);
-  flex: 1 1 auto;
   min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
+  padding: 0 var(--sp-1) var(--sp-2);
 }
-.composer__context::-webkit-scrollbar { display: none; }
 /* `min-width: 0` because a flex item will not shrink below its content without
-   it, and this one holds a connection name, a path and a mode. Without it the
-   whole group refused to shrink and the last child -- the mode select -- was
-   what fell off the end. */
+   it, and this one holds a connection name, a path and a mode. */
 .composer__agent {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
 /* Floors, not fixed widths: a select narrower than this shows no text at all,
    which is worse than the scrolling it was avoiding. */
-.composer__context .select { flex: 0 1 auto; min-width: 6rem; }
+.composer__target .select { flex: 0 1 auto; min-width: 6rem; max-width: 100%; }
 /* `.segmented` declares flex: none where it is defined, in app.css. */
 
 /* Round, and the same size as each other: attach and send read as one pair
@@ -1475,7 +1497,7 @@
 }
 /* The mode is a control that is read and changed constantly; it never shrinks
    and never scrolls out of reach. It is the thing that was being cut. */
-.composer__context select[name="agent_mode"] { flex: none; }
+.composer__target select[name="agent_mode"] { flex: none; }
 .composer__dir-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Nothing chosen and a send was refused for it: the button says where to look. */
 .composer__dir[aria-invalid="true"] { border-color: var(--danger); color: var(--danger); }
@@ -2051,19 +2073,19 @@
 }
 .upward__button { flex: 1 1 auto; min-width: 0; max-width: 100%; gap: var(--sp-1); }
 /* The select's floor, given to what stands in for it. The select used
-   to carry `min-width: 6rem` (`.composer__context .select` below) and the
+   to carry `min-width: 6rem` (`.composer__target .select` above) and the
    button that replaced it carried none, so on a phone the connection chooser
    shrank to its caret alone -- 26px, no name in it -- and read as broken even
    before its menu was. */
-.composer__context .upward { flex: 0 1 auto; min-width: 6rem; }
+.composer__target .upward { flex: 0 1 auto; min-width: 6rem; max-width: 100%; }
 .upward__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .upward__menu {
   max-height: min(var(--h-list), 50dvh);
   overflow-y: auto;
 }
 .upward__menu .picker__option { font-size: var(--text-sm); }
-/* Placed against the window by ui.js (`place`), so the scroller the
-   connection chooser sits in -- `.composer__context` -- cannot clip it away.
+/* Placed against the window by ui.js (`place`), so no box the connection
+   chooser sits in can clip it away (its row once scrolled sideways).
    `bottom`, `left` and `max-height` are set there, from the button. */
 .picker--up .upward__menu--floating {
   position: fixed;
@@ -2664,3 +2686,109 @@ details[open] > summary > .agent__chevron { transform: rotate(90deg); }
 .team-room__n { font-family: var(--font-mono); color: var(--ink-faint); }
 .team-room__route { font-family: var(--font-mono); overflow-wrap: anywhere; }
 .team-room__text { min-width: 0; font-size: var(--text-sm); overflow-wrap: anywhere; }
+
+/*
+  --- The chat's toolbar (`.chatbar`, chat/index.html) -----------------------
+
+  At the top right of the chat, in this order: the temporary toggle (a new chat
+  only), the model, Effort and Subagents (`.chatbar__settings`, a popover), and
+  the fold (`.chatbar__fold`): the mode, Terminal, Activity, the chat's
+  settings and the inspector. One set of controls with two layouts, chosen by
+  the BAR's width (a container query, not the window's: the sidebar and a side
+  panel take from the bar):
+
+  - wide, the fold's items stand in the bar as icon buttons and More is gone;
+  - narrow, they fold behind More (`.chatbar__more`) as a menu with their
+    names showing -- the same elements, so nothing is drawn twice and no
+    control can exist in one layout and not the other.
+
+  Why the threshold is a sum and not a guess: everything in the bar has a known
+  size -- icon buttons are `--control-h` square, the mode select is capped at
+  `--w-select-sm` and truncates -- except the model's name, which gives (it
+  truncates, `.topbar__actions .picker__label`), and the title, which has a
+  floor. Wide needs, at most: padding 2 x sp-4, the sidebar toggle, the title's
+  4rem, the model picker's avatar and chevron, Effort, the mode and four icon
+  buttons, with their gaps -- about 38rem. The fold starts below 50rem, which
+  leaves the title and the model's name room to say something. `tests/test_chatbar.py`
+  measures it in a browser at 1920, 1280, 1024, 800 and 390.
+*/
+.topbar { container: topbar / inline-size; }
+.chatbar__fold { display: flex; align-items: center; flex: none; }
+/* Nothing to fold -- a new chat whose one item, the terminal, waits for a
+   computer to be chosen -- is no More button either. */
+.chatbar__fold:not(:has(.chatbar__items > :not([hidden]))) { display: none; }
+.chatbar__field { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+.chatbar__mode { flex: 0 1 auto; min-width: 0; max-width: var(--w-select-sm); }
+.chatbar__label { white-space: nowrap; }
+/* A device's own model, beside the title: a name, so it truncates. */
+.topbar > #chat-device-model {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@container topbar (min-width: 50rem) {
+  /* The model's name gives, up to a chip's width: past that the title, which
+     only `flex: 1`'s leftovers reach, would be the one squeezed. */
+  .chatbar .picker__button { max-width: var(--w-chip); }
+  .chatbar__more { display: none; }
+  /* Shown whatever the menu's `hidden` says: in this layout it is not a menu.
+     (`[hidden]` items inside -- the terminal before a computer is chosen --
+     stay hidden: the global `[hidden]` rule is about them, not this box.) */
+  .chatbar__items,
+  .chatbar__items[hidden] {
+    display: flex !important;
+    align-items: center;
+    gap: var(--sp-2);
+    position: static;
+    width: auto;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    overflow: visible;
+  }
+  .chatbar__label {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+
+@container topbar not (min-width: 50rem) {
+  /* The model's name gives first, but not all of it: the chat's own title is
+     what nothing else on the screen says. */
+  .chatbar .picker__button { max-width: var(--w-chip-sm); }
+  .chatbar__items:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    width: min(var(--w-menu-sm), calc(100vw - var(--sp-8)));
+    padding: var(--sp-1);
+  }
+  .chatbar__item {
+    width: 100%;
+    height: auto;
+    min-height: var(--tap-min);
+    justify-content: flex-start;
+    gap: var(--sp-3);
+    padding: 0 var(--sp-2);
+    color: var(--ink);
+  }
+  .chatbar__item:hover, .chatbar__item:focus-visible { background: var(--surface-hover); }
+  .chatbar__field {
+    justify-content: space-between;
+    min-height: var(--tap-min);
+    padding: 0 var(--sp-2);
+  }
+  .chatbar__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: var(--text-sm); }
+  .chatbar__mode { max-width: 60%; }
+}
+@container topbar (max-width: 30rem) {
+  /* A phone: the avatar carries the model, as the phone rule in app.css says. */
+  .chatbar .picker__label { display: none; }
+}

@@ -139,6 +139,8 @@
   --w-field-sm: 10rem;     /* a short select's floor */
   --w-field: 14rem;        /* a capped field, a label column, a small menu */
   --w-chip: 16rem;         /* a name that truncates: a model, a path */
+  --w-chip-sm: 12rem;      /* the same name where the bar is narrow */
+  --w-select-sm: 9rem;     /* a short select in a toolbar (the chat's mode) */
   --w-menu-sm: 20rem;      /* a compact popover, an attachment chip */
   --w-menu: 24rem;         /* a popover, a results list, a card's column */
   --w-menu-lg: 28rem;      /* a wide popover */

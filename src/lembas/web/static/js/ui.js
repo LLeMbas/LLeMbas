@@ -529,8 +529,12 @@
        delegates in app.js -- still runs; this only puts the menu away.
        `menuitemradio` too -- the Agents side's per-device filter is a
        menu of three mutually exclusive choices, which is that role. */
+    /* `data-picker-close`: an item that acts without being a menu item --
+       the chat toolbar's buttons, which are toolbar buttons when the bar is
+       wide and fold into its More menu when it is narrow. */
     var item = event.target.closest(
-      '[data-picker-menu] [role="menuitem"], [data-picker-menu] [role="menuitemradio"]'
+      '[data-picker-menu] [role="menuitem"], [data-picker-menu] [role="menuitemradio"], ' +
+      '[data-picker-menu] [data-picker-close]'
     );
     if (item) {
       close(item.closest("[data-picker]"));
@@ -1255,8 +1259,10 @@ document.addEventListener("lembas:notify", function (event) {
        Shaped and driven like the connection chooser beside it (the upward
        select below): the same menu classes, Escape and the arrow keys, closed
        by a click elsewhere, and placed against the window with
-       `position: fixed`, because `.composer__context` scrolls sideways on a
-       phone and a scroller clips an absolute menu in both axes. */
+       `position: fixed`: `.composer__context`, the row it sat in, used to
+       scroll sideways, and a scroller clips an absolute menu in both axes.
+       The row (`.composer__target`) wraps now; the menu stays placed against
+       the window, so no box it sits in can clip it. */
     var dirButton = root.querySelector("[data-dir-browse]");
     var dirMenu = null;
 
@@ -1592,7 +1598,7 @@ document.addEventListener("lembas:notify", function (event) {
   `input` moves the words as the thumb moves; `change` (released, or a key)
   is the one that saves -- a drag across four levels is one PATCH, not four.
   A model switch in an existing chat swaps the whole menu out of band
-  (`#composer-settings`), so the control is always the new model's.
+  (`#chatbar-settings`), so the control is always the new model's.
 */
 (function () {
   function levels(range) {
@@ -1603,7 +1609,7 @@ document.addEventListener("lembas:notify", function (event) {
     if (value === "default") return range.dataset.defaultLabel || "default";
     return value;
   }
-  function boxOf(el) { return el.closest(".composer__settings"); }
+  function boxOf(el) { return el.closest(".chatbar__settings"); }
 
   function paint() {
     document.querySelectorAll("[data-effort]").forEach(function (select) {
@@ -1826,7 +1832,7 @@ document.addEventListener("lembas:notify", function (event) {
     }
 
     /* The menu is placed against the window, not against its box. The
-       connection chooser sits inside `.composer__context`, which scrolls
+       connection chooser sat inside `.composer__context`, which scrolled
        sideways on a narrow screen (`overflow-x: auto`, chat.css) -- and a box
        that scrolls in one axis clips in both, because `overflow-y: visible`
        beside it computes to `auto`. So the menu opened above the row, inside a

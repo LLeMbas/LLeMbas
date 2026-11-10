@@ -7,8 +7,9 @@
   slider above it. On a chat that exists each handle saves on change, like
   the effort: `hx-patch` on the chat with the other included, so the server
   checks the pair; a pair outside the bounds is refused (422), never clamped.
-  On the new-chat screen they are fields of the composer's form, carried by
-  the first message.
+  On the new-chat screen they are fields of the composer's form
+  (`form="composer-form"`: the toolbar is outside it), carried by the first
+  message.
 
   Shown as **Subagents** (harness spec 3.3.0, subagents.md §4) wherever
   subagents are offered (`team_run.offered`): enabled, and some model could
@@ -20,7 +21,7 @@
 {% if team_offered %}
 <fieldset class="team-setting" data-team-setting aria-describedby="agents-hint">
   <legend class="visually-hidden">{{ t("Subagents") }}</legend>
-  {{ team_range(team_setting.min, team_setting.max, team_cap, chat=chat, legend=t("Subagents"), focus=true) }}
+  {{ team_range(team_setting.min, team_setting.max, team_cap, chat=chat, legend=t("Subagents"), focus=true, form=("" if chat else "composer-form")) }}
   <p class="team-setting__hint" id="agents-hint">{{ t("Counted with this chat's own agent: 1 is the agent alone, no subagents; Max 4 is the agent and up to 3 subagents, which do the work while it leads them.") }}</p>
   {% if team_device_off|default(false) %}
   <p class="team-setting__hint team-setting__hint--own">{{ t("The computer this chat runs on does not run subagents: update its LLeMbas CLI.") }}</p>

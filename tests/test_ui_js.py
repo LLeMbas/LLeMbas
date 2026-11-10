@@ -442,9 +442,9 @@ def test_no_history_goes_straight_to_the_browser():
 
 
 def test_the_menu_escapes_the_sideways_scroller():
-    """`.composer__context` scrolls sideways on a phone and clips an absolute
+    """`.composer__context` scrolled sideways on a phone and clipped an absolute
     menu; the directory menu is placed against the window, as the connection
-    chooser's is."""
+    chooser's is, so no row it sits in can clip it."""
     from .conftest import js_function
 
     css = (ROOT / "web/static/css/chat.css").read_text(encoding="utf-8")

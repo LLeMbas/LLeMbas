@@ -95,6 +95,10 @@ def _chat_context(db: DBSession, user: User, chat: Chat | None) -> dict:
         **_agent_context(db, user, chat),
         **_team_context(db, user, chat, current),
         **audio_service.template_flags(db, user),
+        # The composer's "Draw a picture" chip: the next message's reply is a
+        # picture (`force_tool`), where this server draws for this person --
+        # the same two conditions `/v1/images` checks.
+        "can_draw": settings_store.images_ready(db) and permissions.has(db, user, "tools.image"),
         # How long a temporary chat lives, for the badge, the Keep menu and the
         # toggle. Read from the setting every render: it is one cached group.
         "temporary_after": chat_service.lifetime_words(chat_service.temporary_lifetime(db)),

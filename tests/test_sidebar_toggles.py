@@ -8,9 +8,9 @@ composer's connection chooser opens.
 - What somebody folded is kept on the account and rendered from it, so neither
   a reload nor an out-of-band swap of the tree undoes it.
 - Folders are listed below `[ CHATS ]`, not above it.
-- The connection chooser's menu, opened inside `.composer__context`, which
-  scrolls sideways and therefore clips in both axes, would be there and
-  invisible. It is placed against the window.
+- The connection chooser's menu, opened inside `.composer__context` when that
+  row scrolled sideways (and therefore clipped in both axes), was there and
+  invisible. It is placed against the window, so no box can clip it.
 """
 
 from __future__ import annotations
@@ -263,16 +263,16 @@ def test_the_connection_chooser_lists_every_linked_device(client: TestClient, db
 
 
 def test_the_upward_menu_is_placed_against_the_window():
-    """The root cause, pinned: `.composer__context` scrolls sideways, so it clips
-    in both axes, and a menu absolutely placed above the row inside it is cut
-    away whole. `place()` takes it out of that box with `position: fixed`."""
+    """The root cause, pinned: `.composer__context` scrolled sideways, so it
+    clipped in both axes, and a menu absolutely placed above the row inside it
+    was cut away whole. `place()` takes it out of any box with `position:
+    fixed`, so the row it sits in (`.composer__target`, which wraps now) can
+    never clip it again."""
     chat_css = (WEB / "static/css/chat.css").read_text(encoding="utf-8")
-    context = re.search(r"\.composer__context \{([^}]*)\}", chat_css).group(1)
-    assert "overflow-x: auto" in context  # why the menu has to escape
     floating = re.search(r"\.picker--up \.upward__menu--floating \{([^}]*)\}", chat_css)
     assert floating and "position: fixed" in floating.group(1)
     # The button keeps the select's floor, or a phone squeezes it to a caret.
-    assert re.search(r"\.composer__context \.upward \{[^}]*min-width: 6rem", chat_css)
+    assert re.search(r"\.composer__target \.upward \{[^}]*min-width: 6rem", chat_css)
 
     ui = (WEB / "static/js/ui.js").read_text(encoding="utf-8")
     builder = ui[ui.index("function build(select)"):]

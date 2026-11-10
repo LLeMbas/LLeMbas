@@ -1116,6 +1116,20 @@ body.is-resizing .terminal__screen { pointer-events: none; }
 /* A title identifies the page, so it gets a floor and truncates rather than
    disappearing. */
 .topbar__title { min-width: 4rem; }
+/* A row of its own: the name truncates, Rename beside it does not. As one run
+   of inline text the button came after the name inside the heading's
+   `overflow: hidden`, so a long name pushed Rename out of the heading and out
+   of reach -- there, in the markup, and impossible to press. */
+.topbar__title { display: flex; align-items: center; gap: var(--sp-1); }
+.topbar__title > * { flex: none; }
+.topbar__title > #chat-title,
+.topbar__title > .badge {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* The one control in this row whose width is somebody else's decision -- a
    model's label is whatever an administrator called it -- so it is the one
