@@ -514,7 +514,14 @@ def _shapes() -> dict[str, object]:
             ],
             "subagents_cap": 32,
         },
-        "chat_agent": serialise.chat(_agent_chat(), running=True),
+        # An agent chat is never offered subagents here: they run on its
+        # device (team.md §11), as `GET /chats/{chat}` says.
+        "chat_agent": serialise.chat(
+            _agent_chat(), running=True,
+            subagents={"offered": False, "named_only": False, "cap": 32},
+        ),
+        # A page of the sidebar: `subagents` is not worked out there (null).
+        "chats_listed": {"chats": [serialise.chat(_chat(), running=False)], "more": False},
         "message_user": serialise.message(_user()),
         "message_assistant": assistant,
         "event_steps": {"steps": serialise.live_steps(generation), "tail": tail},

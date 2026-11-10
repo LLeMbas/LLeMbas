@@ -165,8 +165,8 @@ def chat(
     """`level` is the level in force (`chat_service.chat_level`), which the
     caller reads with the model; without it, the stored word. `subagents` is
     `services.subagents.view` for the chat: whether its Subagents setting is
-    offered, whether they need a named model, and the cap (null where the
-    caller did not work it out -- the list does not)."""
+    offered, whether they need a named model, and the cap -- or null where
+    the caller did not work it out (the list does not)."""
     params = row.params_json or {}
     return {
         "id": row.id,
@@ -194,7 +194,9 @@ def chat(
         # Added within APP_API 2: the team's size setting.
         "agents": agents(row, cap),
         # Added within APP_API 2 (server 2.0.0-beta.7, harness spec 3.3.0).
-        "subagents": _subagents(subagents),
+        # Null where the caller did not work it out (the list): never a "no"
+        # nobody checked -- an app reads the chat for it.
+        "subagents": _subagents(subagents) if subagents is not None else None,
         "created_at": stamp(row.created_at),
         "updated_at": stamp(row.updated_at),
     }
