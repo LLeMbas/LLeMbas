@@ -2646,3 +2646,12 @@ MESSAGES.update(
         'Only http and https addresses can be watched.': 'Solo se pueden vigilar direcciones http y https.',
     }
 )
+
+# Pinned chats.
+MESSAGES.update(
+    {
+        'Pinned chats': 'Chats fijados',
+        'Pin chat': 'Fijar chat',
+        'Unpin chat': 'Dejar de fijar el chat',
+    }
+)

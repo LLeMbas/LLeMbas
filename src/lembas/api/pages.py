@@ -423,7 +423,7 @@ def agent_filters(user: User) -> dict[str, str]:
 # Only a section that differs from its default is stored, so the map holds what
 # somebody actually changed and a default that moves later still reaches them.
 SECTIONS_KEY = "sections"
-SECTION_DEFAULTS = {"pinned": True, "chats": True, "archived": False}
+SECTION_DEFAULTS = {"pinned": True, "pinned_chats": True, "chats": True, "archived": False}
 
 
 def section_states(user: User) -> dict[str, bool]:
@@ -611,8 +611,32 @@ def sidebar_context(db: DBSession, user: User) -> dict:
         # agents disabled, where nobody would ever see the leak coming.
         Chat.kind.in_((kind,) if kind else KINDS),
     )
+    # Pinned chats have a section of their own above `[ CHATS ]`, wherever
+    # they are filed (a folder still lists its own); so the unfiled list leaves
+    # them out rather than showing one twice in a row. The Agents side keeps
+    # them first in their device's section instead.
+    pinned_chats = (
+        []
+        if agents_side
+        else list(
+            db.scalars(
+                select(Chat)
+                .where(
+                    Chat.user_id == user.id,
+                    Chat.pinned.is_(True),
+                    Chat.archived.is_(False),
+                    Chat.temporary.is_(False),
+                    Chat.kind.in_((kind,) if kind else KINDS),
+                )
+                .order_by(Chat.updated_at.desc())
+            )
+        )
+    )
     unfiled = list(
-        db.scalars(narrowed.order_by(Chat.pinned.desc(), Chat.updated_at.desc()))
+        db.scalars(
+            (narrowed.where(Chat.pinned.is_(False)) if not agents_side else narrowed)
+            .order_by(Chat.pinned.desc(), Chat.updated_at.desc())
+        )
     )
     # The same query with the one filter inverted, and no `pinned` in the order:
     # a pinned chat that somebody archived is one they have said two opposite
@@ -651,6 +675,7 @@ def sidebar_context(db: DBSession, user: User) -> dict:
     return {
         "folders": folders,
         "unfiled_chats": unfiled,
+        "pinned_chats": pinned_chats,
         # The Agents side: one section per device rather than one list.
         "device_sections": device_sections,
         # Archived chats are NOT narrowed to unfiled ones: a chat inside a

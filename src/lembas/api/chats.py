@@ -2679,11 +2679,12 @@ async def update_chat(request: Request, db: Db, user: RequiredUser, chat_id: str
     temperature means *clear it*, not *leave it alone*.
     """
     chat = _owned_chat(db, chat_id, user.id)
-    folder_before = chat.folder_id
+    folder_before, pinned_before = chat.folder_id, bool(chat.pinned)
     renamed, archived_changed = apply_chat_update(db, user, chat, await request.form())
     # A chat dropped on a folder (js/dnd.js) leaves one part of the tree for
-    # another, exactly as archiving does.
-    moved = chat.folder_id != folder_before
+    # another, exactly as archiving does -- and so does one pinned or unpinned
+    # (the sidebar's Pinned section).
+    moved = chat.folder_id != folder_before or bool(chat.pinned) != pinned_before
 
     if renamed:
         # The two out-of-band spans the `done` frame already uses, so one
@@ -2787,6 +2788,12 @@ def apply_chat_update(db: DBSession, user: User, chat: Chat, form) -> tuple[bool
         wanted = str(form["archived"]).strip() not in ("", "0", "false")
         archived_changed = wanted != chat.archived
         chat.archived = wanted
+
+    # Pinned: kept at the top of the list, in the sidebar's Pinned section and
+    # first in an app's list. The column was read (the sidebar's order) long
+    # before anything wrote it. Absent leaves it; "0" unpins.
+    if "pinned" in form:
+        chat.pinned = str(form["pinned"]).strip() not in ("", "0", "false")
 
     # The mode is the one agent field that changes mid-chat: it decides what
     # gets asked about, not what the conversation is. A chat has Plan or

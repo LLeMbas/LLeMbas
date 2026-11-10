@@ -138,6 +138,23 @@ lembas login {{ request.base_url|string|trim("/") }}</code></pre>
   {% endfor %}
 
   {% else %}
+  {#- Pinned chats, wherever they are filed: the pin on a chat's row
+      (`_chat_link.html`) puts one here and takes it away. Absent when
+      nothing is pinned. Not `[ PINNED MODELS ]` above the switch, which is
+      shortcuts to models the administrator pinned. -#}
+  {% if pinned_chats is defined and pinned_chats %}
+  {% set pinned_chats_open = states.get("pinned_chats", true) %}
+  <div class="nav-group" data-testid="pinned-chats">
+    <div class="nav-group__head">
+      {{ section_toggle("pinned_chats", t("Pinned chats"), pinned_chats_open, "section-pinned-chats") }}
+    </div>
+    <div class="nav-group__body" id="section-pinned-chats"{% if not pinned_chats_open %} hidden{% endif %}>
+      {% for chat_item in pinned_chats %}
+        {% include "partials/_chat_link.html" %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
   {#- The unfiled chats are the drop target for "no folder" (js/dnd.js). -#}
   <div class="nav-group" data-folder-drop="" data-folder-name="{{ t('No folder') }}">
     {# `[ CHATS ]          +`: the + is New chat. A link, not a button that creates a row -- the chat is
@@ -176,7 +193,7 @@ lembas login {{ request.base_url|string|trim("/") }}</code></pre>
       {% for chat_item in unfiled_chats %}
         {% include "partials/_chat_link.html" %}
       {% endfor %}
-    {% else %}
+    {% elif not (pinned_chats is defined and pinned_chats) %}
       <p class="nav-empty">{{ t("No chats yet. The road begins here.") }}</p>
     {% endif %}
     </div>

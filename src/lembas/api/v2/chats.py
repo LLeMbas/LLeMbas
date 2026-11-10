@@ -220,6 +220,8 @@ async def update_chat(
             items.append((field, "" if value is None else str(value)))
     if "archived" in body:
         items.append(("archived", "1" if body["archived"] else "0"))
+    if "pinned" in body:
+        items.append(("pinned", "1" if body["pinned"] else "0"))
     # The team's size: `agents: {min, max}`, either alone (the other as
     # stored); refused outside `1 ≤ min ≤ max ≤ cap` with the bounds (422).
     items.extend(_agents_fields(body).items())

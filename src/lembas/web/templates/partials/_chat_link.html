@@ -35,6 +35,20 @@
             aria-label="{{ t('Rename chat') }}" title="{{ t('Rename chat') }}">
       {{ icon("pencil", "icon--sm") }}
     </button>
+    {#- Pin and unpin: the sidebar re-renders, because the row moves into the
+        Pinned chats section or out of it. An archived chat is not offered a
+        pin -- archiving it already said the opposite. -#}
+    {% if not chat_item.archived %}
+    <button class="btn btn--icon btn--sm {{ 'is-active' if chat_item.pinned }}" type="button"
+            hx-patch="/api/chats/{{ chat_item.id }}"
+            hx-vals='{"pinned": "{{ 0 if chat_item.pinned else 1 }}"}'
+            hx-target="#sidebar-tree" hx-swap="outerHTML"
+            aria-pressed="{{ 'true' if chat_item.pinned else 'false' }}" data-testid="chat-pin"
+            aria-label="{{ t('Unpin chat') if chat_item.pinned else t('Pin chat') }}"
+            title="{{ t('Unpin chat') if chat_item.pinned else t('Pin chat') }}">
+      {{ icon("pin", "icon--sm") }}
+    </button>
+    {% endif %}
     {% if movable %}
     <button class="btn btn--icon btn--sm" type="button"
             data-move-chat="{{ chat_item.id }}" data-folder-id="{{ chat_item.folder_id or '' }}"

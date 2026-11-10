@@ -2646,3 +2646,12 @@ MESSAGES.update(
         'Only http and https addresses can be watched.': 'Można obserwować tylko adresy http i https.',
     }
 )
+
+# Pinned chats.
+MESSAGES.update(
+    {
+        'Pinned chats': 'Przypięte czaty',
+        'Pin chat': 'Przypnij czat',
+        'Unpin chat': 'Odepnij czat',
+    }
+)

@@ -34,6 +34,9 @@ at <https://llembas.eu/changelog.html>.
   told. When it changed (and on the first look) the run is told what changed and what is there
   now, as data. A look that fails fails the run and never counts as a change. Fixtures: new
   `schedule_watching.json`; schedules and runs gain `watch` (null when nothing is watched).
+- **Pinned chats.** A pin on each chat's row in the sidebar puts it in a **Pinned chats** section
+  above `[ CHATS ]` (wherever it is filed) and takes it out again; on `/api/v2`, `PATCH
+  /chats/{id}` takes `pinned`. The column was read for the sidebar's order but nothing ever set it.
 
 ## 2.0.0-beta.8 — 2026-11-10
 
