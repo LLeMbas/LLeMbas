@@ -22,11 +22,12 @@ page *Harness-parity* in LLeMbas CLI's wiki.
 | `permission/defaults.json` | The rules every session starts from |
 | `permission/modes.json` | The four modes — manual, edit, auto, plan — as what each does with each risk class |
 | `models/schema.json` | Model metadata: context, output limit, efforts and the thinking switch, vision, tools, notes, capacity (`parallel`); `levels` — the effort levels a chat offers and what each sends |
-| `loop.json` | How one prompt runs: the step backstop, budgets, wrap-up, nudges, parallel calls, capacity; `jobs` — background work, its marks and limits; `subagents` — the model refusals, what names a model, the setting's label; `team` — a team's size, names, marks, refusals and texts; `progress` — the phases' texts; `context` — result ids, stubs, the output cap, the compaction table, the environment lines, the session notes; `scheduled` (3.5.0) — scheduled work on a linked computer: the setting, the modes, the approval wait, the sentinel, the watch command's limits and the refusals |
+| `loop.json` | How one prompt runs: the step backstop, budgets, wrap-up, nudges, parallel calls, capacity; `jobs` — background work, its marks and limits; `subagents` — the model refusals, what names a model, the setting's label; `team` — a team's size, names, marks, refusals and texts; `progress` — the phases' texts; `context` — result ids, stubs, the output cap, the compaction table, the environment lines, the session notes; `scheduled` (3.5.0) — scheduled work on a linked computer: the setting, the modes, the approval wait, the sentinel, the watch command's limits and the refusals; `phone` (3.6.0) — phone actions: the capability, each action's fields, what is required and checked, the wait and the texts |
 | `filesystem.md` | The file system a session works in: paths, node kinds, the four access levels, errors, listings, search and indexing by tokens, stacked instruction files, skills, memory |
 | `context.md` | Context hygiene: what happens to a tool result when it is inserted, and never afterwards; the prefix that stays still; reasoning sent back during its turn; no absolute paths in the prompt |
 | `team.md` | Teams: a lead and the members it adds, the size setting, the room, who receives what, reports, a manager's refusals, capacity, stopping |
 | `subagents.md` | Subagents: the word, which model one runs on (the session's, or one the person named), the capacity refusals, and when the Subagents setting is offered; from 3.4.0 (§5–§13) the main agent and its tree — only it adds, permissions inherited and never widened, request options, a subagent's life and its findings, what clients show |
+| `phone.md` | Phone actions (3.6.0): `phone_action`, carried out by the LLeMbas app on the person's phone and confirmed there — who offers it, how a call is checked, the answer, navigation |
 | `progress.md` | Progress (3.4.0): the thirteen phases every client shows the same way, the data each carries, their texts, and where they are sent |
 | `quirks.json` | What real servers do, and how both harnesses cope |
 | `conformance/<area>.json` | Cases with their expected results, run by both test suites |
@@ -52,7 +53,8 @@ page *Harness-parity* in LLeMbas CLI's wiki.
   `forge`: the session's view holds a repository mounted from a forge; `plan`: the session is in
   plan mode; `team` (3.2.0): the session's team setting allows more than one agent, and a model could
   serve as a subagent (3.3.0: `subagents.md` §4; before, the chat's model serving two requests at
-  once). A requirement that goes away between the offer and the call makes the call answer the
+  once); `phone` (3.6.0): a message in the chat came from an app on the person's phone that
+  carries out phone actions (`phone.md` §1). A requirement that goes away between the offer and the call makes the call answer the
   tool's `unavailable` text, word for word, as its result. **From 3.1.0 a requirement that can come
   and go during a session does not take the tool out of the list** (`context.md` §10, rule 4): the
   tool is offered from the start and answers `unavailable` while the requirement is not met.
@@ -71,7 +73,19 @@ page *Harness-parity* in LLeMbas CLI's wiki.
   approval in plan mode and answers its `unavailable` text outside it. Their permission key is
   `plan` (`permission/defaults.json`), which a rule written for the former `todo` key still reaches.
 
-## 3.5.0
+## 3.6.0
+
+- **Phone actions** (`phone.md`, `tools/phone_action.json`, `loop.json` `phone`): a chat's model
+  may do something on the person's phone when they write from the LLeMbas app on it — an alarm or a
+  timer, a calendar event, an SMS or email draft, the dialer, a route (`navigate`, `add_stop`,
+  `search_nearby`, `stop_navigation`), an app or an address, media, the torch, a settings panel,
+  an automation. The app declares the capability `phone_actions` with each message; the person
+  confirms every call on the phone (`confirm: always`); the result is `done`, `declined` or
+  `failed` with what the phone said. The server's alone (`scope: llembas`, `sessions: chat`); new
+  requirement `phone`, offered once a message came from the phone and kept, answering
+  `unavailable` when the message being answered did not. Conformance area **`phone`** (the checks
+  and the result texts).
+
 
 Written ahead of both implementations; the server vendors it as written, both carry it in the same
 round (`acp.md` *Scheduled work on a linked computer*, `loop.json` `scheduled`).

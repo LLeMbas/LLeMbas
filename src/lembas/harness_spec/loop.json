@@ -483,5 +483,208 @@
       "monitor_denied": "The watch command is refused here: {{reason}}.",
       "no_reply": "The run ended without a reply."
     }
+  },
+  "phone": {
+    "about": "Spec 3.6.0 (phone.md): `phone_action`, carried out by the LLeMbas app on the person's phone and confirmed there. `capability` is what the app declares with each message it sends; `fields` what each action reads (anything else in a call is dropped before the phone sees it); `required` the fields each action needs (a list inside the list: any one of them); `check` the order the fields' values are checked in; `wait_seconds` how long a call waits for the phone's answer; `texts` what the model is told, `what` what a bad field should have been. conformance/phone.json.",
+    "capability": "phone_actions",
+    "actions": [
+      "alarm",
+      "timer",
+      "calendar_event",
+      "sms_draft",
+      "email_draft",
+      "dial",
+      "navigate",
+      "add_stop",
+      "search_nearby",
+      "stop_navigation",
+      "open_app",
+      "open_url",
+      "media",
+      "torch",
+      "settings_panel",
+      "automation_intent"
+    ],
+    "fields": {
+      "alarm": [
+        "time",
+        "days",
+        "label"
+      ],
+      "timer": [
+        "seconds",
+        "label"
+      ],
+      "calendar_event": [
+        "title",
+        "start",
+        "end",
+        "all_day",
+        "location",
+        "notes"
+      ],
+      "sms_draft": [
+        "to",
+        "body"
+      ],
+      "email_draft": [
+        "to",
+        "cc",
+        "subject",
+        "body"
+      ],
+      "dial": [
+        "number"
+      ],
+      "navigate": [
+        "destination",
+        "stops",
+        "mode",
+        "replace_route"
+      ],
+      "add_stop": [
+        "stop",
+        "destination"
+      ],
+      "search_nearby": [
+        "query",
+        "near"
+      ],
+      "stop_navigation": [],
+      "open_app": [
+        "app"
+      ],
+      "open_url": [
+        "url"
+      ],
+      "media": [
+        "command"
+      ],
+      "torch": [
+        "on"
+      ],
+      "settings_panel": [
+        "panel"
+      ],
+      "automation_intent": [
+        "task",
+        "app",
+        "values"
+      ]
+    },
+    "required": {
+      "alarm": [
+        "time"
+      ],
+      "timer": [
+        "seconds"
+      ],
+      "calendar_event": [
+        "title",
+        "start"
+      ],
+      "sms_draft": [
+        [
+          "to",
+          "body"
+        ]
+      ],
+      "email_draft": [
+        [
+          "to",
+          "subject",
+          "body"
+        ]
+      ],
+      "dial": [
+        "number"
+      ],
+      "navigate": [
+        "destination"
+      ],
+      "add_stop": [
+        "stop",
+        "destination"
+      ],
+      "search_nearby": [
+        "query"
+      ],
+      "stop_navigation": [],
+      "open_app": [
+        "app"
+      ],
+      "open_url": [
+        "url"
+      ],
+      "media": [
+        "command"
+      ],
+      "torch": [
+        "on"
+      ],
+      "settings_panel": [
+        "panel"
+      ],
+      "automation_intent": [
+        "task"
+      ]
+    },
+    "statuses": [
+      "done",
+      "declined",
+      "failed"
+    ],
+    "wait_seconds": 300,
+    "message_max_chars": 1000,
+    "texts": {
+      "done": "Done on the phone.",
+      "declined": "The person declined it on the phone: nothing was done. Do not try again unless they ask.",
+      "failed": "The phone could not do it: nothing was done.",
+      "no_answer": "The phone did not answer in time: nothing was done.",
+      "says": "The phone says: {{message}}",
+      "unknown_action": "\"{{action}}\" is not an action. Use one of: {{actions}}. Nothing was sent to the phone.",
+      "missing": "{{action}} needs {{fields}}. Nothing was sent to the phone.",
+      "bad": "{{field}} is not {{what}}. Nothing was sent to the phone."
+    },
+    "what": {
+      "time": "a time as HH:MM (24-hour)",
+      "days": "a list of days from mon, tue, wed, thu, fri, sat, sun",
+      "seconds": "a whole number of seconds from 1 to 86400",
+      "start": "a date and time as YYYY-MM-DDTHH:MM, or a date as YYYY-MM-DD for a whole day",
+      "end": "a date and time as YYYY-MM-DDTHH:MM, or a date as YYYY-MM-DD for a whole day",
+      "to": "a list of recipients",
+      "cc": "a list of recipients",
+      "number": "a phone number",
+      "destination": "a place: lat and lon together, or a query, or a name",
+      "stop": "a place: lat and lon together, or a query, or a name",
+      "stops": "a list of places, each lat and lon together, or a query, or a name",
+      "mode": "one of drive, walk, bike, transit",
+      "near": "one of me, route",
+      "url": "an http or https address",
+      "command": "one of play, pause, toggle, next, previous",
+      "on": "true or false",
+      "panel": "one of wifi, bluetooth, internet, volume, nfc, location, do_not_disturb",
+      "values": "named text values"
+    },
+    "check": [
+      "time",
+      "days",
+      "seconds",
+      "start",
+      "end",
+      "to",
+      "cc",
+      "number",
+      "destination",
+      "stop",
+      "stops",
+      "mode",
+      "near",
+      "url",
+      "command",
+      "on",
+      "panel",
+      "values"
+    ]
   }
 }

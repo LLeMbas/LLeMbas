@@ -1,0 +1,162 @@
+{
+  "cards": [
+    {
+      "id": "card5",
+      "kind": "phone_action",
+      "why": "",
+      "dismissable": true,
+      "expires_in": null,
+      "items": [
+        {
+          "index": 0,
+          "key": "phone",
+          "kind": "phone_action",
+          "tool": "phone_action",
+          "title": "Alarm at 07:00 on weekdays",
+          "header": "",
+          "detail": "alarm",
+          "reason": "",
+          "purpose": "",
+          "options": [],
+          "multiple": false,
+          "free_text": false,
+          "editable": false,
+          "plan": null,
+          "mode_choice": false,
+          "job": "",
+          "subagent": null,
+          "phone": {
+            "action": "alarm",
+            "summary": "Alarm at 07:00 on weekdays",
+            "time": "07:00",
+            "days": [
+              "mon",
+              "tue",
+              "wed",
+              "thu",
+              "fri"
+            ],
+            "label": "Work"
+          }
+        }
+      ]
+    },
+    {
+      "id": "card6",
+      "kind": "phone_action",
+      "why": "",
+      "dismissable": true,
+      "expires_in": null,
+      "items": [
+        {
+          "index": 0,
+          "key": "phone",
+          "kind": "phone_action",
+          "tool": "phone_action",
+          "title": "Drive home via the bakery",
+          "header": "",
+          "detail": "navigate",
+          "reason": "",
+          "purpose": "",
+          "options": [],
+          "multiple": false,
+          "free_text": false,
+          "editable": false,
+          "plan": null,
+          "mode_choice": false,
+          "job": "",
+          "subagent": null,
+          "phone": {
+            "action": "navigate",
+            "summary": "Drive home via the bakery",
+            "destination": {
+              "name": "Home",
+              "query": "1 Bagshot Row, Hobbiton"
+            },
+            "stops": [
+              {
+                "name": "Bakery",
+                "lat": 48.894,
+                "lon": 18.044
+              }
+            ],
+            "mode": "drive",
+            "replace_route": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "card7",
+      "kind": "phone_action",
+      "why": "",
+      "dismissable": true,
+      "expires_in": null,
+      "items": [
+        {
+          "index": 0,
+          "key": "phone",
+          "kind": "phone_action",
+          "tool": "phone_action",
+          "title": "Add the bakery to the route",
+          "header": "",
+          "detail": "add_stop",
+          "reason": "",
+          "purpose": "",
+          "options": [],
+          "multiple": false,
+          "free_text": false,
+          "editable": false,
+          "plan": null,
+          "mode_choice": false,
+          "job": "",
+          "subagent": null,
+          "phone": {
+            "action": "add_stop",
+            "summary": "Add the bakery to the route",
+            "stop": {
+              "name": "Bakery",
+              "query": "Bakery, Bywater"
+            },
+            "destination": {
+              "name": "Home",
+              "query": "1 Bagshot Row, Hobbiton"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "card8",
+      "kind": "phone_action",
+      "why": "",
+      "dismissable": true,
+      "expires_in": null,
+      "items": [
+        {
+          "index": 0,
+          "key": "phone",
+          "kind": "phone_action",
+          "tool": "phone_action",
+          "title": "End the route",
+          "header": "",
+          "detail": "stop_navigation",
+          "reason": "",
+          "purpose": "",
+          "options": [],
+          "multiple": false,
+          "free_text": false,
+          "editable": false,
+          "plan": null,
+          "mode_choice": false,
+          "job": "",
+          "subagent": null,
+          "phone": {
+            "action": "stop_navigation",
+            "summary": "End the route"
+          }
+        }
+      ]
+    }
+  ]
+}

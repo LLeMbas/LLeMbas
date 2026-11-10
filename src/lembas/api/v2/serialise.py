@@ -606,6 +606,8 @@ def item(entry: interaction.Item) -> dict[str, Any]:
                 if entry.subagent
                 else None
             ),
+            # A phone card's action (spec 3.6.0, `phone.md` §2): only on one.
+            **({"phone": entry.phone} if entry.phone is not None else {}),
         }
     )
 
@@ -618,6 +620,8 @@ def interruption(card: interaction.Interruption, *, now: float | None = None) ->
     kind = (
         interaction.KIND_PLAN
         if interaction.KIND_PLAN in kinds
+        else interaction.KIND_PHONE
+        if interaction.KIND_PHONE in kinds
         else interaction.KIND_APPROVAL
         if interaction.KIND_APPROVAL in kinds
         else interaction.KIND_QUESTION

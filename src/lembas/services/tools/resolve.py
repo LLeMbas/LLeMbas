@@ -434,6 +434,16 @@ def _offered_in(tool: ToolDef, chat: Chat, db: DBSession | None = None) -> bool:
     chat's session. One that comes and goes during it (a page attached) never
     takes a tool out (spec 3.1.0, context.md §10 rule 4): the tool is offered
     from the start and answers its `unavailable` text while it is not met."""
+    if tool.name == "phone_action":
+        # `requires: phone` (spec 3.6.0, phone.md §1): a message came from the
+        # person's phone app, once -- kept from then on. Whether the message
+        # being answered is that one is the call's question.
+        return (
+            bool(getattr(chat, "phone_message_id", ""))
+            and chat.kind != KIND_AGENT
+            and not unattended(chat)
+            and not getattr(chat, "parent_chat_id", None)
+        )
     if tool.family not in _CHAT_ONLY:
         return True
     if chat.kind == KIND_AGENT:

@@ -21,6 +21,7 @@ from lembas.db.models import KIND_CHAT, KINDS, Chat, Message
 from lembas.services import activity as activity_service
 from lembas.services import chat as chat_service
 from lembas.services import generation as generation_service
+from lembas.services import phone as phone_service
 from lembas.services import subagents as subagents_rules
 from lembas.services import team_run
 from lembas.web.i18n import t
@@ -121,8 +122,8 @@ async def unread(caller: Me, db: Db) -> dict[str, Any]:
 @router.post("/chats", status_code=status.HTTP_201_CREATED)
 async def create_chat(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """A chat from its first message, as the page makes one: there is no empty
-    chat, so `text` (or an attachment) is required. `force_tool` as on
-    `POST /chats/{id}/messages`."""
+    chat, so `text` (or an attachment) is required. `force_tool` and `client`
+    as on `POST /chats/{id}/messages`."""
     need(db, caller.user, "chat.create")
     text = _text(body)
     files = _ids(body)
@@ -144,6 +145,8 @@ async def create_chat(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> d
         reasoning_effort=str(body.get("effort") or ""),
         # As on a later turn: `image_generate` makes the first reply a picture.
         force_tool=str(body.get("force_tool") or ""),
+        # Spec 3.6.0: `client: ["phone_actions"]` -- sent from the phone app.
+        phone=phone_service.declares(body.get("client")),
         **_agents_fields(body),
     )
     return {
@@ -286,7 +289,12 @@ async def list_messages(
 async def send(caller: Me, db: Db, chat_id: str, body: dict[str, Any] = Body(...)) -> dict:
     """A turn. `reply` is null when it was queued behind a reply already
     running; the stream of that reply carries it in (`steered`) or hands it to
-    the next one (`done.next`)."""
+    the next one (`done.next`).
+
+    `client`: what the sending app can do, as a list of capabilities. The
+    Android app sends `["phone_actions"]` (harness spec 3.6.0): the chat is
+    offered `phone_action` from this message on, and a call reaches the phone
+    while this is the message answered (a `phone_action` card in `ask`)."""
     chat = owned_chat(db, chat_id, caller.user)
     text = _text(body)
     files = _ids(body)
@@ -295,7 +303,8 @@ async def send(caller: Me, db: Db, chat_id: str, body: dict[str, Any] = Body(...
     forced = str(body.get("force_tool") or "")
     forced = forced if forced in chats_api.FORCEABLE_TOOLS else ""
     user_message, reply = chats_api.write_turn(
-        db, chat, caller.user, text, file_ids=files, force_tool=forced
+        db, chat, caller.user, text, file_ids=files, force_tool=forced,
+        phone=phone_service.declares(body.get("client")),
     )
     return _turn(user_message, reply)
 
@@ -649,6 +658,10 @@ async def answer(
          "texts": {"<key>": "…"},           # typed: an answer, or a corrected command
          "asks": {"<key>": "…"}}            # a question asked back
 
+    A phone card (`kind: "phone_action"`, harness spec 3.6.0) is answered by
+    the app with what the phone did once the person confirmed or declined it:
+    `{"result": {"status": "done" | "declined" | "failed", "message": "…"}}`.
+
     First answer wins -- on the phone, the page or the device's terminal alike;
     a card that is no longer waiting is a 409, and the app takes that as
     "somebody answered already" and refreshes.
@@ -658,6 +671,13 @@ async def answer(
         ("verdict", str(body.get("verdict") or "")),
         ("reason", str(body.get("reason") or "")),
     ]
+    # A phone card's answer (spec 3.6.0, phone.md §3): what the phone did.
+    result = body.get("result")
+    if isinstance(result, dict):
+        items += [
+            ("choice.phone", str(result.get("status") or "")),
+            ("text.phone", str(result.get("message") or "")),
+        ]
     for prefix, field in (("choice", "choices"), ("text", "texts"), ("ask", "asks")):
         values = body.get(field)
         if not isinstance(values, dict):

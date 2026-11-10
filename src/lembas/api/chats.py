@@ -413,6 +413,7 @@ def start_new_chat(
     *,
     file_ids: list[str] | None = None,
     force_tool: str = "",
+    phone: bool = False,
     **settings,
 ) -> tuple[Chat, Message, Message]:
     """Make a chat from its first message and start the reply: `(chat, the
@@ -440,6 +441,8 @@ def start_new_chat(
     user_message = chat_service.create_message(db, chat, ROLE_USER, content)
     if file_ids:
         files_service.claim(db, ids=file_ids, user_id=user.id, message_id=user_message.id)
+    if phone:
+        _from_phone(db, chat, user_message)
     assistant = chat_service.create_message(
         db, chat, ROLE_ASSISTANT, "", complete_=False, model_id=chat.model_id
     )
@@ -1209,6 +1212,15 @@ def _refuse_extra_reply(db: DBSession, chat: Chat | None, user: User) -> None:
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, busy)
 
 
+def _from_phone(db: DBSession, chat: Chat, message: Message) -> None:
+    """The message came from the person's phone, which carries out phone
+    actions (harness spec 3.6.0, `phone.md` §1): `phone_action` is offered
+    from now on, and may reach the phone while this is the message answered.
+    Before the reply starts, so its tool list already has it."""
+    chat.phone_message_id = message.id
+    db.commit()
+
+
 def write_turn(
     db: DBSession,
     chat: Chat,
@@ -1217,6 +1229,7 @@ def write_turn(
     *,
     file_ids: list[str] | None = None,
     force_tool: str = "",
+    phone: bool = False,
 ) -> tuple[Message, Message | None]:
     """Write a turn and start the reply: `(the person's row, the reply's row)`,
     the second None when the turn was queued behind a reply already running.
@@ -1261,6 +1274,8 @@ def write_turn(
     if file_ids:
         files_service.claim(db, ids=file_ids, user_id=user.id, message_id=user_message.id)
         db.refresh(user_message)
+    if phone:
+        _from_phone(db, chat, user_message)
 
     if queued:
         # One bubble and no assistant placeholder. The streaming shell is the

@@ -1414,6 +1414,12 @@ async def _run(generation: Generation) -> None:
                         )
                         if generation.stopped:
                             break
+                if outcome.event.pop("phone_pending", False):
+                    # Spec 3.6.0 (phone.md §3): the action on the phone's
+                    # card; what the phone answers is this call's result.
+                    outcome.content = await _settle_phone(generation, outcome.event)
+                    if generation.stopped:
+                        break
                 generation.tool_events.append(outcome.event)
                 content = _inserted(results, call, arguments[index], outcome, messages)
                 generation.output_bytes += len(content.encode("utf-8"))
@@ -2035,6 +2041,41 @@ async def _settle_plan(
         offered,
         payload,
     )
+
+
+async def _settle_phone(generation: Generation, event: dict) -> str:
+    """`phone_action` (harness spec 3.6.0, `phone.md`): the action on the
+    phone's card, and the phone's answer as the call's result.
+
+    The app answers with the status as `choice.phone` and what it says as
+    `text.phone`. The page's Decline, and a card put aside, are `declined`;
+    no answer within `phone.wait_seconds` is no answer. The event records
+    what came back, for the transcript.
+    """
+    from lembas.services import phone as phone_service
+
+    action = event.get("phone") or {}
+    timeout = phone_service.wait_seconds()
+    card = interaction.phone_card(action, timeout=timeout)
+    generation.status = interaction.summarise(card.items)
+    reply = await interaction.wait_for(generation, card, timeout=timeout)
+    generation.status = ""
+
+    if reply.ended:
+        generation.stopped = True
+        event.update(status="error", error="Stopped before it finished.")
+        return "Stopped."
+    if reply.outcome == interaction.EXPIRED:
+        event["phone_result"] = {"status": None, "message": ""}
+        return phone_service.result_text(None)
+    status = (reply.picks.get("phone") or [""])[0]
+    message = (reply.picks.get("text.phone") or [""])[0] or reply.reason
+    if reply.outcome == interaction.DENY or not status:
+        status = phone_service.DECLINED
+    event["phone_result"] = {"status": status, "message": message}
+    if status != phone_service.DONE:
+        event["status"] = "error"
+    return phone_service.result_text(status, message)
 
 
 def _too_big(generation: Generation) -> bool:

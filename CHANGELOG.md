@@ -21,6 +21,17 @@ at <https://llembas.eu/changelog.html>.
 
 ### Added
 
+- **Phone actions** (harness spec 3.6.0, vendored from the LLeMbas CLI's `dev`). A chat written
+  from the LLeMbas app on a phone may ask the phone to do something: an alarm or a timer, a calendar
+  event, an SMS or email draft, the dialer, a route (start one, add a stop, search nearby, stop),
+  an app or an address, media, the torch, a settings panel, an automation (`phone_action`). The
+  app says it can with each message it sends (`client: ["phone_actions"]` on `POST /api/v2/chats`
+  and `/messages`); the tool is offered from then on in that chat, and reaches the phone only while
+  the message being answered is the phone's. The call waits on a `phone_action` card in the
+  stream's `ask` frame -- the action checked and only its own fields -- and the app answers it on
+  the interactions route with `{"result": {"status": "done" | "declined" | "failed",
+  "message"}}`, which is the call's result; no answer in five minutes is said so. The page shows
+  the card as "confirm it on your phone" with Decline. Fixture: new `event_ask_phone.json`.
 - **Draw a picture, in the composer.** A switch for one message: pressed, the reply to the next
   message is a picture drawn from it (the same as `/image`); it lets go once the message is sent.
   Shown where this server draws pictures for the person. The first message of a new chat may be

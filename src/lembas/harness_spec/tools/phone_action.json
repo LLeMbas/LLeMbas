@@ -1,0 +1,289 @@
+{
+  "name": "phone_action",
+  "scope": "llembas",
+  "sessions": "chat",
+  "risk": "interact",
+  "exclusive": true,
+  "block": "tool",
+  "purpose": false,
+  "requires": [
+    "phone"
+  ],
+  "unavailable": "This needs the LLeMbas app on the person's phone, and this message did not come from it: nothing was done on any phone. Say what you would have done, and that they can ask again from the app.",
+  "confirm": "always",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Do something on the person's phone: they are writing to you from the LLeMbas app on it, and the app carries it out with the phone's own apps. The person confirms every call on the phone before anything happens; the result says done, declined or failed, with what the phone said.\n\nUse it only for what the person asked for, one action per call. `summary` is the one line the phone shows them: say what will happen, in their language.\n\n- alarm: `time` (HH:MM, 24-hour); `days` to repeat it; `label`.\n- timer: `seconds`; `label`.\n- calendar_event: `title`, `start` (YYYY-MM-DDTHH:MM, the phone's local time; YYYY-MM-DD with all_day); `end`, `all_day`, `location`, `notes`.\n- sms_draft: `to` (numbers, or names as the person said them), `body`. A draft: the person sends it.\n- email_draft: `to`, `cc`, `subject`, `body`. A draft: the person sends it.\n- dial: `number`. Opens the dialer with it; the person places the call.\n- navigate: `destination`; `stops` on the way, in order; `mode` (drive, walk, bike, transit); `replace_route` to start over rather than ask.\n- add_stop: `stop`, and `destination` — the route's destination as the person told you. Keep the destination of a route you started: no map app can add to a running route, so the phone plans again to the stop and then the destination.\n- search_nearby: `query` (\"petrol station\"), `near` me or the route.\n- stop_navigation: ends the route. Not every map app can; the phone says so if not.\n- open_app: `app`, as the person names it.\n- open_url: `url` (http or https).\n- media: `command` (play, pause, toggle, next, previous) for what is playing.\n- torch: `on`.\n- settings_panel: `panel` — the phone's quick panel or page for it; the person flips the switch.\n- automation_intent: `task`, the name of an automation the person made (Tasker by default, or `app`); `values` it is given.\n\nA place is lat and lon when you know them, else a `query` the map app searches; `name` is what the person calls it.\n\nDeclined means they said no on the phone: do not try again unless they ask. Failed says why; nothing was done.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "alarm",
+          "timer",
+          "calendar_event",
+          "sms_draft",
+          "email_draft",
+          "dial",
+          "navigate",
+          "add_stop",
+          "search_nearby",
+          "stop_navigation",
+          "open_app",
+          "open_url",
+          "media",
+          "torch",
+          "settings_panel",
+          "automation_intent"
+        ],
+        "description": "What to do"
+      },
+      "summary": {
+        "type": "string",
+        "description": "One line the phone shows the person: what will happen"
+      },
+      "time": {
+        "type": "string",
+        "description": "alarm: HH:MM, 24-hour"
+      },
+      "days": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": [
+            "mon",
+            "tue",
+            "wed",
+            "thu",
+            "fri",
+            "sat",
+            "sun"
+          ]
+        },
+        "description": "alarm: the days it repeats on; none for once"
+      },
+      "label": {
+        "type": "string",
+        "description": "alarm, timer: its name on the phone"
+      },
+      "seconds": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 86400,
+        "description": "timer: how long"
+      },
+      "title": {
+        "type": "string",
+        "description": "calendar_event: the event's title"
+      },
+      "start": {
+        "type": "string",
+        "description": "calendar_event: YYYY-MM-DDTHH:MM, local; YYYY-MM-DD with all_day"
+      },
+      "end": {
+        "type": "string",
+        "description": "calendar_event: as start"
+      },
+      "all_day": {
+        "type": "boolean",
+        "description": "calendar_event: a whole day"
+      },
+      "location": {
+        "type": "string",
+        "description": "calendar_event: where"
+      },
+      "notes": {
+        "type": "string",
+        "description": "calendar_event: its description"
+      },
+      "to": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "sms_draft: numbers or names; email_draft: addresses"
+      },
+      "cc": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "email_draft: addresses"
+      },
+      "subject": {
+        "type": "string",
+        "description": "email_draft"
+      },
+      "body": {
+        "type": "string",
+        "description": "sms_draft, email_draft: the text"
+      },
+      "number": {
+        "type": "string",
+        "description": "dial: the phone number"
+      },
+      "destination": {
+        "type": "object",
+        "description": "navigate, add_stop: where the route ends",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "What the person calls it: \"Home\", \"Lidl on Main Street\""
+          },
+          "lat": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90,
+            "description": "Latitude, when known"
+          },
+          "lon": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180,
+            "description": "Longitude, when known"
+          },
+          "query": {
+            "type": "string",
+            "description": "What the map app searches when there are no coordinates"
+          }
+        }
+      },
+      "stops": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "description": "A place: lat and lon when you know them, else a query the map app searches (an address, or a name and a town); name is what the person calls it",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "What the person calls it: \"Home\", \"Lidl on Main Street\""
+            },
+            "lat": {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90,
+              "description": "Latitude, when known"
+            },
+            "lon": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180,
+              "description": "Longitude, when known"
+            },
+            "query": {
+              "type": "string",
+              "description": "What the map app searches when there are no coordinates"
+            }
+          }
+        },
+        "description": "navigate: places on the way, in order"
+      },
+      "stop": {
+        "type": "object",
+        "description": "add_stop: the place to add",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "What the person calls it: \"Home\", \"Lidl on Main Street\""
+          },
+          "lat": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90,
+            "description": "Latitude, when known"
+          },
+          "lon": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180,
+            "description": "Longitude, when known"
+          },
+          "query": {
+            "type": "string",
+            "description": "What the map app searches when there are no coordinates"
+          }
+        }
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "drive",
+          "walk",
+          "bike",
+          "transit"
+        ],
+        "description": "navigate: how the person travels (drive when not said)"
+      },
+      "replace_route": {
+        "type": "boolean",
+        "description": "navigate: replace a route already running without asking"
+      },
+      "query": {
+        "type": "string",
+        "description": "search_nearby: what to look for"
+      },
+      "near": {
+        "type": "string",
+        "enum": [
+          "me",
+          "route"
+        ],
+        "description": "search_nearby: around the person, or along the running route"
+      },
+      "app": {
+        "type": "string",
+        "description": "open_app: the app, as the person names it; automation_intent: the automation app (Tasker when not said)"
+      },
+      "url": {
+        "type": "string",
+        "description": "open_url: an http or https address"
+      },
+      "command": {
+        "type": "string",
+        "enum": [
+          "play",
+          "pause",
+          "toggle",
+          "next",
+          "previous"
+        ],
+        "description": "media"
+      },
+      "on": {
+        "type": "boolean",
+        "description": "torch: on or off"
+      },
+      "panel": {
+        "type": "string",
+        "enum": [
+          "wifi",
+          "bluetooth",
+          "internet",
+          "volume",
+          "nfc",
+          "location",
+          "do_not_disturb"
+        ],
+        "description": "settings_panel"
+      },
+      "task": {
+        "type": "string",
+        "description": "automation_intent: the automation's name"
+      },
+      "values": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "automation_intent: named values it is given"
+      }
+    },
+    "required": [
+      "action",
+      "summary"
+    ]
+  }
+}

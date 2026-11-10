@@ -44,6 +44,10 @@ KIND_QUESTION = "question"
 # what to change, or dismissed. The same card, a third shape; `plan_card`
 # builds it for either source.
 KIND_PLAN = "plan"
+# Something to do on the person's phone (harness spec 3.6.0, `phone_action`):
+# the app shows the card, the person confirms there, the app carries it out
+# and answers `done`, `declined` or `failed`. `phone_card` builds it.
+KIND_PHONE = "phone_action"
 
 # How a pause ended.
 ALLOW = "allow"
@@ -173,6 +177,9 @@ class Item:
     # allow its call (spec 3.4.0, `_meta.lembas.subagent`): (id, name,
     # position). The card names it; the answers are the main agent's own.
     subagent: tuple[str, str, str] = ()
+    # The action a phone card carries (`phone.check`'s): what the app does
+    # once the person confirms. Model output, shown escaped.
+    phone: dict[str, Any] | None = None
 
 
 @dataclass
@@ -197,6 +204,8 @@ class Interruption:
     def kind(self) -> str:
         if any(i.kind == KIND_PLAN for i in self.items):
             return KIND_PLAN
+        if any(i.kind == KIND_PHONE for i in self.items):
+            return KIND_PHONE
         return KIND_QUESTION if any(i.kind == KIND_QUESTION for i in self.items) else KIND_APPROVAL
 
     def resolve(
@@ -353,12 +362,39 @@ def plan_card(
     return card
 
 
+def phone_item(action: dict[str, Any]) -> Item:
+    """The phone card's one item (spec 3.6.0, `phone.md`), keyed `phone`,
+    carrying the action: `title` its summary, `detail` its kind."""
+    return Item(
+        index=0,
+        key="phone",
+        kind=KIND_PHONE,
+        tool_name="phone_action",
+        title=str(action.get("summary") or action.get("action") or "")[:1000],
+        detail=str(action.get("action") or ""),
+        allow_free_text=False,
+        mode_choice=False,
+        phone=dict(action),
+    )
+
+
+def phone_card(action: dict[str, Any], *, timeout: float) -> Interruption:
+    """The phone card, ready to be waited on. The app answers it with
+    `choice.phone` the status and `text.phone` what it says; the page can
+    only decline it."""
+    card = build(uuid.uuid4().hex, [phone_item(action)], timeout=timeout)
+    card.dismissable = True
+    return card
+
+
 def summarise(items: tuple[Item, ...]) -> str:
     """What to show in the status line while the card is up."""
     if not items:
         return ""
     if items[0].kind == KIND_PLAN:
         return t("Waiting for you to look at the plan…")
+    if items[0].kind == KIND_PHONE:
+        return t("Waiting for you to confirm it on your phone…")
     if items[0].kind == KIND_QUESTION:
         return t("Waiting for your answer…") if len(items) == 1 else t("Waiting for your answers…")
     if len(items) == 1:
@@ -375,6 +411,7 @@ __all__ = [
     "ELSEWHERE",
     "EXPIRED",
     "KIND_APPROVAL",
+    "KIND_PHONE",
     "KIND_PLAN",
     "KIND_QUESTION",
     "MAX_OPTIONS",
@@ -385,6 +422,8 @@ __all__ = [
     "Item",
     "Reply",
     "build",
+    "phone_card",
+    "phone_item",
     "plan_card",
     "summarise",
     "wait_for",

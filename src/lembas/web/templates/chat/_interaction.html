@@ -121,6 +121,25 @@
         </span>
       </div>
 
+    {% elif ask.kind == "phone_action" %}
+      {#
+        Something to do on the person's phone (harness spec 3.6.0): the phone
+        shows its own card and carries it out once confirmed there. This page
+        cannot do it, so it says where to look -- and may decline it, which
+        the model is told as the person's no.
+      #}
+      {% for item in ask.items %}
+      <div class="interaction__question">
+        <p class="interaction__title">{{ item.title }}</p>
+        <p class="interaction__note">{{ t("Confirm it on your phone, in the app. It is not done until you do.") }}</p>
+      </div>
+      {% endfor %}
+      <div class="interaction__actions">
+        <button class="btn" type="submit" name="verdict" value="deny">
+          {{ icon("x", "icon--sm") }} {{ t("Decline") }}
+        </button>
+      </div>
+
     {% elif ask.kind == "plan" %}
       {#
         A plan put to you before anything is done: this chat's own

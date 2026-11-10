@@ -277,6 +277,12 @@ class Chat(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
     # the flag rather than the kind is what stops each of those needing its own
     # branch in `resolve_tools` and in `_authorise`.
     unattended: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # The newest of the person's messages sent from an app on their phone that
+    # carries out phone actions (harness spec 3.6.0, `phone.md`: the app
+    # declares `phone_actions` with each message). Set once is what offers
+    # `phone_action` for the rest of the chat; a call can reach a phone only
+    # while the message being answered is this one. Empty: never.
+    phone_message_id: Mapped[str] = mapped_column(String(32), default="", nullable=False)
 
     # --- Compaction ----------------------------------------------------------
     # A summary of the turns up to `compacted_through_id`, sent in their place.

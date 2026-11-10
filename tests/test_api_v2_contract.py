@@ -275,6 +275,32 @@ def _cards() -> list[interaction.Interruption]:
     ]
 
 
+def _phone_cards() -> list[dict]:
+    from lembas.services import phone
+
+    actions = [
+        {"action": "alarm", "summary": "Alarm at 07:00 on weekdays", "time": "07:00",
+         "days": ["mon", "tue", "wed", "thu", "fri"], "label": "Work"},
+        {"action": "navigate", "summary": "Drive home via the bakery",
+         "destination": {"name": "Home", "query": "1 Bagshot Row, Hobbiton"},
+         "stops": [{"name": "Bakery", "lat": 48.894, "lon": 18.044}], "mode": "drive",
+         "replace_route": False},
+        {"action": "add_stop", "summary": "Add the bakery to the route",
+         "stop": {"name": "Bakery", "query": "Bakery, Bywater"},
+         "destination": {"name": "Home", "query": "1 Bagshot Row, Hobbiton"}},
+        {"action": "stop_navigation", "summary": "End the route"},
+    ]
+    cards = []
+    for n, args in enumerate(actions, start=5):
+        action, refused = phone.check(args)
+        assert action is not None, refused
+        card = interaction.Interruption(
+            id=f"card{n}", items=(interaction.phone_item(action),), dismissable=True
+        )
+        cards.append(serialise.interruption(card))
+    return cards
+
+
 def _generation() -> generation_service.Generation:
     generation = generation_service.Generation(chat_id="chat1", message_id="msg2")
     generation.reasoning = [THINKING]
@@ -817,6 +843,10 @@ def _shapes() -> dict[str, object]:
         },
         "event_ask": {"cards": serialise.asks(generation.waiting)},
         "event_ask_empty": {"cards": []},
+        # Spec 3.6.0: a phone action on its card (`kind: "phone_action"`, the
+        # item's `phone` the action, checked). The app answers through the
+        # interactions route with `{"result": {"status", "message"}}`.
+        "event_ask_phone": {"cards": _phone_cards()},
         "event_jobs": {"jobs": serialise.jobs(generation.jobs)},
         "event_metrics": serialise.metrics(metrics_service.from_message(_assistant().usage_json)),
         "event_done": {

@@ -1,0 +1,595 @@
+{
+  "about": "Spec 3.6.0 (phone.md §2-§3): `check` — a phone_action call's arguments, and either the action the phone is sent (`action`: its own fields only, strings trimmed, `summary` the action's name when empty) or the call's refusal (`refused`, loop.json phone.texts); `result` — the phone's answer (`status`, `message`; `status` null is no answer in time) as the text the model is told. LLeMbas only: the CLI has no runner for this area.",
+  "cases": [
+    {
+      "about": "A known action, its fields only: a stray field is dropped and strings are trimmed.",
+      "kind": "check",
+      "args": {
+        "action": "alarm",
+        "summary": "  Alarm at 7:00 on weekdays ",
+        "time": "07:00",
+        "days": [
+          "mon",
+          "tue",
+          "wed",
+          "thu",
+          "fri"
+        ],
+        "label": " Work ",
+        "seconds": 60
+      },
+      "expect": {
+        "action": {
+          "action": "alarm",
+          "summary": "Alarm at 7:00 on weekdays",
+          "time": "07:00",
+          "days": [
+            "mon",
+            "tue",
+            "wed",
+            "thu",
+            "fri"
+          ],
+          "label": "Work"
+        }
+      }
+    },
+    {
+      "about": "No summary: the action's name stands in.",
+      "kind": "check",
+      "args": {
+        "action": "torch",
+        "on": false
+      },
+      "expect": {
+        "action": {
+          "action": "torch",
+          "summary": "torch",
+          "on": false
+        }
+      }
+    },
+    {
+      "about": "An action that is not one.",
+      "kind": "check",
+      "args": {
+        "action": "call",
+        "summary": "Call mum",
+        "number": "+421 900 123 456"
+      },
+      "expect": {
+        "refused": "\"call\" is not an action. Use one of: alarm, timer, calendar_event, sms_draft, email_draft, dial, navigate, add_stop, search_nearby, stop_navigation, open_app, open_url, media, torch, settings_panel, automation_intent. Nothing was sent to the phone."
+      }
+    },
+    {
+      "about": "A required field missing.",
+      "kind": "check",
+      "args": {
+        "action": "timer",
+        "summary": "Tea"
+      },
+      "expect": {
+        "refused": "timer needs seconds. Nothing was sent to the phone."
+      }
+    },
+    {
+      "about": "Both of add_stop's missing: all of them, in order, in one sentence.",
+      "kind": "check",
+      "args": {
+        "action": "add_stop",
+        "summary": "Add a stop"
+      },
+      "expect": {
+        "refused": "add_stop needs stop and destination. Nothing was sent to the phone."
+      }
+    },
+    {
+      "about": "A group: an SMS draft needs a recipient or a text.",
+      "kind": "check",
+      "args": {
+        "action": "sms_draft",
+        "summary": "Text"
+      },
+      "expect": {
+        "refused": "sms_draft needs to or body. Nothing was sent to the phone."
+      }
+    },
+    {
+      "about": "A group met by one of its fields.",
+      "kind": "check",
+      "args": {
+        "action": "sms_draft",
+        "summary": "Text Jana",
+        "to": [
+          "Jana"
+        ]
+      },
+      "expect": {
+        "action": {
+          "action": "sms_draft",
+          "summary": "Text Jana",
+          "to": [
+            "Jana"
+          ]
+        }
+      }
+    },
+    {
+      "about": "An empty string is missing, whitespace included.",
+      "kind": "check",
+      "args": {
+        "action": "open_app",
+        "summary": "Open",
+        "app": "   "
+      },
+      "expect": {
+        "refused": "open_app needs app. Nothing was sent to the phone."
+      }
+    },
+    {
+      "about": "A time out of range.",
+      "kind": "check",
+      "args": {
+        "action": "alarm",
+        "summary": "Alarm",
+        "time": "24:00"
+      },
+      "expect": {
+        "refused": "time is not a time as HH:MM (24-hour). Nothing was sent to the phone."
+      }
+    },
+    {
+      "about": "A timer of zero seconds.",
+      "kind": "check",
+      "args": {
+        "action": "timer",
+        "summary": "Timer",
+        "seconds": 0
+      },
+      "expect": {
+        "refused": "seconds is not a whole number of seconds from 1 to 86400. Nothing was sent to the phone."
+      }
+    },
+    {
+      "about": "A boolean is not a number of seconds.",
+      "kind": "check",
+      "args": {
+        "action": "timer",
+        "summary": "Timer",
+        "seconds": true
+      },
+      "expect": {
+        "refused": "seconds is not a whole number of seconds from 1 to 86400. Nothing was sent to the phone."
+      }
+    },
+    {
+      "about": "A calendar event with a date for a whole day.",
+      "kind": "check",
+      "args": {
+        "action": "calendar_event",
+        "summary": "Holiday",
+        "title": "Holiday",
+        "start": "2026-12-24",
+        "all_day": true
+      },
+      "expect": {
+        "action": {
+          "action": "calendar_event",
+          "summary": "Holiday",
+          "title": "Holiday",
+          "start": "2026-12-24",
+          "all_day": true
+        }
+      }
+    },
+    {
+      "about": "A start that is not a date.",
+      "kind": "check",
+      "args": {
+        "action": "calendar_event",
+        "summary": "Meet",
+        "title": "Meet",
+        "start": "tomorrow at 3"
+      },
+      "expect": {
+        "refused": "start is not a date and time as YYYY-MM-DDTHH:MM, or a date as YYYY-MM-DD for a whole day. Nothing was sent to the phone."
+      }
+    },
+    {
+      "about": "A number with too few digits.",
+      "kind": "check",
+      "args": {
+        "action": "dial",
+        "summary": "Dial",
+        "number": "12"
+      },
+      "expect": {
+        "refused": "number is not a phone number. Nothing was sent to the phone."
+      }
+    },
+    {
+      "about": "A number with letters in it.",
+      "kind": "check",
+      "args": {
+        "action": "dial",
+        "summary": "Dial",
+        "number": "0900 ABC"
+      },
+      "expect": {
+        "refused": "number is not a phone number. Nothing was sent to the phone."
+      }
+    },
+    {
+      "about": "A web address that is not http or https.",
+      "kind": "check",
+      "args": {
+        "action": "open_url",
+        "summary": "Open",
+        "url": "javascript:alert(1)"
+      },
+      "expect": {
+        "refused": "url is not an http or https address. Nothing was sent to the phone."
+      }
+    },
+    {
+      "about": "A web address in capitals is still one.",
+      "kind": "check",
+      "args": {
+        "action": "open_url",
+        "summary": "Open",
+        "url": "HTTPS://example.org/"
+      },
+      "expect": {
+        "action": {
+          "action": "open_url",
+          "summary": "Open",
+          "url": "HTTPS://example.org/"
+        }
+      }
+    },
+    {
+      "about": "A route: a destination, stops in order, a mode.",
+      "kind": "check",
+      "args": {
+        "action": "navigate",
+        "summary": "Drive home via the shop",
+        "destination": {
+          "name": "Home",
+          "query": "Hlavná 1, Trenčín"
+        },
+        "stops": [
+          {
+            "name": "Shop",
+            "lat": 48.89,
+            "lon": 18.04
+          }
+        ],
+        "mode": "drive"
+      },
+      "expect": {
+        "action": {
+          "action": "navigate",
+          "summary": "Drive home via the shop",
+          "destination": {
+            "name": "Home",
+            "query": "Hlavná 1, Trenčín"
+          },
+          "stops": [
+            {
+              "name": "Shop",
+              "lat": 48.89,
+              "lon": 18.04
+            }
+          ],
+          "mode": "drive"
+        }
+      }
+    },
+    {
+      "about": "A destination with coordinates out of range and nothing else is not a place.",
+      "kind": "check",
+      "args": {
+        "action": "navigate",
+        "summary": "Go",
+        "destination": {
+          "lat": 95,
+          "lon": 18
+        }
+      },
+      "expect": {
+        "refused": "destination is not a place: lat and lon together, or a query, or a name. Nothing was sent to the phone."
+      }
+    },
+    {
+      "about": "A stop that is not a place, inside the list.",
+      "kind": "check",
+      "args": {
+        "action": "navigate",
+        "summary": "Go",
+        "destination": {
+          "name": "Home",
+          "query": "Hlavná 1, Trenčín"
+        },
+        "stops": [
+          {
+            "name": "Shop"
+          },
+          {}
+        ]
+      },
+      "expect": {
+        "refused": "stops is not a list of places, each lat and lon together, or a query, or a name. Nothing was sent to the phone."
+      }
+    },
+    {
+      "about": "add_stop with its destination, as the person told it.",
+      "kind": "check",
+      "args": {
+        "action": "add_stop",
+        "summary": "Add the petrol station",
+        "stop": {
+          "query": "Slovnaft Trenčín"
+        },
+        "destination": {
+          "name": "Home",
+          "query": "Hlavná 1, Trenčín"
+        }
+      },
+      "expect": {
+        "action": {
+          "action": "add_stop",
+          "summary": "Add the petrol station",
+          "stop": {
+            "query": "Slovnaft Trenčín"
+          },
+          "destination": {
+            "name": "Home",
+            "query": "Hlavná 1, Trenčín"
+          }
+        }
+      }
+    },
+    {
+      "about": "A mode the schema does not have.",
+      "kind": "check",
+      "args": {
+        "action": "navigate",
+        "summary": "Go",
+        "destination": {
+          "name": "Home",
+          "query": "Hlavná 1, Trenčín"
+        },
+        "mode": "fly"
+      },
+      "expect": {
+        "refused": "mode is not one of drive, walk, bike, transit. Nothing was sent to the phone."
+      }
+    },
+    {
+      "about": "search_nearby along the route.",
+      "kind": "check",
+      "args": {
+        "action": "search_nearby",
+        "summary": "Petrol on the way",
+        "query": "petrol station",
+        "near": "route"
+      },
+      "expect": {
+        "action": {
+          "action": "search_nearby",
+          "summary": "Petrol on the way",
+          "query": "petrol station",
+          "near": "route"
+        }
+      }
+    },
+    {
+      "about": "stop_navigation needs nothing.",
+      "kind": "check",
+      "args": {
+        "action": "stop_navigation",
+        "summary": "Stop the route"
+      },
+      "expect": {
+        "action": {
+          "action": "stop_navigation",
+          "summary": "Stop the route"
+        }
+      }
+    },
+    {
+      "about": "The checks run in the spec's order: time is reported before days.",
+      "kind": "check",
+      "args": {
+        "action": "alarm",
+        "summary": "Alarm",
+        "time": "7",
+        "days": [
+          "monday"
+        ]
+      },
+      "expect": {
+        "refused": "time is not a time as HH:MM (24-hour). Nothing was sent to the phone."
+      }
+    },
+    {
+      "about": "A field another action reads is not checked here.",
+      "kind": "check",
+      "args": {
+        "action": "media",
+        "summary": "Pause",
+        "command": "pause",
+        "url": "nope"
+      },
+      "expect": {
+        "action": {
+          "action": "media",
+          "summary": "Pause",
+          "command": "pause"
+        }
+      }
+    },
+    {
+      "about": "An automation with its values.",
+      "kind": "check",
+      "args": {
+        "action": "automation_intent",
+        "summary": "Run Arrive home",
+        "task": "Arrive home",
+        "values": {
+          "lights": "on"
+        }
+      },
+      "expect": {
+        "action": {
+          "action": "automation_intent",
+          "summary": "Run Arrive home",
+          "task": "Arrive home",
+          "values": {
+            "lights": "on"
+          }
+        }
+      }
+    },
+    {
+      "about": "Values must be text.",
+      "kind": "check",
+      "args": {
+        "action": "automation_intent",
+        "summary": "Run",
+        "task": "x",
+        "values": {
+          "n": 1
+        }
+      },
+      "expect": {
+        "refused": "values is not named text values. Nothing was sent to the phone."
+      }
+    },
+    {
+      "about": "An email draft with a list of recipients.",
+      "kind": "check",
+      "args": {
+        "action": "email_draft",
+        "summary": "Email",
+        "to": [
+          "a@example.org"
+        ],
+        "subject": "Hi"
+      },
+      "expect": {
+        "action": {
+          "action": "email_draft",
+          "summary": "Email",
+          "to": [
+            "a@example.org"
+          ],
+          "subject": "Hi"
+        }
+      }
+    },
+    {
+      "about": "A recipient list holding an empty name.",
+      "kind": "check",
+      "args": {
+        "action": "email_draft",
+        "summary": "Email",
+        "to": [
+          "a@example.org",
+          ""
+        ],
+        "subject": "Hi"
+      },
+      "expect": {
+        "refused": "to is not a list of recipients. Nothing was sent to the phone."
+      }
+    },
+    {
+      "about": "torch: on must be a boolean.",
+      "kind": "check",
+      "args": {
+        "action": "torch",
+        "summary": "Torch",
+        "on": "yes"
+      },
+      "expect": {
+        "refused": "on is not true or false. Nothing was sent to the phone."
+      }
+    },
+    {
+      "about": "A panel the schema does not have.",
+      "kind": "check",
+      "args": {
+        "action": "settings_panel",
+        "summary": "Open",
+        "panel": "battery"
+      },
+      "expect": {
+        "refused": "panel is not one of wifi, bluetooth, internet, volume, nfc, location, do_not_disturb. Nothing was sent to the phone."
+      }
+    },
+    {
+      "about": "Done, with nothing said.",
+      "kind": "result",
+      "status": "done",
+      "message": "",
+      "expect": "Done on the phone."
+    },
+    {
+      "about": "Done, with what the phone said.",
+      "kind": "result",
+      "status": "done",
+      "message": "Alarm set for 07:00, weekdays.",
+      "expect": "Done on the phone.\n\nThe phone says: Alarm set for 07:00, weekdays."
+    },
+    {
+      "about": "Declined.",
+      "kind": "result",
+      "status": "declined",
+      "message": "",
+      "expect": "The person declined it on the phone: nothing was done. Do not try again unless they ask."
+    },
+    {
+      "about": "Declined, with the person's words.",
+      "kind": "result",
+      "status": "declined",
+      "message": "Not now.",
+      "expect": "The person declined it on the phone: nothing was done. Do not try again unless they ask.\n\nThe phone says: Not now."
+    },
+    {
+      "about": "Failed, with why.",
+      "kind": "result",
+      "status": "failed",
+      "message": "OsmAnd is not installed.",
+      "expect": "The phone could not do it: nothing was done.\n\nThe phone says: OsmAnd is not installed."
+    },
+    {
+      "about": "A status the phone does not know is failed.",
+      "kind": "result",
+      "status": "maybe",
+      "message": "?",
+      "expect": "The phone could not do it: nothing was done.\n\nThe phone says: ?"
+    },
+    {
+      "about": "A message is trimmed.",
+      "kind": "result",
+      "status": "done",
+      "message": "  Torch on.  \n",
+      "expect": "Done on the phone.\n\nThe phone says: Torch on."
+    },
+    {
+      "about": "No answer in time.",
+      "kind": "result",
+      "status": null,
+      "message": "",
+      "expect": "The phone did not answer in time: nothing was done."
+    },
+    {
+      "about": "A message is cut at message_max_chars.",
+      "kind": "result",
+      "status": "failed",
+      "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "expect": "The phone could not do it: nothing was done.\n\nThe phone says: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    }
+  ]
+}

@@ -24,6 +24,7 @@ from lembas.services import (
     generation,
     harness_spec,
     jobs,
+    phone,
     plans,
     prompts,
     reasoning,
@@ -70,6 +71,15 @@ AREAS = {
         "silent": notify.is_silent(c["text"]), "stripped": notify.strip_sentinel(c["text"])
     },
     "monitor": lambda c: _monitor(c),
+    # Spec 3.6.0: a phone_action call checked, and the phone's answer as the
+    # text the model is told (`services/phone.py`).
+    "phone": lambda c: (
+        (lambda ok, refused: {"action": ok} if ok else {"refused": refused})(
+            *phone.check(c["args"])
+        )
+        if c["kind"] == "check"
+        else phone.result_text(c["status"], c["message"])
+    ),
     "delegation": lambda c: _delegation(c),
     # The effort levels a chat offers and what each sends (spec 3.2.0): pure,
     # from the model's metadata. `services/chat.py levels`, `level_fields`.
