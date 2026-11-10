@@ -25,6 +25,7 @@ The rules are `_follow`'s and they are why a flaky phone connection works:
 | `status` | `{"text", "progress"}` -- `progress`: the phase object (spec 3.4.0) or null |
 | `ask` | `{"cards": [...]}` -- empty when the last one was answered |
 | `jobs` | `{"jobs": [...]}` -- only once there are any |
+| `tree` | `{"tree": {...}}` -- the subagent tree (spec 3.4.0), once there is one |
 | `metrics` | as on a message |
 | `done` | `{"message", "chat": {"id", "title"}, "next": id or null}` |
 | `close` | `{}` |
@@ -121,6 +122,10 @@ async def follow_json(chat_id: str, message_id: str) -> AsyncIterator[str]:
                     yield out
                 if generation.jobs and (
                     out := changed("jobs", {"jobs": serialise.jobs(generation.jobs)})
+                ):
+                    yield out
+                if generation.team_tree and (
+                    out := changed("tree", {"tree": generation.team_tree})
                 ):
                     yield out
                 last_frame = time.monotonic()

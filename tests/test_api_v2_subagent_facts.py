@@ -117,17 +117,19 @@ def test_a_one_request_model_with_another_server_is_offered_named_only(client, d
 
 
 @pytest.mark.parametrize("parallel", [1, 4])
-def test_an_agent_chat_is_never_offered_its_subagents_run_on_the_device(client, db, parallel):
-    """Spec 3.3.0 `team.md` §11: an agent chat's subagents are the device's,
-    and the link carries no size setting -- the page shows none, and neither
-    does the app. `/models?chat=` for it says the same for every model; a new
-    chat's `/models` is about a chat on the server, so an app asks it only for
-    one (`kind` chat)."""
+def test_an_agent_chats_subagents_are_its_devices_and_offered_whatever_the_model(
+    client, db, parallel
+):
+    """Spec 3.4.0 (subagents.md §14, acp.md capability `agents`): an agent
+    chat's subagents run on its device, on the person's models, and its
+    setting goes down with every turn -- so it is offered wherever the
+    instance and the person allow subagents, whatever the chat's model serves
+    (the device judges the models). `/models?chat=` says the same."""
     model = _model(db, _connection(db, "A"), "m", parallel=parallel)
     _model(db, _connection(db, "B"), "other")
     facts = _facts(client, _bearer(db), _chat(db, model, kind=KIND_AGENT))
-    assert facts["chat"]["offered"] is False and facts["chat"]["named_only"] is False
-    assert all(not s["offered"] for s in facts["models_for_chat"].values())
+    assert facts["chat"]["offered"] is True and facts["chat"]["named_only"] is False
+    assert all(s["offered"] and not s["named_only"] for s in facts["models_for_chat"].values())
 
 
 def test_the_list_does_not_say_no_where_it_did_not_look(client, db):

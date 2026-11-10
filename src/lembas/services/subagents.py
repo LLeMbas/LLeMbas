@@ -231,8 +231,14 @@ def view(db, user, chat=None, model=None) -> dict[str, Any]:
     offered (`team_run.offered`: enabled, permitted, some model could serve),
     whether they need a model the person names (`named_only`: the chat's own
     serves one request at a time), and the instance's cap on the setting."""
+    from lembas.db.models import KIND_AGENT
     from lembas.services import team_run
 
+    if chat is not None and getattr(chat, "kind", "") == KIND_AGENT:
+        # Spec 3.4.0 (subagents.md §14): an agent chat's subagents are its
+        # device's; the setting goes down with every turn.
+        return {"offered": team_run.agent_offered(db, user), "named_only": False,
+                "cap": team_run.cap(db)}
     offered = team_run.offered(db, chat, user, model) if (chat or model) else False
     return {
         "offered": bool(offered),

@@ -22,7 +22,7 @@
     "max": 4
   },
   "subagents": {
-    "offered": false,
+    "offered": true,
     "named_only": false,
     "cap": 32
   },

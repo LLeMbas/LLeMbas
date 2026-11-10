@@ -204,6 +204,11 @@
            while the conversation itself is idle. #}
         <p class="interaction__asker">{{ t("%(job)s asks:", job=item.job) }}</p>
         {% endif %}
+        {% if item.subagent %}
+        {# A subagent of the device's tree asks, for a call nobody in the tree
+           may allow (spec 3.4.0): named, with its position. #}
+        <p class="interaction__asker">{{ t("Subagent %(name)s (%(id)s), %(position)s, asks:", name=item.subagent[1], id=item.subagent[0], position=item.subagent[2] or "—") }}</p>
+        {% endif %}
         <p class="interaction__title">{{ item.title }}</p>
         {% if item.purpose %}
         {# The model's own account of what this is for, above the thing itself.

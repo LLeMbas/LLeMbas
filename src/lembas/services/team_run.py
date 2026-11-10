@@ -181,6 +181,29 @@ def subagents_allowed(db, user, model) -> bool:
     return bool(permissions.resolve(db, user).get("tools.subagent"))
 
 
+def agent_offered(db, user) -> bool:
+    """Spec 3.4.0 (subagents.md §14): an agent chat's subagents are its
+    device's, on the person's models; offered where the instance has
+    subagents switched on and the person may use them. The device runs them
+    only when it lists `agents` and `tree` (`device_runs`)."""
+    from lembas.security import permissions
+
+    if user is None or not settings_store.subagents(db).get("enabled"):
+        return False
+    return bool(permissions.resolve(db, user).get("tools.subagent"))
+
+
+def device_runs(chat: Chat | None) -> bool | None:
+    """Whether an agent chat's device runs subagents (it lists `agents` and
+    `tree`); None while it is not linked."""
+    from lembas.services import device_link
+
+    token = getattr(chat, "device_token_id", None)
+    if not token or device_link.link_for(token) is None:
+        return None
+    return device_link.offers(token, "agents") and device_link.offers(token, "tree")
+
+
 def offered(db, chat: Chat | None, user, model=None) -> bool:
     """Whether subagents -- the size setting, `task` and the team tools -- are
     offered in this chat (or, with no chat, a new one on `model`), harness spec

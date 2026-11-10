@@ -169,6 +169,10 @@ class Item:
     # the session's own call. Said on the card, because a background subagent
     # may ask while the conversation itself is idle.
     job: str = ""
+    # Which subagent of the device's tree asks, when nobody in the tree could
+    # allow its call (spec 3.4.0, `_meta.lembas.subagent`): (id, name,
+    # position). The card names it; the answers are the main agent's own.
+    subagent: tuple[str, str, str] = ()
 
 
 @dataclass

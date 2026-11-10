@@ -518,6 +518,12 @@ def item(entry: interaction.Item) -> dict[str, Any]:
             "plan": plan(entry.plan) if entry.plan else None,
             "mode_choice": entry.mode_choice,
             "job": entry.job,
+            "subagent": (
+                {"id": entry.subagent[0], "name": entry.subagent[1],
+                 "position": entry.subagent[2]}
+                if entry.subagent
+                else None
+            ),
         }
     )
 

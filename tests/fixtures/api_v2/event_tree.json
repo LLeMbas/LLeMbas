@@ -1,0 +1,75 @@
+{
+  "tree": {
+    "min": 1,
+    "max": 4,
+    "size": 2,
+    "open_slots": 1,
+    "agents": [
+      {
+        "id": "lead",
+        "name": "lead",
+        "position": "the main agent",
+        "parent": null,
+        "state": "working",
+        "model": "qwen-27b",
+        "mode": "edit",
+        "request": [],
+        "manager": true,
+        "context": {
+          "used": 41200,
+          "window": 131072
+        },
+        "progress": {
+          "phase": "thinking",
+          "since": 1767323045000
+        },
+        "findings": 0,
+        "messages": 2
+      },
+      {
+        "id": "s2",
+        "name": "parser",
+        "position": "reviews the parser",
+        "parent": "lead",
+        "state": "working",
+        "model": "qwen-27b",
+        "mode": "manual",
+        "task": "Review src/parse.ts.",
+        "request": [
+          "write"
+        ],
+        "manager": false,
+        "context": {
+          "used": 9100,
+          "window": 131072
+        },
+        "progress": {
+          "phase": "running_tool",
+          "since": 1767323045000,
+          "tool": "read",
+          "what": "src/parse.ts"
+        },
+        "findings": 2,
+        "messages": 3
+      }
+    ],
+    "ended": [
+      {
+        "id": "s1",
+        "name": "scout",
+        "position": "maps the code",
+        "parent": "lead",
+        "state": "done",
+        "model": "qwen-27b",
+        "mode": "edit",
+        "task": "Map it.",
+        "request": [],
+        "manager": false,
+        "progress": null,
+        "findings": 1,
+        "messages": 1,
+        "ended": 1767323045000
+      }
+    ]
+  }
+}

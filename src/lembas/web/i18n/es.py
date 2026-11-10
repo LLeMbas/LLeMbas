@@ -2591,3 +2591,11 @@ MESSAGES.update(
         'budget': 'presupuesto',
     }
 )
+
+# Subagents in agent chats (harness spec 3.4.0).
+MESSAGES.update(
+    {
+        'Subagent %(name)s (%(id)s), %(position)s, asks:': 'El subagente %(name)s (%(id)s), %(position)s, pregunta:',
+        'The computer this chat runs on does not run subagents: update its LLeMbas CLI.': 'El ordenador en el que se ejecuta este chat no ejecuta subagentes: actualiza allí LLeMbas CLI.',
+    }
+)

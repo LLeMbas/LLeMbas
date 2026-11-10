@@ -28,6 +28,16 @@ before its tag; the pin to a release tag comes with the release.
   save what it found, and ends; its parent is told, and the main agent can replace it
   (`team_replace`) with the same name and position, briefed with its findings. Ended subagents stay
   in the tree with their findings, and their conversations are kept as long as the chat.
+- **Subagents in agent chats.** An agent chat's Subagents setting (Min and Max) now means something:
+  it goes to the computer with every message (LLeMbas CLI 2.0.0-beta.6 runs the subagents there,
+  on your models), and a change between messages is sent at once. The computer's tree of subagents
+  comes back and is kept with the chat; when a subagent needs something nobody in the tree may
+  allow, the approval card says which subagent asks. A computer whose LLeMbas CLI does not run
+  subagents is said beside the setting. The new-chat screen's setting for an agent chat is used.
+- **`/api/v2`: the subagent tree.** The stream sends `tree` (`{tree}`, harness spec 3.4.0
+  `subagents.md` §12) when it changes; an approval item carries `subagent` (`{id, name, position}`
+  or null); an agent chat's `subagents.offered` is true where subagents are allowed. Fixtures: new
+  `event_tree.json`; `event_ask.json` and `chat_agent.json` changed.
 - **`/api/v2`: `progress`** (harness spec 3.4.0, `progress.md`). The stream's `status` frame is
   `{text, progress}` -- the phase object `{phase, since, ...}` or null, sent when it changes (its
   data at most four times a second); a schedule's run carries `progress` too. Fixtures:

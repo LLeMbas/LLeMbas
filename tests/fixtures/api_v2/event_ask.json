@@ -34,7 +34,8 @@
           "editable": false,
           "plan": null,
           "mode_choice": true,
-          "job": ""
+          "job": "",
+          "subagent": null
         }
       ]
     },
@@ -61,7 +62,8 @@
           "editable": true,
           "plan": null,
           "mode_choice": true,
-          "job": "explore (job1)"
+          "job": "explore (job1)",
+          "subagent": null
         }
       ]
     },
@@ -119,7 +121,40 @@
             ]
           },
           "mode_choice": true,
-          "job": ""
+          "job": "",
+          "subagent": null
+        }
+      ]
+    },
+    {
+      "id": "card4",
+      "kind": "approval",
+      "why": "",
+      "dismissable": false,
+      "expires_in": null,
+      "items": [
+        {
+          "index": 0,
+          "key": "0",
+          "kind": "approval",
+          "tool": "bash",
+          "title": "Run a command",
+          "header": "",
+          "detail": "git push",
+          "reason": "Edit mode asks before anything that runs a command.",
+          "purpose": "",
+          "options": [],
+          "multiple": false,
+          "free_text": false,
+          "editable": true,
+          "plan": null,
+          "mode_choice": true,
+          "job": "",
+          "subagent": {
+            "id": "s1",
+            "name": "parser",
+            "position": "reviews the parser"
+          }
         }
       ]
     }

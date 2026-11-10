@@ -102,6 +102,12 @@ def _chat_context(db: DBSession, user: User, chat: Chat | None) -> dict:
     }
 
 
+def _agent_team_offered(db: DBSession, user: User) -> bool:
+    from lembas.services import team_run
+
+    return team_run.agent_offered(db, user)
+
+
 def _team_context(db: DBSession, user: User, chat: Chat | None, model) -> dict:
     """The team's size setting (harness spec 3.2.0): whether one is offered
     here, and the setting for the control beside the effort. The new-chat
@@ -109,14 +115,24 @@ def _team_context(db: DBSession, user: User, chat: Chat | None, model) -> dict:
     from lembas.services import subagents as subagents_rules
     from lembas.services import team_run
 
+    device_runs = None
     if chat is None:
         offered = team_run.offered(db, None, user, model) if model is not None else False
         low, high = team_run.user_default(db, user)
+    elif chat.kind == KIND_AGENT:
+        # Spec 3.4.0 (subagents.md §14): an agent chat's subagents are its
+        # device's, and its setting goes down with every turn.
+        offered = team_run.agent_offered(db, user)
+        device_runs = team_run.device_runs(chat)
+        low, high = team_run.setting(db, chat)
     else:
         offered = team_run.offered(db, chat, user, model)
         low, high = team_run.setting(db, chat)
     return {
         "team_offered": offered,
+        # An agent chat whose device does not run subagents (it does not list
+        # `agents` and `tree`): the setting says so.
+        "team_device_off": device_runs is False,
         "team_setting": {"min": low, "max": high},
         "team_cap": team_run.cap(db),
         # Harness spec 3.3.0 (subagents.md §4): the chat's model cannot serve
@@ -912,6 +928,13 @@ async def chat_index(
             # person's own default for the model, else the model's start level.
             "chosen_level": model_prefs.default_effort(db, user, preselected),
             **_team_context(db, user, None, preselected),
+            # A new agent chat (spec 3.4.0): its subagents run on the device,
+            # and the setting chosen here goes down with its first turn.
+            **(
+                {"team_offered": _agent_team_offered(db, user)}
+                if kind == KIND_AGENT
+                else {}
+            ),
             "starting_temporary": temporary,
             "temporary_toggle_url": new_chat_url(temporary="" if temporary else "1"),
             "model_navigate_url": without_model + ("&" if "?" in without_model else "?") + "model=",

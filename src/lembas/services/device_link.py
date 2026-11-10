@@ -494,11 +494,20 @@ class Link:
         job = ""
         if asker.get("id"):
             job = f"{str(asker.get('agent') or 'subagent')[:60]} ({str(asker['id'])[:32]})"
+        # A subagent of the device's tree (spec 3.4.0, capability `tree`)
+        # whose call nobody in the tree could allow: the card names it.
+        who = meta.get("subagent") if isinstance(meta.get("subagent"), dict) else {}
+        subagent: tuple[str, str, str] = ()
+        if who.get("id") and who.get("name"):
+            subagent = (
+                str(who["id"])[:16], str(who["name"])[:40], str(who.get("position") or "")[:200]
+            )
         item = interaction.Item(
             index=0,
             key="0",
             kind=interaction.KIND_APPROVAL,
             tool_name=tool,
+            subagent=subagent,
             title=name if not command else "Run a command",
             detail=command or json.dumps(raw, ensure_ascii=False)[:2000],
             reason=str(meta.get("reason") or "")[: interaction.MAX_REASON_CHARS],
@@ -1756,6 +1765,13 @@ async def _reattach(
         # without waiting for the next change. Onto this reply by hand: it
         # is not registered as the session's writer until it follows.
         _store_plan(link, session_id, _plan_onto(generation, status.get("plan")))
+    if link.can("progress") and "progress" in status:
+        # Spec 3.4.0: the phase as the device has it, drawn at once.
+        generation.device_phases = True
+        generation.tracker.current = device_progress(status.get("progress"))
+        generation.tracker.version += 1
+    if link.can("tree") and "tree" in status:
+        _take_tree(generation, status.get("tree"))
     if link.can("jobs") and isinstance(status.get("jobs"), list):
         # The session's background jobs, for the strip, for the same reason.
         from lembas.services import jobs as jobs_service
@@ -1914,7 +1930,12 @@ async def _open(
         meta["effort"] = effort
     # What only this instance knows, under `lembas` -- beside the mode and
     # model, which protocol 1 devices read at the top of `_meta`.
-    if context := session_context(link, chat_id):
+    context = session_context(link, chat_id)
+    if link.can("agents") and (said := said_before(chat_id, generation.message_id)):
+        # The person's earlier words (subagents.md §2), for a device that has
+        # not seen this chat's turns: it judges a named model from them.
+        context["said"] = said
+    if context:
         meta["lembas"] = context
     opened = await link.request(
         "session/new", {"cwd": project_dir, "mcpServers": [], "_meta": meta}, timeout=60
@@ -1968,6 +1989,58 @@ async def _bring_up_to_date(
     link.sessions[chat_id] = session_id
 
 
+SAID_MAX = 50
+SAID_CHARS = 4000
+
+
+def said_before(chat_id: str, message_id: str) -> list[str]:
+    """The person's messages of this chat before the turn being answered,
+    oldest first (`_meta.lembas.said`, acp.md): typed ones only, never the
+    harness's (`machine`), bounded."""
+    from sqlalchemy import select
+
+    from lembas.db.models import ROLE_USER, Chat, Message
+    from lembas.db.session import session_scope
+
+    with session_scope() as db:
+        chat = db.get(Chat, chat_id)
+        answering = db.get(Message, message_id)
+        if chat is None or answering is None:
+            return []
+        rows = db.scalars(
+            select(Message)
+            .where(
+                Message.chat_id == chat_id,
+                Message.role == ROLE_USER,
+                Message.machine.is_(False),
+                Message.created_at < answering.created_at,
+            )
+            .order_by(Message.created_at)
+        ).all()
+        texts = [str(r.content or "")[:SAID_CHARS] for r in rows if (r.content or "").strip()]
+    # The last is the prompt this session is opened for: it goes as the prompt.
+    return texts[:-1][-SAID_MAX:]
+
+
+async def configure_agents(token_id: str | None, session_id: str | None, low: int,
+                           high: int) -> bool:
+    """The person changed an agent chat's Subagents setting between turns:
+    `_lembas/configure` with `agents` (spec 3.4.0), when its device is linked,
+    lists `agents` and has the session. Every prompt carries it anyway."""
+    link = link_for(token_id)
+    if link is None or not session_id or not link.can("agents"):
+        return False
+    try:
+        await link.request(
+            "_lembas/configure", {"sessionId": session_id, "agents": {"min": low, "max": high}},
+            timeout=30,
+        )
+    except Exception:  # the next prompt carries it
+        log.info("could not tell the device the new Subagents setting", exc_info=True)
+        return False
+    return True
+
+
 def _keep_session_id(chat_id: str, session_id: str) -> None:
     from lembas.db.models import Chat
     from lembas.db.session import session_scope
@@ -1985,7 +2058,7 @@ def session_context(link: Link, chat_id: str) -> dict[str, Any]:
     `session/new`): what the device composes its prompt from and cannot know
     by itself. Each piece is gated on the capability that says the device
     reads it; a device listing none gets `{}`, and nothing changes for it."""
-    if not link.can("context"):
+    if not (link.can("context") or link.can("agents")):
         return {}
     from lembas.db.models import Chat, User
     from lembas.db.session import session_scope
@@ -2012,6 +2085,16 @@ def context_for(db, link: Link, user, chat) -> dict[str, Any]:
     from lembas.services import personalization
 
     context: dict[str, Any] = {}
+    # Spec 3.4.0 (capability `agents`): the chat's Subagents setting, with
+    # every turn; `subagents: false` while the instance has them switched off
+    # (or the person may not use them), so the device offers none.
+    if link.can("agents"):
+        from lembas.services import team_run
+
+        low, high = team_run.setting(db, chat)
+        context["agents"] = {"min": low, "max": high}
+        if not team_run.agent_offered(db, user):
+            context["subagents"] = False
     if link.can("context"):
         context["system_prompt"] = chat_service.effective_system_prompt(db, chat)
         chosen = personalization.of(user) if user is not None else None
@@ -2974,6 +3057,137 @@ async def job_transcript(
                 )
             turns.append({"role": "assistant", "text": text, "tools": tools, "error": ""})
     return turns
+
+
+# --- Spec 3.4.0: an agent chat's tree, read and stopped through the link ----------------
+ON_THE_DEVICE = "it is kept on the device, which is not linked right now"
+
+
+def _tree_link(token_id: str | None, session_id: str | None) -> Link:
+    """The link a tree request goes over (capability `tree`), or why it
+    cannot (`DeviceError`)."""
+    link = link_for(token_id)
+    if link is None:
+        raise DeviceError(ON_THE_DEVICE)
+    if not session_id or not link.can("tree"):
+        raise DeviceError(
+            "the device's LLeMbas CLI does not show its subagents from here; update it there"
+        )
+    return link
+
+
+def _turns(raw_turns: Any) -> list[dict[str, Any]]:
+    """`_lembas/session/history`-shaped turns, bounded, as `job_transcript`
+    reads them: one panel draws a helper here and a device's subagent alike."""
+    from lembas.services import tool_blocks
+
+    turns: list[dict[str, Any]] = []
+    for raw in raw_turns or []:
+        if not isinstance(raw, dict):
+            continue
+        role = str(raw.get("role") or "")
+        text = str(raw.get("text") or "")[:MAX_REPLY_CHARS]
+        if role == "user":
+            turns.append({"role": "user", "text": text, "machine": bool(raw.get("machine"))})
+        elif role == "assistant":
+            tools = []
+            for tool in (raw.get("tools") or [])[:500]:
+                if not isinstance(tool, dict):
+                    continue
+                event = _tool_event(tool)
+                tools.append(
+                    {
+                        "name": str(tool.get("name") or "tool")[:60],
+                        "title": tool_blocks.block_for(event).title[:200],
+                        "isError": bool(tool.get("isError")),
+                    }
+                )
+            turns.append({"role": "assistant", "text": text, "tools": tools, "error": ""})
+    return turns
+
+
+ROOM_KINDS = ("message", "report", "assignment", "request", "decision")
+
+
+async def team_view(
+    token_id: str | None, session_id: str | None, since: int = 0
+) -> dict[str, Any]:
+    """`_lembas/team`: the tree and the room's messages above `since`, as the
+    device answers them, cleaned. `{tree, room}`; tree None for no subagents."""
+    link = _tree_link(token_id, session_id)
+    answer = await link.request(
+        "_lembas/team", {"sessionId": session_id, "since": max(0, int(since))}, timeout=15
+    )
+    answer = answer if isinstance(answer, dict) else {}
+    room = []
+    for raw in (answer.get("room") or [])[:1000]:
+        if not isinstance(raw, dict):
+            continue
+        try:
+            n = int(raw.get("n") or 0)
+        except (TypeError, ValueError):
+            continue
+        kind = str(raw.get("kind") or "message")
+        room.append(
+            {
+                "n": n,
+                "from": str(raw.get("from") or "")[:40],
+                "to": [str(x)[:40] for x in (raw.get("to") or [])][:50],
+                "text": str(raw.get("text") or "")[:MAX_NOTE_CHARS],
+                "report": bool(raw.get("report")),
+                "kind": kind if kind in ROOM_KINDS else "message",
+                "time": raw.get("time") if isinstance(raw.get("time"), int) else None,
+            }
+        )
+    return {"tree": clean_tree(answer.get("tree")), "room": room}
+
+
+async def team_transcript(
+    token_id: str | None, session_id: str | None, agent_id: str
+) -> dict[str, Any]:
+    """`_lembas/team/transcript`: a subagent's conversation, read-only."""
+    link = _tree_link(token_id, session_id)
+    answer = await link.request(
+        "_lembas/team/transcript", {"sessionId": session_id, "id": agent_id}, timeout=30
+    )
+    answer = answer if isinstance(answer, dict) else {}
+    return {
+        "id": str(answer.get("id") or agent_id)[:16],
+        "state": str(answer.get("state") or "")[:20],
+        "turns": _turns(answer.get("turns")),
+    }
+
+
+async def team_findings(
+    token_id: str | None, session_id: str | None, agent_id: str
+) -> dict[str, Any]:
+    """`_lembas/team/findings`: a subagent's findings, ended ones' too."""
+    link = _tree_link(token_id, session_id)
+    answer = await link.request(
+        "_lembas/team/findings", {"sessionId": session_id, "id": agent_id}, timeout=15
+    )
+    answer = answer if isinstance(answer, dict) else {}
+    findings = []
+    for raw in (answer.get("findings") or [])[:500]:
+        if isinstance(raw, dict):
+            findings.append(
+                {
+                    "n": int(raw.get("n") or 0) if str(raw.get("n") or "0").isdigit() else 0,
+                    "text": str(raw.get("text") or "")[:MAX_NOTE_CHARS],
+                    "time": raw.get("time") if isinstance(raw.get("time"), int) else None,
+                }
+            )
+    return {"id": str(answer.get("id") or agent_id)[:16], "findings": findings}
+
+
+async def team_stop(token_id: str | None, session_id: str | None, agent_id: str) -> list[str]:
+    """`_lembas/team/stop`: the person stops a subagent and its subtree."""
+    link = _tree_link(token_id, session_id)
+    answer = await link.request(
+        "_lembas/team/stop", {"sessionId": session_id, "id": agent_id}, timeout=30
+    )
+    stopped = (answer or {}).get("stopped") if isinstance(answer, dict) else None
+    return [str(x)[:16] for x in stopped or []]
 
 
 def link_restarted(generation) -> bool:

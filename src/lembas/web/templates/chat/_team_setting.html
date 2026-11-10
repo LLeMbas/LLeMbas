@@ -22,6 +22,9 @@
   <legend class="visually-hidden">{{ t("Subagents") }}</legend>
   {{ team_range(team_setting.min, team_setting.max, team_cap, chat=chat, legend=t("Subagents"), focus=true) }}
   <p class="team-setting__hint" id="agents-hint">{{ t("Counted with this chat's own agent: 1 is the agent alone, no subagents; Max 4 is the agent and up to 3 subagents, which do the work while it leads them.") }}</p>
+  {% if team_device_off|default(false) %}
+  <p class="team-setting__hint team-setting__hint--own">{{ t("The computer this chat runs on does not run subagents: update its LLeMbas CLI.") }}</p>
+  {% endif %}
   {% if team_own %}
   <p class="team-setting__hint team-setting__hint--own">{{ t("This model serves one request at a time: subagents need another model, on another server, named in the chat.") }}</p>
   {% endif %}

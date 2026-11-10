@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import time
@@ -2844,6 +2845,15 @@ def apply_chat_update(db: DBSession, user: User, chat: Chat, form) -> tuple[bool
                 ),
             )
         chat.agents_min, chat.agents_max = int(wanted_low), int(wanted_high)
+        if chat.kind == KIND_AGENT and chat.device_session_id:
+            # Spec 3.4.0: the device hears of it between turns too.
+            with contextlib.suppress(RuntimeError):
+                asyncio.get_running_loop().create_task(
+                    device_link.configure_agents(
+                        chat.device_token_id, chat.device_session_id,
+                        chat.agents_min, chat.agents_max,
+                    )
+                )
 
     # Switching model re-seeds a level the new model does not offer -- this
     # person's own default for it, else its start level -- so "what the picker

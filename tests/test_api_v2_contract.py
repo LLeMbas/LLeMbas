@@ -25,8 +25,8 @@ import pytest
 from lembas.api.v2 import APP_API, serialise
 from lembas.api.v2.stream import frame, status_payload
 from lembas.db.models import Chat, Message, Model
+from lembas.services import device_link, interaction
 from lembas.services import generation as generation_service
-from lembas.services import interaction
 from lembas.services import metrics as metrics_service
 from lembas.services import progress as progress_service
 
@@ -235,6 +235,20 @@ def _cards() -> list[interaction.Interruption]:
         allow_free_text=False,
         job="explore (job1)",
     )
+    # Spec 3.4.0: a subagent of the device's tree asks for what nobody in the
+    # tree could allow; the card names it.
+    asked_by_subagent = interaction.Item(
+        index=0,
+        key="0",
+        kind=interaction.KIND_APPROVAL,
+        tool_name="bash",
+        title="Run a command",
+        detail="git push",
+        reason="Edit mode asks before anything that runs a command.",
+        editable=True,
+        allow_free_text=False,
+        subagent=("s1", "parser", "reviews the parser"),
+    )
     plan = interaction.Item(
         index=0,
         key="p0",
@@ -248,6 +262,7 @@ def _cards() -> list[interaction.Interruption]:
         interaction.Interruption(id="card1", items=(question,)),
         interaction.Interruption(id="card2", items=(approval,)),
         interaction.Interruption(id="card3", items=(plan,), dismissable=True),
+        interaction.Interruption(id="card4", items=(asked_by_subagent,)),
     ]
 
 
@@ -490,6 +505,29 @@ def _schedules() -> dict[str, object]:
 
 WHEN_MS = int(WHEN.timestamp() * 1000)
 
+TREE = {
+    "min": 1, "max": 4, "size": 2, "open_slots": 1,
+    "agents": [
+        {"id": "lead", "name": "lead", "position": "the main agent", "parent": None,
+         "state": "working", "model": "qwen-27b", "mode": "edit", "request": [],
+         "manager": True, "context": {"used": 41200, "window": 131072},
+         "progress": {"phase": "thinking", "since": WHEN_MS}, "findings": 0, "messages": 2},
+        {"id": "s2", "name": "parser", "position": "reviews the parser", "parent": "lead",
+         "state": "working", "model": "qwen-27b", "mode": "manual", "request": ["write"],
+         "manager": False, "task": "Review src/parse.ts.",
+         "context": {"used": 9100, "window": 131072},
+         "progress": {"phase": "running_tool", "since": WHEN_MS, "tool": "read",
+                      "what": "src/parse.ts"},
+         "findings": 2, "messages": 3},
+    ],
+    "ended": [
+        {"id": "s1", "name": "scout", "position": "maps the code", "parent": "lead",
+         "state": "done", "model": "qwen-27b", "mode": "edit", "request": [],
+         "manager": False, "task": "Map it.", "progress": None, "findings": 1, "messages": 1,
+         "ended": WHEN_MS},
+    ],
+}
+
 
 def _statuses() -> dict[str, object]:
     """The `status` frame (spec 3.4.0, progress.md §5): the free text and the
@@ -545,11 +583,12 @@ def _shapes() -> dict[str, object]:
             ],
             "subagents_cap": 32,
         },
-        # An agent chat is never offered subagents here: they run on its
-        # device (team.md §11), as `GET /chats/{chat}` says.
+        # An agent chat's subagents are its device's (spec 3.4.0, subagents.md
+        # §14): offered where the instance and the person allow them; the
+        # setting goes down with every turn.
         "chat_agent": serialise.chat(
             _agent_chat(), running=True,
-            subagents={"offered": False, "named_only": False, "cap": 32},
+            subagents={"offered": True, "named_only": False, "cap": 32},
         ),
         # A page of the sidebar: `subagents` is not worked out there (null).
         "chats_listed": {"chats": [serialise.chat(_chat(), running=False)], "more": False},
@@ -560,6 +599,9 @@ def _shapes() -> dict[str, object]:
         "event_steered": {"ids": ["msg9"]},
         "event_plan": serialise.plan(generation.plan),
         **_statuses(),
+        # The subagent tree (spec 3.4.0, subagents.md §12) as the stream's
+        # `tree` frame carries it: an agent chat's, from its device.
+        "event_tree": {"tree": device_link.clean_tree(TREE)},
         "event_ask": {"cards": serialise.asks(generation.waiting)},
         "event_ask_empty": {"cards": []},
         "event_jobs": {"jobs": serialise.jobs(generation.jobs)},
