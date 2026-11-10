@@ -1,0 +1,433 @@
+{
+  "about": "Delegation (subagents.md §7, spec 3.4.0): a subagent's mode and request options, and who decides its calls. The project root is /project, nothing named exists on disk, and only the default rules apply (permission/defaults.json). `add` — team_add's mode check for a parent in `parent_mode` with `mode` and `request` as given → `{result, mode}`: the refusal word for word, or null and the mode the subagent gets. `call` — a subagent in `mode` with `request` options and `grants` (rules {tool, pattern} the main agent allowed) under a main agent in `main_mode`, calling `call` (`bash` with a `line`, or a file tool with a `path` relative to the root) → `{answer, text?}`: `run`, `person` (an approval card to the person), or `refused` with its text, word for word — except where the case says `own_reason` (a hardline's, a mode's or the unattended refusal's reason is each project's), when only the answer is compared. `unattended`: nobody can answer. `request` — team_request for `tool` by a subagent with `request` options, its first → `{result}`. `switch` — the main agent's mode changes from `main_from` to `main_to` with these subagents (each with its parent and mode) → each one's mode after. LLeMbas: services/team.py; CLI: team/delegation.ts.",
+  "cases": [
+    {
+      "about": "No mode given: the parent's.",
+      "op": "add",
+      "parent_mode": "edit",
+      "expect": {
+        "result": null,
+        "mode": "edit"
+      }
+    },
+    {
+      "about": "Stricter is allowed.",
+      "op": "add",
+      "parent_mode": "edit",
+      "mode": "manual",
+      "expect": {
+        "result": null,
+        "mode": "manual"
+      }
+    },
+    {
+      "about": "Looser is refused, naming the parent's mode.",
+      "op": "add",
+      "parent_mode": "manual",
+      "mode": "edit",
+      "expect": {
+        "result": "A subagent's mode cannot be looser than its parent's (manual).",
+        "mode": null
+      }
+    },
+    {
+      "about": "Plan is the strictest: anything else under it is looser.",
+      "op": "add",
+      "parent_mode": "plan",
+      "mode": "auto",
+      "expect": {
+        "result": "A subagent's mode cannot be looser than its parent's (plan).",
+        "mode": null
+      }
+    },
+    {
+      "about": "Request options with the parent's own mode: nothing to ask for.",
+      "op": "add",
+      "parent_mode": "auto",
+      "mode": "auto",
+      "request": [
+        "write"
+      ],
+      "expect": {
+        "result": "Request options go with a mode stricter than the parent's: without one there is nothing to ask for.",
+        "mode": null
+      }
+    },
+    {
+      "about": "Request options with no mode given (the parent's): refused the same way.",
+      "op": "add",
+      "parent_mode": "edit",
+      "request": [
+        "execute"
+      ],
+      "expect": {
+        "result": "Request options go with a mode stricter than the parent's: without one there is nothing to ask for.",
+        "mode": null
+      }
+    },
+    {
+      "about": "Request options with a stricter mode.",
+      "op": "add",
+      "parent_mode": "edit",
+      "mode": "manual",
+      "request": [
+        "write",
+        "execute"
+      ],
+      "expect": {
+        "result": null,
+        "mode": "manual"
+      }
+    },
+    {
+      "about": "An unknown kind is refused, naming it.",
+      "op": "add",
+      "parent_mode": "edit",
+      "mode": "manual",
+      "request": [
+        "delete"
+      ],
+      "expect": {
+        "result": "delete is not a request option: use read, write or execute.",
+        "mode": null
+      }
+    },
+    {
+      "about": "An empty list of request options is no options, and needs nothing.",
+      "op": "add",
+      "parent_mode": "edit",
+      "request": [],
+      "expect": {
+        "result": null,
+        "mode": "edit"
+      }
+    },
+    {
+      "about": "All in edit: an edit inside the project runs.",
+      "op": "call",
+      "main_mode": "edit",
+      "mode": "edit",
+      "call": {
+        "tool": "edit",
+        "path": "src/a.ts"
+      },
+      "expect": {
+        "answer": "run"
+      }
+    },
+    {
+      "about": "All in edit: bash that edit mode asks goes to the person — the main agent could not allow it either.",
+      "op": "call",
+      "main_mode": "edit",
+      "mode": "edit",
+      "call": {
+        "tool": "bash",
+        "line": "git push origin main"
+      },
+      "expect": {
+        "answer": "person"
+      }
+    },
+    {
+      "about": "All in manual: an edit goes to the person.",
+      "op": "call",
+      "main_mode": "manual",
+      "mode": "manual",
+      "call": {
+        "tool": "edit",
+        "path": "src/a.ts"
+      },
+      "expect": {
+        "answer": "person"
+      }
+    },
+    {
+      "about": "Narrowed with no request options: what the main agent could allow is refused.",
+      "op": "call",
+      "main_mode": "edit",
+      "mode": "manual",
+      "call": {
+        "tool": "edit",
+        "path": "src/a.ts"
+      },
+      "expect": {
+        "answer": "refused",
+        "text": "Your mode does not allow this, and you may not ask for it: tell your parent what you need."
+      }
+    },
+    {
+      "about": "Narrowed with the kind in its options: it asks the main agent.",
+      "op": "call",
+      "main_mode": "edit",
+      "mode": "manual",
+      "request": [
+        "write"
+      ],
+      "call": {
+        "tool": "edit",
+        "path": "src/a.ts"
+      },
+      "expect": {
+        "answer": "refused",
+        "text": "Your mode does not allow this, but the main agent may: ask for it with team_request (the tool, the pattern, why), then try again once it allows."
+      }
+    },
+    {
+      "about": "Narrowed, the kind not in its options.",
+      "op": "call",
+      "main_mode": "auto",
+      "mode": "edit",
+      "request": [
+        "write"
+      ],
+      "call": {
+        "tool": "bash",
+        "line": "git push origin main"
+      },
+      "expect": {
+        "answer": "refused",
+        "text": "Your mode does not allow this, and you may not ask for it: tell your parent what you need."
+      }
+    },
+    {
+      "about": "Narrowed, execute in its options: asks the main agent.",
+      "op": "call",
+      "main_mode": "auto",
+      "mode": "edit",
+      "request": [
+        "execute"
+      ],
+      "call": {
+        "tool": "bash",
+        "line": "git push origin main"
+      },
+      "expect": {
+        "answer": "refused",
+        "text": "Your mode does not allow this, but the main agent may: ask for it with team_request (the tool, the pattern, why), then try again once it allows."
+      }
+    },
+    {
+      "about": "A grant from the main agent lets the call run.",
+      "op": "call",
+      "main_mode": "auto",
+      "mode": "edit",
+      "request": [
+        "execute"
+      ],
+      "grants": [
+        {
+          "tool": "bash",
+          "pattern": "git push *"
+        }
+      ],
+      "call": {
+        "tool": "bash",
+        "line": "git push origin main"
+      },
+      "expect": {
+        "answer": "run"
+      }
+    },
+    {
+      "about": "A grant for another pattern does not.",
+      "op": "call",
+      "main_mode": "auto",
+      "mode": "edit",
+      "request": [
+        "execute"
+      ],
+      "grants": [
+        {
+          "tool": "bash",
+          "pattern": "git push *"
+        }
+      ],
+      "call": {
+        "tool": "bash",
+        "line": "git commit -m x"
+      },
+      "expect": {
+        "answer": "refused",
+        "text": "Your mode does not allow this, but the main agent may: ask for it with team_request (the tool, the pattern, why), then try again once it allows."
+      }
+    },
+    {
+      "about": "A grant never reaches past the main agent's own mode: what it would have to ask goes to the person.",
+      "op": "call",
+      "main_mode": "edit",
+      "mode": "manual",
+      "request": [
+        "execute"
+      ],
+      "grants": [
+        {
+          "tool": "bash",
+          "pattern": "git push *"
+        }
+      ],
+      "call": {
+        "tool": "bash",
+        "line": "git push origin main"
+      },
+      "expect": {
+        "answer": "person"
+      }
+    },
+    {
+      "about": "Reading .env asks in every mode: it goes to the person.",
+      "op": "call",
+      "main_mode": "edit",
+      "mode": "edit",
+      "call": {
+        "tool": "read",
+        "path": ".env"
+      },
+      "expect": {
+        "answer": "person"
+      }
+    },
+    {
+      "about": "Reading .env under an auto main agent: a narrowed subagent with read in its options asks it.",
+      "op": "call",
+      "main_mode": "auto",
+      "mode": "manual",
+      "request": [
+        "read"
+      ],
+      "call": {
+        "tool": "read",
+        "path": ".env"
+      },
+      "expect": {
+        "answer": "refused",
+        "text": "Your mode does not allow this, but the main agent may: ask for it with team_request (the tool, the pattern, why), then try again once it allows."
+      }
+    },
+    {
+      "about": "Plan mode's refusal is final: request options do not reach past it.",
+      "op": "call",
+      "main_mode": "auto",
+      "mode": "plan",
+      "request": [
+        "execute"
+      ],
+      "call": {
+        "tool": "bash",
+        "line": "rm -rf build"
+      },
+      "own_reason": true,
+      "expect": {
+        "answer": "refused"
+      }
+    },
+    {
+      "about": "What the rules allow runs in every mode.",
+      "op": "call",
+      "main_mode": "edit",
+      "mode": "plan",
+      "call": {
+        "tool": "bash",
+        "line": "git status"
+      },
+      "expect": {
+        "answer": "run"
+      }
+    },
+    {
+      "about": "The hardline refuses in every mode, auto included.",
+      "op": "call",
+      "main_mode": "auto",
+      "mode": "auto",
+      "call": {
+        "tool": "bash",
+        "line": "rm -rf /"
+      },
+      "own_reason": true,
+      "expect": {
+        "answer": "refused"
+      }
+    },
+    {
+      "about": "Unattended: what would go to the person is refused.",
+      "op": "call",
+      "main_mode": "edit",
+      "mode": "edit",
+      "unattended": true,
+      "call": {
+        "tool": "bash",
+        "line": "git push origin main"
+      },
+      "own_reason": true,
+      "expect": {
+        "answer": "refused"
+      }
+    },
+    {
+      "about": "team_request: a tool whose risk class is not in the options is refused, naming them.",
+      "op": "request",
+      "request": [
+        "write"
+      ],
+      "tool": "bash",
+      "expect": {
+        "result": "You may not ask for bash: your request options are write."
+      }
+    },
+    {
+      "about": "team_request: a kind in the options is asked, with the request's id.",
+      "op": "request",
+      "request": [
+        "write",
+        "execute"
+      ],
+      "tool": "bash",
+      "expect": {
+        "result": "Asked the main agent (r1): you are told its decision. Carry on with what you can meanwhile."
+      }
+    },
+    {
+      "about": "The main agent made stricter: every subagent looser than its parent is made as strict as it, down the tree; a stricter one keeps its own.",
+      "op": "switch",
+      "agents": [
+        {
+          "name": "api",
+          "parent": "lead",
+          "mode": "auto"
+        },
+        {
+          "name": "tests",
+          "parent": "api",
+          "mode": "edit"
+        },
+        {
+          "name": "docs",
+          "parent": "lead",
+          "mode": "plan"
+        }
+      ],
+      "main_from": "auto",
+      "main_to": "manual",
+      "expect": {
+        "api": "manual",
+        "tests": "manual",
+        "docs": "plan"
+      }
+    },
+    {
+      "about": "The main agent made looser: no subagent changes.",
+      "op": "switch",
+      "agents": [
+        {
+          "name": "api",
+          "parent": "lead",
+          "mode": "edit"
+        }
+      ],
+      "main_from": "edit",
+      "main_to": "auto",
+      "expect": {
+        "api": "edit"
+      }
+    }
+  ]
+}

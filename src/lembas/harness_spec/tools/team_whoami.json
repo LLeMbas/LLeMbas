@@ -1,0 +1,22 @@
+{
+  "name": "team_whoami",
+  "scope": "shared",
+  "sessions": "both",
+  "risk": "read",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": false,
+  "requires": [
+    "team"
+  ],
+  "unavailable": "The person allows one agent in this chat: there is no team. Do the work yourself.",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Who you are on the team: your id, name, position, parent, task, permission mode and request options, model, limits, and how full your context is.",
+  "parameters": {
+    "type": "object",
+    "properties": {}
+  }
+}

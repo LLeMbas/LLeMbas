@@ -623,6 +623,20 @@ class TeamAgent(UUIDPrimaryKey, Timestamps, Base):
     run_started: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_ended: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     left: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Spec 3.4.0 (subagents.md §5-§11), additively: its id (`s1`, never
+    # reused in the team), its task as given or assigned, its mode and request
+    # options, the grants the main agent gave it, its findings (kept after it
+    # ended), its context use as last measured, and the sub-manager it was
+    # under before that one ended by itself. An ended one keeps its row with
+    # `left` set and `state` saying how it ended (done, out_of_context, stopped).
+    agent_id: Mapped[str] = mapped_column(String(16), default="", nullable=False)
+    task: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    mode: Mapped[str] = mapped_column(String(16), default="", nullable=False)
+    request_json: Mapped[list[Any]] = mapped_column(JSONList, default=list)
+    grants_json: Mapped[list[Any]] = mapped_column(JSONList, default=list)
+    findings_json: Mapped[list[Any]] = mapped_column(JSONList, default=list)
+    context_json: Mapped[dict[str, Any]] = mapped_column(JSONDict, default=dict)
+    moved_from: Mapped[str] = mapped_column(String(40), default="", nullable=False)
 
 
 class TeamMessage(UUIDPrimaryKey, Timestamps, Base):
@@ -640,3 +654,5 @@ class TeamMessage(UUIDPrimaryKey, Timestamps, Base):
     recipients_json: Mapped[list[Any]] = mapped_column(JSONList, default=list)
     text: Mapped[str] = mapped_column(Text, default="", nullable=False)
     report: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Spec 3.4.0: message, report, assignment, request or decision ("" before).
+    kind: Mapped[str] = mapped_column(String(16), default="", nullable=False)

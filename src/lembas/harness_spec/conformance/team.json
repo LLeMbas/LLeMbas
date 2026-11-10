@@ -1,5 +1,5 @@
 {
-  "about": "Teams (team.md, spec 3.2.0): one lead session's team, step by step, written from a reference model of the rules. `start`: the size setting `min` and `max`, `subagents` (enabled for the session; default true) and the chat model's `capacity` (models/schema.json: `parallel`, `single_session`; {} — no limit). The lead is `lead`; its first prompt is running as the case begins, and every agent is on the chat's model, and it is the only model there is (spec 3.3.0: other models are subagents.json's). Steps and what each answers: `offered` (`by` an agent, default lead) — `{tools, setting}`: the team tools listed for that agent, sorted, and whether the setting is shown; `call` (`by`, `tool`, `args`) — `{result, delivered}`: the call's answer word for word (null where an ordinary tool would run: the case looks only at whether it is refused), and what was delivered to whom by this step, `{name: [message, …]}`; `team_read` answers `{room, delivered}` instead, `room` being the messages it shows as `{n, from, to}` (the tree and the text format are loop.json team.read's, checked by each project's own tests); `task` runs a subagent that counts toward the size (and holds a slot) until `task_done` (`by`) — answers null; `finish` (`by`, `reply`, `reason`: stop by default, or steps, budget, `error — <text>`) — the agent's turn ends: a member's reply is its report — `{delivered}`; `set` (`min`, `max`, `capacity`: the person's setting or the model's metadata changed) — null; `person_stop` (`name`) — the person stopped that member in the UI — null; `user` — the person's message to the lead — `{note}`: the note on it (context.md §10), null when there is none; `state` — the team in tree order as `{name, manager, state}`: working, waiting (for a slot), finished, idle (the lead between turns). Delivering to a finished member or the idle lead wakes it (it is then working, or waiting when its model is full). LLeMbas: services/team.py; CLI: team/.",
+  "about": "Teams (team.md, spec 3.2.0; the main agent and its tree, subagents.md §5–§13, spec 3.4.0 — a member's team_add is now the lead's with `parent`, and `offered` lists 3.4.0's tools): one lead session's team, step by step, written from a reference model of the rules. `start`: the size setting `min` and `max`, `subagents` (enabled for the session; default true) and the chat model's `capacity` (models/schema.json: `parallel`, `single_session`; {} — no limit). The lead is `lead`; its first prompt is running as the case begins, and every agent is on the chat's model, and it is the only model there is (spec 3.3.0: other models are subagents.json's). Steps and what each answers: `offered` (`by` an agent, default lead) — `{tools, setting}`: the team tools listed for that agent, sorted, and whether the setting is shown; `call` (`by`, `tool`, `args`) — `{result, delivered}`: the call's answer word for word (null where an ordinary tool would run: the case looks only at whether it is refused), and what was delivered to whom by this step, `{name: [message, …]}`; `team_read` answers `{room, delivered}` instead, `room` being the messages it shows as `{n, from, to}` (the tree and the text format are loop.json team.read's, checked by each project's own tests); `task` runs a subagent that counts toward the size (and holds a slot) until `task_done` (`by`) — answers null; `finish` (`by`, `reply`, `reason`: stop by default, or steps, budget, `error — <text>`) — the agent's turn ends: a member's reply is its report — `{delivered}`; `set` (`min`, `max`, `capacity`: the person's setting or the model's metadata changed) — null; `person_stop` (`name`) — the person stopped that member in the UI — null; `user` — the person's message to the lead — `{note}`: the note on it (context.md §10), null when there is none; `state` — the team in tree order as `{name, manager, state}`: working, waiting (for a slot), finished, idle (the lead between turns). Delivering to a finished member or the idle lead wakes it (it is then working, or waiting when its model is full). Spec 3.4.0 adds: `start.mode` — the main agent's mode (default edit); `call` to team_whoami, team_finish, team_findings, team_request, team_decide, team_assign, team_replace, answered word for word; `context` (`by`, `used`, `window`) — its engine's context use — null; `context_full` (`by`) — its context reached team.context.pause_at: `{delivered}`; `started` (`by`) — `{text}`: what its latest turn was started with (a brief, or the messages that woke it); `tree` — `{size, open_slots, agents: [{id, name, parent, state, mode, request}], ended: [{id, name, state}]}`; `main_mode` (`mode`) — the main agent's mode changed — null. LLeMbas: services/team.py; CLI: team/.",
   "cases": [
     {
       "about": "Offered on a model that serves two requests at once: the lead has all four tools and the setting is shown.",
@@ -19,9 +19,14 @@
         {
           "tools": [
             "team_add",
+            "team_assign",
+            "team_decide",
+            "team_findings",
             "team_read",
+            "team_replace",
             "team_send",
-            "team_stop"
+            "team_stop",
+            "team_whoami"
           ],
           "setting": true
         }
@@ -43,9 +48,14 @@
         {
           "tools": [
             "team_add",
+            "team_assign",
+            "team_decide",
+            "team_findings",
             "team_read",
+            "team_replace",
             "team_send",
-            "team_stop"
+            "team_stop",
+            "team_whoami"
           ],
           "setting": true
         }
@@ -113,9 +123,14 @@
         {
           "tools": [
             "team_add",
+            "team_assign",
+            "team_decide",
+            "team_findings",
             "team_read",
+            "team_replace",
             "team_send",
-            "team_stop"
+            "team_stop",
+            "team_whoami"
           ],
           "setting": true
         }
@@ -200,9 +215,14 @@
         {
           "tools": [
             "team_add",
+            "team_assign",
+            "team_decide",
+            "team_findings",
             "team_read",
+            "team_replace",
             "team_send",
-            "team_stop"
+            "team_stop",
+            "team_whoami"
           ],
           "setting": true
         },
@@ -228,7 +248,7 @@
       ]
     },
     {
-      "about": "A member that may not lead has team_send and team_read; one that may lead has all four.",
+      "about": "A subagent has team_whoami, team_read, team_send, team_findings and team_finish; a sub-manager the same — it adds nothing (spec 3.4.0).",
       "start": {
         "min": 1,
         "max": 4,
@@ -279,17 +299,21 @@
         },
         {
           "tools": [
+            "team_findings",
+            "team_finish",
             "team_read",
-            "team_send"
+            "team_send",
+            "team_whoami"
           ],
           "setting": true
         },
         {
           "tools": [
-            "team_add",
+            "team_findings",
+            "team_finish",
             "team_read",
             "team_send",
-            "team_stop"
+            "team_whoami"
           ],
           "setting": true
         }
@@ -392,7 +416,7 @@
       ],
       "expect": [
         {
-          "note": "<session-note>\nThe team may have 3 to 5 agents, you included.\nWork through a team from the start: you lead, and members do the work — at least 2 of them.\n</session-note>"
+          "note": "<session-note>\nThe team may have 3 to 5 agents, you included.\nWork through subagents from the start: you lead, and they do the work. The person opened 2 slots for them: fill them with team_add.\n</session-note>"
         },
         {
           "result": "You lead a team: give this to a member (team_add or team_send).",
@@ -458,7 +482,7 @@
       ],
       "expect": [
         {
-          "note": "<session-note>\nThe team may have 2 to 2 agents, you included.\nWork through a team from the start: you lead, and members do the work — at least 1 of them.\n</session-note>"
+          "note": "<session-note>\nThe team may have 2 to 2 agents, you included.\nWork through subagents from the start: you lead, and they do the work. The person opened 1 slots for them: fill them with team_add.\n</session-note>"
         }
       ]
     },
@@ -632,7 +656,7 @@
       ]
     },
     {
-      "about": "The size is across the whole tree: a member that leads adds within the same max.",
+      "about": "The size is across the whole tree: subagents placed under a sub-manager count within the same max.",
       "start": {
         "min": 1,
         "max": 4,
@@ -653,12 +677,13 @@
         },
         {
           "op": "call",
-          "by": "backend",
+          "by": "lead",
           "tool": "team_add",
           "args": {
             "name": "db",
             "role": "owns a part",
-            "task": "Do the part."
+            "task": "Do the part.",
+            "parent": "backend"
           }
         },
         {
@@ -673,12 +698,13 @@
         },
         {
           "op": "call",
-          "by": "backend",
+          "by": "lead",
           "tool": "team_add",
           "args": {
             "name": "api",
             "role": "owns a part",
-            "task": "Do the part."
+            "task": "Do the part.",
+            "parent": "backend"
           }
         },
         {
@@ -727,7 +753,7 @@
       ]
     },
     {
-      "about": "A task subagent counts toward max while it runs, inside a team.",
+      "about": "A task subagent counts toward max while it runs, inside a team. A subagent's own task is refused: only the main agent starts subagents (spec 3.4.0).",
       "start": {
         "min": 1,
         "max": 3,
@@ -800,7 +826,7 @@
           "delivered": {}
         },
         {
-          "result": "The team is full: it has as many agents as the person allows (3). Give the work to a member already on it (team_send), or stop one (team_stop) first.",
+          "result": "Only the main agent adds, assigns, replaces and stops subagents: ask it (team_send to lead).",
           "delivered": {}
         },
         null,
@@ -1538,7 +1564,7 @@
       ]
     },
     {
-      "about": "A member works; a member that leads becomes a manager when it adds one; stopping all its members makes the lead a worker again (min 1).",
+      "about": "A subagent works; a sub-manager becomes a manager when one is placed under it; stopping them all makes the lead a worker again (min 1).",
       "start": {
         "min": 1,
         "max": 6,
@@ -1565,12 +1591,13 @@
         },
         {
           "op": "call",
-          "by": "api",
+          "by": "lead",
           "tool": "team_add",
           "args": {
             "name": "routes",
             "role": "owns a part",
-            "task": "Do the part."
+            "task": "Do the part.",
+            "parent": "api"
           }
         },
         {
@@ -1805,12 +1832,13 @@
         },
         {
           "op": "call",
-          "by": "api",
+          "by": "lead",
           "tool": "team_add",
           "args": {
             "name": "routes",
             "role": "owns a part",
-            "task": "Do the part."
+            "task": "Do the part.",
+            "parent": "api"
           }
         },
         {
@@ -2009,22 +2037,24 @@
         },
         {
           "op": "call",
-          "by": "api",
+          "by": "lead",
           "tool": "team_add",
           "args": {
             "name": "routes",
             "role": "owns a part",
-            "task": "Do the part."
+            "task": "Do the part.",
+            "parent": "api"
           }
         },
         {
           "op": "call",
-          "by": "api",
+          "by": "lead",
           "tool": "team_add",
           "args": {
             "name": "db",
             "role": "owns a part",
-            "task": "Do the part."
+            "task": "Do the part.",
+            "parent": "api"
           }
         },
         {
@@ -2396,13 +2426,14 @@
         },
         {
           "op": "call",
-          "by": "api",
+          "by": "lead",
           "tool": "team_add",
           "args": {
             "name": "routes",
             "role": "owns a part",
             "task": "Do the part.",
-            "goal": "The REST API"
+            "goal": "The REST API",
+            "parent": "api"
           }
         },
         {
@@ -2670,7 +2701,7 @@
       ]
     },
     {
-      "about": "Stopping a member stops its subtree; they leave the team, and their names are free again. Only members under the caller may be stopped.",
+      "about": "Stopping is the main agent's: a subagent's team_stop is refused. Stopping a subagent stops its subtree; they leave the team, and their names are free again.",
       "start": {
         "min": 1,
         "max": 8,
@@ -2691,33 +2722,36 @@
         },
         {
           "op": "call",
-          "by": "api",
+          "by": "lead",
           "tool": "team_add",
           "args": {
             "name": "routes",
             "role": "owns a part",
             "task": "Do the part.",
-            "lead": true
+            "lead": true,
+            "parent": "api"
           }
         },
         {
           "op": "call",
-          "by": "routes",
+          "by": "lead",
           "tool": "team_add",
           "args": {
             "name": "auth",
             "role": "owns a part",
-            "task": "Do the part."
+            "task": "Do the part.",
+            "parent": "routes"
           }
         },
         {
           "op": "call",
-          "by": "api",
+          "by": "lead",
           "tool": "team_add",
           "args": {
             "name": "db",
             "role": "owns a part",
-            "task": "Do the part."
+            "task": "Do the part.",
+            "parent": "api"
           }
         },
         {
@@ -2756,7 +2790,7 @@
         },
         {
           "op": "call",
-          "by": "api",
+          "by": "lead",
           "tool": "team_stop",
           "args": {
             "name": "routes"
@@ -2767,12 +2801,13 @@
         },
         {
           "op": "call",
-          "by": "api",
+          "by": "lead",
           "tool": "team_add",
           "args": {
             "name": "auth",
             "role": "owns a part",
-            "task": "Do the part."
+            "task": "Do the part.",
+            "parent": "api"
           }
         },
         {
@@ -2817,15 +2852,15 @@
           "delivered": {}
         },
         {
-          "result": "web is not under you: you can stop only the members you lead, directly or through your members.",
+          "result": "Only the main agent adds, assigns, replaces and stops subagents: ask it (team_send to lead).",
           "delivered": {}
         },
         {
-          "result": "api is not under you: you can stop only the members you lead, directly or through your members.",
+          "result": "Only the main agent adds, assigns, replaces and stops subagents: ask it (team_send to lead).",
           "delivered": {}
         },
         {
-          "result": "No agent called ghost in this team. The team: lead, api, routes, auth, db, web.",
+          "result": "Only the main agent adds, assigns, replaces and stops subagents: ask it (team_send to lead).",
           "delivered": {}
         },
         {
@@ -2900,12 +2935,13 @@
         },
         {
           "op": "call",
-          "by": "api",
+          "by": "lead",
           "tool": "team_add",
           "args": {
             "name": "routes",
             "role": "owns a part",
-            "task": "Do the part."
+            "task": "Do the part.",
+            "parent": "api"
           }
         },
         {
@@ -3379,6 +3415,1543 @@
             "state": "finished"
           }
         ]
+      ]
+    },
+    {
+      "about": "Spec 3.4.0: only the main agent adds, assigns, replaces, stops and decides; a subagent's call to any of them, or to task, is refused with one text.",
+      "start": {
+        "min": 1,
+        "max": 4,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "api",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "lead": true,
+            "goal": "Ship v2"
+          }
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "team_add",
+          "args": {
+            "name": "routes",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "team_assign",
+          "args": {
+            "name": "api",
+            "task": "x"
+          }
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "team_replace",
+          "args": {
+            "name": "api"
+          }
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "team_stop",
+          "args": {
+            "name": "all"
+          }
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "team_decide",
+          "args": {
+            "id": "r1",
+            "allow": true
+          }
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "task",
+          "args": {
+            "prompt": "x"
+          }
+        },
+        {
+          "op": "tree"
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added api (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 4 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Only the main agent adds, assigns, replaces and stops subagents: ask it (team_send to lead).",
+          "delivered": {}
+        },
+        {
+          "result": "Only the main agent adds, assigns, replaces and stops subagents: ask it (team_send to lead).",
+          "delivered": {}
+        },
+        {
+          "result": "Only the main agent adds, assigns, replaces and stops subagents: ask it (team_send to lead).",
+          "delivered": {}
+        },
+        {
+          "result": "Only the main agent adds, assigns, replaces and stops subagents: ask it (team_send to lead).",
+          "delivered": {}
+        },
+        {
+          "result": "Only the main agent adds, assigns, replaces and stops subagents: ask it (team_send to lead).",
+          "delivered": {}
+        },
+        {
+          "result": "Only the main agent adds, assigns, replaces and stops subagents: ask it (team_send to lead).",
+          "delivered": {}
+        },
+        {
+          "size": 2,
+          "open_slots": 0,
+          "agents": [
+            {
+              "id": "lead",
+              "name": "lead",
+              "parent": null,
+              "state": "working",
+              "mode": "edit",
+              "request": []
+            },
+            {
+              "id": "s1",
+              "name": "api",
+              "parent": "lead",
+              "state": "working",
+              "mode": "edit",
+              "request": []
+            }
+          ],
+          "ended": []
+        }
+      ]
+    },
+    {
+      "about": "Spec 3.4.0: a subagent is placed under a sub-manager with parent; parent must be one (lead: true), and the size still counts the whole tree.",
+      "start": {
+        "min": 1,
+        "max": 6,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "api",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "lead": true,
+            "goal": "Ship v2"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "routes",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "parent": "api"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "auth",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "parent": "routes"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "auth",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "parent": "ghost"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "parent",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "routes",
+          "tool": "team_send",
+          "args": {
+            "to": [
+              "parent"
+            ],
+            "message": "Routes are in."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_send",
+          "args": {
+            "to": [
+              "parent"
+            ],
+            "message": "Hello?"
+          }
+        },
+        {
+          "op": "finish",
+          "by": "routes",
+          "reply": "Routes done."
+        },
+        {
+          "op": "tree"
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added api (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added routes (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "routes is not a sub-manager: place a subagent under the main agent (lead) or under one added with lead: true.",
+          "delivered": {}
+        },
+        {
+          "result": "No agent called ghost in this team. The team: lead, api, routes.",
+          "delivered": {}
+        },
+        {
+          "result": "There is already an agent called parent in this team. Choose another name.",
+          "delivered": {}
+        },
+        {
+          "result": "Sent to api.",
+          "delivered": {
+            "api": [
+              "[Team message from routes to api:]\nRoutes are in."
+            ]
+          }
+        },
+        {
+          "result": "You are the main agent: you have no parent.",
+          "delivered": {}
+        },
+        {
+          "delivered": {
+            "api": [
+              "[Team report from routes to api:]\nRoutes done."
+            ]
+          }
+        },
+        {
+          "size": 3,
+          "open_slots": 0,
+          "agents": [
+            {
+              "id": "lead",
+              "name": "lead",
+              "parent": null,
+              "state": "working",
+              "mode": "edit",
+              "request": []
+            },
+            {
+              "id": "s1",
+              "name": "api",
+              "parent": "lead",
+              "state": "working",
+              "mode": "edit",
+              "request": []
+            },
+            {
+              "id": "s2",
+              "name": "routes",
+              "parent": "api",
+              "state": "finished",
+              "mode": "edit",
+              "request": []
+            }
+          ],
+          "ended": []
+        }
+      ]
+    },
+    {
+      "about": "Spec 3.4.0: Min above 1 opens min − 1 slots from the start of the reply; each subagent added fills one, and the note says how many the person opened.",
+      "start": {
+        "min": 3,
+        "max": 4,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "user"
+        },
+        {
+          "op": "tree"
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "api",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "Ship v2"
+          }
+        },
+        {
+          "op": "tree"
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "web",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "docs",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "tree"
+        }
+      ],
+      "expect": [
+        {
+          "note": "<session-note>\nThe team may have 3 to 4 agents, you included.\nWork through subagents from the start: you lead, and they do the work. The person opened 2 slots for them: fill them with team_add.\n</session-note>"
+        },
+        {
+          "size": 1,
+          "open_slots": 2,
+          "agents": [
+            {
+              "id": "lead",
+              "name": "lead",
+              "parent": null,
+              "state": "working",
+              "mode": "edit",
+              "request": []
+            }
+          ],
+          "ended": []
+        },
+        {
+          "result": "Added api (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 4 agents.",
+          "delivered": {}
+        },
+        {
+          "size": 2,
+          "open_slots": 1,
+          "agents": [
+            {
+              "id": "lead",
+              "name": "lead",
+              "parent": null,
+              "state": "working",
+              "mode": "edit",
+              "request": []
+            },
+            {
+              "id": "s1",
+              "name": "api",
+              "parent": "lead",
+              "state": "working",
+              "mode": "edit",
+              "request": []
+            }
+          ],
+          "ended": []
+        },
+        {
+          "result": "Added web (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 4 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added docs (owns a part): it is working. Its report comes to you when it finishes. The team is 4 of 4 agents.",
+          "delivered": {}
+        },
+        {
+          "size": 4,
+          "open_slots": 0,
+          "agents": [
+            {
+              "id": "lead",
+              "name": "lead",
+              "parent": null,
+              "state": "working",
+              "mode": "edit",
+              "request": []
+            },
+            {
+              "id": "s1",
+              "name": "api",
+              "parent": "lead",
+              "state": "working",
+              "mode": "edit",
+              "request": []
+            },
+            {
+              "id": "s2",
+              "name": "web",
+              "parent": "lead",
+              "state": "working",
+              "mode": "edit",
+              "request": []
+            },
+            {
+              "id": "s3",
+              "name": "docs",
+              "parent": "lead",
+              "state": "working",
+              "mode": "edit",
+              "request": []
+            }
+          ],
+          "ended": []
+        }
+      ]
+    },
+    {
+      "about": "Spec 3.4.0: a subagent's mode is its parent's or stricter; request options only with a stricter one; a main agent made stricter reaches down the tree.",
+      "start": {
+        "min": 1,
+        "max": 6,
+        "capacity": {},
+        "mode": "edit"
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "api",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "lead": true,
+            "goal": "Ship v2",
+            "mode": "auto"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "api",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "lead": true,
+            "mode": "manual",
+            "request": [
+              "write"
+            ],
+            "goal": "Ship v2"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "routes",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "parent": "api",
+            "mode": "edit",
+            "goal": "Ship v2"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "routes",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "parent": "api",
+            "mode": "plan",
+            "request": [
+              "execute"
+            ],
+            "goal": "Ship v2"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "web",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "request": [
+              "write"
+            ],
+            "goal": "Ship v2"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "web",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "Ship v2"
+          }
+        },
+        {
+          "op": "tree"
+        },
+        {
+          "op": "main_mode",
+          "mode": "manual"
+        },
+        {
+          "op": "tree"
+        }
+      ],
+      "expect": [
+        {
+          "result": "A subagent's mode cannot be looser than its parent's (edit).",
+          "delivered": {}
+        },
+        {
+          "result": "Added api (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "A subagent's mode cannot be looser than its parent's (manual).",
+          "delivered": {}
+        },
+        {
+          "result": "Added routes (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Request options go with a mode stricter than the parent's: without one there is nothing to ask for.",
+          "delivered": {}
+        },
+        {
+          "result": "Added web (owns a part): it is working. Its report comes to you when it finishes. The team is 4 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "size": 4,
+          "open_slots": 0,
+          "agents": [
+            {
+              "id": "lead",
+              "name": "lead",
+              "parent": null,
+              "state": "working",
+              "mode": "edit",
+              "request": []
+            },
+            {
+              "id": "s1",
+              "name": "api",
+              "parent": "lead",
+              "state": "working",
+              "mode": "manual",
+              "request": [
+                "write"
+              ]
+            },
+            {
+              "id": "s2",
+              "name": "routes",
+              "parent": "api",
+              "state": "working",
+              "mode": "plan",
+              "request": [
+                "execute"
+              ]
+            },
+            {
+              "id": "s3",
+              "name": "web",
+              "parent": "lead",
+              "state": "working",
+              "mode": "edit",
+              "request": []
+            }
+          ],
+          "ended": []
+        },
+        null,
+        {
+          "size": 4,
+          "open_slots": 0,
+          "agents": [
+            {
+              "id": "lead",
+              "name": "lead",
+              "parent": null,
+              "state": "working",
+              "mode": "manual",
+              "request": []
+            },
+            {
+              "id": "s1",
+              "name": "api",
+              "parent": "lead",
+              "state": "working",
+              "mode": "manual",
+              "request": [
+                "write"
+              ]
+            },
+            {
+              "id": "s2",
+              "name": "routes",
+              "parent": "api",
+              "state": "working",
+              "mode": "plan",
+              "request": [
+                "execute"
+              ]
+            },
+            {
+              "id": "s3",
+              "name": "web",
+              "parent": "lead",
+              "state": "working",
+              "mode": "manual",
+              "request": []
+            }
+          ],
+          "ended": []
+        }
+      ]
+    },
+    {
+      "about": "Spec 3.4.0: team_whoami says who the caller is, its mode and request options, its limits and its context use; the main agent has no parent or task line.",
+      "start": {
+        "min": 1,
+        "max": 4,
+        "capacity": {},
+        "mode": "edit"
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "parser",
+            "role": "reviews the parser",
+            "task": "Review src/parse.ts.\nReport what is wrong.",
+            "goal": "Ship v2",
+            "mode": "manual",
+            "request": [
+              "write"
+            ]
+          }
+        },
+        {
+          "op": "context",
+          "by": "parser",
+          "used": 1000,
+          "window": 4000
+        },
+        {
+          "op": "call",
+          "by": "parser",
+          "tool": "team_whoami",
+          "args": {}
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_whoami",
+          "args": {}
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added parser (reviews the parser): it is working. Its report comes to you when it finishes. The team is 2 of 4 agents.",
+          "delivered": {}
+        },
+        null,
+        {
+          "result": "You are parser (s1): reviews the parser.\nYour parent: lead.\nYour task: Review src/parse.ts.\nYour mode: manual.\nYou may ask the main agent for: write (team_request).\nYour model: m.\nLimits: the team is 2 of 4 agents; at most 50 steps a turn; only the main agent adds subagents.\nContext: 1000 of 4000 tokens (25%).",
+          "delivered": {}
+        },
+        {
+          "result": "You are lead (lead): the main agent.\nYour mode: edit.\nYour model: m.\nLimits: the team is 2 of 4 agents; at most 200 steps a turn; you add subagents.",
+          "delivered": {}
+        }
+      ]
+    },
+    {
+      "about": "Spec 3.4.0: team_finish reports to the parent and ends the subagent: it leaves the size, its name is free again with a new id, and it stays in the tree's ended list.",
+      "start": {
+        "min": 1,
+        "max": 4,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "api",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "Ship v2"
+          }
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "team_finish",
+          "args": {
+            "report": "All done: see src/api.ts:12."
+          }
+        },
+        {
+          "op": "tree"
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_send",
+          "args": {
+            "to": [
+              "api"
+            ],
+            "message": "One more thing."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "api",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "tree"
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added api (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 4 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Reported to lead. Your task is done: stop here.",
+          "delivered": {
+            "lead": [
+              "[Team report from api to lead:]\nAll done: see src/api.ts:12."
+            ]
+          }
+        },
+        {
+          "size": 1,
+          "open_slots": 0,
+          "agents": [
+            {
+              "id": "lead",
+              "name": "lead",
+              "parent": null,
+              "state": "working",
+              "mode": "edit",
+              "request": []
+            }
+          ],
+          "ended": [
+            {
+              "id": "s1",
+              "name": "api",
+              "state": "done"
+            }
+          ]
+        },
+        {
+          "result": "No agent called api in this team. The team: lead.",
+          "delivered": {}
+        },
+        {
+          "result": "Added api (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 4 agents.",
+          "delivered": {}
+        },
+        {
+          "size": 2,
+          "open_slots": 0,
+          "agents": [
+            {
+              "id": "lead",
+              "name": "lead",
+              "parent": null,
+              "state": "working",
+              "mode": "edit",
+              "request": []
+            },
+            {
+              "id": "s2",
+              "name": "api",
+              "parent": "lead",
+              "state": "working",
+              "mode": "edit",
+              "request": []
+            }
+          ],
+          "ended": [
+            {
+              "id": "s1",
+              "name": "api",
+              "state": "done"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "about": "Spec 3.4.0: findings are kept beyond an agent's end; the agent, the subagents above it and the main agent read them; nobody else.",
+      "start": {
+        "min": 1,
+        "max": 6,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "api",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "lead": true,
+            "goal": "Ship v2"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "routes",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "parent": "api"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "web",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "call",
+          "by": "routes",
+          "tool": "team_findings",
+          "args": {
+            "action": "write",
+            "text": "Login is POST /session."
+          }
+        },
+        {
+          "op": "call",
+          "by": "routes",
+          "tool": "team_findings",
+          "args": {
+            "action": "write",
+            "text": "Tokens expire after 1h."
+          }
+        },
+        {
+          "op": "call",
+          "by": "routes",
+          "tool": "team_findings",
+          "args": {
+            "action": "read"
+          }
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "team_findings",
+          "args": {
+            "action": "read",
+            "of": "routes"
+          }
+        },
+        {
+          "op": "call",
+          "by": "web",
+          "tool": "team_findings",
+          "args": {
+            "action": "read",
+            "of": "routes"
+          }
+        },
+        {
+          "op": "call",
+          "by": "web",
+          "tool": "team_findings",
+          "args": {
+            "action": "read"
+          }
+        },
+        {
+          "op": "call",
+          "by": "routes",
+          "tool": "team_finish",
+          "args": {
+            "report": "Done."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_findings",
+          "args": {
+            "action": "read",
+            "of": "s2"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added api (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added routes (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added web (owns a part): it is working. Its report comes to you when it finishes. The team is 4 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Noted (finding 1).",
+          "delivered": {}
+        },
+        {
+          "result": "Noted (finding 2).",
+          "delivered": {}
+        },
+        {
+          "result": "Findings of routes (s2):\n1. Login is POST /session.\n2. Tokens expire after 1h.",
+          "delivered": {}
+        },
+        {
+          "result": "Findings of routes (s2):\n1. Login is POST /session.\n2. Tokens expire after 1h.",
+          "delivered": {}
+        },
+        {
+          "result": "You may read only your own findings and those of the subagents under you.",
+          "delivered": {}
+        },
+        {
+          "result": "Findings of web (s3):\n(no findings)",
+          "delivered": {}
+        },
+        {
+          "result": "Reported to api. Your task is done: stop here.",
+          "delivered": {
+            "api": [
+              "[Team report from routes to api:]\nDone."
+            ]
+          }
+        },
+        {
+          "result": "Findings of routes (s2):\n1. Login is POST /session.\n2. Tokens expire after 1h.",
+          "delivered": {}
+        }
+      ]
+    },
+    {
+      "about": "Spec 3.4.0: when a subagent's context fills it is paused and given one final turn; a message to it then stays in the room; when that turn ends it is out of context and its parent gets the notice and its last reply as its report. The main agent replaces it: the same name and position, a new id, briefed with the task and the findings.",
+      "start": {
+        "min": 1,
+        "max": 4,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "api",
+            "role": "owns a part",
+            "task": "Write the API.",
+            "goal": "Ship v2"
+          }
+        },
+        {
+          "op": "call",
+          "by": "api",
+          "tool": "team_findings",
+          "args": {
+            "action": "write",
+            "text": "Half the routes are done."
+          }
+        },
+        {
+          "op": "context_full",
+          "by": "api"
+        },
+        {
+          "op": "state"
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_send",
+          "args": {
+            "to": [
+              "api"
+            ],
+            "message": "How far?"
+          }
+        },
+        {
+          "op": "finish",
+          "by": "api",
+          "reply": "Saved; the rest is the auth routes."
+        },
+        {
+          "op": "tree"
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_replace",
+          "args": {
+            "name": "api"
+          }
+        },
+        {
+          "op": "started",
+          "by": "api"
+        },
+        {
+          "op": "tree"
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added api (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 4 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Noted (finding 1).",
+          "delivered": {}
+        },
+        {
+          "delivered": {
+            "api": [
+              "[Team notice to api: your context is full]\nSave what you found with team_findings, then tell your parent with team_send that you are gone and what is left undone. This is your last turn: at most 8 steps."
+            ]
+          }
+        },
+        [
+          {
+            "name": "lead",
+            "manager": null,
+            "state": "working"
+          },
+          {
+            "name": "api",
+            "manager": "lead",
+            "state": "paused"
+          }
+        ],
+        {
+          "result": "Sent to api.",
+          "delivered": {}
+        },
+        {
+          "delivered": {
+            "lead": [
+              "[Team report from api to lead:]\napi (s1) ran out of context and has ended. Its findings: team_findings with of api.\n\nSaved; the rest is the auth routes."
+            ]
+          }
+        },
+        {
+          "size": 1,
+          "open_slots": 0,
+          "agents": [
+            {
+              "id": "lead",
+              "name": "lead",
+              "parent": null,
+              "state": "working",
+              "mode": "edit",
+              "request": []
+            }
+          ],
+          "ended": [
+            {
+              "id": "s1",
+              "name": "api",
+              "state": "out_of_context"
+            }
+          ]
+        },
+        {
+          "result": "Replaced api: s2 takes its place, briefed with its task and findings. The team is 2 of 4 agents.",
+          "delivered": {}
+        },
+        {
+          "text": "Write the API.\n\nYou take over from api (s1), which ended. What it found:\n1. Half the routes are done."
+        },
+        {
+          "size": 2,
+          "open_slots": 0,
+          "agents": [
+            {
+              "id": "lead",
+              "name": "lead",
+              "parent": null,
+              "state": "working",
+              "mode": "edit",
+              "request": []
+            },
+            {
+              "id": "s2",
+              "name": "api",
+              "parent": "lead",
+              "state": "working",
+              "mode": "edit",
+              "request": []
+            }
+          ],
+          "ended": [
+            {
+              "id": "s1",
+              "name": "api",
+              "state": "out_of_context"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "about": "Spec 3.4.0: a narrowed subagent asks the main agent with team_request (only for a kind in its options); the main agent decides once, and the subagent is told under the decision mark.",
+      "start": {
+        "min": 1,
+        "max": 4,
+        "capacity": {},
+        "mode": "auto"
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "ops",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "goal": "Ship v2",
+            "mode": "edit",
+            "request": [
+              "execute"
+            ]
+          }
+        },
+        {
+          "op": "call",
+          "by": "ops",
+          "tool": "team_request",
+          "args": {
+            "tool": "edit",
+            "pattern": "src/a.ts",
+            "why": "to fix it"
+          }
+        },
+        {
+          "op": "call",
+          "by": "ops",
+          "tool": "team_request",
+          "args": {
+            "tool": "bash",
+            "pattern": "git push *",
+            "why": "to publish the branch"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_decide",
+          "args": {
+            "id": "r1",
+            "allow": true,
+            "note": "Only to origin."
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_decide",
+          "args": {
+            "id": "r1",
+            "allow": false
+          }
+        },
+        {
+          "op": "call",
+          "by": "ops",
+          "tool": "team_request",
+          "args": {
+            "tool": "bash",
+            "pattern": "rm -rf build",
+            "why": "clean"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_decide",
+          "args": {
+            "id": "r2",
+            "allow": false
+          }
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added ops (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 4 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "You may not ask for edit: your request options are execute.",
+          "delivered": {}
+        },
+        {
+          "result": "Asked the main agent (r1): you are told its decision. Carry on with what you can meanwhile.",
+          "delivered": {
+            "lead": [
+              "[Team request r1 from ops to lead:]\nbash git push * — to publish the branch"
+            ]
+          }
+        },
+        {
+          "result": "Allowed r1 for ops.",
+          "delivered": {
+            "ops": [
+              "[Team decision on r1 from lead to ops:]\nAllowed: bash git push *. Try it again now.\n\nOnly to origin."
+            ]
+          }
+        },
+        {
+          "result": "No open request r1.",
+          "delivered": {}
+        },
+        {
+          "result": "Asked the main agent (r2): you are told its decision. Carry on with what you can meanwhile.",
+          "delivered": {
+            "lead": [
+              "[Team request r2 from ops to lead:]\nbash rm -rf build — clean"
+            ]
+          }
+        },
+        {
+          "result": "Refused r2 for ops.",
+          "delivered": {
+            "ops": [
+              "[Team decision on r2 from lead to ops:]\nRefused: bash rm -rf build."
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "about": "Spec 3.4.0: team_assign gives a subagent new work (it is told, and woken), may move it under another sub-manager, never under its own subtree, and never to one that ended.",
+      "start": {
+        "min": 1,
+        "max": 6,
+        "capacity": {}
+      },
+      "steps": [
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "api",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "lead": true,
+            "goal": "Ship v2"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "routes",
+            "role": "owns a part",
+            "task": "Do the part.",
+            "lead": true,
+            "parent": "api"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_add",
+          "args": {
+            "name": "web",
+            "role": "owns a part",
+            "task": "Do the part."
+          }
+        },
+        {
+          "op": "finish",
+          "by": "web",
+          "reply": "Web done."
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_assign",
+          "args": {
+            "name": "web",
+            "task": "Now the docs.",
+            "role": "writes the docs"
+          }
+        },
+        {
+          "op": "state"
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_assign",
+          "args": {
+            "name": "api",
+            "task": "x",
+            "parent": "routes"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_assign",
+          "args": {
+            "name": "web",
+            "task": "x",
+            "parent": "routes",
+            "mode": "auto"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_assign",
+          "args": {
+            "name": "web",
+            "task": "Help with routes.",
+            "parent": "routes"
+          }
+        },
+        {
+          "op": "call",
+          "by": "web",
+          "tool": "team_finish",
+          "args": {
+            "report": "ok"
+          }
+        },
+        {
+          "op": "call",
+          "by": "lead",
+          "tool": "team_assign",
+          "args": {
+            "name": "web",
+            "task": "again"
+          }
+        },
+        {
+          "op": "tree"
+        }
+      ],
+      "expect": [
+        {
+          "result": "Added api (owns a part): it is working. Its report comes to you when it finishes. The team is 2 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added routes (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "result": "Added web (owns a part): it is working. Its report comes to you when it finishes. The team is 4 of 6 agents.",
+          "delivered": {}
+        },
+        {
+          "delivered": {
+            "lead": [
+              "[Team report from web to lead:]\nWeb done."
+            ]
+          }
+        },
+        {
+          "result": "Assigned to web: it is told now.",
+          "delivered": {
+            "web": [
+              "[Team assignment from lead to web:]\nNow the docs."
+            ]
+          }
+        },
+        [
+          {
+            "name": "lead",
+            "manager": null,
+            "state": "working"
+          },
+          {
+            "name": "api",
+            "manager": "lead",
+            "state": "working"
+          },
+          {
+            "name": "routes",
+            "manager": "api",
+            "state": "working"
+          },
+          {
+            "name": "web",
+            "manager": "lead",
+            "state": "working"
+          }
+        ],
+        {
+          "result": "api cannot go under routes: that is under it.",
+          "delivered": {}
+        },
+        {
+          "result": "A subagent's mode cannot be looser than its parent's (edit).",
+          "delivered": {}
+        },
+        {
+          "result": "Assigned to web: it is told now.",
+          "delivered": {
+            "web": [
+              "[Team assignment from lead to web:]\nHelp with routes."
+            ]
+          }
+        },
+        {
+          "result": "Reported to routes. Your task is done: stop here.",
+          "delivered": {
+            "routes": [
+              "[Team report from web to routes:]\nok"
+            ]
+          }
+        },
+        {
+          "result": "web has ended: replace it (team_replace) or add another.",
+          "delivered": {}
+        },
+        {
+          "size": 3,
+          "open_slots": 0,
+          "agents": [
+            {
+              "id": "lead",
+              "name": "lead",
+              "parent": null,
+              "state": "working",
+              "mode": "edit",
+              "request": []
+            },
+            {
+              "id": "s1",
+              "name": "api",
+              "parent": "lead",
+              "state": "working",
+              "mode": "edit",
+              "request": []
+            },
+            {
+              "id": "s2",
+              "name": "routes",
+              "parent": "api",
+              "state": "working",
+              "mode": "edit",
+              "request": []
+            }
+          ],
+          "ended": [
+            {
+              "id": "s3",
+              "name": "web",
+              "state": "done"
+            }
+          ]
+        }
       ]
     }
   ]

@@ -251,16 +251,23 @@
       "scope": "shared",
       "llembas": [],
       "llembas_text": "identical",
-      "why": "spec 3.2.0: LLeMbas reads it from the vendored spec (harness_spec.prompt), not from a fragment",
+      "why": "spec 3.2.0, 3.4.0: LLeMbas reads it from the vendored spec (harness_spec.prompt), not from a fragment",
       "variables": {
         "name": "the member's name in the team",
-        "role": "its role as team_add gave it: one line, what it owns",
-        "manager": "the name of the agent that added it (`lead` for the team's lead)",
+        "role": "its position, one line (team_add's role)",
+        "manager": "its parent: lead, or the sub-manager it was placed under",
         "goal": "the team's goal as it was when the member was added: the `goal` its team_add gave, else its manager's (team.md §4)",
         "instructions": "its agent's own instructions (prompts/agents/<name>.md for a built-in one), as in blocks/subagent.md",
         "read_only": "in plan mode: the sentence saying it can read and search but change nothing (as in blocks/subagent.md); otherwise empty",
-        "lead": "for a member added with `lead: true`: the whole of blocks/team_lead.md; otherwise empty"
+        "lead": "for a sub-manager (added with `lead: true`): the whole of blocks/team_submanager.md (spec 3.4.0; before, blocks/team_lead.md); otherwise empty",
+        "id": "the subagent's id (s1, s2, …; spec 3.4.0)"
       }
+    },
+    "blocks/team_submanager.md": {
+      "scope": "shared",
+      "llembas": [],
+      "llembas_text": "identical",
+      "why": "spec 3.4.0: LLeMbas reads it from the vendored spec (harness_spec.prompt), not from a fragment"
     }
   }
 }

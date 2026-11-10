@@ -189,8 +189,8 @@ def test_send_refusals_and_all():
 def test_a_manager_is_not_sent_its_members_messages_but_reads_them():
     team = _team(high=6)
     _add(team, "area", lead=True)
-    _add(team, "one", by="area", goal="")
-    _add(team, "two", by="area", goal="")
+    _add(team, "one", parent="area", goal="")
+    _add(team, "two", parent="area", goal="")
     _add(team, "outsider")
     _, delivered = rules.send(team, "one", ["two"], "between us")
     assert list(delivered) == ["two"]
@@ -209,7 +209,7 @@ def test_a_manager_is_not_sent_its_members_messages_but_reads_them():
 def test_a_final_reply_is_a_report_to_the_manager():
     team = _team(high=6)
     _add(team, "area", lead=True)
-    _add(team, "one", by="area", goal="")
+    _add(team, "one", parent="area", goal="")
     delivered = rules.finish(team, "one", "")
     assert delivered == {"area": ["[Team report from one to area:]\n(no report)"]}
     assert team.room[-1].report
@@ -218,15 +218,16 @@ def test_a_final_reply_is_a_report_to_the_manager():
 
 
 # --- §9: stopping a subtree --------------------------------------------------------
-def test_team_stop_takes_a_whole_subtree_and_only_one_under_the_caller():
+def test_team_stop_takes_a_whole_subtree_and_only_the_main_agent_stops():
     team = _team(high=8)
     _add(team, "area", lead=True)
-    _add(team, "one", by="area", goal="")
-    _add(team, "two", by="area", goal="")
+    _add(team, "one", parent="area", goal="")
+    _add(team, "two", parent="area", goal="")
     _add(team, "solo")
-    assert rules.stop(team, "area", "solo")[0] == rules._say("not_yours", name="solo")
-    assert rules.stop(team, "area", "area")[0] == rules._say("not_yours", name="area")
-    assert rules.stop(team, "solo", "all")[0] == TEXTS["nobody_to_stop"]
+    # Spec 3.4.0 (subagents.md §10): a sub-manager asks the main agent.
+    assert rules.stop(team, "area", "one")[0] == TEXTS["only_main"]
+    assert rules.stop(team, "solo", "all")[0] == TEXTS["only_main"]
+    assert rules.stop(team, rules.LEAD, rules.LEAD)[0] == rules._say("not_yours", name="lead")
     text, names = rules.stop(team, rules.LEAD, "area")
     assert names == ["area", "one", "two"]
     assert text == "Stopped area, one, two. The team is 2 of 8 agents."
@@ -267,7 +268,7 @@ def test_the_size_note_says_the_setting_once_and_again_after_a_change():
     team = _team(low=2, high=4)
     first = rules.note_blocks(team)
     assert first == [rules.size_block(2, 4)]
-    assert "at least 1 of them" in first[0]
+    assert "opened 1 slots" in first[0]
     assert rules.note_blocks(team) == []
     team.max = 1
     assert rules.note_blocks(team) == [rules.harness_spec.note()["team_one"]]
@@ -331,7 +332,7 @@ def test_the_team_tools_are_offered_on_a_hosted_model_and_not_on_a_single_one(db
     chat = _chat(db, team_ready)
     user = _user(db)
     names = {t.name for t in tools_service.resolve_tools(db, chat, user).defs}
-    assert set(rules.TOOLS) <= names
+    assert set(rules.LEAD_TOOLS) & set(team_run.RUNNERS) <= names
     model = db.scalars(select(Model)).first()
     model.single_session = True
     db.commit()
@@ -413,7 +414,7 @@ def test_the_size_note_rides_on_the_first_user_message(db, team_ready):
 
 
 # --- One whole run, with the suite's scripted model ---------------------------------
-MEMBER = re.compile(r'You are "([a-z][a-z0-9-]*)", a member of a team')
+MEMBER = re.compile(r'You are "([a-z][a-z0-9-]*)" \(s\d+\), a subagent of this session')
 
 
 def _call(name: str, args: dict) -> list[dict]:

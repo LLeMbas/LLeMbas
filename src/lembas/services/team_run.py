@@ -304,6 +304,10 @@ def load(db, lead_id: str) -> rules.Team | None:
         waiting_since=int(data.get("lead_waiting_since") or 0),
         last_ended=data.get("lead_last_ended"),
         extra={"lead_id": lead_id, "chat_id": lead_id},
+        id=rules.LEAD,
+        mode=main_mode(chat),
+        findings=list(data.get("lead_findings") or []),
+        context=data.get("lead_context") or None,
     )
     team = rules.Team(
         min=low,
@@ -316,6 +320,10 @@ def load(db, lead_id: str) -> rules.Team | None:
         goal=row.goal if row is not None else "",
         seq=row.seq if row is not None else 0,
         stopped_unsaid=list(data.get("stopped_unsaid") or []),
+        id_seq=int(data.get("id_seq") or 0),
+        request_seq=int(data.get("request_seq") or 0),
+        requests=list(data.get("requests") or []),
+        steps_sub=int(settings_store.subagents(db).get("max_rounds") or 0),
     )
     members = _member_rows(db, lead_id)
     # The slots of each other model a member runs on (spec 3.3.0: one the
@@ -327,23 +335,9 @@ def load(db, lead_id: str) -> rules.Team | None:
             )
             team.model_slots[member.model] = model_parallel(other) if other else None
     for member in members:
-        team.agents.append(
-            rules.Agent(
-                name=member.name,
-                manager=member.manager,
-                role=member.role,
-                may_lead=member.may_lead,
-                agent=member.agent,
-                model=member.model,
-                state=member.state,
-                goal=member.goal,
-                order=member.position,
-                waiting_since=member.waiting_since,
-                inbox=list(member.inbox_json or []),
-                last_ended=_epoch(member.last_ended),
-                extra={"row_id": member.id, "chat_id": member.chat_id},
-            )
-        )
+        team.agents.append(_agent_of(member))
+    for member in _ended_rows(db, lead_id):
+        team.ended.append(_agent_of(member))
     chat_ids = [lead_id] + [m.chat_id for m in members if m.chat_id]
     team.helpers = [rules.LEAD] * _running_helpers(db, chat_ids)
     for entry in _room_rows(db, lead_id):
@@ -356,9 +350,86 @@ def load(db, lead_id: str) -> rules.Team | None:
                 text=entry.text,
                 report=entry.report,
                 created=_epoch(entry.created_at) or 0.0,
+                kind=entry.kind or ("report" if entry.report else "message"),
             )
         )
     return team
+
+
+def main_mode(chat: Chat) -> str:
+    """The main agent's mode as the rules read it (subagents.md §7). A chat on
+    this server never puts its own tools to the person -- what it may reach is
+    the access resolver's -- so it is `auto` but in Plan mode, where it is
+    `plan`. (An agent chat's main agent is the device's.)"""
+    return "plan" if (getattr(chat, "agent_mode", "") or "") == "plan" else "auto"
+
+
+def _ended_rows(db, lead_id: str) -> list[TeamAgent]:
+    """The subagents that ended (spec 3.4.0 keeps them in the tree), in the
+    order they ended. Rows from before 3.4.0 (no id) are left out."""
+    return list(
+        db.scalars(
+            select(TeamAgent)
+            .where(
+                TeamAgent.lead_chat_id == lead_id,
+                TeamAgent.left.is_not(None),
+                TeamAgent.agent_id != "",
+            )
+            .order_by(TeamAgent.left, TeamAgent.position)
+        )
+    )
+
+
+def _agent_of(member: TeamAgent) -> rules.Agent:
+    state = member.state
+    if member.left is not None and state not in rules.ENDED:
+        state = rules.STOPPED
+    return rules.Agent(
+        name=member.name,
+        manager=member.manager,
+        role=member.role,
+        may_lead=member.may_lead,
+        agent=member.agent,
+        model=member.model,
+        state=state,
+        goal=member.goal,
+        order=member.position,
+        waiting_since=member.waiting_since,
+        inbox=list(member.inbox_json or []),
+        last_ended=_epoch(member.last_ended),
+        extra={"row_id": member.id, "chat_id": member.chat_id},
+        id=member.agent_id or "",
+        task=member.task or "",
+        mode=member.mode or "",
+        request=list(member.request_json or []),
+        grants=list(member.grants_json or []),
+        findings=list(member.findings_json or []),
+        context=dict(member.context_json) if member.context_json else None,
+        ended_at=_epoch(member.left),
+        moved_from=member.moved_from or "",
+    )
+
+
+def _write_agent(member: TeamAgent, agent: rules.Agent) -> None:
+    """The fields an operation may change, onto the member's row."""
+    if member.state != agent.state and agent.state == rules.WORKING:
+        member.run_started = _now()
+    member.state = agent.state
+    member.manager = agent.manager or rules.LEAD
+    member.role = agent.role
+    member.inbox_json = list(agent.inbox)
+    member.waiting_since = agent.waiting_since
+    member.goal = agent.goal
+    member.agent_id = agent.id or member.agent_id
+    member.task = agent.task
+    member.mode = agent.mode
+    member.request_json = list(agent.request)
+    member.grants_json = list(agent.grants)
+    member.findings_json = list(agent.findings)
+    member.context_json = dict(agent.context or {})
+    member.moved_from = agent.moved_from
+    if agent.last_ended is not None:
+        member.last_ended = datetime.fromtimestamp(agent.last_ended, UTC)
 
 
 def save(db, lead_id: str, team: rules.Team) -> None:
@@ -375,23 +446,26 @@ def save(db, lead_id: str, team: rules.Team) -> None:
         "lead_waiting_since": lead.waiting_since,
         "lead_last_ended": lead.last_ended,
         "stopped_unsaid": list(team.stopped_unsaid),
+        "id_seq": team.id_seq,
+        "request_seq": team.request_seq,
+        "requests": list(team.requests),
+        "lead_findings": list(lead.findings),
+        "lead_context": dict(lead.context or {}),
     }
-    present = {a.name: a for a in team.members()}
+    present = {a.extra.get("row_id"): a for a in team.members() if a.extra.get("row_id")}
+    ended = {a.extra.get("row_id"): a for a in team.ended if a.extra.get("row_id")}
     for member in _member_rows(db, lead_id):
-        agent = present.get(member.name)
+        agent = present.get(member.id)
         if agent is None:
+            gone = ended.get(member.id)
             member.left = _now()
-            member.state = "stopped"
+            member.state = gone.state if gone is not None else rules.STOPPED
             member.inbox_json = []
+            if gone is not None:
+                member.findings_json = list(gone.findings)
+                member.moved_from = gone.moved_from
             continue
-        if member.state != agent.state and agent.state == rules.WORKING:
-            member.run_started = _now()
-        member.state = agent.state
-        member.inbox_json = list(agent.inbox)
-        member.waiting_since = agent.waiting_since
-        member.goal = agent.goal
-        if agent.last_ended is not None:
-            member.last_ended = datetime.fromtimestamp(agent.last_ended, UTC)
+        _write_agent(member, agent)
     stored = {m.n for m in _room_rows(db, lead_id)}
     for entry in team.room:
         if entry.n in stored:
@@ -405,6 +479,7 @@ def save(db, lead_id: str, team: rules.Team) -> None:
                 recipients_json=list(entry.recipients),
                 text=entry.text,
                 report=entry.report,
+                kind=entry.kind or ("report" if entry.report else "message"),
             )
         )
     db.commit()
@@ -476,9 +551,8 @@ async def _stop_chat(chat_id: str) -> None:
         db.commit()
 
 
-async def _apply(lead_id: str, effects: list[rules.Effect], chats: dict[str, str]) -> None:
-    for effect in effects:
-        chat_id = chats.get(effect.name) or ""
+async def _apply(lead_id: str, effects: list[rules.Effect], chats: list[str]) -> None:
+    for effect, chat_id in zip(effects, chats, strict=True):
         if not chat_id:
             continue
         try:
@@ -493,13 +567,17 @@ async def _apply(lead_id: str, effects: list[rules.Effect], chats: dict[str, str
     _bump(lead_id)
 
 
-def _chats_for(db, lead_id: str, team: rules.Team, effects: list[rules.Effect]) -> dict[str, str]:
-    """The chat each effect's agent works in, read before its row may leave."""
-    out: dict[str, str] = {}
+def _chats_for(db, lead_id: str, team: rules.Team, effects: list[rules.Effect]) -> list[str]:
+    """The chat each effect's agent works in, read before its row may leave --
+    one per effect, since a replacement and the one it replaces share a name."""
+    out: list[str] = []
     for effect in effects:
         agent = team.get(effect.name)
+        if effect.kind in ("stop", "end") or agent is None:
+            # One that ended: the latest of that name, not a replacement.
+            agent = next((a for a in reversed(team.ended) if a.name == effect.name), agent)
         chat_id = (agent.extra.get("chat_id") if agent is not None else "") or ""
-        out[effect.name] = chat_id or _chat_of(db, lead_id, effect.name)
+        out.append(chat_id or _chat_of(db, lead_id, effect.name))
     return out
 
 
@@ -669,7 +747,9 @@ def _new_member(db, lead_id: str, by: str, agent: rules.Agent, owner: User, mode
     """The member's hidden chat and row, made under its manager's chat."""
     from lembas.services import subagent as subagent_service
 
-    manager_chat = db.get(Chat, _chat_of(db, lead_id, by) or lead_id)
+    # Under its parent's chat (spec 3.4.0: the main agent places it), so it
+    # inherits that chat's narrowing, as a helper does its caller's.
+    manager_chat = db.get(Chat, _chat_of(db, lead_id, agent.manager or by) or lead_id)
     child = subagent_service._create_child(
         db,
         manager_chat,
@@ -684,11 +764,15 @@ def _new_member(db, lead_id: str, by: str, agent: rules.Agent, owner: User, mode
     row = TeamAgent(
         lead_chat_id=lead_id,
         name=agent.name,
-        manager=by,
+        manager=agent.manager or by,
         role=agent.role,
         may_lead=agent.may_lead,
         agent=agent.agent,
         model=agent.model,
+        agent_id=agent.id,
+        task=agent.task,
+        mode=agent.mode,
+        request_json=list(agent.request),
         model_id=child.model_id or "",
         connection_id=child.connection_id,
         chat_id=child.id,
@@ -843,6 +927,10 @@ async def _run_team_stop(context: ToolContext, args: dict[str, Any]) -> ToolOutc
     return _outcome(text, _event("team_stop", text, name, ok=ok))
 
 
+# The team tools whose answer only reads.
+READING = frozenset({"team_read", "team_whoami"})
+
+
 def tool_defs(*, lead: bool = True) -> list[ToolDef]:
     """The four team tools as the spec defines them; a member that may not
     lead has `team_send` and `team_read` alone."""
@@ -855,13 +943,10 @@ def tool_defs(*, lead: bool = True) -> list[ToolDef]:
         spec_parameters,
     )
 
-    runners = {
-        "team_add": (_run_team_add, RISK_INTERACT),
-        "team_send": (_run_team_send, RISK_INTERACT),
-        "team_read": (_run_team_read, RISK_READ),
-        "team_stop": (_run_team_stop, RISK_INTERACT),
-    }
-    names = rules.TOOLS if lead else rules.MEMBER_TOOLS
+    runners = {name: (RUNNERS[name], RISK_READ if name in READING else RISK_INTERACT)
+               for name in RUNNERS}
+    # Spec 3.2.0's four until the runtime has the 3.4.0 tools' runners.
+    names = [n for n in (rules.LEAD_TOOLS if lead else rules.MEMBER_TOOLS) if n in runners]
     return [
         ToolDef(
             name=name,
@@ -873,6 +958,14 @@ def tool_defs(*, lead: bool = True) -> list[ToolDef]:
         )
         for name in names
     ]
+
+
+RUNNERS = {
+    "team_add": _run_team_add,
+    "team_send": _run_team_send,
+    "team_read": _run_team_read,
+    "team_stop": _run_team_stop,
+}
 
 
 def defs_for(db, chat: Chat, user) -> list[ToolDef]:

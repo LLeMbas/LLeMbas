@@ -1,0 +1,41 @@
+{
+  "name": "team_request",
+  "scope": "shared",
+  "sessions": "both",
+  "risk": "interact",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": false,
+  "requires": [
+    "team"
+  ],
+  "unavailable": "The person allows one agent in this chat: there is no team. Do the work yourself.",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "offered": "subagent",
+  "description": "Ask the main agent to allow a call your mode does not, of a kind your request options name. Say the tool, the permission pattern you need (a command such as `git push *`, or a path) and why. Its decision comes to you as a message; once allowed, make the call again.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "tool": {
+        "type": "string",
+        "minLength": 1
+      },
+      "pattern": {
+        "type": "string",
+        "minLength": 1
+      },
+      "why": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "tool",
+      "pattern",
+      "why"
+    ]
+  }
+}

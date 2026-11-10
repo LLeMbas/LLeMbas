@@ -547,8 +547,8 @@ def _team_member(chat) -> dict[str, Any] | None:
 
 def team_block(db: DBSession, tools: list[dict[str, Any]] | None, chat=None) -> str:
     """The team's text at the end of the system prompt (spec 3.2.0, team.md §4,
-    §10): a member's standing (`blocks/team_member.md`, with the whole of
-    `blocks/team_lead.md` for one that may lead), or, where the team tools are
+    §10): a member's standing (`blocks/team_member.md`, with
+    `blocks/team_submanager.md` for a sub-manager), or, where the team tools are
     listed, how to lead (`blocks/team_lead.md`). Constant per agent -- the size
     is a session note -- and read from the vendored spec word for word."""
     names = set(_tool_names(tools or []).split(", "))
@@ -561,11 +561,14 @@ def team_block(db: DBSession, tools: list[dict[str, Any]] | None, chat=None) -> 
         if row is None:
             return ""
         agent = subagent_service.agent_of(chat)
-        lead = harness_spec.prompt("blocks/team_lead.md") if row.may_lead else ""
+        # Spec 3.4.0: a sub-manager is told `team_submanager.md`, in place of
+        # the whole lead block a member that could add got in 3.2.0.
+        lead = harness_spec.prompt("blocks/team_submanager.md") if row.may_lead else ""
         return harness_spec.prompt_with(
             "blocks/team_member.md",
             {
                 "name": str(mark.get("name") or row.name),
+                "id": row.agent_id or row.name,
                 "manager": row.manager,
                 "role": row.role,
                 "goal": row.goal,

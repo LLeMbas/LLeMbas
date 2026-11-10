@@ -14,7 +14,7 @@
     "cli": [],
     "llembas": []
   },
-  "description": "Send a message through your team's room: to one or more agents by name, or to `all`. It reaches each at its next step, or wakes one that has finished, its context intact. Message the agent who owns a thing; use `all` only for what everyone needs. The team's lead is `lead`; your manager is reached by its name.",
+  "description": "Send a message through the team's room: to one or more agents by name, to `parent` (the agent you report to), or to `all`. It reaches each at its next step, or wakes one that has finished, its context intact. Message the agent who owns a thing; use `all` only for what everyone needs. The main agent is `lead`.",
   "parameters": {
     "type": "object",
     "properties": {
@@ -24,7 +24,7 @@
           "type": "string"
         },
         "minItems": 1,
-        "description": "Names, or [\"all\"]"
+        "description": "Names, [\"parent\"], or [\"all\"]"
       },
       "message": {
         "type": "string",

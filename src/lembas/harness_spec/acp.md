@@ -65,6 +65,9 @@ change to the protocol is a change here first, then in both projects.
 | `rewind` | `_lembas/session/rewind` |
 | `show` | spec 3.0.0: `_lembas/show`; the `show` tool is offered in a session the client opened when the client said `show: true` in `clientCapabilities._meta.lembas` |
 | `jobs` | background work (spec 2.0.0): the `job` and `job_note` events; `_lembas/jobs`, `_lembas/job/output`, `_lembas/job/stop`, `_lembas/job/send`, `_lembas/job/transcript`; `jobs` in `_lembas/session/status`; `job` on `session/request_permission`; `machine` on a `prompt` event |
+| `progress` | spec 3.4.0 (`progress.md`): the `phase` event; `progress` in `_lembas/session/status` |
+| `agents` | spec 3.4.0: the session's Subagents setting `{ min, max }` is read from `_meta.lembas.agents` on `session/new`, `session/prompt` and `_lembas/configure` (*Subagents in an agent chat*, below) |
+| `tree` | spec 3.4.0 (`subagents.md` §5–§13): the `team` event; `_lembas/team`, `_lembas/team/transcript`, `_lembas/team/findings`, `_lembas/team/stop`; `subagent` on `session/request_permission` |
 
 ## Standard ACP, as used here
 
@@ -245,10 +248,63 @@ with options `once` (allow_once), `session` (allow_always, absent where "always"
 and `deny` (reject_once), and `_meta.lembas: { reason, purpose?, always?, patient?, job? }`. `patient`: a
 person may also answer at the terminal (a shared session), so the client does not time it out.
 `job` (capability `jobs`): `{ id, agent, description }` when a subagent running as a background job asks, so the card
-can say which — a background subagent may ask while the session itself is idle.
+can say which — a background subagent may ask while the session itself is idle. `subagent` (capability `tree`, spec 3.4.0):
+`{ id, name, position }` when the call is a tree subagent's that nobody in the tree could allow (`subagents.md` §7) —
+the card names it; the answers are the same as for the main agent's own call.
 Answer: ACP's `{ outcome: { outcome: "selected", optionId } | { outcome: "cancelled" } }`, with
 optional `_meta.lembas.command` (the corrected command line, `once` only) or
 `_meta.lembas.feedback` (why it was denied). No answer within `remote.approval_timeout` is a denial.
+
+## Subagents in an agent chat (spec 3.4.0)
+
+**An agent chat's main agent is the CLI on the device.** Its subagents are the device's: it starts
+them locally, on the models of the server it is logged in to, under every rule of `subagents.md` —
+the model rules (§2–§3), Min/Max, slots, permissions only ever narrowed, request options, and a
+call nobody in the tree can allow going to the person. The server runs no subagent of its own for
+an agent chat and offers its own subagent tool to no agent chat; what it does is carry the setting
+down and the tree up. A device without the capabilities `agents` and `tree` gets neither and runs no
+subagents for the chat (the chat says so beside the setting).
+
+**What goes down, with every turn.**
+
+- `agents: { min, max }` in `_meta.lembas` of `session/new`, of **every** `session/prompt`, and of
+  `_lembas/configure` when the person changes it between turns — the chat's setting as the server
+  keeps it (`team.md` §2: 1 ≤ min ≤ max ≤ the instance's cap). The device takes the value as the
+  session's setting for that turn: a change reaches the main agent as `team.md` §10's note, and
+  nothing else reads the device's own configuration for the chat. Absent (an older server, or a
+  client that is not LLeMbas): the device's own setting, as before 3.4.0. A value the device's own global cap is under is read as `team.md` §2
+  says (lowered, never refused).
+- `subagents: false` in the same `_meta.lembas` when the instance has subagents switched off: the
+  device offers none whatever `agents` says.
+- **What the person named** (`subagents.md` §2): the person's words reach the device as the turns'
+  prompt texts, so the device judges a named model from them as in its own sessions — every
+  `session/prompt` without `machine`; never a `machine` turn, a `_lembas/steer` from the harness, or
+  a tool's output. A chat continued on a device that has not seen its earlier turns gets them in
+  `_meta.lembas.said: string[]`, the person's earlier messages of the chat, oldest first (on
+  `session/new` only); the device counts them as typed in the session.
+- The models: the device's subagents may run on any model of the person's (`/v1/models` as the
+  device's token sees it), as in its own sessions.
+
+**What comes up.**
+
+- The tree, as it changes: the `team` event (`{ tree }`, `subagents.md` §12's data, at most four a
+  second), and on request `_lembas/team` (the tree and the whole room). Every agent's `progress`
+  is in it; the main agent's own also as the `phase` event (capability `progress`).
+- Approvals: a subagent's call that only the person can allow is an ordinary
+  `session/request_permission` with `_meta.lembas.subagent: { id, name, position }`; the server
+  shows it as its usual approval card naming the subagent, in every client. Requests the main agent
+  decides (`team_request` / `team_decide`) never reach the server as approvals: they are room
+  messages.
+- Findings and transcripts on request: `_lembas/team/findings`, `_lembas/team/transcript` (live and
+  ended subagents, read-only — the link has no method that writes into a subagent's session).
+- The person stopping a subagent: `_lembas/team/stop`.
+
+**What the server keeps.** The latest tree with the chat (so a client opening the chat draws it at
+once, and after the device has gone), and the room as `_lembas/team` last answered. Findings and
+transcripts stay on the device; a client asking for one while the device is not linked is told it
+is on the device, and gets it once the device links again. Over `/api/v2` the chat's stream carries
+the tree as it changes and the endpoints to read a subagent's transcript and findings, the same for
+a chat's own subagents and for an agent chat's — so Web, Desktop and Android draw both alike.
 
 ## `_lembas/*` methods
 
@@ -275,7 +331,7 @@ client hears the new limits.
 `{ sessionId, event }`: every engine event of the session, to a client that said `_meta.lembas`.
 `event.type` is one of `session`, `prompt`, `step`, `title`, `text`, `reasoning`,
 `tool_call_delta`, `progress`, `tool_start`, `tool_end`, `tool_denied`, `usage`, `inbox`,
-`steered`, `task`, `notice`, `retract`, `plan`, `compacted`, `sub_tool`, `job`, `job_note`, `mode`, `model`, `flash`,
+`steered`, `task`, `notice`, `retract`, `plan`, `compacted`, `sub_tool`, `job`, `job_note`, `phase`, `team`, `mode`, `model`, `flash`,
 `setting`, `error`, `done` (`src/bus/index.ts`). Those this protocol relies on:
 
 | Event | Fields |
@@ -291,6 +347,8 @@ client hears the new limits.
 | `job` | `state: "start" \| "update" \| "end"`, `job: JobInfo` (capability `jobs`) — a background job of the session began, has news (new output, a subagent's step; at most four a second per job), or ended. `JobInfo = { id, kind: "command" \| "subagent", state: "running" \| "done" \| "stopped" \| "error" \| "lost", description, command?, agent?, model?, started, ended?, exit?, unread, steps?, tools?, ownerJobId? }` — `description` what is shown for it (a command's `description` or its first line; a subagent's description), `unread` characters of output the model has not read, `exit` a command's exit code (null: a signal), `ownerJobId` set on a job a subagent started, `lost` a job that was running when the device's process ended |
 | `job_note` | `jobId`, `text` (capability `jobs`) — the note about that job was given to the model: inside a turn at the next step, or as the `machine` turn whose `prompt` follows |
 | `sub_tool` | `callId` (the `task` call the subagent belongs to), `jobId?` (its job, when it runs as one), `name`, `title`, `isError?` — a tool call of a subagent finished; a client draws it under the task line, or in the job's panel |
+| `phase` | `progress` — the progress object (`progress.md` §1), or `null` when nothing runs; `agent?` — the subagent's id when it is a subagent's, absent for the main agent's (capability `progress`). Sent when the phase changes, and for a change of its data at most four times a second. The existing `progress` event (the prompt's tokens read) is unchanged |
+| `team` | `tree` — the session's subagent tree (`subagents.md` §12, the data) — whenever it changes, at most four times a second (capability `tree`). A client draws it and fetches nothing else to do so |
 
 ### `_lembas/directories` — client → agent → result
 
@@ -301,7 +359,7 @@ Only on the link (an error on `serve --stdio`).
 
 ### `_lembas/configure` — client → agent → result
 
-Params `{ sessionId, model?: <instance's name>, effort?: <level> }` between prompts (a level as in `session/new`). Result
+Params `{ sessionId, model?: <instance's name>, effort?: <level>, agents?: { min, max } }` between prompts (a level as in `session/new`; `agents` with capability `agents`, spec 3.4.0). Result
 `{ model: <ref>, effort }`. Emits a `model` event when something changed.
 
 ### `_lembas/steer` — client → agent → result
@@ -319,9 +377,9 @@ with the message in the store; `attachments`, and the text without them) or `{ r
 ### `_lembas/session/status` — client → agent → result
 
 Params `{ sessionId }`. Result
-`{ sessionId, exists, held: "here" | "terminal" | "none", busy, title, turnId?, queued: string[], lastTurnId?, plan?, jobs? }`
+`{ sessionId, exists, held: "here" | "terminal" | "none", busy, title, turnId?, queued: string[], lastTurnId?, plan?, jobs?, progress?, tree? }`
 — `plan` the session's plan or `null` (capability `plan_state`), so a client reattaching draws it
-without waiting for the next change; `jobs` the session's background jobs, `JobInfo[]` running first (capability `jobs`), for the same reason; the turn fields with capability `turns`: the turn running now, the ones waiting, the last
+without waiting for the next change; `progress` the main agent's progress object or `null` (capability `progress`), and `tree` the subagent tree or `null` when the session has none (capability `tree`), for the same reason; `jobs` the session's background jobs, `JobInfo[]` running first (capability `jobs`), for the same reason; the turn fields with capability `turns`: the turn running now, the ones waiting, the last
 one finished (for a session not open, `held: "none"`, the last one it finished before). **Reattaching** after a restart or a dropped link, for an incomplete row with turn T:
 T running → follow it; T queued → wait, and follow it when it starts; T done → import it from
 `history`; T unknown → send the prompt again (safe: the device deduplicates).
@@ -361,6 +419,30 @@ Params `{ sessionId, id }`. Result `{ id, turns }` in the shape of `_lembas/sess
 with its output — so a client can show the subagent as a panel and follow it with the `sub_tool` and
 `job` events that come after. `-32602` for a command job. A subagent's transcript lasts as long as
 its session row on the device: it is kept with the parent session and deleted with it.
+
+### `_lembas/team` — client → agent → result (capability `tree`)
+
+Params `{ sessionId, since?: number }`. Result `{ tree, room }`: the subagent tree (`subagents.md`
+§12) and the room's messages numbered above `since` (default 0), every one — the person sees the
+whole room — each `{ n, from, to, recipients, text, time, report, kind }` with `kind` one of
+`message`, `report`, `assignment`, `request`, `decision`. `tree` is `null` for a session with no
+subagents. For a session held by a terminal, answered through the hub, as `status` is.
+
+### `_lembas/team/transcript` — client → agent → result (capability `tree`)
+
+Params `{ sessionId, id }` — a subagent's id (`s1`), live or ended. Result `{ id, state, turns }` in
+the shape of `_lembas/session/history`'s `turns`: its conversation so far, **read-only** — the link
+has no method to write into it. A client following it live refetches on the `team` event and draws
+the `sub_tool` events meanwhile. `-32602` for an id the session never had.
+
+### `_lembas/team/findings` — client → agent → result (capability `tree`)
+
+Params `{ sessionId, id }`. Result `{ id, findings: [{ n, text, time }] }`, ended subagents' too.
+
+### `_lembas/team/stop` — client → agent → result (capability `tree`)
+
+Params `{ sessionId, id }`: the person stops a subagent and its subtree (`subagents.md` §10), said to
+the main agent as a note. Result `{ stopped: [id, …] }`; `-32602` for an id that is not live.
 
 ### `_lembas/session/delete` — client → agent → result
 

@@ -15,18 +15,19 @@ page *Harness-parity* in LLeMbas CLI's wiki.
 |---|---|
 | `VERSION` | The spec's own version, apart from LLeMbas CLI's |
 | `purpose.json` | The `purpose` argument added to a tool whose calls say what they are for |
-| `tools/<name>.json` | One tool each: name, `scope`, `sessions`, `risk`, `exclusive`, `block` (how a call is shown: `shell`, `edit`, `read`, `search`, `web`, `task`, `plan` — not drawn, the plan card refreshes — `hidden`, `tool`), `purpose`, former names (`aliases`, per project), renamed arguments, `variables`, what a project offers of the parameters (`narrow`, per project), `offered` (`subagent`: given to subagents only, never to the main agent — `report`), `requires` and `unavailable` (when it can be offered, and what a call answers when that has gone), `confirm` (`always`: the person is asked in every mode), the description and the JSON Schema of its parameters — exactly what a model is sent |
+| `tools/<name>.json` | One tool each: name, `scope`, `sessions`, `risk`, `exclusive`, `block` (how a call is shown: `shell`, `edit`, `read`, `search`, `web`, `task`, `plan` — not drawn, the plan card refreshes — `hidden`, `tool`), `purpose`, former names (`aliases`, per project), renamed arguments, `variables`, what a project offers of the parameters (`narrow`, per project), `offered` (`subagent`: given to subagents only, never to the main agent — `report`, `team_finish`, `team_request`; `main`, spec 3.4.0: given to the main agent only, never to a subagent — `team_add`, `team_assign`, `team_replace`, `team_stop`, `team_decide`), `requires` and `unavailable` (when it can be offered, and what a call answers when that has gone), `confirm` (`always`: the person is asked in every mode), the description and the JSON Schema of its parameters — exactly what a model is sent |
 | `prompts/` | The prompt texts; `prompts/index.json` says which are shared, which LLeMbas fragment each one is, and what each `{{variable}}` in a text means. `prompts/personality/` holds the personality presets both offer |
 | `permission/hardline.json` | The floor: commands refused in every mode, protected paths, and how a command is spelled plainly before it is checked again |
 | `permission/arity.json` | How much of a command an "always allow" covers |
 | `permission/defaults.json` | The rules every session starts from |
 | `permission/modes.json` | The four modes — manual, edit, auto, plan — as what each does with each risk class |
 | `models/schema.json` | Model metadata: context, output limit, efforts and the thinking switch, vision, tools, notes, capacity (`parallel`); `levels` — the effort levels a chat offers and what each sends |
-| `loop.json` | How one prompt runs: the step backstop, budgets, wrap-up, nudges, parallel calls, capacity; `jobs` — background work, its marks and limits; `subagents` — the model refusals, what names a model, the setting's label; `team` — a team's size, names, marks, refusals and texts; `context` — result ids, stubs, the output cap, the compaction table, the environment lines, the session notes |
+| `loop.json` | How one prompt runs: the step backstop, budgets, wrap-up, nudges, parallel calls, capacity; `jobs` — background work, its marks and limits; `subagents` — the model refusals, what names a model, the setting's label; `team` — a team's size, names, marks, refusals and texts; `progress` — the phases' texts; `context` — result ids, stubs, the output cap, the compaction table, the environment lines, the session notes |
 | `filesystem.md` | The file system a session works in: paths, node kinds, the four access levels, errors, listings, search and indexing by tokens, stacked instruction files, skills, memory |
 | `context.md` | Context hygiene: what happens to a tool result when it is inserted, and never afterwards; the prefix that stays still; reasoning sent back during its turn; no absolute paths in the prompt |
 | `team.md` | Teams: a lead and the members it adds, the size setting, the room, who receives what, reports, a manager's refusals, capacity, stopping |
-| `subagents.md` | Subagents: the word, which model one runs on (the session's, or one the person named), the capacity refusals, and when the Subagents setting is offered |
+| `subagents.md` | Subagents: the word, which model one runs on (the session's, or one the person named), the capacity refusals, and when the Subagents setting is offered; from 3.4.0 (§5–§13) the main agent and its tree — only it adds, permissions inherited and never widened, request options, a subagent's life and its findings, what clients show |
+| `progress.md` | Progress (3.4.0): the thirteen phases every client shows the same way, the data each carries, their texts, and where they are sent |
 | `quirks.json` | What real servers do, and how both harnesses cope |
 | `conformance/<area>.json` | Cases with their expected results, run by both test suites |
 | `acp.md` | The link between them: ACP plus every `_lembas/*` method, field and capability |
@@ -69,6 +70,40 @@ page *Harness-parity* in LLeMbas CLI's wiki.
   (`context.md` §10). All three are offered in every mode; `plan_submit` (`requires: plan`) is the
   approval in plan mode and answers its `unavailable` text outside it. Their permission key is
   `plan` (`permission/defaults.json`), which a rule written for the former `todo` key still reaches.
+
+## 3.4.0
+
+Written ahead of both implementations; the server vendors it as written, both carry it in the same
+round (`progress.md`, `subagents.md` §5–§13).
+
+- **Progress** (`progress.md`, `loop.json` `progress`): one fixed set of phases — `queued`,
+  `waiting_for_model`, `loading_model`, `reading_prompt`, `thinking`, `writing`, `running_tool`,
+  `waiting_for_person`, `waiting_for_subagents`, `compacting`, `retrying`, `stopped`, `failed` —
+  each a structured object `{ phase, since, …data }` with fixed fields, an English text that is
+  the shared i18n key, and one line every client draws: `text · elapsed`. Sent beside the old
+  `status` text in `/api/v2` and over the link (`acp.md` capability `progress`: the `phase` event,
+  `progress` in `status`); `status` stays. Area `progress`.
+- **Subagents v2** (`subagents.md` §5–§13; supersedes `team.md` where they differ, which says so):
+  the **main agent** is the session's, permanent, and **alone adds, assigns, replaces, stops and
+  decides** (`offered: main`); a member with `lead: true` is a **sub-manager** that directs those
+  placed under it (`team_add`'s `parent`). Every subagent has an id (`s1`…), a name, a position, a
+  parent, a task, a mode and a model. Min above 1 opens `min − 1` **slots** from the start of the
+  reply. **Permissions are inherited and never widened**: a subagent's mode is its parent's or
+  stricter; a narrowed one may get **request options** (`read`, `write`, `execute`) and ask the
+  main agent (`team_request` → `team_decide`, a grant that never reaches past the main agent's own
+  mode); a call nobody in the tree can allow goes **to the person**. A subagent ends with
+  `team_finish`, is stopped, or **runs out of context**: paused, one final turn to save its
+  findings and tell its parent, then `out_of_context` and a report; findings and transcripts are
+  kept, readable by the parent, the main agent and the person. New tools `team_whoami`,
+  `team_finish`, `team_findings`, `team_request`, `team_decide`, `team_assign`, `team_replace`;
+  `team_add` gains `parent`, `mode`, `request`; `team_send` takes `parent`; `team_stop` is the main
+  agent's. `blocks/team_submanager.md`; `team_lead.md` and `team_member.md` reworded. Over the link,
+  capability `tree`: the `team` event, `_lembas/team`, `/transcript` (read-only), `/findings`,
+  `/stop`, `subagent` on an approval. **An agent chat's subagents are the device's** (`subagents.md`
+  §14, `acp.md` *Subagents in an agent chat*): capability `agents` carries the chat's `{ min, max }`
+  down on every turn (and `said`, the person's earlier words, on `session/new`); the tree, progress,
+  approvals, findings and transcripts come up. Areas `team` (cases changed where a member used to add or
+  stop, and new ones) and `delegation`.
 
 ## 3.3.0
 

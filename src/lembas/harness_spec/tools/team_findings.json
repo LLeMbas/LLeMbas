@@ -1,0 +1,41 @@
+{
+  "name": "team_findings",
+  "scope": "shared",
+  "sessions": "both",
+  "risk": "interact",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": false,
+  "requires": [
+    "team"
+  ],
+  "unavailable": "The person allows one agent in this chat: there is no team. Do the work yourself.",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "Findings kept beyond your context: `write` adds one (a fact, a result, where something is) to yours; `read` shows yours, or with `of` those of a subagent under you (the main agent: anyone's), ended ones included. Write as you go: when your context fills you have one turn left, and your findings are what the next agent starts from.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "write",
+          "read"
+        ]
+      },
+      "text": {
+        "type": "string",
+        "description": "write: the finding"
+      },
+      "of": {
+        "type": "string",
+        "description": "read: a name or an id (default: yours)"
+      }
+    },
+    "required": [
+      "action"
+    ]
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "team_finish",
+  "scope": "shared",
+  "sessions": "both",
+  "risk": "interact",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": false,
+  "requires": [
+    "team"
+  ],
+  "unavailable": "The person allows one agent in this chat: there is no team. Do the work yourself.",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "offered": "subagent",
+  "description": "Your task is done: send your report to your parent and end. Make the report complete on its own — the result, then the evidence (file:line), then anything you could not settle. Save anything worth keeping beyond the report with team_findings first. Nothing runs after this call.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "report": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "report"
+    ]
+  }
+}

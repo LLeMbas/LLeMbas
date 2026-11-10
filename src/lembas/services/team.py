@@ -34,18 +34,49 @@ from typing import Any
 
 from lembas.services import harness_spec
 
-# The four tools, in the order the spec lists them.
-TOOLS = ("team_add", "team_send", "team_read", "team_stop")
-# What a member that does not lead has of them.
-MEMBER_TOOLS = ("team_send", "team_read")
+# Every team tool (spec 3.4.0, subagents.md §8).
+TOOLS = (
+    "team_add",
+    "team_assign",
+    "team_decide",
+    "team_findings",
+    "team_finish",
+    "team_read",
+    "team_replace",
+    "team_request",
+    "team_send",
+    "team_stop",
+    "team_whoami",
+)
+# The main agent's (§8): it alone adds, assigns, replaces, stops and decides.
+LEAD_TOOLS = (
+    "team_add",
+    "team_assign",
+    "team_decide",
+    "team_findings",
+    "team_read",
+    "team_replace",
+    "team_send",
+    "team_stop",
+    "team_whoami",
+)
+# A subagent's, sub-managers included; `team_request` only with request options.
+MEMBER_TOOLS = ("team_findings", "team_finish", "team_read", "team_send", "team_whoami")
 
 LEAD = "lead"
 ALL = "all"
+PARENT = "parent"
 
 WORKING = "working"
 WAITING = "waiting"
 FINISHED = "finished"
 IDLE = "idle"
+# Spec 3.4.0 (§9): a subagent whose context filled runs its last turn, then ends.
+PAUSED = "paused"
+DONE = "done"
+OUT_OF_CONTEXT = "out_of_context"
+STOPPED = "stopped"
+ENDED = (DONE, OUT_OF_CONTEXT, STOPPED)
 
 AGENT_GENERAL = "general"
 AGENT_EXPLORE = "explore"
@@ -141,6 +172,26 @@ class Agent:
     last_ended: float | None = None
     # Anything the runtime keeps with it (its chat, its row); never read here.
     extra: dict[str, Any] = field(default_factory=dict)
+    # Spec 3.4.0 (subagents.md §5): `lead` for the main agent, s1, s2, ... for
+    # subagents, never reused in the session.
+    id: str = ""
+    # Its task as given, and as `team_assign` replaced it.
+    task: str = ""
+    # Its permission mode and request options (§7), and what the main agent
+    # allowed it (`team_decide`): `{"tool", "permission", "pattern"}` each.
+    mode: str = ""
+    request: list[str] = field(default_factory=list)
+    grants: list[dict[str, str]] = field(default_factory=list)
+    # Its findings (§8): `{"n", "text", "time"}`, kept past its end.
+    findings: list[dict[str, Any]] = field(default_factory=list)
+    # Its context use as its engine last said it: `{"used", "window"}`.
+    context: dict[str, int] | None = None
+    # Its current progress (progress.md), or None.
+    progress: dict[str, Any] | None = None
+    # How it ended and when (seconds since the epoch), once it has.
+    ended_at: float | None = None
+    # The sub-manager it was under before that one ended by itself.
+    moved_from: str = ""
 
 
 @dataclass
@@ -154,6 +205,8 @@ class Post:
     text: str
     report: bool = False
     created: float = 0.0
+    # Spec 3.4.0: message, report, assignment, request or decision.
+    kind: str = ""
 
     def addressed(self) -> str:
         return ", ".join(self.to)
@@ -188,7 +241,9 @@ class Team:
     # person named has that model's own (team.md §8: a slot of *its* model).
     model_slots: dict[str, int | None] = field(default_factory=dict)
     # The lead and every member on the team (stopped ones are gone from it).
-    agents: list[Agent] = field(default_factory=lambda: [Agent(LEAD, state=WORKING)])
+    agents: list[Agent] = field(
+        default_factory=lambda: [Agent(LEAD, state=WORKING, id=LEAD, mode="auto")]
+    )
     room: list[Post] = field(default_factory=list)
     # `task` helpers running in the team, by the agent that started each.
     helpers: list[str] = field(default_factory=list)
@@ -200,6 +255,18 @@ class Team:
     # The size setting as the lead was last told it (`team_note_state`).
     told: str | None = None
     effects: list[Effect] = field(default_factory=list)
+    # Spec 3.4.0: subagents that ended, in the order they ended; the last id
+    # and request number given; the requests to the main agent.
+    ended: list[Agent] = field(default_factory=list)
+    id_seq: int = 0
+    request_seq: int = 0
+    requests: list[dict[str, Any]] = field(default_factory=list)
+    # Steps a turn may take, the main agent's and a subagent's (team_whoami).
+    steps_main: int = 0
+    steps_sub: int = 0
+    # What each agent's latest turn was started with (its brief, or the
+    # messages that woke it), by name.
+    started: dict[str, str] = field(default_factory=dict)
 
     # -- lookups --
     def get(self, name: str) -> Agent | None:
@@ -271,11 +338,25 @@ def offered_tools(team: Team, by: str = LEAD) -> list[str]:
     if not team.offered:
         return []
     if by == LEAD:
-        return sorted(TOOLS)
+        return sorted(LEAD_TOOLS)
     agent = team.get(by)
     if agent is None:
         return []
-    return sorted(TOOLS if agent.may_lead else MEMBER_TOOLS)
+    return member_tools(agent)
+
+
+def member_tools(agent: Agent) -> list[str]:
+    """A subagent's team tools (§8): `team_request` only with request options."""
+    return sorted([*MEMBER_TOOLS, *(["team_request"] if agent.request else [])])
+
+
+def main_only_refusal(by: str, tool: str) -> str:
+    """`only_main` for a subagent's call to a tool only the main agent has --
+    `task` included (§6) -- or ""."""
+    if by == LEAD:
+        return ""
+    main_only = set(spec()["main_only"]["tools"]) | {"task"}
+    return texts()["only_main"] if tool in main_only else ""
 
 
 def unmet(team: Team, by: str = LEAD) -> str:
@@ -394,6 +475,7 @@ def _has_slot(team: Team, agent: Agent | None = None) -> bool:
 def _start(team: Team, agent: Agent) -> None:
     agent.state = WORKING
     team.effects.append(Effect("start", agent.name, list(agent.inbox)))
+    team.started[agent.name] = "\n\n".join(agent.inbox)
     agent.inbox = []
 
 
@@ -420,14 +502,19 @@ def schedule(team: Team) -> None:
 
 
 # --- §5, §7: the room and delivery --------------------------------------------------
-def mark(sender: str, to: str, *, report: bool = False) -> str:
+def mark(sender: str, to: str, *, report: bool = False, kind: str = "", id: str = "") -> str:
     marks = spec()["marks"]
-    return harness_spec.fill(marks["report" if report else "message"], {"from": sender, "to": to})
+    kind = kind or ("report" if report else "message")
+    return harness_spec.fill(marks[kind], {"from": sender, "to": to, "id": id})
 
 
 def _deliver(team: Team, name: str, text: str, delivered: dict[str, list[str]]) -> None:
     agent = team.get(name)
     if agent is None:
+        return
+    # Spec 3.4.0 (§9): a paused subagent is given nothing new; the message
+    # stays in the room for whoever replaces it.
+    if agent.state == PAUSED:
         return
     delivered.setdefault(name, []).append(text)
     if agent.state == WORKING:
@@ -446,8 +533,11 @@ def post(
     *,
     report: bool = False,
     now: float = 0.0,
+    kind: str = "",
+    id: str = "",
 ) -> tuple[Post, dict[str, list[str]]]:
     """Put a message in the room and deliver it to each recipient, marked."""
+    kind = kind or ("report" if report else "message")
     entry = Post(
         n=len(team.room) + 1 if not team.room else team.room[-1].n + 1,
         sender=sender,
@@ -456,9 +546,10 @@ def post(
         text=text,
         report=report,
         created=now,
+        kind=kind,
     )
     team.room.append(entry)
-    body = f"{mark(sender, entry.addressed(), report=report)}\n{text}"
+    body = f"{mark(sender, entry.addressed(), kind=kind, id=id)}\n{text}"
     delivered: dict[str, list[str]] = {}
     for name in recipients:
         _deliver(team, name, body, delivered)
@@ -492,6 +583,13 @@ def send(team: Team, by: str, raw_to: Any, message: str, *, now: float = 0.0):
     text = str(message or "").strip()
     if not to or not text:
         return "team_send needs `to` (names, or [\"all\"]) and a `message`.", {}
+    # Spec 3.4.0: `parent` is the sender's parent.
+    if PARENT in to:
+        sender = team.get(by)
+        manager = sender.manager if sender is not None else None
+        if not manager:
+            return texts()["no_parent"], {}
+        to = normalise_to([manager if n == PARENT else n for n in to])
     if to == [ALL]:
         recipients = [n for n in team.names() if n != by]
         if not recipients:
@@ -520,6 +618,28 @@ def visible(team: Team, by: str, since: int = 0) -> list[Post]:
     return [p for p in team.room if p.n > since and may_see(team, by, p)]
 
 
+def _mode_words(agent: Agent) -> str:
+    mode = agent.mode or "auto"
+    if not agent.request:
+        return mode
+    kinds = harness_spec.fill(spec()["read"]["request"], {"kinds": ", ".join(agent.request)})
+    return f"{mode} {kinds}"
+
+
+def percent(context: dict[str, int] | None) -> int | None:
+    """floor(used × 100 / window), or None where the window is unknown."""
+    if not context or int(context.get("window") or 0) <= 0:
+        return None
+    return int(context.get("used") or 0) * 100 // int(context["window"])
+
+
+def _context_words(agent: Agent) -> str:
+    value = percent(agent.context)
+    if value is None:
+        return "—"
+    return harness_spec.fill(spec()["read"]["context"], {"percent": str(value)})
+
+
 def _ago(seconds: float) -> str:
     from lembas.services import jobs
 
@@ -546,13 +666,33 @@ def read_text(team: Team, by: str, since: int = 0, *, now: float = 0.0) -> tuple
                 {
                     "indent": "  " * depth,
                     "name": agent.name,
+                    "id": agent.id or agent.name,
                     "role": role,
                     "state": states.get(agent.state, agent.state),
-                    "model": agent.model or "—",
+                    "model": agent.model or team.lead.model or "—",
+                    "mode": _mode_words(agent),
+                    "context": _context_words(agent),
                     "last": last,
                 },
             )
         )
+    if slots_open := open_slots(team):
+        lines.append(harness_spec.fill(shape["slots"], {"n": str(slots_open)}))
+    if team.ended:
+        lines.append(shape["ended"])
+        for agent in team.ended:
+            lines.append(
+                harness_spec.fill(
+                    shape["ended_agent"],
+                    {
+                        "name": agent.name,
+                        "id": agent.id,
+                        "role": agent.role,
+                        "state": states.get(agent.state, agent.state),
+                        "findings": str(len(agent.findings)),
+                    },
+                )
+            )
     lines.append("")
     seen = visible(team, by, since)
     limit = int(spec().get("read_max") or 50)
@@ -596,18 +736,24 @@ def add(
     is added (team.md §4)."""
     if refused := unmet(team, by):
         return Added(refused)
+    if refused := main_only_refusal(by, "team_add"):
+        return Added(refused)
     name = str(args.get("name") or "").strip()
     if name == ALL:
         return Added(texts()["all_name"])
     if not NAME.fullmatch(name):
         return Added(_say("bad_name", name=name))
-    if team.get(name) is not None:
+    if team.get(name) is not None or name == PARENT:
         return Added(_say("taken", name=name))
     goal = str(args.get("goal") or "").strip()
-    if by == LEAD and not goal and not team.goal:
+    if not goal and not team.goal:
         return Added(texts()["no_goal"])
     if team.size() + 1 > team.max:
         return Added(_say("full", max=team.max))
+    parent_name = str(args.get("parent") or "").strip() or LEAD
+    placed = _placement(team, parent_name, args.get("mode"), args.get("request"))
+    if isinstance(placed, str):
+        return Added(placed)
     if model_refusal:
         return Added(model_refusal)
     role = " ".join(str(args.get("role") or "").split())
@@ -615,23 +761,26 @@ def add(
     if not role or not brief:
         return Added("team_add needs a `role` (one line: what it owns) and a `task` (its brief).")
 
-    caller = team.get(by)
-    if by == LEAD and goal:
+    if goal:
         team.goal = goal
-    told_goal = goal or (team.goal if by == LEAD else (caller.goal if caller else team.goal))
+    parent = team.get(parent_name) or team.lead
     agent_kind = str(args.get("agent") or "").strip() or AGENT_GENERAL
     team.seq += 1
     member = Agent(
         name=name,
-        manager=by,
+        manager=parent.name,
         role=role,
         may_lead=bool(args.get("lead")),
         agent=agent_kind,
         model=model,
         state=FINISHED,
-        goal=told_goal,
+        goal=goal or parent.goal or team.goal,
         order=team.seq,
         inbox=[brief],
+        id=_next_id(team),
+        task=brief,
+        mode=placed[0],
+        request=placed[1],
     )
     team.agents.append(member)
     _wants(team, member)
@@ -643,20 +792,172 @@ def add(
     return Added(_say("added_waiting", parallel=limit or 0, **values), member)
 
 
+def _next_id(team: Team) -> str:
+    team.id_seq += 1
+    return f"{spec()['names']['id_prefix']}{team.id_seq}"
+
+
+def _placement(
+    team: Team, parent_name: str, mode: Any, request: Any
+) -> tuple[str, list[str]] | str:
+    """Spec 3.4.0 (§6, §7): `parent` is the main agent or a sub-manager, and
+    the mode is the parent's or stricter -- the refusal, or (mode, request)."""
+    parent = team.get(parent_name)
+    if parent is None:
+        return _say("unknown", name=parent_name, names=", ".join(team.names()))
+    if parent.name != LEAD and not parent.may_lead:
+        return _say("not_manager", name=parent.name)
+    return check_mode(parent.mode or "auto", mode, request)
+
+
+# --- Spec 3.4.0 §7: modes and request options -----------------------------------------
+def mode_order() -> list[str]:
+    """Loosest first (`permission/modes.json` `order`)."""
+    return list(harness_spec.modes()["order"])
+
+
+def _rank(mode: str) -> int:
+    order = mode_order()
+    # A mode the spec does not know reads as the strictest: fail towards asking.
+    return order.index(mode) if mode in order else len(order)
+
+
+def looser(a: str, b: str) -> bool:
+    return _rank(a) < _rank(b)
+
+
+def stricter(a: str, b: str) -> bool:
+    return _rank(a) > _rank(b)
+
+
+def strictest(a: str, b: str) -> str:
+    return a if stricter(a, b) else b
+
+
+def request_kinds() -> list[str]:
+    return list(spec()["request"]["kinds"])
+
+
+def check_mode(parent_mode: str, mode: Any, request: Any) -> tuple[str, list[str]] | str:
+    """`team_add`'s and `team_assign`'s mode for a parent in `parent_mode`: the
+    refusal, word for word, or (the mode, the request options) it gets."""
+    chosen = str(mode).strip() if mode else parent_mode
+    if looser(chosen, parent_mode):
+        return _say("wider", parent_mode=parent_mode)
+    kinds = [str(k) for k in (request or [])] if isinstance(request, list | tuple) else []
+    if kinds and not stricter(chosen, parent_mode):
+        return texts()["request_not_narrower"]
+    bad = next((k for k in kinds if k not in request_kinds()), None)
+    if bad is not None:
+        return _say("request_kind", kind=bad)
+    return chosen, list(dict.fromkeys(kinds))
+
+
+def request_refusal(tool: str, risk: str, request: list[str]) -> str:
+    """`team_request`'s own check: the tool's risk class must be an option."""
+    if risk and risk in request:
+        return ""
+    return _say("not_requestable", tool=tool, kinds=", ".join(request) or "none")
+
+
+def tighten(main: str, agents: list[dict[str, str]]) -> dict[str, str]:
+    """The main agent made stricter (§7): every subagent looser than its parent
+    is made as strict as it, down the tree. `agents`: `{name, parent, mode}`."""
+    modes = {LEAD: main}
+    out: dict[str, str] = {}
+    pending = list(agents)
+    while pending:
+        index = next((i for i, a in enumerate(pending) if a["parent"] in modes), None)
+        if index is None:
+            break
+        agent = pending.pop(index)
+        modes[agent["name"]] = out[agent["name"]] = strictest(agent["mode"], modes[agent["parent"]])
+    return out
+
+
+ALLOW = "allow"
+ASK = "ask"
+DENY = "deny"
+
+
+@dataclass(frozen=True)
+class Verdict:
+    """Who decides a subagent's call (§7): `run`, `person` (an approval card
+    naming the subagent), or `refused` with its text."""
+
+    answer: str
+    text: str = ""
+
+
+def who_decides(
+    evaluate,
+    *,
+    mode: str,
+    main: str,
+    risk: str,
+    request: list[str],
+    grants: list[dict[str, str]],
+    unattended: bool = False,
+) -> Verdict:
+    """Spec 3.4.0 (subagents.md §7). `evaluate(mode, grants)` is the
+    project's own permission answer for the call in a mode -- `(action,
+    reason)`, the action `allow`, `ask` or `deny` -- with the session's rules
+    and these grants added. The call is judged in the subagent's mode (its
+    grants count only where the main agent's own mode would allow the call);
+    what it would ask is judged in the main agent's: allowed there, the
+    subagent was narrowed (`requestable` or `not_delegated`); asked there
+    too, nobody in the tree can allow it and it goes to the person."""
+    main_action, main_reason = evaluate(main, [])
+    own_action, own_reason = evaluate(mode, list(grants) if main_action == ALLOW else [])
+    if own_action == ALLOW:
+        return Verdict("run")
+    if own_action == DENY:
+        return Verdict("refused", f"Denied: {own_reason}")
+    if main_action == ALLOW:
+        return Verdict(
+            "refused", texts()["requestable" if risk in request else "not_delegated"]
+        )
+    if main_action == DENY:
+        return Verdict("refused", f"Denied: {main_reason}")
+    if unattended:
+        return Verdict("refused", "Refused: nobody can approve this in an unattended session.")
+    return Verdict("person")
+
+
 # --- §9: stopping -------------------------------------------------------------------
-def _remove(team: Team, names: list[str]) -> None:
+def _remove(team: Team, names: list[str], end: str = STOPPED, *, now: float = 0.0) -> None:
+    """Agents leave the tree: ended (spec 3.4.0), kept in `ended` with how and
+    when. The subagents under one that ended by itself move under its parent
+    until the main agent replaces it; a stopped one's go with it (callers pass
+    the whole subtree)."""
     for name in names:
         agent = team.get(name)
         if agent is None:
             continue
         team.agents.remove(agent)
-        team.effects.append(Effect("stop", name))
+        agent.state = end
+        agent.ended_at = now
+        agent.inbox = []
+        team.ended.append(agent)
+        for entry in team.requests:
+            if entry["from"] == name:
+                entry["open"] = False
+        if end == STOPPED:
+            team.effects.append(Effect("stop", name))
+        else:
+            team.effects.append(Effect("end", name))
+            for child in team.agents:
+                if child.manager == name:
+                    child.manager = agent.manager or LEAD
+                    child.moved_from = name
     schedule(team)
 
 
 def stop(team: Team, by: str, name: str) -> tuple[str, list[str]]:
     """`team_stop`: (the answer, the stopped in tree order)."""
     if refused := unmet(team, by):
+        return refused, []
+    if refused := main_only_refusal(by, "team_stop"):
         return refused, []
     target = str(name or "").strip()
     if target == ALL:
@@ -703,8 +1004,17 @@ def finish(
     agent = team.get(by)
     if agent is None:
         return {}
-    agent.last_ended = now
     delivered: dict[str, list[str]] = {}
+    if agent.state == PAUSED:
+        # Spec 3.4.0 (§9): the final turn after its context filled has ended.
+        gone = _say("gone", name=agent.name, id=agent.id)
+        said = str(reply or "").strip()
+        text = f"{gone}\n\n{said}" if said else gone
+        manager = agent.manager or LEAD
+        _entry, delivered = post(team, by, [manager], [manager], text, report=True, now=now)
+        _remove(team, [by], OUT_OF_CONTEXT, now=now)
+        return delivered
+    agent.last_ended = now
     if by == LEAD:
         agent.state = WAITING if agent.inbox else IDLE
         if agent.inbox:
@@ -739,10 +1049,13 @@ def task_done(team: Team, by: str) -> None:
     schedule(team)
 
 
-def task_refusal(team: Team) -> str:
+def task_refusal(team: Team, by: str = LEAD) -> str:
     """What `task` answers while a team is offered and one more helper would
     pass `max`: `one_agent` when `max` is 1 and the lead has no member,
-    else `full`. "" when it may run."""
+    else `full`. "" when it may run. Spec 3.4.0: a subagent's `task` is the
+    main agent's (`only_main`)."""
+    if refused := main_only_refusal(by, "task"):
+        return refused
     if not team.offered:
         return ""
     if team.size() + 1 <= team.max:
@@ -750,6 +1063,378 @@ def task_refusal(team: Team) -> str:
     if team.max == 1 and not team.members():
         return spec()["unavailable"]["one_agent"]
     return _say("full", max=team.max)
+
+
+# --- Spec 3.4.0: the main agent's tree (subagents.md §5-§13) -------------------------------
+def find(team: Team, name_or_id: str) -> Agent | None:
+    """A subagent by name (live first, else the latest that ended) or by id."""
+    agent = team.get(name_or_id) or next((a for a in team.agents if a.id == name_or_id), None)
+    if agent is not None:
+        return agent
+    return next(
+        (a for a in reversed(team.ended) if name_or_id in (a.name, a.id)),
+        None,
+    )
+
+
+def open_slots(team: Team) -> int:
+    """§6: `min − 1` places for subagents not added yet, while offered."""
+    if not team.offered or team.min < 2:
+        return 0
+    return max(0, team.min - 1 - len(team.members()))
+
+
+def set_main_mode(team: Team, mode: str) -> None:
+    """The main agent's mode changed: stricter reaches down the tree, looser
+    changes nobody (§7)."""
+    team.lead.mode = mode
+    for agent, _depth in team.tree():
+        if agent.manager:
+            parent = team.get(agent.manager)
+            agent.mode = strictest(agent.mode or mode, (parent.mode if parent else mode) or mode)
+
+
+def set_context(team: Team, name: str, used: int, window: int) -> None:
+    agent = team.get(name)
+    if agent is not None:
+        agent.context = {"used": int(used), "window": int(window)}
+
+
+def set_progress(team: Team, name: str, progress: dict[str, Any] | None) -> None:
+    agent = team.get(name)
+    if agent is not None:
+        agent.progress = progress
+
+
+def _steps(team: Team, by: str) -> int:
+    loop = harness_spec.loop()
+    if by == LEAD:
+        return team.steps_main or int(loop["steps"]["default"])
+    return team.steps_sub or int(loop["jobs"]["subagent_steps"]["default"])
+
+
+def whoami(team: Team, by: str) -> str:
+    """`team_whoami` (§8), one line each in the spec's order."""
+    agent = team.get(by)
+    if agent is None:
+        return _say("unknown", name=by, names=", ".join(team.names()))
+    lines_spec = spec()["whoami"]["lines"]
+
+    def line(key: str, **values: Any) -> str:
+        return harness_spec.fill(lines_spec[key], {k: str(v) for k, v in values.items()})
+
+    role = spec()["read"]["lead_role"] if by == LEAD else agent.role
+    out = [line("who", name=agent.name, id=agent.id or agent.name, role=role)]
+    if agent.manager:
+        out.append(line("parent", parent=agent.manager))
+        out.append(line("task", task=(agent.task or "").split("\n")[0]))
+    out.append(line("mode", mode=agent.mode or "auto"))
+    if agent.request:
+        out.append(line("request", kinds=", ".join(agent.request)))
+    out.append(line("model", model=agent.model or team.lead.model or "—"))
+    spawn = lines_spec["spawn_yes"] if by == LEAD else lines_spec["spawn_no"]
+    out.append(line("limits", size=team.size(), max=team.max, steps=_steps(team, by), spawn=spawn))
+    if (value := percent(agent.context)) is not None:
+        context = agent.context or {}
+        out.append(
+            line("context", used=context["used"], window=context["window"], percent=value)
+        )
+    return "\n".join(out)
+
+
+def note_finding(team: Team, by: str, text: str, *, now: float = 0.0) -> str:
+    """`team_findings` write (§8)."""
+    agent = team.get(by)
+    if agent is None:
+        return _say("unknown", name=by, names=", ".join(team.names()))
+    n = len(agent.findings) + 1
+    agent.findings.append({"n": n, "text": str(text or "").strip(), "time": now})
+    return _say("noted", n=n)
+
+
+def _may_read(team: Team, by: str, target: Agent) -> bool:
+    """Its own, one in its subtree (an ended one by where it was), or the main
+    agent anybody's."""
+    if by == LEAD or target is team.get(by):
+        return True
+    up = (target.moved_from or target.manager) if target.state in ENDED else target.manager
+    for _guard in range(1000):
+        if not up:
+            return False
+        if up == by:
+            return True
+        holder = team.get(up) or find(team, up)
+        up = holder.manager if holder is not None else None
+    return False
+
+
+def findings_text(team: Team, target: Agent) -> str:
+    shape = spec()["findings"]
+    lines = [harness_spec.fill(shape["header"], {"name": target.name, "id": target.id})]
+    if not target.findings:
+        lines.append(texts()["no_findings"])
+    for finding in target.findings:
+        lines.append(
+            harness_spec.fill(shape["item"], {"n": str(finding["n"]), "text": finding["text"]})
+        )
+    return "\n".join(lines)
+
+
+def read_findings(team: Team, by: str, of: str = "") -> str:
+    """`team_findings` read (§8): the caller's, or an agent's in its subtree."""
+    target = find(team, of) if of else team.get(by)
+    if target is None:
+        return _say("unknown", name=of or by, names=", ".join(team.names()))
+    if not _may_read(team, by, target):
+        return texts()["not_yours_findings"]
+    return findings_text(team, target)
+
+
+def finish_task(team: Team, by: str, report: str, *, now: float = 0.0) -> tuple[str, dict]:
+    """`team_finish` (§8): the report to its parent, and it ends (`done`)."""
+    agent = team.get(by)
+    if agent is None or not agent.manager:
+        return texts()["no_parent"], {}
+    manager = agent.manager
+    body = str(report or "").strip() or texts()["no_report"]
+    _entry, delivered = post(team, by, [manager], [manager], body, report=True, now=now)
+    _remove(team, [by], DONE, now=now)
+    return _say("finished", to=manager), delivered
+
+
+def context_full_text(name: str) -> str:
+    marks = spec()["marks"]
+    head = harness_spec.fill(marks["context_full"], {"to": name})
+    steps = spec()["context"]["final_steps"]
+    return f"{head}\n{_say('context_full', steps=steps)}"
+
+
+def pause(team: Team, name: str) -> str:
+    """Its context is full (§9): paused, nothing new reaches it, and its one
+    final turn is given this text (an Effect `final`). "" when not a live
+    subagent or already paused."""
+    agent = team.get(name)
+    if agent is None or name == LEAD or agent.state == PAUSED:
+        return ""
+    agent.state = PAUSED
+    agent.inbox = []
+    text = context_full_text(name)
+    team.effects.append(Effect("final", name, [text]))
+    return text
+
+
+def assign(team: Team, by: str, args: dict[str, Any], *, now: float = 0.0) -> tuple[str, dict]:
+    """`team_assign` (§8): a new task for a subagent that has not ended."""
+    if refused := unmet(team, by):
+        return refused, {}
+    if refused := main_only_refusal(by, "team_assign"):
+        return refused, {}
+    name = str(args.get("name") or "").strip()
+    target = team.get(name)
+    if target is None or name == LEAD:
+        ended = find(team, name)
+        if ended is not None and ended.state in ENDED:
+            return _say("has_ended", name=name), {}
+        return _say("unknown", name=name, names=", ".join(team.names())), {}
+    parent_name = str(args.get("parent") or "").strip() or (target.manager or LEAD)
+    parent = team.get(parent_name)
+    if parent is None:
+        return _say("unknown", name=parent_name, names=", ".join(team.names())), {}
+    if parent.name != LEAD and not parent.may_lead:
+        return _say("not_manager", name=parent.name), {}
+    if parent.name in team.subtree(target.name):
+        return _say("cycle", name=target.name, parent=parent.name), {}
+    mode = strictest(target.mode or "auto", parent.mode or "auto")
+    request = list(target.request)
+    if args.get("mode"):
+        wanted = str(args["mode"])
+        keep = target.request if target.request and wanted != parent.mode else None
+        checked = check_mode(parent.mode or "auto", wanted, keep)
+        if isinstance(checked, str):
+            return checked, {}
+        mode = checked[0]
+        request = [] if mode == parent.mode else list(target.request)
+    task = str(args.get("task") or "").strip()
+    target.task = task
+    role = " ".join(str(args.get("role") or "").split())
+    if role:
+        target.role = role
+    target.manager = parent.name
+    target.moved_from = ""
+    target.mode = mode
+    target.request = request
+    for child_name in team.under(target.name):
+        child = team.get(child_name)
+        holder = team.get(child.manager or LEAD) if child is not None else None
+        if child is not None and holder is not None:
+            child.mode = strictest(child.mode, holder.mode)
+    _entry, delivered = post(team, LEAD, [target.name], [target.name], task, kind="assignment",
+                             now=now)
+    return _say("assigned", name=target.name), delivered
+
+
+def replace(team: Team, by: str, args: dict[str, Any], *, now: float = 0.0) -> Added:
+    """`team_replace` (§8): the same name, position, parent, mode, request
+    options and model; a new id; briefed with the task and the old one's
+    findings."""
+    if refused := unmet(team, by):
+        return Added(refused)
+    if refused := main_only_refusal(by, "team_replace"):
+        return Added(refused)
+    name = str(args.get("name") or "").strip()
+    old = team.get(name)
+    live = old is not None
+    if old is None:
+        old = next((a for a in reversed(team.ended) if a.name == name), None)
+    if old is None or name == LEAD:
+        return Added(_say("unknown", name=name, names=", ".join(team.names())))
+    if not live and team.size() + 1 > team.max:
+        return Added(_say("full", max=team.max))
+    if live:
+        # It alone ends: the subagents under it move to the replacement.
+        for child in team.children(old.name):
+            child.moved_from = old.name
+            child.manager = old.manager or LEAD
+        team.agents.remove(old)
+        old.state = STOPPED
+        old.ended_at = now
+        old.inbox = []
+        team.ended.append(old)
+        team.effects.append(Effect("stop", old.name))
+    manager = old.moved_from or old.manager
+    parent = team.get(manager) if manager else None
+    parent = parent or team.lead
+    task = str(args.get("task") or "").strip() or old.task
+    if old.findings:
+        found = "\n".join(
+            harness_spec.fill(spec()["findings"]["item"], {"n": str(f["n"]), "text": f["text"]})
+            for f in old.findings
+        )
+    else:
+        found = texts()["no_findings"]
+    brief = _say("replace_brief", task=task, name=old.name, id=old.id, findings=found)
+    team.seq += 1
+    fresh = Agent(
+        name=old.name,
+        manager=parent.name,
+        role=old.role,
+        may_lead=old.may_lead,
+        agent=old.agent,
+        model=old.model,
+        state=FINISHED,
+        goal=old.goal,
+        order=team.seq,
+        inbox=[brief],
+        id=_next_id(team),
+        task=task,
+        mode=strictest(old.mode or "auto", parent.mode or "auto"),
+        request=list(old.request),
+    )
+    team.agents.append(fresh)
+    for child in team.agents:
+        if child.moved_from == old.name:
+            child.manager = fresh.name
+            child.moved_from = ""
+    _wants(team, fresh)
+    return Added(
+        _say("replaced", name=fresh.name, id=fresh.id, size=team.size(), max=team.max), fresh
+    )
+
+
+def request(
+    team: Team, by: str, args: dict[str, Any], risk: str, *, now: float = 0.0
+) -> tuple[str, dict]:
+    """`team_request` (§7): `risk` is the tool's risk class."""
+    agent = team.get(by)
+    if agent is None or not agent.manager:
+        return texts()["no_parent"], {}
+    tool = str(args.get("tool") or "").strip()
+    if refused := request_refusal(tool, risk, agent.request):
+        return refused, {}
+    team.request_seq += 1
+    rid = f"{spec()['request']['id_prefix']}{team.request_seq}"
+    pattern = str(args.get("pattern") or "").strip()
+    why = str(args.get("why") or "").strip()
+    team.requests.append(
+        {"id": rid, "from": by, "tool": tool, "pattern": pattern, "why": why, "open": True}
+    )
+    body = _say("request_body", tool=tool, pattern=pattern, why=why)
+    _entry, delivered = post(team, by, [LEAD], [LEAD], body, kind="request", id=rid, now=now)
+    return _say("requested", id=rid), delivered
+
+
+def decide(
+    team: Team, by: str, args: dict[str, Any], *, permission=None, now: float = 0.0
+) -> tuple[str, dict]:
+    """`team_decide` (§7): a grant for the subagent when allowed; it is told
+    either way. `permission(tool)` names the tool's permission key."""
+    if refused := main_only_refusal(by, "team_decide"):
+        return refused, {}
+    rid = str(args.get("id") or "").strip()
+    entry = next((r for r in team.requests if r["id"] == rid and r["open"]), None)
+    target = team.get(entry["from"]) if entry is not None else None
+    if entry is None or target is None:
+        return _say("no_request", id=rid), {}
+    entry["open"] = False
+    allow = args.get("allow") is True or str(args.get("allow")).lower() == "true"
+    if allow:
+        key = (permission(entry["tool"]) if permission else None) or entry["tool"]
+        target.grants.append(
+            {"tool": entry["tool"], "permission": key, "pattern": entry["pattern"]}
+        )
+    head = _say(
+        "decision_allowed" if allow else "decision_refused",
+        tool=entry["tool"],
+        pattern=entry["pattern"],
+    )
+    note = str(args.get("note") or "").strip()
+    body = f"{head}\n\n{note}" if note else head
+    _entry, delivered = post(
+        team, LEAD, [target.name], [target.name], body, kind="decision", id=rid, now=now
+    )
+    decision = texts()["allowed" if allow else "refused"]
+    return _say("decided", decision=decision, id=rid, name=target.name), delivered
+
+
+def _messages_of(team: Team, name: str) -> int:
+    return len([p for p in team.room if p.sender == name or name in p.recipients])
+
+
+def tree_row(team: Team, agent: Agent) -> dict[str, Any]:
+    """One agent of the tree as clients show it (§12)."""
+    row: dict[str, Any] = {
+        "id": agent.id or agent.name,
+        "name": agent.name,
+        "position": spec()["read"]["lead_role"] if agent.name == LEAD else agent.role,
+        "parent": agent.manager,
+        "state": agent.state,
+        "model": agent.model or team.lead.model,
+        "mode": agent.mode or "auto",
+        "request": list(agent.request),
+        "manager": agent.name == LEAD or agent.may_lead,
+    }
+    if agent.manager:
+        row["task"] = agent.task
+    if agent.context:
+        row["context"] = dict(agent.context)
+    row["progress"] = agent.progress
+    row["findings"] = len(agent.findings)
+    row["messages"] = _messages_of(team, agent.name)
+    if agent.ended_at is not None and agent.state in ENDED:
+        row["ended"] = int(agent.ended_at * 1000)
+    return row
+
+
+def tree_info(team: Team) -> dict[str, Any]:
+    """The tree (§12): the agents in tree order, open slots, ended ones."""
+    return {
+        "min": team.min,
+        "max": team.max,
+        "size": team.size(),
+        "open_slots": open_slots(team),
+        "agents": [tree_row(team, agent) for agent, _ in team.tree()],
+        "ended": [tree_row(team, agent) for agent in team.ended],
+    }
 
 
 # --- §10: the note --------------------------------------------------------------------

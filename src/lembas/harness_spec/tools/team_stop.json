@@ -14,18 +14,19 @@
     "cli": [],
     "llembas": []
   },
-  "description": "Stop a member of your team, and the members under it, where they are: their work stops and they leave the team, which makes room for others. Only members under you, directly or through your members; `all` stops every one of them. Nothing they had not reported comes back — ask for a report with team_send first when you need it.",
+  "description": "Stop a subagent, and the subagents under it, where they are: their work stops and they end, which makes room for others. Only you, the main agent, stop subagents; `all` stops every one. Nothing they had not reported comes back — ask for a report with team_send first, or read their findings with team_findings.",
   "parameters": {
     "type": "object",
     "properties": {
       "name": {
         "type": "string",
         "minLength": 1,
-        "description": "A member under you, or all"
+        "description": "A subagent's name, or all"
       }
     },
     "required": [
       "name"
     ]
-  }
+  },
+  "offered": "main"
 }

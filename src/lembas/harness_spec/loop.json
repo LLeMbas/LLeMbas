@@ -84,7 +84,7 @@
     }
   },
   "team": {
-    "about": "Teams (spec 3.2.0, team.md; which model a member runs on and when a team is offered: spec 3.3.0, subagents.md): a lead and the members it adds, who talk in the team's room. The texts are said word for word; {{size}} is the team's size after the call (team.md §3), {{names}} names joined with \", \" in tree order. conformance/team.json.",
+    "about": "Teams (spec 3.2.0, team.md; which model a member runs on and when a team is offered: spec 3.3.0, subagents.md; the main agent, the tree, permissions and a subagent's life: spec 3.4.0, subagents.md §5–§13). The texts are said word for word; {{size}} is the team's size after the call (team.md §3), {{names}} names joined with \", \" in tree order. conformance/team.json, conformance/delegation.json.",
     "agents": {
       "about": "The chat setting agents {min, max}: the agents a team may have, the lead included. 1 ≤ min ≤ max ≤ cap. min and max are a new chat's defaults; cap is the instance's (LLeMbas) or the global configuration's (the CLI).",
       "min": 1,
@@ -92,17 +92,24 @@
       "cap": 32
     },
     "names": {
-      "about": "A member's name: unique in the team; `lead` is the lead's, `all` addresses everyone.",
+      "about": "A subagent's name: unique among the subagents that have not ended; `lead` is the main agent's, `all` addresses everyone, `parent` (3.4.0) the sender's parent.",
       "pattern": "^[a-z][a-z0-9-]{0,31}$",
       "lead": "lead",
       "reserved": [
         "all",
-        "lead"
-      ]
+        "lead",
+        "parent"
+      ],
+      "parent": "parent",
+      "id_prefix": "s"
     },
     "marks": {
       "message": "[Team message from {{from}} to {{to}}:]",
-      "report": "[Team report from {{from}} to {{to}}:]"
+      "report": "[Team report from {{from}} to {{to}}:]",
+      "assignment": "[Team assignment from {{from}} to {{to}}:]",
+      "request": "[Team request {{id}} from {{from}} to {{to}}:]",
+      "decision": "[Team decision on {{id}} from {{from}} to {{to}}:]",
+      "context_full": "[Team notice to {{to}}: your context is full]"
     },
     "unavailable": {
       "about": "What a team tool answers while its requirement `team` is not met (team.md §2). one_agent is also each team tool's own `unavailable`, and what task answers while a team is offered, max is 1 and the lead has no member. one_request: no model can serve as a subagent any more (subagents.md §4) — the session's model's capacity changed after the prompt was made.",
@@ -153,25 +160,106 @@
       "not_yours": "{{name}} is not under you: you can stop only the members you lead, directly or through your members.",
       "nobody_to_stop": "No member is under you: there is nobody to stop.",
       "no_report": "(no report)",
-      "ended": "[ended: {{reason}}]"
+      "ended": "[ended: {{reason}}]",
+      "only_main": "Only the main agent adds, assigns, replaces and stops subagents: ask it (team_send to lead).",
+      "not_manager": "{{name}} is not a sub-manager: place a subagent under the main agent (lead) or under one added with lead: true.",
+      "wider": "A subagent's mode cannot be looser than its parent's ({{parent_mode}}).",
+      "request_not_narrower": "Request options go with a mode stricter than the parent's: without one there is nothing to ask for.",
+      "request_kind": "{{kind}} is not a request option: use read, write or execute.",
+      "requestable": "Your mode does not allow this, but the main agent may: ask for it with team_request (the tool, the pattern, why), then try again once it allows.",
+      "not_delegated": "Your mode does not allow this, and you may not ask for it: tell your parent what you need.",
+      "not_requestable": "You may not ask for {{tool}}: your request options are {{kinds}}.",
+      "requested": "Asked the main agent ({{id}}): you are told its decision. Carry on with what you can meanwhile.",
+      "no_request": "No open request {{id}}.",
+      "decided": "{{decision}} {{id}} for {{name}}.",
+      "allowed": "Allowed",
+      "refused": "Refused",
+      "decision_allowed": "Allowed: {{tool}} {{pattern}}. Try it again now.",
+      "decision_refused": "Refused: {{tool}} {{pattern}}.",
+      "no_parent": "You are the main agent: you have no parent.",
+      "finished": "Reported to {{to}}. Your task is done: stop here.",
+      "has_ended": "{{name}} has ended: replace it (team_replace) or add another.",
+      "cycle": "{{name}} cannot go under {{parent}}: that is under it.",
+      "assigned": "Assigned to {{name}}: it is told now.",
+      "replaced": "Replaced {{name}}: {{id}} takes its place, briefed with its task and findings. The team is {{size}} of {{max}} agents.",
+      "replace_brief": "{{task}}\n\nYou take over from {{name}} ({{id}}), which ended. What it found:\n{{findings}}",
+      "no_findings": "(no findings)",
+      "noted": "Noted (finding {{n}}).",
+      "not_yours_findings": "You may read only your own findings and those of the subagents under you.",
+      "context_full": "Save what you found with team_findings, then tell your parent with team_send that you are gone and what is left undone. This is your last turn: at most {{steps}} steps.",
+      "gone": "{{name}} ({{id}}) ran out of context and has ended. Its findings: team_findings with of {{name}}.",
+      "request_body": "{{tool}} {{pattern}} — {{why}}"
     },
     "read": {
-      "about": "team_read's answer: the tree, then the room. Agents in tree order (an agent, then its members in the order they were added, depth first), indented two spaces per level below the lead. `last`: `active now` while working, else how long ago its last turn ended (durations as jobs write them: \"5s ago\", \"1m 05s ago\"). A message's text: its first line after the colon, every further line indented two spaces. Messages above `since` the caller may see, oldest first, at most read_max; `more` when there are others after the last shown.",
+      "about": "team_read's answer: the tree, then the room. Agents in tree order (an agent, then its members in the order they were added, depth first), indented two spaces per level below the lead. `last`: `active now` while working, else how long ago its last turn ended (durations as jobs write them: \"5s ago\", \"1m 05s ago\"). A message's text: its first line after the colon, every further line indented two spaces. Messages above `since` the caller may see, oldest first, at most read_max; `more` when there are others after the last shown. Spec 3.4.0: the row adds the id, the mode (with request options) and the context use; open slots follow the tree, ended subagents after them.",
       "tree": "Team ({{size}} of {{max}} agents):",
-      "agent": "{{indent}}- {{name}} — {{role}} · {{state}} · {{model}} · {{last}}",
-      "lead_role": "leads the team",
+      "agent": "{{indent}}- {{name}} ({{id}}) — {{role}} · {{state}} · {{model}} · {{mode}} · {{context}} · {{last}}",
+      "lead_role": "the main agent",
       "states": {
         "working": "working",
         "waiting": "waiting for a slot",
         "finished": "finished",
-        "idle": "idle"
+        "idle": "idle",
+        "paused": "paused: context full",
+        "done": "done",
+        "out_of_context": "out of context",
+        "stopped": "stopped"
       },
       "active": "active now",
       "room": "Room since #{{since}}:",
       "message": "#{{n}} {{from}} → {{to}}: {{text}}",
       "report": "#{{n}} {{from}} → {{to}} (report): {{text}}",
       "none": "No messages since #{{since}}.",
-      "more": "More after #{{last}}: team_read with since {{last}}."
+      "more": "More after #{{last}}: team_read with since {{last}}.",
+      "slots": "Open slots: {{n}} — fill them with team_add.",
+      "ended": "Ended:",
+      "ended_agent": "- {{name}} ({{id}}) — {{role}} · {{state}} · {{findings}} findings",
+      "context": "{{percent}}% context",
+      "request": "+ {{kinds}}"
+    },
+    "main_only": {
+      "about": "Spec 3.4.0 (subagents.md §6, §8): the tools only the main agent has; a subagent's call to one, or to task, answers texts.only_main.",
+      "tools": [
+        "team_add",
+        "team_assign",
+        "team_decide",
+        "team_replace",
+        "team_stop"
+      ]
+    },
+    "context": {
+      "about": "Spec 3.4.0 (subagents.md §9): a subagent does not compact. When its context reaches pause_at of its model's window it is paused and given one final turn of at most final_steps steps, whose user message is the context_full mark and texts.context_full.",
+      "pause_at": 0.85,
+      "final_steps": 8
+    },
+    "request": {
+      "about": "Spec 3.4.0 (subagents.md §7): the kinds a request option may name — risk classes — and the ids of requests, r1, r2, … per session.",
+      "kinds": [
+        "read",
+        "write",
+        "execute"
+      ],
+      "id_prefix": "r"
+    },
+    "whoami": {
+      "about": "Spec 3.4.0 (subagents.md §8): team_whoami's answer, one line each; `request` only with request options, `parent` only for a subagent. {{percent}} is floor(used × 100 / window).",
+      "lines": {
+        "who": "You are {{name}} ({{id}}): {{role}}.",
+        "parent": "Your parent: {{parent}}.",
+        "task": "Your task: {{task}}",
+        "mode": "Your mode: {{mode}}.",
+        "request": "You may ask the main agent for: {{kinds}} (team_request).",
+        "model": "Your model: {{model}}.",
+        "limits": "Limits: the team is {{size}} of {{max}} agents; at most {{steps}} steps a turn; {{spawn}}",
+        "spawn_yes": "you add subagents.",
+        "spawn_no": "only the main agent adds subagents.",
+        "context": "Context: {{used}} of {{window}} tokens ({{percent}}%)."
+      }
+    },
+    "findings": {
+      "about": "Spec 3.4.0: team_findings read's answer — the header, then one line per finding, oldest first; none: texts.no_findings after the header.",
+      "header": "Findings of {{name}} ({{id}}):",
+      "item": "{{n}}. {{text}}"
     }
   },
   "context": {
@@ -239,12 +327,116 @@
       "personality": "The person chose a different personality:\n{{personality}}",
       "mcp": "Instructions from an MCP server that connected since the session began:\n{{instructions}}",
       "team": "The team may have {{min}} to {{max}} agents, you included.",
-      "team_lead": "Work through a team from the start: you lead, and members do the work — at least {{members}} of them.",
+      "team_lead": "Work through subagents from the start: you lead, and they do the work. The person opened {{members}} slots for them: fill them with team_add.",
       "team_one": "The person allows one agent: work alone; the team tools and task are unavailable.",
       "team_own": "This model serves one request at a time, so subagents cannot run on it: they need another model, on another server, that the person names in this chat.",
       "team_stopped": "The person stopped {{names}}; they have left the team.",
       "empty": "(none)"
     },
     "mcp_wait_ms": 3000
+  },
+  "progress": {
+    "about": "Spec 3.4.0 (progress.md): one fixed set of phases every client shows the same way. `texts` are the shared i18n keys progress.<phase> (a variant: progress.<phase>.<variant>); `line` is drawn for every phase but stopped and failed; elapsed in whole seconds (5s, 1m 05s, 1h 02m). conformance/progress.json.",
+    "phases": [
+      "queued",
+      "waiting_for_model",
+      "loading_model",
+      "reading_prompt",
+      "thinking",
+      "writing",
+      "running_tool",
+      "waiting_for_person",
+      "waiting_for_subagents",
+      "compacting",
+      "retrying",
+      "stopped",
+      "failed"
+    ],
+    "fields": {
+      "queued": {
+        "ahead": "int?"
+      },
+      "waiting_for_model": {
+        "model": "string",
+        "reason": "busy|slots|group"
+      },
+      "loading_model": {
+        "model": "string"
+      },
+      "reading_prompt": {
+        "done": "int?",
+        "total": "int?"
+      },
+      "thinking": {},
+      "writing": {
+        "rate": "number?"
+      },
+      "running_tool": {
+        "tool": "string",
+        "what": "string?"
+      },
+      "waiting_for_person": {
+        "what": "approval|question|plan",
+        "tool": "string?"
+      },
+      "waiting_for_subagents": {
+        "running": "int"
+      },
+      "compacting": {},
+      "retrying": {
+        "reason": "string",
+        "in": "int",
+        "attempt": "int?"
+      },
+      "stopped": {
+        "reason": "person|steps|budget?"
+      },
+      "failed": {
+        "reason": "string"
+      }
+    },
+    "texts": {
+      "queued": "Queued",
+      "queued.ahead": "Queued: {{ahead}} ahead",
+      "waiting_for_model": "Waiting for {{model}}: {{reason}}",
+      "loading_model": "Loading {{model}}",
+      "reading_prompt": "Reading the prompt: {{done}} / {{total}} tokens ({{percent}}%)",
+      "reading_prompt.bare": "Reading the prompt",
+      "thinking": "Thinking",
+      "writing": "Writing: {{rate}} tok/s",
+      "writing.bare": "Writing",
+      "running_tool": "Running {{tool}}: {{what}}",
+      "running_tool.bare": "Running {{tool}}",
+      "waiting_for_person": "Waiting for you: {{what}}",
+      "waiting_for_subagents": "Waiting for subagents: {{running}} running",
+      "compacting": "Compacting the conversation",
+      "retrying": "Retrying in {{in}} s: {{reason}}",
+      "stopped": "Stopped",
+      "stopped.reason": "Stopped: {{reason}}",
+      "failed": "Failed: {{reason}}"
+    },
+    "reason": {
+      "busy": "it serves one request at a time and is answering another",
+      "slots": "all its slots are in use",
+      "group": "its server holds another model now"
+    },
+    "what": {
+      "approval": "allow {{tool}}?",
+      "approval.bare": "an approval",
+      "question": "a question",
+      "plan": "the plan"
+    },
+    "stopped_reason": {
+      "person": "by you",
+      "steps": "step limit",
+      "budget": "budget"
+    },
+    "line": "{{text}} · {{elapsed}}",
+    "no_elapsed": [
+      "stopped",
+      "failed"
+    ],
+    "what_max": 80,
+    "pace_per_second": 4
   }
 }

@@ -1,0 +1,38 @@
+{
+  "name": "team_decide",
+  "scope": "shared",
+  "sessions": "both",
+  "risk": "interact",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": false,
+  "requires": [
+    "team"
+  ],
+  "unavailable": "The person allows one agent in this chat: there is no team. Do the work yourself.",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "offered": "main",
+  "description": "Decide a subagent's request (team_request): allow it or refuse it, with a note it is told. You may allow only what your own mode would allow you; anything beyond that goes to the person when the subagent tries.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "minLength": 1
+      },
+      "allow": {
+        "type": "boolean"
+      },
+      "note": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "allow"
+    ]
+  }
+}

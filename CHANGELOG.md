@@ -5,6 +5,9 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
+The harness spec is **3.4.0** (progress phases; subagents v2), copied from LLeMbas CLI's `dev`
+before its tag; the pin to a release tag comes with the release.
+
 ### Added
 
 - **The Terminal before the first message.** On a new agent chat, the Terminal opens as soon as the

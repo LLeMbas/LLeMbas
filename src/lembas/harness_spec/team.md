@@ -1,6 +1,6 @@
 # Teams
 
-Spec 3.2.0; the model a member runs on and when a team is offered, 3.3.0 (`subagents.md`). **Subagents that work together.** A session's agent — the **lead** — may add
+Spec 3.2.0; the model a member runs on and when a team is offered, 3.3.0 (`subagents.md`); the main agent, the tree, permissions and a subagent's life, 3.4.0 (`subagents.md` §5–§13). **Subagents that work together.** A session's agent — the **lead** — may add
 **members**, background agents that each own a part of the work, and lead them as a manager: it
 plans, splits the work, coordinates and reviews, and the members do it. Members talk to each other
 and to their managers in the team's **room**. A member may itself lead an area with members of its
@@ -10,6 +10,16 @@ a chat on the server and in an agent session on a device, in both projects.
 The tools are `tools/team_add.json`, `team_send.json`, `team_read.json`, `team_stop.json`; the texts
 and numbers `loop.json` `team` (and the size notes in `context.note`); the prompt texts
 `prompts/blocks/team_lead.md` and `team_member.md`; the cases `conformance/team.json`.
+
+> **Spec 3.4.0 supersedes parts of this page** (`subagents.md` §5–§13, *Subagents v2*): the lead is
+> **the main agent**, and **only it adds, assigns, replaces and stops** — a member with `lead: true`
+> is a **sub-manager** that directs the members placed under it (`team_add`'s `parent`) and does not
+> add or stop (§4, §9 below); members have a mode no looser than their parent's and may ask the main
+> agent for more (`subagents.md` §7); a member ends with `team_finish` or when its context fills
+> (`subagents.md` §9); the room carries assignments, requests and decisions besides messages and
+> reports; the tree goes over the link (§11). Everything else here stands as written: the size
+> setting and its counting, the room and who receives what, delivery and waking, a manager's
+> refusals, capacity and waiting for a slot. "Member" here and "subagent" there are the same thing.
 
 ## 1. Words
 
@@ -242,6 +252,10 @@ agent not under it (`not_yours`). The answer, `stopped`, names the stopped in tr
   nothing of the size: `team_add`'s answer says how big the team is.
 
 ## 11. Over the link
+
+*3.4.0: the tree and the room are carried — `acp.md` capability `tree`; what follows is how a device
+without it is still shown.*
+
 
 An agent chat's team runs on the device, as its jobs do. Spec 3.2.0 does not carry the room over
 ACP yet: a device with the `jobs` capability reports each member as a subagent job (`job` events,

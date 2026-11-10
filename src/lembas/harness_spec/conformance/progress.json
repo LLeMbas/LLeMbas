@@ -1,0 +1,333 @@
+{
+  "about": "Progress (progress.md, spec 3.4.0): the text and the line every client draws for a progress object. `progress`: the object; `now`: the client's clock (Unix ms). Expect `text` — the phase's text from loop.json progress.texts, its fields filled (numbers written plainly: integers as they are, a rate with one decimal) — and `line` — `{{text}} · {{elapsed}}` with elapsed = now − since in whole seconds (5s, 1m 05s, 1h 02m), or the text alone for stopped and failed. retrying's `in` is counted down: in − floor((now − since) / 1000), never below 0. LLeMbas: services/progress.py; CLI: session/progress.ts.",
+  "cases": [
+    {
+      "about": "Queued, nothing more known.",
+      "progress": {
+        "phase": "queued",
+        "since": 1762790400000
+      },
+      "now": 1762790405000,
+      "expect": {
+        "text": "Queued",
+        "line": "Queued · 5s"
+      }
+    },
+    {
+      "about": "Queued behind two turns.",
+      "progress": {
+        "phase": "queued",
+        "since": 1762790400000,
+        "ahead": 2
+      },
+      "now": 1762790465000,
+      "expect": {
+        "text": "Queued: 2 ahead",
+        "line": "Queued: 2 ahead · 1m 05s"
+      }
+    },
+    {
+      "about": "A one-request server answering another request.",
+      "progress": {
+        "phase": "waiting_for_model",
+        "since": 1762790400000,
+        "model": "Qwen 27B",
+        "reason": "busy"
+      },
+      "now": 1762790412400,
+      "expect": {
+        "text": "Waiting for Qwen 27B: it serves one request at a time and is answering another",
+        "line": "Waiting for Qwen 27B: it serves one request at a time and is answering another · 12s"
+      }
+    },
+    {
+      "about": "Every slot taken.",
+      "progress": {
+        "phase": "waiting_for_model",
+        "since": 1762790400000,
+        "model": "coder",
+        "reason": "slots"
+      },
+      "now": 1762790401000,
+      "expect": {
+        "text": "Waiting for coder: all its slots are in use",
+        "line": "Waiting for coder: all its slots are in use · 1s"
+      }
+    },
+    {
+      "about": "Another model on the one-model server.",
+      "progress": {
+        "phase": "waiting_for_model",
+        "since": 1762790400000,
+        "model": "coder",
+        "reason": "group"
+      },
+      "now": 1762790400000,
+      "expect": {
+        "text": "Waiting for coder: its server holds another model now",
+        "line": "Waiting for coder: its server holds another model now · 0s"
+      }
+    },
+    {
+      "about": "Loading.",
+      "progress": {
+        "phase": "loading_model",
+        "since": 1762790400000,
+        "model": "Gemma 12B"
+      },
+      "now": 1762794125000,
+      "expect": {
+        "text": "Loading Gemma 12B",
+        "line": "Loading Gemma 12B · 1h 02m"
+      }
+    },
+    {
+      "about": "Reading the prompt: the percentage is floored.",
+      "progress": {
+        "phase": "reading_prompt",
+        "since": 1762790400000,
+        "done": 1999,
+        "total": 3000
+      },
+      "now": 1762790402000,
+      "expect": {
+        "text": "Reading the prompt: 1999 / 3000 tokens (66%)",
+        "line": "Reading the prompt: 1999 / 3000 tokens (66%) · 2s"
+      }
+    },
+    {
+      "about": "Reading the prompt with no counts from the server.",
+      "progress": {
+        "phase": "reading_prompt",
+        "since": 1762790400000
+      },
+      "now": 1762790402000,
+      "expect": {
+        "text": "Reading the prompt",
+        "line": "Reading the prompt · 2s"
+      }
+    },
+    {
+      "about": "Thinking.",
+      "progress": {
+        "phase": "thinking",
+        "since": 1762790400000
+      },
+      "now": 1762790459999,
+      "expect": {
+        "text": "Thinking",
+        "line": "Thinking · 59s"
+      }
+    },
+    {
+      "about": "Writing, the rate with one decimal.",
+      "progress": {
+        "phase": "writing",
+        "since": 1762790400000,
+        "rate": 12.46
+      },
+      "now": 1762790404000,
+      "expect": {
+        "text": "Writing: 12.5 tok/s",
+        "line": "Writing: 12.5 tok/s · 4s"
+      }
+    },
+    {
+      "about": "Writing before a rate is measured.",
+      "progress": {
+        "phase": "writing",
+        "since": 1762790400000
+      },
+      "now": 1762790400400,
+      "expect": {
+        "text": "Writing",
+        "line": "Writing · 0s"
+      }
+    },
+    {
+      "about": "A tool with what it does.",
+      "progress": {
+        "phase": "running_tool",
+        "since": 1762790400000,
+        "tool": "bash",
+        "what": "bun test"
+      },
+      "now": 1762790461000,
+      "expect": {
+        "text": "Running bash: bun test",
+        "line": "Running bash: bun test · 1m 01s"
+      }
+    },
+    {
+      "about": "A tool without a title.",
+      "progress": {
+        "phase": "running_tool",
+        "since": 1762790400000,
+        "tool": "recall"
+      },
+      "now": 1762790401000,
+      "expect": {
+        "text": "Running recall",
+        "line": "Running recall · 1s"
+      }
+    },
+    {
+      "about": "An approval, naming the tool.",
+      "progress": {
+        "phase": "waiting_for_person",
+        "since": 1762790400000,
+        "what": "approval",
+        "tool": "bash"
+      },
+      "now": 1762790430000,
+      "expect": {
+        "text": "Waiting for you: allow bash?",
+        "line": "Waiting for you: allow bash? · 30s"
+      }
+    },
+    {
+      "about": "An approval with no tool named.",
+      "progress": {
+        "phase": "waiting_for_person",
+        "since": 1762790400000,
+        "what": "approval"
+      },
+      "now": 1762790400000,
+      "expect": {
+        "text": "Waiting for you: an approval",
+        "line": "Waiting for you: an approval · 0s"
+      }
+    },
+    {
+      "about": "A question.",
+      "progress": {
+        "phase": "waiting_for_person",
+        "since": 1762790400000,
+        "what": "question"
+      },
+      "now": 1762790403000,
+      "expect": {
+        "text": "Waiting for you: a question",
+        "line": "Waiting for you: a question · 3s"
+      }
+    },
+    {
+      "about": "The plan.",
+      "progress": {
+        "phase": "waiting_for_person",
+        "since": 1762790400000,
+        "what": "plan"
+      },
+      "now": 1762790403000,
+      "expect": {
+        "text": "Waiting for you: the plan",
+        "line": "Waiting for you: the plan · 3s"
+      }
+    },
+    {
+      "about": "Subagents.",
+      "progress": {
+        "phase": "waiting_for_subagents",
+        "since": 1762790400000,
+        "running": 3
+      },
+      "now": 1762790490000,
+      "expect": {
+        "text": "Waiting for subagents: 3 running",
+        "line": "Waiting for subagents: 3 running · 1m 30s"
+      }
+    },
+    {
+      "about": "Compacting.",
+      "progress": {
+        "phase": "compacting",
+        "since": 1762790400000
+      },
+      "now": 1762790407000,
+      "expect": {
+        "text": "Compacting the conversation",
+        "line": "Compacting the conversation · 7s"
+      }
+    },
+    {
+      "about": "Retrying: `in` counts down from since.",
+      "progress": {
+        "phase": "retrying",
+        "since": 1762790400000,
+        "reason": "502 Bad Gateway",
+        "in": 10,
+        "attempt": 2
+      },
+      "now": 1762790403000,
+      "expect": {
+        "text": "Retrying in 7 s: 502 Bad Gateway",
+        "line": "Retrying in 7 s: 502 Bad Gateway · 3s"
+      }
+    },
+    {
+      "about": "Retrying: never below 0.",
+      "progress": {
+        "phase": "retrying",
+        "since": 1762790400000,
+        "reason": "overloaded",
+        "in": 2
+      },
+      "now": 1762790405000,
+      "expect": {
+        "text": "Retrying in 0 s: overloaded",
+        "line": "Retrying in 0 s: overloaded · 5s"
+      }
+    },
+    {
+      "about": "Stopped draws no elapsed time.",
+      "progress": {
+        "phase": "stopped",
+        "since": 1762790400000
+      },
+      "now": 1762790405000,
+      "expect": {
+        "text": "Stopped",
+        "line": "Stopped"
+      }
+    },
+    {
+      "about": "Stopped by the person.",
+      "progress": {
+        "phase": "stopped",
+        "since": 1762790400000,
+        "reason": "person"
+      },
+      "now": 1762790405000,
+      "expect": {
+        "text": "Stopped: by you",
+        "line": "Stopped: by you"
+      }
+    },
+    {
+      "about": "Stopped at the step limit.",
+      "progress": {
+        "phase": "stopped",
+        "since": 1762790400000,
+        "reason": "steps"
+      },
+      "now": 1762790400000,
+      "expect": {
+        "text": "Stopped: step limit",
+        "line": "Stopped: step limit"
+      }
+    },
+    {
+      "about": "Failed.",
+      "progress": {
+        "phase": "failed",
+        "since": 1762790400000,
+        "reason": "connection refused"
+      },
+      "now": 1762790405000,
+      "expect": {
+        "text": "Failed: connection refused",
+        "line": "Failed: connection refused"
+      }
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "name": "team_assign",
+  "scope": "shared",
+  "sessions": "both",
+  "risk": "interact",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": false,
+  "requires": [
+    "team"
+  ],
+  "unavailable": "The person allows one agent in this chat: there is no team. Do the work yourself.",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "offered": "main",
+  "description": "Give a subagent that has not ended a new task: it is told at its next step, or woken. Optionally a new position (`role`), another sub-manager to work under (`parent`, or lead), or a stricter `mode`.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "minLength": 1
+      },
+      "task": {
+        "type": "string",
+        "minLength": 1
+      },
+      "role": {
+        "type": "string"
+      },
+      "parent": {
+        "type": "string"
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "edit",
+          "manual",
+          "plan"
+        ]
+      }
+    },
+    "required": [
+      "name",
+      "task"
+    ]
+  }
+}
