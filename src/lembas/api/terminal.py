@@ -41,6 +41,8 @@ from lembas.web.i18n import N_, t
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/chats", tags=["terminal"])
+# The terminal before a chat exists: on a device, in a directory (`draft_terminal_socket`).
+devices_router = APIRouter(prefix="/api/devices", tags=["terminal"])
 
 # Nothing a keyboard produces is anywhere near this. Paste is the only thing
 # that comes close, and a megabyte pasted into a shell is a mistake either way.
@@ -104,31 +106,56 @@ def _prepare(db, user, chat_id: str) -> tuple[str, dict]:
     # over its link; the device decides whether it opens one, and where.
     token_id = getattr(chat, "device_token_id", None)
     if token_id:
-        from lembas.db.models import ApiToken
-        from lembas.services import device_link
-
-        token = db.get(ApiToken, token_id)
-        link = device_link.link_for(token_id)
-        if token is None or token.user_id != user.id:
-            return t("That device is not yours."), {}
-        # A shell is an agent turn's reach and more, so it stands behind the
-        # same gates as one.
-        if refused := device_link.refusal(db, user, token_id):
-            return refused, {}
-        if link is None:
-            device = token.device_host or token.name
-            return t("%(device)s is not linked right now.", device=device), {}
-        return "", {
-            "owner_id": user.id,
-            "label": device_link.short_name(link),
-            "project_dir": chat.project_dir or "",
-            "idle_timeout": float(values["terminal_idle_timeout"]),
-            "max_sessions": int(values["terminal_max_sessions"]),
-            "max_per_user": int(values["terminal_max_per_user"]),
-            "device_token_id": token_id,
-        }
+        return _on_device(db, user, token_id, chat.project_dir or "")
 
     return t("This chat is not on a linked device, so it has no shell to open."), {}
+
+
+# A directory as the new-chat screen sends it: of a length a path has. Where it
+# may be -- and whether it is a path there at all -- is the device's to say (its
+# remote roots), as for a chat's.
+MAX_DIR_CHARS = 4096
+
+
+def prepare_draft(db, user, token_id: str, project_dir: str) -> tuple[str, dict]:
+    """`_prepare` before the chat exists: the computer and the directory the
+    new-chat screen has chosen, under the same gates -- the permission, the
+    instance's switch, and every check a chat on that device would pass."""
+    if not permissions.has(db, user, "agent.terminal"):
+        return t("You do not have permission to open a terminal."), {}
+    if not settings_store.agents(db).get("terminal_enabled", True):
+        return t("The terminal is switched off on this instance."), {}
+    project_dir = (project_dir or "").strip()
+    if not project_dir or len(project_dir) > MAX_DIR_CHARS or "\x00" in project_dir:
+        return t("Choose a directory, and the terminal opens there."), {}
+    return _on_device(db, user, token_id, project_dir)
+
+
+def _on_device(db, user, token_id: str, project_dir: str) -> tuple[str, dict]:
+    from lembas.db.models import ApiToken
+    from lembas.services import device_link
+
+    values = settings_store.agents(db)
+    token = db.get(ApiToken, token_id)
+    link = device_link.link_for(token_id)
+    if token is None or token.user_id != user.id:
+        return t("That device is not yours."), {}
+    # A shell is an agent turn's reach and more, so it stands behind the
+    # same gates as one.
+    if refused := device_link.refusal(db, user, token_id):
+        return refused, {}
+    if link is None:
+        device = token.device_host or token.name
+        return t("%(device)s is not linked right now.", device=device), {}
+    return "", {
+        "owner_id": user.id,
+        "label": device_link.short_name(link),
+        "project_dir": project_dir,
+        "idle_timeout": float(values["terminal_idle_timeout"]),
+        "max_sessions": int(values["terminal_max_sessions"]),
+        "max_per_user": int(values["terminal_max_per_user"]),
+        "device_token_id": token_id,
+    }
 
 
 @router.websocket("/{chat_id}/terminal/ws")
@@ -151,12 +178,58 @@ async def terminal_socket(
         owner_email = user.email
 
     await websocket.accept()
+    await serve(websocket, chat_id, problem, opening, owner_email, cols=cols, rows=rows)
+
+
+@devices_router.websocket("/{token_id}/terminal/ws")
+async def draft_terminal_socket(
+    websocket: WebSocket,
+    token_id: str,
+    directory: str = "",
+    cols: int = 80,
+    rows: int = 24,
+) -> None:
+    """The terminal before the chat: on the device and in the directory the
+    new-chat screen has chosen. The first message that makes a chat there takes
+    this shell over (`terminal_service.adopt`), so it carries on in the chat."""
+    if not _same_origin(websocket):
+        await websocket.close(code=CLOSE_POLICY)
+        return
+
+    with session_scope() as db:
+        user = resolve_session(db, websocket.cookies.get(COOKIE_NAME))
+        if user is None:
+            await websocket.close(code=CLOSE_POLICY)
+            return
+        problem, opening = prepare_draft(db, user, token_id, directory)
+        owner_id, owner_email = user.id, user.email
+
+    await websocket.accept()
+    key = terminal_service.draft_key(owner_id, token_id, directory.strip())
+    await serve(websocket, key, problem, opening, owner_email, cols=cols, rows=rows)
+
+
+async def serve(
+    websocket: WebSocket,
+    key: str,
+    problem: str,
+    opening: dict,
+    owner_email: str,
+    *,
+    cols: int,
+    rows: int,
+) -> None:
+    """An accepted socket: the refusal, or the shell under `key` (a chat's id,
+    or a draft's key) followed both ways until either side goes. Shared by the
+    page's door and the app's (`api/v2/terminal.py`)."""
     if problem:
         await _refuse(websocket, problem)
         return
 
+    if key.startswith(terminal_service.DRAFT_PREFIX):
+        await terminal_service.close_other_drafts(opening["owner_id"], key)
     try:
-        session = await terminal_service.open_session(chat_id, cols=cols, rows=rows, **opening)
+        session = await terminal_service.open_session(key, cols=cols, rows=rows, **opening)
     except ExecError as exc:
         await _refuse(websocket, str(exc))
         return

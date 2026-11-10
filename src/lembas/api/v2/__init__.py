@@ -31,7 +31,9 @@ whenever `version` moves), `GET /chats/{chat}/agents/{kind}/{id}` (one agent
 and its whole conversation) and `POST .../stop`; scheduled work -- `/schedules`
 and its runs, the compile and the preview, the scheduling models
 (`schedules.py`) -- and `GET /events`, the person's own stream (a `schedules`
-event).
+event); the terminal on a linked device -- an agent chat's, and one before the
+chat exists, on a device and in a directory (`terminal.py`) -- and `terminal`
+on each of `GET /devices`.
 """
 
 from __future__ import annotations
@@ -44,13 +46,14 @@ router = APIRouter(prefix="/api/v2", tags=["app"])
 
 
 def _include() -> None:
-    from lembas.api.v2 import chats, files, misc, schedules, stream
+    from lembas.api.v2 import chats, files, misc, schedules, stream, terminal
 
     router.include_router(chats.router)
     router.include_router(schedules.router)
     router.include_router(files.router)
     router.include_router(stream.router)
     router.include_router(misc.router)
+    router.include_router(terminal.router)
 
 
 _include()

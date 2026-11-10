@@ -419,6 +419,15 @@ def start_new_chat(
     """
     _refuse_extra_reply(db, None, user)
     chat = _new_chat(db, user, **settings)
+    if chat.device_token_id:
+        # A terminal opened on the new-chat screen, on this device and in this
+        # directory, is this chat's now: the same shell, scrollback and all.
+        from lembas.services.agent import terminal as terminal_service
+
+        terminal_service.adopt(
+            terminal_service.draft_key(user.id, chat.device_token_id, chat.project_dir or ""),
+            chat.id,
+        )
     user_message = chat_service.create_message(db, chat, ROLE_USER, content)
     if file_ids:
         files_service.claim(db, ids=file_ids, user_id=user.id, message_id=user_message.id)

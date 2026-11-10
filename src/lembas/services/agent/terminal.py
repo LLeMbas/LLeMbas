@@ -459,6 +459,47 @@ async def open_session(
     return session
 
 
+DRAFT_PREFIX = "draft:"
+
+
+def draft_key(owner_id: str, token_id: str, project_dir: str) -> str:
+    """The registry key of a shell opened before its chat exists: on this
+    device, in this directory, for this person -- what the new-chat screen has
+    chosen. The first message that makes the chat there takes it over
+    (`adopt`), so the shell and its scrollback carry on in the chat."""
+    return f"{DRAFT_PREFIX}{owner_id}:{token_id}:{project_dir}"
+
+
+def adopt(key: str, chat_id: str) -> bool:
+    """A draft's shell becomes the chat's: the same session, now under the
+    chat's id, so the chat's panel attaches to it. Nothing when there is none,
+    or when the chat has its own already."""
+    session = _SESSIONS.get(key)
+    if session is None or session.closed or get(chat_id) is not None:
+        return False
+    _SESSIONS.pop(key, None)
+    session.chat_id = chat_id
+    _SESSIONS[chat_id] = session
+    log.info("terminal opened before its chat taken over by chat=%s", chat_id)
+    return True
+
+
+async def close_other_drafts(owner_id: str, keep: str) -> int:
+    """A person's drafts nobody is watching, other than `keep`: a shell opened
+    for a computer or a directory the new-chat screen has since moved away
+    from. Each would otherwise hold one of the person's terminals until it
+    sat idle long enough."""
+    doomed = [
+        s for key, s in _SESSIONS.items()
+        if key.startswith(DRAFT_PREFIX) and key != keep and s.owner_id == owner_id
+        and not s.closed and not s.viewers
+    ]
+    for session in doomed:
+        _SESSIONS.pop(session.chat_id, None)
+        await session.close(CLOSED_REVOKED)
+    return len(doomed)
+
+
 async def close_chat(chat_id: str, reason: str = CLOSED_REVOKED) -> bool:
     session = _SESSIONS.pop(chat_id, None)
     if session is None:

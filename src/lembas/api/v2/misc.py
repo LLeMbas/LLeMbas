@@ -132,7 +132,8 @@ async def devices(caller: Me, db: Db) -> dict[str, Any]:
 
     out = []
     for token in devices_service.devices_of(db, caller.user):
-        if not api_tokens.live(token) or device_link.link_for(token.id) is None:
+        link = device_link.link_for(token.id) if api_tokens.live(token) else None
+        if link is None:
             continue
         out.append(
             {
@@ -140,9 +141,23 @@ async def devices(caller: Me, db: Db) -> dict[str, Any]:
                 "name": token.name,
                 "host": token.device_host or "",
                 "platform": token.device_platform or "",
+                # Whether it opens a terminal for this person (its
+                # `remote.terminal`, the permission, the instance's switch):
+                # the Terminal is offered on it, before the chat too.
+                "terminal": _terminal_on(db, caller.user, link),
             }
         )
     return {"devices": out}
+
+
+def _terminal_on(db, user, link) -> bool:
+    from lembas.services import settings_store
+
+    return bool(
+        link.can("terminal")
+        and permissions.has(db, user, "agent.terminal")
+        and settings_store.agents(db).get("terminal_enabled", True)
+    )
 
 
 # --- Attachments ---------------------------------------------------------------------------
