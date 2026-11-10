@@ -355,6 +355,72 @@ async def stop_team_member(caller: Me, db: Db, chat_id: str, name: str) -> dict[
     return {"stopped": stopped}
 
 
+# --- The subagent tree (harness spec 3.4.0, subagents.md §11-§12) ------------------------
+def _tree_errors(exc: Exception) -> HTTPException:
+    from lembas.services import tree_view
+
+    if isinstance(exc, tree_view.NotFound):
+        return HTTPException(status.HTTP_404_NOT_FOUND, t("No subagent with that id in this chat."))
+    # Kept on the device, which cannot answer now: said, and asked again later.
+    return HTTPException(
+        status.HTTP_409_CONFLICT,
+        t("That is kept on the computer this chat runs on, which is not linked right now."),
+    )
+
+
+@router.get("/chats/{chat_id}/tree")
+async def get_tree(
+    caller: Me, db: Db, chat_id: str, since: int = Query(0, ge=0)
+) -> dict[str, Any]:
+    """The chat's subagent tree and the room's messages after `since`: a chat
+    on this server from its rows, an agent chat from its device (`live`), or
+    as the device last sent it (`live` false) while it is not linked."""
+    from lembas.services import tree_view
+
+    chat = owned_chat(db, chat_id, caller.user)
+    return await tree_view.tree(db, chat, since)
+
+
+@router.get("/chats/{chat_id}/subagents/{agent_id}/transcript")
+async def get_subagent_transcript(
+    caller: Me, db: Db, chat_id: str, agent_id: str
+) -> dict[str, Any]:
+    """A subagent's conversation, read-only, live or after it ended."""
+    from lembas.services import tree_view
+
+    chat = owned_chat(db, chat_id, caller.user)
+    try:
+        return await tree_view.transcript(db, chat, agent_id)
+    except (tree_view.NotFound, tree_view.OnTheDevice) as exc:
+        raise _tree_errors(exc) from exc
+
+
+@router.get("/chats/{chat_id}/subagents/{agent_id}/findings")
+async def get_subagent_findings(
+    caller: Me, db: Db, chat_id: str, agent_id: str
+) -> dict[str, Any]:
+    """A subagent's findings, kept after it ended."""
+    from lembas.services import tree_view
+
+    chat = owned_chat(db, chat_id, caller.user)
+    try:
+        return await tree_view.findings(db, chat, agent_id)
+    except (tree_view.NotFound, tree_view.OnTheDevice) as exc:
+        raise _tree_errors(exc) from exc
+
+
+@router.post("/chats/{chat_id}/subagents/{agent_id}/stop")
+async def stop_subagent(caller: Me, db: Db, chat_id: str, agent_id: str) -> dict[str, Any]:
+    """The person stops a subagent and those under it (§10)."""
+    from lembas.services import tree_view
+
+    chat = owned_chat(db, chat_id, caller.user)
+    try:
+        return {"stopped": await tree_view.stop(db, chat, agent_id)}
+    except (tree_view.NotFound, tree_view.OnTheDevice) as exc:
+        raise _tree_errors(exc) from exc
+
+
 # --- The activity panel: context, outputs, background agents, plan -----------------
 @router.get("/chats/{chat_id}/activity")
 async def get_activity(

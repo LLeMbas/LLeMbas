@@ -38,6 +38,13 @@ before its tag; the pin to a release tag comes with the release.
   `subagents.md` §12) when it changes; an approval item carries `subagent` (`{id, name, position}`
   or null); an agent chat's `subagents.offered` is true where subagents are allowed. Fixtures: new
   `event_tree.json`; `event_ask.json` and `chat_agent.json` changed.
+- **`/api/v2`: reading a subagent.** `GET /api/v2/chats/{chat}/tree` (the tree and the room,
+  `live` false when an agent chat's device is away and the kept tree is sent),
+  `GET .../subagents/{id}/transcript` (its conversation, read-only, live or after it ended),
+  `GET .../subagents/{id}/findings`, and `POST .../subagents/{id}/stop` -- the same for a chat's own
+  subagents and an agent chat's (asked of its device; 409 while the device is not linked). A chat's
+  stream sends its own tree as it changes too. Fixtures: new `tree.json`, `subagent_transcript.json`,
+  `subagent_findings.json`.
 - **`/api/v2`: `progress`** (harness spec 3.4.0, `progress.md`). The stream's `status` frame is
   `{text, progress}` -- the phase object `{phase, since, ...}` or null, sent when it changes (its
   data at most four times a second); a schedule's run carries `progress` too. Fixtures:

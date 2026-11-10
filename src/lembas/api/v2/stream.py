@@ -50,10 +50,13 @@ from lembas.db.session import session_scope
 from lembas.services import generation as generation_service
 from lembas.services import metrics as metrics_service
 from lembas.services import progress as progress_service
-from lembas.services import sse
+from lembas.services import sse, team_run, tree_view
 from lembas.services import steps as steps_service
 
 router = APIRouter()
+
+# How often a chat's own subagent tree is looked at while a reply streams.
+TREE_INTERVAL = 0.5
 
 
 def frame(name: str, payload: object) -> str:
@@ -89,6 +92,9 @@ async def follow_json(chat_id: str, message_id: str) -> AsyncIterator[str]:
     # has no streaming shell drawn already: its first pass is the whole state.
     sent: dict[str, str] = {}
     pacer = progress_service.Pacer()
+    last_tree = 0.0
+    with session_scope() as db:
+        team_here = team_run.has_team(db, chat_id)
 
     def changed(name: str, payload: object) -> str | None:
         encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
@@ -129,6 +135,18 @@ async def follow_json(chat_id: str, message_id: str) -> AsyncIterator[str]:
                 ):
                     yield out
                 last_frame = time.monotonic()
+
+            # A chat's own tree (spec 3.4.0, subagents.md §12): its agents'
+            # states, context and phases move without this reply's version,
+            # so it is looked at on a clock, and sent when it changed.
+            if team_here and time.monotonic() - last_tree > TREE_INTERVAL:
+                last_tree = time.monotonic()
+                with session_scope() as db:
+                    chat_row = db.get(Chat, chat_id)
+                    found = tree_view.server_tree(db, chat_row)[0] if chat_row else None
+                if found and (out := changed("tree", {"tree": found})):
+                    yield out
+                    last_frame = time.monotonic()
 
             if time.monotonic() - last_metrics > METRICS_INTERVAL:
                 last_metrics = time.monotonic()

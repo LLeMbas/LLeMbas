@@ -1,0 +1,10 @@
+{
+  "id": "s2",
+  "findings": [
+    {
+      "n": 1,
+      "text": "Login is POST /session.",
+      "time": 1767323045000
+    }
+  ]
+}

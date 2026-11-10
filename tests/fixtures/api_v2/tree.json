@@ -1,0 +1,112 @@
+{
+  "tree": {
+    "min": 2,
+    "max": 4,
+    "size": 3,
+    "open_slots": 0,
+    "agents": [
+      {
+        "id": "lead",
+        "name": "lead",
+        "position": "the main agent",
+        "parent": null,
+        "state": "working",
+        "model": "local/qwen",
+        "mode": "auto",
+        "request": [],
+        "manager": true,
+        "progress": {
+          "phase": "waiting_for_subagents",
+          "since": 1767323045000,
+          "running": 2
+        },
+        "findings": 0,
+        "messages": 1
+      },
+      {
+        "id": "s1",
+        "name": "area",
+        "position": "owns the API",
+        "parent": "lead",
+        "state": "working",
+        "model": "local/qwen",
+        "mode": "auto",
+        "request": [],
+        "manager": true,
+        "task": "Direct it.",
+        "progress": null,
+        "findings": 0,
+        "messages": 1
+      },
+      {
+        "id": "s2",
+        "name": "routes",
+        "position": "writes the routes",
+        "parent": "area",
+        "state": "working",
+        "model": "local/qwen",
+        "mode": "edit",
+        "request": [
+          "execute"
+        ],
+        "manager": false,
+        "task": "Write the routes.",
+        "context": {
+          "used": 9100,
+          "window": 131072
+        },
+        "progress": {
+          "phase": "running_tool",
+          "since": 1767323045000,
+          "tool": "read",
+          "what": "src/api.py"
+        },
+        "findings": 1,
+        "messages": 1
+      }
+    ],
+    "ended": [
+      {
+        "id": "s3",
+        "name": "scout",
+        "position": "maps the code",
+        "parent": "lead",
+        "state": "done",
+        "model": "local/qwen",
+        "mode": "auto",
+        "request": [],
+        "manager": false,
+        "task": "Map it.",
+        "progress": null,
+        "findings": 0,
+        "messages": 1,
+        "ended": 1767323045000
+      }
+    ]
+  },
+  "room": [
+    {
+      "n": 1,
+      "from": "routes",
+      "to": [
+        "area"
+      ],
+      "text": "Routes are in.",
+      "report": false,
+      "kind": "message",
+      "time": 1767323045000
+    },
+    {
+      "n": 2,
+      "from": "scout",
+      "to": [
+        "lead"
+      ],
+      "text": "Mapped: see map.md.",
+      "report": true,
+      "kind": "report",
+      "time": 1767323045000
+    }
+  ],
+  "live": true
+}

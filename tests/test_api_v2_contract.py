@@ -555,6 +555,37 @@ def _statuses() -> dict[str, object]:
         progress_service.now_ms = clock
 
 
+def _tree() -> dict[str, object]:
+    """`GET /chats/{chat}/tree` for a chat on the server (spec 3.4.0): the
+    main agent, a sub-manager with a narrowed subagent under it, one that
+    finished, and the room -- built by the rules, as `tree_view` reads them."""
+    from lembas.services import team as rules
+    from lembas.services import tree_view
+
+    now = WHEN.timestamp()
+    team = rules.Team(min=2, max=4)
+    team.lead.model, team.lead.mode = "local/qwen", "auto"
+    rules.add(team, rules.LEAD, {"name": "area", "role": "owns the API", "task": "Direct it.",
+                                 "lead": True, "goal": "An API"}, model="local/qwen")
+    rules.add(team, rules.LEAD, {"name": "routes", "role": "writes the routes",
+                                 "task": "Write the routes.", "parent": "area",
+                                 "mode": "edit", "request": ["execute"]}, model="local/qwen")
+    rules.add(team, rules.LEAD, {"name": "scout", "role": "maps the code", "task": "Map it."},
+              model="local/qwen")
+    rules.note_finding(team, "routes", "Login is POST /session.", now=now)
+    rules.set_context(team, "routes", 9100, 131072)
+    rules.set_progress(team, "routes", {"phase": "running_tool", "since": WHEN_MS,
+                                        "tool": "read", "what": "src/api.py"})
+    rules.set_progress(team, rules.LEAD, {"phase": "waiting_for_subagents", "since": WHEN_MS,
+                                          "running": 2})
+    rules.send(team, "routes", ["parent"], "Routes are in.", now=now)
+    rules.finish_task(team, "scout", "Mapped: see map.md.", now=now)
+    for post in team.room:
+        post.created = now
+    return {"tree": rules.tree_info(team),
+            "room": [tree_view._room_entry(p) for p in team.room], "live": True}
+
+
 def _shapes() -> dict[str, object]:
     generation = _generation()
     tail = serialise.tail(generation, "4s")
@@ -602,6 +633,21 @@ def _shapes() -> dict[str, object]:
         # The subagent tree (spec 3.4.0, subagents.md §12) as the stream's
         # `tree` frame carries it: an agent chat's, from its device.
         "event_tree": {"tree": device_link.clean_tree(TREE)},
+        "tree": _tree(),
+        # A subagent's conversation (read-only) and its findings.
+        "subagent_transcript": {
+            "id": "s2", "state": "working",
+            "turns": [
+                {"role": "user", "text": "Write the routes.", "machine": True},
+                {"role": "assistant", "text": "Reading the API first.",
+                 "tools": [{"name": "read", "title": "src/api.py", "isError": False}],
+                 "error": "", "running": True},
+            ],
+        },
+        "subagent_findings": {
+            "id": "s2", "findings": [{"n": 1, "text": "Login is POST /session.",
+                                      "time": WHEN_MS}],
+        },
         "event_ask": {"cards": serialise.asks(generation.waiting)},
         "event_ask_empty": {"cards": []},
         "event_jobs": {"jobs": serialise.jobs(generation.jobs)},

@@ -1,0 +1,24 @@
+{
+  "id": "s2",
+  "state": "working",
+  "turns": [
+    {
+      "role": "user",
+      "text": "Write the routes.",
+      "machine": true
+    },
+    {
+      "role": "assistant",
+      "text": "Reading the API first.",
+      "tools": [
+        {
+          "name": "read",
+          "title": "src/api.py",
+          "isError": false
+        }
+      ],
+      "error": "",
+      "running": true
+    }
+  ]
+}
