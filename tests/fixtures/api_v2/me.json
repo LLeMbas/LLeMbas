@@ -1,0 +1,30 @@
+{
+  "api": 2,
+  "version": "2.0.0",
+  "account": {
+    "id": "user1",
+    "name": "Frodo",
+    "email": "frodo@shire.test"
+  },
+  "language": "sk",
+  "theme": "shire",
+  "default_model": "qwen",
+  "permissions": {
+    "chat.create": true,
+    "chat.delete": false,
+    "chat.model_select": true,
+    "chat.system_prompt": true,
+    "chat.params": true,
+    "files.upload": true,
+    "tools.agent": true,
+    "audio.transcribe": true,
+    "audio.listen": true
+  },
+  "services": {
+    "stt": true,
+    "tts": false,
+    "search": true,
+    "fetch": true,
+    "images": false
+  }
+}

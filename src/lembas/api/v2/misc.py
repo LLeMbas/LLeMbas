@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from lembas import __version__
 from lembas.api.deps import Db
-from lembas.api.v2 import APP_API, serialise
+from lembas.api.v2 import serialise
 from lembas.api.v2._common import Me, need
 from lembas.db.models import Attachment, Folder, PushSubscription
 from lembas.security import api_tokens, permissions
@@ -44,16 +44,14 @@ async def me(caller: Me, db: Db) -> dict[str, Any]:
 
     user = caller.user
     start = chat_service.default_model(db, user)
-    return {
-        "api": APP_API,
-        "version": __version__,
-        "account": {"id": user.id, "name": user.name, "email": user.email},
-        "language": i18n.for_user(user),
-        "theme": str((user.settings_json or {}).get("theme") or ""),
-        "default_model": start[0] if start else None,
-        "permissions": {key: permissions.has(db, user, key) for key in SHOWN_PERMISSIONS},
-        "services": available(db, user),
-    }
+    return serialise.me(
+        user,
+        version=__version__,
+        language=i18n.for_user(user),
+        default_model=start[0] if start else None,
+        permissions={key: permissions.has(db, user, key) for key in SHOWN_PERMISSIONS},
+        services=available(db, user),
+    )
 
 
 @router.get("/models")

@@ -51,6 +51,8 @@ before its tag; the pin to a release tag comes with the release.
   subagents and an agent chat's (asked of its device; 409 while the device is not linked). A chat's
   stream sends its own tree as it changes too. Fixtures: new `tree.json`, `subagent_transcript.json`,
   `subagent_findings.json`.
+- **`/api/v2`: `me` has a contract fixture** (`me.json`): the account, `language`, `theme`,
+  `default_model`, `permissions` and `services`, as the apps read them; the shape is unchanged.
 - **`/api/v2`: `progress`** (harness spec 3.4.0, `progress.md`). The stream's `status` frame is
   `{text, progress}` -- the phase object `{phase, since, ...}` or null, sent when it changes (its
   data at most four times a second); a schedule's run carries `progress` too. Fixtures:

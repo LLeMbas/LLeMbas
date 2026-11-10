@@ -286,6 +286,33 @@ def agent(entry: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def me(
+    user: Any,
+    *,
+    version: str,
+    language: str,
+    default_model: str | None,
+    permissions: dict[str, bool],
+    services: dict[str, bool],
+) -> dict[str, Any]:
+    """`GET /me`: the account, its language (the app's default until the
+    person picks one), theme, default model, what it may do, and which of
+    the instance's services it may use (`stt`, `tts`, `search`, `fetch`,
+    `images`)."""
+    from lembas.api.v2 import APP_API
+
+    return {
+        "api": APP_API,
+        "version": version,
+        "account": {"id": user.id, "name": user.name, "email": user.email},
+        "language": language,
+        "theme": str((user.settings_json or {}).get("theme") or ""),
+        "default_model": default_model,
+        "permissions": dict(permissions),
+        "services": {k: bool(v) for k, v in services.items()},
+    }
+
+
 def activity(view: dict[str, Any]) -> dict[str, Any]:
     """`GET /chats/{chat}/activity`: what the web's activity panel shows --
     the agents (a forest), a summary of their states, the team's head and

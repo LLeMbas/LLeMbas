@@ -19,10 +19,12 @@ import json
 import os
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from lembas.api.v2 import APP_API, serialise
+from lembas.api.v2.misc import SHOWN_PERMISSIONS
 from lembas.api.v2.stream import frame, status_payload
 from lembas.db.models import Chat, Message, Model
 from lembas.services import device_link, interaction
@@ -634,6 +636,17 @@ def _shapes() -> dict[str, object]:
         # `tree` frame carries it: an agent chat's, from its device.
         "event_tree": {"tree": device_link.clean_tree(TREE)},
         "tree": _tree(),
+        # `GET /me` (Android reads `language` and `services`): the account,
+        # what it may do and which services it may use. `version` is the
+        # server's own; here a fixed one.
+        "me": serialise.me(
+            SimpleNamespace(id="user1", name="Frodo", email="frodo@shire.test",
+                            settings_json={"theme": "shire"}),
+            version="2.0.0", language="sk", default_model="qwen",
+            permissions={key: key != "chat.delete" for key in SHOWN_PERMISSIONS},
+            services={"stt": True, "tts": False, "search": True, "fetch": True,
+                      "images": False},
+        ),
         # A subagent's conversation (read-only) and its findings.
         "subagent_transcript": {
             "id": "s2", "state": "working",
@@ -724,3 +737,22 @@ def test_a_show_card_names_the_file_and_never_carries_it():
     # The cookie door's address is the page's, not the app's.
     assert "url" not in device["show"]
     assert "text" not in tree["show"] and "text" not in device["show"]
+
+
+def test_me_has_the_keys_its_fixture_has(client, db, registered):
+    """The fixture's `me` is built from fixed values; the route's answer has
+    exactly its keys, and its permissions and services keys, so the two
+    cannot drift apart."""
+    from sqlalchemy import select
+
+    from lembas.db.models import User
+    from lembas.security import api_tokens
+
+    user = db.scalar(select(User))
+    _, raw = api_tokens.create(db, user, name="app", scopes=["app"])
+    got = client.get("/api/v2/me", headers={"Authorization": f"Bearer {raw}"}).json()
+    want = json.loads((FIXTURES / "me.json").read_text(encoding="utf-8"))
+    assert set(got) == set(want)
+    assert set(got["services"]) == set(want["services"])
+    assert set(got["permissions"]) == set(want["permissions"])
+    assert set(got["account"]) == set(want["account"])
