@@ -41,27 +41,27 @@
     {
       "id": "card2",
       "kind": "approval",
-      "why": "explore (job1) asks",
+      "why": "",
       "dismissable": false,
       "expires_in": null,
       "items": [
         {
           "index": 0,
-          "key": "a0",
+          "key": "0",
           "kind": "approval",
           "tool": "bash",
-          "title": "rm -rf build",
+          "title": "Run a command",
           "header": "",
-          "detail": "Removes the build directory.",
-          "reason": "",
+          "detail": "rm -rf build",
+          "reason": "Edit mode asks before anything that runs a command.",
           "purpose": "Start clean",
           "options": [],
           "multiple": false,
-          "free_text": true,
+          "free_text": false,
           "editable": true,
           "plan": null,
           "mode_choice": true,
-          "job": ""
+          "job": "explore (job1)"
         }
       ]
     },

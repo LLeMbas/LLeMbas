@@ -218,15 +218,21 @@ def _cards() -> list[interaction.Interruption]:
             interaction.Option(label="Plain", description="As the elves have it"),
         ),
     )
+    # A linked device's approval, as `device_link._permission` builds it: a
+    # heading, the command as `detail` -- the text an `editable` item lets the
+    # person correct, sent back as `texts[key]` -- and no free text.
     approval = interaction.Item(
         index=0,
-        key="a0",
+        key="0",
         kind=interaction.KIND_APPROVAL,
         tool_name="bash",
-        title="rm -rf build",
-        detail="Removes the build directory.",
+        title="Run a command",
+        detail="rm -rf build",
+        reason="Edit mode asks before anything that runs a command.",
         purpose="Start clean",
         editable=True,
+        allow_free_text=False,
+        job="explore (job1)",
     )
     plan = interaction.Item(
         index=0,
@@ -239,7 +245,7 @@ def _cards() -> list[interaction.Interruption]:
     )
     return [
         interaction.Interruption(id="card1", items=(question,)),
-        interaction.Interruption(id="card2", items=(approval,), why="explore (job1) asks"),
+        interaction.Interruption(id="card2", items=(approval,)),
         interaction.Interruption(id="card3", items=(plan,), dismissable=True),
     ]
 

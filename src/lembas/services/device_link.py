@@ -504,6 +504,8 @@ class Link:
             reason=str(meta.get("reason") or "")[: interaction.MAX_REASON_CHARS],
             purpose=str(meta.get("purpose") or ""),
             editable=bool(command),
+            # Allow or don't: no "Something else" on an approval.
+            allow_free_text=False,
             job=job,
         )
         timeout = PATIENT_WAIT if patient else ASK_WAIT
@@ -529,7 +531,11 @@ class Link:
             else "once"
         )
         answer = {"outcome": {"outcome": "selected", "optionId": chosen}}
-        edited = (reply.answers.get(f"text.{item.key}") or "").strip()
+        # The corrected command is the item's answer (`answer_card` puts a
+        # lone `text.<key>` there), as for a chat's own approval. Read from
+        # `text.<key>` it was never found, and an edit on the card ran the
+        # command the model asked for.
+        edited = reply.answer_to(item)
         if command and edited and edited != command:
             answer["_meta"] = {"lembas": {"command": edited}}
         await self._answer(message_id, answer)

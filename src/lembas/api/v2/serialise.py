@@ -485,6 +485,12 @@ def plan(value: dict | list | None) -> dict[str, Any] | None:
 
 
 def item(entry: interaction.Item) -> dict[str, Any]:
+    """One thing a card asks about. `title` is the heading ("Run a command",
+    or the question); `detail` is what it is about -- for an approval, the
+    command itself. An `editable` item's `detail` is the text the person may
+    correct, sent back as `texts[key]` with the allow. `free_text`: whether
+    "Something else" is offered (a question's; never an approval's). `job`:
+    the background subagent asking, when one is."""
     return _plain(
         {
             "index": entry.index,
