@@ -1,5 +1,5 @@
 {
-  "about": "Teams (team.md, spec 3.2.0; the main agent and its tree, subagents.md §5–§13, spec 3.4.0 — a member's team_add is now the lead's with `parent`, and `offered` lists 3.4.0's tools): one lead session's team, step by step, written from a reference model of the rules. `start`: the size setting `min` and `max`, `subagents` (enabled for the session; default true) and the chat model's `capacity` (models/schema.json: `parallel`, `single_session`; {} — no limit). The lead is `lead`; its first prompt is running as the case begins, and every agent is on the chat's model, and it is the only model there is (spec 3.3.0: other models are subagents.json's). Steps and what each answers: `offered` (`by` an agent, default lead) — `{tools, setting}`: the team tools listed for that agent, sorted, and whether the setting is shown; `call` (`by`, `tool`, `args`) — `{result, delivered}`: the call's answer word for word (null where an ordinary tool would run: the case looks only at whether it is refused), and what was delivered to whom by this step, `{name: [message, …]}`; `team_read` answers `{room, delivered}` instead, `room` being the messages it shows as `{n, from, to}` (the tree and the text format are loop.json team.read's, checked by each project's own tests); `task` runs a subagent that counts toward the size (and holds a slot) until `task_done` (`by`) — answers null; `finish` (`by`, `reply`, `reason`: stop by default, or steps, budget, `error — <text>`) — the agent's turn ends: a member's reply is its report — `{delivered}`; `set` (`min`, `max`, `capacity`: the person's setting or the model's metadata changed) — null; `person_stop` (`name`) — the person stopped that member in the UI — null; `user` — the person's message to the lead — `{note}`: the note on it (context.md §10), null when there is none; `state` — the team in tree order as `{name, manager, state}`: working, waiting (for a slot), finished, idle (the lead between turns). Delivering to a finished member or the idle lead wakes it (it is then working, or waiting when its model is full). Spec 3.4.0 adds: `start.mode` — the main agent's mode (default edit); `call` to team_whoami, team_finish, team_findings, team_request, team_decide, team_assign, team_replace, answered word for word; `context` (`by`, `used`, `window`) — its engine's context use — null; `context_full` (`by`) — its context reached team.context.pause_at: `{delivered}`; `started` (`by`) — `{text}`: what its latest turn was started with (a brief, or the messages that woke it); `tree` — `{size, open_slots, agents: [{id, name, parent, state, mode, request}], ended: [{id, name, state}]}`; `main_mode` (`mode`) — the main agent's mode changed — null. LLeMbas: services/team.py; CLI: team/.",
+  "about": "Teams (team.md, spec 3.2.0; the main agent and its tree, subagents.md §5–§13, spec 3.4.0 — a member's team_add is now the lead's with `parent`, and `offered` lists 3.4.0's tools): one lead session's team, step by step, written from a reference model of the rules. `start`: the size setting `min` and `max`, `subagents` (enabled for the session; default true) and the chat model's `capacity` (models/schema.json: `parallel`, `single_session`; {} — no limit). The lead is `lead`; its first prompt is running as the case begins, and every agent is on the chat's model, and it is the only model there is (spec 3.3.0: other models are subagents.json's). Spec 3.5.0: a subagent added under a sub-manager is said to report to it (`added_under`). Steps and what each answers: `offered` (`by` an agent, default lead) — `{tools, setting}`: the team tools listed for that agent, sorted, and whether the setting is shown; `call` (`by`, `tool`, `args`) — `{result, delivered}`: the call's answer word for word (null where an ordinary tool would run: the case looks only at whether it is refused), and what was delivered to whom by this step, `{name: [message, …]}`; `team_read` answers `{room, delivered}` instead, `room` being the messages it shows as `{n, from, to}` (the tree and the text format are loop.json team.read's, checked by each project's own tests); `task` runs a subagent that counts toward the size (and holds a slot) until `task_done` (`by`) — answers null; `finish` (`by`, `reply`, `reason`: stop by default, or steps, budget, `error — <text>`) — the agent's turn ends: a member's reply is its report — `{delivered}`; `set` (`min`, `max`, `capacity`: the person's setting or the model's metadata changed) — null; `person_stop` (`name`) — the person stopped that member in the UI — null; `user` — the person's message to the lead — `{note}`: the note on it (context.md §10), null when there is none; `state` — the team in tree order as `{name, manager, state}`: working, waiting (for a slot), finished, idle (the lead between turns). Delivering to a finished member or the idle lead wakes it (it is then working, or waiting when its model is full). Spec 3.4.0 adds: `start.mode` — the main agent's mode (default edit); `call` to team_whoami, team_finish, team_findings, team_request, team_decide, team_assign, team_replace, answered word for word; `context` (`by`, `used`, `window`) — its engine's context use — null; `context_full` (`by`) — its context reached team.context.pause_at: `{delivered}`; `started` (`by`) — `{text}`: what its latest turn was started with (a brief, or the messages that woke it); `tree` — `{size, open_slots, agents: [{id, name, parent, state, mode, request}], ended: [{id, name, state}]}`; `main_mode` (`mode`) — the main agent's mode changed — null. LLeMbas: services/team.py; CLI: team/.",
   "cases": [
     {
       "about": "Offered on a model that serves two requests at once: the lead has all four tools and the setting is shown.",
@@ -717,7 +717,7 @@
           "delivered": {}
         },
         {
-          "result": "Added db (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 4 agents.",
+          "result": "Added db (owns a part) under backend: it is working. Its report goes to backend when it finishes. The team is 3 of 4 agents.",
           "delivered": {}
         },
         {
@@ -1637,7 +1637,7 @@
           "delivered": {}
         },
         {
-          "result": "Added routes (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 6 agents.",
+          "result": "Added routes (owns a part) under api: it is working. Its report goes to api when it finishes. The team is 3 of 6 agents.",
           "delivered": {}
         },
         {
@@ -1878,7 +1878,7 @@
           "delivered": {}
         },
         {
-          "result": "Added routes (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 6 agents.",
+          "result": "Added routes (owns a part) under api: it is working. Its report goes to api when it finishes. The team is 3 of 6 agents.",
           "delivered": {}
         },
         {
@@ -2155,11 +2155,11 @@
           "delivered": {}
         },
         {
-          "result": "Added routes (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 8 agents.",
+          "result": "Added routes (owns a part) under api: it is working. Its report goes to api when it finishes. The team is 3 of 8 agents.",
           "delivered": {}
         },
         {
-          "result": "Added db (owns a part): it is working. Its report comes to you when it finishes. The team is 4 of 8 agents.",
+          "result": "Added db (owns a part) under api: it is working. Its report goes to api when it finishes. The team is 4 of 8 agents.",
           "delivered": {}
         },
         {
@@ -2464,7 +2464,7 @@
           "delivered": {}
         },
         {
-          "result": "Added routes (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 5 agents.",
+          "result": "Added routes (owns a part) under api: it is working. Its report goes to api when it finishes. The team is 3 of 5 agents.",
           "delivered": {}
         },
         {
@@ -2836,15 +2836,15 @@
           "delivered": {}
         },
         {
-          "result": "Added routes (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 8 agents.",
+          "result": "Added routes (owns a part) under api: it is working. Its report goes to api when it finishes. The team is 3 of 8 agents.",
           "delivered": {}
         },
         {
-          "result": "Added auth (owns a part): it is working. Its report comes to you when it finishes. The team is 4 of 8 agents.",
+          "result": "Added auth (owns a part) under routes: it is working. Its report goes to routes when it finishes. The team is 4 of 8 agents.",
           "delivered": {}
         },
         {
-          "result": "Added db (owns a part): it is working. Its report comes to you when it finishes. The team is 5 of 8 agents.",
+          "result": "Added db (owns a part) under api: it is working. Its report goes to api when it finishes. The team is 5 of 8 agents.",
           "delivered": {}
         },
         {
@@ -2890,7 +2890,7 @@
           }
         ],
         {
-          "result": "Added auth (owns a part): it is working. Its report comes to you when it finishes. The team is 5 of 8 agents.",
+          "result": "Added auth (owns a part) under api: it is working. Its report goes to api when it finishes. The team is 5 of 8 agents.",
           "delivered": {}
         },
         {
@@ -2968,7 +2968,7 @@
           "delivered": {}
         },
         {
-          "result": "Added routes (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 6 agents.",
+          "result": "Added routes (owns a part) under api: it is working. Its report goes to api when it finishes. The team is 3 of 6 agents.",
           "delivered": {}
         },
         {
@@ -3647,7 +3647,7 @@
           "delivered": {}
         },
         {
-          "result": "Added routes (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 6 agents.",
+          "result": "Added routes (owns a part) under api: it is working. Its report goes to api when it finishes. The team is 3 of 6 agents.",
           "delivered": {}
         },
         {
@@ -3978,7 +3978,7 @@
           "delivered": {}
         },
         {
-          "result": "Added routes (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 6 agents.",
+          "result": "Added routes (owns a part) under api: it is working. Its report goes to api when it finishes. The team is 3 of 6 agents.",
           "delivered": {}
         },
         {
@@ -4382,7 +4382,7 @@
           "delivered": {}
         },
         {
-          "result": "Added routes (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 6 agents.",
+          "result": "Added routes (owns a part) under api: it is working. Its report goes to api when it finishes. The team is 3 of 6 agents.",
           "delivered": {}
         },
         {
@@ -4843,7 +4843,7 @@
           "delivered": {}
         },
         {
-          "result": "Added routes (owns a part): it is working. Its report comes to you when it finishes. The team is 3 of 6 agents.",
+          "result": "Added routes (owns a part) under api: it is working. Its report goes to api when it finishes. The team is 3 of 6 agents.",
           "delivered": {}
         },
         {

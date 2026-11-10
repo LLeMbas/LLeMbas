@@ -22,7 +22,7 @@ page *Harness-parity* in LLeMbas CLI's wiki.
 | `permission/defaults.json` | The rules every session starts from |
 | `permission/modes.json` | The four modes — manual, edit, auto, plan — as what each does with each risk class |
 | `models/schema.json` | Model metadata: context, output limit, efforts and the thinking switch, vision, tools, notes, capacity (`parallel`); `levels` — the effort levels a chat offers and what each sends |
-| `loop.json` | How one prompt runs: the step backstop, budgets, wrap-up, nudges, parallel calls, capacity; `jobs` — background work, its marks and limits; `subagents` — the model refusals, what names a model, the setting's label; `team` — a team's size, names, marks, refusals and texts; `progress` — the phases' texts; `context` — result ids, stubs, the output cap, the compaction table, the environment lines, the session notes |
+| `loop.json` | How one prompt runs: the step backstop, budgets, wrap-up, nudges, parallel calls, capacity; `jobs` — background work, its marks and limits; `subagents` — the model refusals, what names a model, the setting's label; `team` — a team's size, names, marks, refusals and texts; `progress` — the phases' texts; `context` — result ids, stubs, the output cap, the compaction table, the environment lines, the session notes; `scheduled` (3.5.0) — scheduled work on a linked computer: the setting, the modes, the approval wait, the sentinel, the watch command's limits and the refusals |
 | `filesystem.md` | The file system a session works in: paths, node kinds, the four access levels, errors, listings, search and indexing by tokens, stacked instruction files, skills, memory |
 | `context.md` | Context hygiene: what happens to a tool result when it is inserted, and never afterwards; the prefix that stays still; reasoning sent back during its turn; no absolute paths in the prompt |
 | `team.md` | Teams: a lead and the members it adds, the size setting, the room, who receives what, reports, a manager's refusals, capacity, stopping |
@@ -70,6 +70,40 @@ page *Harness-parity* in LLeMbas CLI's wiki.
   (`context.md` §10). All three are offered in every mode; `plan_submit` (`requires: plan`) is the
   approval in plan mode and answers its `unavailable` text outside it. Their permission key is
   `plan` (`permission/defaults.json`), which a rule written for the former `todo` key still reaches.
+
+## 3.5.0
+
+Written ahead of both implementations; the server vendors it as written, both carry it in the same
+round (`acp.md` *Scheduled work on a linked computer*, `loop.json` `scheduled`).
+
+- **Scheduled turns on a linked computer.** A schedule may run each time as an agent turn on a
+  linked device, in a folder of it. The device must allow it: **Accept scheduled work**
+  (`remote.scheduled`, off by default; `lembas service scheduled on|off`), said to the server as
+  `limits.scheduled` and judged again at every request — off, every scheduled request is refused
+  with one fixed text. The server opens an agent session marked `scheduled` (schedule, run, mode,
+  approval wait) with the schedule's Min/Max as an agent chat's, and prompts it with the run's own
+  text. **The mode** is the schedule's — Manual, Edit or Auto, **Edit when none was chosen**, so never
+  wider than Edit unless the person picked Auto; Plan refused — lowered to `remote.max_mode`. The
+  answer reports the run: `status` `ok`, `silent` (the `[SILENT]` sentinel on the first or last
+  line, the server's rule), `failed` or `cancelled`, and the final reply's `text`. A device that is
+  away is waited for like a busy model, then the run is missed; a refusal fails the run.
+- **Approvals in a scheduled turn** go to the person through the server (a phone notification with
+  the card), carry `scheduled` on `session/request_permission`, and wait the schedule's wait
+  (default 30 minutes) instead of `remote.approval_timeout`; then they count as denied and the turn
+  goes on. `ask_user` and `plan_submit` have nobody to answer; `show` is not offered.
+- **Monitor mode, the device's half**: `_lembas/monitor` runs a schedule's watch command in its
+  folder, with a timeout, under the mode's permission rules — **a command the mode would ask about
+  is refused** — and answers the output's hash (`sha256:` over the bytes and then the exit status) and a
+  short excerpt; the server runs the model only when the hash changed, and records `unchanged`
+  otherwise.
+- **Schedules over `/api/v2` with the device's token** (scope `link`): the CLI's `/schedule` lists,
+  creates from words (compile), pauses, resumes, runs now and reads history. A run may be
+  `unchanged`, may wait for the `device`; a schedule may say `runs_on` and `watch`.
+- **`team_add` under a sub-manager** says where the report goes: `team.texts.added_under` and
+  `added_waiting_under` ("Its report goes to <parent> when it finishes").
+- Capability `scheduled`. Conformance areas **`scheduled`** (the mode, the wait, the refusals),
+  **`silent`** (the sentinel and the stripped text) and **`monitor`** (the hash, and what a watch
+  command may run); `team` cases changed for `added_under`.
 
 ## 3.4.0
 

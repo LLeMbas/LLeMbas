@@ -5,6 +5,9 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
+The harness spec is **3.5.0** (scheduled work on a linked computer), copied from LLeMbas CLI's
+`dev` (`788db0f`); the lock is re-pinned to the CLI's tag at release.
+
 ### Added
 
 - **Loading the model, and how far the prompt has been read.** A reply on a self-hosted server now
@@ -48,6 +51,8 @@ at <https://llembas.eu/changelog.html>.
   need the `models` scope, which the apps ask for at sign-in beside `app`). Fixtures: new
   `folder.json`, `folders.json`, `search.json`, `memories.json`, `memory.json`, `scope.json`;
   `me.json` gains the four fields.
+- **`team_add` under a sub-manager says where the report goes** (spec 3.5.0): "Added db (owns a
+  part) under api: … Its report goes to api when it finishes", instead of "comes to you".
 
 ## 2.0.0-beta.8 — 2026-11-10
 

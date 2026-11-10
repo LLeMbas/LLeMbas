@@ -1,0 +1,101 @@
+{
+  "about": "Spec 3.5.0: whether a scheduled run's reply is `silent` — loop.json scheduled.sentinel on its first or last non-empty line, compared after trimming, any case, every trailing full stop forgiven — and the reply with every sentinel line taken out (`stripped`, the text a preview shows), trimmed. The server's rule for its own runs, and the device's for a scheduled turn.",
+  "cases": [
+    {
+      "about": "The sentinel alone.",
+      "text": "[SILENT]",
+      "expect": {
+        "silent": true,
+        "stripped": ""
+      }
+    },
+    {
+      "about": "Lower case, with a full stop.",
+      "text": "[silent].",
+      "expect": {
+        "silent": true,
+        "stripped": ""
+      }
+    },
+    {
+      "about": "On the last line, after a sentence.",
+      "text": "Nothing new since yesterday.\n[SILENT]",
+      "expect": {
+        "silent": true,
+        "stripped": "Nothing new since yesterday."
+      }
+    },
+    {
+      "about": "On the first line, before a sentence.",
+      "text": "[SILENT]\nChecked the feed: nothing.",
+      "expect": {
+        "silent": true,
+        "stripped": "Checked the feed: nothing."
+      }
+    },
+    {
+      "about": "In the middle: not silent (only the first or last line counts), and the line still goes from the preview.",
+      "text": "Two new posts.\n[SILENT]\nBoth about waybread.",
+      "expect": {
+        "silent": false,
+        "stripped": "Two new posts.\nBoth about waybread."
+      }
+    },
+    {
+      "about": "Inside a sentence: not silent.",
+      "text": "I would say [SILENT] but there is news: the build broke.",
+      "expect": {
+        "silent": false,
+        "stripped": "I would say [SILENT] but there is news: the build broke."
+      }
+    },
+    {
+      "about": "Blank lines around it are not lines.",
+      "text": "\n\n  [SILENT]  \n\n",
+      "expect": {
+        "silent": true,
+        "stripped": ""
+      }
+    },
+    {
+      "about": "A space before the full stop.",
+      "text": "All quiet.\n[SILENT] .",
+      "expect": {
+        "silent": true,
+        "stripped": "All quiet."
+      }
+    },
+    {
+      "about": "Without brackets: not the sentinel.",
+      "text": "SILENT",
+      "expect": {
+        "silent": false,
+        "stripped": "SILENT"
+      }
+    },
+    {
+      "about": "Empty: not silent.",
+      "text": "",
+      "expect": {
+        "silent": false,
+        "stripped": ""
+      }
+    },
+    {
+      "about": "An ordinary reply.",
+      "text": "The backup finished at 03:12; 4.2 GB.",
+      "expect": {
+        "silent": false,
+        "stripped": "The backup finished at 03:12; 4.2 GB."
+      }
+    },
+    {
+      "about": "Two full stops are forgiven too (every trailing one is).",
+      "text": "[SILENT]..",
+      "expect": {
+        "silent": true,
+        "stripped": ""
+      }
+    }
+  ]
+}

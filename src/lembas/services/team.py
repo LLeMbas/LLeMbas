@@ -785,11 +785,17 @@ def add(
     team.agents.append(member)
     _wants(team, member)
     values = {"name": name, "role": role, "size": team.size(), "max": team.max}
+    # Spec 3.5.0: placed under a sub-manager, its report goes there -- said
+    # so, not "comes to you" (the CLI's team/ says the same).
+    under = parent.name != LEAD
+    if under:
+        values["parent"] = parent.name
     if member.state == WORKING:
-        return Added(_say("added", **values), member)
+        return Added(_say("added_under" if under else "added", **values), member)
     model = _model_of(team, member)
     limit = team.slots() if _own_model(team, model) else team.model_slots[model]
-    return Added(_say("added_waiting", parallel=limit or 0, **values), member)
+    key = "added_waiting_under" if under else "added_waiting"
+    return Added(_say(key, parallel=limit or 0, **values), member)
 
 
 def _next_id(team: Team) -> str:

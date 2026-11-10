@@ -1,0 +1,145 @@
+{
+  "about": "Spec 3.5.0 (acp.md *Scheduled work on a linked computer*): what a device makes of a scheduled turn. `accept`: the device's Accept scheduled work (remote.scheduled; false means remote work is off as well, the same refusal); `mode`: the schedule's (absent: none chosen); `max_mode`: remote.max_mode; `approval_wait_s`: the schedule's wait (absent: none). → `{mode, wait_s}` — the session's mode and how long an approval waits — or `{refused}` with the `data.reason` of the -32602 (`scheduled_off`, `plan`), whose message is loop.json scheduled.texts.off / .plan. Written from the rules; the device's other refusals (folder, trust) are the agent chat's.",
+  "cases": [
+    {
+      "about": "Off by default: refused, whatever else is asked.",
+      "accept": false,
+      "mode": "edit",
+      "max_mode": "edit",
+      "expect": {
+        "refused": "scheduled_off"
+      }
+    },
+    {
+      "about": "No mode chosen: Edit.",
+      "accept": true,
+      "max_mode": "edit",
+      "expect": {
+        "mode": "edit",
+        "wait_s": 1800
+      }
+    },
+    {
+      "about": "No mode chosen, the device allows Auto: still Edit — Auto only when the schedule says so.",
+      "accept": true,
+      "max_mode": "auto",
+      "expect": {
+        "mode": "edit",
+        "wait_s": 1800
+      }
+    },
+    {
+      "about": "Auto chosen and allowed.",
+      "accept": true,
+      "mode": "auto",
+      "max_mode": "auto",
+      "expect": {
+        "mode": "auto",
+        "wait_s": 1800
+      }
+    },
+    {
+      "about": "Auto chosen, the device allows Edit at most: lowered.",
+      "accept": true,
+      "mode": "auto",
+      "max_mode": "edit",
+      "expect": {
+        "mode": "edit",
+        "wait_s": 1800
+      }
+    },
+    {
+      "about": "Edit chosen, the device allows Manual at most: lowered.",
+      "accept": true,
+      "mode": "edit",
+      "max_mode": "manual",
+      "expect": {
+        "mode": "manual",
+        "wait_s": 1800
+      }
+    },
+    {
+      "about": "Manual chosen.",
+      "accept": true,
+      "mode": "manual",
+      "max_mode": "auto",
+      "expect": {
+        "mode": "manual",
+        "wait_s": 1800
+      }
+    },
+    {
+      "about": "Plan is refused: nobody is there to approve a plan.",
+      "accept": true,
+      "mode": "plan",
+      "max_mode": "auto",
+      "expect": {
+        "refused": "plan"
+      }
+    },
+    {
+      "about": "An unknown mode is read as the default, never as anything wider.",
+      "accept": true,
+      "mode": "unrestricted",
+      "max_mode": "auto",
+      "expect": {
+        "mode": "edit",
+        "wait_s": 1800
+      }
+    },
+    {
+      "about": "The device allows Plan at most: every scheduled turn is lowered to it.",
+      "accept": true,
+      "mode": "edit",
+      "max_mode": "plan",
+      "expect": {
+        "mode": "plan",
+        "wait_s": 1800
+      }
+    },
+    {
+      "about": "The wait, in seconds, as the schedule says.",
+      "accept": true,
+      "mode": "edit",
+      "max_mode": "edit",
+      "approval_wait_s": 600,
+      "expect": {
+        "mode": "edit",
+        "wait_s": 600
+      }
+    },
+    {
+      "about": "Below the floor: one minute.",
+      "accept": true,
+      "mode": "edit",
+      "max_mode": "edit",
+      "approval_wait_s": 5,
+      "expect": {
+        "mode": "edit",
+        "wait_s": 60
+      }
+    },
+    {
+      "about": "Above the ceiling: a day.",
+      "accept": true,
+      "mode": "edit",
+      "max_mode": "edit",
+      "approval_wait_s": 999999,
+      "expect": {
+        "mode": "edit",
+        "wait_s": 86400
+      }
+    },
+    {
+      "about": "A fraction is cut to whole seconds.",
+      "accept": true,
+      "mode": "edit",
+      "max_mode": "edit",
+      "approval_wait_s": 90.7,
+      "expect": {
+        "mode": "edit",
+        "wait_s": 90
+      }
+    }
+  ]
+}

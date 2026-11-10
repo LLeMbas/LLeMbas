@@ -68,6 +68,7 @@ change to the protocol is a change here first, then in both projects.
 | `progress` | spec 3.4.0 (`progress.md`): the `phase` event; `progress` in `_lembas/session/status` |
 | `agents` | spec 3.4.0: the session's Subagents setting `{ min, max }` is read from `_meta.lembas.agents` on `session/new`, `session/prompt` and `_lembas/configure` (*Subagents in an agent chat*, below) |
 | `tree` | spec 3.4.0 (`subagents.md` §5–§13): the `team` event; `_lembas/team`, `_lembas/team/transcript`, `_lembas/team/findings`, `_lembas/team/stop`; `subagent` on `session/request_permission` |
+| `scheduled` | spec 3.5.0 (*Scheduled work on a linked computer*, below): `scheduled` in `_meta.lembas` of `session/new` and `session/prompt` read, and the run's outcome in the prompt's answer; `scheduled` on `session/request_permission`; `_lembas/monitor`; `limits.scheduled` in `_lembas/hello` and `initialize`. Listed by every build that has it, whatever the setting says: whether this device *accepts* scheduled work is `limits.scheduled` |
 
 ## Standard ACP, as used here
 
@@ -90,14 +91,15 @@ Result:
   "_meta": { "lembas": {
     "protocol": 3,
     "harness_spec": "3.0.0",
-    "limits": { "roots": ["~/work"], "max_mode": "edit" },
+    "limits": { "roots": ["~/work"], "max_mode": "edit", "scheduled": false },
     "connection": "example",
     "capabilities": ["directories", "configure", "…"]
   } }
 }
 ```
 
-`limits` is `null` on `serve --stdio`. `connection` is the device's name for the instance — the
+`limits` is `null` on `serve --stdio`. `limits.scheduled` (spec 3.5.0, capability `scheduled`): whether
+this device accepts scheduled work now (`remote.scheduled`, *Scheduled work on a linked computer*). `connection` is the device's name for the instance — the
 login's connection — or `null`; the `model` event and `announce` say directly whether a model is
 the instance's (`instance`).
 
@@ -251,6 +253,10 @@ person may also answer at the terminal (a shared session), so the client does no
 can say which — a background subagent may ask while the session itself is idle. `subagent` (capability `tree`, spec 3.4.0):
 `{ id, name, position }` when the call is a tree subagent's that nobody in the tree could allow (`subagents.md` §7) —
 the card names it; the answers are the same as for the main agent's own call.
+`scheduled` (capability `scheduled`, spec 3.5.0): `{ schedule_id, run_id, wait_s }` when the call is
+a scheduled turn's — nobody is at the chat, so the client puts the card to the person where they are
+(LLeMbas: a notification on their phone carrying the card, answerable there and in every client),
+and the device waits `wait_s` for it, not `remote.approval_timeout` (*Scheduled work*, below).
 Answer: ACP's `{ outcome: { outcome: "selected", optionId } | { outcome: "cancelled" } }`, with
 optional `_meta.lembas.command` (the corrected command line, `once` only) or
 `_meta.lembas.feedback` (why it was denied). No answer within `remote.approval_timeout` is a denial.
@@ -306,6 +312,135 @@ is on the device, and gets it once the device links again. Over `/api/v2` the ch
 the tree as it changes and the endpoints to read a subagent's transcript and findings, the same for
 a chat's own subagents and for an agent chat's — so Web, Desktop and Android draw both alike.
 
+## Scheduled work on a linked computer (spec 3.5.0)
+
+A schedule (the server's: its rule, its runs, its history and notifications) may run **on a linked
+computer**: each run is an agent turn on that device, in a folder of it, instead of a chat on the
+server. The server decides *when*; the device decides *whether*, and *how far* — every rule an agent
+chat has still holds, and the ones below are added. Numbers and texts: `loop.json` `scheduled`.
+Conformance areas `scheduled`, `silent`, `monitor`.
+
+### The device's setting: Accept scheduled work
+
+- **`remote.scheduled`** in the device's global config, **off by default**; shown as **Accept
+  scheduled work** (`loop.json` `scheduled.setting`). Set from the command line with
+  `lembas service scheduled on|off` (also `lembas remote scheduled on|off`; `lembas remote list
+  --json` says `scheduled`), and by LLeMbas Desktop through the same command. It is global only: a
+  project's config cannot turn it on.
+- It narrows remote work and widens nothing: a scheduled turn also needs `remote.enabled`, a folder
+  inside `remote.roots`, a trusted project where `remote.require_trust`, and a mode within
+  `remote.max_mode`, exactly as an agent chat does.
+- The device says it in `limits.scheduled` (hello and `initialize`). Turning it on or off changes
+  the limits, so the device dials again once nothing works (as for any limit) and the client hears
+  it. The client may offer the device in a schedule's form only while `limits.scheduled` is true,
+  and says why not otherwise. The device judges it again at every `session/new`, `session/prompt`
+  and `_lembas/monitor` that is scheduled, whatever it said earlier.
+- **Off** (or remote work off): every scheduled request is refused with `-32602`, the message
+  `loop.json` `scheduled.texts.off` word for word, and `data: { reason: "scheduled_off" }`. Not
+  retried: it is the person's setting. A folder the device does not accept is `-32602` with the
+  usual reason and `data: { reason: "folder" }`.
+
+### Starting a scheduled turn
+
+The client opens an agent session as for an agent chat (`session/new`: `cwd`, `lembas_model`,
+`effort`, `_meta.lembas` with `agents` — the schedule's **Min/Max**, as an agent chat's — and the
+`Context`), marked scheduled:
+
+```json
+"_meta": { "mode": "edit", "lembas_model": "qwen", "lembas": {
+  "agents": { "min": 1, "max": 4 },
+  "scheduled": { "schedule_id": "sched1", "run_id": "run7", "title": "Waybread check",
+                 "mode": "edit", "approval_wait_s": 1800 } } }
+```
+
+and runs the turn with `session/prompt`, its `_meta.lembas` carrying the same `scheduled` object
+(and a `turnId`, the run's — so a prompt sent again after a dropped link gets the run's answer
+instead of a second run). A schedule that continues one conversation (`continue`) prompts the same
+session again on its next run; a fresh run opens a new one. The prompt's text is the server's own
+for a scheduled run — the instruction, the run's time, and for a schedule that notifies only when
+it matters the `[SILENT]` hint — composed exactly as for a run on the server; the device adds nothing.
+
+**The mode** (`scheduled.mode`; `_meta.mode` is ignored for a scheduled session): `manual`, `edit`
+or `auto`, and **`edit` when absent** — so a run is never wider than Edit unless the person picked
+Auto on that schedule. `plan` is refused (`scheduled.texts.plan`, `data: { reason: "plan" }`):
+nobody is there to approve a plan. Then lowered to `remote.max_mode`, as every remote session is —
+Auto runs only where both the schedule and the device allow it (`conformance/scheduled.json`). The
+mode holds for the turn; neither `_lembas/configure` nor a command in the prompt widens it.
+
+In a scheduled turn:
+
+- **Approvals** go to the person through the client (`session/request_permission` with
+  `_meta.lembas.scheduled: { schedule_id, run_id, wait_s }`), and the device waits
+  `approval_wait_s` — the schedule's wait, 30 minutes by default, clamped to
+  `scheduled.approval_wait_seconds` — instead of `remote.approval_timeout`. Unanswered by then, the
+  call is denied with `scheduled.texts.denied` as the feedback the model reads (`{{minutes}}` the
+  wait in whole minutes), the card is settled (`_lembas/permission/settled`), and the turn goes on —
+  the model works around the refusal or fails. Not `patient`.
+- **`ask_user` and `plan_submit`** have nobody to answer: the device answers them as it does with
+  no client (`ask_user` tells the model nobody can be asked; `plan_submit` saves the plan and says
+  to stop). `show` is not offered: nobody is looking.
+- Subagents as in an agent chat (`agents`, the tree, findings); a subagent's call only the person
+  can allow is an approval like the main agent's, with `scheduled` beside `subagent`.
+
+### How the turn ends and reports
+
+`session/prompt`'s answer carries the run's outcome in `_meta.lembas.scheduled`:
+
+```json
+{ "stopReason": "end_turn", "_meta": { "lembas": { "turnId": "run7",
+  "scheduled": { "run_id": "run7", "status": "ok", "text": "All the waybread is wrapped.",
+                 "error": null } } } }
+```
+
+- **`text`**: the turn's final reply — the text of the last assistant message the turn wrote, as
+  written (`[SILENT]` included). Model output: untrusted wherever it is shown.
+- **`status`**: `cancelled` — the turn was cancelled (`session/cancel`: the person stopped it, or the
+  client's inactivity limit); `failed` — the turn ended on an error (`error` its text), or with no
+  reply text at all (`scheduled.texts.no_reply`); `silent` — the reply says the sentinel
+  `[SILENT]` on its first or last non-empty line (any case, a trailing full stop forgiven;
+  `conformance/silent.json`, the server's own rule for its runs); otherwise `ok`. A turn that hit the
+  step backstop or a budget and still wrote a reply is `ok`; `stopReason` says why it stopped.
+- The client records the run from this (its history, its notification by the schedule's policy —
+  `silent` is never notified, a failure is told as a failure), and keeps the session as the run's
+  agent chat, whose events it received as for any agent chat. What the sentinel stripped looks like
+  is `silent.json`'s `stripped`.
+
+### When the device is away, or refuses
+
+- **Away** (not linked when the run is due, or the link drops before `session/new` is answered): the
+  client treats the device like a busy model — the run is `waiting` (`waiting_for: "device"`) and
+  tried again on the same steps a run waiting for a free model is, until the run's window closes;
+  then it is **missed**. A turn already running when the link drops is followed again by
+  `_lembas/session/status` and the turn id, as for any agent chat.
+- **Refused** (`-32602` from a scheduled `session/new`, `session/prompt` or `_lembas/monitor`): the
+  run **fails** with the device's message, said in the run's history and in the failure
+  notification; `data.reason` (`scheduled_off`, `folder`, `plan`, `permission`) lets the client say
+  what to change. Not retried.
+
+### Monitor mode: a command watched on the device
+
+A schedule may **watch** something and run the model only when it changed. A URL is fetched by the
+server and needs nothing from the device; a **command's output** is watched on the device with
+`_lembas/monitor` (below): the client asks the device to run the watch command, compares the
+answer's `hash` with the one the previous check stored, and when it is the same records the run as
+`unchanged` — no model, nobody notified. Changed (or the first check), the model runs as the
+schedule says — on the server, or as a scheduled turn on the device — told what changed through the
+`excerpt`. A check that fails (timed out, refused) is a failed run.
+
+The command runs under the **same permission rules as the schedule's mode**, with one difference:
+**a command the mode would ask about is refused**, because a watch has nobody to ask. The device
+judges the command line as `bash` would be judged in a session in that folder (the hardline, the
+default rules, the global rules and — in a trusted project — the project's), and runs it only on
+`allow`; `ask` is refused with `scheduled.texts.monitor_asks`, `deny` with
+`scheduled.texts.monitor_denied`, both `-32602` with `data: { reason: "permission" }`
+(`conformance/monitor.json`).
+
+**The hash** (`monitor.json` `hash` cases): `sha256:` and the lowercase hex SHA-256 of the
+output's bytes exactly as read — standard output and standard error as one stream, as the `bash`
+tool reads them — followed by a newline and the exit status as decimal digits (after the bytes, so
+the device hashes the output as it streams, however long). Nothing is normalised: a watch command
+that prints a time changes every time, and should not.
+
 ## `_lembas/*` methods
 
 Direction is who sends it. "→ result" marks a request; the others are notifications.
@@ -313,7 +448,9 @@ Direction is who sends it. "→ result" marks a request; the others are notifica
 ### `_lembas/hello` — agent → client
 
 Sent once when the link opens, before `initialize`:
-`{ protocol, version, harness_spec, device: { host, platform }, limits: { roots, max_mode, require_trust } }`.
+`{ protocol, version, harness_spec, device: { host, platform }, limits: { roots, max_mode, require_trust, scheduled } }`
+(`scheduled` since spec 3.5.0: whether the device accepts scheduled work; a change of it is a
+change of the limits, below).
 
 A device links whether its remote work is on or not, and with no roots at all. Off, or with no
 roots, it says `limits.roots: []` here and in `initialize`, and refuses every `session/new`, every
@@ -349,6 +486,22 @@ client hears the new limits.
 | `sub_tool` | `callId` (the `task` call the subagent belongs to), `jobId?` (its job, when it runs as one), `name`, `title`, `isError?` — a tool call of a subagent finished; a client draws it under the task line, or in the job's panel |
 | `phase` | `progress` — the progress object (`progress.md` §1), or `null` when nothing runs; `agent?` — the subagent's id when it is a subagent's, absent for the main agent's (capability `progress`). Sent when the phase changes, and for a change of its data at most four times a second. The existing `progress` event (the prompt's tokens read) is unchanged |
 | `team` | `tree` — the session's subagent tree (`subagents.md` §12, the data) — whenever it changes, at most four times a second (capability `tree`). A client draws it and fetches nothing else to do so |
+
+### `_lembas/monitor` — client → agent → result (capability `scheduled`)
+
+The watch command of a schedule in monitor mode (*Monitor mode*, above). Params
+`{ cwd, command, mode?, timeout_s?, schedule_id?, run_id? }` — `cwd` absolute, judged as
+`session/new`'s; `mode` the schedule's (`manual`, `edit` or `auto`; `edit` when absent; `plan`
+refused), lowered to `remote.max_mode`; `timeout_s` defaulting to and clamped by
+`loop.json` `scheduled.monitor.timeout_seconds`. Refused like any scheduled request when the device
+does not accept scheduled work. The command runs as `bash -c` in `cwd`, in its own process group,
+with no input; at the timeout the group is stopped.
+
+Result `{ hash, exit, timed_out, excerpt, truncated, bytes, duration_ms }`: `hash` as above (`null`
+when it timed out), `exit` the exit status (`null` on a signal or a timeout), `excerpt` the start of
+the output decoded as UTF-8 (invalid bytes replaced), at most `scheduled.monitor.excerpt_chars`
+characters, `truncated` whether there was more, `bytes` the output's length. The device hashes all
+of the output as it streams and keeps at most `scheduled.monitor.output_max_bytes` of it.
 
 ### `_lembas/directories` — client → agent → result
 
@@ -681,6 +834,24 @@ Besides `/v1/models`, the chat completions, `/api/v1/instance` and `/mcp`:
   a session of the device's own lands in the data group of the session's model. A token with the
   older `library` scope counts as `memory`. Local memory files are not synced up; logged out, there
   is no memory.
+
+- **Schedules** (spec 3.5.0): the schedule routes of `/api/v2` — `GET`/`POST /api/v2/schedules`,
+  `GET`/`PATCH`/`DELETE /api/v2/schedules/{id}`, `POST …/{id}/pause`, `/resume`, `/run`,
+  `GET …/{id}/runs`, `GET …/{id}/runs/{run}`, `POST /api/v2/schedules/compile` and `/preview` —
+  **accept the device's token** (scope `link`) as well as an app's (`app`), for the same person and
+  under the same `schedule.use` permission; nothing else of `/api/v2` does. The shapes are the
+  server's (its contract fixtures); what the CLI's `/schedule` relies on: a schedule's `id`,
+  `title`, `instruction`, `description`, `enabled`, `next_run`, `last_run` (`status`, `timing`,
+  `due_at`, `finished_at`, `preview`, `error.text`), `running`; a run's `id`, `status`, `due_at`,
+  `started_at`, `finished_at`, `model.name`, `preview`, `error`; compile's `ok`, `reason`, `title`,
+  `instruction`, `rule`, `description`, `next_runs`, `timezone`. A run's `status` may also be
+  **`unchanged`** (monitor mode: the watch saw nothing new; no model ran), and `waiting_for` may be
+  **`device`**. A schedule that runs on a linked computer has
+  **`runs_on: { device, device_name, cwd, mode, approval_wait_minutes }`** (else `null`); one that
+  watches has **`watch: { kind: "url", url } | { kind: "command", command, timeout_s }`** (else
+  `null`). Creating one with the device's token, `runs_on.device: "this"` names the calling device.
+  A server without these answers 401 or 403 to the device's token, and the CLI says the server is
+  older.
 
 ## Notes
 

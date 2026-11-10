@@ -32,6 +32,7 @@ from lembas.services import (
 from lembas.services import tools as tools_service
 from lembas.services.agent import policy, shell
 from lembas.services.llm import openai_client
+from lembas.services.schedule import notify
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -61,6 +62,14 @@ AREAS = {
     # (`services/team_run.py`) applies to its rows.
     "team": lambda c: _team(c),
     "progress": lambda c: _progress(c),
+    # Spec 3.5.0: what a device makes of a scheduled turn (the server says it
+    # in the schedule's form), the `[SILENT]` rule its runs share with the
+    # device's, and the watch command's hash (the judge cases are the device's).
+    "scheduled": lambda c: _scheduled(c),
+    "silent": lambda c: {
+        "silent": notify.is_silent(c["text"]), "stripped": notify.strip_sentinel(c["text"])
+    },
+    "monitor": lambda c: _monitor(c),
     "delegation": lambda c: _delegation(c),
     # The effort levels a chat offers and what each sends (spec 3.2.0): pure,
     # from the model's metadata. `services/chat.py levels`, `level_fields`.
@@ -376,6 +385,23 @@ def _think(c):
 # which applies patches and runs these cases itself. `edit` is run here now, in
 # tests/test_chat_files.py, against the chat's own edit tool.
 _ON_THE_DEVICE = "the patch tools run on the linked LLeMbas CLI, not in LLeMbas"
+
+def _scheduled(case: dict) -> dict:
+    from lembas.services.schedule import device
+
+    return device.effective(
+        accept=case["accept"], mode=case.get("mode"), max_mode=case["max_mode"],
+        approval_wait_s=case.get("approval_wait_s"),
+    )
+
+
+def _monitor(case: dict):
+    from lembas.services.schedule import device
+
+    if case["kind"] != "hash":
+        pytest.skip("the watch command is judged on the device, by its permission rules")
+    return device.monitor_hash(case["output"].encode("utf-8"), case["exit"])
+
 
 # Areas of the spec LLeMbas does not run yet, or no longer runs, and why.
 PENDING = {

@@ -146,6 +146,8 @@
     "texts": {
       "added": "Added {{name}} ({{role}}): it is working. Its report comes to you when it finishes. The team is {{size}} of {{max}} agents.",
       "added_waiting": "Added {{name}} ({{role}}): it waits for a free slot — the model serves {{parallel}} requests at once and all are busy — and starts when one frees. Its report comes to you when it finishes. The team is {{size}} of {{max}} agents.",
+      "added_under": "Added {{name}} ({{role}}) under {{parent}}: it is working. Its report goes to {{parent}} when it finishes. The team is {{size}} of {{max}} agents.",
+      "added_waiting_under": "Added {{name}} ({{role}}) under {{parent}}: it waits for a free slot — the model serves {{parallel}} requests at once and all are busy — and starts when one frees. Its report goes to {{parent}} when it finishes. The team is {{size}} of {{max}} agents.",
       "sent": "Sent to {{to}}.",
       "stopped": "Stopped {{names}}. The team is {{size}} of {{max}} agents.",
       "manager": "You lead a team: give this to a member (team_add or team_send).",
@@ -438,5 +440,48 @@
     ],
     "what_max": 80,
     "pace_per_second": 4
+  },
+  "scheduled": {
+    "about": "Spec 3.5.0 (acp.md *Scheduled work on a linked computer*): a schedule's run as an agent turn on a linked computer, and the watch command of monitor mode. `setting` is how the device's switch is shown; `modes` the modes a schedule may choose (`default_mode` when it chose none), lowered to remote.max_mode; `approval_wait_seconds` how long an approval in a scheduled turn waits (the schedule's wait, clamped); `sentinel` the word a reply says when there is nothing to tell; `monitor` the watch command's limits. conformance/scheduled.json, silent.json, monitor.json.",
+    "setting": {
+      "key": "remote.scheduled",
+      "label": "Accept scheduled work",
+      "hint": "Let your schedules run here as agent turns, in the folders remote work may use. Off by default."
+    },
+    "modes": [
+      "manual",
+      "edit",
+      "auto"
+    ],
+    "default_mode": "edit",
+    "approval_wait_seconds": {
+      "default": 1800,
+      "min": 60,
+      "max": 86400
+    },
+    "sentinel": "[SILENT]",
+    "statuses": [
+      "ok",
+      "silent",
+      "failed",
+      "cancelled"
+    ],
+    "monitor": {
+      "timeout_seconds": {
+        "default": 60,
+        "min": 1,
+        "max": 600
+      },
+      "excerpt_chars": 2000,
+      "output_max_bytes": 1048576
+    },
+    "texts": {
+      "off": "This computer does not accept scheduled work. Turn on \"Accept scheduled work\" on it (lembas service scheduled on).",
+      "plan": "A scheduled run cannot use plan mode: nobody is there to approve a plan. Choose Manual, Edit or Auto.",
+      "denied": "Nobody answered this approval within {{minutes}} minutes, so it counts as denied.",
+      "monitor_asks": "The watch command would need approval in {{mode}} mode ({{reason}}), and a watch has nobody to ask. Allow the command in the project's permission rules, or choose a wider mode for the schedule.",
+      "monitor_denied": "The watch command is refused here: {{reason}}.",
+      "no_reply": "The run ended without a reply."
+    }
   }
 }
