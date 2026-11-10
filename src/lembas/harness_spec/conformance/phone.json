@@ -255,7 +255,7 @@
         "summary": "Drive home via the shop",
         "destination": {
           "name": "Home",
-          "query": "Hlavná 1, Trenčín"
+          "query": "1 Bagshot Row, Hobbiton"
         },
         "stops": [
           {
@@ -272,7 +272,7 @@
           "summary": "Drive home via the shop",
           "destination": {
             "name": "Home",
-            "query": "Hlavná 1, Trenčín"
+            "query": "1 Bagshot Row, Hobbiton"
           },
           "stops": [
             {
@@ -308,7 +308,7 @@
         "summary": "Go",
         "destination": {
           "name": "Home",
-          "query": "Hlavná 1, Trenčín"
+          "query": "1 Bagshot Row, Hobbiton"
         },
         "stops": [
           {
@@ -328,11 +328,11 @@
         "action": "add_stop",
         "summary": "Add the petrol station",
         "stop": {
-          "query": "Slovnaft Trenčín"
+          "query": "Fuel station, Bywater"
         },
         "destination": {
           "name": "Home",
-          "query": "Hlavná 1, Trenčín"
+          "query": "1 Bagshot Row, Hobbiton"
         }
       },
       "expect": {
@@ -340,11 +340,11 @@
           "action": "add_stop",
           "summary": "Add the petrol station",
           "stop": {
-            "query": "Slovnaft Trenčín"
+            "query": "Fuel station, Bywater"
           },
           "destination": {
             "name": "Home",
-            "query": "Hlavná 1, Trenčín"
+            "query": "1 Bagshot Row, Hobbiton"
           }
         }
       }
@@ -357,7 +357,7 @@
         "summary": "Go",
         "destination": {
           "name": "Home",
-          "query": "Hlavná 1, Trenčín"
+          "query": "1 Bagshot Row, Hobbiton"
         },
         "mode": "fly"
       },
