@@ -3,6 +3,33 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## Unreleased
+
+### Added
+
+- **The Terminal before the first message.** On a new agent chat, the Terminal opens as soon as the
+  computer and the folder are chosen -- before anything is sent -- on a device that opens terminals
+  for you. The message that starts the chat there takes that shell over, with what it has printed,
+  so the chat's Terminal is the same shell. Choosing another computer or folder opens the shell
+  there instead, and the one left behind is closed.
+- **`/api/v2`: the terminal, for the apps.** `/api/v2/chats/{chat}/terminal/ws` is an agent chat's
+  shell (the same one its page opens), and `/api/v2/devices/{device}/terminal/ws?directory=` is one
+  before the chat exists, which the chat takes over. Both take the app's token in the handshake's
+  header; frames are the page's. `GET /api/v2/devices` says `terminal` for each device: whether a
+  Terminal can be offered on it.
+
+### Fixed
+
+- **A command corrected on an agent chat's approval card ran as the model wrote it.** The edit never
+  reached the device -- from the page or from the apps -- so Allow ran the original command. It runs
+  what is in the box now.
+- **`/api/v2` described a device's approval wrongly in its contract.** An approval's `title` is the
+  heading ("Run a command") and its `detail` is the command -- what an `editable` item lets you
+  correct; the contract's example had them the other way round, and the apps followed it. An
+  approval also no longer claims to take a free-text answer (`free_text` is false).
+- **`/api/v2`'s chat list no longer says "no subagents"** for every chat it lists. It did not work it
+  out there; it says `null` now, and a chat's own `subagents` (opening it) is the answer.
+
 ## 2.0.0-beta.7 — 2026-11-09
 
 The harness spec is **3.3.0**, pinned to LLeMbas CLI v2.0.0-beta.5.
