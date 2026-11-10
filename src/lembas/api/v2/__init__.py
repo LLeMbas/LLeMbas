@@ -33,7 +33,16 @@ and its runs, the compile and the preview, the scheduling models
 (`schedules.py`) -- and `GET /events`, the person's own stream (a `schedules`
 event); the terminal on a linked device -- an agent chat's, and one before the
 chat exists, on a device and in a directory (`terminal.py`) -- and `terminal`
-on each of `GET /devices`.
+on each of `GET /devices`. Parity with the web (beta.9): folders made,
+renamed, moved and deleted (`folders.py`), `pinned` on a chat's PATCH, search
+and memory (`library.py`), the library's writes (`files.py`), a chat's tool and
+skill switches and `/allow/clear` (`chats.py`), and `PATCH /me` for language
+and theme, with `scopes`, `languages` and `themes` on `GET /me`.
+
+Voice and images are not here: they are `/v1/audio/*` and
+`/v1/images/generations`, the OpenAI-compatible routes, which need the `models`
+scope. An app asks for `app models` at sign-in (the device login takes any of
+the person's scopes) and reads `scopes` on `GET /me` to know it has both.
 """
 
 from __future__ import annotations
@@ -46,9 +55,20 @@ router = APIRouter(prefix="/api/v2", tags=["app"])
 
 
 def _include() -> None:
-    from lembas.api.v2 import chats, files, misc, schedules, stream, terminal
+    from lembas.api.v2 import (
+        chats,
+        files,
+        folders,
+        library,
+        misc,
+        schedules,
+        stream,
+        terminal,
+    )
 
     router.include_router(chats.router)
+    router.include_router(folders.router)
+    router.include_router(library.router)
     router.include_router(schedules.router)
     router.include_router(files.router)
     router.include_router(stream.router)

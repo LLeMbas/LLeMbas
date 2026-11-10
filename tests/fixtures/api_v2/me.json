@@ -26,5 +26,32 @@
     "search": true,
     "fetch": true,
     "images": false
-  }
+  },
+  "scopes": [
+    "app",
+    "models"
+  ],
+  "language_setting": "sk",
+  "languages": [
+    {
+      "id": "en",
+      "name": "English"
+    },
+    {
+      "id": "sk",
+      "name": "Slovenčina"
+    }
+  ],
+  "themes": [
+    {
+      "id": "moria",
+      "label": "Moria",
+      "scheme": "dark"
+    },
+    {
+      "id": "shire",
+      "label": "Shire",
+      "scheme": "light"
+    }
+  ]
 }

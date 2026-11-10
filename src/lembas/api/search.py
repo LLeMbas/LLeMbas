@@ -152,6 +152,7 @@ def _search_chats(db: DBSession, user: User, needle: str, limit: int) -> list[di
         )
         hits.append(
             {
+                "id": chat.id,
                 "title": chat.title,
                 "url": f"/chat/{chat.id}",
                 "icon": "terminal" if chat.kind == "agent" else "chat",
@@ -174,6 +175,7 @@ def _search_memories(db: DBSession, user: User, needle: str, limit: int) -> list
     )
     return [
         {
+            "id": memory.id,
             "title": snippet(memory.content, needle),
             "url": "/settings?tab=memory",
             "icon": "user",
@@ -202,6 +204,7 @@ async def _search_files(db: DBSession, user: User, needle: str, limit: int) -> l
 
     return [
         {
+            "path": hit.path,
             "title": hit.title or hit.path.rsplit("/", 1)[-1],
             "url": f"/files/view?path={quote(hit.path)}",
             "icon": "file-text",
@@ -227,6 +230,7 @@ async def _search_chats_by_meaning(
         seen.add(chat.id)
         out.append(
             {
+                "id": chat.id,
                 "title": chat.title,
                 "url": f"/chat/{chat.id}",
                 "icon": "terminal" if chat.kind == "agent" else "chat",

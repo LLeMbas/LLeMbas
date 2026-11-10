@@ -1,0 +1,69 @@
+{
+  "q": "lembas",
+  "in": "all",
+  "offered": [
+    "chats",
+    "files",
+    "memories"
+  ],
+  "results": [
+    {
+      "kind": "chats",
+      "more": true,
+      "hits": [
+        {
+          "kind": "chat",
+          "title": "Waybread",
+          "snippet": "…how long does lembas keep & travel?",
+          "marks": [
+            [
+              15,
+              21
+            ]
+          ],
+          "archived": false,
+          "id": "chat1",
+          "agent": false
+        }
+      ]
+    },
+    {
+      "kind": "files",
+      "more": false,
+      "hits": [
+        {
+          "kind": "file",
+          "title": "bread.md",
+          "snippet": "/home/frodo/bread.md — Lembas recipe",
+          "marks": [
+            [
+              23,
+              29
+            ]
+          ],
+          "archived": false,
+          "path": "/home/frodo/bread.md"
+        }
+      ]
+    },
+    {
+      "kind": "memories",
+      "more": false,
+      "hits": [
+        {
+          "kind": "memory",
+          "id": "mem1",
+          "title": "",
+          "snippet": "Prefers lembas warm.",
+          "marks": [
+            [
+              8,
+              14
+            ]
+          ],
+          "archived": false
+        }
+      ]
+    }
+  ]
+}

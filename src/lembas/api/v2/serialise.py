@@ -294,11 +294,20 @@ def me(
     default_model: str | None,
     permissions: dict[str, bool],
     services: dict[str, bool],
+    scopes: list[str] | None = None,
+    languages: list[dict[str, str]] | None = None,
+    themes: list[dict[str, str]] | None = None,
+    chosen_language: str = "",
 ) -> dict[str, Any]:
     """`GET /me`: the account, its language (the app's default until the
     person picks one), theme, default model, what it may do, and which of
     the instance's services it may use (`stt`, `tts`, `search`, `fetch`,
-    `images`)."""
+    `images`).
+
+    `scopes` are the calling token's: voice and images are `/v1`'s and need
+    `models` beside `app`, so an app signed in with `app` alone knows to ask
+    again. `languages` and `themes` are the choices `PATCH /me` takes;
+    `language_setting` is what the person chose ("" follows the instance)."""
     from lembas.api.v2 import APP_API
 
     return {
@@ -310,6 +319,10 @@ def me(
         "default_model": default_model,
         "permissions": dict(permissions),
         "services": {k: bool(v) for k, v in services.items()},
+        "scopes": list(scopes or []),
+        "language_setting": chosen_language,
+        "languages": list(languages or []),
+        "themes": list(themes or []),
     }
 
 
@@ -634,6 +647,18 @@ WITHHELD_TOO_LARGE = "too_large"
 WITHHELD_NOT_TEXT = "not_text"
 
 
+def folder(row: Any) -> dict[str, Any]:
+    """A chat folder. `collapsed` since the apps manage folders too."""
+    return {
+        "id": row.id,
+        "name": row.name,
+        "parent_id": row.parent_id,
+        "kind": row.kind or "",
+        "position": int(row.position or 0),
+        "collapsed": bool(row.collapsed),
+    }
+
+
 def file_entry(row: Any) -> dict[str, Any]:
     """One `file_ui.Row`: `kind` is `file`, `dir` or `mount`."""
     return {
@@ -677,6 +702,7 @@ __all__ = [
     "chat",
     "chat_detail",
     "file_content",
+    "folder",
     "file_entry",
     "file_listing",
     "interruption",

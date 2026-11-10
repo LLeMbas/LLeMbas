@@ -442,6 +442,54 @@ def _files() -> dict[str, object]:
     }
 
 
+def _parity() -> dict[str, object]:
+    """The routes the apps need to catch up with the web: folders, search,
+    memory and a chat's switches (`folders.py`, `library.py`, `chats.py`)."""
+    from markupsafe import Markup
+
+    from lembas.api.v2.library import hit, memory
+
+    folder = SimpleNamespace(id="fold1", name="Waybread", parent_id=None, kind="", position=0,
+                             collapsed=False)
+    child = SimpleNamespace(id="fold2", name="Recipes", parent_id="fold1", kind="chat",
+                            position=1, collapsed=True)
+    remembered = SimpleNamespace(id="mem1", content="Prefers lembas warm.", author="user",
+                                 data_group_id=None, created_at=WHEN, updated_at=WHEN)
+    marked = Markup("…how long does <mark>lembas</mark> keep &amp; travel?")
+    return {
+        "folder": {"folder": serialise.folder(folder)},
+        "folders": {"folders": [serialise.folder(folder), serialise.folder(child)]},
+        "search": {
+            "q": "lembas", "in": "all", "offered": ["chats", "files", "memories"],
+            "results": [
+                {"kind": "chats", "more": True, "hits": [hit("chats", {
+                    "id": "chat1", "title": "Waybread", "icon": "chat", "snippet": marked,
+                    "archived": False})]},
+                {"kind": "files", "more": False, "hits": [hit("files", {
+                    "path": "/home/frodo/bread.md", "title": "bread.md",
+                    "snippet": Markup("/home/frodo/bread.md — <mark>Lembas</mark> recipe"),
+                    "archived": False})]},
+                {"kind": "memories", "more": False, "hits": [hit("memories", {
+                    "id": "mem1", "title": Markup("Prefers <mark>lembas</mark> warm."),
+                    "snippet": "", "archived": False})]},
+            ],
+        },
+        "memories": {
+            "memories": [memory(remembered, group_name="Default")],
+            "groups": [{"id": "default", "name": "Default"}],
+        },
+        "memory": {"memory": memory(remembered, group_name="Default")},
+        "scope": {"scope": {
+            "families": [
+                {"gate": "notes", "label": "Notes", "on": True},
+                {"gate": "web", "label": "Web search", "on": False},
+            ],
+            "skills": [{"name": "baking", "description": "Bake waybread.", "on": True}],
+            "allow": ["bash:ls *"],
+        }},
+    }
+
+
 def _schedules() -> dict[str, object]:
     """`/schedules`, a run, the compile, the preview, the scheduling models and
     the `schedules` event of `GET /events`."""
@@ -718,6 +766,11 @@ def _shapes() -> dict[str, object]:
             permissions={key: key != "chat.delete" for key in SHOWN_PERMISSIONS},
             services={"stt": True, "tts": False, "search": True, "fetch": True,
                       "images": False},
+            scopes=["app", "models"],
+            languages=[{"id": "en", "name": "English"}, {"id": "sk", "name": "Slovenčina"}],
+            themes=[{"id": "moria", "label": "Moria", "scheme": "dark"},
+                    {"id": "shire", "label": "Shire", "scheme": "light"}],
+            chosen_language="sk",
         ),
         # A subagent's conversation (read-only) and its findings.
         "subagent_transcript": {
@@ -746,6 +799,7 @@ def _shapes() -> dict[str, object]:
         "tool_show": {"calls": [serialise.tool_call(SHOW_TREE), serialise.tool_call(SHOW_DEVICE)]},
         "team": {"team": serialise.team(_team())},
         **_files(),
+        **_parity(),
         **_activity(),
         **_schedules(),
     }

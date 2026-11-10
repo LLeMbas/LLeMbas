@@ -1,0 +1,20 @@
+{
+  "folders": [
+    {
+      "id": "fold1",
+      "name": "Waybread",
+      "parent_id": null,
+      "kind": "",
+      "position": 0,
+      "collapsed": false
+    },
+    {
+      "id": "fold2",
+      "name": "Recipes",
+      "parent_id": "fold1",
+      "kind": "chat",
+      "position": 1,
+      "collapsed": true
+    }
+  ]
+}

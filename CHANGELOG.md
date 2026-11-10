@@ -37,6 +37,17 @@ at <https://llembas.eu/changelog.html>.
 - **Pinned chats.** A pin on each chat's row in the sidebar puts it in a **Pinned chats** section
   above `[ CHATS ]` (wherever it is filed) and takes it out again; on `/api/v2`, `PATCH
   /chats/{id}` takes `pinned`. The column was read for the sidebar's order but nothing ever set it.
+- **`/api/v2` catches up with the web**, so the apps can: chat folders made, renamed, nested and
+  deleted (`POST/PATCH/DELETE /folders`; a chat moves with `PATCH /chats/{id}` `folder_id`);
+  `GET /search` over chats, files and memories (the search page's stores; snippets as plain text
+  with the matched ranges); `GET/POST/PATCH/DELETE /memories`; the library's writes (`POST
+  /files/upload`, `/files/mkdir`, `/files/rename`, `/files/move`, `DELETE /files`, to the trash);
+  a chat's tool and skill switches, web search among them (`GET/POST /chats/{id}/scope`) and
+  `POST /chats/{id}/allow/clear`; `PATCH /me` with `language` and `theme`, and `GET /me` gains
+  `scopes`, `languages`, `themes` and `language_setting`. Voice and images stay on `/v1` (they
+  need the `models` scope, which the apps ask for at sign-in beside `app`). Fixtures: new
+  `folder.json`, `folders.json`, `search.json`, `memories.json`, `memory.json`, `scope.json`;
+  `me.json` gains the four fields.
 
 ## 2.0.0-beta.8 — 2026-11-10
 

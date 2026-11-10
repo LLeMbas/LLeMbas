@@ -1,0 +1,13 @@
+{
+  "memory": {
+    "id": "mem1",
+    "content": "Prefers lembas warm.",
+    "author": "user",
+    "data_group": {
+      "id": "default",
+      "name": "Default"
+    },
+    "created_at": "2026-01-02T03:04:05+00:00",
+    "updated_at": "2026-01-02T03:04:05+00:00"
+  }
+}

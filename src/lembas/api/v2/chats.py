@@ -548,6 +548,58 @@ async def stop_agent(caller: Me, db: Db, chat_id: str, kind: str, agent_id: str)
     return {"stopped": stopped}
 
 
+# --- What a chat may use ------------------------------------------------------------------------
+def scope_view(db, user, chat: Chat) -> dict[str, Any]:
+    """The web's chat menu switches (`pages._scope_context`): the tool
+    families offered now (web search among them) and the skills, each on or
+    off for this chat, and what the chat was told to stop asking about."""
+    from lembas.api.pages import _scope_context
+
+    view = _scope_context(db, user, chat)
+    return {
+        "families": [
+            {"gate": f["gate"], "label": str(f["label"]), "on": bool(f["on"])}
+            for f in view["scope_families"]
+        ],
+        "skills": [
+            {"name": s["name"], "description": str(s["description"] or ""), "on": bool(s["on"])}
+            for s in view["scope_skills"]
+        ],
+        "allow": [str(entry) for entry in view["scope_allow"]],
+    }
+
+
+@router.get("/chats/{chat_id}/scope")
+async def get_scope(caller: Me, db: Db, chat_id: str) -> dict[str, Any]:
+    chat = owned_chat(db, chat_id, caller.user)
+    return {"scope": scope_view(db, caller.user, chat)}
+
+
+@router.post("/chats/{chat_id}/scope")
+async def set_scope(
+    caller: Me, db: Db, chat_id: str, body: dict[str, Any] = Body(...)
+) -> dict[str, Any]:
+    """`{kind: "family"|"skill", name, on}`: one switch, through the web's
+    route (`api/chats.py` `set_scope`) -- narrowing only: turning on what the
+    model, the permissions or the instance left out reaches nothing."""
+    await chats_api.set_scope(
+        db=db, user=caller.user, chat_id=chat_id, kind=str(body.get("kind") or ""),
+        name=str(body.get("name") or ""), on=bool(body.get("on")),
+    )
+    chat = owned_chat(db, chat_id, caller.user)
+    db.refresh(chat)
+    return {"scope": scope_view(db, caller.user, chat)}
+
+
+@router.post("/chats/{chat_id}/allow/clear")
+async def clear_allow(caller: Me, db: Db, chat_id: str) -> dict[str, Any]:
+    """Forget every "Always allow this" given in this chat."""
+    await chats_api.clear_allow(db=db, user=caller.user, chat_id=chat_id)
+    chat = owned_chat(db, chat_id, caller.user)
+    db.refresh(chat)
+    return {"scope": scope_view(db, caller.user, chat)}
+
+
 @router.post("/chats/{chat_id}/compact")
 async def compact_chat(caller: Me, db: Db, chat_id: str) -> dict[str, Any]:
     """Summarise the earlier turns and stop sending them -- the activity

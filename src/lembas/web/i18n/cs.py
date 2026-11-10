@@ -2655,3 +2655,12 @@ MESSAGES.update(
         'Unpin chat': 'Odepnout konverzaci',
     }
 )
+
+# /api/v2 parity: folders, language and theme.
+MESSAGES.update(
+    {
+        'A folder needs a name.': 'Složka potřebuje název.',
+        'That language is not offered.': 'Tento jazyk není k dispozici.',
+        'That theme is not offered.': 'Tento motiv není k dispozici.',
+    }
+)

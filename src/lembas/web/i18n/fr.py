@@ -2655,3 +2655,12 @@ MESSAGES.update(
         'Unpin chat': 'Désépingler la discussion',
     }
 )
+
+# /api/v2 parity: folders, language and theme.
+MESSAGES.update(
+    {
+        'A folder needs a name.': 'Un dossier a besoin d’un nom.',
+        'That language is not offered.': 'Cette langue n’est pas proposée.',
+        'That theme is not offered.': 'Ce thème n’est pas proposé.',
+    }
+)

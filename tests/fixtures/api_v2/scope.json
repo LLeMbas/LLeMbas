@@ -1,0 +1,26 @@
+{
+  "scope": {
+    "families": [
+      {
+        "gate": "notes",
+        "label": "Notes",
+        "on": true
+      },
+      {
+        "gate": "web",
+        "label": "Web search",
+        "on": false
+      }
+    ],
+    "skills": [
+      {
+        "name": "baking",
+        "description": "Bake waybread.",
+        "on": true
+      }
+    ],
+    "allow": [
+      "bash:ls *"
+    ]
+  }
+}

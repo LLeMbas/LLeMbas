@@ -38,12 +38,14 @@ SHOWN_PERMISSIONS = (
 )
 
 
-@router.get("/me")
-async def me(caller: Me, db: Db) -> dict[str, Any]:
+def _me(caller, db) -> dict[str, Any]:
+    from lembas.api.preferences import themes
     from lembas.api.v1.services import available
+    from lembas.services import branding
 
     user = caller.user
     start = chat_service.default_model(db, user)
+    offered = set(themes())
     return serialise.me(
         user,
         version=__version__,
@@ -51,7 +53,47 @@ async def me(caller: Me, db: Db) -> dict[str, Any]:
         default_model=start[0] if start else None,
         permissions={key: permissions.has(db, user, key) for key in SHOWN_PERMISSIONS},
         services=available(db, user),
+        scopes=list(caller.token.scopes_json or []),
+        languages=[{"id": code, "name": name} for code, name in i18n.LANGUAGES],
+        themes=[
+            {"id": theme.id, "label": str(theme.label), "scheme": theme.scheme}
+            for theme in branding.snapshot().themes
+            if theme.id in offered
+        ],
+        chosen_language=str((user.settings_json or {}).get("language") or ""),
     )
+
+
+@router.get("/me")
+async def me(caller: Me, db: Db) -> dict[str, Any]:
+    return _me(caller, db)
+
+
+@router.patch("/me")
+async def update_me(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """The person's own choices, as Settings makes them: `language` (a code
+    from `languages`, or "" to follow the instance) and `theme` (an id from
+    `themes`). An unknown value is refused (400) rather than stored; an absent
+    key is left alone."""
+    from lembas.api.preferences import themes
+
+    user = caller.user
+    settings = dict(user.settings_json or {})
+    if "language" in body:
+        chosen = str(body.get("language") or "").strip().lower()
+        if chosen and chosen not in i18n.LANGUAGE_IDS:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, t("That language is not offered."))
+        settings["language"] = chosen
+    if "theme" in body:
+        chosen = str(body.get("theme") or "").strip()
+        if chosen not in themes():
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, t("That theme is not offered."))
+        settings["theme"] = chosen
+    user.settings_json = settings
+    db.commit()
+    # The answer in the language just chosen.
+    i18n.activate(i18n.for_user(user))
+    return _me(caller, db)
 
 
 @router.get("/models")
@@ -141,18 +183,7 @@ async def folders(caller: Me, db: Db) -> dict[str, Any]:
     rows = db.scalars(
         select(Folder).where(Folder.user_id == caller.user.id).order_by(Folder.position)
     )
-    return {
-        "folders": [
-            {
-                "id": f.id,
-                "name": f.name,
-                "parent_id": f.parent_id,
-                "kind": f.kind or "",
-                "position": f.position,
-            }
-            for f in rows
-        ]
-    }
+    return {"folders": [serialise.folder(f) for f in rows]}
 
 
 @router.get("/devices")

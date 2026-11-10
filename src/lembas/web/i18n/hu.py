@@ -2655,3 +2655,12 @@ MESSAGES.update(
         'Unpin chat': 'Kitűzés megszüntetése',
     }
 )
+
+# /api/v2 parity: folders, language and theme.
+MESSAGES.update(
+    {
+        'A folder needs a name.': 'A mappának név kell.',
+        'That language is not offered.': 'Ez a nyelv nem érhető el.',
+        'That theme is not offered.': 'Ez a téma nem érhető el.',
+    }
+)

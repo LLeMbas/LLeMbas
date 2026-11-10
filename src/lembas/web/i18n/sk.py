@@ -3315,3 +3315,12 @@ MESSAGES.update(
         'Unpin chat': 'Odopnúť konverzáciu',
     }
 )
+
+# /api/v2 parity: folders, language and theme.
+MESSAGES.update(
+    {
+        'A folder needs a name.': 'Priečinok potrebuje názov.',
+        'That language is not offered.': 'Tento jazyk nie je k dispozícii.',
+        'That theme is not offered.': 'Táto téma nie je k dispozícii.',
+    }
+)
