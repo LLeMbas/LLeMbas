@@ -345,6 +345,9 @@ class Generation:
     wrap_limit: str = ""
     # When this reply's first token of output came, for its writing rate.
     first_output_at: float = 0.0
+    # Set by a team's `team_finish` (and a subagent's full context): this turn
+    # ends once the round that made the call is over.
+    end_after_round: bool = False
     # A device chat: the device says its phase itself (capability `progress`),
     # so nothing is read off its events; and its subagent tree as the `team`
     # event last carried it (capability `tree`), or None.
@@ -862,6 +865,7 @@ async def _run(generation: Generation) -> None:
     # Bound before the try, because the finally clears the credential on it and
     # a chat that has been deleted returns before it would otherwise be set.
     tool_context = None
+    member_of = False
 
     try:
         # Before the request is assembled, so build_request is called once and
@@ -1006,6 +1010,13 @@ async def _run(generation: Generation) -> None:
             # Whether `plan_submit` can be answered here at all, and how long
             # it waits -- read now, for the reason the timeout above is.
             attended = not tools_service.unattended(chat)
+            # A team's subagent: its context is watched, and the final turn
+            # after it filled has the spec's few steps (subagents.md §9).
+            from lembas.services import team_run
+
+            member_of = bool(chat.parent_chat_id) and team_run.member_row(db, chat.id) is not None
+            if member_of and team_run.is_paused(db, chat.id):
+                chat_rounds = int(team_run.rules.spec()["context"]["final_steps"])
 
         # A ceiling, not a schedule -- the loop below ends the moment a round
         # produces no tool calls, which is the model saying it is done. Zero
@@ -1398,6 +1409,19 @@ async def _run(generation: Generation) -> None:
             # that is what makes the bubble a sequence rather than three zones.
             generation.close_step()
             generation.touch()
+
+            # A subagent of a team (spec 3.4.0, subagents.md §8-§9): its turn
+            # ends after `team_finish`, and after the step that filled its
+            # context -- before anything waiting is taken in, which is then
+            # its one final turn.
+            if member_of:
+                from lembas.services import team_run
+
+                team_run.note_context(generation)
+                if not generation.end_after_round and team_run.context_full(generation):
+                    await team_run.pause_member(generation.chat_id)
+            if generation.end_after_round:
+                break
 
             # Something typed while this reply was working. Taken in here, at a
             # round boundary, rather than made to wait for the whole reply: an

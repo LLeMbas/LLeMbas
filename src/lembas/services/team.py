@@ -924,6 +924,81 @@ def who_decides(
     return Verdict("person")
 
 
+# The permission key of a tool, where it is not its name (`permission/defaults.json`).
+_PERMISSION_KEYS = {
+    "write": "edit",
+    "edit": "edit",
+    "multiedit": "edit",
+    "apply_patch": "edit",
+    "plan_write": "plan",
+    "plan_update": "plan",
+}
+
+
+def permission_key(tool: str) -> str:
+    return _PERMISSION_KEYS.get(tool, tool)
+
+
+def _rule_action(rules: Any, subject: str) -> str:
+    """One permission key's rules applied to a subject: a single action, or
+    the last matching pattern of a map ("" when none matches)."""
+    if isinstance(rules, str):
+        return rules
+    action = ""
+    for pattern, verdict in (rules or {}).items():
+        if _wildcard(pattern, subject):
+            action = verdict
+    return action
+
+
+def spec_evaluate(
+    tool: str, risk: str, subject: str, mode: str, grants: list[dict[str, str]]
+) -> tuple[str, str]:
+    """The spec's permission answer for one call in a mode (`modes.json` with
+    the default rules, `defaults.json`), and these grants: `(allow | ask |
+    deny, reason)`. What a subagent's call is judged by (subagents.md §7);
+    `subject` is the command line of `bash`, else the path or the call's
+    target. A chat's own tools on this server are never put to the person, so
+    this is used only to judge a subagent against its main agent."""
+    from lembas.services.agent import policy, shell
+
+    command = subject if tool == "bash" else ""
+    paths = (subject,) if subject and tool != "bash" else ()
+    if why := policy.refusal(tool, command, paths):
+        return DENY, why
+    defaults = harness_spec._json("permission/defaults.json")["rules"]
+    key = permission_key(tool)
+    granted = {
+        g["pattern"]: ALLOW
+        for g in grants
+        if (g.get("permission") or permission_key(g.get("tool", ""))) == key
+    }
+    rules = defaults.get(key, defaults.get("*", ASK))
+    if tool == "bash":
+        merged = {**(rules if isinstance(rules, dict) else {"*": rules}), **granted}
+        split = shell.split_command(command)
+        if split.unsafe or not split.commands:
+            action = ASK
+        else:
+            found = [_rule_action(merged, one.strip()) or ASK for one in split.commands]
+            action = DENY if DENY in found else ASK if ASK in found else ALLOW
+    else:
+        merged = {**(rules if isinstance(rules, dict) else {"*": rules}), **granted}
+        action = _rule_action(merged, subject or "*") or str(defaults.get("*", ASK))
+    if action == DENY:
+        return DENY, "a rule refuses it"
+    if mode == "auto":
+        return ALLOW, ""
+    if mode == "edit" and risk in ("read", "write"):
+        # Inside what it may reach runs, unless a rule written for that tool
+        # asks (reading .env asks in every mode but auto).
+        asked = risk == "read" and action == ASK and isinstance(defaults.get(key), dict)
+        return (ASK, "") if asked else (ALLOW, "")
+    if mode == "plan" and risk in ("write", "execute"):
+        return (ALLOW, "") if action == ALLOW else (DENY, harness_spec.plan_refused())
+    return (ALLOW, "") if action == ALLOW else (ASK, "")
+
+
 # --- §9: stopping -------------------------------------------------------------------
 def _remove(team: Team, names: list[str], end: str = STOPPED, *, now: float = 0.0) -> None:
     """Agents leave the tree: ended (spec 3.4.0), kept in `ended` with how and

@@ -1389,6 +1389,12 @@ def _generating(chat_id: str) -> bool:
     return generation.running_for(chat_id) is not None
 
 
+def _team_chats():
+    from lembas.db.models import TeamAgent
+
+    return select(TeamAgent.chat_id).where(TeamAgent.chat_id.is_not(None))
+
+
 def sweep_temporary(
     db: DBSession,
     older_than: timedelta | None = None,
@@ -1433,6 +1439,9 @@ def sweep_temporary(
             .outerjoin(newest, newest.c.chat_id == Chat.id)
             .where(
                 Chat.temporary.is_(True),
+                # A team's subagent's conversation is kept as long as its
+                # team (spec 3.4.0, subagents.md §11): it goes with the lead.
+                Chat.id.not_in(_team_chats()),
                 (
                     (Chat.parent_chat_id.is_(None) & (last < now - person_age))
                     | (Chat.parent_chat_id.is_not(None) & (last < now - helper_age))

@@ -18,6 +18,16 @@ before its tag; the pin to a release tag comes with the release.
   long it has lasted, ticking. The page draws it in your language; an agent chat shows its
   computer's phase (from LLeMbas CLI 2.0.0-beta.6), or one read off what the computer reports. A
   scheduled run waiting for a free model says which model and why.
+- **Subagents as a tree the main agent builds** (harness spec 3.4.0, in chats on this server). The
+  chat's own agent is the main agent: it alone adds, assigns, replaces and stops subagents, gives
+  each a name, a position and a parent (itself, or a sub-manager it placed, which directs but does
+  not add), and a mode no looser than the parent's -- stricter with request options, which the
+  subagent asks the main agent for and the main agent decides. Min above 1 opens Min − 1 slots from
+  the start. Every subagent knows who it is (`team_whoami`), keeps findings (`team_findings`), ends
+  with its report (`team_finish`), and when its context fills it is paused, given one last turn to
+  save what it found, and ends; its parent is told, and the main agent can replace it
+  (`team_replace`) with the same name and position, briefed with its findings. Ended subagents stay
+  in the tree with their findings, and their conversations are kept as long as the chat.
 - **`/api/v2`: `progress`** (harness spec 3.4.0, `progress.md`). The stream's `status` frame is
   `{text, progress}` -- the phase object `{phase, since, ...}` or null, sent when it changes (its
   data at most four times a second); a schedule's run carries `progress` too. Fixtures:

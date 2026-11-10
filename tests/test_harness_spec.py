@@ -248,62 +248,13 @@ def _progress(c):
     return {"text": progress.text(given, now), "line": progress.line(given, now)}
 
 
-def _spec_rules_action(rules, subject: str) -> str:
-    """A permission key's rules applied to one subject: the last matching
-    pattern wins (`permission/defaults.json`)."""
-    if isinstance(rules, str):
-        return rules
-    action = ""
-    for pattern, verdict in rules.items():
-        if team._wildcard(pattern, subject):
-            action = verdict
-    return action
-
-
 def _spec_evaluate(call: dict, mode: str, grants: list[dict]) -> tuple[str, str]:
-    """The spec's own permission answer for one call in a mode, with only the
-    default rules (`permission/defaults.json`, `modes.json`) and the grants --
-    what `delegation.json`'s `call` cases assume. LLeMbas's own chats are
-    judged by its POLICY table (the `permission` area is pending); this is the
-    spec's evaluation, so the composition `team.who_decides` is what is under
-    test here."""
-    from lembas.services.agent import policy, shell
-
-    defaults = harness_spec._json("permission/defaults.json")["rules"]
+    """`delegation.json`'s `call`: the spec's default rules and modes, with the
+    grants -- `team.spec_evaluate`, what a subagent's call is judged by."""
     tool = call["tool"]
-    key = {"read": "read", "bash": "bash"}.get(tool, "edit")
     risk = {"read": "read", "bash": "execute"}.get(tool, "write")
-    extra = {
-        g["pattern"]: "allow" for g in grants if (g.get("permission") or g["tool"]) in (key, tool)
-    }
-    if tool == "bash":
-        line = call["line"]
-        if why := policy.refusal("bash", line):
-            return team.DENY, why
-        rules = {**defaults.get("bash", {}), **extra}
-        split = shell.split_command(line)
-        if split.unsafe or not split.commands:
-            action = "ask"
-        else:
-            found = [_spec_rules_action(rules, one.strip()) or "ask" for one in split.commands]
-            action = "deny" if "deny" in found else "ask" if "ask" in found else "allow"
-    else:
-        rules = defaults.get(key, defaults.get("*", "ask"))
-        if isinstance(rules, str):
-            rules = {"*": rules}
-        rules = {**rules, **extra}
-        action = _spec_rules_action(rules, call["path"]) or defaults.get("*", "ask")
-    if action == "deny":
-        return team.DENY, "a rule"
-    if mode == "auto":
-        return team.ALLOW, ""
-    if mode == "edit" and risk in ("read", "write"):
-        # Inside the project runs, unless a rule written for that tool asks.
-        written = tool == "read" and action == "ask" and key in defaults
-        return (team.ASK, "") if written and action == "ask" else (team.ALLOW, "")
-    if mode == "plan" and risk in ("write", "execute"):
-        return (team.ALLOW, "") if action == "allow" else (team.DENY, "plan mode")
-    return (team.ALLOW, "") if action == "allow" else (team.ASK, "")
+    subject = call["line"] if tool == "bash" else call["path"]
+    return team.spec_evaluate(tool, risk, subject, mode, grants)
 
 
 def _delegation(c):
@@ -550,19 +501,18 @@ SHARED_ADOPTED = (
     "team_send",
     "team_read",
     "team_stop",
+    # The tree (spec 3.4.0, subagents.md §8).
+    "team_whoami",
+    "team_finish",
+    "team_findings",
+    "team_request",
+    "team_decide",
+    "team_assign",
+    "team_replace",
 )
 # Shared tools whose LLeMbas implementation keeps its own name or shape for now,
 # and why -- the parity page lists the same.
-_TREE_RUNTIME = "spec 3.4.0's tree tools: the rules run (conformance team, delegation); the "
-_TREE_RUNTIME += "server's runtime offers them next"
 TOOLS_PENDING: dict[str, str] = {
-    "team_whoami": _TREE_RUNTIME,
-    "team_finish": _TREE_RUNTIME,
-    "team_findings": _TREE_RUNTIME,
-    "team_request": _TREE_RUNTIME,
-    "team_decide": _TREE_RUNTIME,
-    "team_assign": _TREE_RUNTIME,
-    "team_replace": _TREE_RUNTIME,
     "session_search": "a chat's own past is searched by the one search box (services/index, "
     "kinds=chat); the tool itself is not offered in a chat yet",
 }
@@ -579,7 +529,11 @@ def _registry():
     from lembas.services import subagent, team_run
 
     book = dict(tools_service.REGISTRY)
-    for tool in [*subagent.all_tool_defs(), *team_run.tool_defs()]:
+    for tool in [
+        *subagent.all_tool_defs(),
+        *team_run.tool_defs(),
+        *team_run.tool_defs(lead=False, request=True),
+    ]:
         book.setdefault(tool.name, tool)
     return book
 

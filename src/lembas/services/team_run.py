@@ -73,6 +73,10 @@ _LOCKS: dict[str, asyncio.Lock] = {}
 _SUPERVISORS: dict[str, asyncio.Task] = {}
 # Member chats stopped at the wall clock, so their report says `budget`.
 _OVERRUN: set[str] = set()
+# Spec 3.4.0: each member chat's context use as its last round left it
+# (`{used, window}`), read into the tree and `team_whoami`; written to its row
+# with the next operation.
+_CONTEXT: dict[str, dict[str, int]] = {}
 
 
 def clear() -> None:
@@ -82,6 +86,7 @@ def clear() -> None:
     _SUPERVISORS.clear()
     _LOCKS.clear()
     _OVERRUN.clear()
+    _CONTEXT.clear()
 
 
 def _lock(lead_id: str) -> asyncio.Lock:
@@ -335,9 +340,12 @@ def load(db, lead_id: str) -> rules.Team | None:
             )
             team.model_slots[member.model] = model_parallel(other) if other else None
     for member in members:
-        team.agents.append(_agent_of(member))
+        agent = _agent_of(member)
+        _live(team, agent)
+        team.agents.append(agent)
     for member in _ended_rows(db, lead_id):
         team.ended.append(_agent_of(member))
+    _live(team, lead)
     chat_ids = [lead_id] + [m.chat_id for m in members if m.chat_id]
     team.helpers = [rules.LEAD] * _running_helpers(db, chat_ids)
     for entry in _room_rows(db, lead_id):
@@ -362,6 +370,31 @@ def main_mode(chat: Chat) -> str:
     the access resolver's -- so it is `auto` but in Plan mode, where it is
     `plan`. (An agent chat's main agent is the device's.)"""
     return "plan" if (getattr(chat, "agent_mode", "") or "") == "plan" else "auto"
+
+
+def _live(team: rules.Team, agent: rules.Agent) -> None:
+    """What is running now, onto an agent: its context use as its last round
+    left it, and its progress (spec 3.4.0, progress.md) -- the running reply's
+    phase, or `waiting_for_model` while it waits for a slot."""
+    from lembas.services import generation as generation_service
+    from lembas.services import progress as progress_service
+
+    chat_id = agent.extra.get("chat_id") or ""
+    if chat_id in _CONTEXT:
+        agent.context = dict(_CONTEXT[chat_id])
+    running = generation_service.running_for(chat_id) if chat_id else None
+    if running is not None:
+        agent.progress = progress_service.current(running)
+    elif agent.state == rules.WAITING:
+        since = int((agent.last_ended or time.time()) * 1000)
+        agent.progress = {
+            "phase": "waiting_for_model",
+            "since": since,
+            "model": agent.model or team.lead.model or "",
+            "reason": "slots",
+        }
+    else:
+        agent.progress = None
 
 
 def _ended_rows(db, lead_id: str) -> list[TeamAgent]:
@@ -551,6 +584,15 @@ async def _stop_chat(chat_id: str) -> None:
         db.commit()
 
 
+def _end_turn(chat_id: str) -> None:
+    """The turn running in a member's chat ends once its round is over."""
+    from lembas.services import generation as generation_service
+
+    running = generation_service.running_for(chat_id)
+    if running is not None:
+        running.end_after_round = True
+
+
 async def _apply(lead_id: str, effects: list[rules.Effect], chats: list[str]) -> None:
     for effect, chat_id in zip(effects, chats, strict=True):
         if not chat_id:
@@ -562,6 +604,15 @@ async def _apply(lead_id: str, effects: list[rules.Effect], chats: list[str]) ->
                 await _start(chat_id, effect.texts)
             elif effect.kind == "stop":
                 await _stop_chat(chat_id)
+            elif effect.kind == "end":
+                _end_turn(chat_id)
+            elif effect.kind == "final":
+                # Its context is full: this turn ends after the step, and the
+                # text waits in its chat as the one final turn (§9).
+                _end_turn(chat_id)
+                from lembas.services import wake as wake_service
+
+                await wake_service.wake_chat(chat_id, effect.texts[0])
         except Exception:  # one agent that cannot be reached must not stop the rest
             log.exception("team %s: could not %s %s", lead_id, effect.kind, effect.name)
     _bump(lead_id)
@@ -664,6 +715,13 @@ def _sync(db, team: rules.Team) -> None:
                 rules.finish(team, agent.name, "", "error — its conversation is gone", now=now)
             continue
         running = generation_service.running_for(chat_id)
+        if agent.state == rules.PAUSED:
+            # Its final turn (§9): waiting in the queue or running, it is
+            # paused; once it has ended, it is out of context.
+            if running is None and not wake_service.queued_count(chat_id):
+                reply, _reason = _harvest(db, chat_id)
+                rules.finish(team, agent.name, reply, now=now)
+            continue
         if agent.state == rules.WORKING:
             if running is not None:
                 row = db.get(TeamAgent, agent.extra.get("row_id"))
@@ -688,10 +746,48 @@ def _sync(db, team: rules.Team) -> None:
     rules.schedule(team)
 
 
+def note_context(generation) -> None:
+    """A member's context use as this round left it (spec 3.4.0): read into
+    the tree, `team_whoami` and the pause below."""
+    window = int(getattr(generation, "context_limit", 0) or 0)
+    used = int(getattr(generation, "context_tokens", 0) or 0) or int(
+        getattr(generation, "prompt_estimate", 0) or 0
+    )
+    if window > 0:
+        _CONTEXT[generation.chat_id] = {"used": used, "window": window}
+
+
+def context_full(generation) -> bool:
+    """Whether a member's context has reached `team.context.pause_at` of its
+    model's window (subagents.md §9)."""
+    seen = _CONTEXT.get(generation.chat_id)
+    if not seen or seen["window"] <= 0:
+        return False
+    return seen["used"] >= float(rules.spec()["context"]["pause_at"]) * seen["window"]
+
+
+def is_paused(db, chat_id: str) -> bool:
+    row = member_row(db, chat_id)
+    return row is not None and row.state == rules.PAUSED
+
+
+async def pause_member(chat_id: str) -> bool:
+    """Its context is full: paused, its turn ends after this step, and its
+    one final turn waits (the `final` effect). False when it is no member or
+    already paused."""
+    with session_scope() as db:
+        row = member_row(db, chat_id)
+        if row is None or row.state == rules.PAUSED:
+            return False
+        lead_id, name = row.lead_chat_id, row.name
+    result = await operate(lead_id, lambda db, team: bool(rules.pause(team, name)))
+    return bool(result)
+
+
 def _needs_watching(lead_id: str) -> bool:
     with session_scope() as db:
         rows = _member_rows(db, lead_id)
-        if any(r.state in (rules.WORKING, rules.WAITING) for r in rows):
+        if any(r.state in (rules.WORKING, rules.WAITING, rules.PAUSED) for r in rows):
             return True
         row = _team_row(db, lead_id)
         return bool(row is not None and (row.data_json or {}).get("lead_inbox"))
@@ -927,13 +1023,130 @@ async def _run_team_stop(context: ToolContext, args: dict[str, Any]) -> ToolOutc
     return _outcome(text, _event("team_stop", text, name, ok=ok))
 
 
+# --- Spec 3.4.0: the tools of the tree ---------------------------------------------------
+async def _simple(context: ToolContext, tool: str, query: str, change) -> ToolOutcome:
+    """Run `change(db, team, by)` -> (text, ok) under the team's lock."""
+    who = _caller(context)
+    if who is None:
+        text = rules.spec()["unavailable"]["one_agent"]
+        return _outcome(text, _event(tool, text, query, ok=False))
+    lead_id, by = who
+
+    def wrapped(db, team: rules.Team):
+        if refused := rules.unmet(team, by):
+            return refused, False
+        return change(db, team, by)
+
+    result = await operate(lead_id, wrapped)
+    text, ok = result if result is not None else ("That conversation no longer exists.", False)
+    return _outcome(text, _event(tool, text, query, ok=ok))
+
+
+def _said(text: str, key: str, **values) -> bool:
+    """Whether `text` is the spec's text `key` (so a refusal reads as one)."""
+    return text == rules._say(key, **values) if values else text == rules.texts()[key]
+
+
+async def _run_team_whoami(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
+    return await _simple(
+        context, "team_whoami", "", lambda db, team, by: (rules.whoami(team, by), True)
+    )
+
+
+async def _run_team_findings(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
+    action = str(args.get("action") or "read").strip()
+
+    def change(db, team, by):
+        if action == "write":
+            text = str(args.get("text") or "").strip()
+            if not text:
+                return "team_findings write needs `text`: the finding.", False
+            return rules.note_finding(team, by, text, now=time.time()), True
+        said = rules.read_findings(team, by, str(args.get("of") or "").strip())
+        return said, not said.startswith(("You may read only", "No agent called"))
+
+    return await _simple(context, "team_findings", f"{action} {args.get('of') or ''}".strip(),
+                         change)
+
+
+async def _run_team_finish(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
+    def change(db, team, by):
+        text, delivered = rules.finish_task(team, by, str(args.get("report") or ""),
+                                            now=time.time())
+        return text, bool(delivered)
+
+    return await _simple(context, "team_finish", "", change)
+
+
+async def _run_team_request(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
+    from lembas.services import tools as tools_service
+
+    tool = str(args.get("tool") or "").strip()
+    known = tools_service.REGISTRY.get(tool)
+    spec_risk = str((rules.harness_spec.tools().get(tool) or {}).get("risk") or "")
+    risk = spec_risk or (known.risk if known is not None else "")
+
+    def change(db, team, by):
+        text, delivered = rules.request(team, by, args, risk, now=time.time())
+        return text, bool(delivered)
+
+    return await _simple(context, "team_request", f"{tool} {args.get('pattern') or ''}", change)
+
+
+async def _run_team_decide(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
+    def change(db, team, by):
+        text, delivered = rules.decide(team, by, args, permission=rules.permission_key,
+                                       now=time.time())
+        return text, bool(delivered)
+
+    return await _simple(context, "team_decide", str(args.get("id") or ""), change)
+
+
+async def _run_team_assign(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
+    def change(db, team, by):
+        text, delivered = rules.assign(team, by, args, now=time.time())
+        return text, bool(delivered)
+
+    return await _simple(context, "team_assign", str(args.get("name") or ""), change)
+
+
+async def _run_team_replace(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
+    """`team_replace`: the old one ends; the new one gets a hidden chat of its
+    own, on the old one's model, under its parent."""
+    from lembas.db.models import Model
+
+    with session_scope() as db:
+        caller_chat = db.get(Chat, context.chat_id)
+        owner_id = caller_chat.user_id if caller_chat is not None else ""
+
+    def change(db, team, by):
+        added = rules.replace(team, by, args, now=time.time())
+        if added.agent is None:
+            return added.text, False
+        old = next((a for a in reversed(team.ended) if a.name == added.agent.name), None)
+        row = db.get(TeamAgent, old.extra.get("row_id")) if old is not None else None
+        model_row = None
+        if row is not None and row.model_id:
+            model_row = db.scalars(
+                select(Model).where(
+                    Model.model_id == row.model_id, Model.connection_id == row.connection_id
+                )
+            ).first()
+        lead_id = team.lead.extra.get("lead_id") or ""
+        _new_member(db, lead_id, rules.LEAD, added.agent, db.get(User, owner_id), model_row)
+        return added.text, True
+
+    return await _simple(context, "team_replace", str(args.get("name") or ""), change)
+
+
 # The team tools whose answer only reads.
 READING = frozenset({"team_read", "team_whoami"})
 
 
-def tool_defs(*, lead: bool = True) -> list[ToolDef]:
-    """The four team tools as the spec defines them; a member that may not
-    lead has `team_send` and `team_read` alone."""
+def tool_defs(*, lead: bool = True, request: bool = False) -> list[ToolDef]:
+    """The team tools as the spec defines them (spec 3.4.0, subagents.md §8):
+    the main agent's, or a subagent's -- `team_request` only with request
+    options. A sub-manager has a subagent's: it directs, it does not add."""
     from lembas.services.tools import (
         FAMILY_SUBAGENT,
         RISK_INTERACT,
@@ -945,8 +1158,9 @@ def tool_defs(*, lead: bool = True) -> list[ToolDef]:
 
     runners = {name: (RUNNERS[name], RISK_READ if name in READING else RISK_INTERACT)
                for name in RUNNERS}
-    # Spec 3.2.0's four until the runtime has the 3.4.0 tools' runners.
-    names = [n for n in (rules.LEAD_TOOLS if lead else rules.MEMBER_TOOLS) if n in runners]
+    names = list(rules.LEAD_TOOLS) if lead else [
+        *rules.MEMBER_TOOLS, *(["team_request"] if request else [])
+    ]
     return [
         ToolDef(
             name=name,
@@ -962,9 +1176,16 @@ def tool_defs(*, lead: bool = True) -> list[ToolDef]:
 
 RUNNERS = {
     "team_add": _run_team_add,
-    "team_send": _run_team_send,
+    "team_assign": _run_team_assign,
+    "team_decide": _run_team_decide,
+    "team_findings": _run_team_findings,
+    "team_finish": _run_team_finish,
     "team_read": _run_team_read,
+    "team_replace": _run_team_replace,
+    "team_request": _run_team_request,
+    "team_send": _run_team_send,
     "team_stop": _run_team_stop,
+    "team_whoami": _run_team_whoami,
 }
 
 
@@ -975,7 +1196,7 @@ def defs_for(db, chat: Chat, user) -> list[ToolDef]:
         row = member_row(db, chat.id)
         if row is None:
             return []
-        return tool_defs(lead=row.may_lead)
+        return tool_defs(lead=False, request=bool(row.request_json))
     if offered(db, chat, user):
         return tool_defs(lead=True)
     return []
@@ -1002,7 +1223,45 @@ def refusal_for_call(context: ToolContext, tool, parsed: dict[str, Any] | None) 
         if team is None:
             return ""
         risk = _mcp_risk(tool) or tool.risk
-        return rules.manager_refusal(team, by, tool.name, risk, parsed)
+        if refused := rules.manager_refusal(team, by, tool.name, risk, parsed):
+            return refused
+        if by == rules.LEAD:
+            return ""
+        return delegation_refusal(team, by, tool, parsed)
+
+
+def delegation_refusal(team: rules.Team, by: str, tool, parsed: dict[str, Any] | None) -> str:
+    """Who decides a subagent's call (spec 3.4.0, subagents.md §7), judged by
+    the spec's modes and default rules with the grants the main agent gave
+    it: it runs, or it is refused with the spec's words. A call nobody in the
+    tree could allow would go to the person -- a subagent here runs unattended,
+    so it is refused, as `modes.json` `unattended` says."""
+    agent = team.get(by)
+    if agent is None or not agent.mode or tool.name in rules.TOOLS:
+        return ""
+    risk = _spec_class(tool)
+    if risk in ("interact", "ask", ""):
+        return ""
+    args = parsed if isinstance(parsed, dict) else {}
+    subject = str(args.get("command") or args.get("path") or args.get("file_path")
+                  or args.get("url") or "")
+    verdict = rules.who_decides(
+        lambda mode, grants: rules.spec_evaluate(tool.name, risk, subject, mode, grants),
+        mode=agent.mode,
+        main=team.lead.mode or "auto",
+        risk=risk,
+        request=list(agent.request),
+        grants=list(agent.grants),
+        unattended=True,
+    )
+    return verdict.text if verdict.answer == "refused" else ""
+
+
+def _spec_class(tool) -> str:
+    """A tool's risk class as the spec names it: the spec's own for a spec
+    tool, else this server's (an MCP tool by its read-only hint)."""
+    spec_risk = str((rules.harness_spec.tools().get(tool.name) or {}).get("risk") or "")
+    return spec_risk or _mcp_risk(tool) or str(tool.risk or "")
 
 
 def _mcp_risk(tool) -> str:
@@ -1024,7 +1283,7 @@ def task_refusal(db, chat: Chat) -> str:
     team = load(db, who[0])
     if team is None:
         return ""
-    return rules.task_refusal(team)
+    return rules.task_refusal(team, who[1])
 
 
 async def report_from_member(chat_id: str, text: str) -> str | None:
