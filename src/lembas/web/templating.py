@@ -38,8 +38,17 @@ templates.env.globals["t"] = i18n.t
 # {{ tm("Leave <code>0</code> for none.") }} -> a sentence with its markup kept
 # whole, so it can be translated whole. See `i18n.tm` for why that is safe.
 templates.env.globals["tm"] = i18n.tm
+def _progress_strings():
+    from lembas.services import progress
+
+    return progress.localised()
+
+
 # The part of the catalogue the page's scripts use -- see `i18n.js_strings`.
 templates.env.globals["js_strings"] = i18n.js_strings
+# The progress texts (harness spec 3.4.0), in the reader's language, for
+# `static/js/progress.js` -- see `services/progress.py`.
+templates.env.globals["progress_strings"] = _progress_strings
 
 
 def permissions_for_people(granted):

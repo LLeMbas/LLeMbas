@@ -279,6 +279,40 @@ def _iso(moment: datetime | None) -> str | None:
     return clock.as_utc(moment).isoformat() if moment else None
 
 
+def run_progress(row: ScheduleRun, now: datetime | None = None) -> dict[str, Any] | None:
+    """What a run is doing, as a progress object (harness spec 3.4.0): waiting
+    for a model (`waiting_for_model`, or `loading_model` while its server
+    loads one), waiting to try again (`retrying`), or its reply's own phase
+    while it runs. None otherwise."""
+    from lembas.services import generation as generation_service
+    from lembas.services import progress
+
+    now = now or datetime.now(UTC)
+    if row.status == RUN_RUNNING and row.message_id:
+        running = generation_service.get(row.message_id)
+        return progress.current(running) if running is not None else None
+    if row.status != RUN_WAITING:
+        return None
+    if row.waiting_for == "model":
+        waiting = dict(row.waiting_json or {})
+        since = int(waiting.get("since") or now.timestamp() * 1000)
+        if not waiting.get("model"):
+            return None
+        if waiting.get("reason") == "loading":
+            return {"phase": "loading_model", "since": since, "model": waiting["model"]}
+        return {"phase": "waiting_for_model", "since": since, "model": waiting["model"],
+                "reason": waiting.get("reason") or "busy"}
+    if row.retry_at is not None:
+        left = max(0, int((clock.as_utc(row.retry_at) - now).total_seconds()))
+        reason = (row.error or "").strip().split("\n")[0][:300] or row.waiting_for
+        out = {"phase": "retrying", "since": int(now.timestamp() * 1000), "reason": reason,
+               "in": left}
+        if row.attempts:
+            out["attempt"] = int(row.attempts)
+        return out
+    return None
+
+
 def run_dict(row: ScheduleRun) -> dict[str, Any]:
     """One run as the API sends it and the page reads it. `preview` and `error`
     are model output or a server's words: escaped wherever shown."""
@@ -293,6 +327,7 @@ def run_dict(row: ScheduleRun) -> dict[str, Any]:
         "finished_at": _iso(row.finished_at),
         "waiting_for": row.waiting_for or None,
         "retry_at": _iso(row.retry_at) if row.status == RUN_WAITING else None,
+        "progress": run_progress(row),
         "attempts": int(row.attempts or 0),
         "model": {
             "id": row.model_id or None,

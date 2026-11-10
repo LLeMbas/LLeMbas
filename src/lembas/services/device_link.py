@@ -1201,9 +1201,152 @@ def _sub_tool(generation, event: dict[str, Any]) -> None:
         del recent[:-MAX_RECENT_SUB_TOOLS]
 
 
+def device_progress(raw: Any) -> dict[str, Any] | None:
+    """A device's progress object (spec 3.4.0, `phase` event and
+    `_lembas/session/status`), kept only as the spec shapes it: a known
+    phase, `since` in ms, the phase's own fields. None for anything else."""
+    from lembas.services import progress as progress_service
+
+    if not isinstance(raw, dict) or raw.get("phase") not in progress_service.phases():
+        return None
+    try:
+        since = int(raw.get("since") or 0)
+    except (TypeError, ValueError):
+        return None
+    fields = progress_service.clean(str(raw["phase"]), dict(raw))
+    for key, value in list(fields.items()):
+        if isinstance(value, str):
+            fields[key] = value[:300]
+        elif not isinstance(value, int | float) or isinstance(value, bool):
+            fields.pop(key)
+    return {"phase": raw["phase"], "since": since, **fields}
+
+
+_TREE_TEXT = {"id": 16, "name": 40, "position": 200, "parent": 40, "state": 20, "model": 300,
+              "mode": 16, "task": 2000}
+
+
+def clean_tree(raw: Any) -> dict[str, Any] | None:
+    """A device's subagent tree (spec 3.4.0, subagents.md §12) as the server
+    keeps and passes it on: the spec's fields only, strings bounded, numbers
+    numbers. A model chose the names, positions and tasks: they are text."""
+    if not isinstance(raw, dict):
+        return None
+
+    def number(value: Any) -> int:
+        try:
+            return max(0, int(value))
+        except (TypeError, ValueError):
+            return 0
+
+    def agent(row: Any) -> dict[str, Any] | None:
+        if not isinstance(row, dict) or not row.get("id") or not row.get("name"):
+            return None
+        out: dict[str, Any] = {}
+        for key, limit in _TREE_TEXT.items():
+            value = row.get(key)
+            if isinstance(value, str):
+                out[key] = value[:limit]
+            elif key == "parent":
+                out[key] = None
+        out["request"] = [str(k)[:16] for k in (row.get("request") or []) if isinstance(k, str)][:3]
+        out["manager"] = bool(row.get("manager"))
+        context = row.get("context")
+        if isinstance(context, dict) and number(context.get("window")):
+            out["context"] = {"used": number(context.get("used")),
+                              "window": number(context.get("window"))}
+        out["progress"] = device_progress(row.get("progress"))
+        out["findings"] = number(row.get("findings"))
+        out["messages"] = number(row.get("messages"))
+        if row.get("ended") is not None:
+            out["ended"] = number(row.get("ended"))
+        return out
+
+    agents = [a for a in (agent(r) for r in (raw.get("agents") or [])[:200]) if a]
+    ended = [a for a in (agent(r) for r in (raw.get("ended") or [])[:200]) if a]
+    return {
+        "min": number(raw.get("min")) or 1,
+        "max": number(raw.get("max")) or 1,
+        "size": number(raw.get("size")),
+        "open_slots": number(raw.get("open_slots")),
+        "agents": agents,
+        "ended": ended,
+    }
+
+
+def _take_tree(generation, raw: Any) -> None:
+    """The device's tree (`team` event): onto the reply for its stream, and
+    kept with the chat so it is drawn at once and after the device has gone."""
+    tree = clean_tree(raw) if raw is not None else None
+    generation.team_tree = tree
+    keep_tree(generation.chat_id, tree)
+
+
+def _tree_progress(generation, agent_id: str, found: dict[str, Any] | None) -> None:
+    tree = getattr(generation, "team_tree", None)
+    if not tree:
+        return
+    for row in tree.get("agents") or []:
+        if row.get("id") == agent_id:
+            row["progress"] = found
+            generation.team_tree = {**tree}
+            return
+
+
+def keep_tree(chat_id: str, tree: dict[str, Any] | None) -> None:
+    """Store a device chat's latest tree on the chat row."""
+    from lembas.db.models import Chat as ChatRow
+    from lembas.db.session import session_scope
+
+    with contextlib.suppress(Exception), session_scope() as db:
+        chat = db.get(ChatRow, chat_id)
+        if chat is not None:
+            chat.team_tree_json = tree or {}
+            db.commit()
+
+
+def _derived_phase(generation, kind: str, event: dict[str, Any]) -> None:
+    """A device without the `progress` capability: the phase read off its
+    engine events, as the CLI's own tracker reads them (progress.md §4)."""
+    from lembas.services import progress as progress_service
+
+    if getattr(generation, "device_phases", False):
+        return
+    if kind == "reasoning":
+        generation.tracker.set("thinking")
+    elif kind in ("text", "tool_call_delta"):
+        generation.tracker.set("writing")
+    elif kind == "tool_start":
+        name = str(event.get("name") or "tool")
+        if name == "task":
+            generation.tracker.set("waiting_for_subagents", running=1)
+        else:
+            what = progress_service.what_of(event.get("args")) or None
+            generation.tracker.set("running_tool", tool=name, what=what)
+    elif kind == "step" or kind == "compacted":
+        generation.tracker.set("reading_prompt")
+
+
 def apply_event(generation, event: dict[str, Any]) -> None:
     """One engine event from the device, into the reply being written."""
     kind = event.get("type")
+    if kind == "phase":
+        # Spec 3.4.0 (capability `progress`): the device says its phase; the
+        # main agent's is the reply's, a subagent's (`agent`) goes to the tree.
+        found = device_progress(event.get("progress"))
+        if event.get("agent"):
+            _tree_progress(generation, str(event["agent"]), found)
+        else:
+            generation.device_phases = True
+            generation.tracker.current = found
+            generation.tracker.version += 1
+        generation.touch()
+        return
+    if kind == "team":
+        _take_tree(generation, event.get("tree"))
+        generation.touch()
+        return
+    _derived_phase(generation, str(kind or ""), event)
     # How long it thought: measured here as the device's events arrive,
     # the way `_run` measures a reply of its own -- from the first reasoning
     # delta of a round to the last, closed by whatever comes after. Without it

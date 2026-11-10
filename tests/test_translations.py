@@ -103,6 +103,12 @@ def _used() -> dict[str, str]:
             key = _normalise(found)
             if key:
                 out.setdefault(key, str(path.relative_to(ROOT)))
+    # The harness spec's progress texts (spec 3.4.0): keys named by data, the
+    # spec's English with its {{fields}}, not by a t("…") call.
+    from lembas.services import progress
+
+    for key in progress.i18n_keys():
+        out.setdefault(_normalise(key), "src/lembas/harness_spec/loop.json")
     return out
 
 
@@ -177,6 +183,22 @@ def test_placeholders_survive_translation(code: str):
 
 
 TAG = re.compile(r"</?([a-z][a-z0-9]*)\b[^>]*>")
+
+
+@pytest.mark.parametrize("code", [code for code in i18n.LANGUAGE_IDS if code != i18n.SOURCE])
+def test_every_progress_text_is_translated_with_its_fields(code: str):
+    """Spec 3.4.0 (progress.md §2): the shared progress texts, in every
+    language, keeping the spec's `{{fields}}` (filled by both the server and
+    the page's script)."""
+    from lembas.services import progress
+
+    fields = re.compile(r"\{\{(\w+)\}\}")
+    catalogue = i18n.catalogue(code)
+    for key in progress.i18n_keys():
+        if key == progress.spec()["line"]:
+            continue
+        assert key in catalogue, (code, key)
+        assert set(fields.findall(key)) == set(fields.findall(catalogue[key])), (code, key)
 
 
 @pytest.mark.parametrize("code", [code for code in i18n.LANGUAGE_IDS if code != i18n.SOURCE])

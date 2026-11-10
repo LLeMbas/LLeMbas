@@ -311,6 +311,10 @@ class Chat(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
     # narrows it on read and changes nothing here.
     agents_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
     agents_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # An agent chat's subagent tree as its device last sent it (spec 3.4.0,
+    # `acp.md` capability `tree`), so a client draws it at once and after the
+    # device has gone; empty when it has none.
+    team_tree_json: Mapped[dict[str, Any]] = mapped_column(JSONDict, default=dict)
 
     folder: Mapped[Folder | None] = relationship(back_populates="chats")
     messages: Mapped[list[Message]] = relationship(

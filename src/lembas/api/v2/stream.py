@@ -22,7 +22,7 @@ The rules are `_follow`'s and they are why a flaky phone connection works:
 | `tail` | `{"thinking", "text", "label"}` -- the step still being written |
 | `steered` | `{"ids": [...]}` -- queued messages taken into the reply |
 | `plan` | the plan, normalised |
-| `status` | `{"text"}` |
+| `status` | `{"text", "progress"}` -- `progress`: the phase object (spec 3.4.0) or null |
 | `ask` | `{"cards": [...]}` -- empty when the last one was answered |
 | `jobs` | `{"jobs": [...]}` -- only once there are any |
 | `metrics` | as on a message |
@@ -48,6 +48,7 @@ from lembas.db.models import Chat, Message
 from lembas.db.session import session_scope
 from lembas.services import generation as generation_service
 from lembas.services import metrics as metrics_service
+from lembas.services import progress as progress_service
 from lembas.services import sse
 from lembas.services import steps as steps_service
 
@@ -86,6 +87,7 @@ async def follow_json(chat_id: str, message_id: str) -> AsyncIterator[str]:
     # sent -- not with the empty values, as the page's does -- because the app
     # has no streaming shell drawn already: its first pass is the whole state.
     sent: dict[str, str] = {}
+    pacer = progress_service.Pacer()
 
     def changed(name: str, payload: object) -> str | None:
         encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
@@ -112,7 +114,8 @@ async def follow_json(chat_id: str, message_id: str) -> AsyncIterator[str]:
                 current = getattr(generation, "plan", None) or generation.todos
                 if current is not None and (out := changed("plan", serialise.plan(current))):
                     yield out
-                if out := changed("status", {"text": generation.status}):
+                status = status_payload(generation, pacer)
+                if status is not None and (out := changed("status", status)):
                     yield out
                 if out := changed("ask", {"cards": serialise.asks(generation.waiting)}):
                     yield out
@@ -166,4 +169,14 @@ async def follow_json(chat_id: str, message_id: str) -> AsyncIterator[str]:
     yield frame("close", {})
 
 
-__all__ = ["follow_json", "frame", "router"]
+def status_payload(generation, pacer: progress_service.Pacer | None = None) -> dict | None:
+    """The `status` frame: the free text as before, and beside it the phase
+    (spec 3.4.0, progress.md §5) -- or None while pacing holds a data-only
+    change back and the text has not changed either."""
+    value = progress_service.current(generation)
+    if pacer is not None and not pacer.due(value):
+        value = pacer.sent
+    return {"text": generation.status, "progress": value}
+
+
+__all__ = ["follow_json", "frame", "router", "status_payload"]

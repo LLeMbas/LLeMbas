@@ -49,6 +49,7 @@ from lembas.services import files as files_service
 from lembas.services import generation as generation_service
 from lembas.services import jobs as jobs_service
 from lembas.services import metrics as metrics_service
+from lembas.services import progress as progress_service
 from lembas.services import prompts as prompts_service
 from lembas.services import steps as steps_service
 from lembas.services import subagent as subagent_service
@@ -1572,7 +1573,10 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
     # that land in the bubble start as empty, because that is how the
     # streaming shell renders their containers: a first pass that finds them
     # empty has nothing to say about them.
-    sent: dict[str, str] = {"reasoning": "", "think": "", "render": "", "status": "", "ask": ""}
+    sent: dict[str, str] = {
+        "reasoning": "", "think": "", "render": "", "status": "", "ask": "", "progress": "",
+    }
+    pacer = progress_service.Pacer()
     # The tail's markdown, rendered at the cost of what is new each pass and
     # rendered once a pass -- it used to be rendered whole, twice at a round's
     # close, ten times a second. See `markdown.LiveRender`.
@@ -1637,6 +1641,11 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
                     yield sse.event("plan", _plan_panel_html(plan_sent))
                 if changed("status", escape_text(generation.status)):
                     yield sse.event("status", sent["status"])
+                # The phase (harness spec 3.4.0): beside the status, paced.
+                if pacer.due(progress_service.current(generation)) and changed(
+                    "progress", progress_service.html(pacer.sent)
+                ):
+                    yield sse.event("progress", sent["progress"])
                 if changed("ask", _ask_html(chat_id, generation.waiting)):
                     yield sse.event("ask", sent["ask"])
                 # The background jobs, out of band into the strip above the

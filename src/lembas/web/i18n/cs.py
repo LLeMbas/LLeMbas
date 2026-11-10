@@ -2558,3 +2558,36 @@ MESSAGES.update(
         "Min and Max are 1 to %(cap)s, counted with the chat's own agent, and Min cannot be more than Max.": 'Min a Max jsou od 1 do %(cap)s, včetně vlastního agenta konverzace, a Min nemůže být více než Max.',
     }
 )
+
+# Progress (harness spec 3.4.0, progress.md): the shared texts every client
+# draws a reply's phase with, keyed by the spec's English with its {{fields}}.
+MESSAGES.update(
+    {
+        'Queued': 'Ve frontě',
+        'Queued: {{ahead}} ahead': 'Ve frontě: před ním {{ahead}}',
+        'Waiting for {{model}}: {{reason}}': 'Čeká se na {{model}}: {{reason}}',
+        'Loading {{model}}': 'Načítá se {{model}}',
+        'Reading the prompt: {{done}} / {{total}} tokens ({{percent}}%)': 'Čte se výzva: {{done}} / {{total}} tokenů ({{percent}} %)',
+        'Reading the prompt': 'Čte se výzva',
+        'Writing: {{rate}} tok/s': 'Píše: {{rate}} tok/s',
+        'Writing': 'Píše',
+        'Running {{tool}}: {{what}}': 'Spouští {{tool}}: {{what}}',
+        'Running {{tool}}': 'Spouští {{tool}}',
+        'Waiting for you: {{what}}': 'Čeká na vás: {{what}}',
+        'Waiting for subagents: {{running}} running': 'Čeká na podagenty: pracuje {{running}}',
+        'Compacting the conversation': 'Shrnuje se konverzace',
+        'Retrying in {{in}} s: {{reason}}': 'Nový pokus za {{in}} s: {{reason}}',
+        'Stopped: {{reason}}': 'Zastaveno: {{reason}}',
+        'Failed: {{reason}}': 'Selhalo: {{reason}}',
+        'it serves one request at a time and is answering another': 'vyřizuje jeden požadavek najednou a právě vyřizuje jiný',
+        'all its slots are in use': 'všechny jeho sloty jsou obsazené',
+        'its server holds another model now': 'jeho server má teď načtený jiný model',
+        'allow {{tool}}?': 'povolit {{tool}}?',
+        'an approval': 'povolení',
+        'a question': 'otázka',
+        'the plan': 'plán',
+        'by you': 'vámi',
+        'step limit': 'limit kroků',
+        'budget': 'rozpočet',
+    }
+)

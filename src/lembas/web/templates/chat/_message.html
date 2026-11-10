@@ -184,6 +184,9 @@
            multi-second pause before the first token is what a hang looks
            like. #}
         <span class="msg__status" sse-swap="status" hx-swap="innerHTML"></span>
+        {# The phase (harness spec 3.4.0): "Thinking · 12s", drawn by
+           static/js/progress.js; where it is shown, the free status is not. #}
+        <span class="msg__progress" sse-swap="progress" hx-swap="innerHTML"></span>
       </div>
       {# Counts as the reply is written. Everything is an estimate until the
          usage chunk lands at the very end, and the chips say so. `--live`

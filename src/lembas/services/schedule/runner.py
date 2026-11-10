@@ -467,6 +467,7 @@ def _wait_for_model(db, schedule, owner, run, choice, *, now: datetime) -> None:
         return
     run.status = RUN_WAITING
     run.waiting_for = WAIT_MODEL
+    run.waiting_json = {**choice.waiting_on, "since": int(base.timestamp() * 1000)}
     run.retry_at = retry
     run.error_class = ERROR_NO_MODEL
     run.error = f"Waiting for a free model: {why}."[:2000]

@@ -1,3 +1,9 @@
 {
-  "text": "Running bake --slow"
+  "text": "Running bake --slow",
+  "progress": {
+    "phase": "running_tool",
+    "since": 1767323045000,
+    "tool": "bash",
+    "what": "bake --slow"
+  }
 }

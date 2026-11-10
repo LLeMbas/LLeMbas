@@ -67,6 +67,16 @@ class Choice:
     busy: list[tuple[str, str]] = field(default_factory=list)
 
     @property
+    def waiting_on(self) -> dict[str, str]:
+        """The first model passed over, as progress says it (spec 3.4.0):
+        `{model, reason}` with reason busy, slots, group or loading; empty
+        when none was named."""
+        for label, why in self.busy:
+            if label:
+                return {"model": label, "reason": busy_kind(why)}
+        return {}
+
+    @property
     def why_waiting(self) -> str:
         return "; ".join(f"{label}: {why}" for label, why in self.busy)
 
@@ -178,6 +188,17 @@ async def _swap(connection) -> list[dict[str, str]] | None:
     except Exception:  # unknown is "nothing loading", never an error
         log.debug("could not read /running for %s", connection.id, exc_info=True)
         return None
+
+
+def busy_kind(why: str) -> str:
+    """`busy_reason`'s words as progress's reasons (progress.md §2)."""
+    if "loading" in why:
+        return "loading"
+    if "same server" in why:
+        return "group"
+    if "every slot" in why:
+        return "slots"
+    return "busy"
 
 
 async def busy_reason(model: Model, counted: Counter[str], swaps: dict[str, Any]) -> str:

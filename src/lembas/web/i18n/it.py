@@ -2558,3 +2558,36 @@ MESSAGES.update(
         "Min and Max are 1 to %(cap)s, counted with the chat's own agent, and Min cannot be more than Max.": 'Min e Max vanno da 1 a %(cap)s, contando l’agente della chat, e Min non può superare Max.',
     }
 )
+
+# Progress (harness spec 3.4.0, progress.md): the shared texts every client
+# draws a reply's phase with, keyed by the spec's English with its {{fields}}.
+MESSAGES.update(
+    {
+        'Queued': 'In coda',
+        'Queued: {{ahead}} ahead': 'In coda: {{ahead}} davanti',
+        'Waiting for {{model}}: {{reason}}': 'In attesa di {{model}}: {{reason}}',
+        'Loading {{model}}': 'Caricamento di {{model}}',
+        'Reading the prompt: {{done}} / {{total}} tokens ({{percent}}%)': 'Lettura del prompt: {{done}} / {{total}} token ({{percent}}%)',
+        'Reading the prompt': 'Lettura del prompt',
+        'Writing: {{rate}} tok/s': 'Scrittura: {{rate}} tok/s',
+        'Writing': 'Scrittura',
+        'Running {{tool}}: {{what}}': 'Esecuzione di {{tool}}: {{what}}',
+        'Running {{tool}}': 'Esecuzione di {{tool}}',
+        'Waiting for you: {{what}}': 'In attesa di te: {{what}}',
+        'Waiting for subagents: {{running}} running': 'In attesa dei subagenti: {{running}} al lavoro',
+        'Compacting the conversation': 'Compattazione della conversazione',
+        'Retrying in {{in}} s: {{reason}}': 'Nuovo tentativo tra {{in}} s: {{reason}}',
+        'Stopped: {{reason}}': 'Fermato: {{reason}}',
+        'Failed: {{reason}}': 'Non riuscito: {{reason}}',
+        'it serves one request at a time and is answering another': 'serve una richiesta alla volta e ne sta servendo un’altra',
+        'all its slots are in use': 'tutti i suoi posti sono occupati',
+        'its server holds another model now': 'il suo server ha ora un altro modello',
+        'allow {{tool}}?': 'consentire {{tool}}?',
+        'an approval': 'un’approvazione',
+        'a question': 'una domanda',
+        'the plan': 'il piano',
+        'by you': 'da te',
+        'step limit': 'limite di passi',
+        'budget': 'budget',
+    }
+)

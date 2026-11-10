@@ -2558,3 +2558,36 @@ MESSAGES.update(
         "Min and Max are 1 to %(cap)s, counted with the chat's own agent, and Min cannot be more than Max.": 'Min et Max vont de 1 à %(cap)s, l’agent propre de la discussion compris, et Min ne peut pas dépasser Max.',
     }
 )
+
+# Progress (harness spec 3.4.0, progress.md): the shared texts every client
+# draws a reply's phase with, keyed by the spec's English with its {{fields}}.
+MESSAGES.update(
+    {
+        'Queued': 'En file d’attente',
+        'Queued: {{ahead}} ahead': 'En file d’attente : {{ahead}} avant',
+        'Waiting for {{model}}: {{reason}}': 'En attente de {{model}} : {{reason}}',
+        'Loading {{model}}': 'Chargement de {{model}}',
+        'Reading the prompt: {{done}} / {{total}} tokens ({{percent}}%)': 'Lecture du prompt : {{done}} / {{total}} jetons ({{percent}} %)',
+        'Reading the prompt': 'Lecture du prompt',
+        'Writing: {{rate}} tok/s': 'Écriture : {{rate}} jetons/s',
+        'Writing': 'Écriture',
+        'Running {{tool}}: {{what}}': 'Exécution de {{tool}} : {{what}}',
+        'Running {{tool}}': 'Exécution de {{tool}}',
+        'Waiting for you: {{what}}': 'En attente de vous : {{what}}',
+        'Waiting for subagents: {{running}} running': 'En attente des sous-agents : {{running}} en cours',
+        'Compacting the conversation': 'Compactage de la conversation',
+        'Retrying in {{in}} s: {{reason}}': 'Nouvel essai dans {{in}} s : {{reason}}',
+        'Stopped: {{reason}}': 'Arrêté : {{reason}}',
+        'Failed: {{reason}}': 'Échec : {{reason}}',
+        'it serves one request at a time and is answering another': 'il traite une requête à la fois et en traite une autre',
+        'all its slots are in use': 'tous ses emplacements sont occupés',
+        'its server holds another model now': 'son serveur a maintenant un autre modèle chargé',
+        'allow {{tool}}?': 'autoriser {{tool}} ?',
+        'an approval': 'une approbation',
+        'a question': 'une question',
+        'the plan': 'le plan',
+        'by you': 'par vous',
+        'step limit': 'limite d’étapes',
+        'budget': 'budget',
+    }
+)

@@ -796,6 +796,12 @@
    the next frame would put it back. The `done` frame replaces the article and
    takes the mark with it. */
 .msg[data-stopping] .msg__status:not(.msg__status--stopping) { display: none; }
+/* The phase line (harness spec 3.4.0) takes the place of the free status
+   whenever the stream sends one; a reply with no phase keeps the status. */
+.msg__progress { font-size: var(--text-xs); color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.msg__progress:empty { display: none; }
+.msg__waiting:has(.msg__progress:not(:empty)) .msg__status:not(.msg__status--stopping) { display: none; }
+.msg[data-stopping] .msg__progress { display: none; }
 
 .msg__waiting {
   display: flex;

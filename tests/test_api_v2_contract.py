@@ -23,11 +23,12 @@ from pathlib import Path
 import pytest
 
 from lembas.api.v2 import APP_API, serialise
-from lembas.api.v2.stream import frame
+from lembas.api.v2.stream import frame, status_payload
 from lembas.db.models import Chat, Message, Model
 from lembas.services import generation as generation_service
 from lembas.services import interaction
 from lembas.services import metrics as metrics_service
+from lembas.services import progress as progress_service
 
 FIXTURES = Path(__file__).parent / "fixtures" / "api_v2"
 WHEN = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
@@ -452,6 +453,7 @@ def _schedules() -> dict[str, object]:
         switched_from="", prompt_tokens=0, completion_tokens=0, cost_micro=0, currency="",
         chat_id="", message_id="", report_path="", preview="", error_class="no_model",
         error="Waiting for a free model: Qwen: it is answering someone.", notified=False,
+        waiting_json={"model": "Qwen", "reason": "busy", "since": WHEN_MS},
     )
     listed = [runs.schedule_dict(None, schedule, owner=owner, last=run)]
     models = _models()
@@ -484,6 +486,35 @@ def _schedules() -> dict[str, object]:
         },
         "event_schedules": {"version": version_of(listed), "schedules": listed},
     }
+
+
+WHEN_MS = int(WHEN.timestamp() * 1000)
+
+
+def _statuses() -> dict[str, object]:
+    """The `status` frame (spec 3.4.0, progress.md §5): the free text and the
+    phase beside it -- a tool running, the person's turn (a card open), how a
+    stopped reply ended, and a reply with no phase."""
+    clock = progress_service.now_ms
+    progress_service.now_ms = lambda: WHEN_MS
+    try:
+        running = generation_service.Generation(chat_id="chat1", message_id="msg2")
+        running.status = "Running bake --slow"
+        running.tracker.set("running_tool", tool="bash", what="bake --slow")
+        asking = _generation()
+        asking.status = "Waiting for you to allow bash…"
+        stopped = generation_service.Generation(chat_id="chat1", message_id="msg2")
+        stopped.tracker.set("stopped", reason="person")
+        stopped.done = True
+        idle = generation_service.Generation(chat_id="chat1", message_id="msg2")
+        return {
+            "event_status": status_payload(running),
+            "event_status_person": status_payload(asking),
+            "event_status_stopped": status_payload(stopped),
+            "event_status_idle": status_payload(idle),
+        }
+    finally:
+        progress_service.now_ms = clock
 
 
 def _shapes() -> dict[str, object]:
@@ -528,7 +559,7 @@ def _shapes() -> dict[str, object]:
         "event_tail": tail,
         "event_steered": {"ids": ["msg9"]},
         "event_plan": serialise.plan(generation.plan),
-        "event_status": {"text": generation.status},
+        **_statuses(),
         "event_ask": {"cards": serialise.asks(generation.waiting)},
         "event_ask_empty": {"cards": []},
         "event_jobs": {"jobs": serialise.jobs(generation.jobs)},

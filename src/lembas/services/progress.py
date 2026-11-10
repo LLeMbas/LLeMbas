@@ -51,9 +51,13 @@ def _rate(value: float) -> str:
     return f"{math.floor(float(value) * 10 + 0.5) / 10:.1f}"
 
 
-def text(progress: dict[str, Any], now: int | None = None) -> str:
-    """The phase's text (progress.md §2), its fields filled."""
-    texts = spec()["texts"]
+def text(
+    progress: dict[str, Any], now: int | None = None, shape: dict[str, Any] | None = None
+) -> str:
+    """The phase's text (progress.md §2), its fields filled. `shape`: the
+    tables in a reader's language (`strings`); the spec's English without."""
+    shape = shape or spec()
+    texts = shape["texts"]
     phase = progress.get("phase")
     if phase == "queued":
         if progress.get("ahead") is not None:
@@ -63,7 +67,7 @@ def text(progress: dict[str, Any], now: int | None = None) -> str:
         reason = str(progress.get("reason") or "")
         return _fill(
             texts["waiting_for_model"],
-            {"model": progress.get("model") or "", "reason": spec()["reason"].get(reason, reason)},
+            {"model": progress.get("model") or "", "reason": shape["reason"].get(reason, reason)},
         )
     if phase == "loading_model":
         return _fill(texts["loading_model"], {"model": progress.get("model") or ""})
@@ -86,7 +90,7 @@ def text(progress: dict[str, Any], now: int | None = None) -> str:
             return _fill(texts["running_tool"], values)
         return _fill(texts["running_tool.bare"], {"tool": progress.get("tool") or ""})
     if phase == "waiting_for_person":
-        words = spec()["what"]
+        words = shape["what"]
         what = str(progress.get("what") or "")
         if what == "approval":
             said = (
@@ -107,7 +111,7 @@ def text(progress: dict[str, Any], now: int | None = None) -> str:
     if phase == "stopped":
         reason = progress.get("reason")
         if reason:
-            said = spec()["stopped_reason"].get(str(reason), str(reason))
+            said = shape["stopped_reason"].get(str(reason), str(reason))
             return _fill(texts["stopped.reason"], {"reason": said})
         return texts["stopped"]
     if phase == "failed":
@@ -127,13 +131,25 @@ def elapsed(milliseconds: int) -> str:
     return f"{hours}h {minutes:02d}m"
 
 
-def line(progress: dict[str, Any], now: int | None = None) -> str:
+def line(
+    progress: dict[str, Any], now: int | None = None, shape: dict[str, Any] | None = None
+) -> str:
     """The line a client draws (progress.md §3)."""
+    shape = shape or spec()
     clock = now_ms() if now is None else now
-    said = text(progress, clock)
-    if progress.get("phase") in spec()["no_elapsed"]:
+    said = text(progress, clock, shape)
+    if progress.get("phase") in shape["no_elapsed"]:
         return said
-    return _fill(spec()["line"], {"text": said, "elapsed": elapsed(clock - int(progress["since"]))})
+    since = int(progress["since"])
+    return _fill(shape["line"], {"text": said, "elapsed": elapsed(clock - since)})
+
+
+def localised() -> dict[str, Any]:
+    """The tables in the active language (the page's island, and the line a
+    page frame is rendered with before its script takes over)."""
+    from lembas.web import i18n
+
+    return strings(i18n.translate)
 
 
 def what_of(arguments: Any) -> str:
@@ -152,11 +168,11 @@ def what_of(arguments: Any) -> str:
 
 def i18n_keys() -> list[str]:
     """Every English sentence a client draws progress with: the phases'
-    texts, the reasons, the words for `what`, the stopped reasons and the line.
-    The catalogues are keyed by them, `{{fields}}` and all."""
+    texts, the reasons, the words for `what` and the stopped reasons (the line
+    itself has no words). The catalogues are keyed by them, `{{fields}}` and all."""
     shape = spec()
     keys = [*shape["texts"].values(), *shape["reason"].values(), *shape["what"].values()]
-    keys += [*shape["stopped_reason"].values(), shape["line"]]
+    keys += [*shape["stopped_reason"].values()]
     return list(dict.fromkeys(keys))
 
 
@@ -169,7 +185,7 @@ def strings(translate) -> dict[str, Any]:
         "reason": {k: translate(v) for k, v in shape["reason"].items()},
         "what": {k: translate(v) for k, v in shape["what"].items()},
         "stopped_reason": {k: translate(v) for k, v in shape["stopped_reason"].items()},
-        "line": translate(shape["line"]),
+        "line": shape["line"],
         "no_elapsed": list(shape["no_elapsed"]),
     }
 
@@ -227,6 +243,42 @@ class Tracker:
 
     def clear(self) -> None:
         self.set(None)
+
+
+class Pacer:
+    """A follower's pacing (progress.md §5): a new phase is sent at once, a
+    change of its data at most `pace_per_second` times a second."""
+
+    def __init__(self) -> None:
+        self.sent: dict[str, Any] | None = None
+        self.at = 0.0
+        self.started = False
+
+    def due(self, value: dict[str, Any] | None) -> bool:
+        if self.started and value == self.sent:
+            return False
+        key = (value or {}).get("phase"), (value or {}).get("since")
+        before = (self.sent or {}).get("phase"), (self.sent or {}).get("since")
+        clock = time.monotonic()
+        window = 1 / float(spec()["pace_per_second"])
+        if self.started and key == before and clock - self.at < window:
+            return False
+        self.sent, self.at, self.started = value, clock, True
+        return True
+
+
+def html(value: dict[str, Any] | None, now: int | None = None) -> str:
+    """The page's `progress` frame: the line in the reader's language, with
+    the object for `static/js/progress.js` to keep the clock moving. Every
+    field is text a model may have chosen (a command, a path): escaped."""
+    import html as markup
+    import json
+
+    if not value:
+        return ""
+    data = markup.escape(json.dumps(value, ensure_ascii=False, separators=(",", ":")), quote=True)
+    said = markup.escape(line(value, now, localised()))
+    return f'<span class="progress-line" data-progress="{data}">{said}</span>'
 
 
 def current(generation: Any) -> dict[str, Any] | None:

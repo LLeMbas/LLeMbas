@@ -2558,3 +2558,36 @@ MESSAGES.update(
         "Min and Max are 1 to %(cap)s, counted with the chat's own agent, and Min cannot be more than Max.": 'Min und Max liegen zwischen 1 und %(cap)s, der eigene Agent des Chats mitgezählt, und Min kann nicht größer als Max sein.',
     }
 )
+
+# Progress (harness spec 3.4.0, progress.md): the shared texts every client
+# draws a reply's phase with, keyed by the spec's English with its {{fields}}.
+MESSAGES.update(
+    {
+        'Queued': 'In der Warteschlange',
+        'Queued: {{ahead}} ahead': 'In der Warteschlange: {{ahead}} davor',
+        'Waiting for {{model}}: {{reason}}': 'Warte auf {{model}}: {{reason}}',
+        'Loading {{model}}': 'Lade {{model}}',
+        'Reading the prompt: {{done}} / {{total}} tokens ({{percent}}%)': 'Lese den Prompt: {{done}} / {{total}} Tokens ({{percent}} %)',
+        'Reading the prompt': 'Lese den Prompt',
+        'Writing: {{rate}} tok/s': 'Schreibe: {{rate}} Tok/s',
+        'Writing': 'Schreibe',
+        'Running {{tool}}: {{what}}': 'Führe {{tool}} aus: {{what}}',
+        'Running {{tool}}': 'Führe {{tool}} aus',
+        'Waiting for you: {{what}}': 'Wartet auf dich: {{what}}',
+        'Waiting for subagents: {{running}} running': 'Wartet auf Subagenten: {{running}} laufen',
+        'Compacting the conversation': 'Verdichte das Gespräch',
+        'Retrying in {{in}} s: {{reason}}': 'Neuer Versuch in {{in}} s: {{reason}}',
+        'Stopped: {{reason}}': 'Gestoppt: {{reason}}',
+        'Failed: {{reason}}': 'Fehlgeschlagen: {{reason}}',
+        'it serves one request at a time and is answering another': 'es bedient eine Anfrage auf einmal und beantwortet gerade eine andere',
+        'all its slots are in use': 'alle seine Plätze sind belegt',
+        'its server holds another model now': 'sein Server hält gerade ein anderes Modell',
+        'allow {{tool}}?': '{{tool}} erlauben?',
+        'an approval': 'eine Freigabe',
+        'a question': 'eine Frage',
+        'the plan': 'den Plan',
+        'by you': 'von dir',
+        'step limit': 'Schrittlimit',
+        'budget': 'Budget',
+    }
+)

@@ -2558,3 +2558,36 @@ MESSAGES.update(
         "Min and Max are 1 to %(cap)s, counted with the chat's own agent, and Min cannot be more than Max.": 'Min i Max to od 1 do %(cap)s, wliczając własnego agenta czatu, a Min nie może być większe niż Max.',
     }
 )
+
+# Progress (harness spec 3.4.0, progress.md): the shared texts every client
+# draws a reply's phase with, keyed by the spec's English with its {{fields}}.
+MESSAGES.update(
+    {
+        'Queued': 'W kolejce',
+        'Queued: {{ahead}} ahead': 'W kolejce: przed nim {{ahead}}',
+        'Waiting for {{model}}: {{reason}}': 'Czekam na {{model}}: {{reason}}',
+        'Loading {{model}}': 'Wczytywanie {{model}}',
+        'Reading the prompt: {{done}} / {{total}} tokens ({{percent}}%)': 'Czytanie promptu: {{done}} / {{total}} tokenów ({{percent}}%)',
+        'Reading the prompt': 'Czytanie promptu',
+        'Writing: {{rate}} tok/s': 'Pisanie: {{rate}} tok/s',
+        'Writing': 'Pisanie',
+        'Running {{tool}}: {{what}}': 'Uruchamianie {{tool}}: {{what}}',
+        'Running {{tool}}': 'Uruchamianie {{tool}}',
+        'Waiting for you: {{what}}': 'Czeka na ciebie: {{what}}',
+        'Waiting for subagents: {{running}} running': 'Czeka na podagentów: pracuje {{running}}',
+        'Compacting the conversation': 'Kompaktowanie rozmowy',
+        'Retrying in {{in}} s: {{reason}}': 'Ponowna próba za {{in}} s: {{reason}}',
+        'Stopped: {{reason}}': 'Zatrzymano: {{reason}}',
+        'Failed: {{reason}}': 'Niepowodzenie: {{reason}}',
+        'it serves one request at a time and is answering another': 'obsługuje jedno żądanie naraz i właśnie obsługuje inne',
+        'all its slots are in use': 'wszystkie jego miejsca są zajęte',
+        'its server holds another model now': 'jego serwer ma teraz wczytany inny model',
+        'allow {{tool}}?': 'zezwolić na {{tool}}?',
+        'an approval': 'zgoda',
+        'a question': 'pytanie',
+        'the plan': 'plan',
+        'by you': 'przez ciebie',
+        'step limit': 'limit kroków',
+        'budget': 'budżet',
+    }
+)

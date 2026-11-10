@@ -2558,3 +2558,36 @@ MESSAGES.update(
         "Min and Max are 1 to %(cap)s, counted with the chat's own agent, and Min cannot be more than Max.": 'A Min és a Max 1 és %(cap)s között lehet, a beszélgetés saját ügynökét is beleszámítva, és a Min nem lehet nagyobb a Maxnál.',
     }
 )
+
+# Progress (harness spec 3.4.0, progress.md): the shared texts every client
+# draws a reply's phase with, keyed by the spec's English with its {{fields}}.
+MESSAGES.update(
+    {
+        'Queued': 'Sorban áll',
+        'Queued: {{ahead}} ahead': 'Sorban áll: {{ahead}} van előtte',
+        'Waiting for {{model}}: {{reason}}': 'Várakozás a(z) {{model}} modellre: {{reason}}',
+        'Loading {{model}}': '{{model}} betöltése',
+        'Reading the prompt: {{done}} / {{total}} tokens ({{percent}}%)': 'A prompt olvasása: {{done}} / {{total}} token ({{percent}}%)',
+        'Reading the prompt': 'A prompt olvasása',
+        'Writing: {{rate}} tok/s': 'Írás: {{rate}} token/s',
+        'Writing': 'Írás',
+        'Running {{tool}}: {{what}}': '{{tool}} futtatása: {{what}}',
+        'Running {{tool}}': '{{tool}} futtatása',
+        'Waiting for you: {{what}}': 'Rád vár: {{what}}',
+        'Waiting for subagents: {{running}} running': 'Az alügynökökre vár: {{running}} dolgozik',
+        'Compacting the conversation': 'A beszélgetés tömörítése',
+        'Retrying in {{in}} s: {{reason}}': 'Újrapróbálás {{in}} mp múlva: {{reason}}',
+        'Stopped: {{reason}}': 'Leállítva: {{reason}}',
+        'Failed: {{reason}}': 'Sikertelen: {{reason}}',
+        'it serves one request at a time and is answering another': 'egyszerre egy kérést szolgál ki, és éppen egy másikat válaszol meg',
+        'all its slots are in use': 'minden helye foglalt',
+        'its server holds another model now': 'a szervere most egy másik modellt tart betöltve',
+        'allow {{tool}}?': 'engedélyezed ezt: {{tool}}?',
+        'an approval': 'egy jóváhagyás',
+        'a question': 'egy kérdés',
+        'the plan': 'a terv',
+        'by you': 'általad',
+        'step limit': 'lépéskorlát',
+        'budget': 'keret',
+    }
+)

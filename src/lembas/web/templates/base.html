@@ -68,6 +68,8 @@
   `tojson` escapes `<`, `>` and `&`, so a translation cannot close the island.
 #}
 <script type="application/json" id="lembas-strings">{{ js_strings() | tojson }}</script>
+{# The progress phases' words (harness spec 3.4.0), for static/js/progress.js. #}
+<script type="application/json" id="lembas-progress">{{ progress_strings() | tojson }}</script>
 <script>
   window.lembasT = (function () {
     var table = {};
@@ -172,6 +174,7 @@
 <script src="{{ asset('js/dnd.js') }}" defer></script>
 <script src="{{ asset('js/files.js') }}" defer></script>
 <script src="{{ asset('js/ticks.js') }}" defer></script>
+<script src="{{ asset('js/progress.js') }}" defer></script>
 <script src="{{ asset('js/palette.js') }}" defer></script>
 {# commands.js before composer.js: the second reads the first's table to draw
    the `/` menu, and both are deferred so the order here is the run order. #}

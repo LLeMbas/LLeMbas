@@ -2558,3 +2558,36 @@ MESSAGES.update(
         "Min and Max are 1 to %(cap)s, counted with the chat's own agent, and Min cannot be more than Max.": 'Mín y Máx van de 1 a %(cap)s, contando el propio agente del chat, y Mín no puede ser mayor que Máx.',
     }
 )
+
+# Progress (harness spec 3.4.0, progress.md): the shared texts every client
+# draws a reply's phase with, keyed by the spec's English with its {{fields}}.
+MESSAGES.update(
+    {
+        'Queued': 'En cola',
+        'Queued: {{ahead}} ahead': 'En cola: {{ahead}} por delante',
+        'Waiting for {{model}}: {{reason}}': 'Esperando a {{model}}: {{reason}}',
+        'Loading {{model}}': 'Cargando {{model}}',
+        'Reading the prompt: {{done}} / {{total}} tokens ({{percent}}%)': 'Leyendo el prompt: {{done}} / {{total}} tokens ({{percent}} %)',
+        'Reading the prompt': 'Leyendo el prompt',
+        'Writing: {{rate}} tok/s': 'Escribiendo: {{rate}} tok/s',
+        'Writing': 'Escribiendo',
+        'Running {{tool}}: {{what}}': 'Ejecutando {{tool}}: {{what}}',
+        'Running {{tool}}': 'Ejecutando {{tool}}',
+        'Waiting for you: {{what}}': 'Esperándote: {{what}}',
+        'Waiting for subagents: {{running}} running': 'Esperando a los subagentes: {{running}} en marcha',
+        'Compacting the conversation': 'Compactando la conversación',
+        'Retrying in {{in}} s: {{reason}}': 'Reintento en {{in}} s: {{reason}}',
+        'Stopped: {{reason}}': 'Detenido: {{reason}}',
+        'Failed: {{reason}}': 'Error: {{reason}}',
+        'it serves one request at a time and is answering another': 'atiende una petición a la vez y está respondiendo otra',
+        'all its slots are in use': 'todas sus plazas están ocupadas',
+        'its server holds another model now': 'su servidor tiene ahora otro modelo',
+        'allow {{tool}}?': '¿permitir {{tool}}?',
+        'an approval': 'una aprobación',
+        'a question': 'una pregunta',
+        'the plan': 'el plan',
+        'by you': 'por ti',
+        'step limit': 'límite de pasos',
+        'budget': 'presupuesto',
+    }
+)

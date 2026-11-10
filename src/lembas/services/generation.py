@@ -54,6 +54,7 @@ from lembas.services import (
 )
 from lembas.services import fallback as fallback_service
 from lembas.services import metrics as metrics_service
+from lembas.services import progress as progress_service
 from lembas.services import prompts as prompts_service
 from lembas.services import push as push_service
 from lembas.services import tools as tools_service
@@ -333,6 +334,22 @@ class Generation:
     # A device's `sub_tool` events, by the `task` call they belong to, until
     # that call ends and they are drawn under its block.
     sub_tools: dict = field(default_factory=dict)
+    # What the reply is doing, as one of the harness spec's progress phases
+    # (spec 3.4.0, `services/progress.py`): set by whoever knows the phase,
+    # read through `progress.current`, sent beside `status`.
+    tracker: progress_service.Tracker = field(
+        default_factory=progress_service.Tracker, repr=False
+    )
+    # Which budget a wrap-up was for, when one was: the reply then ends as
+    # `stopped` with that reason (`steps` or `budget`).
+    wrap_limit: str = ""
+    # When this reply's first token of output came, for its writing rate.
+    first_output_at: float = 0.0
+    # A device chat: the device says its phase itself (capability `progress`),
+    # so nothing is read off its events; and its subagent tree as the `team`
+    # event last carried it (capability `tree`), or None.
+    device_phases: bool = False
+    team_tree: dict | None = None
 
     def touch(self) -> None:
         self.version += 1
@@ -1067,9 +1084,16 @@ async def _run(generation: Generation) -> None:
                 generation.stopped = True
                 break
 
+            # The request goes out: until something comes back, the server is
+            # reading the prompt (spec 3.4.0, progress.md §4).
+            generation.tracker.set("reading_prompt")
+            generation.touch()
             async for chunk in _until_stopped(
                 generation, fallback_service.stream(route, payload, generation, _stream_once)
             ):
+                if read := prompt_read(chunk):
+                    generation.tracker.set("reading_prompt", **read)
+                    generation.touch()
                 if native := assistant_blocks(chunk):
                     round_blocks = native
                 if reason := finish_reason(chunk):
@@ -1094,6 +1118,7 @@ async def _run(generation: Generation) -> None:
 
                 thought = delta_reasoning(chunk)
                 if thought:
+                    generation.tracker.set("thinking")
                     if reasoning_started is None:
                         reasoning_started = time.monotonic()
                     round_thinking = _thought_at(generation, round_thinking)
@@ -1115,6 +1140,7 @@ async def _run(generation: Generation) -> None:
                             thought_this_round = True
                             round_thinking = _settle_thinking(generation, round_thinking)
                         accumulator.feed(fragments)
+                        _writing(generation)
                         named = tuple(call["name"] for call in accumulator.calls)
                         if named and named != preparing:
                             preparing = named
@@ -1125,11 +1151,13 @@ async def _run(generation: Generation) -> None:
                 if text:
                     for kind, piece in splitter.feed(text):
                         if kind == REASONING:
+                            generation.tracker.set("thinking")
                             if reasoning_started is None:
                                 reasoning_started = time.monotonic()
                             round_thinking = _thought_at(generation, round_thinking)
                             generation.reasoning.append(piece)
                         else:
+                            _writing(generation)
                             if reasoning_started is not None and not generation.reasoning_ms:
                                 generation.reasoning_ms = int(
                                     (time.monotonic() - reasoning_started) * 1000
@@ -1310,6 +1338,7 @@ async def _run(generation: Generation) -> None:
             ]
 
             generation.status = _tool_status(calls)
+            _running_tool(generation, calls, arguments, decided)
             generation.touch()
             try:
                 outcomes = await _stoppable(
@@ -1490,6 +1519,7 @@ async def _run(generation: Generation) -> None:
         # bubbles. There is no push channel that outlives a single reply.
         #
         _drain(generation)
+        _final_progress(generation)
         generation.done = True
         generation.finished_at = datetime.now(UTC)
         generation.touch()
@@ -1604,6 +1634,7 @@ async def _maybe_compact(generation: Generation) -> None:
             upto_id = upto.id
 
         generation.status = i18n.t("Summarising earlier messages…")
+        generation.tracker.set("compacting")
         generation.touch()
 
         summary = await compaction_service.summarise(
@@ -1697,9 +1728,78 @@ def _wrap_up(
     # mark of its own or it lands in the step still being written.
     generation.close_step()
     generation.touch()
+    generation.wrap_limit = limit
     told = harness_spec.fill(harness_spec.loop()["wrap_up"]["message"], {"limit": limit})
     messages = [*payload.get("messages", []), {"role": "user", "content": told}]
     return list(payload.get("tools") or []), {**payload, "messages": messages}
+
+
+def prompt_read(chunk: Any) -> dict[str, int] | None:
+    """A llama.cpp `prompt_progress` frame (harness `quirks.json`
+    `prompt-progress`): `{done, total}` of the prompt read, or None."""
+    found = chunk.get("prompt_progress") if isinstance(chunk, dict) else None
+    if not isinstance(found, dict):
+        return None
+    try:
+        total = int(found.get("total") or 0)
+        done = int(found.get("processed") or 0) + int(found.get("cache") or 0)
+    except (TypeError, ValueError):
+        return None
+    if total <= 0:
+        return None
+    return {"done": min(done, total), "total": total}
+
+
+def _writing(generation: Generation) -> None:
+    """Reply text or a call's arguments stream: `writing`, with the rate
+    measured over this reply's output so far (tokens a second)."""
+    now = time.monotonic()
+    if not generation.first_output_at:
+        generation.first_output_at = now
+    spent = now - generation.first_output_at
+    rate = None
+    if spent >= 1.0:
+        written = metrics_service.from_generation(generation).completion_tokens
+        rate = round(written / spent, 1) if written else None
+    generation.tracker.set("writing", rate=rate)
+
+
+def _running_tool(generation: Generation, calls: list[dict], arguments: list, decided) -> None:
+    """`running_tool` for the first call that runs; `waiting_for_subagents`
+    while a foreground `task` is what the round waits on (progress.md §4)."""
+    running = [
+        (call, args)
+        for index, (call, args) in enumerate(zip(calls, arguments, strict=False))
+        if not decided or index not in decided
+    ]
+    if not running:
+        return
+    tasks = [
+        c for c, a in running
+        if c["name"] == "task" and not (isinstance(a, dict) and a.get("background"))
+    ]
+    if tasks and len(tasks) == len(running):
+        generation.tracker.set("waiting_for_subagents", running=len(tasks))
+        return
+    call, args = running[0]
+    generation.tracker.set(
+        "running_tool", tool=call["name"], what=progress_service.what_of(args) or None
+    )
+
+
+def _final_progress(generation: Generation) -> None:
+    """How the turn ended (progress.md §4): `failed` with the error, `stopped`
+    by the person or at a limit, else nothing."""
+    if generation.error:
+        reason = str(generation.error).strip().split("\n")[0][:300]
+        generation.tracker.set("failed", reason=reason)
+    elif generation.stopped and not generation.interrupted:
+        generation.tracker.set("stopped", reason="person")
+    elif generation.wrap_limit:
+        reason = "steps" if generation.wrap_limit == "round limit" else "budget"
+        generation.tracker.set("stopped", reason=reason)
+    else:
+        generation.tracker.clear()
 
 
 # What `{{limit}}` in the wrap-up message says for each budget.

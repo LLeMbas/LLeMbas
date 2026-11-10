@@ -10,6 +10,20 @@ before its tag; the pin to a release tag comes with the release.
 
 ### Added
 
+- **What a reply is doing, the same in every app.** Beside the status line, every reply now says its
+  phase in one fixed set of words -- queued, waiting for a model (which, and why), loading the
+  model, reading the prompt (how far, where the model's server says), thinking, writing (tokens a
+  second), running a tool (which, and what), waiting for you (an approval, a question, the plan),
+  waiting for subagents, compacting, retrying, stopped (by you, or at a limit), failed -- with how
+  long it has lasted, ticking. The page draws it in your language; an agent chat shows its
+  computer's phase (from LLeMbas CLI 2.0.0-beta.6), or one read off what the computer reports. A
+  scheduled run waiting for a free model says which model and why.
+- **`/api/v2`: `progress`** (harness spec 3.4.0, `progress.md`). The stream's `status` frame is
+  `{text, progress}` -- the phase object `{phase, since, ...}` or null, sent when it changes (its
+  data at most four times a second); a schedule's run carries `progress` too. Fixtures:
+  `event_status.json` (changed), new `event_status_person.json`, `event_status_stopped.json`,
+  `event_status_idle.json`; `schedule*.json` and `event_schedules.json` gain `progress`.
+
 - **The Terminal before the first message.** On a new agent chat, the Terminal opens as soon as the
   computer and the folder are chosen -- before anything is sent -- on a device that opens terminals
   for you. The message that starts the chat there takes that shell over, with what it has printed,

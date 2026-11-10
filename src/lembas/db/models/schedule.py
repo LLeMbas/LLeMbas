@@ -180,6 +180,10 @@ class ScheduleRun(UUIDPrimaryKey, Timestamps, Base):
     # and when the window closes (then `skipped`).
     waiting_for: Mapped[str] = mapped_column(String(16), default="", nullable=False)
     retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    # What a run waiting for a model waits on (harness spec 3.4.0, progress
+    # `waiting_for_model`): `{model, reason}` of the first model in order that
+    # was not free -- reason `busy`, `slots`, `group` or `loading`.
+    waiting_json: Mapped[dict] = mapped_column(JSONDict, default=dict)
     attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     # Of those, tries again after a reply that never reached its model.
     retries: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
