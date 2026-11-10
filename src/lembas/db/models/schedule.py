@@ -212,6 +212,10 @@ class ScheduleRun(UUIDPrimaryKey, Timestamps, Base):
     error_class: Mapped[str] = mapped_column(String(32), default="", nullable=False)
     error: Mapped[str] = mapped_column(Text, default="", nullable=False)
     notified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # What the one notify decision told, as every channel shows it
+    # (`notify.notification`): the full version, the lock screen's public one
+    # and the actions. Empty: nobody was told. Its body is model output.
+    notification_json: Mapped[dict] = mapped_column(JSONDict, default=dict)
 
     def __repr__(self) -> str:
         return f"<ScheduleRun {self.schedule_id} {self.status}>"

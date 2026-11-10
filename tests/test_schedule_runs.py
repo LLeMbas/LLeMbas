@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import select
@@ -575,14 +576,43 @@ def test_failure_decision_forgets_old_signatures():
     assert set(notes) == {"b"}
 
 
-def test_the_push_payload_carries_ids_and_no_content():
+def test_the_push_payload_carries_ids_actions_and_the_notification():
     body = notify.payload(
         schedule_id="s", run_id="r", chat_id="c", status="failed", failed=True, ask_pause=True
     )
     assert body == {
         "schedule_id": "s", "run_id": "r", "chat_id": "c", "status": "failed",
-        "visibility": "private", "actions": ["open", "pause"], "ask": "pause",
+        "visibility": "private", "actions": ["open", "run_again", "pause"], "ask": "pause",
     }
+    told = {"title": "t"}
+    assert notify.payload(
+        schedule_id="s", run_id="r", chat_id="c", status="ok", failed=False, ask_pause=False,
+        told=told,
+    )["notification"] is told
+
+
+def test_the_notification_has_a_full_and_a_public_version():
+    """Unlocked: the task's name and the result's first lines. Lock screen:
+    the name and how it ended, nothing the run wrote (owner's plan, 2026-11-10)."""
+    schedule = SimpleNamespace(title="  Morning   build  ")
+    run = SimpleNamespace(preview="All green.\nTwo warnings.", error="")
+    told = notify.notification(schedule, run, failed=False, ask_pause=False, translate=str)
+    assert told["title"] == "Morning build"
+    assert told["body"] == "All green. Two warnings."
+    assert told["public"] == {"title": "Morning build", "body": "Finished"}
+    assert told["actions"] == ["open", "run_again"]
+    assert told["labels"] == {"open": "Open", "run_again": "Run again"}
+    failed = SimpleNamespace(preview="", error="Out of memory.\nTraceback …")
+    told = notify.notification(schedule, failed, failed=True, ask_pause=False, translate=str)
+    assert told["body"] == "Out of memory." and told["public"]["body"] == "Failed"
+    assert told["actions"] == ["open", "run_again", "pause"] and told["ask"] == ""
+    asked = notify.notification(schedule, failed, failed=True, ask_pause=True, translate=str)
+    assert asked["body"] == "Failed 3 times in a row. Pause it?" and asked["ask"] == "pause"
+    nameless = notify.notification(
+        SimpleNamespace(title=""), SimpleNamespace(preview="x" * 900, error=""),
+        failed=False, ask_pause=False, translate=str,
+    )
+    assert nameless["title"] == "Scheduled task" and len(nameless["body"]) == notify.BODY_MAX
 
 
 @pytest.mark.anyio
@@ -628,15 +658,22 @@ async def test_the_notify_decision_reaches_web_push_and_unifiedpush(db, register
         assert payload["url"] == f"/scheduled/{schedule.id}?run={run.id}"
         assert payload["schedule_id"] == schedule.id and payload["run_id"] == run.id
         assert payload["visibility"] == "private"
-        text = str(payload)
-        assert "Secret project" not in text and "private result" not in text
+        # The fixed sentence for an app that reads only title and body; the
+        # result only inside `notification`, beside a public version without it.
+        assert "private result" not in payload["title"] + payload["body"]
+        told = payload["notification"]
+        assert told["title"] == "Secret project"
+        assert told["body"] == "The private result the model wrote."
+        assert told["public"] == {"title": "Secret project", "body": "Finished"}
+    # Kept on the run, for the apps that follow the `schedules` event.
+    assert run.notification_json == sent[0][1]["notification"]
 
     # Web Push off: the app is still told, the browser is not.
     sent.clear()
     settings_store.update(db, {"web_push_enabled": False}, key=settings_store.GENERAL)
     assert await notify.announce(db, owner, schedule=schedule, run=run, failed=True)
     assert [endpoint for endpoint, _ in sent] == ["https://up.example/app"]
-    assert sent[0][1]["actions"] == ["open", "pause"]
+    assert sent[0][1]["actions"] == ["open", "run_again", "pause"]
 
 
 # --- Run settings ----------------------------------------------------------------------------

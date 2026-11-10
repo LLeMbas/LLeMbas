@@ -1,0 +1,37 @@
+{
+  "schedule_id": "sched1",
+  "run_id": "run3",
+  "chat_id": "chat1",
+  "status": "failed",
+  "visibility": "private",
+  "actions": [
+    "open",
+    "run_again",
+    "pause"
+  ],
+  "ask": "pause",
+  "notification": {
+    "title": "Waybread check",
+    "body": "Failed 3 times in a row. Pause it?",
+    "public": {
+      "title": "Waybread check",
+      "body": "Failed"
+    },
+    "actions": [
+      "open",
+      "run_again",
+      "pause"
+    ],
+    "labels": {
+      "open": "Open",
+      "run_again": "Run again",
+      "pause": "Pause"
+    },
+    "ask": "pause"
+  },
+  "pause_label": "Pause",
+  "title": "LLeMbas",
+  "body": "A scheduled task failed 3 times in a row. Pause it?",
+  "url": "/scheduled/sched1?run=run3",
+  "kind": "schedule_failed"
+}

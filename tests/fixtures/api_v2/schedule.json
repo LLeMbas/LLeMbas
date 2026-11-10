@@ -79,7 +79,24 @@
       "report_path": null,
       "preview": "All the waybread is wrapped.",
       "error": null,
-      "notified": true
+      "notified": true,
+      "notification": {
+        "title": "Waybread check",
+        "body": "All the waybread is wrapped.",
+        "public": {
+          "title": "Waybread check",
+          "body": "Finished"
+        },
+        "actions": [
+          "open",
+          "run_again"
+        ],
+        "labels": {
+          "open": "Open",
+          "run_again": "Run again"
+        },
+        "ask": ""
+      }
     },
     "running": false,
     "created_at": "2026-01-02T03:04:05+00:00"

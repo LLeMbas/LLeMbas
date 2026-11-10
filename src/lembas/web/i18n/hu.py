@@ -2624,3 +2624,12 @@ MESSAGES.update(
         'out of context': 'elfogyott a kontextus',
     }
 )
+
+# Scheduled-run notifications: the full and the lock screen's version.
+MESSAGES.update(
+    {
+        'Scheduled task': 'Ütemezett feladat',
+        'Failed 3 times in a row. Pause it?': 'Háromszor egymás után nem sikerült. Szüneteltessük?',
+        'Run again': 'Futtatás újra',
+    }
+)

@@ -37,7 +37,8 @@
         "class": "no_model",
         "text": "Waiting for a free model: Qwen: it is answering someone."
       },
-      "notified": false
+      "notified": false,
+      "notification": null
     },
     {
       "id": "run1",
@@ -68,7 +69,24 @@
       "report_path": null,
       "preview": "All the waybread is wrapped.",
       "error": null,
-      "notified": true
+      "notified": true,
+      "notification": {
+        "title": "Waybread check",
+        "body": "All the waybread is wrapped.",
+        "public": {
+          "title": "Waybread check",
+          "body": "Finished"
+        },
+        "actions": [
+          "open",
+          "run_again"
+        ],
+        "labels": {
+          "open": "Open",
+          "run_again": "Run again"
+        },
+        "ask": ""
+      }
     }
   ],
   "more": false

@@ -102,8 +102,10 @@ MAX_PAYLOAD_BYTES = 3000
 
 # What a payload may carry besides ids: what kind of card is waiting, a run's
 # status, whether the app keeps the text off the lock screen, the actions it may
-# offer and the label of one. Never content.
-EXTRA_KEYS = ("id", "ask", "status", "visibility", "actions", "pause_label")
+# offer and the label of one -- and a scheduled run's `notification`
+# (`schedule/notify.py`): the person's own task, its name and first lines, with
+# a public version for the lock screen. Nothing else carries content.
+EXTRA_KEYS = ("id", "ask", "status", "visibility", "actions", "pause_label", "notification")
 
 SETTING_PRIVATE = "push_private_key"
 SETTING_PUBLIC = "push_public_key"
@@ -366,27 +368,41 @@ async def announce(
     if not subscriptions:
         return 0
 
-    # No content, ever: only that something happened, and where. The relay
-    # cannot read an encrypted payload, but the payload is still the one part
-    # of this that leaves the instance, so it says nothing a page would not.
-    # `title` and `body` are taken for the callers' sake and not sent. `extra`
-    # is ids the app reads (the chat's, a card's), never text.
+    # Only that something happened, and where. The relay cannot read an
+    # encrypted payload, but the payload is still the one part of this that
+    # leaves the instance, so it says nothing a page would not. `title` and
+    # `body` are taken for the callers' sake and not sent. `extra` is ids the
+    # app reads (the chat's, a card's) -- and one exception, a scheduled run's
+    # `notification`, which its person asked to be told (`schedule/notify.py`).
     from lembas.services import branding
     from lembas.web.i18n import t
 
     del title
-    payload = {
-        **{k: v for k, v in (extra or {}).items() if k.endswith("_id") or k in EXTRA_KEYS},
-        "title": branding.for_db(db).name,
-        "body": body if plain_body else t("Something new is waiting for you."),
-        "url": url,
-        "kind": kind,
-    }
+    payload = build_payload(
+        branding.for_db(db).name,
+        body=body if plain_body else t("Something new is waiting for you."),
+        url=url, kind=kind, extra=extra,
+    )
     delivered = 0
     for subscription in list(subscriptions):
         if await send_one(db, subscription, payload):
             delivered += 1
     return delivered
+
+
+def build_payload(
+    name: str, *, body: str, url: str, kind: str, extra: dict[str, Any] | None
+) -> dict[str, Any]:
+    """The JSON a device receives (before encryption): the instance's name,
+    a fixed sentence, where to open, the kind, and `extra`'s ids and allowed
+    keys (`EXTRA_KEYS`). The apps' contract (`push_*.json`) is built by it."""
+    return {
+        **{k: v for k, v in (extra or {}).items() if k.endswith("_id") or k in EXTRA_KEYS},
+        "title": name,
+        "body": body,
+        "url": url,
+        "kind": kind,
+    }
 
 
 # Fire-and-forget tasks, held so the event loop does not collect one mid-flight.
@@ -511,6 +527,7 @@ __all__ = [
     "announce",
     "announce_ask_later",
     "announce_later",
+    "build_payload",
     "encrypt_payload",
     "keys",
     "public_key",

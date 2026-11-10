@@ -18,6 +18,14 @@ at <https://llembas.eu/changelog.html>.
   written carries `progress` `{"phase": "queued", "since", "ahead"}` -- `ahead` counts the reply
   running and the prompts queued before it; every other message has `progress: null`. Fixtures:
   new `message_queued.json`; `message_user.json` gains `progress`.
+- **A scheduled result says what it found.** The notification carries the task's name and the
+  result's first lines for an unlocked phone or a desktop, and a public version for the lock screen
+  (the name and "Finished" or "Failed", nothing the run wrote); its actions are Open and Run again
+  (and Pause on a failure), labelled in the person's language. One notification, every channel: web
+  push shows it and runs Run again from the notification, UnifiedPush carries it encrypted end to
+  end, and on `/api/v2` every run has `notification` (null when nobody was told), so an app
+  following the `schedules` event shows the same. Fixtures: new `push_schedule.json`,
+  `push_schedule_failed.json`; `schedule*.json` and `event_schedules.json` gain `notification`.
 
 ## 2.0.0-beta.8 — 2026-11-10
 

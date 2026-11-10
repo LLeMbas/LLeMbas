@@ -15,10 +15,20 @@ action. A schedule failing every five minutes must not become a notification
 every five minutes -- that is how notifications get switched off for good, and
 then the one that mattered is missed.
 
-**What leaves the instance is ids, never content** (`services/push.py`): the
-schedule's and the run's ids, the status, `"visibility": "private"` -- the app
-keeps the notification's text off the lock screen -- and the actions it may
-offer. The app reads the result from `/api/v2/schedules/{id}/runs/{run}`.
+**One notification, every channel** (`notification`): made once, when the
+decision to tell is taken, kept on the run (`ScheduleRun.notification_json`)
+and sent the same to a browser (web push), an app (UnifiedPush) and the
+`/api/v2` `schedules` event a running app follows. It has two versions:
+
+- the **full** one (`title`, `body`): the task's name and the result's first
+  lines -- for a phone that is unlocked, a desktop;
+- the **public** one (`public.title`, `public.body`): the task's name and
+  "Finished" or "Failed", nothing the run wrote -- for the lock screen.
+  `"visibility": "private"` tells the app to show only this one there.
+
+The push payload is encrypted end to end (RFC 8291, `services/push.py`): the
+relay carries bytes it cannot read. Its actions are `open` and `run_again`, and
+`pause` on a failure; their labels ride along in the reader's language.
 """
 
 from __future__ import annotations
@@ -35,6 +45,7 @@ from lembas.db.models import (
     RUN_OK,
     RUN_SILENT,
 )
+from lembas.web.i18n import N_
 
 # The literal a run answers when there is nothing worth telling. ASCII and
 # never translated: it is a control word, not a sentence.
@@ -163,23 +174,91 @@ def failure_decision(
     return tell, ask_pause, notes
 
 
+def actions(*, failed: bool, ask_pause: bool) -> list[str]:
+    out = ["open", "run_again"]
+    if ask_pause or failed:
+        out.append("pause")
+    return out
+
+
+TITLE_MAX = 120
+BODY_MAX = 280
+
+
+def notification(schedule, run, *, failed: bool, ask_pause: bool, translate) -> dict:
+    """The notification for one run, in the owner's language (`translate`):
+    the full version, the public one and the actions with their labels.
+
+    The full body is the result's first lines (`run.preview`, model output)
+    or, for a failure, the question about pausing or the error's first line;
+    the public one names the task and says how it ended, and nothing else."""
+    name = " ".join((schedule.title or "").split())[:TITLE_MAX]
+    name = name or translate(N_("Scheduled task"))
+    if ask_pause:
+        body = translate(N_("Failed 3 times in a row. Pause it?"))
+    elif failed:
+        first = (run.error or "").strip().split("\n")[0].strip()
+        body = preview(first, BODY_MAX) if first else translate(N_("Failed"))
+    else:
+        body = preview(run.preview or "", BODY_MAX) or translate(N_("Finished"))
+    said = actions(failed=failed, ask_pause=ask_pause)
+    labels = {"open": translate(N_("Open")), "run_again": translate(N_("Run again")),
+              "pause": translate(N_("Pause"))}
+    return {
+        "title": name,
+        "body": body,
+        "public": {"title": name, "body": translate(N_("Failed") if failed else N_("Finished"))},
+        "actions": said,
+        "labels": {key: labels[key] for key in said},
+        "ask": "pause" if ask_pause else "",
+    }
+
+
 def payload(
-    *, schedule_id: str, run_id: str, chat_id: str, status: str, failed: bool, ask_pause: bool
+    *, schedule_id: str, run_id: str, chat_id: str, status: str, failed: bool, ask_pause: bool,
+    told: dict | None = None,
 ) -> dict:
     """What `push.announce` sends besides its own title and body: ids, the
-    status, and what the notification may offer. No content."""
-    actions = ["open"]
-    if ask_pause or failed:
-        actions.append("pause")
-    return {
+    status, the actions, and the notification (`told`, from `notification`)."""
+    out = {
         "schedule_id": schedule_id,
         "run_id": run_id,
         "chat_id": chat_id,
         "status": status,
         "visibility": "private",
-        "actions": actions,
+        "actions": actions(failed=failed, ask_pause=ask_pause),
         "ask": "pause" if ask_pause else "",
     }
+    if told:
+        out["notification"] = told
+    return out
+
+
+def push_parts(schedule, run, *, failed: bool, ask_pause: bool, translate) -> tuple[str, dict]:
+    """The fixed sentence and the `extra` a run's push carries (`push.announce`
+    adds the instance's name, the link and the kind)."""
+    if ask_pause:
+        body = translate(N_("A scheduled task failed 3 times in a row. Pause it?"))
+    elif failed:
+        body = translate(N_("A scheduled task failed."))
+    else:
+        body = translate(N_("A scheduled task has finished."))
+    told = notification(schedule, run, failed=failed, ask_pause=ask_pause, translate=translate)
+    extra = payload(
+        schedule_id=schedule.id,
+        run_id=run.id,
+        chat_id=run.chat_id or schedule.chat_id or "",
+        status=run.status,
+        failed=failed,
+        ask_pause=ask_pause,
+        told=told,
+    )
+    extra["pause_label"] = translate(N_("Pause"))
+    return body, extra
+
+
+def link(schedule, run) -> str:
+    return f"/scheduled/{schedule.id}?run={run.id}"
 
 
 async def announce(
@@ -198,27 +277,16 @@ async def announce(
 
     # The run's own task: the language set here is this task's alone.
     i18n.activate(i18n.for_user(owner))
-    if ask_pause:
-        body = i18n.t("A scheduled task failed 3 times in a row. Pause it?")
-    elif failed:
-        body = i18n.t("A scheduled task failed.")
-    else:
-        body = i18n.t("A scheduled task has finished.")
-    extra = payload(
-        schedule_id=schedule.id,
-        run_id=run.id,
-        chat_id=run.chat_id or schedule.chat_id or "",
-        status=run.status,
-        failed=failed,
-        ask_pause=ask_pause,
-    )
-    extra["pause_label"] = i18n.t("Pause")
+    body, extra = push_parts(schedule, run, failed=failed, ask_pause=ask_pause, translate=i18n.t)
+    # Kept on the run before anything is sent: the apps following the
+    # `schedules` event show it from there, pushed or not.
+    run.notification_json = extra["notification"]
     delivered = await push.announce(
         db,
         owner,
         title=i18n.t("Scheduled"),
         body=body,
-        url=f"/scheduled/{schedule.id}?run={run.id}",
+        url=link(schedule, run),
         kind=KIND_FAILED if failed else KIND_RESULT,
         extra=extra,
         plain_body=True,
@@ -236,9 +304,11 @@ __all__ = [
     "default_policy",
     "failure_decision",
     "is_silent",
+    "notification",
     "payload",
     "policy",
     "preview",
+    "push_parts",
     "should_notify",
     "signature",
     "strip_sentinel",

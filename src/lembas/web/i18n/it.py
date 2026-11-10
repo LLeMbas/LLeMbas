@@ -2624,3 +2624,12 @@ MESSAGES.update(
         'out of context': 'senza contesto',
     }
 )
+
+# Scheduled-run notifications: the full and the lock screen's version.
+MESSAGES.update(
+    {
+        'Scheduled task': 'Attività pianificata',
+        'Failed 3 times in a row. Pause it?': 'Non riuscita 3 volte di seguito. Metterla in pausa?',
+        'Run again': 'Esegui di nuovo',
+    }
+)

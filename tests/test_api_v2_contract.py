@@ -479,6 +479,35 @@ def _schedules() -> dict[str, object]:
         error="Waiting for a free model: Qwen: it is answering someone.", notified=False,
         waiting_json={"model": "Qwen", "reason": "busy", "since": WHEN_MS},
     )
+    from lembas.services import push
+    from lembas.services.schedule import notify
+
+    def english(text: str) -> str:
+        return text
+
+    told, told_extra = notify.push_parts(
+        schedule, run, failed=False, ask_pause=False, translate=english
+    )
+    run.notification_json = told_extra["notification"]
+    failed = ScheduleRun(
+        id="run3", schedule_id="sched1", user_id="user1", status="failed", timing="on_time",
+        missed=0, due_at=WHEN, chat_id="chat1", message_id="msg4", preview="",
+        error_class="model", error="The model's server answered 500: out of memory.\nmore",
+        notified=True,
+    )
+    asked, asked_extra = notify.push_parts(
+        schedule, failed, failed=True, ask_pause=True, translate=english
+    )
+    pushes = {
+        "push_schedule": push.build_payload(
+            "LLeMbas", body=told, url=notify.link(schedule, run), kind=notify.KIND_RESULT,
+            extra=told_extra,
+        ),
+        "push_schedule_failed": push.build_payload(
+            "LLeMbas", body=asked, url=notify.link(schedule, failed), kind=notify.KIND_FAILED,
+            extra=asked_extra,
+        ),
+    }
     listed = [runs.schedule_dict(None, schedule, owner=owner, last=run)]
     models = _models()
     return {
@@ -509,6 +538,7 @@ def _schedules() -> dict[str, object]:
             "mine": ["gpt-oss"],
         },
         "event_schedules": {"version": version_of(listed), "schedules": listed},
+        **pushes,
     }
 
 

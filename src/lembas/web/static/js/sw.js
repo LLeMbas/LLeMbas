@@ -205,16 +205,26 @@ self.addEventListener("push", function (event) {
       for (var i = 0; i < clients.length; i++) {
         if (clients[i].focused) return null;
       }
-      /* A scheduled run that failed may offer Pause: the server names the
-         action and its label (`services/schedule/notify.py`); the click is
-         handled below, with this browser's own sign-in. */
+      /* A scheduled run says its task's name and first lines, and offers Run
+         again (and Pause, when it failed): the server names the actions and
+         their labels (`services/schedule/notify.py`); a click is handled
+         below, with this browser's own sign-in. Opening is the click itself. */
+      var told = payload.schedule_id && payload.notification &&
+        typeof payload.notification === "object" ? payload.notification : null;
       var actions = [];
-      if (payload.schedule_id && Array.isArray(payload.actions) &&
+      if (told && Array.isArray(told.actions) && told.labels) {
+        ["run_again", "pause"].forEach(function (name) {
+          if (told.actions.indexOf(name) !== -1 && told.labels[name]) {
+            actions.push({ action: name, title: String(told.labels[name]) });
+          }
+        });
+      } else if (payload.schedule_id && Array.isArray(payload.actions) &&
           payload.actions.indexOf("pause") !== -1 && payload.pause_label) {
         actions.push({ action: "pause", title: String(payload.pause_label) });
       }
-      return self.registration.showNotification(payload.title || "LLeMbas", {
-        body: payload.body || "",
+      var title = told && told.title ? String(told.title) : payload.title || "LLeMbas";
+      return self.registration.showNotification(title, {
+        body: told && told.body ? String(told.body) : payload.body || "",
         /* One at a time. A browser left closed all day must not be opened to a
            stack of twelve. */
         tag: "lembas-" + (payload.kind || "unread"),
@@ -280,11 +290,13 @@ self.addEventListener("notificationclick", function (event) {
   var data = event.notification.data || {};
   var target = data.url || "/";
 
-  /* Pause, from a failed run's notification: done here, with no window. The
-     id is one the server sent; the route checks it is this person's. */
-  if (event.action === "pause" && /^[0-9a-f]{32}$/.test(data.schedule_id || "")) {
+  /* Pause, from a failed run's notification, and Run again from any run's:
+     done here, with no window. The id is one the server sent; the route
+     checks it is this person's. */
+  var verbs = { pause: "pause", run_again: "run" };
+  if (verbs[event.action] && /^[0-9a-f]{32}$/.test(data.schedule_id || "")) {
     event.waitUntil(
-      fetch("/api/schedules/" + data.schedule_id + "/pause", {
+      fetch("/api/schedules/" + data.schedule_id + "/" + verbs[event.action], {
         method: "POST",
         credentials: "same-origin",
       }).catch(function () { /* Nothing here can ask a person for help. */ })
