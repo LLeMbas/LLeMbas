@@ -2350,7 +2350,7 @@ MESSAGES.update(
             "instancie a pripojené. Teraz nie je pripojené žiadne."
         ),
         "Effort and subagents": "Náročnosť a podagenti",
-        "More": "Viac",
+        "Tools and skills": "Nástroje a schopnosti",
         "What to draw…": "Čo nakresliť…",
         "The reply to the next message is a picture drawn from it.": "Odpoveďou na ďalšiu správu bude obrázok nakreslený podľa nej.",
         "Close chat settings": "Zavrieť nastavenia konverzácie",

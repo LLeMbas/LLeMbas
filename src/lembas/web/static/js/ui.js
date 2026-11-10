@@ -529,12 +529,8 @@
        delegates in app.js -- still runs; this only puts the menu away.
        `menuitemradio` too -- the Agents side's per-device filter is a
        menu of three mutually exclusive choices, which is that role. */
-    /* `data-picker-close`: an item that acts without being a menu item --
-       the chat toolbar's buttons, which are toolbar buttons when the bar is
-       wide and fold into its More menu when it is narrow. */
     var item = event.target.closest(
-      '[data-picker-menu] [role="menuitem"], [data-picker-menu] [role="menuitemradio"], ' +
-      '[data-picker-menu] [data-picker-close]'
+      '[data-picker-menu] [role="menuitem"], [data-picker-menu] [role="menuitemradio"]'
     );
     if (item) {
       close(item.closest("[data-picker]"));
@@ -2177,4 +2173,46 @@ document.addEventListener("lembas:notify", function (event) {
   window.lembas = window.lembas || {};
   window.lembas.openSettings = openSettings;
   window.lembas.closeSettings = closeSettings;
+})();
+
+/*
+  The chat's toolbar, folded (`.chatbar`, chat/index.html): Chat settings
+  opens the row of controls under the header and closes it again. Put away
+  by a click outside it, by Escape, and by opening a side panel from it --
+  the row has done its job then. A menu opened inside the row (the model,
+  Effort and Subagents) is the picker's, and keeps the row open. When the bar
+  is wide the row is part of it and the class does nothing.
+*/
+(function () {
+  "use strict";
+
+  function bar() { return document.querySelector("[data-chatbar]"); }
+
+  function set(el, open) {
+    el.classList.toggle("is-open", open);
+    var toggle = el.querySelector("[data-chatbar-toggle]");
+    if (toggle) toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+
+  document.addEventListener("click", function (event) {
+    var el = bar();
+    if (!el) return;
+    if (event.target.closest("[data-chatbar-toggle]")) {
+      set(el, !el.classList.contains("is-open"));
+      return;
+    }
+    if (!el.classList.contains("is-open")) return;
+    if (!el.contains(event.target) || event.target.closest("[data-toggle]")) set(el, false);
+  });
+
+  document.addEventListener("keydown", function (event) {
+    var el = bar();
+    if (event.key !== "Escape" || !el || !el.classList.contains("is-open")) return;
+    /* A menu open inside the row closes first: the picker's own Escape,
+       which says so with preventDefault. */
+    if (event.defaultPrevented) return;
+    set(el, false);
+    var toggle = el.querySelector("[data-chatbar-toggle]");
+    if (toggle) toggle.focus();
+  });
 })();

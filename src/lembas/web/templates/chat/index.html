@@ -74,21 +74,22 @@
       {% endif %}
 
       {#
-        The chat's controls: one toolbar at the top right (`.chatbar`), in this
-        order -- the temporary toggle (a new chat only), the model, the effort
-        and Subagents, then the fold: the mode, Terminal, Activity, the chat's
-        settings (tools, skills, prompt, sampling) and the inspector. The
+        The chat's controls: one toolbar at the top right (`.chatbar`), the
+        same as LLeMbas Desktop's, in this order: the mode, the model, Effort
+        and Subagents, Terminal, Tools and skills (the settings panel: tools,
+        skills, prompt, sampling), Activity, and the inspector (an
+        administrator's). A new chat has the temporary toggle before them. The
         composer below keeps only the message.
 
-        The fold is ONE set of controls with two layouts, never a copy: wide,
-        its items stand in the bar as icon buttons; when the bar is narrow
-        (`@container topbar` in app.css) they fold behind More as a menu with
-        their names showing. What decides is the bar's own width, not the
-        window's -- the sidebar and a side panel take from it. The model's name
-        is the one thing in the bar that gives (it truncates), and the title
-        has a floor; everything else has a known size, which is what makes the
-        threshold a sum rather than a guess. `tests/test_chatbar.py` proves it
-        in a browser at 1920, 1280, 1024, 800 and 390.
+        When they do not fit (`@container topbar` in chat.css: the bar's own
+        width, which the sidebar and a side panel take from), they fold behind
+        one Chat settings button that opens them as a row under the header,
+        wrapping. The same elements in both layouts, never a copy, so nothing
+        can be in one and missing from the other. The model's name is the one
+        thing in the bar that gives (it truncates) and the title has a floor;
+        everything else has a known size, which is what makes the threshold a
+        sum rather than a guess. `tests/test_chatbar.py` proves it in a browser
+        at 1920, 1280, 1024, 800 and 390.
       #}
       <div class="topbar__actions chatbar" data-chatbar>
         {#
@@ -105,22 +106,13 @@
         </a>
         {% endif %}
 
-        {% if models %}
-          {% if can.get("chat.model_select") or not chat %}
-            {% include "chat/_model_picker.html" %}
-          {% elif current_model %}
-          <span class="badge chatbar__model">{{ current_model.label }}</span>
-          {% endif %}
-        {% endif %}
+        <button class="btn btn--icon chatbar__toggle" type="button" data-chatbar-toggle
+                aria-expanded="false" aria-controls="chatbar-row"
+                aria-label="{{ t('Chat settings') }}" title="{{ t('Chat settings') }}">
+          {{ icon("menu") }}
+        </button>
 
-        {# Effort and Subagents: a popover of its own, never folded -- a menu
-           inside a menu is two layers of "where did it go". On the new-chat
-           screen its fields are the composer form's (`form="composer-form"`). #}
-        {% if models and not (chat and chat.kind == "task") %}
-          {% include "chat/_settings_menu.html" %}
-        {% endif %}
-
-        {% set fold %}
+        <div class="chatbar__row" id="chatbar-row">
         {% if chat and chat.kind == "chat" and not chat.parent_chat_id %}
         {# Plan or Normal. A chat has one mode worth a control: planning --
            reading freely, changing nothing, and finishing with a plan for you
@@ -168,6 +160,21 @@
         </label>
         {% endif %}
 
+        {% if models %}
+          {% if can.get("chat.model_select") or not chat %}
+            {% include "chat/_model_picker.html" %}
+          {% elif current_model %}
+          <span class="badge chatbar__model">{{ current_model.label }}</span>
+          {% endif %}
+        {% endif %}
+
+        {# Effort and Subagents: a popover of its own, never folded -- a menu
+           inside a menu is two layers of "where did it go". On the new-chat
+           screen its fields are the composer form's (`form="composer-form"`). #}
+        {% if models and not (chat and chat.kind == "task") %}
+          {% include "chat/_settings_menu.html" %}
+        {% endif %}
+
         {# Before a chat exists, the terminal depends on a decision made in the
            browser -- the connection select -- which the server cannot see. So
            it renders carrying `data-agent-only` and starts `hidden`; `ui.js`
@@ -176,57 +183,37 @@
         {% if terminal_enabled %}
         <button class="btn btn--icon chatbar__item" type="button" aria-label="{{ t('Terminal') }}"
                 title="{{ t('Open a shell on %(device)s', device=agent_device_name or t('the device')) }}"
-                {% if not chat %}data-agent-only hidden{% endif %} data-picker-close
+                {% if not chat %}data-agent-only hidden{% endif %}
                 aria-expanded="false" data-toggle="#terminal" data-toggle-group="side">
           {{ icon("terminal") }}<span class="chatbar__label" aria-hidden="true">{{ t("Terminal") }}</span>
         </button>
         {% endif %}
-
+        {# The chat's tools and skills, with its prompt and sampling: the
+           settings panel. Keep this chat and Compact are in there too. #}
+        {% if models and (chat or scope_families or scope_skills or scope_allow) and not (chat and chat.kind == "task") %}
+        <button class="btn btn--icon chatbar__item" type="button" aria-label="{{ t('Tools and skills') }}"
+                title="{{ t('Tools, skills, prompt, sampling') }}" aria-expanded="false"
+                data-toggle="#chat-settings" data-toggle-group="side">
+          {{ icon("gear") }}<span class="chatbar__label" aria-hidden="true">{{ t("Tools and skills") }}</span>
+        </button>
+        {% endif %}
         {% if chat and chat.kind != "task" %}
         {# The activity panel: context, outputs, background agents (a team's
            members and room among them) and the plan. #}
         <button class="btn btn--icon chatbar__item" type="button" aria-label="{{ t('Activity') }}"
                 title="{{ t('Context, outputs, background tasks and the plan') }}" aria-expanded="false"
-                data-picker-close data-toggle="#activity" data-toggle-group="side">
+                data-toggle="#activity" data-toggle-group="side">
           {{ icon("bolt") }}<span class="chatbar__label" aria-hidden="true">{{ t("Activity") }}</span>
         </button>
         {% endif %}
-
-        {# The chat's tools and skills, with its prompt and sampling: the
-           settings panel. Keep this chat and Compact are in there too. #}
-        {% if models and (chat or scope_families or scope_skills or scope_allow) and not (chat and chat.kind == "task") %}
-        <button class="btn btn--icon chatbar__item" type="button" aria-label="{{ t('Chat settings') }}"
-                title="{{ t('Tools, skills, prompt, sampling') }}" aria-expanded="false"
-                data-picker-close data-toggle="#chat-settings" data-toggle-group="side">
-          {{ icon("gear") }}<span class="chatbar__label" aria-hidden="true">{{ t("Chat settings") }}</span>
-        </button>
-        {% endif %}
-
         {% if chat and user.is_admin %}
         <button class="btn btn--icon chatbar__item" type="button" aria-label="{{ t('Inspect this chat') }}"
                 title="{{ t('Inspect this chat') }}" aria-expanded="false"
-                data-picker-close data-toggle="#inspector" data-toggle-group="side">
+                data-toggle="#inspector" data-toggle-group="side">
           {{ icon("search") }}<span class="chatbar__label" aria-hidden="true">{{ t("Inspect this chat") }}</span>
         </button>
         {% endif %}
-        {% endset %}
-
-        {% if fold|trim %}
-        {# `data-picker`: the same menu machinery as the model picker (ui.js),
-           and the menu's `hidden` is what the narrow layout obeys; the wide
-           one shows the items whatever it says. #}
-        <div class="picker chatbar__fold" data-picker>
-          <div class="picker__menu chatbar__items" id="chatbar-items" data-picker-menu hidden
-               aria-label="{{ t('More') }}">
-            {{ fold }}
-          </div>
-          <button class="btn btn--icon chatbar__more" type="button" data-picker-toggle
-                  aria-haspopup="true" aria-expanded="false" aria-controls="chatbar-items"
-                  aria-label="{{ t('More') }}" title="{{ t('More') }}">
-            {{ icon("dots") }}
-          </button>
         </div>
-        {% endif %}
       </div>
     </header>
 

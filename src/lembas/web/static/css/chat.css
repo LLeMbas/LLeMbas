@@ -2690,33 +2690,28 @@ details[open] > summary > .agent__chevron { transform: rotate(90deg); }
 /*
   --- The chat's toolbar (`.chatbar`, chat/index.html) -----------------------
 
-  At the top right of the chat, in this order: the temporary toggle (a new chat
-  only), the model, Effort and Subagents (`.chatbar__settings`, a popover), and
-  the fold (`.chatbar__fold`): the mode, Terminal, Activity, the chat's
-  settings and the inspector. One set of controls with two layouts, chosen by
-  the BAR's width (a container query, not the window's: the sidebar and a side
-  panel take from the bar):
+  At the top right of the chat, as LLeMbas Desktop has it: the mode, the
+  model, Effort and Subagents (`.chatbar__settings`, a popover), Terminal,
+  Tools and skills, Activity and the inspector -- all in `.chatbar__row`. One
+  set of controls with two layouts, chosen by the BAR's width (a container
+  query, not the window's: the sidebar and a side panel take from the bar):
 
-  - wide, the fold's items stand in the bar as icon buttons and More is gone;
-  - narrow, they fold behind More (`.chatbar__more`) as a menu with their
-    names showing -- the same elements, so nothing is drawn twice and no
-    control can exist in one layout and not the other.
+  - wide, the row is part of the bar, its items icon buttons;
+  - narrow, the row folds behind Chat settings (`.chatbar__toggle`) and opens
+    as a row under the header that wraps, the items with their names.
 
   Why the threshold is a sum and not a guess: everything in the bar has a known
   size -- icon buttons are `--control-h` square, the mode select is capped at
   `--w-select-sm` and truncates -- except the model's name, which gives (it
-  truncates, `.topbar__actions .picker__label`), and the title, which has a
-  floor. Wide needs, at most: padding 2 x sp-4, the sidebar toggle, the title's
-  4rem, the model picker's avatar and chevron, Effort, the mode and four icon
-  buttons, with their gaps -- about 38rem. The fold starts below 50rem, which
-  leaves the title and the model's name room to say something. `tests/test_chatbar.py`
-  measures it in a browser at 1920, 1280, 1024, 800 and 390.
+  truncates, up to `--w-chip`), and the title, which has a floor. Wide needs,
+  at most: padding 2 x sp-4, the sidebar toggle, the title's 4rem, the model
+  picker's avatar and chevron, the mode, five icon buttons and their gaps --
+  about 38rem. The row folds below 50rem, which leaves the title and the
+  model's name room to say something. `tests/test_chatbar.py` measures it in a
+  browser at 1920, 1280, 1024, 800 and 390.
 */
-.topbar { container: topbar / inline-size; }
-.chatbar__fold { display: flex; align-items: center; flex: none; }
-/* Nothing to fold -- a new chat whose one item, the terminal, waits for a
-   computer to be chosen -- is no More button either. */
-.chatbar__fold:not(:has(.chatbar__items > :not([hidden]))) { display: none; }
+.topbar { container: topbar / inline-size; position: relative; }
+.chatbar__row { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
 .chatbar__field { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
 .chatbar__mode { flex: 0 1 auto; min-width: 0; max-width: var(--w-select-sm); }
 .chatbar__label { white-space: nowrap; }
@@ -2730,26 +2725,11 @@ details[open] > summary > .agent__chevron { transform: rotate(90deg); }
 }
 
 @container topbar (min-width: 50rem) {
+  .chatbar__toggle { display: none; }
   /* The model's name gives, up to a chip's width: past that the title, which
      only `flex: 1`'s leftovers reach, would be the one squeezed. */
-  .chatbar .picker__button { max-width: var(--w-chip); }
-  .chatbar__more { display: none; }
-  /* Shown whatever the menu's `hidden` says: in this layout it is not a menu.
-     (`[hidden]` items inside -- the terminal before a computer is chosen --
-     stay hidden: the global `[hidden]` rule is about them, not this box.) */
-  .chatbar__items,
-  .chatbar__items[hidden] {
-    display: flex !important;
-    align-items: center;
-    gap: var(--sp-2);
-    position: static;
-    width: auto;
-    padding: 0;
-    border: 0;
-    background: none;
-    box-shadow: none;
-    overflow: visible;
-  }
+  .chatbar__row .picker { min-width: 0; }
+  .chatbar__row .picker__button { max-width: var(--w-chip); }
   .chatbar__label {
     position: absolute;
     width: 1px; height: 1px;
@@ -2760,35 +2740,32 @@ details[open] > summary > .agent__chevron { transform: rotate(90deg); }
 }
 
 @container topbar not (min-width: 50rem) {
-  /* The model's name gives first, but not all of it: the chat's own title is
-     what nothing else on the screen says. */
-  .chatbar .picker__button { max-width: var(--w-chip-sm); }
-  .chatbar__items:not([hidden]) {
+  .chatbar__row { display: none; }
+  /* Open: a row of its own under the header, across it, wrapping. Placed
+     against the bar (`.topbar` is positioned), so it lies over the top of the
+     transcript rather than moving it; a menu opened inside it is placed
+     against the row. */
+  .chatbar.is-open .chatbar__row {
     display: flex;
-    flex-direction: column;
-    gap: 0;
-    width: min(var(--w-menu-sm), calc(100vw - var(--sp-8)));
-    padding: var(--sp-1);
+    flex-wrap: wrap;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: var(--z-dropdown);
+    padding: var(--sp-2) max(var(--sp-2), var(--safe-right)) var(--sp-2) max(var(--sp-2), var(--safe-left));
+    background: var(--bg);
+    border-bottom: var(--border-w) dashed var(--border-strong);
   }
+  .chatbar.is-open .chatbar__toggle { color: var(--accent); }
+  /* There is room for the model's name here, whatever the window. */
+  .chatbar__row .picker__label { display: block; }
+  .chatbar__row .picker__button { max-width: 100%; }
+  .chatbar__row .picker { min-width: 0; max-width: 100%; }
   .chatbar__item {
-    width: 100%;
-    height: auto;
-    min-height: var(--tap-min);
-    justify-content: flex-start;
-    gap: var(--sp-3);
-    padding: 0 var(--sp-2);
-    color: var(--ink);
+    width: auto;
+    gap: var(--sp-2);
+    padding: 0 var(--sp-3);
   }
-  .chatbar__item:hover, .chatbar__item:focus-visible { background: var(--surface-hover); }
-  .chatbar__field {
-    justify-content: space-between;
-    min-height: var(--tap-min);
-    padding: 0 var(--sp-2);
-  }
-  .chatbar__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: var(--text-sm); }
-  .chatbar__mode { max-width: 60%; }
-}
-@container topbar (max-width: 30rem) {
-  /* A phone: the avatar carries the model, as the phone rule in app.css says. */
-  .chatbar .picker__label { display: none; }
+  .chatbar__label { font-size: var(--text-sm); }
 }

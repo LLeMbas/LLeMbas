@@ -1,15 +1,17 @@
 """The chat's toolbar and the composer: nothing cut off or unreachable at any width.
 
-The chat's controls -- the model, Effort and Subagents, the mode, Terminal,
-Activity, the chat's settings (tools and skills) and the inspector -- are one
-toolbar at the top right of the chat (`.chatbar`, `chat/index.html`). When the
-bar is narrow the fold's items go behind More, as a menu of the same elements.
-The composer keeps the message: text, attach, Draw a picture, dictate, send.
+The chat's controls -- the mode, the model, Effort and Subagents, Terminal,
+Tools and skills, Activity and the inspector -- are one toolbar at the top
+right of the chat (`.chatbar`, `chat/index.html`), as in LLeMbas Desktop. When
+the bar is narrow they fold behind Chat settings, which opens them as a row
+under the header. The composer keeps the message: text, attach, Draw a
+picture, dictate, send.
 
 Measured in a real Chromium at 1920, 1280, 1024, 800 and 390 px, with a long
 model name, every chip and attachments: every control that is drawn lies inside
 the window and is the thing a click at its centre lands on; what is folded is
-reachable through More, and every item there passes the same test; the title
+reachable through Chat settings, and every control in the row passes the same
+test; the title
 keeps its floor; the Effort and Subagents popover opens inside the window.
 """
 
@@ -56,8 +58,9 @@ window.addEventListener('load', function () {
     out.bar = controls(document.querySelector('.topbar'), CONTROL);
     out.title = Math.round(document.querySelector('.topbar__title').getBoundingClientRect().width);
     out.composer = controls(document.querySelector('.composer__form'), CONTROL);
-    var settings = document.querySelector('.chatbar__settings [data-picker-toggle]');
-    if (settings) {
+    function popover() {
+      var settings = document.querySelector('.chatbar__settings [data-picker-toggle]');
+      if (!settings) return;
       settings.click();
       var menu = document.querySelector('.chatbar__settings [data-picker-menu]');
       var r = menu.getBoundingClientRect();
@@ -66,15 +69,17 @@ window.addEventListener('load', function () {
                       effort: !!menu.querySelector('[data-effort]')};
       settings.click();
     }
-    var more = document.querySelector('.chatbar__more');
-    out.folded = !!more && shown(more);
+    var toggle = document.querySelector('.chatbar__toggle');
+    out.folded = !!toggle && shown(toggle);
     if (out.folded) {
-      more.click();
+      toggle.click();
       setTimeout(function () {
-        out.fold = controls(document.querySelector('.chatbar__items'), CONTROL);
+        out.fold = controls(document.querySelector('.chatbar__row'), CONTROL);
+        popover();
         window.__probe = out;
       }, 200);
     } else {
+      popover();
       window.__probe = out;
     }
   }, 400);
@@ -177,12 +182,13 @@ def test_the_chat_controls_are_the_toolbar_and_the_composer_keeps_the_message(
 
     start = html.index('class="topbar__actions chatbar"')
     bar = html[start:html.index("</header>", start)]
-    order = ["picker__button", 'id="chatbar-settings"', 'name="agent_mode"',
-             'data-toggle="#activity"', 'data-toggle="#chat-settings"']
+    order = ['name="agent_mode"', "picker__button", 'id="chatbar-settings"',
+             'data-toggle="#chat-settings"', 'data-toggle="#activity"',
+             'data-toggle="#inspector"']
     at = [bar.index(marker) for marker in order]
     assert at == sorted(at), "the toolbar's order changed"
     # Effort and Subagents in the popover, never folded.
-    settings = bar[bar.index('id="chatbar-settings"'):bar.index("chatbar__fold")]
+    settings = bar[bar.index('id="chatbar-settings"'):bar.index('data-toggle="#chat-settings"')]
     assert "data-effort" in settings and "data-team-setting" in settings
 
     composer = html[html.index('class="composer__form"'):html.index('id="agent-mode-form"')]
@@ -215,15 +221,17 @@ def test_in_a_browser_nothing_is_cut_off_or_out_of_reach(
     assert result["title"] >= 64, "the chat's title was squeezed below its floor"
 
     names = {row["name"] for row in result["bar"] + result["fold"]}
-    for control in ("Activity", "Chat settings", "Inspect this chat", "Effort and subagents"):
-        assert control in names, (control, "neither in the bar nor behind More")
+    for control in ("Mode", "Activity", "Tools and skills", "Inspect this chat",
+                    "Effort and subagents"):
+        assert control in names, (control, "neither in the bar nor behind Chat settings")
+    assert any("picker__button" in name for name in names), "the model picker is unreachable"
     assert "Draw a picture" not in names  # the composer's, not the bar's
     composer = {row["name"] for row in result["composer"]}
     assert {"Attach", "Dictate a message", "Send"} <= composer
     assert any("composer__chip" in name for name in composer), composer
 
     if result["folded"]:
-        reachable(result["fold"], "More menu")
+        reachable(result["fold"], "Chat settings row")
     settings = result["settings"]
     assert settings["open"] and settings["effort"] and settings["subagents"]
     assert settings["left"] >= 0 and settings["right"] <= width

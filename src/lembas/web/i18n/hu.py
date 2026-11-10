@@ -1162,7 +1162,7 @@ MESSAGES.update(
         "Send a message…": "Írjon üzenetet…",
         "Ask anything…": "Kérdezzen bármit…",
         "Effort and subagents": "Erőfeszítés és alügynökök",
-        "More": "Több",
+        "Tools and skills": "Eszközök és készségek",
         "What to draw…": "Mit rajzoljon…",
         "The reply to the next message is a picture drawn from it.": "A következő üzenetre adott válasz egy abból rajzolt kép lesz.",
         "Enter to send, Shift+Enter for a new line. %(commands)s, @ for files.": "Enter a küldéshez, Shift+Enter új sorhoz. %(commands)s, @ a fájlokhoz.",

@@ -1162,7 +1162,7 @@ MESSAGES.update(
         "Send a message…": "Envoyer un message…",
         "Ask anything…": "Demandez n'importe quoi…",
         "Effort and subagents": "Effort et sous-agents",
-        "More": "Plus",
+        "Tools and skills": "Outils et compétences",
         "What to draw…": "Que dessiner…",
         "The reply to the next message is a picture drawn from it.": "La réponse au prochain message est une image dessinée d’après lui.",
         "Enter to send, Shift+Enter for a new line. %(commands)s, @ for files.": "Enter pour envoyer, Shift+Enter pour un saut de ligne. %(commands)s, @ pour les fichiers.",

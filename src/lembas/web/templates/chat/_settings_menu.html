@@ -46,10 +46,10 @@
    depends on a setting. The level is in the popover, on the control that
    sets it. #}
 <div class="picker chatbar__settings" data-picker>
-  <button class="btn btn--icon" type="button" data-picker-toggle
+  <button class="btn btn--icon chatbar__item" type="button" data-picker-toggle
           aria-haspopup="dialog" aria-expanded="false"
           aria-label="{{ t('Effort and subagents') }}" title="{{ t('Effort and subagents') }}">
-    {{ icon("sliders") }}
+    {{ icon("sliders") }}<span class="chatbar__label" aria-hidden="true">{{ t("Effort and subagents") }}</span>
   </button>
 
   <div class="picker__menu picker__menu--settings" data-picker-menu role="dialog"

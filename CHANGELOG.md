@@ -7,12 +7,12 @@ at <https://llembas.eu/changelog.html>.
 
 ### Changed
 
-- **The chat's controls are one toolbar at the top right of the chat.** The model, Effort and
-  Subagents, the mode (Normal/Plan, or an agent chat's approval mode), Terminal, Activity, the
-  chat's settings (tools, skills, prompt, sampling) and the inspector sit in the chat's header, in
-  that order. When the header is narrow -- a phone, or a window with the sidebar and a panel open
-  -- everything after Effort and Subagents folds behind **More**, the same controls with their
-  names showing. The composer keeps the message: the text, Attach, **Draw a picture**, Dictate and
+- **The chat's controls are one toolbar at the top right of the chat**, as in LLeMbas Desktop:
+  the mode (Normal/Plan, or an agent chat's approval mode), the model, Effort and Subagents,
+  Terminal, Tools and skills (the chat's settings panel), Activity and the inspector, in that order.
+  When the header is narrow -- a phone, or a window with the sidebar and a panel open -- they fold
+  behind one **Chat settings** button, which opens them as a row under the header, with their
+  names. The composer keeps the message: the text, Attach, Dictate, **Draw a picture** and
   Send/Stop. Checked in a browser at 1920, 1280, 1024, 800 and 390 px with a long model name,
   attachments and every control drawn: nothing is cut off and everything can be pressed.
 - **Where a new agent chat runs is a row of its own** above the composer's buttons (the computer,

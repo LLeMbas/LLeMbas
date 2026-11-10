@@ -17,11 +17,11 @@
   Layout: the attachment chips, then the text, then -- on a new agent chat
   only -- where it will run (`.composer__target`: the computer, the directory
   and the approval mode, a row that wraps and never scrolls), then one toolbar
-  row: attach and "Draw a picture" on the left (`.composer__tools`), dictate
-  and send/stop on the right (`.composer__actions`). That is all the composer
-  holds: the message. The chat's own controls -- model, effort and Subagents,
-  mode, Terminal, Activity, tools and skills -- are the toolbar at the top
-  right of the chat (`.chatbar`, in `chat/index.html`).
+  row: attach, dictate and "Draw a picture" on the left (`.composer__tools`),
+  send/stop on the right (`.composer__actions`), as LLeMbas Desktop has it.
+  That is all the composer holds: the message. The chat's own controls --
+  mode, model, Effort and Subagents, Terminal, Tools and skills, Activity --
+  are the toolbar at the top right of the chat (`.chatbar`, `chat/index.html`).
 #}
 {# The chat, the connection and the directory, where composer.js can read them
    without parsing them back out of a URL. On a new chat the connection is
@@ -234,6 +234,20 @@
 
           {% endif %}
 
+          {% if can_dictate %}
+          {# Dictate, beside attach as in LLeMbas Desktop: attach, dictate, draw
+             a picture on the left, send on the right. Recording is started and stopped by the same button; audio.js swaps
+             data-mic-state and the icon with it. #}
+          <button class="btn btn--icon composer__btn composer__mic" type="button"
+                  data-mic data-mic-state="idle"
+                  aria-label="{{ t('Dictate a message') }}" title="{{ t('Dictate a message') }}">
+            <span class="composer__icon composer__icon--mic">{{ icon("mic") }}</span>
+            <span class="composer__icon composer__icon--recording" aria-hidden="true">
+              {{ icon("stop-circle") }}
+            </span>
+          </button>
+          {% endif %}
+
           {#
             Draw a picture: the reply to the next message is a picture drawn
             from it (`force_tool=image_generate`, the same field `/image`
@@ -253,18 +267,6 @@
         </div>
 
         <div class="composer__actions">
-          {% if can_dictate %}
-          {# Recording is started and stopped by the same button; audio.js swaps
-             data-mic-state and the icon with it. #}
-          <button class="btn btn--icon composer__btn composer__mic" type="button"
-                  data-mic data-mic-state="idle"
-                  aria-label="{{ t('Dictate a message') }}" title="{{ t('Dictate a message') }}">
-            <span class="composer__icon composer__icon--mic">{{ icon("mic") }}</span>
-            <span class="composer__icon composer__icon--recording" aria-hidden="true">
-              {{ icon("stop-circle") }}
-            </span>
-          </button>
-          {% endif %}
 
           {#
             One button, two jobs. While a reply is being written it becomes Stop,

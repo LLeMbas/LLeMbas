@@ -1162,7 +1162,7 @@ MESSAGES.update(
         "Send a message…": "Napište zprávu…",
         "Ask anything…": "Zeptejte se na cokoli…",
         "Effort and subagents": "Náročnost a podagenti",
-        "More": "Více",
+        "Tools and skills": "Nástroje a dovednosti",
         "What to draw…": "Co nakreslit…",
         "The reply to the next message is a picture drawn from it.": "Odpovědí na další zprávu bude obrázek nakreslený podle ní.",
         "Enter to send, Shift+Enter for a new line. %(commands)s, @ for files.": "Enter odešle, Shift+Enter přidá nový řádek. %(commands)s, @ pro soubory.",
