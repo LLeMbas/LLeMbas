@@ -70,6 +70,11 @@ before its tag; the pin to a release tag comes with the release.
   header; frames are the page's. `GET /api/v2/devices` says `terminal` for each device: whether a
   Terminal can be offered on it.
 
+- **`scripts/smoke_live.py`**: a post-deploy check of a running instance -- healthz, its version, the
+  token's models, one short temporary chat on a model you name whose stream must carry `status`
+  with `progress` and end in `done`, then that chat deleted. The token comes from an environment
+  variable and is never printed; nothing else is changed.
+
 ### Fixed
 
 - **A command corrected on an agent chat's approval card ran as the model wrote it.** The edit never
