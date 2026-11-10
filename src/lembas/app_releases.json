@@ -2,10 +2,10 @@
   "about": "The LLeMbas apps this server recommends, read by GET /api/v2/apps (services/app_releases.py). Moved at every release to the apps released with it. `stable` is offered by every server; `beta` only by a server that is itself a beta (its version has a suffix) -- a stable server never offers a beta. null: none to recommend.",
   "android": {
     "stable": null,
-    "beta": "1.0.0-beta.5"
+    "beta": "1.0.0-beta.6"
   },
   "desktop": {
     "stable": null,
-    "beta": "1.0.0-beta.6"
+    "beta": "1.0.0-beta.7"
   }
 }
