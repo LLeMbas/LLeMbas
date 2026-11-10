@@ -491,7 +491,7 @@ async def test_a_lead_adds_two_members_who_message_each_other_and_report(
 
     seen: list[dict] = []
 
-    async def stream_chat(_endpoint, payload):
+    async def stream_chat(_endpoint, payload, **_):
         seen.append(payload)
         for chunk in _script(payload):
             yield chunk

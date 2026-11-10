@@ -40,6 +40,7 @@ STATUSES = (STATUS_OK, STATUS_LOADING, STATUS_DOWN, STATUS_ERROR)
 
 # llama-swap's words for a model on its way in.
 _STARTING = ("starting", "loading")
+STARTING = _STARTING
 
 
 def _root(base_url: str) -> str:

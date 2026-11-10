@@ -106,7 +106,7 @@ async def test_a_subagent_finds_finishes_and_ends_and_the_main_agent_reads_it(
 ):
     from lembas.services import wake as wake_service
 
-    async def stream_chat(_endpoint, payload):
+    async def stream_chat(_endpoint, payload, **_):
         for chunk in _script(payload):
             yield chunk
 
@@ -195,7 +195,7 @@ async def test_a_full_context_pauses_a_subagent_for_one_final_turn_then_it_ends(
                                       "task": "Write routes.", "goal": "An API"})
         return _say("Noted.")
 
-    async def stream_chat(_endpoint, payload):
+    async def stream_chat(_endpoint, payload, **_):
         for chunk in script(payload):
             yield chunk
 

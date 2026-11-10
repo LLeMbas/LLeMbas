@@ -459,7 +459,47 @@ def attachment(row: Any) -> dict[str, Any]:
     }
 
 
-def message(row: Message) -> dict[str, Any]:
+def queued_progress(row: Message, ahead: int | None = None) -> dict[str, Any] | None:
+    """A prompt waiting behind a reply in a chat on the server: the `queued`
+    phase (harness spec 3.4.0, progress.md §4), `since` it was typed, with the
+    turns before it -- the reply running now and the prompts queued earlier.
+    None for any other message. `ahead` is counted from the row's session when
+    the caller does not give it."""
+    if row.role != "user" or not row.queued:
+        return None
+    out: dict[str, Any] = {"phase": "queued"}
+    if row.created_at is not None:
+        moment = row.created_at if row.created_at.tzinfo else row.created_at.replace(tzinfo=UTC)
+        out["since"] = int(moment.timestamp() * 1000)
+    if ahead is None:
+        ahead = _ahead(row)
+    if ahead is not None:
+        out["ahead"] = int(ahead)
+    return out
+
+
+def _ahead(row: Message) -> int | None:
+    from sqlalchemy import func, select
+    from sqlalchemy.orm import object_session
+
+    from lembas.services import generation as generation_service
+
+    db = object_session(row)
+    if db is None:
+        return None
+    earlier = db.scalar(
+        select(func.count(Message.id)).where(
+            Message.chat_id == row.chat_id,
+            Message.role == "user",
+            Message.queued.is_(True),
+            Message.created_at < row.created_at,
+        )
+    )
+    running = generation_service.running_for(row.chat_id) is not None
+    return int(earlier or 0) + (1 if running else 0)
+
+
+def message(row: Message, *, ahead: int | None = None) -> dict[str, Any]:
     out: dict[str, Any] = {
         "id": row.id,
         "role": row.role,
@@ -481,6 +521,8 @@ def message(row: Message) -> dict[str, Any]:
         # The person's own words are not model output, and were never
         # rendered as markdown; they travel as they were typed.
         out["text"] = row.content or ""
+        # A queued prompt says so the spec's way; any other has no progress.
+        out["progress"] = queued_progress(row, ahead)
     return out
 
 

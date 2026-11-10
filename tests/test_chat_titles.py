@@ -38,7 +38,7 @@ def _chat_awaiting_a_reply(db, user_id, *, kind="chat", question="Rebuild the se
 
 
 def _stub_stream(text: str):
-    async def stream_chat(_endpoint, _payload):
+    async def stream_chat(_endpoint, _payload, **_):
         yield {"choices": [{"delta": {"content": text}}]}
 
     return stream_chat

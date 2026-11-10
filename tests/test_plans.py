@@ -74,7 +74,7 @@ def _text_chunk(text: str) -> dict:
 
 
 def _stub_stream(rounds, seen):
-    async def stream_chat(_endpoint, payload):
+    async def stream_chat(_endpoint, payload, **_):
         seen.append(payload)
         for chunk in rounds[min(len(seen) - 1, len(rounds) - 1)]:
             yield chunk

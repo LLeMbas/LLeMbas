@@ -108,7 +108,7 @@ def test_a_refused_effort_is_retried_without_enable_thinking_too():
 
     sent: list[dict] = []
 
-    async def fake_stream(endpoint, payload):
+    async def fake_stream(endpoint, payload, **_):
         sent.append(payload)
         if len(sent) == 1:
             raise LLMError("Unexpected reasoning effort high. Supported types are low, medium")

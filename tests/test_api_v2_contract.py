@@ -204,6 +204,13 @@ def _user() -> Message:
     )
 
 
+def _queued() -> Message:
+    """A prompt typed while a reply runs, behind it and one earlier prompt."""
+    row = _user()
+    row.id, row.content, row.queued, row.complete = "msg3", "And the leaves?", True, False
+    return row
+
+
 def _plan() -> dict:
     return {"title": "Bake lembas", "steps": ["Gather mallorn leaves", "Bake slowly"]}
 
@@ -637,6 +644,7 @@ def _shapes() -> dict[str, object]:
         # A page of the sidebar: `subagents` is not worked out there (null).
         "chats_listed": {"chats": [serialise.chat(_chat(), running=False)], "more": False},
         "message_user": serialise.message(_user()),
+        "message_queued": serialise.message(_queued(), ahead=2),
         "message_assistant": assistant,
         "event_steps": {"steps": serialise.live_steps(generation), "tail": tail},
         "event_tail": tail,

@@ -42,7 +42,7 @@ def _text_chunk(text: str) -> dict:
 def _stub_stream(rounds, seen_payloads):
     """A stream_chat that returns a different scripted round each time."""
 
-    async def stream_chat(_endpoint, payload):
+    async def stream_chat(_endpoint, payload, **_):
         seen_payloads.append(payload)
         for chunk in rounds[min(len(seen_payloads) - 1, len(rounds) - 1)]:
             yield chunk
@@ -236,7 +236,7 @@ async def test_running_out_of_rounds_still_produces_an_answer(db, user_id, monke
 
     payloads: list[dict] = []
 
-    async def stream_chat(_endpoint, payload):
+    async def stream_chat(_endpoint, payload, **_):
         payloads.append(payload)
         # A model that answers when told the tools are withdrawn -- and then
         # calls one anyway, which is not run (spec 3.1.0: the wrap-up keeps
@@ -667,7 +667,7 @@ async def test_thinking_time_is_recorded_per_round(db, user_id, monkeypatch):
 
     monkeypatch.setattr("lembas.services.search.run", _empty_search)
 
-    async def slow_stream(_endpoint, payload):
+    async def slow_stream(_endpoint, payload, **_):
         """Two rounds, each thinking for a measurable moment."""
         yield {"choices": [{"delta": {"reasoning_content": "mulling it over"}}]}
         await _asyncio.sleep(0.05)

@@ -362,10 +362,28 @@ def context_from(entry: dict[str, Any]) -> int:
 # is running there now, and a restart is the right time to find out afresh.
 _NO_STREAM_OPTIONS: set[str] = set()
 
+# Endpoints that refused `return_progress` (quirks.json `prompt-progress`),
+# likewise: learned per base URL per process, never asked again.
+_NO_PROGRESS: set[str] = set()
+
+
+def asks_progress(endpoint: Endpoint) -> bool:
+    """Whether a reply on `endpoint` asks how far the prompt has been read
+    (llama.cpp's `return_progress`): only a self-hosted, OpenAI-compatible
+    server -- a hosted API has nothing to report and some refuse an unknown
+    field -- and only until it has refused it once."""
+    from lembas.services.llm import providers
+
+    if endpoint.is_anthropic or endpoint.base_url in _NO_PROGRESS:
+        return False
+    return providers.get(endpoint.provider_type).local
+
 
 async def stream_chat(
     endpoint: Endpoint,
     payload: dict[str, Any],
+    *,
+    progress: bool = False,
 ) -> AsyncIterator[dict[str, Any]]:
     """Stream a chat completion, yielding each parsed SSE data object.
 
@@ -388,12 +406,23 @@ async def stream_chat(
         return
 
     wants_usage = endpoint.base_url not in _NO_STREAM_OPTIONS
+    # `return_progress` is asked for only by a reply a person watches (the
+    # caller says so): a `/v1` relay or a compaction has nobody to show it to.
+    wants_progress = progress and asks_progress(endpoint)
+    # Dropped after a 400 that did not name it: learned only if the retry
+    # without it then works, so a 400 for something else (a prompt too long)
+    # does not switch progress off for good.
+    dropped_progress = False
     retried_server_error = False
 
     while True:
         sent = False
         try:
-            async for chunk in _stream_once(endpoint, payload, usage=wants_usage):
+            async for chunk in _stream_once(
+                endpoint, payload, usage=wants_usage, progress=wants_progress
+            ):
+                if not sent and dropped_progress:
+                    _NO_PROGRESS.add(endpoint.base_url)
                 sent = True
                 yield chunk
             return
@@ -402,6 +431,20 @@ async def stream_chat(
             # second request would duplicate what was already shown.
             if sent:
                 raise
+            refused = exc.status_code in (400, 422) and not isinstance(exc, StreamError)
+            # A 400 that names stream_options is about that; one that names
+            # neither field drops progress first (the newer, rarer of the two)
+            # -- the CLI's order (`provider/openai-chat.ts`).
+            # A template refusing the effort is the caller's retry, not this one.
+            about_other = any(w in exc.message for w in ("stream_options", "effort"))
+            if wants_progress and refused and not about_other:
+                wants_progress = False
+                if "return_progress" in exc.message:
+                    _NO_PROGRESS.add(endpoint.base_url)
+                else:
+                    dropped_progress = True
+                log.info("%s refused return_progress; retrying without it", endpoint.base_url)
+                continue
             if wants_usage and exc.status_code in (400, 422) and not isinstance(exc, StreamError):
                 _NO_STREAM_OPTIONS.add(endpoint.base_url)
                 log.info(
@@ -428,12 +471,15 @@ async def _stream_once(
     payload: dict[str, Any],
     *,
     usage: bool,
+    progress: bool = False,
 ) -> AsyncIterator[dict[str, Any]]:
     from lembas.services.llm import providers
 
     body = {**providers.shape_request(endpoint.provider_type, payload), "stream": True}
     if usage:
         body["stream_options"] = {"include_usage": True}
+    if progress:
+        body["return_progress"] = True
 
     try:
         async with (

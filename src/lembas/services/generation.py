@@ -59,6 +59,7 @@ from lembas.services import prompts as prompts_service
 from lembas.services import push as push_service
 from lembas.services import tools as tools_service
 from lembas.services import usage as usage_service
+from lembas.services.llm import swap as swap_service
 from lembas.services.llm.openai_client import (
     LLMError,
     assistant_blocks,
@@ -754,7 +755,7 @@ async def _stream_once(endpoint, payload, generation, model_id: str):
     """
     sent = False
     try:
-        async for chunk in stream_chat(endpoint, payload):
+        async for chunk in stream_chat(endpoint, payload, progress=True):
             sent = True
             yield chunk
         return
@@ -781,7 +782,7 @@ async def _stream_once(endpoint, payload, generation, model_id: str):
     else:
         retry.pop("chat_template_kwargs", None)
 
-    async for chunk in stream_chat(endpoint, retry):
+    async for chunk in stream_chat(endpoint, retry, progress=True):
         yield chunk
 
 
@@ -1099,8 +1100,13 @@ async def _run(generation: Generation) -> None:
             # reading the prompt (spec 3.4.0, progress.md §4).
             generation.tracker.set("reading_prompt")
             generation.touch()
+            # A one-model server may be loading the model first: said only
+            # where it says so (`services/llm/swap.py`), never guessed.
+            banner = swap_service.SwapBanner()
+            watch = _load_watch(generation, route).start()
             async for chunk in _until_stopped(
-                generation, fallback_service.stream(route, payload, generation, _stream_once)
+                generation,
+                _watched(watch, fallback_service.stream(route, payload, generation, _stream_once)),
             ):
                 if read := prompt_read(chunk):
                     generation.tracker.set("reading_prompt", **read)
@@ -1128,6 +1134,16 @@ async def _run(generation: Generation) -> None:
                     generation.touch()
 
                 thought = delta_reasoning(chunk)
+                if thought:
+                    fed = banner.feed(thought)
+                    if fed.loading:
+                        _loading_model(generation, route)
+                    elif fed.loaded:
+                        generation.tracker.set("reading_prompt")
+                        generation.touch()
+                    thought = fed.text
+                if not banner.inside:
+                    watch.heard.set()
                 if thought:
                     generation.tracker.set("thinking")
                     if reasoning_started is None:
@@ -1756,6 +1772,35 @@ def _wrap_up(
     told = harness_spec.fill(harness_spec.loop()["wrap_up"]["message"], {"limit": limit})
     messages = [*payload.get("messages", []), {"role": "user", "content": told}]
     return list(payload.get("tools") or []), {**payload, "messages": messages}
+
+
+def _load_watch(generation: Generation, route) -> swap_service.LoadWatch:
+    """The watch for this request's model being loaded (`swap.LoadWatch`):
+    `loading_model` while its server says so, `reading_prompt` after."""
+
+    def loaded() -> None:
+        if (generation.tracker.current or {}).get("phase") == "loading_model":
+            generation.tracker.set("reading_prompt")
+            generation.touch()
+
+    return swap_service.LoadWatch(
+        route.endpoint, route.model_id, lambda: _loading_model(generation, route), loaded
+    )
+
+
+def _loading_model(generation: Generation, route) -> None:
+    label = (route.taken.label if route.taken is not None else route.label) or route.model_id
+    generation.tracker.set("loading_model", model=label)
+    generation.touch()
+
+
+async def _watched(watch: swap_service.LoadWatch, stream):
+    """`stream`'s chunks, the watch stopped however they end."""
+    try:
+        async for chunk in stream:
+            yield chunk
+    finally:
+        await watch.stop()
 
 
 def prompt_read(chunk: Any) -> dict[str, int] | None:

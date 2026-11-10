@@ -74,7 +74,7 @@ async def test_thinking_closes_when_prose_starts_and_a_call_says_preparing(
     seen: dict = {}
     generation = generation_service.Generation(chat_id=chat_id, message_id=message_id)
 
-    async def stream_chat(_endpoint, payload):
+    async def stream_chat(_endpoint, payload, **_):
         if seen.get("round"):
             yield _text("Done.")
             return
@@ -113,7 +113,7 @@ async def test_stop_lands_during_a_prefill_with_no_chunk_in_flight(db, user_id, 
     chat_id, message_id = _chat(db, user_id, tools=False)
     closed = asyncio.Event()
 
-    async def stream_chat(_endpoint, payload):
+    async def stream_chat(_endpoint, payload, **_):
         try:
             await asyncio.sleep(60)  # the upstream is still processing the prompt
             yield _text("too late")
@@ -137,7 +137,7 @@ async def test_stop_lands_while_a_tool_runs(db, user_id, monkeypatch):
     chat_id, message_id = _chat(db, user_id)
     requests = []
 
-    async def stream_chat(_endpoint, payload):
+    async def stream_chat(_endpoint, payload, **_):
         requests.append(payload)
         yield _call("web_search", '{"query": "mallorn"}')
 
@@ -170,7 +170,7 @@ async def test_an_edit_while_a_reply_runs_stops_it_and_goes_ahead(db, user_id, m
 
     chat_id, message_id = _chat(db, user_id, tools=False)
 
-    async def stream_chat(_endpoint, payload):
+    async def stream_chat(_endpoint, payload, **_):
         if payload["messages"][-1]["content"].endswith("Edited."):
             yield _text("New answer.")
             return

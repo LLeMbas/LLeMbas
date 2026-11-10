@@ -3,6 +3,22 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## Unreleased
+
+### Added
+
+- **Loading the model, and how far the prompt has been read.** A reply on a self-hosted server now
+  asks it how far it has read the prompt (llama.cpp's `return_progress`) and shows "Reading the
+  prompt: 1,200 / 8,000 tokens (15%)"; a server that refuses the field is asked once and then left
+  alone. While a one-model server (llama-swap) is still loading the model the reply needs, the reply
+  says "Loading {model}" -- only when that server says so, from its list of running models or its
+  loading banner, never guessed from a slow answer. The banner is no longer kept as the reply's
+  thinking.
+- **A prompt queued behind a reply says so.** On `/api/v2` a message typed while a reply is being
+  written carries `progress` `{"phase": "queued", "since", "ahead"}` -- `ahead` counts the reply
+  running and the prompts queued before it; every other message has `progress: null`. Fixtures:
+  new `message_queued.json`; `message_user.json` gains `progress`.
+
 ## 2.0.0-beta.8 — 2026-11-10
 
 The harness spec is **3.4.0** (progress phases; subagents v2), pinned from LLeMbas CLI
