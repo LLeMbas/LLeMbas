@@ -530,33 +530,34 @@ def test_switching_model_seeds_the_persons_default(client: TestClient, db, regis
 
 
 # --- The composer and the header -------------------------------------------------
-def test_the_composer_popover_is_an_effort_slider_and_more_settings(
+def test_the_effort_popover_is_an_effort_slider_and_nothing_else(
     client: TestClient, db, registered, make_chat
 ):
+    """In the chat's toolbar now. The settings panel (tools, skills, prompt,
+    sampling) is the toolbar's own Tools and skills button, not an entry in
+    the popover."""
     _model(db, "m", reasoning=True)
     chat_id = make_chat()
     html = client.get(f"/chat/{chat_id}").text
-    form_at = html.index('id="composer-form"')
-    composer = html[html.index('class="composer"'):html.index("</form>", form_at)]
+    slot = html[html.index('id="chatbar-settings"'):html.index('data-toggle="#chat-settings"')]
 
-    menu = composer[composer.index("picker__menu--settings"):]
+    menu = slot[slot.index("picker__menu--settings"):]
     assert 'type="range"' in menu
     # No thinking switch on this model: its levels are its efforts (spec 3.2.0).
     assert 'data-levels=\'["low", "medium", "high"]\'' in menu
     assert 'min="0" max="2"' in menu
     assert "aria-valuetext=" in menu
-    assert ">More settings<" in menu
-    assert 'data-toggle="#chat-settings"' in menu
     # The state is still the one select the slash command and htmx use.
     assert menu.count('data-effort ') + menu.count('data-effort\n') >= 1
     assert 'hx-patch="/api/chats/' in menu
-    # Nothing else in it: no tool switches, no skills.
+    # Nothing else in it: no tool switches, no skills, no way into the panel.
     assert '"kind": "family"' not in menu
+    assert "More settings" not in html
     # The old tools button is gone.
     assert 'aria-label="Toggle"' not in html
 
 
-def test_without_a_reasoning_model_the_button_opens_the_panel(
+def test_the_panel_has_its_own_toolbar_button(
     client: TestClient, db, registered, make_chat
 ):
     _model(db, "m")
@@ -564,8 +565,8 @@ def test_without_a_reasoning_model_the_button_opens_the_panel(
     html = client.get(f"/chat/{chat_id}").text
     assert 'type="range"' not in html
     assert re.search(
-        r'<button class="btn btn--icon composer__btn" type="button"\s+'
-        r'data-toggle="#chat-settings" data-toggle-group="side"', html
+        r'<button class="btn btn--icon chatbar__item" type="button" '
+        r'aria-label="Tools and skills"[^>]*data-toggle="#chat-settings"', html, re.S
     )
 
 

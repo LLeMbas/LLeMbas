@@ -200,14 +200,15 @@ def test_the_effort_select_carries_its_own_verb(client: TestClient, db, register
 def test_the_effort_is_offered_before_there_is_a_chat(client: TestClient, db, registered):
     """Otherwise it is a setting you can only reach once it is too late to use.
 
-    On the new-chat screen there is nothing to PATCH, so it is an ordinary field
-    of the composer's form and carries no verb -- `_new_chat` reads it.
+    On the new-chat screen there is nothing to PATCH, so it is a field of the
+    composer's form and carries no verb -- `_new_chat` reads it. It sits in the
+    chat's toolbar, outside that form, so it names it (`form="composer-form"`).
     """
     _model(db)
 
     select = control_named(client.get("/chat").text, "reasoning_effort")
     assert "hx-patch" not in select
-    assert "form" not in select
+    assert select.get("form") == "composer-form"
 
 
 def test_starting_a_chat_with_an_effort_stores_it(client: TestClient, db, registered):

@@ -224,30 +224,22 @@ def test_the_slash_commands_use_the_window_too():
 
 
 # --- The composer's settings button ---------------------------------------------
-def test_the_composer_settings_button_is_the_attach_buttons_twin(
+def test_the_effort_button_is_an_icon_button_of_the_chats_toolbar(
     client: TestClient, db, registered, make_chat
 ):
+    """Effort and Subagents moved from the composer to the chat's toolbar: an
+    icon button like the bar's others, its name hidden while the bar is wide
+    (shown in the folded row), and no effort level on it, short or long."""
     _model(db, "m", reasoning=True)
     chat_id = make_chat()
     html = client.get(f"/chat/{chat_id}").text
 
-    def toggle_classes(label: str) -> tuple[str, str]:
-        at = html.index(f'aria-label="{label}" title="{label}"')
-        tag = html[html.rindex("<button", 0, at) : html.index(">", at)]
-        inner = html[html.index(">", at) + 1 : html.index("</button>", at)]
-        return re.search(r'class="([^"]*)"', tag).group(1), inner
-
-    attach_classes, attach_inner = toggle_classes("Attach")
-    settings_classes, settings_inner = toggle_classes("Chat settings")
-    assert settings_classes == attach_classes == "btn btn--icon composer__btn"
-    # An icon and nothing else: no effort level, short or long.
-    assert "data-effort-short" not in html
-    assert "composer__effort-short" not in html
-    assert re.sub(r"<svg.*?</svg>", "", settings_inner, flags=re.S).strip() == ""
-    assert "#i-sliders" in settings_inner
-    assert attach_inner.count("<svg") == settings_inner.count("<svg") == 1
-    # The same icon size as attach's: no `icon--sm` on one and not the other.
-    def svg_class(inner: str) -> str:
-        return re.search(r'<svg class="([^"]*)"', inner).group(1).strip()
-
-    assert svg_class(settings_inner) == svg_class(attach_inner)
+    label = "Effort and subagents"
+    at = html.index(f'aria-label="{label}" title="{label}"')
+    tag = html[html.rindex("<button", 0, at) : html.index(">", at)]
+    inner = html[html.index(">", at) + 1 : html.index("</button>", at)]
+    assert re.search(r'class="([^"]*)"', tag).group(1) == "btn btn--icon chatbar__item"
+    assert "data-effort-short" not in html and "composer__effort-short" not in html
+    assert "#i-sliders" in inner and inner.count("<svg") == 1
+    rest = re.sub(r"<svg.*?</svg>", "", inner, flags=re.S).strip()
+    assert rest == f'<span class="chatbar__label" aria-hidden="true">{label}</span>'

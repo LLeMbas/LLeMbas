@@ -126,6 +126,8 @@ LABELS: dict[str, str] = {
     "skill_edit": "Skill updated",
     # Stopping to ask.
     "ask_user": "Asked you",
+    # Done on the person's phone, once they confirmed it there (spec 3.6.0).
+    "phone_action": "On your phone",
 }
 
 # A symbol id from templates/partials/icons.html. Everything used to be the
@@ -208,6 +210,7 @@ ICONS: dict[str, str] = {
     "skill_create": "sparkle",
     "skill_edit": "sparkle",
     "ask_user": "chat",
+    "phone_action": "send",
 }
 
 # The icon for an event whose tool is not in the table -- a custom HTTP tool, an
