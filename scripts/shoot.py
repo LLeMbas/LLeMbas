@@ -16,8 +16,9 @@ clicks selectors once the page has loaded (a popover, a side panel);
 `SHOOT_FILL=#sel=/path,…` puts the fragment served at `/path` inside `#sel`
 first (what htmx would have fetched into it -- the helper panel's body);
 `SHOOT_TAG` names a run; `SHOOT_TEAM=1` seeds a team at work in the chat (and
-`SHOOT_ONE_REQUEST=1` puts it on a one-request model); `/chat/<SHOOT_DEVICE_CHAT>` is the linked device's chat
-with two fake background jobs, for the jobs strip and the helper panel.
+`SHOOT_ONE_REQUEST=1` puts it on a one-request model); `/chat/<SHOOT_DEVICE_CHAT>`
+is the linked device's chat with two fake background jobs, for the jobs strip
+and the helper panel.
 
 Not a test runner: an instrument. It renders a page through TestClient, rewrites
 every asset URL to a file:// path, and refuses to continue if even one is left
