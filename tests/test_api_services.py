@@ -212,6 +212,26 @@ def test_a_library_token_reaches_none_of_it(client, db, registered):
     assert client.post("/v1/audio/speech", headers=headers, json={"input": "x"}).status_code == 403
 
 
+def test_an_apps_sign_in_reaches_voice_and_images_on_v1(client, db, registered, mock_http):
+    """Voice and images stay on `/v1` for the apps: their sign-in asks for
+    `app models`, and the `models` half is what these routes take. A token
+    with `app` alone is refused there, and says why on `/api/v2/me`."""
+    _voice(db)
+    mock_http(lambda request: httpx.Response(200, content=b"RIFFwav",
+                                             headers={"content-type": "audio/wav"}))
+    both = _bearer(db, scopes=("app", "models"))
+    spoken = client.post("/v1/audio/speech", headers=both, json={"input": "Mellon."})
+    assert spoken.status_code == 200 and spoken.content == b"RIFFwav"
+    drawn = client.post("/v1/images/generations", headers=both, json={"prompt": "a mallorn"})
+    assert drawn.status_code not in (401, 403)
+    app_only = _bearer(db, scopes=("app",))
+    assert client.post("/v1/audio/speech", headers=app_only, json={"input": "x"}).status_code == 403
+    assert client.post(
+        "/v1/images/generations", headers=app_only, json={"prompt": "x"}
+    ).status_code == 403
+    assert client.get("/api/v2/me", headers=app_only).json()["scopes"] == ["app"]
+
+
 def test_the_devices_card_takes_a_code(client, db, registered):
     """On Settings → Devices, beside the devices it lists. The tab's old name,
     Connections, still opens it."""
