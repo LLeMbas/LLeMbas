@@ -3,7 +3,10 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
-## Unreleased
+## 2.0.0-beta.10 — 2026-11-10
+
+The harness spec is **3.6.0** (phone actions), pinned from LLeMbas CLI v2.0.0-beta.8. It recommends LLeMbas
+Desktop 1.0.0-beta.8 and LLeMbas for Android 1.0.0-beta.7.
 
 ### Changed
 
