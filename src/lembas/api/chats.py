@@ -2263,6 +2263,73 @@ async def team_member_transcript(
     return HTMLResponse(_panel_html(chat, job, turns, part=part))
 
 
+# --- The subagent tree (harness spec 3.4.0, subagents.md §11-§12) ------------------------
+def _tree_http(exc: Exception) -> HTTPException:
+    from lembas.services import tree_view
+
+    if isinstance(exc, tree_view.NotFound):
+        return HTTPException(status.HTTP_404_NOT_FOUND, t("No subagent with that id in this chat."))
+    return HTTPException(
+        status.HTTP_409_CONFLICT,
+        t("That is kept on the computer this chat runs on, which is not linked right now."),
+    )
+
+
+@router.get("/{chat_id}/subagents/{agent_id}/transcript")
+async def subagent_transcript(
+    db: Db, user: RequiredUser, chat_id: str, agent_id: str, part: str = ""
+) -> Response:
+    """A subagent's whole conversation, read-only, in the helper panel --
+    live while it runs (the turns poll themselves), and after it ended."""
+    from lembas.services import tree_view
+
+    chat = _owned_chat(db, chat_id, user.id)
+    try:
+        said = await tree_view.transcript(db, chat, agent_id)
+    except (tree_view.NotFound, tree_view.OnTheDevice) as exc:
+        raise _tree_http(exc) from exc
+    running = said["state"] in ("working", "waiting", "paused")
+    job = {
+        "id": agent_id,
+        "agent": "",
+        "state": "running" if running else said["state"],
+        "seconds": 0,
+        "description": "",
+        "member": True,
+        "turns_url": f"/api/chats/{chat.id}/subagents/{agent_id}/transcript?part=turns",
+    }
+    return HTMLResponse(_panel_html(chat, job, said["turns"], part=part))
+
+
+@router.get("/{chat_id}/subagents/{agent_id}/findings")
+async def subagent_findings(db: Db, user: RequiredUser, chat_id: str, agent_id: str) -> Response:
+    from lembas.services import tree_view
+
+    chat = _owned_chat(db, chat_id, user.id)
+    try:
+        found = await tree_view.findings(db, chat, agent_id)
+    except (tree_view.NotFound, tree_view.OnTheDevice) as exc:
+        raise _tree_http(exc) from exc
+    return HTMLResponse(
+        templates.get_template("chat/_findings_panel.html").render(
+            {"agent_id": agent_id, "findings": found["findings"]}
+        )
+    )
+
+
+@router.post("/{chat_id}/subagents/{agent_id}/stop")
+async def subagent_stop(db: Db, user: RequiredUser, chat_id: str, agent_id: str) -> Response:
+    """The person stops a subagent and those under it (§10)."""
+    from lembas.services import tree_view
+
+    chat = _owned_chat(db, chat_id, user.id)
+    try:
+        await tree_view.stop(db, chat, agent_id)
+    except (tree_view.NotFound, tree_view.OnTheDevice) as exc:
+        raise _tree_http(exc) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post("/{chat_id}/jobs/{job_id}/send")
 async def send_job(
     db: Db, user: RequiredUser, chat_id: str, job_id: str, text: str = Form("")

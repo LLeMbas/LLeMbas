@@ -2599,3 +2599,28 @@ MESSAGES.update(
         'The computer this chat runs on does not run subagents: update its LLeMbas CLI.': 'Počítač, na kterém tato konverzace běží, nespouští podagenty: aktualizujte na něm LLeMbas CLI.',
     }
 )
+
+# The subagent tree in the activity panel (harness spec 3.4.0).
+MESSAGES.update(
+    {
+        'the main agent': 'hlavní agent',
+        'Context used': 'Využitý kontext',
+        'Stop %(name)s and the subagents under it?': 'Zastavit %(name)s a podagenty pod ním?',
+        'messages: %(n)s': 'zprávy: %(n)s',
+        'findings: %(n)s': 'zjištění: %(n)s',
+        'Findings': 'Zjištění',
+        '%(size)s of %(max)s': '%(size)s z %(max)s',
+        'Open slots: %(n)s': 'Volná místa: %(n)s',
+        'They run on the computer this chat runs on.': 'Běží na počítači, na kterém běží tato konverzace.',
+        'Ended': 'Skončené',
+        'No findings yet.': 'Zatím žádná zjištění.',
+        'No subagent with that id in this chat.': 'V této konverzaci není podagent s tímto id.',
+        'That is kept on the computer this chat runs on, which is not linked right now.': 'To je uložené na počítači, na kterém tato konverzace běží, a ten teď není připojený.',
+        'Choose a directory, and the terminal opens there.': 'Vyberte složku a terminál se otevře v ní.',
+        'waiting for a slot': 'čeká na volný slot',
+        'finished': 'dokončený',
+        'idle': 'nečinný',
+        'paused: context full': 'pozastavený: plný kontext',
+        'out of context': 'bez kontextu',
+    }
+)

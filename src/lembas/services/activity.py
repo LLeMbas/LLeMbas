@@ -675,6 +675,85 @@ def _context_or_none(db, chat: Chat, user) -> dict[str, Any] | None:
         return None
 
 
+# Spec 3.4.0 (subagents.md §9, §12): how an agent of the tree stands, in the
+# words a person reads -- the spec's `team.read.states`, translated here.
+TREE_STATE_WORDS: dict[str, str] = {
+    "working": N_("working"),
+    "waiting": N_("waiting for a slot"),
+    "finished": N_("finished"),
+    "idle": N_("idle"),
+    "paused": N_("paused: context full"),
+    "done": N_("done"),
+    "out_of_context": N_("out of context"),
+    "stopped": N_("stopped"),
+}
+TREE_LIVE = ("working", "waiting", "paused")
+
+
+def tree_state_word(state: str) -> str:
+    return t(TREE_STATE_WORDS.get(str(state), str(state)))
+
+
+def tree_panel(db, chat: Chat) -> dict[str, Any] | None:
+    """The subagent tree as the activity panel draws it (spec 3.4.0, §12): the
+    main agent at the root and every subagent under its parent, nested by
+    structure, then the ones that ended; for each its state, position, model,
+    mode, context use, current phase, findings and the room's messages to and
+    from it. A chat on this server from its rows; an agent chat as its device
+    last sent it (the panel never waits on the device). None for no tree."""
+    from lembas.services import tree_view
+
+    if chat.kind == "agent":
+        found, posts = (chat.team_tree_json or None), []
+    else:
+        found, posts = tree_view.server_tree(db, chat)
+    if not found:
+        return None
+
+    def entry(row: dict[str, Any], ended: bool) -> dict[str, Any]:
+        mine = [p for p in posts if p["from"] == row.get("name") or row.get("name") in p["to"]]
+        last = mine[-1] if mine else None
+        context = row.get("context") or {}
+        window = int(context.get("window") or 0)
+        return {
+            "id": str(row.get("id") or ""),
+            "name": str(row.get("name") or ""),
+            "position": str(row.get("position") or ""),
+            "parent": row.get("parent"),
+            "state": str(row.get("state") or ""),
+            "state_word": tree_state_word(str(row.get("state") or "")),
+            "live": not ended and str(row.get("state") or "") in TREE_LIVE,
+            "model": str(row.get("model") or ""),
+            "mode": str(row.get("mode") or ""),
+            "request": list(row.get("request") or []),
+            "context": (int(context.get("used") or 0) * 100 // window) if window else None,
+            "progress": row.get("progress") or None,
+            "findings": int(row.get("findings") or 0),
+            "messages": int(row.get("messages") or len(mine)),
+            "last_message": (str(last["text"]).split("\n")[0][:200] if last else ""),
+            "task": str(row.get("task") or ""),
+            "lead": row.get("id") == team_rules.LEAD,
+            "ended": ended,
+            "stoppable": not ended and row.get("id") != team_rules.LEAD,
+            "children": [],
+        }
+
+    rows = [entry(r, False) for r in found.get("agents") or []]
+    by_name = {r["name"]: r for r in rows}
+    roots: list[dict[str, Any]] = []
+    for row in rows:
+        parent = by_name.get(row["parent"] or "")
+        (parent["children"] if parent is not None and parent is not row else roots).append(row)
+    return {
+        "size": int(found.get("size") or 0),
+        "max": int(found.get("max") or 0),
+        "open_slots": int(found.get("open_slots") or 0),
+        "agents": roots,
+        "ended": [entry(r, True) for r in found.get("ended") or []],
+        "device": chat.kind == "agent",
+    }
+
+
 async def snapshot(
     db, chat: Chat, user, *, since: int = 0, with_context: bool = True
 ) -> dict[str, Any]:
@@ -692,9 +771,11 @@ async def snapshot(
         "outputs": outputs(db, chat) if not chat.device_token_id else [],
         "plan": plan(chat),
         "context": _context_or_none(db, chat, user) if with_context else None,
+        "tree": tree_panel(db, chat),
     }
     out["version"] = fingerprint(
-        {"agents": entries, "team": team, "plan": out["plan"], "outputs": out["outputs"]}
+        {"agents": entries, "team": team, "plan": out["plan"], "outputs": out["outputs"],
+         "tree": out["tree"]}
     )
     out["at"] = time.time()
     return out

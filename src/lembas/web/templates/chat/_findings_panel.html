@@ -1,0 +1,22 @@
+{#
+  A subagent's findings (harness spec 3.4.0, subagents.md §8, §11), in the
+  helper panel: what it kept with team_findings, kept after it ended. A
+  model's words: printed by Jinja, escaped.
+#}
+<div class="jobpanel__head">
+  <div class="jobpanel__title">
+    <span class="jobs__id">{{ agent_id }}</span>
+    <span class="jobs__agent">{{ t("Findings") }}</span>
+  </div>
+</div>
+<div class="jobpanel__turns">
+  {% if findings %}
+  <ol class="findings">
+    {% for finding in findings %}
+    <li class="findings__item">{{ finding.text }}</li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="activity__empty">{{ t("No findings yet.") }}</p>
+  {% endif %}
+</div>

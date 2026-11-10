@@ -87,6 +87,16 @@ def _row(db, chat: Chat, agent_id: str) -> TeamAgent:
     row = db.scalars(
         select(TeamAgent).where(TeamAgent.lead_chat_id == chat.id, TeamAgent.agent_id == agent_id)
     ).first()
+    prefix = rules.spec()["names"]["id_prefix"]
+    if row is None and agent_id.startswith(prefix) and agent_id[len(prefix):].isdigit():
+        # A row from before spec 3.4.0, whose id is its place (team_run.load).
+        row = db.scalars(
+            select(TeamAgent).where(
+                TeamAgent.lead_chat_id == chat.id,
+                TeamAgent.agent_id == "",
+                TeamAgent.position == int(agent_id[len(prefix):]),
+            )
+        ).first()
     if row is None:
         raise NotFound(agent_id)
     return row

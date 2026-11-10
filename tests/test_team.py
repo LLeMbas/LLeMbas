@@ -641,9 +641,10 @@ def test_the_activity_panel_shows_the_tree_progress_and_room_escaped(client, db,
     html = response.text
     for section in ("Context", "Outputs", "Background tasks"):
         assert section in html
-    assert 'id="agent-member-baker"' in html and 'id="agent-member-wrapper"' in html
-    assert "Brief for wrapper" in html
-    assert "notes.md" in html  # its latest step
+    # Spec 3.4.0: the subagents are drawn as the tree (ids given to rows from
+    # before 3.4.0 by their place), nested by structure.
+    assert 'id="tree-lead"' in html and 'id="tree-s1"' in html and 'id="tree-s2"' in html
+    assert html.index('id="tree-s1"') < html.index('id="tree-s2"')
     assert "<script>alert(1)</script>" not in html
     assert "&lt;script&gt;" in html
     assert "<img src=x" not in html
@@ -653,6 +654,11 @@ def test_the_activity_panel_shows_the_tree_progress_and_room_escaped(client, db,
     assert response.status_code == 200
     assert "Brief for wrapper" in response.text
     assert "jobpanel__send" not in response.text
+    # ... and by its id, as the tree opens it.
+    response = client.get(f"/api/chats/{chat.id}/subagents/s2/transcript")
+    assert response.status_code == 200
+    assert "Brief for wrapper" in response.text and "jobpanel__send" not in response.text
+    assert "notes.md" in response.text  # its tool call
 
 
 def test_the_tasks_section_alone_polls_while_something_works(client, db, team_ready):

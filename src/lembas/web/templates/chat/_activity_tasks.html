@@ -94,6 +94,74 @@
 {% endif %}
 {% endmacro %}
 
+{% macro tree_row(agent) %}
+{#- One agent of the subagent tree (harness spec 3.4.0, subagents.md §12): the
+    row is the tasks' grid -- chevron, state dot, who it is and what it is
+    doing (the column that gives), its context use in the time column, a stop
+    square -- and opened, its facts, last message and the buttons to read its
+    conversation and findings. Its subagents nest under it. -#}
+<li class="agent-tree__item">
+<details class="agent agent--tree agent--{{ agent.state }}{{ ' agent--ended' if agent.ended }}" id="tree-{{ agent.id }}" data-keep-open>
+  <summary class="agent__row">
+    {{ icon("chevron-right", "icon--sm agent__chevron") }}
+    <span class="agent__dot" aria-hidden="true"></span>
+    <span class="agent__what u-shrink">
+      <span class="agent__name">{{ agent.name }}</span>
+      {% if agent.id != agent.name %}<span class="agent__id">{{ agent.id }}</span>{% endif %}
+      {% if agent.lead %}<span class="agent__role">{{ t("the main agent") }}</span>{% elif agent.position %}<span class="agent__role">{{ agent.position }}</span>{% endif %}
+      {% if agent.progress and not agent.ended %}
+      <span class="agent__phase progress-line" data-progress-short data-progress="{{ agent.progress | tojson | forceescape }}"></span>
+      {% else %}
+      <span class="agent__phase">{{ agent.state_word }}</span>
+      {% endif %}
+    </span>
+    <span class="agent__time" title="{{ t('Context used') }}">{% if agent.context is not none %}{{ agent.context }}%{% endif %}</span>
+    <span class="agent__actions">
+      {% if agent.stoppable %}
+      <button class="btn btn--icon btn--sm agent__stop" type="button"
+              hx-post="/api/chats/{{ chat.id }}/subagents/{{ agent.id }}/stop"
+              hx-confirm="{{ t('Stop %(name)s and the subagents under it?', name=agent.name) }}"
+              hx-swap="none"
+              aria-label="{{ t('Stop %(name)s', name=agent.name) }}" title="{{ t('Stop %(name)s', name=agent.name) }}">
+        {{ icon("stop", "icon--sm icon--solid") }}
+      </button>
+      {% endif %}
+    </span>
+  </summary>
+  <div class="agent__body">
+    <p class="agent__facts">
+      <span class="agent__state">{{ agent.state_word }}</span>
+      {% if agent.model %}<span class="agent__model">{{ agent.model }}</span>{% endif %}
+      {% if agent.mode %}<span>{{ agent.mode }}{% if agent.request %} + {{ agent.request | join(", ") }}{% endif %}</span>{% endif %}
+      <span>{{ t("messages: %(n)s", n=agent.messages) }}</span>
+      {% if agent.findings %}<span>{{ t("findings: %(n)s", n=agent.findings) }}</span>{% endif %}
+    </p>
+    {% if agent.task %}<p class="agent__brief">{{ agent.task }}</p>{% endif %}
+    {% if agent.last_message %}<p class="agent__text">{{ agent.last_message }}</p>{% endif %}
+    {% if not agent.lead %}
+    <p class="agent__buttons">
+      <button class="btn btn--sm" type="button"
+              hx-get="/api/chats/{{ chat.id }}/subagents/{{ agent.id }}/transcript"
+              hx-target="#jobpanel-body" hx-swap="innerHTML">
+        {{ icon("eye", "icon--sm") }} {{ t("Open its conversation") }}
+      </button>
+      <button class="btn btn--sm" type="button"
+              hx-get="/api/chats/{{ chat.id }}/subagents/{{ agent.id }}/findings"
+              hx-target="#jobpanel-body" hx-swap="innerHTML">
+        {{ icon("file-text", "icon--sm") }} {{ t("Findings") }}
+      </button>
+    </p>
+    {% endif %}
+  </div>
+</details>
+{% if agent.children %}
+<ul class="agent-tree">
+  {% for child in agent.children %}{{ tree_row(child) }}{% endfor %}
+</ul>
+{% endif %}
+</li>
+{% endmacro %}
+
 {% set entries = activity.agents %}
 {% set live = entries | selectattr("state", "in", ["queued", "working", "waiting"]) | list %}
 {% set ended = entries | rejectattr("state", "in", ["queued", "working", "waiting"]) | list %}
@@ -104,7 +172,7 @@
      hx-target="this" hx-swap="outerHTML" hx-sync="this:drop"
      {% endif %}
      aria-live="polite">
-  {% if not entries and not activity.team %}
+  {% if not entries and not activity.team and not activity.tree %}
   <p class="activity__empty">{{ t("Nothing runs in the background. Subagents, commands and a team's members show here while they work.") }}</p>
   {% else %}
   {% if summary_text(counts) %}<p class="activity-tasks__summary">{{ summary_text(counts) }}</p>{% endif %}
@@ -115,6 +183,27 @@
     {{ t("Team: %(size)s of %(max)s agents", size=activity.team.size, max=activity.team.max) }}
   </p>
   {% if activity.team.goal %}<p class="activity-tasks__goal">{{ activity.team.goal }}</p>{% endif %}
+  {% endif %}
+
+  {% if activity.tree %}
+  {% set tree = activity.tree %}
+  <h3 class="activity__subheading">{{ t("Subagents") }} <span class="activity__count">{{ t("%(size)s of %(max)s", size=tree.size, max=tree.max) }}</span></h3>
+  {% if tree.open_slots %}<p class="activity-tasks__team">{{ t("Open slots: %(n)s", n=tree.open_slots) }}</p>{% endif %}
+  {% if tree.device %}<p class="activity-tasks__goal">{{ t("They run on the computer this chat runs on.") }}</p>{% endif %}
+  <ul class="agent-tree agent-tree--root">
+    {% for agent in tree.agents %}{{ tree_row(agent) }}{% endfor %}
+  </ul>
+  {% if tree.ended %}
+  <details class="activity-tasks__more" id="tree-ended" data-keep-open>
+    <summary>{{ icon("chevron-right", "icon--sm agent__chevron") }} {{ t("Ended") }} <span class="activity__count">{{ tree.ended | length }}</span></summary>
+    <ul class="agent-tree agent-tree--root">
+      {% for agent in tree.ended %}{{ tree_row(agent) }}{% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+  {# The tree shows the subagents; the lists below keep the rest. #}
+  {% set live = live | rejectattr("kind", "equalto", "member") | list %}
+  {% set ended = ended | rejectattr("kind", "equalto", "member") | list %}
   {% endif %}
 
   <h3 class="activity__subheading">{{ t("Running") }} <span class="activity__count">{{ live | length }}</span></h3>

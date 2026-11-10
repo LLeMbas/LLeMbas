@@ -118,6 +118,12 @@ def found() -> dict[str, list[str]]:
             where = str(path.relative_to(REPO))
             if where not in out[key]:
                 out[key].append(where)
+    # The harness spec's progress texts (spec 3.4.0): keys named by data.
+    sys.path.insert(0, str(REPO / "src"))
+    from lembas.services import progress
+
+    for key in progress.i18n_keys():
+        out.setdefault(normalise(key), []).append("src/lembas/harness_spec/loop.json")
     return out
 
 

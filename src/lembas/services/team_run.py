@@ -364,6 +364,10 @@ def load(db, lead_id: str) -> rules.Team | None:
             team.model_slots[member.model] = model_parallel(other) if other else None
     for member in members:
         agent = _agent_of(member)
+        if not agent.id:
+            # A row from before spec 3.4.0: an id of its own, from its place.
+            agent.id = f"{rules.spec()['names']['id_prefix']}{member.position}"
+            team.id_seq = max(team.id_seq, member.position)
         _live(team, agent)
         team.agents.append(agent)
     for member in _ended_rows(db, lead_id):

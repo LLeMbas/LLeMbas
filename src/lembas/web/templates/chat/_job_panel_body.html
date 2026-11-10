@@ -13,7 +13,7 @@
 {% set running = job.state == "running" %}
 {#- A team's member (spec 3.2.0) is read here, never sent to or stopped from
     here: the team's room and the activity panel do that. -#}
-{% set turns_url = "/api/chats/" ~ chat.id ~ ("/team/" ~ job.id ~ "/transcript" if job.member else "/jobs/" ~ job.id) ~ "?part=turns" %}
+{% set turns_url = job.turns_url or ("/api/chats/" ~ chat.id ~ ("/team/" ~ job.id ~ "/transcript" if job.member else "/jobs/" ~ job.id) ~ "?part=turns") %}
 <div class="jobpanel__head">
   <div class="jobpanel__title">
     <span class="jobs__id">{{ job.id }}</span>

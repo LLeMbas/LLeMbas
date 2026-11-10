@@ -535,11 +535,14 @@ def _seed_team() -> None:
             if os.environ.get("SHOOT_ONE_REQUEST"):
                 model.parallel, model.single_session = 1, True
         db.add(TeamRow(lead_chat_id=SHOOT_CHAT, goal="A loader that reads every config "
-                       "format the project has", seq=4, data_json={}))
+                       "format the project has", seq=5, data_json={"id_seq": 4}))
+        # Spec 3.4.0: ids, modes, a narrowed subagent with request options, a
+        # finding, and one that ended out of context (kept in the tree).
         members = [
             ("parser", "lead", True, "working", "owns the grammar and the parser", 95),
             ("lexer", "parser", False, "waiting", "owns the tokens", 0),
             ("tester", "lead", False, "finished", "owns the test suite", 41),
+            ("scout", "lead", False, "out_of_context", "maps the old loaders", 300),
         ]
         for n, (name, manager, may_lead, state, role, ran) in enumerate(members, start=1):
             child = Chat(user_id=owner.id, title=name, model_id="gemma4-moe",
@@ -553,6 +556,13 @@ def _seed_team() -> None:
                 chat_id=child.id, state=state, position=n,
                 run_started=now - timedelta(seconds=ran),
                 last_ended=now if state == "finished" else None,
+                agent_id=f"s{n}", task=f"Own {role.removeprefix('owns ')}.",
+                mode="manual" if name == "lexer" else "auto",
+                request_json=["write"] if name == "lexer" else [],
+                context_json={"used": 30000 + 20000 * n, "window": 131072},
+                findings_json=[{"n": 1, "text": "INI sections nest by dots.", "time": 0}]
+                if name in ("parser", "scout") else [],
+                left=now - timedelta(seconds=60) if state == "out_of_context" else None,
             ))
             db.add(Message(chat_id=child.id, role="user", complete=True,
                            content=f"Own {role.removeprefix('owns ')}; report to {manager}."))

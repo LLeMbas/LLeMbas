@@ -2599,3 +2599,28 @@ MESSAGES.update(
         'The computer this chat runs on does not run subagents: update its LLeMbas CLI.': 'Il computer su cui gira questa chat non esegue subagenti: aggiorna lì LLeMbas CLI.',
     }
 )
+
+# The subagent tree in the activity panel (harness spec 3.4.0).
+MESSAGES.update(
+    {
+        'the main agent': 'l’agente principale',
+        'Context used': 'Contesto usato',
+        'Stop %(name)s and the subagents under it?': 'Fermare %(name)s e i subagenti sotto di esso?',
+        'messages: %(n)s': 'messaggi: %(n)s',
+        'findings: %(n)s': 'risultati: %(n)s',
+        'Findings': 'Risultati',
+        '%(size)s of %(max)s': '%(size)s di %(max)s',
+        'Open slots: %(n)s': 'Posti liberi: %(n)s',
+        'They run on the computer this chat runs on.': 'Girano sul computer su cui gira questa chat.',
+        'Ended': 'Terminati',
+        'No findings yet.': 'Ancora nessun risultato.',
+        'No subagent with that id in this chat.': 'Nessun subagente con quell’id in questa chat.',
+        'That is kept on the computer this chat runs on, which is not linked right now.': 'È conservato sul computer su cui gira questa chat, che ora non è collegato.',
+        'Choose a directory, and the terminal opens there.': 'Scegli una cartella e il terminale si apre lì.',
+        'waiting for a slot': 'in attesa di un posto',
+        'finished': 'finito',
+        'idle': 'inattivo',
+        'paused: context full': 'in pausa: contesto pieno',
+        'out of context': 'senza contesto',
+    }
+)

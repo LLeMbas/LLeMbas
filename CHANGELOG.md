@@ -38,6 +38,12 @@ before its tag; the pin to a release tag comes with the release.
   `subagents.md` §12) when it changes; an approval item carries `subagent` (`{id, name, position}`
   or null); an agent chat's `subagents.offered` is true where subagents are allowed. Fixtures: new
   `event_tree.json`; `event_ask.json` and `chat_agent.json` changed.
+- **The activity panel draws the subagent tree.** The main agent at the root and every subagent
+  under its parent: its state, name, id and position, what it is doing now (the phase, ticking),
+  its context use, model, mode, messages and findings, and the last message to or from it; open
+  any subagent's conversation (read-only, live or after it ended) or its findings, or stop it and
+  those under it. Ended subagents are listed after, with how they ended. An agent chat's tree is
+  its computer's, as last sent.
 - **`/api/v2`: reading a subagent.** `GET /api/v2/chats/{chat}/tree` (the tree and the room,
   `live` false when an agent chat's device is away and the kept tree is sent),
   `GET .../subagents/{id}/transcript` (its conversation, read-only, live or after it ended),

@@ -2579,6 +2579,37 @@ details[open] > summary > .agent__chevron { transform: rotate(90deg); }
 .agent__brief, .agent__text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .agent__text { color: var(--ink-muted); font-size: var(--text-xs); max-height: calc(var(--sp-4) * 8); overflow-y: auto; }
 
+/* The subagent tree (harness spec 3.4.0, subagents.md §12): the same rows,
+   nested by structure -- a subagent's list sits inside its parent's item, so
+   the indent is the list's own margin and never a depth computed in markup.
+   A tree row's "what" is two lines: who it is, then what it is doing now. */
+.agent-tree { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
+.agent-tree .agent-tree { margin-block-start: var(--sp-1); margin-inline-start: var(--sp-4); }
+.agent-tree__item { min-width: 0; }
+.agent--tree .agent__row { padding-block: var(--sp-1); }
+.agent--tree .agent__what { flex-wrap: wrap; row-gap: 0; }
+/* The position gives on the first line, cut, never wrapped under the name. */
+.agent--tree .agent__role { flex: 1 1 0; }
+.agent__id { flex: none; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-faint); }
+.agent__phase {
+  flex: 1 0 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.agent--paused .agent__dot { background: var(--warning); }
+.agent--finished .agent__dot, .agent--idle .agent__dot { background: var(--ink-muted); }
+.agent--ended { background: var(--surface); }
+.agent--ended .agent__name, .agent--ended .agent__role { color: var(--ink-muted); }
+.agent--out_of_context .agent__dot { background: var(--warning); }
+.agent__buttons { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin: 0; }
+.findings { margin: 0; padding-inline-start: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-2); font-size: var(--text-sm); }
+.findings__item { white-space: pre-wrap; overflow-wrap: anywhere; }
+
 /* The jobs strip's summary row: opens the activity panel. A tap target. */
 .jobs__summary {
   display: flex;

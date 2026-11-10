@@ -2599,3 +2599,28 @@ MESSAGES.update(
         'The computer this chat runs on does not run subagents: update its LLeMbas CLI.': 'A számítógép, amelyen ez a beszélgetés fut, nem futtat alügynököket: frissítsd rajta a LLeMbas CLI-t.',
     }
 )
+
+# The subagent tree in the activity panel (harness spec 3.4.0).
+MESSAGES.update(
+    {
+        'the main agent': 'a fő ügynök',
+        'Context used': 'Felhasznált kontextus',
+        'Stop %(name)s and the subagents under it?': 'Leállítod: %(name)s, és az alatta lévő alügynököket?',
+        'messages: %(n)s': 'üzenetek: %(n)s',
+        'findings: %(n)s': 'megállapítások: %(n)s',
+        'Findings': 'Megállapítások',
+        '%(size)s of %(max)s': '%(size)s / %(max)s',
+        'Open slots: %(n)s': 'Szabad helyek: %(n)s',
+        'They run on the computer this chat runs on.': 'Azon a számítógépen futnak, amelyen ez a beszélgetés fut.',
+        'Ended': 'Befejezett',
+        'No findings yet.': 'Még nincsenek megállapítások.',
+        'No subagent with that id in this chat.': 'Ebben a beszélgetésben nincs ilyen azonosítójú alügynök.',
+        'That is kept on the computer this chat runs on, which is not linked right now.': 'Ez azon a számítógépen van, amelyen ez a beszélgetés fut, és az most nincs csatlakoztatva.',
+        'Choose a directory, and the terminal opens there.': 'Válassz mappát, és ott nyílik meg a terminál.',
+        'waiting for a slot': 'szabad helyre vár',
+        'finished': 'kész',
+        'idle': 'tétlen',
+        'paused: context full': 'szüneteltetve: tele a kontextus',
+        'out of context': 'elfogyott a kontextus',
+    }
+)
