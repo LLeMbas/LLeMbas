@@ -1,0 +1,98 @@
+{
+  "schedule": {
+    "id": "sched3",
+    "title": "Nightly tests",
+    "instruction": "Run the tests.",
+    "request": "every night at 02:00",
+    "rule": {
+      "every": {
+        "minutes": 1440
+      }
+    },
+    "description": "Every 1 day",
+    "timezone": "UTC",
+    "enabled": true,
+    "next_run": "2026-01-03T02:00:00+00:00",
+    "next_runs": [],
+    "target": "chat",
+    "mode": "fresh",
+    "notify": "matters",
+    "catch_up": "one",
+    "grace_minutes": null,
+    "model": null,
+    "effort": null,
+    "agents": null,
+    "tools": [
+      "files",
+      "recall",
+      "search",
+      "fetch",
+      "memory",
+      "skills",
+      "plan"
+    ],
+    "origin": "user",
+    "chat_id": "chat2",
+    "fired_count": 3,
+    "failure_streak": 0,
+    "watch": {
+      "kind": "command",
+      "command": "git log -1 --format=%H",
+      "timeout_s": 30,
+      "target": "git log -1 --format=%H",
+      "changed_at": "2026-01-02T03:04:05+00:00"
+    },
+    "runs_on": {
+      "device": "tok1",
+      "device_name": "bag-end",
+      "cwd": "/home/frodo/waybread",
+      "mode": "edit",
+      "approval_wait_minutes": 30
+    },
+    "last_error": null,
+    "last_run": {
+      "id": "run5",
+      "schedule_id": "sched3",
+      "status": "waiting",
+      "timing": "on_time",
+      "missed": 0,
+      "due_at": "2026-01-02T03:04:05+00:00",
+      "started_at": null,
+      "finished_at": null,
+      "waiting_for": "device",
+      "retry_at": "2026-01-02T03:09:05+00:00",
+      "progress": {
+        "phase": "retrying",
+        "since": 1767323045000,
+        "reason": "Waiting for bag-end to be linked.",
+        "in": 0,
+        "attempt": 1
+      },
+      "attempts": 1,
+      "model": {
+        "id": null,
+        "name": null,
+        "reason": null,
+        "switched_from": null
+      },
+      "tokens": {
+        "prompt": 0,
+        "completion": 0
+      },
+      "cost": null,
+      "chat_id": null,
+      "message_id": null,
+      "report_path": null,
+      "preview": "",
+      "error": {
+        "class": "device_away",
+        "text": "Waiting for bag-end to be linked."
+      },
+      "notified": false,
+      "notification": null,
+      "watch": null
+    },
+    "running": false,
+    "created_at": "2026-01-02T03:04:05+00:00"
+  }
+}

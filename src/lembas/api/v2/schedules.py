@@ -41,7 +41,7 @@ from fastapi.responses import Response, StreamingResponse
 
 from lembas.api.deps import Db
 from lembas.api.v2 import serialise
-from lembas.api.v2._common import Me, need
+from lembas.api.v2._common import Me, MeOrDevice, calling_device, need
 from lembas.db.models import Message, Schedule, ScheduleRun, User
 from lembas.db.session import session_scope
 from lembas.services import schedules as schedules_service
@@ -84,13 +84,13 @@ def _refuse(exc: schedules_service.ScheduleError) -> HTTPException:
 
 
 @router.get("/schedules")
-async def list_schedules(caller: Me, db: Db) -> dict[str, Any]:
+async def list_schedules(caller: MeOrDevice, db: Db) -> dict[str, Any]:
     need(db, caller.user, PERMISSION)
     return {"schedules": _all(db, caller.user)}
 
 
 @router.post("/schedules", status_code=status.HTTP_201_CREATED)
-async def create_schedule(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> dict:
+async def create_schedule(caller: MeOrDevice, db: Db, body: dict[str, Any] = Body(...)) -> dict:
     need(db, caller.user, PERMISSION)
     rule = body.get("rule")
     try:
@@ -104,6 +104,7 @@ async def create_schedule(caller: Me, db: Db, body: dict[str, Any] = Body(...)) 
             target=str(body.get("target") or "chat"),
             model_id=str(body.get("model") or ""),
             settings=_settings(body),
+            calling_device=calling_device(caller),
         )
     except schedules_service.ScheduleError as exc:
         raise _refuse(exc) from exc
@@ -112,7 +113,7 @@ async def create_schedule(caller: Me, db: Db, body: dict[str, Any] = Body(...)) 
 
 # Static paths before `/schedules/{schedule_id}` (route order matters).
 @router.post("/schedules/compile")
-async def compile_words(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> dict:
+async def compile_words(caller: MeOrDevice, db: Db, body: dict[str, Any] = Body(...)) -> dict:
     """Words → a schedule: the rule, the rule in words, the next runs, and the
     title and instruction the compile wrote. `ok` false: fill in the rest
     yourself (`reason` says why); the fields are filled as far as they went."""
@@ -161,7 +162,7 @@ def _preview(raw: object, user: User) -> dict[str, Any]:
 
 
 @router.post("/schedules/preview")
-async def preview(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> dict:
+async def preview(caller: MeOrDevice, db: Db, body: dict[str, Any] = Body(...)) -> dict:
     """A rule as a form has it, cleaned and read back: what every form shows
     before saving. An empty `rule` in the answer: it cannot run."""
     need(db, caller.user, PERMISSION)
@@ -213,14 +214,14 @@ async def choose_models(caller: Me, db: Db, body: dict[str, Any] = Body(...)) ->
 
 
 @router.get("/schedules/{schedule_id}")
-async def get_schedule(caller: Me, db: Db, schedule_id: str) -> dict[str, Any]:
+async def get_schedule(caller: MeOrDevice, db: Db, schedule_id: str) -> dict[str, Any]:
     need(db, caller.user, PERMISSION)
     return {"schedule": _one(db, _owned(db, schedule_id, caller.user), caller.user)}
 
 
 @router.patch("/schedules/{schedule_id}")
 async def update_schedule(
-    caller: Me, db: Db, schedule_id: str, body: dict[str, Any] = Body(...)
+    caller: MeOrDevice, db: Db, schedule_id: str, body: dict[str, Any] = Body(...)
 ) -> dict[str, Any]:
     need(db, caller.user, PERMISSION)
     schedule = _owned(db, schedule_id, caller.user)
@@ -236,6 +237,7 @@ async def update_schedule(
             target=str(body["target"]) if "target" in body else None,
             model_id=str(body.get("model") or "") if "model" in body else None,
             settings=_settings(body),
+            calling_device=calling_device(caller),
         )
         if "enabled" in body:
             schedules_service.set_enabled(
@@ -248,7 +250,7 @@ async def update_schedule(
 
 @router.delete("/schedules/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_schedule(
-    caller: Me, db: Db, schedule_id: str, keep_chat: bool = Query(True)
+    caller: MeOrDevice, db: Db, schedule_id: str, keep_chat: bool = Query(True)
 ) -> Response:
     need(db, caller.user, PERMISSION)
     schedules_service.delete(db, _owned(db, schedule_id, caller.user), keep_chat=keep_chat)
@@ -256,7 +258,7 @@ async def delete_schedule(
 
 
 @router.post("/schedules/{schedule_id}/pause")
-async def pause(caller: Me, db: Db, schedule_id: str) -> dict[str, Any]:
+async def pause(caller: MeOrDevice, db: Db, schedule_id: str) -> dict[str, Any]:
     need(db, caller.user, PERMISSION)
     schedule = _owned(db, schedule_id, caller.user)
     schedules_service.set_enabled(db, schedule, owner=caller.user, enabled=False)
@@ -264,7 +266,7 @@ async def pause(caller: Me, db: Db, schedule_id: str) -> dict[str, Any]:
 
 
 @router.post("/schedules/{schedule_id}/resume")
-async def resume(caller: Me, db: Db, schedule_id: str) -> dict[str, Any]:
+async def resume(caller: MeOrDevice, db: Db, schedule_id: str) -> dict[str, Any]:
     need(db, caller.user, PERMISSION)
     schedule = _owned(db, schedule_id, caller.user)
     schedules_service.set_enabled(db, schedule, owner=caller.user, enabled=True)
@@ -272,7 +274,7 @@ async def resume(caller: Me, db: Db, schedule_id: str) -> dict[str, Any]:
 
 
 @router.post("/schedules/{schedule_id}/run", status_code=status.HTTP_202_ACCEPTED)
-async def run_now(caller: Me, db: Db, schedule_id: str) -> dict[str, Any]:
+async def run_now(caller: MeOrDevice, db: Db, schedule_id: str) -> dict[str, Any]:
     """Run it now. The next scheduled run is not used up by this one."""
     need(db, caller.user, PERMISSION)
     schedule = _owned(db, schedule_id, caller.user)
@@ -284,7 +286,7 @@ async def run_now(caller: Me, db: Db, schedule_id: str) -> dict[str, Any]:
 
 @router.get("/schedules/{schedule_id}/runs")
 async def list_runs(
-    caller: Me,
+    caller: MeOrDevice,
     db: Db,
     schedule_id: str,
     before: str = Query(""),
@@ -297,7 +299,7 @@ async def list_runs(
 
 
 @router.get("/schedules/{schedule_id}/runs/{run_id}")
-async def get_run(caller: Me, db: Db, schedule_id: str, run_id: str) -> dict[str, Any]:
+async def get_run(caller: MeOrDevice, db: Db, schedule_id: str, run_id: str) -> dict[str, Any]:
     """One run, and its result in full: Markdown written by a model, to be
     rendered as untrusted text. `text` is null when there is none."""
     need(db, caller.user, PERMISSION)

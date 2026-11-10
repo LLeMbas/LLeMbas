@@ -790,6 +790,23 @@ a.tabs__tab { text-decoration: none; }
   gap: var(--sp-3);
 }
 .schedule-repeat > legend { padding: 0 var(--sp-2); }
+/* Where it runs (spec 3.5.0): the same box as the repeat fieldset. The
+   computer's own fields are hidden while "On this server" is chosen -- the
+   server ignores them then -- by the select's value, with no script. */
+.schedule-device {
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--sp-4);
+  margin-bottom: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+.schedule-device > legend { padding: 0 var(--sp-2); }
+.schedule-device:has(#schedule-device option[value=""]:checked) > .field:not(:first-of-type) {
+  display: none;
+}
 .schedule-repeat [data-repeat] { display: none; }
 .schedule-repeat:has(input[value="every"]:checked) [data-repeat="every"] { display: block; }
 .schedule-repeat:has(input[value="calendar"]:checked) [data-repeat="calendar"] { display: block; }

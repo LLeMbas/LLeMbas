@@ -37,7 +37,9 @@ from lembas.db.models import (
 )
 from lembas.services import chat as chat_service
 from lembas.services import schedules as schedules_service
+from lembas.services.agent import policy
 from lembas.services.schedule import clock, notify, runner, runs
+from lembas.services.schedule import device as scheduled_device
 from lembas.services.schedule import models as models_service
 from lembas.services.schedule import rule as rule_service
 from lembas.web.i18n import t
@@ -163,6 +165,12 @@ def _settings_defaults(schedule: Schedule | None, rule: dict) -> dict:
             "agents": "",
             "tools": list(runs.SAFE_TOOLS),
             "watch_url": "",
+            "watch_command": "",
+            "watch_timeout": "",
+            "device": "",
+            "device_dir": "",
+            "device_mode": "edit",
+            "approval_wait_minutes": "",
         }
     return {
         "model_id": schedule.model_id or "",
@@ -174,6 +182,12 @@ def _settings_defaults(schedule: Schedule | None, rule: dict) -> dict:
         "agents": schedule.agents or "",
         "tools": list(runs.tools_for(schedule)),
         "watch_url": schedule.watch_target if schedule.watch_kind == "url" else "",
+        "watch_command": schedule.watch_target if schedule.watch_kind == "command" else "",
+        "watch_timeout": schedule.watch_timeout or "",
+        "device": schedule.device_token_id or "",
+        "device_dir": schedule.device_dir or "",
+        "device_mode": schedule.device_mode or "edit",
+        "approval_wait_minutes": schedule.approval_wait_minutes or "",
     }
 
 
@@ -188,6 +202,27 @@ def _settings_from_form(form) -> dict:
         "tools": [str(t) for t in form.getlist("tools")],
         "watch": str(form.get("watch_url") or "").strip(),
     }
+    # Where it runs (harness spec 3.5.0): only from a form that offers it.
+    if "device" in form:
+        chosen = str(form.get("device") or "").strip()
+        settings["runs_on"] = (
+            {
+                "device": chosen,
+                "cwd": str(form.get("device_dir") or "").strip(),
+                "mode": str(form.get("device_mode") or "").strip(),
+                "approval_wait_minutes": str(form.get("approval_wait_minutes") or "").strip(),
+            }
+            if chosen
+            else None
+        )
+    # The command field is hidden while "On this server" is chosen: what it
+    # still holds then is not a watch.
+    command = str(form.get("watch_command") or "").strip()
+    if command and str(form.get("device") or "").strip():
+        settings["watch"] = {
+            "kind": "command", "command": command,
+            "timeout_s": str(form.get("watch_timeout") or "").strip(),
+        }
     if form.get("notify"):
         settings["notify"] = str(form.get("notify"))
     return settings
@@ -296,6 +331,29 @@ def _team_offered(db, user, models) -> bool:
     )
 
 
+def _devices(db, user) -> list[dict]:
+    """The person's linked computers a schedule may run on: each with
+    whether it is linked now and accepts scheduled work (spec 3.5.0)."""
+    from lembas.security import api_tokens
+    from lembas.services import device_link
+    from lembas.services import devices as devices_service
+
+    out = []
+    for token in devices_service.devices_of(db, user):
+        if not api_tokens.live(token):
+            continue
+        link = device_link.link_for(token.id)
+        out.append({
+            "id": token.id,
+            "name": token.device_host or token.name,
+            "linked": link is not None,
+            "accepts": bool(
+                link is not None and link.can("scheduled") and scheduled_device.accepts(link)
+            ),
+        })
+    return out
+
+
 def _context(db, user, schedule: Schedule | None, *, error: str = "") -> dict:
     models = models_service.offered_models(db, user)
     return {
@@ -315,6 +373,8 @@ def _context(db, user, schedule: Schedule | None, *, error: str = "") -> dict:
         ))),
         "form": _form_values(schedule=schedule),
         "error": error,
+        "devices": _devices(db, user),
+        "device_modes": [(m, policy.MODE_LABELS[m]) for m in scheduled_device.modes()],
         "models": models,
         "levels": _levels(models),
         "team_offered": _team_offered(db, user, models),

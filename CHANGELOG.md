@@ -37,6 +37,23 @@ The harness spec is **3.5.0** (scheduled work on a linked computer), copied from
   told. When it changed (and on the first look) the run is told what changed and what is there
   now, as data. A look that fails fails the run and never counts as a change. Fixtures: new
   `schedule_watching.json`; schedules and runs gain `watch` (null when nothing is watched).
+- **A schedule may run on a linked computer** (spec 3.5.0). "Where it runs" in the schedule's form
+  (`runs_on` on `/api/v2`, `computer` in the model's scheduling tools) picks one of your linked
+  computers, a folder there and a mode; each run is then an agent chat on that computer. The
+  computer must allow it -- "Accept scheduled work" in its LLeMbas CLI, off by default -- and the
+  form offers only one that does. The mode is Edit unless Auto is chosen on that schedule (never
+  Plan), and the computer may lower it. An approval the run needs comes to the phone as a card and
+  waits the schedule's wait (30 minutes by default), then counts as denied and the run goes on. A
+  computer that is not linked when the run is due is waited for like a busy model, and the run is
+  **missed** when its window closes; one that does not accept scheduled work fails the run with
+  its own words, not retried. A schedule run there may also **watch a command's output** ("Only
+  when this command's output changes"): the computer runs it in the folder first, under the
+  schedule's mode, and refuses one that would need approval; the same output is **Unchanged**, as
+  for a page. The CLI's `/schedule` reaches the schedule routes of `/api/v2` with its device token
+  (`runs_on.device: "this"`); nothing else of `/api/v2` accepts it. `GET /api/v2/devices` says
+  `scheduled` and `max_mode` for each linked computer. Fixtures: new `schedule_on_device.json`;
+  schedules gain `runs_on` (null on the server); `watch` gains `url` or `command` and `timeout_s`
+  (`target` is kept).
 - **Pinned chats.** A pin on each chat's row in the sidebar puts it in a **Pinned chats** section
   above `[ CHATS ]` (wherever it is filed) and takes it out again; on `/api/v2`, `PATCH
   /chats/{id}` takes `pinned`. The column was read for the sidebar's order but nothing ever set it.

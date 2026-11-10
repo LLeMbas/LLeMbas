@@ -2640,7 +2640,6 @@ MESSAGES.update(
         'Only when this page changes': 'Csak ha ez az oldal megváltozik',
         'Optional. Each run first looks at this address; when nothing changed since the last look, the run stops there and you are not told.': 'Nem kötelező. Minden futás először megnézi ezt a címet; ha a legutóbbi óta semmi sem változott, a futás ott véget ér, és nem kap értesítést.',
         'Unchanged': 'Változatlan',
-        'Only a web address can be watched for now.': 'Egyelőre csak webcím figyelhető.',
         'Say which address to watch.': 'Adja meg, melyik címet figyelje.',
         'That address is too long.': 'Ez a cím túl hosszú.',
         'Only http and https addresses can be watched.': 'Csak http és https címek figyelhetők.',
@@ -2662,5 +2661,38 @@ MESSAGES.update(
         'A folder needs a name.': 'A mappának név kell.',
         'That language is not offered.': 'Ez a nyelv nem érhető el.',
         'That theme is not offered.': 'Ez a téma nem érhető el.',
+    }
+)
+
+# Scheduled work on a linked computer (harness spec 3.5.0).
+MESSAGES.update(
+    {
+        'Only a web address or a command can be watched.': 'Csak webcím vagy parancs figyelhető.',
+        'Say which command to watch.': 'Adja meg, melyik parancsot figyelje.',
+        'That command is too long.': 'Ez a parancs túl hosszú.',
+        'A command is watched on a linked computer: choose the computer it runs on.': 'A parancsot egy összekapcsolt számítógépen figyeljük: válassza ki a számítógépet, amelyen fut.',
+        'Say which computer to run it on.': 'Adja meg, melyik számítógépen fusson.',
+        'Only a linked computer can say "this" computer.': 'Csak egy összekapcsolt számítógép mondhatja, hogy „ez” a számítógép.',
+        'That computer is not one of your linked computers.': 'Ez a számítógép nem tartozik az Ön összekapcsolt számítógépei közé.',
+        'Say which folder on the computer, as a full path.': 'Adja meg a mappát a számítógépen teljes elérési úttal.',
+        'A scheduled run cannot use plan mode: nobody is there to approve a plan.': 'Ütemezett futás nem használhat tervmódot: nincs ott senki, aki jóváhagyná a tervet.',
+        'Choose Manual, Edit or Auto.': 'Válasszon: Manual, Edit vagy Auto.',
+        "That computer's LLeMbas CLI is too old to run scheduled work. Update it.": 'A számítógép LLeMbas CLI-je túl régi az ütemezett munkához. Frissítse.',
+        'Where it runs': 'Hol fut',
+        'Computer': 'Számítógép',
+        'On this server': 'Ezen a szerveren',
+        'not linked now': 'most nincs összekapcsolva',
+        'does not accept scheduled work': 'nem fogad ütemezett munkát',
+        'A run on a computer is an agent chat there. The computer must allow it: “Accept scheduled work” in its LLeMbas CLI (lembas service scheduled on).': 'A számítógépen futás ott egy ügynök-csevegés. A számítógépnek engedélyeznie kell: „Accept scheduled work” a LLeMbas CLI-jében (lembas service scheduled on).',
+        'Folder on the computer': 'Mappa a számítógépen',
+        'A full path, inside a folder the computer allows remote work in.': 'Teljes elérési út, olyan mappán belül, ahol a számítógép engedi a távoli munkát.',
+        'Edit unless you choose otherwise; Auto runs commands without asking. The computer may lower it.': 'Edit, hacsak mást nem választ; az Auto kérdezés nélkül futtat parancsokat. A számítógép csökkentheti.',
+        'An approval waits (minutes)': 'Egy jóváhagyás vár (perc)',
+        'A command the run needs approved comes to your phone as a card. Unanswered by then, it counts as denied.': 'A futás által jóváhagyást igénylő parancs kártyaként érkezik a telefonjára. Ha addig nem válaszol, elutasítottnak számít.',
+        "Only when this command's output changes": 'Csak ha ennek a parancsnak a kimenete változik',
+        'Optional, on the computer. Run in the folder before each run; when its output is the same as last time, the run stops there. A command the mode would ask about is refused.': 'Nem kötelező, a számítógépen. Minden futás előtt lefut a mappában; ha a kimenete ugyanaz, mint legutóbb, a futás ott leáll. Az a parancs, amelyre a mód rákérdezne, elutasításra kerül.',
+        'The command may take (seconds)': 'A parancs ennyi ideig tarthat (másodperc)',
+        'Stopped after this; the run then fails.': 'Ezután leáll, és a futás sikertelen.',
+        'a computer no longer signed in': 'egy már nem bejelentkezett számítógép',
     }
 )

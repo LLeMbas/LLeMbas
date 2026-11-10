@@ -51,6 +51,7 @@
       "fired_count": 3,
       "failure_streak": 0,
       "watch": null,
+      "runs_on": null,
       "last_error": null,
       "last_run": {
         "id": "run1",

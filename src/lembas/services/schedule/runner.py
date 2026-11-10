@@ -25,6 +25,13 @@ the notification). In order:
    model was never reached and a retry is safe. A report is filed where the
    schedule says. Then the notification, by the schedule's policy.
 
+**On a linked computer** (harness spec 3.5.0, `device.py`) step 1 is the
+device instead of a model: away, the run waits for it on the same steps and is
+`missed` when its window closes; one that does not accept scheduled work
+fails the run. The chat is an agent chat there, in the schedule's folder and
+mode, and the turn says `scheduled` on every request of its session. A watch
+command is run on that device first (`_look`).
+
 `fire` never raises: the ticker calls it and one bad schedule must not stop the
 others. Whatever goes wrong is written on the run and on the schedule.
 """
@@ -40,9 +47,11 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select
 
 from lembas.db.models import (
+    KIND_AGENT,
     KIND_TASK,
     MODE_CONTINUE,
     RUN_FAILED,
+    RUN_MISSED,
     RUN_OK,
     RUN_RUNNING,
     RUN_SILENT,
@@ -64,7 +73,7 @@ from lembas.db.models import (
 )
 from lembas.db.session import session_scope
 from lembas.services import wake as wake_service
-from lembas.services.schedule import clock, monitor, notify, runs
+from lembas.services.schedule import clock, device, monitor, notify, runs
 from lembas.services.schedule import models as models_service
 from lembas.services.schedule import rule as rule_service
 
@@ -171,6 +180,8 @@ def _run_chat(db, schedule: Schedule, owner: User, model) -> Chat | None:
     home = db.get(Chat, schedule.chat_id) if schedule.chat_id else None
     if home is not None and home.user_id != owner.id:
         home = None
+    if schedule.device_token_id:
+        return _device_chat(db, schedule, owner, home)
     if schedule.mode == MODE_CONTINUE:
         return home
     if home is not None and not _has_messages(db, home.id):
@@ -192,6 +203,60 @@ def _run_chat(db, schedule: Schedule, owner: User, model) -> Chat | None:
     # `continue` switch all land on the latest.
     schedule.chat_id = chat.id
     return chat
+
+
+def _device_chat(db, schedule: Schedule, owner: User, home: Chat | None) -> Chat:
+    """The agent chat a run on a linked computer goes into: the schedule's
+    own when it continues there (same computer, same folder) or is still
+    empty, else a new one, which becomes the schedule's."""
+    from lembas.services import chat as chat_service
+
+    where = device.runs_on_of(schedule)
+    same_place = (
+        home is not None
+        and home.kind == KIND_AGENT
+        and home.device_token_id == where.device
+        and (home.project_dir or "") == where.cwd
+    )
+    if same_place and (schedule.mode == MODE_CONTINUE or not _has_messages(db, home.id)):
+        home.agent_mode = where.mode
+        _device_effort(home, schedule)
+        return home
+    model_id = schedule.model_id or ""
+    if not model_id:
+        start = chat_service.default_model(db, owner)
+        model_id = start[0] if start else ""
+    zone = clock.zone_for(owner)
+    stamp = _now().astimezone(zone).strftime("%-d %b %H:%M")
+    chat = Chat(
+        user_id=owner.id,
+        kind=KIND_AGENT,
+        title=f"{schedule.title or 'Scheduled task'} · {stamp}"[:200],
+        model_id=model_id,
+        connection_id=schedule.connection_id if schedule.model_id else None,
+        data_group_id=schedule.data_group_id,
+        device_token_id=where.device,
+        project_dir=where.cwd,
+        agent_mode=where.mode,
+        # Its title is the schedule's and the run's time, not a model's guess.
+        title_generated=True,
+    )
+    db.add(chat)
+    db.flush()
+    _device_effort(chat, schedule)
+    schedule.chat_id = chat.id
+    return chat
+
+
+def _device_effort(chat: Chat, schedule: Schedule) -> None:
+    """The schedule's effort on its device chat (sent as `session/new`'s
+    `effort`); no model is chosen here, so the device judges the level."""
+    params = dict(chat.params_json or {})
+    if schedule.effort:
+        params["reasoning_effort"] = schedule.effort
+    else:
+        params.pop("reasoning_effort", None)
+    chat.params_json = params
 
 
 def _apply_settings(db, chat: Chat, schedule: Schedule, model) -> None:
@@ -320,7 +385,10 @@ async def attempt(run_id: str) -> None:
         run.attempts = (run.attempts or 0) + 1
         run.first_try_at = run.first_try_at or now
 
-        order = models_service.candidates(db, owner, schedule)
+        on_device = bool(schedule.device_token_id)
+        if on_device and not _device_ready(db, schedule, owner, run, now=now):
+            return
+        order = [] if on_device else models_service.candidates(db, owner, schedule)
         if order:
             choice = await models_service.choose(db, owner, schedule)
             if choice.model is None:
@@ -340,6 +408,9 @@ async def attempt(run_id: str) -> None:
         restart, chat_id, content, limit = prepared
         model_id = model.model_id if model is not None else ""
         connection_id = model.connection_id if model is not None else None
+        if on_device:
+            # Said on every request of the session while the run lasts.
+            device.TURNS[chat_id] = device.scheduled_meta(schedule, run)
 
     try:
         if restart is not None:
@@ -361,6 +432,7 @@ async def attempt(run_id: str) -> None:
                         _finish(run, RUN_SKIPPED, error_class=ERROR_BACKLOG,
                                 error=schedule.last_error)
                         db.commit()
+                device.TURNS.pop(chat_id, None)
                 return
             message_id = await wake_service.wake_chat(
                 chat_id, content, model_id=model_id, connection_id=connection_id
@@ -368,6 +440,8 @@ async def attempt(run_id: str) -> None:
     finally:
         if choice is not None:
             models_service.release(choice)
+    if not message_id:
+        device.TURNS.pop(chat_id, None)
 
     with session_scope() as db:
         run = db.get(ScheduleRun, run_id)
@@ -399,10 +473,21 @@ async def _look(run_id: str) -> bool:
             return True
         if not schedule.watch_kind or run.watch_json:
             return True
-        allow_private = bool(settings_store.search(db).get("allow_private_fetch"))
-        # Looked at outside a held write: the session stays open (the
-        # schedule's state is kept on it), but the fetch is bounded in time.
-        outcome = await monitor.check(schedule, allow_private=allow_private)
+        if schedule.watch_kind == monitor.KIND_COMMAND:
+            # On the schedule's computer (spec 3.5.0): away, the run waits
+            # for it; not accepting, it fails.
+            owner = db.get(User, run.user_id)
+            run.attempts = (run.attempts or 0) + 1
+            run.first_try_at = run.first_try_at or _now()
+            if not _device_ready(db, schedule, owner, run, now=_now()):
+                return False
+            run.attempts -= 1  # the attempt proper counts itself
+            outcome = await _look_on_device(schedule, run)
+        else:
+            allow_private = bool(settings_store.search(db).get("allow_private_fetch"))
+            # Looked at outside a held write: the session stays open (the
+            # schedule's state is kept on it), but the fetch is bounded in time.
+            outcome = await monitor.check(schedule, allow_private=allow_private)
         record = dict(outcome.record)
         if outcome.block:
             record["block"] = outcome.block
@@ -425,6 +510,30 @@ async def _look(run_id: str) -> bool:
         schedule_id = schedule.id
     _notify_failure_later(schedule_id, run_id)
     return False
+
+
+async def _look_on_device(schedule, run) -> monitor.Outcome:
+    """`_lembas/monitor` on the schedule's computer: its hash against the
+    one kept, as `monitor.check` does for an address. Never raises."""
+    from lembas.services import device_link
+
+    link = device.linked(schedule.device_token_id)
+    kind = monitor.KIND_COMMAND
+    try:
+        if link is None:
+            raise device_link.LinkClosed("the computer is not linked")
+        answer = await device.look(schedule, run, link=link)
+    except device_link.DeviceError as exc:
+        error = f"the computer refused the watch command: {exc}"
+        return monitor.Outcome(False, error=error, record={"kind": kind, "error": error})
+    except (device_link.LinkClosed, TimeoutError) as exc:
+        error = f"the computer did not answer the watch command ({exc or 'timed out'})"
+        return monitor.Outcome(False, error=error, record={"kind": kind, "error": error})
+    digest = str(answer.get("hash") or "")
+    if not digest:
+        error = "the watch command timed out"
+        return monitor.Outcome(False, error=error, record={"kind": kind, "error": error})
+    return monitor.compare_command(schedule, answer)
 
 
 def _prepare(db, schedule, owner, run, choice, model, *, now: datetime):
@@ -524,6 +633,56 @@ def _wait_for_model(db, schedule, owner, run, choice, *, now: datetime) -> None:
     db.commit()
 
 
+def _device_ready(db, schedule, owner, run, *, now: datetime) -> bool:
+    """Whether the run's computer can take it now. Away: the run waits for it
+    (or is missed); linked but not accepting, or not allowed: the run fails,
+    not retried -- it is somebody's setting. Commits when it says no."""
+    from lembas.services import device_link
+
+    link = device.linked(schedule.device_token_id)
+    if link is None:
+        _wait_for_device(db, schedule, run, now=now)
+        return False
+    refused = device_link.refusal(db, owner, schedule.device_token_id) or device.refusal_of(link)
+    if refused:
+        _fail_on_device(db, schedule, run, refused)
+        return False
+    return True
+
+
+def _fail_on_device(db, schedule, run, error: str) -> None:
+    _finish(run, RUN_FAILED, error_class=device.ERROR_DEVICE, error=error)
+    schedule.claimed_at = None
+    schedule.failure_streak = int(schedule.failure_streak or 0) + 1
+    schedule.last_error = run.error[:500]
+    db.commit()
+    _notify_failure_later(schedule.id, run.id)
+
+
+def _wait_for_device(db, schedule, run, *, now: datetime) -> None:
+    """The computer is away: wait on the steps a busy model is waited for,
+    and -- past the run's window -- record it `missed` (spec 3.5.0)."""
+    base = clock.as_utc(run.first_try_at or now)
+    retry = runs.next_wait(base=base, attempts=run.attempts, now=now)
+    deadline = clock.as_utc(run.deadline) if run.deadline else now
+    name = device.device_name(db, schedule.device_token_id) or "The computer"
+    if retry > deadline:
+        _finish(run, RUN_MISSED, error_class=device.ERROR_DEVICE_AWAY,
+                error=f"{name} was not linked before the run's time passed.")
+        run.missed = max(1, int(run.missed or 0))
+        schedule.claimed_at = None
+        db.commit()
+        _notify_failure_later(schedule.id, run.id)
+        return
+    run.status = RUN_WAITING
+    run.waiting_for = device.WAIT_DEVICE
+    run.waiting_json = {"device": name, "since": int(base.timestamp() * 1000)}
+    run.retry_at = retry
+    run.error_class = device.ERROR_DEVICE_AWAY
+    run.error = f"Waiting for {name} to be linked."[:2000]
+    db.commit()
+
+
 # --- Following the reply ------------------------------------------------------------------
 async def follow(run_id: str) -> None:
     """Wait for a run's reply, then settle the run."""
@@ -553,7 +712,9 @@ async def follow(run_id: str) -> None:
             version = -2
         else:
             version = generation.version
-        if version != seen:
+        if version != seen or (generation is not None and getattr(generation, "waiting", None)):
+            # A card waiting for the person (a scheduled turn's approval, up
+            # to the schedule's wait) is not a reply gone quiet.
             seen = version
             quiet_since = _monotonic()
         elif _monotonic() - quiet_since > runs.INACTIVITY_SECONDS:
@@ -599,6 +760,20 @@ async def settle(run_id: str, generation, *, timed_out: bool = False, chat_id: s
                 run.cost_micro = int(message.cost_micro or 0)
                 run.currency = message.currency
 
+        on_device = bool(schedule.device_token_id) and message is not None
+        if on_device:
+            device.TURNS.pop(message.chat_id, None)
+        said = getattr(generation, "scheduled_outcome", None) or {}
+        reached_device = message is not None and bool(
+            (message.content or "").strip() or (message.tool_calls_json or [])
+        )
+        if on_device and getattr(generation, "device_away", False) and not reached_device:
+            # Away when the turn was sent: wait for it like a busy model. The
+            # empty reply is dropped; the next try writes a new one.
+            db.delete(message)
+            run.message_id = ""
+            _wait_for_device(db, schedule, run, now=now)
+            return
         if timed_out:
             failure = (
                 ERROR_TIMEOUT,
@@ -607,6 +782,16 @@ async def settle(run_id: str, generation, *, timed_out: bool = False, chat_id: s
             )
         elif message is None:
             failure = (ERROR_INTERNAL, "The run's reply no longer exists.")
+        elif on_device and said.get("status") in ("failed", "cancelled"):
+            # The device's own word on its turn (spec 3.5.0).
+            text = str(said.get("error") or "").strip()
+            if said.get("status") == "cancelled":
+                text = text or "The run was stopped on the computer."
+            failure = (device.ERROR_DEVICE, text or device.text("no_reply"))
+        elif on_device and message.error and not reached_device:
+            # Refused by the device (-32602: not accepting, a folder it does
+            # not allow, a permission): not retried.
+            failure = (device.ERROR_DEVICE, message.error)
         elif message.error or not message.complete:
             reached = bool(
                 (message.content or "").strip()

@@ -2640,7 +2640,6 @@ MESSAGES.update(
         'Only when this page changes': 'Seulement quand cette page change',
         'Optional. Each run first looks at this address; when nothing changed since the last look, the run stops there and you are not told.': 'Facultatif. Chaque exécution regarde d’abord cette adresse ; si rien n’a changé depuis la dernière fois, l’exécution s’arrête là et vous n’êtes pas averti.',
         'Unchanged': 'Inchangé',
-        'Only a web address can be watched for now.': 'Pour l’instant, seule une adresse web peut être surveillée.',
         'Say which address to watch.': 'Indiquez quelle adresse surveiller.',
         'That address is too long.': 'Cette adresse est trop longue.',
         'Only http and https addresses can be watched.': 'Seules les adresses http et https peuvent être surveillées.',
@@ -2662,5 +2661,38 @@ MESSAGES.update(
         'A folder needs a name.': 'Un dossier a besoin d’un nom.',
         'That language is not offered.': 'Cette langue n’est pas proposée.',
         'That theme is not offered.': 'Ce thème n’est pas proposé.',
+    }
+)
+
+# Scheduled work on a linked computer (harness spec 3.5.0).
+MESSAGES.update(
+    {
+        'Only a web address or a command can be watched.': 'Seule une adresse web ou une commande peut être surveillée.',
+        'Say which command to watch.': 'Indiquez quelle commande surveiller.',
+        'That command is too long.': 'Cette commande est trop longue.',
+        'A command is watched on a linked computer: choose the computer it runs on.': 'Une commande est surveillée sur un ordinateur relié : choisissez l’ordinateur où elle s’exécute.',
+        'Say which computer to run it on.': 'Indiquez sur quel ordinateur l’exécuter.',
+        'Only a linked computer can say "this" computer.': 'Seul un ordinateur relié peut dire « cet » ordinateur.',
+        'That computer is not one of your linked computers.': 'Cet ordinateur ne fait pas partie de vos ordinateurs reliés.',
+        'Say which folder on the computer, as a full path.': 'Indiquez le dossier sur l’ordinateur, sous forme de chemin complet.',
+        'A scheduled run cannot use plan mode: nobody is there to approve a plan.': 'Une exécution planifiée ne peut pas utiliser le mode plan : personne n’est là pour approuver un plan.',
+        'Choose Manual, Edit or Auto.': 'Choisissez Manual, Edit ou Auto.',
+        "That computer's LLeMbas CLI is too old to run scheduled work. Update it.": 'Le LLeMbas CLI de cet ordinateur est trop ancien pour le travail planifié. Mettez-le à jour.',
+        'Where it runs': 'Où elle s’exécute',
+        'Computer': 'Ordinateur',
+        'On this server': 'Sur ce serveur',
+        'not linked now': 'non relié pour l’instant',
+        'does not accept scheduled work': 'n’accepte pas le travail planifié',
+        'A run on a computer is an agent chat there. The computer must allow it: “Accept scheduled work” in its LLeMbas CLI (lembas service scheduled on).': 'Une exécution sur un ordinateur y est un chat d’agent. L’ordinateur doit l’autoriser : « Accept scheduled work » dans son LLeMbas CLI (lembas service scheduled on).',
+        'Folder on the computer': 'Dossier sur l’ordinateur',
+        'A full path, inside a folder the computer allows remote work in.': 'Un chemin complet, dans un dossier où l’ordinateur autorise le travail à distance.',
+        'Edit unless you choose otherwise; Auto runs commands without asking. The computer may lower it.': 'Edit sauf choix contraire ; Auto exécute les commandes sans demander. L’ordinateur peut l’abaisser.',
+        'An approval waits (minutes)': 'Une approbation attend (minutes)',
+        'A command the run needs approved comes to your phone as a card. Unanswered by then, it counts as denied.': 'Une commande que l’exécution doit faire approuver arrive sur votre téléphone sous forme de carte. Sans réponse d’ici là, elle compte comme refusée.',
+        "Only when this command's output changes": 'Seulement quand la sortie de cette commande change',
+        'Optional, on the computer. Run in the folder before each run; when its output is the same as last time, the run stops there. A command the mode would ask about is refused.': 'Facultatif, sur l’ordinateur. Exécutée dans le dossier avant chaque exécution ; quand sa sortie est la même que la dernière fois, l’exécution s’arrête là. Une commande pour laquelle le mode demanderait est refusée.',
+        'The command may take (seconds)': 'La commande peut durer (secondes)',
+        'Stopped after this; the run then fails.': 'Arrêtée au-delà ; l’exécution échoue alors.',
+        'a computer no longer signed in': 'un ordinateur qui n’est plus connecté',
     }
 )

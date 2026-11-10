@@ -803,7 +803,7 @@ async def test_a_monitor_runs_the_model_only_when_the_page_changed(
     assert "block" not in runs.watch_dict(changed.watch_json)
     db.refresh(schedule)
     assert schedule.watch_hash == monitor.digest(b"Price: 12")
-    assert runs.schedule_dict(db, schedule, owner=_owner(db))["watch"]["target"] == (
+    assert runs.schedule_dict(db, schedule, owner=_owner(db))["watch"]["url"] == (
         "https://shop.example/item"
     )
 
@@ -834,7 +834,8 @@ def test_a_new_address_starts_afresh_and_bad_ones_are_refused(db, three, script)
     assert (schedule.watch_target, schedule.watch_hash, schedule.watch_last) == (
         "https://b.example/", "", ""
     )
-    for bad in ("ftp://a.example/", {"kind": "command", "target": "ls"}):
+    # A command is watched on a linked computer: refused for a server run.
+    for bad in ("ftp://a.example/", {"kind": "command", "command": "ls"}, {"kind": "file"}):
         with pytest.raises(schedules_service.ScheduleError):
             schedules_service.apply_settings(schedule, {"watch": bad})
     schedules_service.apply_settings(schedule, {"watch": ""})

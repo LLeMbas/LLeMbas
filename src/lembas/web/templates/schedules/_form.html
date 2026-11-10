@@ -49,6 +49,64 @@
   <p class="field__hint">{{ t("Optional. Each run first looks at this address; when nothing changed since the last look, the run stops there and you are not told.") }}</p>
 </div>
 
+{# Harness spec 3.5.0 (`services/schedule/device.py`): a run as an agent turn
+   on one of the person's linked computers -- only one whose LLeMbas CLI
+   accepts scheduled work. Every field below is sent whatever is chosen, and
+   the server ignores the computer's when "On this server" is. #}
+<fieldset class="schedule-device" data-testid="schedule-device">
+  <legend class="field__label">{{ t("Where it runs") }}</legend>
+  <div class="field">
+    <label class="field__label" for="schedule-device">{{ t("Computer") }}</label>
+    <select class="select" id="schedule-device" name="device">
+      <option value="" {{ 'selected' if not form.device }}>{{ t("On this server") }}</option>
+      {% for d in devices %}
+      <option value="{{ d.id }}" {{ 'selected' if form.device == d.id }}
+              {{ 'disabled' if not d.accepts and form.device != d.id }}>
+        {{ d.name }}{% if not d.linked %} · {{ t("not linked now") }}{% elif not d.accepts %} · {{ t("does not accept scheduled work") }}{% endif %}
+      </option>
+      {% endfor %}
+    </select>
+    <p class="field__hint">{{ t("A run on a computer is an agent chat there. The computer must allow it: “Accept scheduled work” in its LLeMbas CLI (lembas service scheduled on).") }}</p>
+  </div>
+  <div class="field">
+    <label class="field__label" for="schedule-device-dir">{{ t("Folder on the computer") }}</label>
+    <input class="input" id="schedule-device-dir" name="device_dir" maxlength="1000"
+           autocomplete="off" spellcheck="false" value="{{ form.device_dir }}"
+           placeholder="/home/you/project">
+    <p class="field__hint">{{ t("A full path, inside a folder the computer allows remote work in.") }}</p>
+  </div>
+  <div class="field">
+    <label class="field__label" for="schedule-device-mode">{{ t("Mode") }}</label>
+    <select class="select" id="schedule-device-mode" name="device_mode">
+      {% for value, label in device_modes %}
+      <option value="{{ value }}" {{ 'selected' if form.device_mode == value }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <p class="field__hint">{{ t("Edit unless you choose otherwise; Auto runs commands without asking. The computer may lower it.") }}</p>
+  </div>
+  <div class="field">
+    <label class="field__label" for="schedule-approval-wait">{{ t("An approval waits (minutes)") }}</label>
+    <input class="input u-w-field-xs" type="number" id="schedule-approval-wait"
+           name="approval_wait_minutes" min="1" max="1440" step="1" inputmode="numeric"
+           value="{{ form.approval_wait_minutes }}" placeholder="30">
+    <p class="field__hint">{{ t("A command the run needs approved comes to your phone as a card. Unanswered by then, it counts as denied.") }}</p>
+  </div>
+  <div class="field">
+    <label class="field__label" for="schedule-watch-command">{{ t("Only when this command's output changes") }}</label>
+    <input class="input" id="schedule-watch-command" name="watch_command" maxlength="4000"
+           autocomplete="off" spellcheck="false" value="{{ form.watch_command }}"
+           placeholder="git log -1 --format=%H">
+    <p class="field__hint">{{ t("Optional, on the computer. Run in the folder before each run; when its output is the same as last time, the run stops there. A command the mode would ask about is refused.") }}</p>
+  </div>
+  <div class="field">
+    <label class="field__label" for="schedule-watch-timeout">{{ t("The command may take (seconds)") }}</label>
+    <input class="input u-w-field-xs" type="number" id="schedule-watch-timeout"
+           name="watch_timeout" min="1" max="600" step="1" inputmode="numeric"
+           value="{{ form.watch_timeout }}" placeholder="60">
+    <p class="field__hint">{{ t("Stopped after this; the run then fails.") }}</p>
+  </div>
+</fieldset>
+
 <fieldset class="schedule-repeat">
   <legend class="field__label">{{ t("When") }}</legend>
 

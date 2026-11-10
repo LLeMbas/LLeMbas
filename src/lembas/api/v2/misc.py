@@ -192,6 +192,7 @@ async def devices(caller: Me, db: Db) -> dict[str, Any]:
     tokens that are linked right now (the new-agent-chat screen's list)."""
     from lembas.services import device_link
     from lembas.services import devices as devices_service
+    from lembas.services.schedule import device as scheduled_device
 
     out = []
     for token in devices_service.devices_of(db, caller.user):
@@ -208,6 +209,10 @@ async def devices(caller: Me, db: Db) -> dict[str, Any]:
                 # `remote.terminal`, the permission, the instance's switch):
                 # the Terminal is offered on it, before the chat too.
                 "terminal": _terminal_on(db, caller.user, link),
+                # Whether it accepts scheduled work (its "Accept scheduled
+                # work", spec 3.5.0): a schedule may be set to run there.
+                "scheduled": link.can("scheduled") and scheduled_device.accepts(link),
+                "max_mode": link.max_mode or "",
             }
         )
     return {"devices": out}

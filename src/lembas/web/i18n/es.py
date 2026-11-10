@@ -2640,7 +2640,6 @@ MESSAGES.update(
         'Only when this page changes': 'Solo cuando esta página cambie',
         'Optional. Each run first looks at this address; when nothing changed since the last look, the run stops there and you are not told.': 'Opcional. Cada ejecución mira primero esta dirección; si nada cambió desde la última vez, la ejecución termina ahí y no se le avisa.',
         'Unchanged': 'Sin cambios',
-        'Only a web address can be watched for now.': 'Por ahora solo se puede vigilar una dirección web.',
         'Say which address to watch.': 'Indique qué dirección vigilar.',
         'That address is too long.': 'Esa dirección es demasiado larga.',
         'Only http and https addresses can be watched.': 'Solo se pueden vigilar direcciones http y https.',
@@ -2662,5 +2661,38 @@ MESSAGES.update(
         'A folder needs a name.': 'Una carpeta necesita un nombre.',
         'That language is not offered.': 'Ese idioma no está disponible.',
         'That theme is not offered.': 'Ese tema no está disponible.',
+    }
+)
+
+# Scheduled work on a linked computer (harness spec 3.5.0).
+MESSAGES.update(
+    {
+        'Only a web address or a command can be watched.': 'Solo se puede vigilar una dirección web o un comando.',
+        'Say which command to watch.': 'Indica qué comando vigilar.',
+        'That command is too long.': 'Ese comando es demasiado largo.',
+        'A command is watched on a linked computer: choose the computer it runs on.': 'Un comando se vigila en un ordenador vinculado: elige el ordenador donde se ejecuta.',
+        'Say which computer to run it on.': 'Indica en qué ordenador ejecutarlo.',
+        'Only a linked computer can say "this" computer.': 'Solo un ordenador vinculado puede decir «este» ordenador.',
+        'That computer is not one of your linked computers.': 'Ese ordenador no es uno de tus ordenadores vinculados.',
+        'Say which folder on the computer, as a full path.': 'Indica la carpeta del ordenador como ruta completa.',
+        'A scheduled run cannot use plan mode: nobody is there to approve a plan.': 'Una ejecución programada no puede usar el modo plan: no hay nadie para aprobar un plan.',
+        'Choose Manual, Edit or Auto.': 'Elige Manual, Edit o Auto.',
+        "That computer's LLeMbas CLI is too old to run scheduled work. Update it.": 'El LLeMbas CLI de ese ordenador es demasiado antiguo para trabajo programado. Actualízalo.',
+        'Where it runs': 'Dónde se ejecuta',
+        'Computer': 'Ordenador',
+        'On this server': 'En este servidor',
+        'not linked now': 'no vinculado ahora',
+        'does not accept scheduled work': 'no acepta trabajo programado',
+        'A run on a computer is an agent chat there. The computer must allow it: “Accept scheduled work” in its LLeMbas CLI (lembas service scheduled on).': 'Una ejecución en un ordenador es allí un chat de agente. El ordenador debe permitirlo: «Accept scheduled work» en su LLeMbas CLI (lembas service scheduled on).',
+        'Folder on the computer': 'Carpeta en el ordenador',
+        'A full path, inside a folder the computer allows remote work in.': 'Una ruta completa, dentro de una carpeta en la que el ordenador permite trabajo remoto.',
+        'Edit unless you choose otherwise; Auto runs commands without asking. The computer may lower it.': 'Edit salvo que elijas otro; Auto ejecuta comandos sin preguntar. El ordenador puede rebajarlo.',
+        'An approval waits (minutes)': 'Una aprobación espera (minutos)',
+        'A command the run needs approved comes to your phone as a card. Unanswered by then, it counts as denied.': 'Un comando que la ejecución necesita aprobar llega a tu teléfono como tarjeta. Sin respuesta para entonces, cuenta como denegado.',
+        "Only when this command's output changes": 'Solo cuando cambie la salida de este comando',
+        'Optional, on the computer. Run in the folder before each run; when its output is the same as last time, the run stops there. A command the mode would ask about is refused.': 'Opcional, en el ordenador. Se ejecuta en la carpeta antes de cada ejecución; cuando su salida es la misma que la última vez, la ejecución se detiene ahí. Se rechaza un comando por el que el modo preguntaría.',
+        'The command may take (seconds)': 'El comando puede tardar (segundos)',
+        'Stopped after this; the run then fails.': 'Después se detiene y la ejecución falla.',
+        'a computer no longer signed in': 'un ordenador que ya no tiene sesión iniciada',
     }
 )

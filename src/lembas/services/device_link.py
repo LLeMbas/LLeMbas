@@ -518,6 +518,16 @@ class Link:
             job=job,
         )
         timeout = PATIENT_WAIT if patient else ASK_WAIT
+        # A scheduled turn's approval (spec 3.5.0): the device waits the
+        # schedule's wait and then denies it itself; the card here waits a
+        # little longer, so it is settled by the device's word.
+        scheduled = meta.get("scheduled") if isinstance(meta.get("scheduled"), dict) else {}
+        if scheduled:
+            try:
+                timeout = float(scheduled.get("wait_s") or 0) + SCHEDULED_GRACE
+            except (TypeError, ValueError):
+                timeout = ASK_WAIT
+            timeout = max(timeout, SCHEDULED_GRACE)
         call_id = str(call.get("toolCallId") or "")
         pause = interaction.build(uuid.uuid4().hex, [item], timeout=timeout)
         pause.tool_call_id = call_id
@@ -697,6 +707,8 @@ class Link:
 # question or plan nobody answers here is a denial, a dismissal, after fifteen
 # minutes -- unless the device says somebody may answer at its terminal.
 ASK_WAIT = 900.0
+# How much longer than its schedule's wait a scheduled turn's card stays open.
+SCHEDULED_GRACE = 120.0
 PATIENT_WAIT = 7 * 86400.0
 # A plan longer than this is cut on the card; the device keeps the whole file.
 MAX_PLAN_CHARS = 60_000
@@ -1518,6 +1530,8 @@ async def run(
             f"{device_name} is not linked right now. Start it there with "
             "`lembas service run` (or `lembas service install`)."
         )
+        # A scheduled run waits for it like a busy model (spec 3.5.0).
+        generation.device_away = True
         return
     if mirror:
         await _follow_mirror(link, generation, chat_id, session_id, device_name)
@@ -1662,6 +1676,10 @@ async def _prompt(
             # drain after this reply sends it as the next turn rather than it
             # being marked delivered and lost.
             said = (result.get("_meta") or {}).get("lembas") or {}
+            # A scheduled turn's outcome (spec 3.5.0): ok, silent, failed or
+            # cancelled, and the final reply; the run is recorded from it.
+            if isinstance(said.get("scheduled"), dict):
+                generation.scheduled_outcome = dict(said["scheduled"])
             unsent = said.get("unsent") or []
             if unsent:
                 _requeue(generation, len(unsent))
@@ -2085,6 +2103,13 @@ def context_for(db, link: Link, user, chat) -> dict[str, Any]:
     from lembas.services import personalization
 
     context: dict[str, Any] = {}
+    # Spec 3.5.0 (capability `scheduled`): a schedule's run in this chat says
+    # so on every request of its session -- the mode, the wait, the run.
+    if link.can("scheduled"):
+        from lembas.services.schedule import device as scheduled_device
+
+        if chat.id in scheduled_device.TURNS:
+            context["scheduled"] = dict(scheduled_device.TURNS[chat.id])
     # Spec 3.4.0 (capability `agents`): the chat's Subagents setting, with
     # every turn; `subagents: false` while the instance has them switched off
     # (or the person may not use them), so the device offers none.

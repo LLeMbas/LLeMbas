@@ -576,6 +576,32 @@ def _schedules() -> dict[str, object]:
         watch_json={"kind": "url", "hash": "a" * 64, "bytes": 5120, "truncated": False,
                     "changed": False, "looked_at": WHEN.isoformat()},
     )
+    # Harness spec 3.5.0: a schedule run on a linked computer, watching a
+    # command there, whose run waits for the computer to be linked again.
+    on_device = Schedule(
+        id="sched3", user_id="user1", title="Nightly tests", instruction="Run the tests.",
+        request="every night at 02:00", rule_json=rule.validate({"every": {"hours": 24}}),
+        target="chat", chat_id="chat2", model_id="", enabled=True,
+        next_fire_at=datetime(2026, 1, 3, 2, 0, 0, tzinfo=UTC), fired_count=3, last_error="",
+        origin="user", mode="fresh", notify="matters", catch_up="one", grace_minutes=None,
+        effort="", agents=None, tools_json=[], failure_streak=0, created_at=WHEN,
+        watch_kind="command", watch_target="git log -1 --format=%H", watch_timeout=30,
+        watch_hash="sha256:" + "b" * 64, watch_changed_at=WHEN,
+        device_token_id="tok1", device_dir="/home/frodo/waybread", device_mode="edit",
+        approval_wait_minutes=None,
+    )
+    away = ScheduleRun(
+        id="run5", schedule_id="sched3", user_id="user1", status="waiting", timing="on_time",
+        missed=0, due_at=WHEN, first_try_at=WHEN, started_at=None, finished_at=None,
+        waiting_for="device", retry_at=datetime(2026, 1, 2, 3, 9, 5, tzinfo=UTC), attempts=1,
+        retries=0, chat_id="", message_id="", preview="", error_class="device_away",
+        error="Waiting for bag-end to be linked.", notified=False,
+        waiting_json={"device": "bag-end", "since": WHEN_MS},
+    )
+    tokens = SimpleNamespace(
+        get=lambda _model, key: SimpleNamespace(device_host="bag-end", name="LLeMbas CLI")
+        if key == "tok1" else None
+    )
     listed = [runs.schedule_dict(None, schedule, owner=owner, last=run)]
     models = _models()
     return {
@@ -608,6 +634,9 @@ def _schedules() -> dict[str, object]:
         "event_schedules": {"version": version_of(listed), "schedules": listed},
         "schedule_watching": {
             "schedule": runs.schedule_dict(None, watching, owner=owner, last=unchanged)
+        },
+        "schedule_on_device": {
+            "schedule": runs.schedule_dict(tokens, on_device, owner=owner, last=away)
         },
         **pushes,
     }

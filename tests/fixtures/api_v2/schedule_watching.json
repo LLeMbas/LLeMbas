@@ -37,9 +37,11 @@
     "failure_streak": 0,
     "watch": {
       "kind": "url",
+      "url": "https://shop.example/mallorn",
       "target": "https://shop.example/mallorn",
       "changed_at": "2026-01-02T03:04:05+00:00"
     },
+    "runs_on": null,
     "last_error": null,
     "last_run": {
       "id": "run4",

@@ -65,6 +65,15 @@
     <dt>{{ t("Only when this page changes") }}</dt>
     <dd class="u-break">{{ form.watch_url }}</dd>
     {% endif %}
+    {% if form.device %}
+    {% set chosen_device = (devices|selectattr("id", "equalto", form.device)|first) %}
+    <dt>{{ t("Where it runs") }}</dt>
+    <dd class="u-break">{{ chosen_device.name if chosen_device else t("a computer no longer signed in") }} · <code>{{ form.device_dir }}</code> · {{ form.device_mode|capitalize }}</dd>
+    {% endif %}
+    {% if form.watch_command %}
+    <dt>{{ t("Only when this command's output changes") }}</dt>
+    <dd class="u-break"><code>{{ form.watch_command }}</code></dd>
+    {% endif %}
     <dt>{{ t("When a run was missed") }}</dt>
     <dd>{{ catch_up_label.get(form.catch_up, form.catch_up) }}</dd>
     <dt>{{ t("Tools a run may use") }}</dt>

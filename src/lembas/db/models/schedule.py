@@ -155,6 +155,15 @@ class Schedule(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
     watch_hash: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     watch_last: Mapped[str] = mapped_column(Text, default="", nullable=False)
     watch_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # A command watch's timeout in seconds (None: the spec's default).
+    watch_timeout: Mapped[int | None] = mapped_column(Integer)
+    # Run on a linked computer (harness spec 3.5.0, `schedule/device.py`):
+    # the device's token, the folder there, the mode ("" = edit) and how long
+    # an approval waits, in minutes (None = 30). No token: on the server.
+    device_token_id: Mapped[str | None] = mapped_column(String(32))
+    device_dir: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    device_mode: Mapped[str] = mapped_column(String(16), default="", nullable=False)
+    approval_wait_minutes: Mapped[int | None] = mapped_column(Integer)
 
     def __repr__(self) -> str:
         return f"<Schedule {self.title!r} {'on' if self.enabled else 'off'}>"

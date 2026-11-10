@@ -1,5 +1,5 @@
 {
-  "version": "d2f307bf1c7b8d6b",
+  "version": "8bee85746004dc19",
   "schedules": [
     {
       "id": "sched1",
@@ -52,6 +52,7 @@
       "fired_count": 3,
       "failure_streak": 0,
       "watch": null,
+      "runs_on": null,
       "last_error": null,
       "last_run": {
         "id": "run1",

@@ -52,7 +52,7 @@ from typing import TYPE_CHECKING, Any
 
 from lembas.db.models import ORIGIN_MODEL, TARGET_CHAT, TARGETS, Schedule, User
 from lembas.db.session import session_scope
-from lembas.services.schedule import clock
+from lembas.services.schedule import clock, device
 from lembas.services.schedule import rule as rule_service
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -145,6 +145,12 @@ def _row(schedule: Schedule, owner: User | None, db=None) -> dict[str, Any]:
         "mode": schedule.mode,
         "model": schedule.model_id or "",
         "watch_url": schedule.watch_target if schedule.watch_kind == "url" else "",
+        "watch_command": schedule.watch_target if schedule.watch_kind == "command" else "",
+        "computer": (
+            f"{device.device_name(db, schedule.device_token_id) if db is not None else ''}"
+            f" in {schedule.device_dir}, {device.chosen_mode(schedule.device_mode)}"
+            if schedule.device_token_id else ""
+        ),
         "last_status": last.status if last is not None else "",
         "last_at": (
             clock.as_utc(last.finished_at or last.created_at).astimezone(zone)
@@ -175,6 +181,21 @@ WATCH_HELP = (
     "is there now. Use it for \"tell me when this page changes\". An empty string "
     "stops watching."
 )
+COMPUTER_HELP = (
+    "Run it on one of the person's linked computers instead of here: each run is "
+    "then an agent turn there. `device`: the computer's name as the person calls it "
+    "(its host); `cwd`: a full path to a folder there; `mode`: \"manual\", \"edit\" "
+    "(the default) or \"auto\" -- choose auto only when the person asked for it; "
+    "`approval_wait_minutes`: how long an approval waits for the person on their "
+    "phone (default 30) before it counts as denied. The computer must accept "
+    "scheduled work. null runs it here again."
+)
+WATCH_COMMAND_HELP = (
+    "A command to watch on the computer the schedule runs on (needs `computer`): run "
+    "in its folder before each run, and when its output is the same as last time the "
+    "run stops there (unchanged, nobody told). It must be one the mode allows "
+    "without asking. An empty string stops watching."
+)
 MODEL_HELP = (
     "The model to run it on first, by id; omit for the person's scheduling list. "
     "When it is busy, the next free model of that list runs it."
@@ -189,6 +210,11 @@ def _settings_from(args: dict[str, Any]) -> dict[str, Any]:
             settings[key] = str(args.get(key) or "")
     if args.get("watch_url") is not None:
         settings["watch"] = str(args.get("watch_url") or "")
+    if "computer" in args:
+        settings["runs_on"] = args.get("computer") or None
+    if args.get("watch_command") is not None:
+        command = str(args.get("watch_command") or "").strip()
+        settings["watch"] = {"kind": "command", "command": command} if command else ""
     return settings
 
 
@@ -301,6 +327,10 @@ async def _run_list(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
             text += f", notify {row['notify']}, {row['mode']}"
             if row["watch_url"]:
                 text += f", watching {row['watch_url']}"
+            if row["computer"]:
+                text += f", on {row['computer']}"
+            if row["watch_command"]:
+                text += f", watching the output of `{row['watch_command']}`"
             if not row["enabled"]:
                 text += " (paused)"
             elif row["next_runs"]:
@@ -449,6 +479,17 @@ def tool_defs() -> list[ToolDef]:
                     },
                     "model": {"type": "string", "description": MODEL_HELP},
                     "watch_url": {"type": "string", "description": WATCH_HELP},
+                    "computer": {
+                        "type": ["object", "null"],
+                        "description": COMPUTER_HELP,
+                        "properties": {
+                            "device": {"type": "string"},
+                            "cwd": {"type": "string"},
+                            "mode": {"type": "string", "enum": ["manual", "edit", "auto"]},
+                            "approval_wait_minutes": {"type": "integer"},
+                        },
+                    },
+                    "watch_command": {"type": "string", "description": WATCH_COMMAND_HELP},
                 },
                 "required": ["instruction", "schedule"],
             },
@@ -499,6 +540,17 @@ def tool_defs() -> list[ToolDef]:
                     },
                     "model": {"type": "string", "description": MODEL_HELP},
                     "watch_url": {"type": "string", "description": WATCH_HELP},
+                    "computer": {
+                        "type": ["object", "null"],
+                        "description": COMPUTER_HELP,
+                        "properties": {
+                            "device": {"type": "string"},
+                            "cwd": {"type": "string"},
+                            "mode": {"type": "string", "enum": ["manual", "edit", "auto"]},
+                            "approval_wait_minutes": {"type": "integer"},
+                        },
+                    },
+                    "watch_command": {"type": "string", "description": WATCH_COMMAND_HELP},
                     "enabled": {
                         "type": "boolean",
                         "description": (

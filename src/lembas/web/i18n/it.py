@@ -2640,7 +2640,6 @@ MESSAGES.update(
         'Only when this page changes': 'Solo quando questa pagina cambia',
         'Optional. Each run first looks at this address; when nothing changed since the last look, the run stops there and you are not told.': 'Facoltativo. Ogni esecuzione guarda prima questo indirizzo; se nulla è cambiato dall’ultima volta, l’esecuzione si ferma lì e non ricevi avvisi.',
         'Unchanged': 'Invariato',
-        'Only a web address can be watched for now.': 'Per ora si può osservare solo un indirizzo web.',
         'Say which address to watch.': 'Indica quale indirizzo osservare.',
         'That address is too long.': 'Questo indirizzo è troppo lungo.',
         'Only http and https addresses can be watched.': 'Si possono osservare solo indirizzi http e https.',
@@ -2662,5 +2661,38 @@ MESSAGES.update(
         'A folder needs a name.': 'Una cartella ha bisogno di un nome.',
         'That language is not offered.': 'Questa lingua non è disponibile.',
         'That theme is not offered.': 'Questo tema non è disponibile.',
+    }
+)
+
+# Scheduled work on a linked computer (harness spec 3.5.0).
+MESSAGES.update(
+    {
+        'Only a web address or a command can be watched.': 'Si può osservare solo un indirizzo web o un comando.',
+        'Say which command to watch.': 'Indica quale comando osservare.',
+        'That command is too long.': 'Quel comando è troppo lungo.',
+        'A command is watched on a linked computer: choose the computer it runs on.': 'Un comando si osserva su un computer collegato: scegli il computer su cui viene eseguito.',
+        'Say which computer to run it on.': 'Indica su quale computer eseguirlo.',
+        'Only a linked computer can say "this" computer.': 'Solo un computer collegato può dire «questo» computer.',
+        'That computer is not one of your linked computers.': 'Quel computer non è uno dei tuoi computer collegati.',
+        'Say which folder on the computer, as a full path.': 'Indica la cartella sul computer come percorso completo.',
+        'A scheduled run cannot use plan mode: nobody is there to approve a plan.': "Un'esecuzione pianificata non può usare la modalità piano: non c'è nessuno per approvare un piano.",
+        'Choose Manual, Edit or Auto.': 'Scegli Manual, Edit o Auto.',
+        "That computer's LLeMbas CLI is too old to run scheduled work. Update it.": 'Il LLeMbas CLI di quel computer è troppo vecchio per il lavoro pianificato. Aggiornalo.',
+        'Where it runs': 'Dove viene eseguito',
+        'Computer': 'Computer',
+        'On this server': 'Su questo server',
+        'not linked now': 'non collegato ora',
+        'does not accept scheduled work': 'non accetta lavoro pianificato',
+        'A run on a computer is an agent chat there. The computer must allow it: “Accept scheduled work” in its LLeMbas CLI (lembas service scheduled on).': "Un'esecuzione su un computer è lì una chat agente. Il computer deve consentirlo: «Accept scheduled work» nel suo LLeMbas CLI (lembas service scheduled on).",
+        'Folder on the computer': 'Cartella sul computer',
+        'A full path, inside a folder the computer allows remote work in.': 'Un percorso completo, dentro una cartella in cui il computer consente il lavoro remoto.',
+        'Edit unless you choose otherwise; Auto runs commands without asking. The computer may lower it.': 'Edit, salvo diversa scelta; Auto esegue i comandi senza chiedere. Il computer può abbassarla.',
+        'An approval waits (minutes)': "Un'approvazione attende (minuti)",
+        'A command the run needs approved comes to your phone as a card. Unanswered by then, it counts as denied.': "Un comando che l'esecuzione deve far approvare arriva al tuo telefono come scheda. Senza risposta entro allora, conta come negato.",
+        "Only when this command's output changes": "Solo quando cambia l'output di questo comando",
+        'Optional, on the computer. Run in the folder before each run; when its output is the same as last time, the run stops there. A command the mode would ask about is refused.': "Facoltativo, sul computer. Eseguito nella cartella prima di ogni esecuzione; quando il suo output è uguale all'ultima volta, l'esecuzione si ferma lì. Un comando per cui la modalità chiederebbe viene rifiutato.",
+        'The command may take (seconds)': 'Il comando può durare (secondi)',
+        'Stopped after this; the run then fails.': "Poi viene fermato e l'esecuzione fallisce.",
+        'a computer no longer signed in': 'un computer non più connesso',
     }
 )

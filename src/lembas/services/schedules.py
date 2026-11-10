@@ -108,10 +108,18 @@ MAX_GRACE_MINUTES = 7 * 24 * 60
 # What `settings` accepts, and nothing else.
 SETTING_KEYS = (
     "mode", "notify", "catch_up", "grace_minutes", "effort", "agents", "tools", "watch",
+    "runs_on",
 )
 
 
-def apply_settings(schedule: Schedule, settings: dict | None) -> None:
+def apply_settings(
+    schedule: Schedule,
+    settings: dict | None,
+    *,
+    db: DBSession | None = None,
+    owner: User | None = None,
+    calling_device: str = "",
+) -> None:
     """A schedule's run settings from a form, the API or a model's tool call.
 
     Total like `rule.validate`: what it does not recognise it leaves alone, and
@@ -143,8 +151,14 @@ def apply_settings(schedule: Schedule, settings: dict | None) -> None:
         except (TypeError, ValueError):
             agents = 0
         schedule.agents = min(agents, MAX_AGENTS) if agents >= 2 else None
+    if "runs_on" in settings:
+        apply_runs_on(db, owner, schedule, settings.get("runs_on"), calling_device=calling_device)
     if "watch" in settings:
         apply_watch(schedule, settings.get("watch"))
+    if schedule.watch_kind == "command" and not schedule.device_token_id:
+        raise ScheduleError(
+            N_("A command is watched on a linked computer: choose the computer it runs on.")
+        )
     if "tools" in settings:
         raw = settings.get("tools")
         chosen = [str(t) for t in raw] if isinstance(raw, (list, tuple)) else []
@@ -154,14 +168,51 @@ def apply_settings(schedule: Schedule, settings: dict | None) -> None:
         schedule.tools_json = [] if tuple(kept) == runs.SAFE_TOOLS else kept
 
 
+def apply_runs_on(
+    db: DBSession | None, owner: User | None, schedule: Schedule, value: object,
+    *, calling_device: str = "",
+) -> None:
+    """Where it runs (harness spec 3.5.0, `schedule/device.py`): `{device,
+    cwd, mode, approval_wait_minutes}` for a linked computer, null or empty
+    for the server. `device` is the token's id, its host, or `"this"` for the
+    calling device. A change of computer or folder starts its chat afresh."""
+    from lembas.services.schedule import device
+
+    if db is None or owner is None:
+        raise ScheduleError(N_("Say which computer to run it on."))
+    try:
+        token_id, cwd, mode, wait = device.validate(
+            db, owner, value, calling_device=calling_device
+        )
+    except device.DeviceChoiceError as exc:
+        raise ScheduleError(exc.message) from exc
+    # A `continue` chat kept for the old computer or folder is not reused:
+    # the runner takes the home chat only when it runs where the schedule does.
+    schedule.device_token_id = token_id or None
+    schedule.device_dir = cwd
+    schedule.device_mode = mode
+    schedule.approval_wait_minutes = wait
+
+
 def apply_watch(schedule: Schedule, value: object) -> None:
-    """Monitor mode (`schedule/monitor.py`): what the schedule watches, from
-    `{"kind", "target"}`, a bare address, or empty to watch nothing. A new
-    target starts afresh: the first look after it is a first look."""
+    """Monitor mode (`schedule/monitor.py`): what the schedule watches --
+    `{"kind": "url", "url"}`, `{"kind": "command", "command", "timeout_s"}`
+    (the shapes `/api/v2` answers), `{"kind", "target"}`, a bare address, or
+    empty to watch nothing. A new target starts afresh: the first look after
+    it is a first look."""
     from lembas.services.schedule import monitor
 
+    timeout = None
     if isinstance(value, dict):
-        kind, target = str(value.get("kind") or ""), str(value.get("target") or "")
+        kind = str(value.get("kind") or "")
+        target = str(
+            value.get("target") or value.get("url") or value.get("command") or ""
+        )
+        if value.get("timeout_s") not in (None, ""):
+            try:
+                timeout = max(1, min(600, int(float(value.get("timeout_s")))))
+            except (TypeError, ValueError):
+                timeout = None
     else:
         kind, target = "", str(value or "")
     try:
@@ -171,6 +222,7 @@ def apply_watch(schedule: Schedule, value: object) -> None:
     if (kind, target) != (schedule.watch_kind or "", schedule.watch_target or ""):
         schedule.watch_hash, schedule.watch_last, schedule.watch_changed_at = "", "", None
     schedule.watch_kind, schedule.watch_target = kind, target
+    schedule.watch_timeout = timeout if kind == monitor.KIND_COMMAND else None
 
 
 def model_choice(db: DBSession, owner: User, model_id: str) -> tuple[str, str | None]:
@@ -201,6 +253,7 @@ def create(
     model_id: str = "",
     origin: str = ORIGIN_USER,
     settings: dict | None = None,
+    calling_device: str = "",
 ) -> Schedule:
     """Write a schedule and the chat it fires into.
 
@@ -216,6 +269,12 @@ def create(
     stalls waiting for an approval that will not come, the only two outcomes are
     "unattended execution" and "does nothing". That deserves its own pass with a
     mode built for it, not a flag here.
+
+    That pass is harness spec 3.5.0: a schedule may run **on a linked
+    computer** that accepts scheduled work, in a mode built for it (Edit by
+    default, approvals waiting on the phone, then denied). Each such run is an
+    agent chat there, made by the runner (`schedule/device.py`); the chat made
+    here stays the schedule's task chat.
     """
     clean = rule_service.validate(rule)
     if not clean:
@@ -284,7 +343,7 @@ def create(
     if chosen[0]:
         schedule.model_id, schedule.connection_id = chosen
         chat.connection_id = chosen[1]
-    apply_settings(schedule, settings)
+    apply_settings(schedule, settings, db=db, owner=owner, calling_device=calling_device)
     db.add(schedule)
     db.commit()
     return schedule
@@ -301,6 +360,7 @@ def update(
     target: str | None = None,
     model_id: str | None = None,
     settings: dict | None = None,
+    calling_device: str = "",
 ) -> Schedule:
     """Change a schedule. Absent arguments are left alone."""
     if title is not None and title.strip():
@@ -311,7 +371,7 @@ def update(
         schedule.target = target
     if model_id is not None:
         schedule.model_id, schedule.connection_id = model_choice(db, owner, model_id)
-    apply_settings(schedule, settings)
+    apply_settings(schedule, settings, db=db, owner=owner, calling_device=calling_device)
     if rule is not None:
         clean = rule_service.validate(rule)
         if not clean:

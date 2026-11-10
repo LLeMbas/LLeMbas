@@ -2640,7 +2640,6 @@ MESSAGES.update(
         'Only when this page changes': 'Jen když se tato stránka změní',
         'Optional. Each run first looks at this address; when nothing changed since the last look, the run stops there and you are not told.': 'Volitelné. Každé spuštění se nejprve podívá na tuto adresu; pokud se od posledního pohledu nic nezměnilo, spuštění tam skončí a nedostanete upozornění.',
         'Unchanged': 'Beze změny',
-        'Only a web address can be watched for now.': 'Zatím lze sledovat jen webovou adresu.',
         'Say which address to watch.': 'Uveďte, kterou adresu sledovat.',
         'That address is too long.': 'Tato adresa je příliš dlouhá.',
         'Only http and https addresses can be watched.': 'Sledovat lze jen adresy http a https.',
@@ -2662,5 +2661,38 @@ MESSAGES.update(
         'A folder needs a name.': 'Složka potřebuje název.',
         'That language is not offered.': 'Tento jazyk není k dispozici.',
         'That theme is not offered.': 'Tento motiv není k dispozici.',
+    }
+)
+
+# Scheduled work on a linked computer (harness spec 3.5.0).
+MESSAGES.update(
+    {
+        'Only a web address or a command can be watched.': 'Sledovat lze jen webovou adresu nebo příkaz.',
+        'Say which command to watch.': 'Uveďte, který příkaz sledovat.',
+        'That command is too long.': 'Tento příkaz je příliš dlouhý.',
+        'A command is watched on a linked computer: choose the computer it runs on.': 'Příkaz se sleduje na propojeném počítači: vyberte počítač, na kterém se spouští.',
+        'Say which computer to run it on.': 'Uveďte, na kterém počítači se má spouštět.',
+        'Only a linked computer can say "this" computer.': '„Tento“ počítač může říct jen propojený počítač.',
+        'That computer is not one of your linked computers.': 'Tento počítač není jedním z vašich propojených počítačů.',
+        'Say which folder on the computer, as a full path.': 'Uveďte složku na počítači jako úplnou cestu.',
+        'A scheduled run cannot use plan mode: nobody is there to approve a plan.': 'Plánované spuštění nemůže použít režim plánu: nikdo tam není, aby plán schválil.',
+        'Choose Manual, Edit or Auto.': 'Vyberte Manual, Edit nebo Auto.',
+        "That computer's LLeMbas CLI is too old to run scheduled work. Update it.": 'LLeMbas CLI na tomto počítači je pro plánovanou práci příliš staré. Aktualizujte ho.',
+        'Where it runs': 'Kde se spouští',
+        'Computer': 'Počítač',
+        'On this server': 'Na tomto serveru',
+        'not linked now': 'teď není propojený',
+        'does not accept scheduled work': 'nepřijímá plánovanou práci',
+        'A run on a computer is an agent chat there. The computer must allow it: “Accept scheduled work” in its LLeMbas CLI (lembas service scheduled on).': 'Spuštění na počítači je tam agentní chat. Počítač to musí povolit: „Accept scheduled work“ v jeho LLeMbas CLI (lembas service scheduled on).',
+        'Folder on the computer': 'Složka na počítači',
+        'A full path, inside a folder the computer allows remote work in.': 'Úplná cesta ve složce, ve které počítač povoluje vzdálenou práci.',
+        'Edit unless you choose otherwise; Auto runs commands without asking. The computer may lower it.': 'Edit, pokud nezvolíte jinak; Auto spouští příkazy bez ptaní. Počítač ho může snížit.',
+        'An approval waits (minutes)': 'Schválení čeká (minuty)',
+        'A command the run needs approved comes to your phone as a card. Unanswered by then, it counts as denied.': 'Příkaz, který spuštění potřebuje schválit, přijde do telefonu jako karta. Pokud do té doby nebude zodpovězen, počítá se jako zamítnutý.',
+        "Only when this command's output changes": 'Jen když se změní výstup tohoto příkazu',
+        'Optional, on the computer. Run in the folder before each run; when its output is the same as last time, the run stops there. A command the mode would ask about is refused.': 'Volitelné, na počítači. Spustí se ve složce před každým spuštěním; když je jeho výstup stejný jako minule, spuštění tam skončí. Příkaz, na který by se režim ptal, se odmítne.',
+        'The command may take (seconds)': 'Příkaz může trvat (sekundy)',
+        'Stopped after this; the run then fails.': 'Pak se zastaví a spuštění selže.',
+        'a computer no longer signed in': 'počítač, který už není přihlášen',
     }
 )

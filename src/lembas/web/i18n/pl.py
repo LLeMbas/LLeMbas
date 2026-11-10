@@ -2640,7 +2640,6 @@ MESSAGES.update(
         'Only when this page changes': 'Tylko gdy ta strona się zmieni',
         'Optional. Each run first looks at this address; when nothing changed since the last look, the run stops there and you are not told.': 'Opcjonalne. Każde uruchomienie najpierw sprawdza ten adres; jeśli od ostatniego razu nic się nie zmieniło, uruchomienie kończy się tam i nie dostajesz powiadomienia.',
         'Unchanged': 'Bez zmian',
-        'Only a web address can be watched for now.': 'Na razie można obserwować tylko adres internetowy.',
         'Say which address to watch.': 'Podaj, który adres obserwować.',
         'That address is too long.': 'Ten adres jest za długi.',
         'Only http and https addresses can be watched.': 'Można obserwować tylko adresy http i https.',
@@ -2662,5 +2661,38 @@ MESSAGES.update(
         'A folder needs a name.': 'Folder musi mieć nazwę.',
         'That language is not offered.': 'Ten język nie jest dostępny.',
         'That theme is not offered.': 'Ten motyw nie jest dostępny.',
+    }
+)
+
+# Scheduled work on a linked computer (harness spec 3.5.0).
+MESSAGES.update(
+    {
+        'Only a web address or a command can be watched.': 'Obserwować można tylko adres internetowy lub polecenie.',
+        'Say which command to watch.': 'Podaj, które polecenie obserwować.',
+        'That command is too long.': 'To polecenie jest za długie.',
+        'A command is watched on a linked computer: choose the computer it runs on.': 'Polecenie obserwuje się na połączonym komputerze: wybierz komputer, na którym działa.',
+        'Say which computer to run it on.': 'Podaj, na którym komputerze ma działać.',
+        'Only a linked computer can say "this" computer.': 'Tylko połączony komputer może powiedzieć „ten” komputer.',
+        'That computer is not one of your linked computers.': 'Ten komputer nie jest jednym z Twoich połączonych komputerów.',
+        'Say which folder on the computer, as a full path.': 'Podaj folder na komputerze jako pełną ścieżkę.',
+        'A scheduled run cannot use plan mode: nobody is there to approve a plan.': 'Zaplanowane uruchomienie nie może używać trybu planu: nikogo nie ma, by zatwierdzić plan.',
+        'Choose Manual, Edit or Auto.': 'Wybierz Manual, Edit lub Auto.',
+        "That computer's LLeMbas CLI is too old to run scheduled work. Update it.": 'LLeMbas CLI na tym komputerze jest zbyt stare na zaplanowaną pracę. Zaktualizuj je.',
+        'Where it runs': 'Gdzie działa',
+        'Computer': 'Komputer',
+        'On this server': 'Na tym serwerze',
+        'not linked now': 'teraz niepołączony',
+        'does not accept scheduled work': 'nie przyjmuje zaplanowanej pracy',
+        'A run on a computer is an agent chat there. The computer must allow it: “Accept scheduled work” in its LLeMbas CLI (lembas service scheduled on).': 'Uruchomienie na komputerze jest tam czatem agenta. Komputer musi na to pozwolić: „Accept scheduled work” w jego LLeMbas CLI (lembas service scheduled on).',
+        'Folder on the computer': 'Folder na komputerze',
+        'A full path, inside a folder the computer allows remote work in.': 'Pełna ścieżka, w folderze, w którym komputer pozwala na pracę zdalną.',
+        'Edit unless you choose otherwise; Auto runs commands without asking. The computer may lower it.': 'Edit, chyba że wybierzesz inaczej; Auto uruchamia polecenia bez pytania. Komputer może go obniżyć.',
+        'An approval waits (minutes)': 'Zatwierdzenie czeka (minuty)',
+        'A command the run needs approved comes to your phone as a card. Unanswered by then, it counts as denied.': 'Polecenie, które uruchomienie musi zatwierdzić, trafia na Twój telefon jako karta. Bez odpowiedzi do tego czasu liczy się jako odrzucone.',
+        "Only when this command's output changes": 'Tylko gdy zmieni się wynik tego polecenia',
+        'Optional, on the computer. Run in the folder before each run; when its output is the same as last time, the run stops there. A command the mode would ask about is refused.': 'Opcjonalne, na komputerze. Uruchamiane w folderze przed każdym uruchomieniem; gdy jego wynik jest taki sam jak ostatnio, uruchomienie kończy się w tym miejscu. Polecenie, o które tryb by zapytał, jest odrzucane.',
+        'The command may take (seconds)': 'Polecenie może trwać (sekundy)',
+        'Stopped after this; the run then fails.': 'Potem jest zatrzymywane, a uruchomienie kończy się błędem.',
+        'a computer no longer signed in': 'komputer, który nie jest już zalogowany',
     }
 )

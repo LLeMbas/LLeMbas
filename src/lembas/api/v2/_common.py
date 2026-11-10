@@ -33,6 +33,28 @@ async def app_caller(request: Request, db: Db) -> Caller:
 
 Me = Annotated[Caller, Depends(app_caller)]
 
+_guard_schedules = api_tokens.require_token(api_tokens.SCOPE_APP, api_tokens.SCOPE_LINK)
+
+
+async def schedules_caller(request: Request, db: Db) -> Caller:
+    """An app's token or a linked device's (scope `link`): the schedule
+    routes are the one part of `/api/v2` the LLeMbas CLI's `/schedule` uses
+    with its device token (harness spec 3.5.0, acp.md *The HTTP API*)."""
+    caller = _guard_schedules(request, db)
+    i18n.activate(i18n.for_user(caller.user))
+    return caller
+
+
+MeOrDevice = Annotated[Caller, Depends(schedules_caller)]
+
+
+def calling_device(caller: Caller) -> str:
+    """The token id when the caller is a linked device, else ""."""
+    from lembas.db.models import TOKEN_DEVICE
+
+    token = caller.token
+    return token.id if getattr(token, "kind", "") == TOKEN_DEVICE else ""
+
 
 def need(db: DBSession, user: User, key: str) -> None:
     """The page routes' `require_permission`, for a caller who came by token."""
@@ -90,4 +112,14 @@ class JsonForm:
         return list(self._items)
 
 
-__all__ = ["JsonForm", "Me", "app_caller", "need", "owned_chat", "owned_message"]
+__all__ = [
+    "JsonForm",
+    "Me",
+    "MeOrDevice",
+    "app_caller",
+    "calling_device",
+    "need",
+    "owned_chat",
+    "owned_message",
+    "schedules_caller",
+]

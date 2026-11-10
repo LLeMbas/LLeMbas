@@ -54,7 +54,7 @@ from lembas.db.models import (
     Schedule,
     ScheduleRun,
 )
-from lembas.services.schedule import clock
+from lembas.services.schedule import clock, device
 from lembas.services.schedule import rule as rule_service
 
 log = logging.getLogger(__name__)
@@ -306,8 +306,10 @@ def run_progress(row: ScheduleRun, now: datetime | None = None) -> dict[str, Any
     if row.retry_at is not None:
         left = max(0, int((clock.as_utc(row.retry_at) - now).total_seconds()))
         reason = (row.error or "").strip().split("\n")[0][:300] or row.waiting_for
-        out = {"phase": "retrying", "since": int(now.timestamp() * 1000), "reason": reason,
-               "in": left}
+        # Since the wait began when the run kept it (a computer away, spec
+        # 3.5.0), else since now.
+        since = int((row.waiting_json or {}).get("since") or now.timestamp() * 1000)
+        out = {"phase": "retrying", "since": since, "reason": reason, "in": left}
         if row.attempts:
             out["attempt"] = int(row.attempts)
         return out
@@ -356,6 +358,22 @@ def run_dict(row: ScheduleRun) -> dict[str, Any]:
         "notification": dict(row.notification_json) if row.notification_json else None,
         "watch": watch_dict(row.watch_json),
     }
+
+
+def watch_of(schedule: Schedule) -> dict[str, Any] | None:
+    """`{kind: "url", url}` or `{kind: "command", command, timeout_s}`, with
+    `changed_at` -- when the last look that changed saw it -- or None."""
+    if not schedule.watch_kind:
+        return None
+    if schedule.watch_kind == "command":
+        out: dict[str, Any] = {"kind": "command", "command": schedule.watch_target,
+                               "timeout_s": schedule.watch_timeout}
+    else:
+        out = {"kind": schedule.watch_kind, "url": schedule.watch_target}
+    # `target`, the first shape of it, kept for an app already reading it.
+    out["target"] = schedule.watch_target
+    out["changed_at"] = _iso(schedule.watch_changed_at)
+    return out
 
 
 def watch_dict(record: dict | None) -> dict[str, Any] | None:
@@ -419,11 +437,10 @@ def schedule_dict(
         "chat_id": schedule.chat_id or None,
         "fired_count": int(schedule.fired_count or 0),
         "failure_streak": int(schedule.failure_streak or 0),
-        "watch": (
-            {"kind": schedule.watch_kind, "target": schedule.watch_target,
-             "changed_at": _iso(schedule.watch_changed_at)}
-            if schedule.watch_kind else None
-        ),
+        # Harness spec 3.5.0 (acp.md *The HTTP API*): what it watches, and
+        # the linked computer it runs on -- each null when none.
+        "watch": watch_of(schedule),
+        "runs_on": device.runs_on_dict(db, schedule),
         "last_error": schedule.last_error or None,
         "last_run": run_dict(last) if last is not None else None,
         "running": bool(last is not None and last.status == RUN_RUNNING),
