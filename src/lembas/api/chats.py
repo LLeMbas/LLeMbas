@@ -1478,7 +1478,9 @@ async def _activity_tasks_oob(db: DBSession, chat: Chat) -> str:
     return _activity_html(chat, view, part="tasks", oob=True)
 
 
-def _tail_oob(message_id: str, thinking_tail: str, think_label: str, tail_html: str) -> str:
+def _tail_oob(
+    message_id: str, thinking_tail: str, think_label: str, settled_html: str, rest_html: str
+) -> str:
     """The open tail, as out-of-band swaps riding on a `steps` frame.
 
     A round closing moves the text being written out of the tail and into a
@@ -1489,15 +1491,37 @@ def _tail_oob(message_id: str, thinking_tail: str, think_label: str, tail_html: 
     frame as the steps means one swap, one paint, and nothing moves that should
     not. Whatever the tail holds *now* is sent, not an empty string: the next
     round may already have begun by the time the follower polls.
+
+    The tail's text is in two places (see `_settled_oob`): what has settled,
+    whole here because the round's close voided what was there, and the block
+    still being written.
     """
     return (
+        f'<div id="settled-{message_id}" hx-swap-oob="innerHTML">'
+        f"{settled_html}</div>"
         f'<div id="stream-{message_id}" hx-swap-oob="innerHTML">'
-        f"{tail_html}</div>"
+        f"{rest_html}</div>"
         f'<div id="reasoning-body-{message_id}" hx-swap-oob="innerHTML">'
         f"{escape_text(thinking_tail)}</div>"
         f'<span id="think-stats-{message_id}" hx-swap-oob="innerHTML">'
         f"{escape_text(think_label)}</span>"
     )
+
+
+def _settled_oob(message_id: str, html: str, *, whole: bool) -> str:
+    """The tail's settled text, out of band on a `render` frame.
+
+    A reply's finished blocks -- the paragraphs above the one being written,
+    the complete lines of a long code block -- are sent **once** and appended
+    to `#settled-<id>`; the `render` frame itself replaces only the block still
+    being written. It used to carry the whole tail, every frame: at 20k
+    characters that is 20k of HTML parsed, laid out and thrown away ten times a
+    second. `whole` replaces instead of appending: a follower's first frame (a
+    page that reconnected already holds an older copy), or a tail that began
+    again.
+    """
+    how = "innerHTML" if whole else f"beforeend:#settled-{message_id}"
+    return f'<div id="settled-{message_id}" hx-swap-oob="{how}">{html}</div>'
 
 
 def _think_label(generation, thinking_tail: str) -> str:
@@ -1562,9 +1586,16 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
     That is what makes this affordable: the old `tools` frame re-rendered every
     tool call in the reply twelve times a second, against an output budget of a
     megabyte, so a long agent reply spent most of its wall time re-rendering its
-    own transcript. `rendered` below is a render cache and not a wire protocol --
-    it starts empty for every follower, so one attaching mid-reply still receives
-    the whole prefix in its first frame.
+    own transcript.
+
+    **What is finished is sent once.** A follower's first `steps` frame carries
+    every closed step and replaces the container (one attaching mid-reply, or
+    a page whose connection dropped and came back, gets the whole prefix);
+    after that a round's close sends only the steps it closed, as a `step`
+    frame the page appends. A forty-round agent reply used to re-send, re-parse
+    and rebuild all forty rounds' blocks at each close. The open tail works the
+    same way one level down: its finished blocks are appended once
+    (`_settled_oob`) and only the block being written is replaced.
 
     The order within one pass is load-bearing: `steps` before `reasoning` and
     `render`, because `steps` carries the containers those two are swapped into.
@@ -1596,11 +1627,13 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
     team_seen = team_run.version(chat_id)
     with session_scope() as db:
         team_rows = team_run.strip_rows(db, chat_id)
-    # The HTML of every step already rendered, and how many *marks* that covers.
-    # Two counters and not one: a mark can produce up to three steps -- thinking,
-    # prose, tools -- so the length of the list is not an index into the marks.
-    rendered: list[str] = []
+    # How many *marks* (rounds) this follower has sent the steps of. Not a
+    # count of steps: a mark can produce up to three -- thinking, prose, tools.
     marks_done = 0
+    # Whether this follower has sent its first `steps` frame (the whole
+    # prefix), and whether the page's settled tail is known to match `live`.
+    steps_sent = False
+    settled_synced = False
     # The plan last sent, so the panel is re-sent only when it changed: a
     # chat's own plan (a structure) or, from a device that still sends a todo
     # list, that list -- `_plan_panel_html` reads either.
@@ -1633,21 +1666,41 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
                 seen = generation.version
                 thinking_tail, text_tail = steps_service.tail(generation)
                 think_label = _think_label(generation, thinking_tail)
-                tail_html = live.render(text_tail) if text_tail else ""
+                added_html, tail_html, restarted = live.feed(text_tail)
+                # What the page's settled part needs with this pass: all of it
+                # (the first pass, a tail that began again) or what was added.
+                # It rides on the next frame that goes out anyway; until one
+                # has, the page's copy is not known to match.
+                if restarted:
+                    settled_synced = False
+                settled_oob = ""
+                if not settled_synced:
+                    settled_oob = _settled_oob(message_id, live.settled, whole=True)
+                elif added_html:
+                    settled_oob = _settled_oob(message_id, added_html, whole=False)
                 if len(generation.steps) > marks_done:
-                    for step in steps_service.closed_from(generation, since=marks_done):
-                        rendered.append(_step_html(message_id, step))
+                    fresh = [
+                        _step_html(message_id, step)
+                        for step in steps_service.closed_from(generation, since=marks_done)
+                    ]
                     marks_done = len(generation.steps)
                     # The tail rides along, and is recorded as sent: see
                     # `_tail_oob` for why it is one frame and not two.
                     sent["reasoning"] = escape_text(thinking_tail)
                     sent["think"] = escape_text(think_label)
                     sent["render"] = tail_html
+                    settled_oob = ""
+                    settled_synced = True
+                    # The first close this follower sees replaces the container
+                    # (`steps`); every later one appends to it (`step`).
                     yield sse.event(
-                        "steps",
-                        "".join(rendered)
-                        + _tail_oob(message_id, thinking_tail, think_label, tail_html),
+                        "step" if steps_sent else "steps",
+                        "".join(fresh)
+                        + _tail_oob(
+                            message_id, thinking_tail, think_label, live.settled, tail_html
+                        ),
                     )
+                    steps_sent = True
                     # A message taken in just now is shown in the reply; its
                     # bubble at the bottom of the thread goes.
                     if gone := steps_service.steered_ids(generation.steps) - unqueued:
@@ -1668,8 +1721,9 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
                     yield sse.event("reasoning", sent["reasoning"])
                 if changed("think", escape_text(think_label)):
                     yield sse.event("think", sent["think"])
-                if changed("render", tail_html):
-                    yield sse.event("render", sent["render"])
+                if changed("render", tail_html) or added_html or restarted:
+                    yield sse.event("render", tail_html + settled_oob)
+                    settled_synced = True
                 current_plan = getattr(generation, "plan", None) or generation.todos
                 if current_plan is not None and current_plan != plan_sent:
                     # Out of band, into the panel above the composer.

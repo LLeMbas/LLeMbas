@@ -616,7 +616,19 @@ def test_reasoning_starts_closed(client: TestClient, db, registered, make_chat):
 
 # --- Rewinding ---------------------------------------------------------------
 def _exchange(client: TestClient, db, chat_id: str, text: str) -> Message:
+    import time
+
+    from lembas.services import generation as generation_service
+
     client.post(f"/api/chats/{chat_id}/messages", data={"content": text})
+    # The reply this started runs on -- against an endpoint nothing listens on
+    # -- after the request has answered. Until it has ended, the next message
+    # would be queued behind it rather than answered, and what it writes at its
+    # end would land on top of what this helper writes below.
+    deadline = time.monotonic() + 10
+    while generation_service.running_for(chat_id) and time.monotonic() < deadline:
+        time.sleep(0.01)
+    db.expire_all()
     assistant = db.scalars(
         select(Message).where(Message.role == "assistant").order_by(Message.created_at)
     ).all()[-1]

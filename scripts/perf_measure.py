@@ -22,6 +22,9 @@ What it does, all in this one process and gone when it ends:
 * drives a headless Chromium over the DevTools protocol -- no Playwright, no
   Node -- and measures:
 
+  (with the browser's CPU slowed fourfold by default, `--cpu`: a phone, and
+  less at the mercy of what else this machine is doing)
+
   - **typing**: 200 characters into the composer of the 300-message chat. Per
     key, the time from `keydown` to the task after the next animation frame
     (the frame that paints the key), and the browser's own layout, style and
@@ -84,7 +87,7 @@ CODE = "\n".join(
     f"    return (value + {i}) * scale  # {i}\n"
     for i in range(40)
 )
-REPLY = (
+_SECTION = (
     "The loader reads the file once and keeps what it parsed.\n\n"
     "## Why the second pass is slower\n\n"
     "It is **not** the parsing: the cache is checked *after* the file is read, so "
@@ -92,7 +95,10 @@ REPLY = (
     f"```python\n{CODE}```\n\n"
     "- move the check before the read\n- keep the parsed value, not the text\n\n"
     + "And a closing paragraph, long enough to be streamed for a while. " * 12
+    + "\n\n"
 )
+# A long answer: four sections, each with prose, a list and a 120-line block.
+REPLY = _SECTION * 4
 
 
 # --------------------------------------------------------------------------
@@ -102,7 +108,7 @@ REPLY = (
 class Upstream:
     """Every outgoing request: a paced stream, a slow title, a plain 200."""
 
-    def __init__(self, title_seconds: float, chunk: int = 6, pace: float = 0.008) -> None:
+    def __init__(self, title_seconds: float, chunk: int = 12, pace: float = 0.005) -> None:
         self.title_seconds = title_seconds
         self.chunk = chunk
         self.pace = pace
@@ -489,14 +495,19 @@ PROBE = """
       channel.port2.postMessage(0);
     });
   }, true);
+  /* The thread's own children only: a bubble arriving, and the `done` frame
+     replacing it. Watching the whole page's subtree made this probe one of
+     the most expensive things on the page it was measuring. */
   document.addEventListener('DOMContentLoaded', function () {
+    var thread = document.getElementById('thread');
+    if (!thread) return;
     new MutationObserver(function () {
-      var live = document.querySelector('[sse-connect]');
+      var live = thread.querySelector(':scope > [sse-connect]');
       if (live) { perf.sawStream = true; perf.doneAt = 0; }
       else if (perf.sawStream && !perf.doneAt) {
         perf.doneAt = performance.timeOrigin + performance.now();
       }
-    }).observe(document.body, { childList: true, subtree: true });
+    }).observe(thread, { childList: true });
   });
 })();
 """
@@ -528,10 +539,44 @@ def delta(before: dict, after: dict) -> dict:
     }
 
 
-def measure_page(server: Server, upstream: Upstream, seeded: dict, lag: LoopLag) -> dict:
+def hot_functions(profile: dict, top: int = 12) -> list[dict]:
+    """A CPU profile as its most expensive functions, by their own time."""
+    nodes = {node["id"]: node for node in profile.get("nodes", [])}
+    own: dict[int, float] = {}
+    deltas = profile.get("timeDeltas", [])
+    for node_id, micros in zip(profile.get("samples", []), deltas, strict=False):
+        own[node_id] = own.get(node_id, 0.0) + micros / 1000
+    parent = {child: node["id"] for node in nodes.values() for child in node.get("children", [])}
+
+    def label(node_id: int) -> str:
+        frame = nodes[node_id]["callFrame"]
+        where = frame.get("url", "").rsplit("/", 1)[-1].split("?")[0]
+        name = frame.get("functionName") or "(anonymous)"
+        return f"{name} {where}:{frame.get('lineNumber', 0) + 1}" if where else name
+
+    by_name: dict[str, float] = {}
+    for node_id, spent in own.items():
+        key = label(node_id)
+        # A browser built-in says nothing by itself: name who called it.
+        if not nodes[node_id]["callFrame"].get("url") and node_id in parent:
+            caller = label(parent[node_id])
+            if not caller.startswith("("):
+                key = f"{key} < {caller}"
+        by_name[key] = by_name.get(key, 0.0) + spent
+    rows = sorted(by_name.items(), key=lambda item: -item[1])
+    return [{"function": name, "self_ms": round(spent)} for name, spent in rows[:top]]
+
+
+def measure_page(
+    server: Server, upstream: Upstream, seeded: dict, lag: LoopLag, cpu: float = 1.0,
+    profile: bool = False,
+) -> dict:
     out: dict = {}
     browser = Browser()
     try:
+        if cpu > 1:
+            # A slower machine than this one: the browser's own throttle.
+            browser.call("Emulation.setCPUThrottlingRate", rate=cpu)
         browser.call("Network.setCookie", name="lembas_session", value=seeded["cookie"],
                      url=server.base, httpOnly=True)
         browser.call("Page.addScriptToEvaluateOnNewDocument", source=PROBE)
@@ -561,11 +606,16 @@ def measure_page(server: Server, upstream: Upstream, seeded: dict, lag: LoopLag)
         text = (TYPED * 3)[:200]
         before = browser.metrics()
         long_before = browser.js("window.__perf.long.length")
+        if profile:
+            browser.call("Profiler.enable")
+            browser.call("Profiler.start")
         for char in text:
             browser.key(char)
             time.sleep(0.03)
         time.sleep(0.3)
         after = browser.metrics()
+        if profile:
+            out["typing_hot"] = hot_functions(browser.call("Profiler.stop")["profile"])
         typed = browser.js("document.querySelector('[data-composer-input]').value.length")
         out["typing"] = {
             "typed": typed,
@@ -582,11 +632,15 @@ def measure_page(server: Server, upstream: Upstream, seeded: dict, lag: LoopLag)
         browser.js("window.__perf.long.length = 0")
         before = browser.metrics()
         sent_at = time.monotonic()
+        if profile:
+            browser.call("Profiler.start")
         browser.enter()
         browser.wait_for("window.__perf.sawStream", timeout=30, what="the reply to start")
         browser.wait_for("window.__perf.doneAt > 0", timeout=120, what="the reply to finish")
         done_wall = browser.js("window.__perf.doneAt") / 1000
         after = browser.metrics()
+        if profile:
+            out["stream_hot"] = hot_functions(browser.call("Profiler.stop")["profile"])
         long = browser.js("window.__perf.long")
         out["stream"] = {
             "reply_chars": len(REPLY),
@@ -710,6 +764,10 @@ def table(results: dict) -> str:
         lines.append(f"  {label:<46} {value}")
 
     opened, typing, stream = results["open"], results["typing"], results["stream"]
+    lines.append(
+        f"browser CPU slowed {results['cpu_throttle']}x; "
+        f"load average at start {results['load_average'][0]}"
+    )
     lines.append("chat page, 300 messages")
     row("messages in the DOM / elements", f"{opened['messages_in_dom']} / {opened['elements']}")
     row("page ready (ms)", opened["ready_ms"])
@@ -741,6 +799,11 @@ def table(results: dict) -> str:
             row(f"{name}: last token -> title frame (ms)", end["last_token_to_title_frame_ms"])
         row(f"{name}: generated title on a fetch after (ms)",
             end.get("last_token_to_title_on_fetch_ms", "never"))
+    for phase in ("typing_hot", "stream_hot"):
+        if results.get(phase):
+            lines.append(f"{phase.split('_')[0]}: the page's own time, by function (ms)")
+            for item in results[phase]:
+                lines.append(f"  {item['self_ms']:>6}  {item['function']}")
     if results.get("slow"):
         lines.append("held the event loop (asyncio debug)")
         for item in results["slow"][:15]:
@@ -755,6 +818,10 @@ def main() -> None:
     parser.add_argument("--slow", type=float, default=0.0,
                         help="report what held the event loop this many seconds or more")
     parser.add_argument("--skip-page", action="store_true", help="the streams only, no browser")
+    parser.add_argument("--profile", action="store_true",
+                        help="also: the page's most expensive functions in each phase")
+    parser.add_argument("--cpu", type=float, default=4.0,
+                        help="slow the browser's CPU by this factor (4: a mid-range phone)")
     args = parser.parse_args()
 
     upstream = Upstream(args.title_seconds)
@@ -763,10 +830,17 @@ def main() -> None:
     lag = LoopLag()
     server = Server(seeded["app"], lag, slow=args.slow)
     server.start()
-    results: dict = {"title_seconds": args.title_seconds}
+    # The load this machine was under: the numbers mean little without it.
+    results: dict = {
+        "title_seconds": args.title_seconds,
+        "cpu_throttle": args.cpu,
+        "load_average": [round(x, 2) for x in os.getloadavg()],
+    }
     try:
         if not args.skip_page:
-            results.update(measure_page(server, upstream, seeded, lag))
+            results.update(
+                measure_page(server, upstream, seeded, lag, cpu=args.cpu, profile=args.profile)
+            )
         results["end"] = measure_end(server, upstream, seeded, lag)
         if args.slow:
             results["slow"] = server.slow_log.report()

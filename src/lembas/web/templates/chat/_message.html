@@ -124,9 +124,18 @@
          step inside `.msg__steps`, which carries the same rhythm. #}
       <div class="msg__flow">
       {# The reply as a sequence of steps, in the order they happened. Closed
-         steps only, re-sent when a round ends. See services/steps.py. #}
+         steps only. The first `steps` frame a connection sends carries every
+         one and replaces what is here (a page that reconnects holds an older
+         copy); after that a round's close sends only its own steps, as a
+         `step` frame, appended by the hidden element under this one. See
+         `_follow` in api/chats.py and services/steps.py. #}
       <div class="msg__steps" id="steps-{{ message.id }}" data-steps
            sse-swap="steps" hx-swap="innerHTML"></div>
+      {# A sibling, never inside the container: one `sse-swap` element must
+         not contain another. `data-steps-append` names the container for
+         steps.js, which keeps opened blocks open across either frame. #}
+      <div hidden sse-swap="step" hx-target="#steps-{{ message.id }}" hx-swap="beforeend"
+           data-steps-append="steps-{{ message.id }}"></div>
 
       {# The step still being written. SIBLINGS of the container above, never
          inside it: that one is swapped whole every time a round closes, and an
@@ -164,8 +173,19 @@
              sse-swap="reasoning" hx-swap="innerHTML"></div>
       </details>
 
-      <div class="msg__body msg__body--live" id="stream-{{ message.id }}"
-           sse-swap="render" hx-swap="innerHTML"></div>
+      {# The text being written, in two parts under one wrapper (which is
+         what keeps them one slot in the column above). `settled-…` holds the
+         blocks that are finished -- each sent once and appended, out of band
+         on a `render` frame -- and is never a swap target itself. `stream-…`
+         is the block still being written, replaced by every `render` frame.
+         Replacing the whole tail on every frame, as this used to, is what
+         made a long reply stutter: the browser re-parsed and re-laid out
+         everything written so far, ten times a second. #}
+      <div class="msg__tail">
+        <div class="msg__body msg__body--settled" id="settled-{{ message.id }}"></div>
+        <div class="msg__body msg__body--live" id="stream-{{ message.id }}"
+             sse-swap="render" hx-swap="innerHTML"></div>
+      </div>
 
       {# Where a question from the model, or a command waiting to be allowed,
          lands. An empty frame is sent the moment it empties, because the card

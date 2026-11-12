@@ -20,6 +20,16 @@ For 2.0.0-beta.11.
 - **Finishing a reply no longer holds up everybody else's.** Writing the finished reply to the
   database and rendering its final bubble (Markdown and syntax highlighting) run in a thread
   instead of on the server's one event loop.
+- **A long reply no longer gets slower to draw the longer it gets.** While a reply was being
+  written, every update re-sent everything written so far in the current step, and the browser
+  parsed and laid it all out again, ten times a second; each time a step ended, every finished
+  step of the reply was sent and rebuilt again. Finished paragraphs and finished steps are now
+  sent once and added to the page; only the paragraph being written is replaced. A long code
+  block still being written is sent in parts, drawn as one block.
+- **The page does less on every update of a reply and on every background poll**: the handlers
+  that looked through the whole transcript after each one (section toggles, opened blocks, the
+  composer's highlighting, the progress line, the folds of the activity panel) now run only
+  for a change that concerns them.
 - **A long code block with no language named** is no longer scored against every language at
   its full length each time its chat is opened: the language is guessed from its opening,
   once. A block above 200 kB is shown without colours.

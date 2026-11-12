@@ -122,7 +122,8 @@
   gap: var(--sp-2);
 }
 .msg__flow > .reasoning { margin: 0; }
-.msg__flow > .msg__body--live:empty,
+.msg__flow > .msg__tail:not(:has(> .msg__body:not(:empty))),
+.msg__tail > .msg__body:empty,
 .msg__flow > .interaction-slot:empty { display: none; }
 
 .msg__error { margin: var(--sp-2) 0; align-items: flex-start; }
@@ -945,8 +946,36 @@
 }
 
 /* --- Rendered Markdown ---------------------------------------------------- */
-.msg__body > :first-child { margin-top: 0; }
-.msg__body > :last-child { margin-bottom: 0; }
+/* The first and last block of a body give up their outer margins -- except
+   across the seam of the text being written, which is two elements
+   (chat/_message.html): the finished blocks, appended once, and the block
+   still being written. Between those two the blocks keep the margins they
+   have inside one body, or a paragraph would move by its margin at the
+   moment it settles. */
+.msg__body:not(.msg__body--settled:not(:empty) + .msg__body--live) > :first-child {
+  margin-top: 0;
+}
+.msg__body:not(.msg__body--settled:has(+ .msg__body--live:not(:empty))) > :last-child {
+  margin-bottom: 0;
+}
+/* A long code block still being written arrives in parts
+   (`markdown.LiveRender`): drawn as the one block they are. A part that
+   carries on has no label bar of its own. */
+.msg__tail .code-block--more {
+  margin-bottom: 0;
+  border-bottom: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  box-shadow: none;
+}
+.msg__tail .code-block--cont {
+  border-top: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+.msg__tail .code-block--cont > .code-block__label { display: none; }
+.msg__tail .code-block--more > .code-block__pre { padding-bottom: 0; }
+.msg__tail .code-block--cont > .code-block__pre { padding-top: 0; }
 
 .msg__body h1, .msg__body h2, .msg__body h3,
 .msg__body h4, .msg__body h5, .msg__body h6 {

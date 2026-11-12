@@ -1502,7 +1502,15 @@ document.addEventListener("lembas:notify", function (event) {
 
   document.addEventListener("DOMContentLoaded", scan);
   document.body && scan();
-  document.addEventListener("htmx:afterSettle", scan);
+  /* Not on a stream frame (`isStreamFrame` in app.js): a reply being written
+     brings none of these with it, and it swaps ten times a second. */
+  function notStreamFrame(event) {
+    var lembas = window.lembas;
+    return !(lembas && lembas.isStreamFrame && lembas.isStreamFrame(event));
+  }
+  document.addEventListener("htmx:afterSettle", function (event) {
+    if (notStreamFrame(event)) scan();
+  });
 })();
 
 /*
@@ -1662,7 +1670,15 @@ document.addEventListener("lembas:notify", function (event) {
     if (target.matches("[data-effort]")) paint();
   });
   document.addEventListener("DOMContentLoaded", paint);
-  document.body && document.body.addEventListener("htmx:afterSettle", paint);
+  /* Not on a stream frame (`isStreamFrame` in app.js): a reply being written
+     brings none of these with it, and it swaps ten times a second. */
+  function notStreamFrame(event) {
+    var lembas = window.lembas;
+    return !(lembas && lembas.isStreamFrame && lembas.isStreamFrame(event));
+  }
+  document.body && document.body.addEventListener("htmx:afterSettle", function (event) {
+    if (notStreamFrame(event)) paint();
+  });
 })();
 
 /*
@@ -1716,7 +1732,15 @@ document.addEventListener("lembas:notify", function (event) {
     paint(box);
   });
   document.addEventListener("DOMContentLoaded", paintAll);
-  document.body && document.body.addEventListener("htmx:afterSettle", paintAll);
+  /* Not on a stream frame (`isStreamFrame` in app.js): a reply being written
+     brings none of these with it, and it swaps ten times a second. */
+  function notStreamFrame(event) {
+    var lembas = window.lembas;
+    return !(lembas && lembas.isStreamFrame && lembas.isStreamFrame(event));
+  }
+  document.body && document.body.addEventListener("htmx:afterSettle", function (event) {
+    if (notStreamFrame(event)) paintAll();
+  });
 })();
 
 /*
@@ -1739,7 +1763,19 @@ document.addEventListener("lembas:notify", function (event) {
     mark();
   }
   document.addEventListener("DOMContentLoaded", watch);
-  document.body && document.body.addEventListener("htmx:afterSettle", mark);
+  /* The observer above hears every bubble that arrives, leaves or is replaced
+     (the `done` frame included): those are changes to the thread's own
+     children. This is for a swap that replaced the thread itself -- so not
+     for a frame of a reply being written, which changes neither. */
+  /* Not on a stream frame (`isStreamFrame` in app.js): a reply being written
+     brings none of these with it, and it swaps ten times a second. */
+  function notStreamFrame(event) {
+    var lembas = window.lembas;
+    return !(lembas && lembas.isStreamFrame && lembas.isStreamFrame(event));
+  }
+  document.body && document.body.addEventListener("htmx:afterSettle", function (event) {
+    if (notStreamFrame(event)) mark();
+  });
 })();
 
 /*
@@ -1899,7 +1935,11 @@ document.addEventListener("lembas:notify", function (event) {
   }
 
   document.addEventListener("DOMContentLoaded", function () { scan(document); });
-  document.addEventListener("htmx:afterSwap", function (event) { scan(event.target); });
+  document.addEventListener("htmx:afterSwap", function (event) {
+    var lembas = window.lembas;
+    if (lembas && lembas.isStreamFrame && lembas.isStreamFrame(event)) return;
+    scan(event.target);
+  });
   if (document.readyState !== "loading") scan(document);
 })();
 

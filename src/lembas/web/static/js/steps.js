@@ -83,8 +83,13 @@
     return window.CSS && window.CSS.escape ? window.CSS.escape(value) : value;
   }
 
+  /* The steps container a frame is about. A `steps` frame lands on the
+     container itself; a `step` frame (the steps one round closed, appended)
+     lands on a hidden sibling that names it in `data-steps-append`. */
   function container(target) {
     if (!target || !target.closest) return null;
+    var named = target.getAttribute && target.getAttribute("data-steps-append");
+    if (named) return document.getElementById(named);
     return target.closest("[data-steps]");
   }
 
@@ -126,7 +131,14 @@
   document.body.addEventListener("htmx:afterSwap", function (event) {
     var lembas = window.lembas;
     if (lembas && lembas.isStreamFrame && lembas.isStreamFrame(event)) return;
-    document.querySelectorAll("[data-steps]").forEach(restore);
+    /* Only where the swap landed, when that is still in the page: a poll
+       that replaced the sidebar's unread dots has no steps in it, and used to
+       walk every container of the whole transcript every few seconds. An
+       `outerHTML` swap (the `done` frame) leaves its target detached, and
+       then the page is searched as before. */
+    var root = event.target && event.target.isConnected ? event.target : document;
+    if (root.matches && root.matches("[data-steps]")) restore(root);
+    root.querySelectorAll("[data-steps]").forEach(restore);
   });
 
   /* The reader opening or closing a block is written down the moment it

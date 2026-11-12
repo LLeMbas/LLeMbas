@@ -710,7 +710,15 @@
      A frame later for two reasons: `form.reset()` fires its `reset` event
      *before* the fields are actually cleared, and reading the value in the same
      turn would paint the text that is about to disappear. */
-  function repaintSoon() {
+  function repaintSoon(event) {
+    /* After the composer's own requests only (the send, and what its controls
+       fetch). Every request on the page used to end here -- the unread poll,
+       the transcript tail, the activity panel's -- and each repaint rebuilds
+       the mirror and measures the box, under whoever was typing. */
+    if (event && event.type === "htmx:afterRequest") {
+      var elt = event.detail && event.detail.elt;
+      if (!(elt && elt.closest && elt.closest(".composer"))) return;
+    }
     if (window.requestAnimationFrame) window.requestAnimationFrame(paint);
     else setTimeout(paint, 0);
   }

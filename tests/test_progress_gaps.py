@@ -263,6 +263,11 @@ def test_a_prompt_queued_behind_a_reply_says_so_with_the_turns_ahead(
     mock_http(chat)
     made = client.post("/api/v2/chats", headers=headers, json={"text": "Hi"}).json()
     chat_id = made["chat"]["id"]
+    # The real first reply to its end, so that what is counted below is the
+    # queue behind the stand-in and nothing a finishing reply drained from it.
+    client.get(
+        f"/api/v2/chats/{chat_id}/messages/{made['reply']['id']}/stream", headers=headers
+    )
     # As if the first reply were still being written.
     running = generation_service.Generation(chat_id=chat_id, message_id="busy")
     generation_service._RUNNING["busy"] = running

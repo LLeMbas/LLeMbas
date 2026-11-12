@@ -271,7 +271,10 @@ def test_the_observers_look_only_at_what_was_added():
     already replaced skipped, and never the whole document."""
     roots = js_function(APP, "addedRoots")
     assert "isConnected" in roots
-    assert "contains(node)" in roots
+    # A walk up from each node against a set, not every node against every
+    # other: that was k² `contains` calls for a frame that added k nodes.
+    assert "contains(node)" not in roots
+    assert "seen.has(up)" in roots
     assert "addedRoots(records).forEach(addCodeCopy)" in APP_CODE
 
 

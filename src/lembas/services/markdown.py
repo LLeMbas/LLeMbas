@@ -108,7 +108,16 @@ def _render_fence(tokens, idx, _options, env) -> str:
         # and above all guessing a language -- re-ran on the whole tail many
         # times a second and was most of what made a long reply lag; the
         # finished bubble is rendered again, highlighted, at the end.
-        return _code_block(nh3.clean_text(code), language)
+        #
+        # A long block is sent in parts (`LiveRender`): `--cont` on a part
+        # that carries on from the one before, `--more` on one that is carried
+        # on after it, so the stylesheet can draw them as the one block they are.
+        extra = ""
+        if env.get("cont") and not any(t.type == "fence" for t in tokens[:idx]):
+            extra += " code-block--cont"
+        if env.get("more") and not any(t.type == "fence" for t in tokens[idx + 1 :]):
+            extra += " code-block--more"
+        return _code_block(nh3.clean_text(code), language, extra)
     if language:
         try:
             lexer = get_lexer_by_name(language, stripall=False)
@@ -135,12 +144,12 @@ def _render_fence(tokens, idx, _options, env) -> str:
     return _code_block(body, label)
 
 
-def _code_block(body: str, label: str) -> str:
+def _code_block(body: str, label: str, extra: str = "") -> str:
     label_html = (
         f'<div class="code-block__label">{nh3.clean_text(label)}</div>' if label else ""
     )
     return (
-        f'<div class="code-block">{label_html}'
+        f'<div class="code-block{extra}">{label_html}'
         f'<pre class="code-block__pre"><code>{body}</code></pre></div>'
     )
 
@@ -176,16 +185,19 @@ def _attribute_filter(element: str, attribute: str, value: str) -> str | None:
     return value
 
 
-def render_markdown(text: str, *, live: bool = False) -> str:
+def render_markdown(
+    text: str, *, live: bool = False, cont: bool = False, more: bool = False
+) -> str:
     """Markdown to safe HTML, ready to drop into a message bubble.
 
     `live` is a reply still being written: code is not highlighted (see
-    `_render_fence`)."""
+    `_render_fence`). `cont` and `more`, live only: the text's first code block
+    carries on from an earlier part, its last is carried on in a later one."""
     if not text:
         return ""
 
     src, lines = _source(text)
-    html = _parser().render(src, {"lines": lines, "live": live})
+    html = _parser().render(src, {"lines": lines, "live": live, "cont": cont, "more": more})
     return nh3.clean(
         html,
         tags=ALLOWED_TAGS,
@@ -212,38 +224,100 @@ class LiveRender:
     characters, ten times a second, on the one event loop that also serves
     Stop and every other page: O(n²) over a long answer. Here the text is cut
     after its last finished block (a blank line, outside any open code fence);
-    what is before the cut is rendered once and kept, and only the block still
-    being written is rendered again. Blocks are rendered on their own, so a
-    loose list can show as two until the reply's final render joins it -- the
-    live view only, which the `done` frame replaces.
+    what is before the cut is **settled**: rendered once, and -- through
+    `feed` -- sent once. Only the block still being written is rendered again.
+    Blocks are rendered on their own, so a loose list can show as two until
+    the reply's final render joins it -- the live view only, which the `done`
+    frame replaces.
+
+    **A long open code block settles too, in parts.** A fence has no blank
+    line to cut at until it closes, so a 400-line file being written stayed
+    whole in the part that is re-rendered and re-sent on every frame. Once the
+    open block has grown past `FENCE_CHUNK` it is cut after its last complete
+    line; each part is rendered as a block of its own, marked so the
+    stylesheet joins them (`code-block--cont`, `--more`).
 
     One per follower and per tail: a tail that does not start with what was
     kept (a round closed, the tail began again) starts over.
     """
 
+    # How much of an open code block is left to be re-sent each frame before
+    # its complete lines are settled.
+    FENCE_CHUNK = 1200
+
     def __init__(self) -> None:
         self._kept = ""
         self._html = ""
+        # The fence open at the end of what is kept: (marker, info) or ("", "").
+        self._fence: tuple[str, str] = ("", "")
+
+    @property
+    def settled(self) -> str:
+        """The HTML of everything settled so far."""
+        return self._html
 
     def render(self, text: str) -> str:
+        """The whole tail's HTML (the settled part and the rest together)."""
+        _, rest, _ = self.feed(text)
+        return self._html + rest
+
+    def feed(self, text: str) -> tuple[str, str, bool]:
+        """Take the tail as it now stands: (added, rest, restarted).
+
+        `added` is the HTML that became settled with this call, to be appended
+        to what was settled before; `rest` is the HTML of the part still being
+        written, replacing the last one. `restarted`: the tail began again, so
+        what was settled before is void and `added` is everything settled."""
+        restarted = False
         if not text.startswith(self._kept):
-            self._kept, self._html = "", ""
+            restarted = bool(self._kept)
+            self._kept, self._html, self._fence = "", "", ("", "")
+        added = ""
         cut = self._settled(text)
         if cut > len(self._kept):
-            self._html += render_markdown(text[len(self._kept) : cut], live=True)
+            added, self._fence = self._piece(text[len(self._kept) : cut])
+            self._html += added
             self._kept = text[:cut]
         rest = text[len(self._kept) :]
-        return self._html + (render_markdown(rest, live=True) if rest.strip() else "")
+        return added, (self._piece(rest)[0] if rest.strip() else ""), restarted
+
+    def _source(self, piece: str) -> str:
+        """A piece as Markdown that stands alone: the fence it starts inside
+        opened again in front of it."""
+        marker, info = self._fence
+        return f"{marker}{info}\n{piece}" if marker else piece
+
+    def _piece(self, piece: str) -> tuple[str, tuple[str, str]]:
+        """A piece's HTML, and the fence left open at its end."""
+        source = self._source(piece)
+        after = open_fence(source)
+        if after[0]:
+            source = f"{source}{'' if source.endswith(chr(10)) else chr(10)}{after[0]}"
+        html = render_markdown(
+            source, live=True, cont=bool(self._fence[0]), more=bool(after[0])
+        )
+        return html, after
 
     def _settled(self, text: str) -> int:
         """The end of the last finished block after what is kept, or what is kept."""
+        start = len(self._kept)
         at = text.rfind("\n\n")
-        while at >= len(self._kept):
+        while at >= start:
             cut = at + 2
-            if not open_fence(text[:cut])[0]:
+            if not open_fence(self._source(text[start:cut]))[0]:
                 return cut
             at = text.rfind("\n\n", 0, at)
-        return len(self._kept)
+        # Nothing ended at a blank line. A code block still open and grown
+        # long: settle its complete lines.
+        if len(text) - start > self.FENCE_CHUNK:
+            cut = text.rfind("\n") + 1
+            if cut > start:
+                source = self._source(text[start:cut])
+                # Inside the block, past its opening line: a cut that would
+                # leave the opener alone would render it as an empty block.
+                if open_fence(source)[0] and source.count("\n") > 1:
+                    return cut
+        return start
 
 
 def open_fence(text: str) -> tuple[str, str]:

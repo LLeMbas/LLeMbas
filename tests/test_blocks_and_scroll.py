@@ -290,3 +290,116 @@ async def test_a_late_follower_still_gets_the_whole_state(monkeypatch):
     assert any(n == "render" and "Already here." in d for n, d in frames)
     assert any(n == "reasoning" and "thought" in d for n, d in frames)
     assert frames[-1][0] == "close"
+
+
+# --- What is finished is sent once ---------------------------------------------
+async def test_a_later_round_sends_only_its_own_steps(monkeypatch):
+    """Each round's close used to re-send every closed step of the reply, and
+    the page rebuilt them all: forty rounds, forty times. The first frame a
+    connection sends carries the whole prefix and replaces the container
+    (`steps`); after that a close sends its own steps to be appended (`step`)."""
+
+    async def script(generation, settle, chunks):
+        for text in ("First round.", "Second round.", "Third round."):
+            generation.content.append(text)
+            generation.touch()
+            await settle()
+            generation.close_step()
+            generation.touch()
+            await settle()
+
+    frames = _frames("".join(await _drive(monkeypatch, script)))
+    names = [n for n, _ in frames]
+    assert names.count("steps") == 1 and names.count("step") == 2
+    assert names.index("steps") < names.index("step")
+    whole = next(d for n, d in frames if n == "steps")
+    later = [d for n, d in frames if n == "step"]
+    assert "First round." in whole
+    assert "Second round." in later[0] and "First round." not in later[0]
+    assert "Third round." in later[1] and "Second round." not in later[1]
+    # Each still closes its round in one frame: the emptied tail rides along.
+    assert all('id="stream-reply" hx-swap-oob="innerHTML"' in d for d in later)
+    assert all('id="settled-reply" hx-swap-oob="innerHTML"' in d for d in later)
+
+
+async def test_a_follower_arriving_late_gets_every_step_in_its_first_frame(monkeypatch):
+    from lembas.api import chats as chats_api
+
+    generation = generation_service.Generation(chat_id="chat", message_id="reply")
+    for text in ("First round.", "Second round."):
+        generation.content.append(text)
+        generation.close_step()
+    generation.done = True
+    monkeypatch.setattr(generation_service, "ensure", lambda *_a, **_k: generation)
+
+    chunks = [chunk async for chunk in chats_api._follow("chat", "reply")]
+    frames = _frames("".join(chunks))
+    assert [n for n, _ in frames].count("steps") == 1
+    whole = next(d for n, d in frames if n == "steps")
+    assert "First round." in whole and "Second round." in whole
+
+
+async def test_a_finished_block_of_the_tail_is_sent_once_and_appended(monkeypatch):
+    """A `render` frame used to carry the whole tail every time: everything
+    written so far, parsed and laid out again ten times a second. A block that
+    is finished now goes out once, appended out of band to `#settled-…`, and
+    the frame itself replaces only the block still being written."""
+
+    async def script(generation, settle, chunks):
+        generation.content.append("First paragraph.\n\nSecond, being wri")
+        generation.touch()
+        await settle()
+        generation.content.append("tten.\n\nThird.")
+        generation.touch()
+        await settle()
+
+    frames = _frames("".join(await _drive(monkeypatch, script)))
+    renders = [d for n, d in frames if n == "render"]
+    assert len(renders) == 2
+    # The first frame a connection sends replaces the settled part whole: a
+    # page that reconnected still holds an older copy.
+    assert 'id="settled-reply" hx-swap-oob="innerHTML"' in renders[0]
+    assert renders[0].count("First paragraph.") == 1 and "being wri" in renders[0]
+    # After that: appended, and never sent again.
+    assert 'hx-swap-oob="beforeend:#settled-reply"' in renders[1]
+    assert "First paragraph." not in renders[1]
+    assert "Second, being written." in renders[1] and "Third." in renders[1]
+    assert renders[1].index("Third.") < renders[1].index("Second, being written.")
+
+
+def test_a_long_open_code_block_settles_in_parts():
+    """A fence has no blank line to settle at until it closes, so a long file
+    being written stayed whole in the part that is re-sent every frame."""
+    from lembas.services.markdown import LiveRender, render_markdown
+
+    body = "Intro.\n\n```python\n" + "".join(f"line_{i} = {i}\n" for i in range(400))
+    live = LiveRender()
+    settled, rests = "", []
+    for end in range(40, len(body) + 40, 40):
+        added, rest, restarted = live.feed(body[:end])
+        assert not restarted
+        settled += added
+        rests.append(len(rest))
+    assert settled == live.settled
+    # The part re-sent each frame stays small however long the block grows.
+    assert max(rests) < 3 * LiveRender.FENCE_CHUNK
+    assert settled.count("code-block--more") >= 3
+    assert settled.count("code-block--cont") == settled.count("code-block--more") - 1
+    assert "code-block--cont" in rest
+
+    def text(html: str) -> str:
+        html = re.sub(r'<div class="code-block__label">[^<]*</div>', "", html)
+        return re.sub(r"\n+", "\n", re.sub(r"<[^>]+>", "", html))
+
+    assert text(settled + rest) == text(render_markdown(body, live=True))
+
+
+def test_the_parts_of_a_block_are_drawn_as_one():
+    more = _rule(CHAT_CSS, ".msg__tail .code-block--more")
+    assert "margin-bottom: 0" in more and "border-bottom: 0" in more
+    assert "border-top: 0" in _rule(CHAT_CSS, ".msg__tail .code-block--cont")
+    message = (Path(lembas.__file__).parent / "web/templates/chat/_message.html").read_text()
+    # The settled part is appended to, never a swap target of its own.
+    settled = re.search(r'<div class="msg__body msg__body--settled"[^>]*>', message).group(0)
+    assert "sse-swap" not in settled
+    assert 'sse-swap="step" hx-target="#steps-{{ message.id }}" hx-swap="beforeend"' in message

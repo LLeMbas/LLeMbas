@@ -175,15 +175,23 @@
      frame that replaced a step's contents handed the observer every child
      separately, and each was searched in full. */
   function addedRoots(records) {
-    var roots = [];
+    var seen = new Set();
     records.forEach(function (record) {
       record.addedNodes.forEach(function (node) {
-        if (node.nodeType === 1 && node.isConnected) roots.push(node);
+        if (node.nodeType === 1 && node.isConnected) seen.add(node);
       });
     });
-    return roots.filter(function (node) {
-      return !roots.some(function (other) { return other !== node && other.contains(node); });
+    /* A walk up from each node, not each node against every other: a frame
+       that adds k nodes cost k² `contains` calls here, and a long reply's
+       frames add hundreds. */
+    var roots = [];
+    seen.forEach(function (node) {
+      for (var up = node.parentNode; up; up = up.parentNode) {
+        if (seen.has(up)) return;
+      }
+      roots.push(node);
     });
+    return roots;
   }
 
   /* --- Copying a code block ---------------------------------------
@@ -199,6 +207,9 @@
     if (root.matches && root.matches(".code-block")) blocks.push(root);
     blocks.forEach(function (block) {
       if (block.querySelector(".code-block__copy")) return;
+      /* A later part of a long block still being written: the block's bar is
+         on its first part. */
+      if (block.classList.contains("code-block--cont")) return;
       var label = block.querySelector(".code-block__label");
       if (!label) {
         label = document.createElement("div");
@@ -1048,11 +1059,20 @@
   /* Not on a stream frame: a reply being written carries no section toggles,
      and walking every one on the page a dozen times a second was work for
      nothing (`isStreamFrame`). */
+  /* And only where the swap landed, when that is still in the page: the
+     unread poll and the transcript tail swap something every few seconds, and
+     each used to walk the whole document for toggles that were not in it. A
+     target that has been replaced (`outerHTML`) is no longer in the page, and
+     then the document is searched as before. */
+  function swapped(event) {
+    var el = event && event.target;
+    return el && el.isConnected && el.querySelectorAll ? el : document;
+  }
   document.addEventListener("htmx:afterSettle", function (event) {
-    if (!isStreamFrame(event)) reapply(document);
+    if (!isStreamFrame(event)) reapply(swapped(event));
   });
   document.addEventListener("htmx:oobAfterSwap", function (event) {
-    if (!isStreamFrame(event)) reapply(document);
+    if (!isStreamFrame(event)) reapply(swapped(event));
   });
 
   document.addEventListener("DOMContentLoaded", function () {
@@ -1296,8 +1316,19 @@
       keptOpen[el.id] = el.open;
     });
   }
-  document.body.addEventListener("htmx:beforeSwap", noteOpen);
-  document.body.addEventListener("htmx:sseBeforeMessage", noteOpen);
+  /* Not for a frame that lands in the bubble being written: none of those
+     reaches the panel, and they come ten times a second. The stream frames
+     that do carry the section out of band are `activity`, `jobs` and `done`. */
+  var CARRIES_PANEL = { activity: true, jobs: true, done: true };
+  function noteOpenBeforeSwap(event) {
+    if (!isStreamFrame(event)) noteOpen();
+  }
+  function noteOpenBeforeFrame(event) {
+    var kind = event.detail && event.detail.type;
+    if (!kind || CARRIES_PANEL[kind]) noteOpen();
+  }
+  document.body.addEventListener("htmx:beforeSwap", noteOpenBeforeSwap);
+  document.body.addEventListener("htmx:sseBeforeMessage", noteOpenBeforeFrame);
   document.body.addEventListener("htmx:afterSettle", function () {
     if (!keptOpen) return;
     var was = keptOpen;

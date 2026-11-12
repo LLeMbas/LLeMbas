@@ -93,5 +93,13 @@
 
   window.lembasProgress = { line: function (p) { var s = shape(); return s ? line(p, Date.now(), s) : ""; } };
   setInterval(tick, 1000);
-  document.addEventListener("htmx:afterSwap", tick);
+  /* A line that has just arrived is drawn at once rather than at the next
+     second. Only for a swap that brought one: a reply being written swaps ten
+     times a second, and all but its `progress` frame land somewhere else. */
+  document.addEventListener("htmx:afterSwap", function (event) {
+    var el = event.target;
+    if (!el || !el.querySelector) return;
+    if (el.querySelector(".progress-line[data-progress]") ||
+        (el.matches && el.matches(".progress-line[data-progress]"))) tick();
+  });
 })();
