@@ -87,6 +87,44 @@ class _Call:
 
 _pages: dict[str, dict[str, _Page]] = {}
 _calls: dict[str, _Call] = {}
+# When a page of each chat last gave a sign of life, kept after the page has
+# gone: whether one may plausibly be back in a moment (`seen_recently`).
+_last_seen: dict[str, float] = {}
+
+# How long after a chat's last page was heard from another is still expected:
+# a reload, a tab brought back, a connection that dropped.
+RECENT = 120.0
+# How often the whole registry is swept of pages past their `TTL`, on any
+# access: a chat nobody asks about again would otherwise keep its dead pages
+# (and what was queued for them) for the life of the process.
+SWEEP_EVERY = 60.0
+_swept = 0.0
+
+
+def _sweep(now: float | None = None) -> None:
+    """Forget every expired page, of every chat -- at most once a minute."""
+    global _swept
+    now = time.monotonic() if now is None else now
+    if now - _swept < SWEEP_EVERY:
+        return
+    _swept = now
+    for chat_id in list(_pages):
+        _fresh(chat_id, now)
+    for chat_id in [c for c, seen in _last_seen.items() if now - seen > max(RECENT, TTL)]:
+        if chat_id not in _pages:
+            _last_seen.pop(chat_id, None)
+
+
+def _heard(chat_id: str) -> None:
+    _last_seen[chat_id] = time.monotonic()
+
+
+def seen_recently(chat_id: str, within: float | None = None) -> bool:
+    """Whether a page of this chat gave a sign of life in the last `within`
+    seconds (`RECENT`), attached now or not."""
+    seen = _last_seen.get(chat_id)
+    limit = RECENT if within is None else within
+    return seen is not None and time.monotonic() - seen <= limit
 
 
 def _fresh(chat_id: str, now: float | None = None) -> dict[str, _Page]:
@@ -117,6 +155,8 @@ def _drop(chat_id: str, page_id: str) -> None:
 
 def announce(chat_id: str, page_id: str, capabilities: set[str] | frozenset[str]) -> None:
     """A page of `chat_id` is open and can do `capabilities` (`{"python"}`)."""
+    _sweep()
+    _heard(chat_id)
     pages = _pages.setdefault(chat_id, {})
     page = pages.get(page_id)
     if page is None:
@@ -128,6 +168,7 @@ def announce(chat_id: str, page_id: str, capabilities: set[str] | frozenset[str]
 
 def withdraw(chat_id: str, page_id: str) -> None:
     """The page closed: a call it had taken ends as `NoAnswer`."""
+    _sweep()
     _drop(chat_id, page_id)
 
 
@@ -135,6 +176,7 @@ def attached(chat_id: str, capability: str = "python") -> bool:
     """Whether a page of this chat can do `capability` right now."""
     if not chat_id:
         return False
+    _sweep()
     return any(capability in page.capabilities for page in _fresh(chat_id).values())
 
 
@@ -194,15 +236,36 @@ async def run(
                     waiter.cancel()
             if call.taken.is_set():
                 return await asyncio.wait_for(call.future, timeout)
-            # Not taken. The request stays in that page's queue under another
-            # page's name, which is what `take` skips: a page that wakes up
-            # later must not run a call somebody else already has.
+            # Not taken: out of that page's queue again, payload and all (the
+            # files handed to a call can be megabytes, and a page that never
+            # asks would hold them until it expired). `take` skips a call that
+            # is another page's now in any case: a page that wakes up later
+            # must not run what somebody else already has.
+            _unqueue(page, call_id)
         # Nobody took it. With a page still there, that page did not answer;
         # with none left, there is no page.
         raise NoAnswer() if attached(chat_id) else NotAttached()
     finally:
+        # However it ended, nothing of this call stays queued for a page.
+        for page in candidates:
+            if page.requests.qsize():
+                _unqueue(page, call_id)
         call.page_id = ""
         _calls.pop(call_id, None)
+
+
+def _unqueue(page: _Page, call_id: str) -> None:
+    """Take one call's request out of a page's queue, leaving the rest in order."""
+    kept = []
+    while True:
+        try:
+            item = page.requests.get_nowait()
+        except asyncio.QueueEmpty:
+            break
+        if str(item.get("call_id") or "") != call_id:
+            kept.append(item)
+    for item in kept:
+        page.requests.put_nowait(item)
 
 
 async def take(chat_id: str, page_id: str, *, timeout: float = 25.0) -> dict[str, Any] | None:
@@ -212,12 +275,14 @@ async def take(chat_id: str, page_id: str, *, timeout: float = 25.0) -> dict[str
     that has not announced: answered at once, and the page asked again at
     once -- a loop as fast as the network -- so it is told to announce.
     """
+    _sweep()
     page = (_fresh(chat_id)).get(page_id)
     if page is None:
         raise UnknownPage()
     deadline = time.monotonic() + timeout
     while True:
         page.seen = time.monotonic()
+        _heard(chat_id)
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             return None
@@ -250,12 +315,16 @@ def reset() -> None:
     for call in _calls.values():
         if not call.future.done():
             call.future.cancel()
+    global _swept
     _calls.clear()
     _pages.clear()
+    _last_seen.clear()
+    _swept = 0.0
 
 
 __all__ = [
     "PICKUP",
+    "RECENT",
     "TTL",
     "NoAnswer",
     "NotAttached",
@@ -265,6 +334,7 @@ __all__ = [
     "attached",
     "reset",
     "run",
+    "seen_recently",
     "take",
     "wait_attached",
     "withdraw",

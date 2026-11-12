@@ -726,6 +726,33 @@ _PYTHON_TEXTS = {
 }
 
 
+# How young a chat is "new": its first reply is being written while the
+# browser that started it is still arriving at its page.
+PYTHON_NEW_CHAT_SECONDS = 60.0
+
+
+def _page_may_come(context: ToolContext) -> bool:
+    """Whether a page of this chat can plausibly appear in the next seconds."""
+    if pages.seen_recently(context.chat_id):
+        return True
+    from datetime import UTC, datetime
+
+    from lembas.db.models import Chat
+    from lembas.db.session import session_scope
+
+    try:
+        with session_scope() as db:
+            chat = db.get(Chat, context.chat_id)
+            if chat is None or chat.created_at is None:
+                return False
+            made = chat.created_at
+            if made.tzinfo is None:  # SQLite drops the offset
+                made = made.replace(tzinfo=UTC)
+            return (datetime.now(UTC) - made).total_seconds() <= PYTHON_NEW_CHAT_SECONDS
+    except Exception:  # never a reason for the tool to fail
+        return False
+
+
 def python_unavailable() -> str:
     return str(harness_spec.tools()["python"]["unavailable"])
 
@@ -747,7 +774,13 @@ async def _run_python(context: ToolContext, args: dict[str, Any]) -> ToolOutcome
     "limits": {"seconds", "memory", "output_chars"}}`; its answer (`answer`):
     `{"stdout", "result", "error", "files": [{"path", "content_b64"}]}`.
     """
-    if not await pages.wait_attached(context.chat_id, timeout=PYTHON_ATTACH_WAIT):
+    # A page is waited for only where one can plausibly be on its way: the
+    # chat is new (the browser is still being redirected to its page) or a
+    # page of it was heard from a moment ago (a reload, a tab coming back).
+    # Otherwise "no page" is the answer now: a chat driven only from a client
+    # that cannot run Python would wait the whole grace at every call.
+    grace = PYTHON_ATTACH_WAIT if _page_may_come(context) else 0.0
+    if not await pages.wait_attached(context.chat_id, timeout=grace):
         return _refused("python", python_unavailable())
     code = str(args.get("code") or "")
     wanted = [str(p) for p in (args.get("files") or []) if str(p).strip()]

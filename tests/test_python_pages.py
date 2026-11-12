@@ -259,3 +259,80 @@ def test_an_agent_chat_is_never_a_page_for_python(client, db, registered, make_c
     db.commit()
     assert client.post(f"/api/v2/chats/{chat_id}/page/announce", headers=_bearer(db),
                        json={"page_id": "desktop-0001"}).status_code == 409
+
+
+# --- The wait is only for a page that may come ------------------------------------------
+def _aged(db, chat_id: str, minutes: int = 30) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    chat = db.get(Chat, chat_id)
+    chat.created_at = datetime.now(UTC) - timedelta(minutes=minutes)
+    db.commit()
+
+
+async def test_a_chat_no_page_has_been_near_is_told_at_once(db, user_id, make_chat, monkeypatch):
+    """A chat driven only from a client that cannot run Python (the phone)
+    waited the whole grace at every python call, for a page that was never
+    coming."""
+    chat_id = make_chat()
+    _aged(db, chat_id)
+    monkeypatch.setattr(file_tools, "PYTHON_ATTACH_WAIT", 5.0)
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+    outcome = await _call(_context(chat_id, user_id))
+    assert loop.time() - started < 1.0
+    assert outcome.content == file_tools.python_unavailable()
+
+
+async def test_a_chat_whose_page_was_just_here_is_waited_for(db, user_id, make_chat, monkeypatch):
+    chat_id = make_chat()
+    _aged(db, chat_id)
+    monkeypatch.setattr(file_tools, "PYTHON_ATTACH_WAIT", 5.0)
+    pages.announce(chat_id, "reloading-1", {"python"})
+    pages.withdraw(chat_id, "reloading-1")  # the tab is reloading
+    assert not pages.attached(chat_id) and pages.seen_recently(chat_id)
+
+    task = asyncio.create_task(_call(_context(chat_id, user_id)))
+    await asyncio.sleep(0.3)
+    assert not task.done(), "refused while its page was on the way back"
+    pages.announce(chat_id, "reloading-2", {"python"})
+    request = await pages.take(chat_id, "reloading-2", timeout=3)
+    assert pages.answer(chat_id, "reloading-2", request["call_id"], {"stdout": "1\n"})
+    assert (await asyncio.wait_for(task, 3)).content == "1"
+
+    # Long gone is not "just here".
+    assert not pages.seen_recently(chat_id, within=0)
+
+
+# --- The registry does not keep what is gone ---------------------------------------------
+async def test_expired_pages_of_chats_nobody_asks_about_are_swept(monkeypatch):
+    now = [1000.0]
+    monkeypatch.setattr(pages.time, "monotonic", lambda: now[0])
+    pages.announce("quiet-chat", "page-0001", {"python"})
+    now[0] += pages.TTL + pages.SWEEP_EVERY + 1
+    # Any access, to any chat, sweeps: the quiet chat is never asked about again.
+    assert not pages.attached("another-chat")
+    assert "quiet-chat" not in pages._pages
+    now[0] += max(pages.RECENT, pages.TTL) + pages.SWEEP_EVERY + 1
+    pages.attached("another-chat")
+    assert "quiet-chat" not in pages._last_seen
+
+
+async def test_a_call_that_moved_on_leaves_nothing_queued_for_the_page_it_left():
+    pages.announce("c1", "awake-001", {"python"})
+    await asyncio.sleep(0.01)
+    pages.announce("c1", "asleep-01", {"python"})
+    big = {"code": "x", "files": [{"path": "/a", "content_b64": "A" * 1000}]}
+    running = asyncio.create_task(pages.run("c1", big, timeout=5, pickup=0.1))
+    await asyncio.sleep(0.2)  # offered to the sleeping page, then moved on
+    assert pages._pages["c1"]["asleep-01"].requests.qsize() == 0
+
+    request = await pages.take("c1", "awake-001", timeout=3)
+    assert pages.answer("c1", "awake-001", request["call_id"], {"stdout": "ok"})
+    await running
+    assert all(page.requests.qsize() == 0 for page in pages._pages["c1"].values())
+
+    # And one nobody took at all.
+    with pytest.raises(pages.NoAnswer):
+        await pages.run("c1", big, timeout=5, pickup=0.05)
+    assert all(page.requests.qsize() == 0 for page in pages._pages["c1"].values())
