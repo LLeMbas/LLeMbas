@@ -35,7 +35,7 @@ In the order a turn usually meets them. `{{x}}` in a text is the field `x`; the 
 | `reading_prompt` | `done: int`, `total: int` — prompt tokens processed of all | `Reading the prompt: {{done}} / {{total}} tokens ({{percent}}%)` · without `total`: `Reading the prompt` |
 | `thinking` | — | `Thinking` |
 | `writing` | `rate?: number` — tokens a second, as measured over this reply | `Writing: {{rate}} tok/s` · without `rate`: `Writing` |
-| `running_tool` | `tool: string` (the tool's name); `what?: string` — the call's short title (the command, the path, the query), one line, at most 80 characters | `Running {{tool}}: {{what}}` · without `what`: `Running {{tool}}` |
+| `running_tool` | `tool: string` (the tool's name); `what?: string` — the call's short title (the command, the path, the query; from 3.7.0 exactly `display.md` §1), one line, at most 80 characters | `Running {{tool}}: {{what}}` · without `what`: `Running {{tool}}` |
 | `waiting_for_person` | `what: "approval" \| "question" \| "plan"`; `tool?: string` (approval: the tool asked about) | `Waiting for you: {{what}}` |
 | `waiting_for_subagents` | `running: int` — subagents working or waiting now | `Waiting for subagents: {{running}} running` |
 | `compacting` | — | `Compacting the conversation` |
@@ -88,7 +88,8 @@ What decides the phase, so that two implementations agree on the same moment:
 - `compacting` — a compaction runs. `retrying` — a failed request will be sent again after a wait.
 - `stopped` / `failed` — the turn ended other than by finishing: stopped by the person, a step limit
   or a budget; failed with an error. They are the last progress of that turn and stay until the
-  next one begins; a turn that finished normally ends with `null`.
+  next one begins; a turn that finished normally ends with `null`. From 3.7.0 their line also stays on
+  the finished reply itself (`display.md` §4).
 
 ## 5. Where it is sent
 

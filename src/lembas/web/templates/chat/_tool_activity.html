@@ -66,10 +66,24 @@
   {%- endfor -%}
 </code></pre>
 {%- endmacro %}
+{#- Which of its four states a call is in, beside its title (harness spec
+    3.7.0, display.md §2): a mark while it runs, how long it took once it has
+    finished, and that it was not run when it was refused. The title is the
+    same in all four. -#}
+{%- macro state_mark(block) -%}
+  {%- if block.state == "running" -%}
+    <span class="tool-state tool-state--running" role="status"><span class="visually-hidden">{{ t("running") }}</span><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span></span>
+  {%- elif block.state == "denied" -%}
+    <span class="tool-chip tool-chip--bad">{{ t("not run") }}</span>
+  {%- elif block.duration -%}
+    <span class="tool-time">{{ block.duration }}</span>
+  {%- endif -%}
+{%- endmacro %}
 {% for event in tool_events %}
 {% set block = tool_block(event) %}
 {% set block_id = ("tool-" ~ message_id ~ "-" ~ (step_index | default(0)) ~ "-" ~ loop.index0) if message_id | default('') else "" %}
-{% set failed = event.status == "error" %}
+{% set running = block.state == "running" %}
+{% set failed = block.state in ("failed", "denied") %}
 {% if event.show and not failed %}
   {#- `show`: a card that opens the file in the viewer. The card names the
       file and nothing of its contents; the viewer fetches it through a route
@@ -103,6 +117,7 @@
     {{ icon(tool_icon(event), "icon--sm tool-activity__icon") }}
     <span class="tool-line__verb">{{ tool_label(event) }}</span>
     <code class="tool-line__title">{{ block.title }}</code>
+    {{ state_mark(block) }}
     {% if failed %}<span class="tool-line__error">{{ event.error or t("failed") }}</span>{% endif %}
   </div>
 {% elif block.kind == "edit" and event.diff and not failed %}
@@ -113,6 +128,7 @@
       <span class="tool-line__verb">{{ tool_label(event) }}</span>
       <code class="tool-line__title">{{ block.title }}</code>
       <span class="tool-edit__count"><span class="diff-add">+{{ block.added }}</span> <span class="diff-del">−{{ block.removed }}</span></span>
+      {{ state_mark(block) }}
       {% if event.edited %}<span class="badge">{{ t("edited by you") }}</span>{% endif %}
     </div>
     {% if block.preview %}<pre class="diff diff--preview"><code>{{ diff_lines(block.preview) }}</code></pre>{% endif %}
@@ -124,17 +140,18 @@
     {% endif %}
   </div>
 {% elif block.kind in ("shell", "search", "task", "edit") %}
-  <details class="tool-activity tool-activity--{{ block.kind }}{{ ' tool-activity--error' if failed }}"{% if block_id %} id="{{ block_id }}"{% endif %}>
+  <details class="tool-activity tool-activity--{{ block.kind }}{{ ' tool-activity--error' if failed }}{{ ' tool-activity--running' if running }}"{% if block_id %} id="{{ block_id }}"{% endif %}>
     <summary class="tool-activity__summary">
       {{ icon(tool_icon(event), "icon--sm tool-activity__icon") }}
       <span class="tool-activity__label">
         {% if block.kind == "shell" %}
           <code class="tool-line__title tool-line__title--command">{{ block.title or tool_label(event) }}</code>
         {% else %}
-          <span class="tool-line__verb">{{ tool_label(event) }}{% if failed %} {{ t("failed") }}{% endif %}</span>
+          <span class="tool-line__verb">{{ tool_label(event) }}{% if block.state == "failed" %} {{ t("failed") }}{% endif %}</span>
           {% if block.title %}<code class="tool-line__title">{{ block.title }}</code>{% endif %}
         {% endif %}
         {% for chip in block.chips %}<span class="tool-chip{{ ' tool-chip--bad' if chip.startswith('exit ') and chip != 'exit 0' }}">{{ chip }}</span>{% endfor %}
+        {{ state_mark(block) }}
         {% if event.status == "stopped" %}<span class="tool-chip tool-chip--bad">{{ t("stopped") }}</span>{% endif %}
         {% if event.edited %}<span class="badge">{{ t("edited by you") }}</span>{% endif %}
         {% if event.purpose %}<span class="tool-activity__why">{{ event.purpose }}</span>{% endif %}
@@ -164,6 +181,7 @@
       </div>
       {% endif %}
       {% if event.text and event.text != event.error %}<pre class="tool-result__text">{{ event.text }}</pre>
+      {% elif running %}<p class="tool-activity__empty">{{ t("Still running.") }}</p>
       {% elif not event.error and not event.results %}<p class="tool-activity__empty">{{ t("No output.") }}</p>{% endif %}
       {% if event.diff %}{{ whole_diff(event.diff) }}{% endif %}
       {% for result in event.results %}
@@ -206,10 +224,11 @@
         {% else %}
           {{ label }}
         {% endif %}
-        {% if event.query %}
-          <span class="tool-activity__count">· {{ event.query }}</span>
+        {% if block.title or event.query %}
+          <span class="tool-activity__count">· {{ block.title or event.query }}</span>
         {% endif %}
       {% endif %}
+      {{ state_mark(block) }}
 
       {% if event.results %}
         <span class="tool-activity__count">

@@ -1440,6 +1440,24 @@ def _step_html(message_id: str, step) -> str:
     )
 
 
+def _running_calls_html(message_id: str, generation) -> str:
+    """The cards of the calls running right now ("" when none): the template
+    every finished call is drawn with, in its `running` state. Hidden kinds
+    (the plan's) are not drawn, as in the transcript."""
+    from lembas.services import tool_blocks
+
+    running = [
+        {key: value for key, value in call.items() if key != "started"}
+        for call in list(getattr(generation, "running_calls", {}).values())
+        if tool_blocks.kind_of(str(call.get("name") or "")) != tool_blocks.HIDDEN
+    ]
+    if not running:
+        return ""
+    return templates.get_template("chat/_tool_activity.html").render(
+        {"tool_events": running, "message_id": "", "step_index": 0}
+    )
+
+
 def _plan_panel_html(plan) -> str:
     """The plan panel, marked to land in its place above the composer.
 
@@ -1680,6 +1698,7 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
     # empty has nothing to say about them.
     sent: dict[str, str] = {
         "reasoning": "", "think": "", "render": "", "status": "", "ask": "", "progress": "",
+        "calls": "",
     }
     pacer = progress_service.Pacer()
     # The tail's markdown, rendered at the cost of what is new each pass and
@@ -1772,6 +1791,10 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
                     "progress", progress_service.html(pacer.sent)
                 ):
                     yield sse.event("progress", sent["progress"])
+                # The calls running now, as cards: sent when the set changes
+                # (a call starting, results coming), emptied with it.
+                if changed("calls", _running_calls_html(message_id, generation)):
+                    yield sse.event("calls", sent["calls"])
                 if changed("ask", _ask_html(chat_id, generation.waiting)):
                     yield sse.event("ask", sent["ask"])
                 # The background jobs, out of band into the strip above the

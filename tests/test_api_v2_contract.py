@@ -99,6 +99,8 @@ TOOL = {
     "args": {"command": "bake --slow"},
     "text": "baked\n",
     "exit": 0,
+    # How long it took (harness spec 3.7.0): the block's `duration`, written.
+    "ms": 2412,
     "purpose": "Bake one loaf",
 }
 
@@ -299,6 +301,20 @@ def _phone_cards() -> list[dict]:
         )
         cards.append(serialise.interruption(card))
     return cards
+
+
+def _ended(**fields) -> Message:
+    """An assistant reply that did not finish, with one step of calls where
+    `tool_calls_json` is given."""
+    calls = fields.get("tool_calls_json") or []
+    return Message(
+        id="msg5", chat_id="chat1", role="assistant", content="The dough is ", complete=True,
+        model_id="qwen", created_at=WHEN, usage_json={}, plan_json={},
+        steps_json=[{"round": 0, "thinking_to": 0, "text_to": 13, "tools_to": len(calls),
+                     "thinking_ms": 0}],
+        **{"tool_calls_json": calls, **{k: v for k, v in fields.items()
+                                        if k != "tool_calls_json"}},
+    )
 
 
 def _generation() -> generation_service.Generation:
@@ -855,6 +871,9 @@ def _tree() -> dict[str, object]:
 
 def _shapes() -> dict[str, object]:
     generation = _generation()
+    # A call running right now (harness spec 3.7.0): in the tail's `calls`,
+    # serialised as a finished one, `block.state: "running"`.
+    generation.start_call("call9", "bash", {"command": "bake --test", "description": "Try it"})
     tail = serialise.tail(generation, "4s")
     for card in generation.waiting:
         card.expires_at = 0.0  # a monotonic deadline means nothing in a file
@@ -904,6 +923,19 @@ def _shapes() -> dict[str, object]:
         "message_user": serialise.message(_user()),
         "message_queued": serialise.message(_queued(), ahead=2),
         "message_assistant": assistant,
+        # Replies that did not finish (harness spec 3.7.0, display.md §4):
+        # `end` is the line that stays on them. Stopped by the person; failed
+        # with a call that was refused (`denied`) and one that failed.
+        "message_stopped": serialise.message(_ended(stopped=True, end_reason="person")),
+        "message_failed": serialise.message(_ended(
+            error="The model's server answered 503.",
+            tool_calls_json=[
+                {"id": "call4", "name": "bash", "status": "denied",
+                 "args": {"command": "rm -rf build"}, "error": "Plan mode does not run commands."},
+                {"id": "call5", "name": "grep", "status": "error", "ms": 61_300,
+                 "args": {"pattern": "yeast", "path": "recipes"}, "error": "No such directory."},
+            ],
+        )),
         "event_steps": {"steps": serialise.live_steps(generation), "tail": tail},
         "event_tail": tail,
         "event_steered": {"ids": ["msg9"]},
@@ -1031,13 +1063,19 @@ def test_the_steps_carry_markdown_and_no_html():
     kinds = [s["kind"] for s in steps]
     assert kinds == ["thinking", "text", "tools", "steer", "text"]
     assert steps[1]["markdown"].startswith("Here is how it is made")
+    # Spec 3.7.0: the call's one title, its state and how long it took; an
+    # exit code is a fact only when it is not 0.
     assert steps[2]["calls"][0]["block"] == {
         "kind": "shell",
         "title": "bake --slow",
-        "chips": ["exit 0"],
+        "chips": [],
         "added": 0,
         "removed": 0,
+        "state": "done",
+        "duration": "2.4s",
+        "label": steps[2]["calls"][0]["block"]["label"],
     }
+    assert steps[2]["calls"][0]["ms"] == 2412
     assert "html" not in json.dumps(steps)
 
 

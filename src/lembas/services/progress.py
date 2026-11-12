@@ -153,17 +153,12 @@ def localised() -> dict[str, Any]:
 
 
 def what_of(arguments: Any) -> str:
-    """A call's short title (`running_tool`'s `what`): the command, the path,
-    the query -- one line, at most `what_max` characters, or ""."""
-    if not isinstance(arguments, dict):
-        return ""
-    for key in ("command", "path", "file_path", "pattern", "query", "url", "description", "name"):
-        value = arguments.get(key)
-        if isinstance(value, str) and value.strip():
-            first = value.strip().split("\n")[0].strip()
-            limit = int(spec()["what_max"])
-            return first if len(first) <= limit else first[: limit - 1] + "…"
-    return ""
+    """A call's short title (`running_tool`'s `what`): from spec 3.7.0 exactly
+    the one title a call has everywhere (`display.title`, display.md §1) --
+    one line, at most `what_max` characters, or ""."""
+    from lembas.services import display
+
+    return display.title(arguments)
 
 
 def i18n_keys() -> list[str]:

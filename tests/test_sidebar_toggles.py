@@ -274,8 +274,10 @@ def test_the_upward_menu_is_placed_against_the_window():
     chat_css = (WEB / "static/css/chat.css").read_text(encoding="utf-8")
     floating = re.search(r"\.picker--up \.upward__menu--floating \{([^}]*)\}", chat_css)
     assert floating and "position: fixed" in floating.group(1)
-    # The button keeps the select's floor, or a phone squeezes it to a caret.
-    assert re.search(r"\.composer__target \.upward \{[^}]*min-width: 6rem", chat_css)
+    # The chip keeps a floor, or a phone squeezes it to a caret: the field the
+    # button fills has one (and where the bar is too narrow for three floors
+    # it folds to a summary chip instead -- tests/test_target_bar.py).
+    assert re.search(r"\.target__field \{[^}]*min-width: 6rem", chat_css)
 
     ui = (WEB / "static/js/ui.js").read_text(encoding="utf-8")
     builder = ui[ui.index("function build(select)"):]
@@ -329,6 +331,10 @@ window.addEventListener('load', function () {
     });
   }
   function chooser() {
+    /* Where the bar is narrow the three chips are folded behind one summary
+       chip (tests/test_target_bar.py): opened first, as a person would. */
+    var summary = document.querySelector('[data-target-summary]');
+    if (summary && summary.getBoundingClientRect().width > 0) summary.click();
     var button = document.querySelector('.upward__button');
     if (button) {
       press(hitAt(button));

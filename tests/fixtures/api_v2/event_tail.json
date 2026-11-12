@@ -1,5 +1,27 @@
 {
   "thinking": "",
   "text": "Done. *Wrap",
-  "label": "4s"
+  "label": "4s",
+  "calls": [
+    {
+      "id": "call9",
+      "name": "bash",
+      "status": "running",
+      "args": {
+        "command": "bake --test",
+        "description": "Try it"
+      },
+      "results": [],
+      "block": {
+        "kind": "shell",
+        "title": "bake --test",
+        "chips": [],
+        "added": 0,
+        "removed": 0,
+        "state": "running",
+        "duration": "",
+        "label": "Bash"
+      }
+    }
+  ]
 }

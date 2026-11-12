@@ -538,7 +538,10 @@ def test_streaming_reports_an_unreachable_endpoint_in_the_thread(
     response = client.get(f"/api/chats/{chat_id}/messages/{message.id}/stream")
     assert response.status_code == 200
     assert "Could not reach" in response.text
-    assert "alert--error" in response.text
+    # Said once, as the line the reply ends on (harness spec 3.7.0): the same
+    # words the progress line ended with, where they stay.
+    assert 'data-reply-end="failed"' in response.text
+    assert "Failed: " in response.text
 
     db.refresh(message)
     assert message.complete is True
@@ -995,14 +998,15 @@ def test_the_send_button_is_the_last_thing_in_the_toolbar(client: TestClient, db
     assert "data-composer-action" in toolbar
 
 
-def test_the_agent_controls_are_a_row_of_their_own_that_wraps(
+def test_the_agent_controls_are_a_bar_of_their_own_above_the_card(
     client: TestClient, db, registered
 ):
     """Where a new agent chat runs -- the computer, the directory and the mode --
-    is `.composer__target`, a row of its own above the toolbar. It used to sit
-    in the toolbar's line as `.composer__context`, scrolling sideways with its
-    scrollbar hidden, so on a phone the mode was off the end of the row: cut
-    off, out of sight. Inside the toolbar again, it would push Send off it."""
+    is `.composer__target`, a slim bar above the card the message is typed in
+    (`tests/test_target_bar.py` measures it). It used to sit in the toolbar's
+    line as `.composer__context`, scrolling sideways with its scrollbar hidden,
+    so on a phone the mode was off the end of the row: cut off, out of sight.
+    Inside the toolbar again, it would push Send off it."""
     from lembas.db.models import TOKEN_DEVICE, User
     from lembas.security import api_tokens
     from lembas.services import device_link, settings_store
@@ -1077,11 +1081,12 @@ def test_the_composer_toolbar_can_never_wrap(client: TestClient):
     tools = css.split(".composer__tools {", 1)[1].split("}", 1)[0]
     assert "min-width: 0" in tools and "flex: 0 1 auto" in tools
 
-    # Where a new agent chat runs is a row of its own, and it wraps: a row that
-    # scrolls sideways with its scrollbar hidden is a row that cuts things off.
+    # Where a new agent chat runs is a bar of its own above the card: one line
+    # that folds to one chip by its own width, and never a row that scrolls
+    # sideways with its scrollbar hidden -- that is a row that cuts things off.
     target = css.split(".composer__target {", 1)[1].split("}", 1)[0]
-    assert "flex-wrap: wrap" in target
-    assert "overflow-x" not in target
+    assert "container: target / inline-size" in target
+    assert "overflow-x" not in target and "flex-wrap" not in target
 
     # And the effort: a chip of its own in the row, fixed at `flex: none`,
     # pushes Send off a phone. So the effort lives in the settings button, an

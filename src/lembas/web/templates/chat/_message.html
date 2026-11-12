@@ -187,6 +187,13 @@
              sse-swap="render" hx-swap="innerHTML"></div>
       </div>
 
+      {# The calls running right now, as their cards (harness spec 3.7.0,
+         display.md §2): the same card a call ends as, in its `running` state.
+         Replaced whole by the `calls` frame, emptied when their results come
+         -- they are then steps above. #}
+      <div class="msg__running" id="running-{{ message.id }}"
+           sse-swap="calls" hx-swap="innerHTML"></div>
+
       {# Where a question from the model, or a command waiting to be allowed,
          lands. An empty frame is sent the moment it empties, because the card
          has to disappear the moment it is answered. The buttons inside are
@@ -245,7 +252,20 @@
       </div>
       {% endif %}
 
-      {% if message.error %}
+      {#- How a reply that did not finish ended: one line at its end, where
+          it stays (harness spec 3.7.0, display.md §4) -- "Stopped: by you",
+          "Failed: …" -- the same words the progress line ended on, and the
+          same in every client. Nothing else says it beside it: the error box
+          and the "cut short" note this replaces said it a second way. The
+          whole error, when it is longer than its first line, is the line's
+          title. -#}
+      {% set ended = reply_end(message) if message.role == "assistant" else none %}
+      {% if ended %}
+      <p class="msg__end msg__end--{{ ended.phase }}" data-reply-end="{{ ended.phase }}"
+         {% if ended.phase == "failed" %}role="alert" title="{{ message.error }}"{% endif %}>
+        {{ icon("warning" if ended.phase == "failed" else "x", "icon--sm") }} {{ ended.text }}
+      </p>
+      {% elif message.error %}
       <div class="alert alert--error msg__error" role="alert">
         {{ icon("warning", "alert__icon") }}
         <div>
@@ -256,9 +276,6 @@
       {% endif %}
 
       {% if message.role == "assistant" %}
-        {% if message.stopped %}
-        <p class="msg__note">{{ icon("x", "icon--sm") }} {{ t("Stopped. This reply is cut short.") }}</p>
-        {% endif %}
       {% elif message.content == continue_prompt() %}
         {# Continue: the harness's own sentence, sent as this turn. Shown
            as what was pressed, not as a paragraph nobody typed -- the LLeMbas

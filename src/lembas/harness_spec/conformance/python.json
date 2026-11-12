@@ -1,0 +1,27 @@
+{
+  "about": "Spec 3.7.0: what a `python` call answers when it could not run, word for word (tools/python.json). `situation`: `no_page` — no page of this chat is open in the web or desktop app (the tool's `unavailable`); `no_answer` — a page is open and attached but did not answer the run request; `timeout` — the run began and passed the call's limit of `seconds` (texts.timeout, `{{seconds}}` filled). Three situations, three texts: never one for another. The server's alone (scope llembas).",
+  "cases": [
+    {
+      "about": "No page of this chat is open anywhere.",
+      "situation": "no_page",
+      "expect": {
+        "text": "Python cannot run now: no page of this chat is open. Python runs in the person's browser — ask them to open this chat in the LLeMbas web or desktop app and keep it open, then call python again."
+      }
+    },
+    {
+      "about": "A page is attached but does not answer.",
+      "situation": "no_answer",
+      "expect": {
+        "text": "Python did not run: a page of this chat is open, but it did not answer. It may still be loading Python, or be asleep in a background tab — ask the person to bring this chat to the front (or reload it), then call python again."
+      }
+    },
+    {
+      "about": "The run passed its time limit.",
+      "situation": "timeout",
+      "seconds": 30,
+      "expect": {
+        "text": "Python stopped: the run took longer than 30 seconds, and nothing it wrote was saved. Do less in one call, or split the work over several calls."
+      }
+    }
+  ]
+}

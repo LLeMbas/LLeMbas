@@ -15,20 +15,21 @@ page *Harness-parity* in LLeMbas CLI's wiki.
 |---|---|
 | `VERSION` | The spec's own version, apart from LLeMbas CLI's |
 | `purpose.json` | The `purpose` argument added to a tool whose calls say what they are for |
-| `tools/<name>.json` | One tool each: name, `scope`, `sessions`, `risk`, `exclusive`, `block` (how a call is shown: `shell`, `edit`, `read`, `search`, `web`, `task`, `plan` — not drawn, the plan card refreshes — `hidden`, `tool`), `purpose`, former names (`aliases`, per project), renamed arguments, `variables`, what a project offers of the parameters (`narrow`, per project), `offered` (`subagent`: given to subagents only, never to the main agent — `report`, `team_finish`, `team_request`; `main`, spec 3.4.0: given to the main agent only, never to a subagent — `team_add`, `team_assign`, `team_replace`, `team_stop`, `team_decide`), `requires` and `unavailable` (when it can be offered, and what a call answers when that has gone), `confirm` (`always`: the person is asked in every mode), the description and the JSON Schema of its parameters — exactly what a model is sent |
+| `tools/<name>.json` | One tool each: name, `scope`, `sessions`, `risk`, `exclusive`, `block` (how a call is shown: `shell`, `edit`, `read`, `search`, `web`, `task`, `plan` — not drawn, the plan card refreshes — `hidden`, `tool`), `purpose`, former names (`aliases`, per project), renamed arguments, `variables`, what a project offers of the parameters (`narrow`, per project), `offered` (`subagent`: given to subagents only, never to the main agent — `report`, `team_finish`, `team_request`; `main`, spec 3.4.0: given to the main agent only, never to a subagent — `team_add`, `team_assign`, `team_replace`, `team_stop`, `team_decide`), `requires` and `unavailable` (when it can be offered, and what a call answers when that has gone), `texts` (3.7.0: a tool's other fixed answers by key — `python`'s `no_answer` and `timeout`), `confirm` (`always`: the person is asked in every mode), the description and the JSON Schema of its parameters — exactly what a model is sent |
 | `prompts/` | The prompt texts; `prompts/index.json` says which are shared, which LLeMbas fragment each one is, and what each `{{variable}}` in a text means. `prompts/personality/` holds the personality presets both offer |
 | `permission/hardline.json` | The floor: commands refused in every mode, protected paths, and how a command is spelled plainly before it is checked again |
 | `permission/arity.json` | How much of a command an "always allow" covers |
 | `permission/defaults.json` | The rules every session starts from |
 | `permission/modes.json` | The four modes — manual, edit, auto, plan — as what each does with each risk class |
 | `models/schema.json` | Model metadata: context, output limit, efforts and the thinking switch, vision, tools, notes, capacity (`parallel`); `levels` — the effort levels a chat offers and what each sends |
-| `loop.json` | How one prompt runs: the step backstop, budgets, wrap-up, nudges, parallel calls, capacity; `jobs` — background work, its marks and limits; `subagents` — the model refusals, what names a model, the setting's label; `team` — a team's size, names, marks, refusals and texts; `progress` — the phases' texts; `context` — result ids, stubs, the output cap, the compaction table, the environment lines, the session notes; `scheduled` (3.5.0) — scheduled work on a linked computer: the setting, the modes, the approval wait, the sentinel, the watch command's limits and the refusals; `phone` (3.6.0) — phone actions: the capability, each action's fields, what is required and checked, the wait and the texts |
+| `loop.json` | How one prompt runs: the step backstop, budgets, wrap-up, nudges, parallel calls, capacity; `jobs` — background work, its marks and limits; `subagents` — the model refusals, what names a model, the setting's label; `team` — a team's size, names, marks, refusals and texts; `progress` — the phases' texts; `context` — result ids, stubs, the output cap, the compaction table, the environment lines, the session notes; `scheduled` (3.5.0) — scheduled work on a linked computer: the setting, the modes, the approval wait, the sentinel, the watch command's limits and the refusals; `phone` (3.6.0) — phone actions: the capability, each action's fields, what is required and checked, the wait and the texts; `display` (3.7.0) — a call's title keys, states and facts, the blocks, the cards' actions |
 | `filesystem.md` | The file system a session works in: paths, node kinds, the four access levels, errors, listings, search and indexing by tokens, stacked instruction files, skills, memory |
 | `context.md` | Context hygiene: what happens to a tool result when it is inserted, and never afterwards; the prefix that stays still; reasoning sent back during its turn; no absolute paths in the prompt |
 | `team.md` | Teams: a lead and the members it adds, the size setting, the room, who receives what, reports, a manager's refusals, capacity, stopping |
 | `subagents.md` | Subagents: the word, which model one runs on (the session's, or one the person named), the capacity refusals, and when the Subagents setting is offered; from 3.4.0 (§5–§13) the main agent and its tree — only it adds, permissions inherited and never widened, request options, a subagent's life and its findings, what clients show |
 | `phone.md` | Phone actions (3.6.0): `phone_action`, carried out by the LLeMbas app on the person's phone and confirmed there — who offers it, how a call is checked, the answer, navigation |
 | `progress.md` | Progress (3.4.0): the thirteen phases every client shows the same way, the data each carries, their texts, and where they are sent |
+| `display.md` | Display (3.7.0): one display in every client — a tool call's title, its four states, the duration and the facts beside it, the kinds of block; how `stopped` and `failed` stay on a finished reply; what the approval, question and plan cards offer; numbers in the client's locale |
 | `quirks.json` | What real servers do, and how both harnesses cope |
 | `conformance/<area>.json` | Cases with their expected results, run by both test suites |
 | `acp.md` | The link between them: ACP plus every `_lembas/*` method, field and capability |
@@ -73,6 +74,42 @@ page *Harness-parity* in LLeMbas CLI's wiki.
   approval in plan mode and answers its `unavailable` text outside it. Their permission key is
   `plan` (`permission/defaults.json`), which a rule written for the former `todo` key still reaches.
 
+## 3.7.0
+
+Written ahead of the implementations; the CLI carries it in the same round (`display.md`,
+`loop.json` `display`).
+
+- **One display in every client** (`display.md`). **A tool call has one short title**, made from
+  its arguments alone — `questions` and `patch` by what they name, else the first non-blank string
+  among `summary`, `command`, `code`, `pattern`, `query`, `url`, `path`, `file_path`, `from`,
+  `description`, `name`, `id`, `title`, `key`, `target`, `to`, `action`; first line, 80 characters
+  — and it is the same string in the transcript, as `running_tool`'s `what` and as the link's
+  `tool_call` title. **This fixes the order `what` is taken in**: before, both implementations
+  looked at `path` before `pattern` and `query`, so a `grep` was titled by its directory.
+- **Four states** — `running`, `done`, `failed`, `denied` — told apart in every client; a finished
+  call shows **how long it took** (`0.4s`, `1m 05s`, `2h 03m`), a denied one never; an edit shows
+  **`+added −removed`**, counted from the diff **by its hunks** (a header without `a/` `b/` is
+  still a header; a removed line beginning `-- ` is still a line); a command its non-zero
+  `exit N`; a search its hits.
+- **The blocks** every client distinguishes: `shell`, `edit`, `read`, `search`, `web`, `task`,
+  `tool`; `plan` and `hidden` are not drawn.
+- **`stopped` and `failed` stay on the finished reply**: the progress text alone (`Stopped: by
+  you`, `Stopped: budget`, `Failed: …`) at the end of that reply, in every client, and again
+  wherever the reply is shown from what was stored. Nothing else says it twice.
+- **The cards**: an approval offers Allow once / Always allow (where the request offers it) /
+  Deny / Deny, and say why; a question its options and always "Something else"; a plan Approve
+  with the mode to continue in, and Revise (`loop.json` `display.actions`).
+- **Numbers in the client's locale format**; durations, ids, exit codes and line numbers never.
+  Conformance texts are in the plain format.
+- **`python` says why it could not run** (`tools/python.json`): one text used to answer three
+  situations. `unavailable` is now only *no page of this chat is open* and says where to open
+  it; `texts.no_answer` — a page is open but did not answer; `texts.timeout` — the run passed
+  its `{{seconds}}`. Conformance area **`python`** (the server's).
+- **The approval card keeps its own title** (`acp.md` `session/request_permission`): the whole
+  command, or the tool's name — not the short title — and `_meta.lembas.tool` names the tool.
+- Conformance area **`display`** (titles, durations, hunk counts, facts, the end line, drawn
+  blocks); `progress` gains the `budget` stop.
+
 ## 3.6.0
 
 - **Phone actions** (`phone.md`, `tools/phone_action.json`, `loop.json` `phone`): a chat's model
@@ -86,6 +123,7 @@ page *Harness-parity* in LLeMbas CLI's wiki.
   `unavailable` when the message being answered did not. Conformance area **`phone`** (the checks
   and the result texts).
 
+## 3.5.0
 
 Written ahead of both implementations; the server vendors it as written, both carry it in the same
 round (`acp.md` *Scheduled work on a linked computer*, `loop.json` `scheduled`).

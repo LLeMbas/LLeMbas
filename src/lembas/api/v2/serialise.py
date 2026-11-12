@@ -25,8 +25,9 @@ from datetime import UTC, datetime
 from typing import Any
 
 from lembas.db.models import Chat, Message
-from lembas.services import interaction, tool_blocks
+from lembas.services import display, interaction, tool_blocks, tool_labels
 from lembas.services import metrics as metrics_service
+from lembas.services import progress as progress_service
 from lembas.services import steps as steps_service
 
 # What a tool event may carry to the app. A list, not the dict as stored: an
@@ -56,6 +57,9 @@ TOOL_FIELDS = (
     "job",
     "children",
     "show",
+    # How long the call took, in milliseconds, where that was kept (harness
+    # spec 3.7.0): the block's `duration` is this, written.
+    "ms",
 )
 
 # What a `show` card carries to the app: the file's identity, never its text
@@ -442,12 +446,21 @@ def tool_call(event: dict) -> dict[str, Any]:
             out[key] = value
     if cut:
         out["truncated"] = True
+    # How it is drawn (harness spec 3.7.0, display.md): `title` is the call's
+    # one short title; `state` one of running, done, failed, denied; `duration`
+    # how long a finished call took as it is written everywhere ("" where none
+    # is shown: running, denied, or not kept); `chips` the facts after the
+    # title (`exit 2`, `+3 −1`, `14 hits`), in the plain number format;
+    # `label` the tool's name as a person reads it, in their language.
     out["block"] = {
         "kind": block.kind,
         "title": block.title,
         "chips": list(block.chips),
         "added": block.added,
         "removed": block.removed,
+        "state": block.state,
+        "duration": block.duration,
+        "label": str(tool_labels.label_for(str(event.get("name") or ""))),
     }
     return _plain(out)
 
@@ -587,6 +600,13 @@ def message(row: Message, *, ahead: int | None = None) -> dict[str, Any]:
         "attachments": [attachment(a) for a in row.attachments],
     }
     if row.role == "assistant":
+        # How a reply that did not finish ended, for the line that stays on it
+        # (harness spec 3.7.0, display.md §4): `{phase: "stopped" | "failed",
+        # reason, text}` -- `reason` is `person`, `steps`, `budget` or "" for a
+        # stop (a reply stored before the reason was kept has ""), the error's
+        # first line for a failure; `text` the line in the caller's language.
+        # null for a reply that finished, or is still being written.
+        out["end"] = display.message_end(row, progress_service.localised())
         out["steps"] = [step(s) for s in steps_service.for_message(row)] if row.complete else []
         out["plan"] = row.plan if row.plan_json else None
         out["metrics"] = metrics(metrics_service.from_message(row.usage_json))
@@ -614,8 +634,17 @@ def live_steps(generation: Any) -> list[dict[str, Any]]:
 
 
 def tail(generation: Any, label: str) -> dict[str, Any]:
+    """The step being written: its thinking and text so far, and `calls` --
+    the tool calls running right now, each as a finished one is serialised,
+    with `block.state: "running"` (harness spec 3.7.0). A call leaves `calls`
+    when its result comes; it is then in a step."""
     thinking, text = steps_service.tail(generation)
-    return {"thinking": thinking, "text": text, "label": label}
+    running = [
+        tool_call({k: v for k, v in call.items() if k != "started"})
+        for call in list(getattr(generation, "running_calls", {}).values())
+        if tool_blocks.kind_of(str(call.get("name") or "")) != tool_blocks.HIDDEN
+    ]
+    return {"thinking": thinking, "text": text, "label": label, "calls": running}
 
 
 def plan(value: dict | list | None) -> dict[str, Any] | None:
@@ -656,6 +685,11 @@ def item(entry: interaction.Item) -> dict[str, Any]:
             ],
             "multiple": entry.multiple,
             "free_text": entry.allow_free_text,
+            # An approval's: whether "Always allow" is offered (spec 3.7.0,
+            # display.md §5). False for a question, a plan and a phone card.
+            "always": bool(
+                entry.kind == interaction.KIND_APPROVAL and getattr(entry, "always", True)
+            ),
             "editable": entry.editable,
             "plan": plan(entry.plan) if entry.plan else None,
             "mode_choice": entry.mode_choice,

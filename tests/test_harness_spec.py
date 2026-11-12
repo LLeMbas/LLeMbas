@@ -63,6 +63,10 @@ AREAS = {
     # (`services/team_run.py`) applies to its rows.
     "team": lambda c: _team(c),
     "progress": lambda c: _progress(c),
+    # Spec 3.7.0: one display in every client (`services/display.py`), and
+    # the three sentences a `python` call answers when it could not run.
+    "display": lambda c: _display(c),
+    "python": lambda c: {"text": _python_text(c)},
     # Spec 3.5.0: what a device makes of a scheduled turn (the server says it
     # in the schedule's form), the `[SILENT]` rule its runs share with the
     # device's, and the watch command's hash (the judge cases are the device's).
@@ -411,6 +415,39 @@ def _monitor(case: dict):
     if case["kind"] != "hash":
         pytest.skip("the watch command is judged on the device, by its permission rules")
     return device.monitor_hash(case["output"].encode("utf-8"), case["exit"])
+
+
+def _display(c: dict) -> dict:
+    from lembas.services import display
+
+    show = c["show"]
+    if show == "title":
+        return {"title": display.title(c["args"]) or None}
+    if show == "duration":
+        return {"duration": display.duration(c.get("ms"), c["state"]) or None}
+    if show == "change":
+        added, removed = display.change(c["diff"])
+        return {"added": added, "removed": removed, "text": display.change_text(added, removed)}
+    if show == "facts":
+        return {"facts": display.facts(
+            c.get("block", ""), diff=c.get("diff", ""), exit_code=c.get("exit"),
+            hits=c.get("hits"),
+        )}
+    if show == "end":
+        return {"line": display.end_line(c.get("progress")) or None}
+    if show == "drawn":
+        return {"drawn": display.drawn(c.get("block"))}
+    raise AssertionError(f"display: unknown case {show!r}")
+
+
+def _python_text(c: dict) -> str:
+    from lembas.services.tools import files as file_tools
+
+    if c["situation"] == "no_page":
+        return file_tools.python_unavailable()
+    if "seconds" in c:
+        assert c["seconds"] == file_tools.PYTHON_SECONDS
+    return file_tools.python_text(c["situation"])
 
 
 # Areas of the spec LLeMbas does not run yet, or no longer runs, and why.

@@ -14,9 +14,10 @@
   the message. Keeping them outside and reaching for hx-include does not work:
   that attribute only has an effect on the element issuing the request.
 
-  Layout: the attachment chips, then the text, then -- on a new agent chat
-  only -- where it will run (`.composer__target`: the computer, the directory
-  and the approval mode, a row that wraps and never scrolls), then one toolbar
+  Layout: on a new agent chat only, where it will run -- a slim bar above
+  the card (`.composer__target`: the computer, the folder and the approval
+  mode, one line, folding to one summary chip where it is narrow). Then the
+  card (`.composer__card`): the attachment chips, the text, and one toolbar
   row: attach, dictate and "Draw a picture" on the left (`.composer__tools`),
   send/stop on the right (`.composer__actions`), as LLeMbas Desktop has it.
   That is all the composer holds: the message. The chat's own controls --
@@ -84,6 +85,107 @@
              or flipping a switch would swallow the send that followed it. #}
           hx-sync="this:drop" hx-disinherit="hx-sync">
 
+      {#
+        Where a new agent chat runs -- computer · folder · mode -- as one slim
+        bar directly ABOVE the card the message is typed in, not inside it
+        (LLeMbas Desktop draws the same bar; the wiki's Working notes describe
+        it for both). Inside the form, so its fields are sent with the first
+        message, and outside `.composer__card`, which is the input.
+
+        Three chips of one family: each is the small button that opens a menu
+        upward (`select[data-upward]`, and the folder's own menu), the same
+        height and look as the chips of the chat's toolbar. One line, always:
+        the mode keeps its width, the computer and the folder are names and
+        give (they truncate). When the bar is too narrow for the three to say
+        anything, they fold behind one summary chip -- "computer · folder ·
+        mode" -- which opens them as a column, each with its name in front.
+        The fold is by the bar's own width (a container query: chat.css).
+
+        On a chat that exists all three are facts (the computer and the
+        directory beside the title, the mode in the chat's toolbar).
+      #}
+        {% if not chat and starting_kind == 'agent' and agent_devices %}
+        <div class="composer__target" data-agent-picker>
+          {# No Chat/Agent switch here any more: the sidebar's Agent side
+             opens this screen with `?kind=agent`, and that is the whole choice. #}
+          <input type="hidden" name="kind" value="agent" id="chat-kind">
+          <div class="target">
+            {# The three in one chip, where there is no room for three. Its
+               parts are filled by ui.js from the controls below, so it can
+               never say something they do not. #}
+            <button class="btn btn--sm target__summary" type="button" data-target-summary
+                    aria-expanded="false" aria-controls="target-chips"
+                    aria-label="{{ t('Where this chat runs') }}">
+              <span class="target__part target__part--gives" data-target-part="device"></span>
+              <span class="target__dot" aria-hidden="true">·</span>
+              <span class="target__part target__part--gives target__part--path" data-target-part="dir"></span>
+              <span class="target__dot" aria-hidden="true">·</span>
+              <span class="target__part" data-target-part="mode"></span>
+            </button>
+
+            <div class="composer__agent target__chips" id="target-chips" data-agent-extra>
+              <span class="target__name" aria-hidden="true">{{ t("Computer") }}</span>
+              <span class="target__field target__field--device">
+                {# `data-upward`: its list opens above it, as the composer's
+                   other menus do -- the browser's own dropped off the screen. #}
+                <select class="select select--sm composer__connection" data-upward
+                          name="ssh_profile_id" aria-label="{{ t('Computer') }}">
+                  {# The LLeMbas CLIs linked right now (the only targets): the work
+                     runs on them, under their own limits. #}
+                  {% for device in agent_devices %}
+                  {# `data-recent`: the directories already used there, latest
+                     first (`chat.recent_dirs`). JSON in a single-quoted attribute:
+                     `tojson` escapes the quote, `<`, `>` and `&`. #}
+                  <option value="{{ device.value }}" data-recent='{{ device.recent|tojson }}'
+                          data-mode="{{ device.mode }}" data-device
+                          {% if device.terminal %}data-opens-terminal{% endif %}
+                          {% if device.terminal_off %}data-terminal-off="{{ device.terminal_off }}"{% endif %}
+                          {% if device.local %}title="{{ device.title }}"{% endif %}
+                          {{ 'selected' if device.value == starting_device }}>{{ device.name }}</option>
+                  {% endfor %}
+                </select>
+              </span>
+
+              <span class="target__name" aria-hidden="true">{{ t("Folder") }}</span>
+              <span class="target__field target__field--dir">
+                {# A button and a hidden field, not a text box: a path is
+                   something you would rather find than spell.
+
+                   Empty until something chooses: the device's latest directory
+                   (ui.js), or the folder's own when the chat starts in a folder
+                   that names one (`data-dir-seed`, which `_new_chat` would apply
+                   anyway). With neither, the composer will not send until one is
+                   picked -- the device's first root was a guess, not a choice. #}
+                <input type="hidden" name="project_dir" value="" data-dir-value
+                       data-dir-seed="{{ starting_folder.project_dir if starting_folder else '' }}">
+                <button class="btn btn--sm composer__dir" type="button" data-dir-browse
+                        aria-label="{{ t('Project directory') }}" aria-haspopup="menu"
+                        aria-expanded="false"
+                        title="{{ t('Choose the directory this chat works in') }}">
+                  {{ icon("folder", "icon--sm") }}
+                  <span class="composer__dir-path" data-dir-label>{{ t('Choose a directory') }}</span>
+                </button>
+              </span>
+
+              {% if agent_modes %}
+              <span class="target__name" aria-hidden="true">{{ t("Mode") }}</span>
+              <span class="target__field target__field--mode">
+                <select class="select select--sm" name="agent_mode" data-upward
+                        aria-label="{{ t('Approval mode') }}">
+                  {% for value, label, hint in agent_modes %}
+                  <option value="{{ value }}" title="{{ t(hint) }}">{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
+      {# The card the message is typed in: the attachments, the text, one
+         toolbar row. What the form's border used to be. #}
+      <div class="composer__card">
       <div class="composer__attachments" id="attachments"></div>
 
       {% if not chat and current_model %}
@@ -123,73 +225,6 @@
                   placeholder="{% if chat %}{{ t('Send a message…') }}{% else %}{{ t('Ask anything…') }}{% endif %}"
                   aria-label="{{ t('Message') }}" {{ 'autofocus' if not chat }}></textarea>
       </div>
-
-      {#
-        Where a new agent chat runs: the computer, the directory and the
-        approval mode, on a row of their own above the toolbar. It wraps
-        rather than scrolling: it used to share the toolbar's line and scroll
-        sideways with its scrollbar hidden, so on a phone the mode was cut off
-        out of sight. On a chat that exists all three are facts (the computer
-        and the directory beside the title, the mode in the chat's toolbar).
-      #}
-        {% if not chat and starting_kind == 'agent' and agent_devices %}
-        <div class="composer__target" data-agent-picker>
-          {# No Chat/Agent switch here any more: the sidebar's Agent side
-             opens this screen with `?kind=agent`, and that is the whole choice.
-             The switch took the width of two controls in a row that has none to
-             spare, to repeat a decision already made by where you clicked. #}
-          <input type="hidden" name="kind" value="agent" id="chat-kind">
-
-          <span class="composer__agent" data-agent-extra>
-            {# `data-upward`: its list opens above it, as the composer's
-               other menus do -- the browser's own dropped off the screen. #}
-            <select class="select select--sm composer__connection" data-upward
-                      name="ssh_profile_id" aria-label="{{ t('Connection') }}">
-              {# The LLeMbas CLIs linked right now (the only targets): the work
-                 runs on them, under their own limits. #}
-              {% for device in agent_devices %}
-              {# `data-recent`: the directories already used there, latest
-                 first (`chat.recent_dirs`). JSON in a single-quoted attribute:
-                 `tojson` escapes the quote, `<`, `>` and `&`. #}
-              <option value="{{ device.value }}" data-recent='{{ device.recent|tojson }}'
-                      data-mode="{{ device.mode }}" data-device
-                      {% if device.terminal %}data-opens-terminal{% endif %}
-                      {% if device.terminal_off %}data-terminal-off="{{ device.terminal_off }}"{% endif %}
-                      {% if device.local %}title="{{ device.title }}"{% endif %}
-                      {{ 'selected' if device.value == starting_device }}>{{ device.name }}</option>
-              {% endfor %}
-            </select>
-
-            {# A button and a hidden field, not a text box. The text box was
-               real and submitted, but unlabelled and squeezed to a few
-               characters by the select beside it, so it read as broken. A path
-               is also something you would rather find than spell.
-
-               Empty until something chooses: the device's latest directory
-               (ui.js), or the folder's own when the chat starts in a folder
-               that names one (`data-dir-seed`, which `_new_chat` would apply
-               anyway). With neither, the composer will not send until one is
-               picked -- the device's first root was a guess, not a choice. #}
-            <input type="hidden" name="project_dir" value="" data-dir-value
-                   data-dir-seed="{{ starting_folder.project_dir if starting_folder else '' }}">
-            <button class="btn btn--sm composer__dir" type="button" data-dir-browse
-                    aria-label="{{ t('Project directory') }}" aria-haspopup="menu"
-                    aria-expanded="false"
-                    title="{{ t('Choose the directory this chat works in') }}">
-              {{ icon("folder", "icon--sm") }}
-              <span class="composer__dir-path" data-dir-label>{{ t('Choose a directory') }}</span>
-            </button>
-
-            {% if agent_modes %}
-            <select class="select select--sm" name="agent_mode" aria-label="{{ t('Approval mode') }}">
-              {% for value, label, hint in agent_modes %}
-              <option value="{{ value }}" title="{{ t(hint) }}">{{ label }}</option>
-              {% endfor %}
-            </select>
-            {% endif %}
-          </span>
-        </div>
-        {% endif %}
 
       <div class="composer__toolbar">
         <div class="composer__tools">
@@ -287,6 +322,7 @@
             </span>
           </button>
         </div>
+      </div>
       </div>
     </form>
 

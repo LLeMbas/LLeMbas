@@ -148,6 +148,11 @@ class Item:
     # wrong -- and false for an approval, where the choice is Allow or Don't and
     # a third way out would mean nothing.
     allow_free_text: bool = True
+    # An approval's: whether "Always allow" is offered beside "Allow once"
+    # (harness spec 3.7.0, display.md §5). A chat's own approval always offers
+    # it; a device's only where the device's request does (its `session`
+    # option: absent for a call that may only ever be allowed once).
+    always: bool = True
     # Whether `detail` can be corrected before this is allowed. Only where the
     # detail *is* one argument and can be put back where it came from -- a tool
     # with no entry in `tool_labels.DETAIL_KEYS` gets a `k=repr(v)` summary that

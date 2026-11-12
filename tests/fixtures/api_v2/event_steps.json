@@ -29,14 +29,16 @@
           "purpose": "Bake one loaf",
           "text": "baked\n",
           "exit": 0,
+          "ms": 2412,
           "block": {
             "kind": "shell",
             "title": "bake --slow",
-            "chips": [
-              "exit 0"
-            ],
+            "chips": [],
             "added": 0,
-            "removed": 0
+            "removed": 0,
+            "state": "done",
+            "duration": "2.4s",
+            "label": "Bash"
           }
         }
       ]
@@ -56,6 +58,28 @@
   "tail": {
     "thinking": "",
     "text": "Done. *Wrap",
-    "label": "4s"
+    "label": "4s",
+    "calls": [
+      {
+        "id": "call9",
+        "name": "bash",
+        "status": "running",
+        "args": {
+          "command": "bake --test",
+          "description": "Try it"
+        },
+        "results": [],
+        "block": {
+          "kind": "shell",
+          "title": "bake --test",
+          "chips": [],
+          "added": 0,
+          "removed": 0,
+          "state": "running",
+          "duration": "",
+          "label": "Bash"
+        }
+      }
+    ]
   }
 }

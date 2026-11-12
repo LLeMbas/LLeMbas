@@ -1038,7 +1038,7 @@ def test_the_card_offers_the_box_and_names_the_field(client, db, registered, use
 
     html = _render(pause)
 
-    assert "Give reason" in html
+    assert "Deny, and say why" in html
     assert 'name="reason"' in html
     # Both halves in the DOM with one hidden, for the reason the edit box gives:
     # a field created by a click submits nothing when the click handler fails.
@@ -1052,7 +1052,7 @@ def test_the_question_card_offers_no_deny_box():
     """It is not a refusal, and it has its own free-text row already."""
     html = _render(interaction.Interruption(id="p1", items=(_item(),)))
 
-    assert "Give reason" not in html
+    assert "Deny, and say why" not in html
     assert 'name="reason"' not in html
 
 

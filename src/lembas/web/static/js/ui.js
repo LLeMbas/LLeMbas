@@ -1178,6 +1178,8 @@ document.addEventListener("lembas:notify", function (event) {
         if (value) button.removeAttribute("aria-invalid");
       }
       announce();
+      /* Chosen by hand in the opened fold: the three fold away again. */
+      if (dir.dataset.touched) fold(false);
     }
 
     function sync() {
@@ -1192,7 +1194,13 @@ document.addEventListener("lembas:notify", function (event) {
        Like the directory, it follows the connection only until somebody picks a
        mode themselves. An SSH connection carries no mode of its own. */
     var mode = root.querySelector('select[name="agent_mode"]');
-    if (mode) mode.addEventListener("change", function () { mode.dataset.touched = "1"; });
+    if (mode) {
+      mode.addEventListener("change", function () {
+        mode.dataset.touched = "1";
+        summarise();
+        fold(false);
+      });
+    }
     function followMode() {
       if (!mode || mode.dataset.touched) return;
       var option = picker && picker.options[picker.selectedIndex];
@@ -1228,7 +1236,40 @@ document.addEventListener("lembas:notify", function (event) {
       return !!(picker && picker.value && picker.value.indexOf("device:") === 0);
     }
 
+    /* The summary chip of the bar (chat/_composer.html `.target__summary`):
+       "computer · folder · mode", read off the three controls themselves, so
+       it cannot say something they do not. Shown where the bar is too narrow
+       for the three; pressing it opens them, choosing closes them again. */
+    var summary = root.querySelector("[data-target-summary]");
+    function part(name, text) {
+      var el = summary && summary.querySelector('[data-target-part="' + name + '"]');
+      if (el && el.textContent !== text) el.textContent = text;
+    }
+    function chosenText(select) {
+      var option = select && select.options[select.selectedIndex];
+      return option ? option.textContent.trim() : "";
+    }
+    function summarise() {
+      if (!summary) return;
+      part("device", chosenText(picker));
+      part("dir", dirLabel ? dirLabel.textContent : "");
+      part("mode", chosenText(mode));
+      summary.title = [chosenText(picker), dir ? dir.value : "", chosenText(mode)]
+        .filter(Boolean).join(" · ");
+    }
+    function fold(open) {
+      if (!summary) return;
+      root.classList.toggle("is-open", open);
+      summary.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+    if (summary) {
+      summary.addEventListener("click", function () {
+        fold(!root.classList.contains("is-open"));
+      });
+    }
+
     function announce() {
+      summarise();
       var agent = kind && kind.value === "agent";
       var chosen = agent && !onDevice() ? (picker ? picker.value : "") : "";
       /* A linked device and the directory chosen on it: what the terminal opens
@@ -1257,6 +1298,7 @@ document.addEventListener("lembas:notify", function (event) {
       }
       if (event.target === picker) followMode();
       if (event.target === picker) announce();
+      if (event.target === picker) fold(false);
     });
 
     /* --- The directory menu --------------------------------------------------

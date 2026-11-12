@@ -1,0 +1,87 @@
+{
+  "id": "msg5",
+  "role": "assistant",
+  "created_at": "2026-01-02T03:04:05+00:00",
+  "complete": true,
+  "stopped": false,
+  "error": "The model's server answered 503.",
+  "queued": false,
+  "machine": false,
+  "origin": "",
+  "model": "qwen",
+  "attachments": [],
+  "end": {
+    "phase": "failed",
+    "reason": "The model's server answered 503.",
+    "text": "Failed: The model's server answered 503."
+  },
+  "steps": [
+    {
+      "index": 0,
+      "kind": "text",
+      "open": false,
+      "markdown": "The dough is "
+    },
+    {
+      "index": 0,
+      "kind": "tools",
+      "open": false,
+      "calls": [
+        {
+          "id": "call4",
+          "name": "bash",
+          "status": "denied",
+          "args": {
+            "command": "rm -rf build"
+          },
+          "error": "Plan mode does not run commands.",
+          "block": {
+            "kind": "shell",
+            "title": "rm -rf build",
+            "chips": [],
+            "added": 0,
+            "removed": 0,
+            "state": "denied",
+            "duration": "",
+            "label": "Bash"
+          }
+        },
+        {
+          "id": "call5",
+          "name": "grep",
+          "status": "error",
+          "args": {
+            "pattern": "yeast",
+            "path": "recipes"
+          },
+          "error": "No such directory.",
+          "ms": 61300,
+          "block": {
+            "kind": "search",
+            "title": "yeast",
+            "chips": [],
+            "added": 0,
+            "removed": 0,
+            "state": "failed",
+            "duration": "1m 01s",
+            "label": "Search files"
+          }
+        }
+      ]
+    }
+  ],
+  "plan": null,
+  "metrics": {
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "total_tokens": 0,
+    "context_tokens": 0,
+    "context_limit": 0,
+    "estimated": false,
+    "elapsed_ms": 0,
+    "rounds": 1,
+    "thinking_ms": 0,
+    "percent": 0,
+    "tok_s": 0.0
+  }
+}

@@ -486,7 +486,10 @@ class Link:
         raw = call.get("rawInput") or {}
         command = str(raw.get("command") or "") if isinstance(raw, dict) else ""
         name = str(call.get("title") or "a tool")
-        tool = "bash" if command else str(call.get("kind") or "tool")
+        # The tool's own name where the device says it (spec 3.7.0:
+        # `_meta.lembas.tool`); before that it was guessed from the command.
+        said_tool = str(meta.get("tool") or "").strip()[:80]
+        tool = said_tool or ("bash" if command else str(call.get("kind") or "tool"))
         options = {str(o.get("optionId")) for o in params.get("options") or []}
         # Which background subagent asks, when one does (capability `jobs`):
         # "explore (job7)", said on the card.
@@ -515,6 +518,8 @@ class Link:
             editable=bool(command),
             # Allow or don't: no "Something else" on an approval.
             allow_free_text=False,
+            # "Always allow" only where the device offers it.
+            always="session" in options,
             job=job,
         )
         timeout = PATIENT_WAIT if patient else ASK_WAIT
@@ -1436,14 +1441,22 @@ def apply_event(generation, event: dict[str, Any]) -> None:
         generation.status = f"Running {tool_labels.label_for(str(event.get('name') or 'tool'))}…"
         # What it was called with, for the block it ends as: the
         # command a shell block shows, the path an edit or a read shows.
-        generation.device_args[str(event.get("id") or "")] = _bounded_args(event.get("args"))
+        call_id = str(event.get("id") or "")
+        generation.device_args[call_id] = _bounded_args(event.get("args"))
+        # The call is running: on its card from now until its result (spec
+        # 3.7.0, display.md §2), not only in the progress line.
+        generation.start_call(
+            call_id, str(event.get("name") or "tool"), generation.device_args[call_id]
+        )
     elif kind in ("tool_end", "tool_denied"):
         generation.status = ""
         result = event.get("result") or {}
-        failed = kind == "tool_denied" or bool(result.get("isError"))
+        denied = kind == "tool_denied"
+        failed = denied or bool(result.get("isError"))
         output = str(result.get("output") or event.get("reason") or "")
         call_id = str(event.get("id") or "")
         args = generation.device_args.pop(call_id, None)
+        generation.end_call(call_id)
         finished = tool_event(
             str(event.get("name") or "tool"),
             args,
@@ -1452,6 +1465,12 @@ def apply_event(generation, event: dict[str, Any]) -> None:
             failed=failed,
             meta=result.get("meta"),
         )
+        # Refused, not run: the state `denied`, which shows no duration. A
+        # call that ran says how long it took (`ms`, from spec 3.7.0).
+        if denied:
+            finished["status"] = "denied"
+        elif isinstance(event.get("ms"), int | float) and not isinstance(event.get("ms"), bool):
+            finished["ms"] = max(0, int(event["ms"]))
         # A `task` call ends: the subagent's tool lines it collected are drawn
         # under its block, as the CLI draws them.
         children = generation.sub_tools.pop(call_id, None)

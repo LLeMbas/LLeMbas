@@ -1,0 +1,40 @@
+{
+  "id": "msg5",
+  "role": "assistant",
+  "created_at": "2026-01-02T03:04:05+00:00",
+  "complete": true,
+  "stopped": true,
+  "error": null,
+  "queued": false,
+  "machine": false,
+  "origin": "",
+  "model": "qwen",
+  "attachments": [],
+  "end": {
+    "phase": "stopped",
+    "reason": "person",
+    "text": "Stopped: by you"
+  },
+  "steps": [
+    {
+      "index": 0,
+      "kind": "text",
+      "open": false,
+      "markdown": "The dough is "
+    }
+  ],
+  "plan": null,
+  "metrics": {
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "total_tokens": 0,
+    "context_tokens": 0,
+    "context_limit": 0,
+    "estimated": false,
+    "elapsed_ms": 0,
+    "rounds": 1,
+    "thinking_ms": 0,
+    "percent": 0,
+    "tok_s": 0.0
+  }
+}

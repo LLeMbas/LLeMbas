@@ -90,7 +90,7 @@ def test_a_device_call_keeps_what_its_block_needs():
     assert event["exit"] == 0
     assert "detail" not in event
     block = tool_blocks.block_for(event)
-    assert block.kind == "shell" and block.title == "npm test" and block.chips == ("exit 0",)
+    assert block.kind == "shell" and block.title == "npm test" and block.chips == ()
 
 
 def test_a_command_shows_itself_and_no_host_line():

@@ -219,7 +219,18 @@ Params: `{ sessionId }`. Stops the running turn.
 
 `{ sessionId, update }` with `sessionUpdate` one of `agent_message_chunk`, `agent_thought_chunk`,
 `tool_call`, `tool_call_update`, `plan` (below), `current_mode_update`, and
-`available_commands_update` (capability `commands`):
+`available_commands_update` (capability `commands`).
+
+From spec 3.7.0 a `tool_call`'s `title` is **the call's short title** (`display.md` §1) — the
+tool's name where the call has none — and no `tool_call_update` changes it: `completed` is the
+state `done`, `failed` is `failed`, and a call that was refused — it never started, so nothing
+announced it — is one `tool_call` with status `failed`, `_meta.lembas.denied: true` and the reason
+as its content (the state `denied`). The same title is
+`title` on the `tool_start` event of `_lembas/event` and `what` of `running_tool`; `tool_end`
+carries `ms`, the call's duration, and `tool_denied` its `reason`. A client of `_lembas/event`
+that is given no `title` (a device before 3.7.0) makes it from `args` by the same rule.
+
+`available_commands_update`:
 
 ```json
 { "sessionUpdate": "available_commands_update",
@@ -247,7 +258,11 @@ named like any TUI command is not a command (the built-in wins in the TUI).
 
 An approval card. Params: ACP's `{ sessionId, toolCall: { toolCallId, title, kind, status: "pending", rawInput, content? }, options }`
 with options `once` (allow_once), `session` (allow_always, absent where "always" is never offered)
-and `deny` (reject_once), and `_meta.lembas: { reason, purpose?, always?, patient?, job? }`. `patient`: a
+and `deny` (reject_once), and `_meta.lembas: { tool, reason, purpose?, always?, patient?, job? }`. `tool`
+(spec 3.7.0): the tool's name — `toolCall.title` here is **the whole command, or the tool's name where
+the call has no command**, as before 3.7.0 (a card is read before it is answered; the call's short
+title of `display.md` §1 is `tool_call`'s, not the card's), so a client that titles a card by the
+command still has the tool to name. `patient`: a
 person may also answer at the terminal (a shared session), so the client does not time it out.
 `job` (capability `jobs`): `{ id, agent, description }` when a subagent running as a background job asks, so the card
 can say which — a background subagent may ask while the session itself is idle. `subagent` (capability `tree`, spec 3.4.0):

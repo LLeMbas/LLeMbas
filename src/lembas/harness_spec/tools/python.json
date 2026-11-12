@@ -9,7 +9,11 @@
   "requires": [
     "page"
   ],
-  "unavailable": "Python cannot run now: no open browser page is attached to this chat.",
+  "unavailable": "Python cannot run now: no page of this chat is open. Python runs in the person's browser — ask them to open this chat in the LLeMbas web or desktop app and keep it open, then call python again.",
+  "texts": {
+    "no_answer": "Python did not run: a page of this chat is open, but it did not answer. It may still be loading Python, or be asleep in a background tab — ask the person to bring this chat to the front (or reload it), then call python again.",
+    "timeout": "Python stopped: the run took longer than {{seconds}} seconds, and nothing it wrote was saved. Do less in one call, or split the work over several calls."
+  },
   "aliases": {
     "cli": [],
     "llembas": []

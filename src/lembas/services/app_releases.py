@@ -6,6 +6,12 @@ release. An app asks its server rather than the public releases alone, so a
 phone signed in to an older server is not pushed onto an app that server's
 `/api/v2` does not speak yet.
 
+**Builds.** An app released in more than one build (Android: the standard
+APK, one with the notification listener, one for F-Droid) may have the others
+named beside its version, each with its address and SHA-256 (`_builds`); the
+app's updater reads `notifications` or `fdroid` on its entry when it is that
+build, and nothing is there otherwise.
+
 **Channels.** A stable server (a version without a suffix) recommends only a
 stable app, and never a beta, whatever the file says. A beta server may also
 recommend the app's beta, and recommends whichever of the two is newer. Every
@@ -56,8 +62,9 @@ def pins() -> dict[str, Any]:
 
 def offer(app: str, *, server_version: str = __version__,
           pinned: dict[str, Any] | None = None) -> dict[str, Any] | None:
-    """The release of `app` to recommend: `{version, tag, channel, page}`, or
-    None. A stable server never sees a beta."""
+    """The release of `app` to recommend: `{version, tag, channel, page}` --
+    and, where the file names them for that version, `notifications` and
+    `fdroid` (`_builds`) -- or None. A stable server never sees a beta."""
     said = (pinned if pinned is not None else pins()).get(app) or {}
     channels = (STABLE, BETA) if channel_of(server_version) == BETA else (STABLE,)
     best: tuple[tuple, str, str] | None = None
@@ -74,8 +81,38 @@ def offer(app: str, *, server_version: str = __version__,
         return None
     _, version, channel = best
     tag = f"v{version}"
-    return {"version": version, "tag": tag, "channel": channel,
-            "page": PAGES[app].format(tag=tag)}
+    out = {"version": version, "tag": tag, "channel": channel,
+           "page": PAGES[app].format(tag=tag)}
+    out.update(_builds(said, version))
+    return out
+
+
+# The other builds of one release that an app's own updater may want instead
+# of the standard one: Android's with the notification listener
+# (`notifications`) and its F-Droid flavour (`fdroid`).
+BUILDS = ("notifications", "fdroid")
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+
+
+def _builds(said: dict[str, Any], version: str) -> dict[str, dict[str, str]]:
+    """The extra builds the file names for exactly this version, each
+    `{url, sha256}` -- an https address and a SHA-256, or it is left out: an
+    updater that installs what it is handed is given nothing half-said.
+
+    Written under the app as `"builds": {"<version>": {"notifications":
+    {"url", "sha256"}, "fdroid": {…}}}` and optional throughout: an app that
+    finds no entry keeps to its standard build."""
+    listed = (said.get("builds") or {}).get(version) or {}
+    found: dict[str, dict[str, str]] = {}
+    for name in BUILDS:
+        entry = listed.get(name) if isinstance(listed, dict) else None
+        if not isinstance(entry, dict):
+            continue
+        url = str(entry.get("url") or "").strip()
+        digest = str(entry.get("sha256") or "").strip().lower()
+        if url.startswith("https://") and _SHA256.match(digest):
+            found[name] = {"url": url, "sha256": digest}
+    return found
 
 
 def recommended(*, server_version: str = __version__,

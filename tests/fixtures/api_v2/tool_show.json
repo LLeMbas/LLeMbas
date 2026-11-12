@@ -23,7 +23,10 @@
         "title": "/home/frodo/recipe.md",
         "chips": [],
         "added": 0,
-        "removed": 0
+        "removed": 0,
+        "state": "done",
+        "duration": "",
+        "label": "Shown"
       }
     },
     {
@@ -50,7 +53,10 @@
         "title": "",
         "chips": [],
         "added": 0,
-        "removed": 0
+        "removed": 0,
+        "state": "done",
+        "duration": "",
+        "label": "Shown"
       }
     }
   ]

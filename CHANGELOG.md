@@ -5,7 +5,28 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
-For 2.0.0-beta.11.
+For 2.0.0-beta.11. The harness spec is **3.7.0** (one display in every client; Python's three
+answers), vendored from the LLeMbas CLI's `dev` and pinned to its tag at release.
+
+### Changed
+
+- **Where a new agent chat runs is a slim bar above the message box**, not inside it:
+  computer · folder · mode, three chips of one kind on one line, each opening its list upward.
+  Where the bar is narrow -- a phone, or a window with the sidebar and a panel open -- the
+  three fold into one chip ("computer · folder · mode") that opens them as a short list.
+  Long names are cut with an ellipsis, never by the edge of a box. Checked in a browser at
+  1920, 1280, 1024, 800 and 390 px with a long computer name and a long path. LLeMbas
+  Desktop draws the same bar.
+- **A tool call looks the same in every client** (harness spec 3.7.0). It has one short title
+  -- what the call does before where it does it: a search by its pattern, a command by its
+  first line -- the same in the reply, in the progress line and in the apps. Its card says
+  which of four states it is in: **running** (a call under way used to be only a word in the
+  progress line), done, failed, or **not run** when it was refused; a finished call says how
+  long it took (`8.4s`, `1m 05s`). `exit` is shown only when it is not 0.
+- **A reply that did not finish says how it ended, in one line that stays on it**:
+  "Stopped: by you", "Stopped: step limit", "Stopped: budget", "Failed: …". It replaces the
+  error box and the "cut short" note, and it is the same line when the chat is opened again
+  -- the reason is now stored with the reply (replies stopped before this say "Stopped").
 
 ### Fixed
 
@@ -20,6 +41,12 @@ For 2.0.0-beta.11.
 - **Finishing a reply no longer holds up everybody else's.** Writing the finished reply to the
   database and rendering its final bubble (Markdown and syntax highlighting) run in a thread
   instead of on the server's one event loop.
+- **An edit's `+N −M` counted the file header of some patches as a change** -- one line added
+  and one removed that nobody wrote, for a patch whose header has no `a/` and `b/` (as the
+  LLeMbas CLI writes them). The lines are counted by the diff's hunks now.
+- A device's approval card names the tool that asks (it was guessed from the command), and
+  offers "Always allow" only where the device does. A call a device refused is shown as not
+  run rather than as failed.
 - **Python in the browser no longer answers "no open browser page is attached" for a page
   that is there.** Four different things got that one answer. Now: the tool waits up to 20
   seconds for the chat's page to appear (the first message of a new chat started its reply
@@ -93,6 +120,13 @@ For 2.0.0-beta.11.
   **`POST /terminals/{id}/end`**; the terminal socket's `ready` frame carries `id` and
   `resumed`, and its refusal at the limit carries `shells`. Each device of `GET /devices`
   says why it opens no terminal (`terminal_reason`, `terminal_hint`).
+- **`/api/v2` for one display** (harness spec 3.7.0): each tool call carries `ms` and, in
+  `block`, `state` (running, done, failed, denied), `duration` and `label`; the stream's
+  `tail` carries `calls`, the calls running now; a message carries `end` -- `{phase, reason,
+  text}` for a reply that was stopped or failed, with the stored reason; an approval's item
+  says whether "always allow" is offered (`always`).
+- `GET /api/v2/apps`: an app's entry may carry the other builds of its release
+  (`notifications`, `fdroid`: `{url, sha256}`), for the Android app's updater.
 - `scripts/perf_measure.py`: the chat page and the end of a reply, measured in a headless
   browser against a 300-message chat (typing, long tasks while a reply streams, last token to
   `done` on both streams, how long the server's event loop was held).

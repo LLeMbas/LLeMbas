@@ -317,6 +317,19 @@
       }
     },
     {
+      "about": "Stopped when the budget ran out.",
+      "progress": {
+        "phase": "stopped",
+        "since": 1762790400000,
+        "reason": "budget"
+      },
+      "now": 1762790400000,
+      "expect": {
+        "text": "Stopped: budget",
+        "line": "Stopped: budget"
+      }
+    },
+    {
       "about": "Failed.",
       "progress": {
         "phase": "failed",

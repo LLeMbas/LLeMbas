@@ -196,6 +196,12 @@ class Generation:
     error_retry_after: float | None = None
     error_unreachable: bool = False
     stopped: bool = False
+    # The tool calls running right now, by call id: `{name, args, status:
+    # "running", started}`. On the reply's cards from the moment a call starts
+    # (harness spec 3.7.0, display.md §2) -- before this a running call was a
+    # word in the progress line and nothing in the transcript. Emptied as
+    # results come: what a call ended as is in `tool_events`.
+    running_calls: dict[str, dict] = field(default_factory=dict)
     done: bool = False
     # Naming the chat, when that is still being asked of a model after the
     # reply ended (`_title_later`). A follower that wants the name waits on
@@ -428,6 +434,30 @@ class Generation:
 
 _RUNNING: dict[str, Generation] = {}
 _TASKS: dict[str, asyncio.Task] = {}
+
+
+def _start_call(self: Generation, call_id: str, name: str, args: Any) -> None:
+    key = call_id or f"call{len(self.running_calls)}"
+    self.running_calls[key] = {
+        "id": key,
+        "name": name,
+        "args": args if isinstance(args, dict) else {},
+        "status": "running",
+        "results": [],
+        "started": time.monotonic(),
+    }
+
+
+def _end_call(self: Generation, call_id: str = "") -> None:
+    """One call's result came (or, with no id, the round's)."""
+    if call_id:
+        self.running_calls.pop(call_id, None)
+    else:
+        self.running_calls.clear()
+
+
+Generation.start_call = _start_call  # type: ignore[attr-defined]
+Generation.end_call = _end_call  # type: ignore[attr-defined]
 
 
 def get(message_id: str) -> Generation | None:
@@ -1375,12 +1405,18 @@ async def _run(generation: Generation) -> None:
 
             generation.status = _tool_status(calls)
             _running_tool(generation, calls, arguments, decided)
+            for index, (call, parsed) in enumerate(zip(calls, arguments, strict=False)):
+                if not decided or index not in decided:
+                    generation.start_call(
+                        str(call.get("id") or f"r{round_number}c{index}"), call["name"], parsed
+                    )
             generation.touch()
             try:
                 outcomes = await _stoppable(
                     generation, _run_calls(tool_context, calls, arguments, decided=decided)
                 )
             finally:
+                generation.end_call()
                 generation.status = ""
                 generation.touch()
             if outcomes is None:
@@ -1575,6 +1611,10 @@ async def _run(generation: Generation) -> None:
         # page is served from. Not when this task is being cancelled (a
         # shutdown, a regeneration): then it is written here and now, because
         # an await in a cancelled task is where the write would be lost.
+        # How the turn ended, said before the row is written: the row keeps
+        # the reason (`Message.end_reason`) so the reply says "Stopped: by
+        # you" when it is read again, not only while it was live.
+        _final_progress(generation)
         elapsed = time.monotonic() - started
         cancelled = False
         if generation.interrupted or asyncio.current_task().cancelling():
@@ -1593,7 +1633,6 @@ async def _run(generation: Generation) -> None:
         # bubbles. There is no push channel that outlives a single reply.
         #
         _drain(generation)
-        _final_progress(generation)
         generation.done = True
         generation.finished_at = datetime.now(UTC)
         generation.touch()
@@ -2671,9 +2710,15 @@ async def _run_calls(
             return decided[index]
 
         async with limit:
-            return await tools_service.run_tool(
+            # Timed here, where it ran: the call's duration, start to result
+            # (harness spec 3.7.0, display.md §2), kept on its event as `ms`.
+            began = time.monotonic()
+            outcome = await tools_service.run_tool(
                 context, call["name"], call["arguments"], parsed=arguments[index]
             )
+            if isinstance(getattr(outcome, "event", None), dict):
+                outcome.event.setdefault("ms", int((time.monotonic() - began) * 1000))
+            return outcome
 
     return list(await asyncio.gather(*(one(i, c) for i, c in enumerate(calls))))
 
@@ -2970,6 +3015,15 @@ def _persist(
                 message.usage_json = {**message.usage_json, "fallback": fell_back}
             message.error = generation.error
             message.stopped = generation.stopped
+            # Why it stopped, where it did (spec 3.7.0, display.md §4): by the
+            # person, at the step limit, on a budget -- the last progress's
+            # reason. "" for a reply that finished, or failed (the error says).
+            ended = generation.tracker.current
+            message.end_reason = (
+                str(ended.get("reason") or "")[:16]
+                if isinstance(ended, dict) and ended.get("phase") == "stopped"
+                else ""
+            )
             message.complete = True
             # Cut off by a shutdown: taken up again at the next start.
             message.interrupted = generation.interrupted

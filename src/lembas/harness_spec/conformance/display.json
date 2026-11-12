@@ -1,0 +1,684 @@
+{
+  "about": "Display (display.md, spec 3.7.0), in the plain number format. `show` says what is asked. `title`: a call's `args` (and its `tool`, for the reader) — expect `title`, the one short title (display.md §1), or null where the call has none. `duration`: a call's `state` and `ms` — expect `duration` as drawn beside the title (§2), or null. `change`: a unified `diff` — expect `added`, `removed` counted by its hunks, and `text` (loop.json display.change). `facts`: a finished call's `block` with its `diff`, `exit` or `hits` — expect `facts`, the texts after the title in order. `end`: a turn's last `progress` (or null) — expect `line`, the line that stays on the finished reply (§4), or null. `drawn`: a `block` — whether it is drawn as a call (§3). LLeMbas: services/display.py; CLI: session/display.ts.",
+  "cases": [
+    {
+      "about": "A command is its own title.",
+      "show": "title",
+      "tool": "bash",
+      "args": {
+        "command": "bun test",
+        "description": "Run the tests"
+      },
+      "expect": {
+        "title": "bun test"
+      }
+    },
+    {
+      "about": "Only the first line of a command.",
+      "show": "title",
+      "tool": "bash",
+      "args": {
+        "command": "  cd src &&\n  make  "
+      },
+      "expect": {
+        "title": "cd src &&"
+      }
+    },
+    {
+      "about": "A search is titled by its pattern, not where it looks.",
+      "show": "title",
+      "tool": "grep",
+      "args": {
+        "pattern": "TODO\\(",
+        "path": "src"
+      },
+      "expect": {
+        "title": "TODO\\("
+      }
+    },
+    {
+      "about": "A file search likewise.",
+      "show": "title",
+      "tool": "glob",
+      "args": {
+        "pattern": "**/*.ts",
+        "path": "src/tui"
+      },
+      "expect": {
+        "title": "**/*.ts"
+      }
+    },
+    {
+      "about": "A read by its path.",
+      "show": "title",
+      "tool": "read",
+      "args": {
+        "path": "src/app.ts",
+        "offset": 120
+      },
+      "expect": {
+        "title": "src/app.ts"
+      }
+    },
+    {
+      "about": "A listing with no path has no title.",
+      "show": "title",
+      "tool": "list",
+      "args": {
+        "depth": 2
+      },
+      "expect": {
+        "title": null
+      }
+    },
+    {
+      "about": "An edit by its path.",
+      "show": "title",
+      "tool": "edit",
+      "args": {
+        "path": "README.md",
+        "old": "a",
+        "new": "b"
+      },
+      "expect": {
+        "title": "README.md"
+      }
+    },
+    {
+      "about": "A web search by its query.",
+      "show": "title",
+      "tool": "web_search",
+      "args": {
+        "query": "opentui extmarks",
+        "max_results": 5
+      },
+      "expect": {
+        "title": "opentui extmarks"
+      }
+    },
+    {
+      "about": "A fetch by its address.",
+      "show": "title",
+      "tool": "web_fetch",
+      "args": {
+        "url": "https://example.org/docs"
+      },
+      "expect": {
+        "title": "https://example.org/docs"
+      }
+    },
+    {
+      "about": "A task by its description, not its prompt.",
+      "show": "title",
+      "tool": "task",
+      "args": {
+        "description": "Find the callers",
+        "prompt": "Look through src/ for every caller of load() and list them."
+      },
+      "expect": {
+        "title": "Find the callers"
+      }
+    },
+    {
+      "about": "A subagent by its name.",
+      "show": "title",
+      "tool": "team_add",
+      "args": {
+        "name": "Reviewer",
+        "role": "reviews the change",
+        "task": "Read the diff."
+      },
+      "expect": {
+        "title": "Reviewer"
+      }
+    },
+    {
+      "about": "A phone action by its summary, whatever else it carries.",
+      "show": "title",
+      "tool": "phone_action",
+      "args": {
+        "action": "open_url",
+        "summary": "Open the timetable",
+        "url": "https://example.org/t"
+      },
+      "expect": {
+        "title": "Open the timetable"
+      }
+    },
+    {
+      "about": "Python by the first line of its code.",
+      "show": "title",
+      "tool": "python",
+      "args": {
+        "code": "import math\nprint(math.pi)"
+      },
+      "expect": {
+        "title": "import math"
+      }
+    },
+    {
+      "about": "A question by its headers.",
+      "show": "title",
+      "tool": "ask_user",
+      "args": {
+        "why": "The schema is open.",
+        "questions": [
+          {
+            "header": "Database",
+            "question": "Which one?",
+            "options": []
+          },
+          {
+            "header": "Cache",
+            "question": "Which cache?",
+            "options": []
+          }
+        ]
+      },
+      "expect": {
+        "title": "Database · Cache"
+      }
+    },
+    {
+      "about": "A patch by the files it names.",
+      "show": "title",
+      "tool": "apply_patch",
+      "args": {
+        "patch": "*** Begin Patch\n*** Update File: src/a.ts\n@@\n-x\n+y\n*** Add File: docs/b.md\n+hello\n*** Delete File: old.txt\n*** End Patch"
+      },
+      "expect": {
+        "title": "src/a.ts, docs/b.md, old.txt"
+      }
+    },
+    {
+      "about": "A unified diff as a patch: the +++ paths, without b/ and without /dev/null.",
+      "show": "title",
+      "tool": "apply_patch",
+      "args": {
+        "patch": "--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1 +1 @@\n-x\n+y\n--- a/gone.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-bye\n"
+      },
+      "expect": {
+        "title": "src/a.ts"
+      }
+    },
+    {
+      "about": "A patch that names nothing falls back to its path.",
+      "show": "title",
+      "tool": "apply_patch",
+      "args": {
+        "patch": "@@ -1 +1 @@\n-x\n+y\n",
+        "path": "src/a.ts"
+      },
+      "expect": {
+        "title": "src/a.ts"
+      }
+    },
+    {
+      "about": "Cut to 80 characters: 79 and an ellipsis.",
+      "show": "title",
+      "tool": "bash",
+      "args": {
+        "command": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      },
+      "expect": {
+        "title": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…"
+      }
+    },
+    {
+      "about": "Exactly 80 is not cut.",
+      "show": "title",
+      "tool": "bash",
+      "args": {
+        "command": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+      },
+      "expect": {
+        "title": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+      }
+    },
+    {
+      "about": "Counted in code points, not UTF-16 units.",
+      "show": "title",
+      "tool": "bash",
+      "args": {
+        "command": "echo 🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂"
+      },
+      "expect": {
+        "title": "echo 🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂…"
+      }
+    },
+    {
+      "about": "A blank argument is passed over.",
+      "show": "title",
+      "tool": "grep",
+      "args": {
+        "pattern": "  ",
+        "path": "src"
+      },
+      "expect": {
+        "title": "src"
+      }
+    },
+    {
+      "about": "An argument that is not a string is passed over.",
+      "show": "title",
+      "tool": "job_output",
+      "args": {
+        "id": "job3",
+        "wait": 30
+      },
+      "expect": {
+        "title": "job3"
+      }
+    },
+    {
+      "about": "A setting by its key.",
+      "show": "title",
+      "tool": "settings",
+      "args": {
+        "action": "set",
+        "key": "theme",
+        "value": "moria"
+      },
+      "expect": {
+        "title": "theme"
+      }
+    },
+    {
+      "about": "Only an action.",
+      "show": "title",
+      "tool": "tasks",
+      "args": {
+        "action": "list"
+      },
+      "expect": {
+        "title": "list"
+      }
+    },
+    {
+      "about": "No arguments, no title.",
+      "show": "title",
+      "tool": "job_list",
+      "args": {},
+      "expect": {
+        "title": null
+      }
+    },
+    {
+      "about": "Arguments that are not an object, no title.",
+      "show": "title",
+      "tool": "read",
+      "args": "src/app.ts",
+      "expect": {
+        "title": null
+      }
+    },
+    {
+      "about": "A finished call: tenths under a minute.",
+      "show": "duration",
+      "state": "done",
+      "ms": 412,
+      "expect": {
+        "duration": "0.4s"
+      }
+    },
+    {
+      "about": "Seconds.",
+      "show": "duration",
+      "state": "done",
+      "ms": 8449,
+      "expect": {
+        "duration": "8.4s"
+      }
+    },
+    {
+      "about": "Just under a minute.",
+      "show": "duration",
+      "state": "failed",
+      "ms": 59940,
+      "expect": {
+        "duration": "59.9s"
+      }
+    },
+    {
+      "about": "What would round to 60.0s is a minute.",
+      "show": "duration",
+      "state": "done",
+      "ms": 59960,
+      "expect": {
+        "duration": "1m 00s"
+      }
+    },
+    {
+      "about": "The last tenth under a minute.",
+      "show": "duration",
+      "state": "done",
+      "ms": 59949,
+      "expect": {
+        "duration": "59.9s"
+      }
+    },
+    {
+      "about": "From a minute: minutes and whole seconds.",
+      "show": "duration",
+      "state": "done",
+      "ms": 65000,
+      "expect": {
+        "duration": "1m 05s"
+      }
+    },
+    {
+      "about": "From an hour: hours and minutes.",
+      "show": "duration",
+      "state": "done",
+      "ms": 7380000,
+      "expect": {
+        "duration": "2h 03m"
+      }
+    },
+    {
+      "about": "A failed call shows how long it took.",
+      "show": "duration",
+      "state": "failed",
+      "ms": 1200,
+      "expect": {
+        "duration": "1.2s"
+      }
+    },
+    {
+      "about": "A denied call shows none.",
+      "show": "duration",
+      "state": "denied",
+      "ms": 3,
+      "expect": {
+        "duration": null
+      }
+    },
+    {
+      "about": "A running call shows none.",
+      "show": "duration",
+      "state": "running",
+      "ms": 5000,
+      "expect": {
+        "duration": null
+      }
+    },
+    {
+      "about": "A stored call whose time was not kept shows none.",
+      "show": "duration",
+      "state": "done",
+      "expect": {
+        "duration": null
+      }
+    },
+    {
+      "about": "One line changed.",
+      "show": "change",
+      "diff": "--- a/a.txt\n+++ b/a.txt\n@@ -1,3 +1,3 @@\n one\n-two\n+2\n three\n",
+      "expect": {
+        "added": 1,
+        "removed": 1,
+        "text": "+1 −1"
+      }
+    },
+    {
+      "about": "Headers without a/ and b/ are still headers.",
+      "show": "change",
+      "diff": "Index: a.txt\n===================================================================\n--- a.txt\n+++ a.txt\n@@ -1,2 +1,3 @@\n one\n+one and a half\n two\n",
+      "expect": {
+        "added": 1,
+        "removed": 0,
+        "text": "+1 −0"
+      }
+    },
+    {
+      "about": "A removed line that begins with `-- ` and an added one that begins with `++ ` are lines, not headers.",
+      "show": "change",
+      "diff": "--- a/q.sql\n+++ b/q.sql\n@@ -1,3 +1,3 @@\n select 1;\n--- the old comment\n+++ the new one\n select 2;\n",
+      "expect": {
+        "added": 1,
+        "removed": 1,
+        "text": "+1 −1"
+      }
+    },
+    {
+      "about": "A new file.",
+      "show": "change",
+      "diff": "--- /dev/null\n+++ b/new.txt\n@@ -0,0 +1,2 @@\n+a\n+b\n",
+      "expect": {
+        "added": 2,
+        "removed": 0,
+        "text": "+2 −0"
+      }
+    },
+    {
+      "about": "A hunk header without counts means one line each.",
+      "show": "change",
+      "diff": "--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n",
+      "expect": {
+        "added": 1,
+        "removed": 1,
+        "text": "+1 −1"
+      }
+    },
+    {
+      "about": "No newline at end of file counts for nothing.",
+      "show": "change",
+      "diff": "--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n\\ No newline at end of file\n+b\n\\ No newline at end of file\n",
+      "expect": {
+        "added": 1,
+        "removed": 1,
+        "text": "+1 −1"
+      }
+    },
+    {
+      "about": "Two files add up.",
+      "show": "change",
+      "diff": "diff --git a/a b/a\n--- a/a\n+++ b/a\n@@ -1 +1,2 @@\n a\n+b\ndiff --git a/c b/c\n--- a/c\n+++ b/c\n@@ -1,2 +1 @@\n c\n-d\n",
+      "expect": {
+        "added": 1,
+        "removed": 1,
+        "text": "+1 −1"
+      }
+    },
+    {
+      "about": "No diff, nothing changed.",
+      "show": "change",
+      "diff": "",
+      "expect": {
+        "added": 0,
+        "removed": 0,
+        "text": "+0 −0"
+      }
+    },
+    {
+      "about": "An edit shows its change.",
+      "show": "facts",
+      "block": "edit",
+      "diff": "--- a/x\n+++ b/x\n@@ -1 +1,2 @@\n-a\n+b\n+c\n",
+      "expect": {
+        "facts": [
+          "+2 −1"
+        ]
+      }
+    },
+    {
+      "about": "A command that failed shows its exit code.",
+      "show": "facts",
+      "block": "shell",
+      "exit": 2,
+      "expect": {
+        "facts": [
+          "exit 2"
+        ]
+      }
+    },
+    {
+      "about": "A command that succeeded shows none.",
+      "show": "facts",
+      "block": "shell",
+      "exit": 0,
+      "expect": {
+        "facts": []
+      }
+    },
+    {
+      "about": "A search shows its hits.",
+      "show": "facts",
+      "block": "search",
+      "hits": 14,
+      "expect": {
+        "facts": [
+          "14 hits"
+        ]
+      }
+    },
+    {
+      "about": "One hit.",
+      "show": "facts",
+      "block": "search",
+      "hits": 1,
+      "expect": {
+        "facts": [
+          "1 hit"
+        ]
+      }
+    },
+    {
+      "about": "No hits is a fact too.",
+      "show": "facts",
+      "block": "search",
+      "hits": 0,
+      "expect": {
+        "facts": [
+          "0 hits"
+        ]
+      }
+    },
+    {
+      "about": "A read has none of these.",
+      "show": "facts",
+      "block": "read",
+      "hits": 3,
+      "exit": 1,
+      "expect": {
+        "facts": []
+      }
+    },
+    {
+      "about": "Stopped by the person: the line stays on the reply.",
+      "show": "end",
+      "progress": {
+        "phase": "stopped",
+        "since": 1762790400000,
+        "reason": "person"
+      },
+      "now": 1762790460000,
+      "expect": {
+        "line": "Stopped: by you"
+      }
+    },
+    {
+      "about": "The budget ran out.",
+      "show": "end",
+      "progress": {
+        "phase": "stopped",
+        "since": 1762790400000,
+        "reason": "budget"
+      },
+      "now": 1762790460000,
+      "expect": {
+        "line": "Stopped: budget"
+      }
+    },
+    {
+      "about": "The step limit.",
+      "show": "end",
+      "progress": {
+        "phase": "stopped",
+        "since": 1762790400000,
+        "reason": "steps"
+      },
+      "now": 1762790460000,
+      "expect": {
+        "line": "Stopped: step limit"
+      }
+    },
+    {
+      "about": "Stopped, no reason known.",
+      "show": "end",
+      "progress": {
+        "phase": "stopped",
+        "since": 1762790400000
+      },
+      "now": 1762790460000,
+      "expect": {
+        "line": "Stopped"
+      }
+    },
+    {
+      "about": "Failed, with the error.",
+      "show": "end",
+      "progress": {
+        "phase": "failed",
+        "since": 1762790400000,
+        "reason": "502 Bad Gateway"
+      },
+      "now": 1762790460000,
+      "expect": {
+        "line": "Failed: 502 Bad Gateway"
+      }
+    },
+    {
+      "about": "A reply that finished shows nothing.",
+      "show": "end",
+      "progress": null,
+      "now": 1762790460000,
+      "expect": {
+        "line": null
+      }
+    },
+    {
+      "about": "A phase that is not an end shows nothing on the reply.",
+      "show": "end",
+      "progress": {
+        "phase": "writing",
+        "since": 1762790400000
+      },
+      "now": 1762790460000,
+      "expect": {
+        "line": null
+      }
+    },
+    {
+      "about": "A plan change is not drawn as a call.",
+      "show": "drawn",
+      "block": "plan",
+      "expect": {
+        "drawn": false
+      }
+    },
+    {
+      "about": "Nor a hidden tool.",
+      "show": "drawn",
+      "block": "hidden",
+      "expect": {
+        "drawn": false
+      }
+    },
+    {
+      "about": "A command is.",
+      "show": "drawn",
+      "block": "shell",
+      "expect": {
+        "drawn": true
+      }
+    },
+    {
+      "about": "A tool nobody knows is the generic block.",
+      "show": "drawn",
+      "expect": {
+        "drawn": true
+      }
+    }
+  ]
+}

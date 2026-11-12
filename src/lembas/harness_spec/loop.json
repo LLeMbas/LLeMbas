@@ -686,5 +686,92 @@
       "panel",
       "values"
     ]
+  },
+  "display": {
+    "about": "Spec 3.7.0 (display.md): one display in every client. `title`: how a tool call's one short title is made from its arguments (the same string in the transcript, as running_tool's `what` and as the link's tool_call title) — `questions` and `patch` first, then the first non-blank string among `keys`; first line, cut to progress.what_max. `states`: the four states of a drawn call; `no_duration`: the states that show none. `duration`: a finished call's time (tenths under a minute). `change`, `exit`, `hits`/`hit`: the facts after the title. `blocks`: the kinds of block every client distinguishes; `not_drawn`: those that are no call in the transcript. `end`: the phases whose line stays on the finished reply. `actions`: what each card offers, with its English words (shared i18n keys display.actions.<card>.<action>). `plain`: the number format of the conformance texts. conformance/display.json.",
+    "title": {
+      "questions_join": " · ",
+      "patch_files": [
+        "*** Add File: ",
+        "*** Update File: ",
+        "*** Delete File: "
+      ],
+      "patch_join": ", ",
+      "keys": [
+        "summary",
+        "command",
+        "code",
+        "pattern",
+        "query",
+        "url",
+        "path",
+        "file_path",
+        "from",
+        "description",
+        "name",
+        "id",
+        "title",
+        "key",
+        "target",
+        "to",
+        "action"
+      ]
+    },
+    "states": [
+      "running",
+      "done",
+      "failed",
+      "denied"
+    ],
+    "no_duration": [
+      "running",
+      "denied"
+    ],
+    "duration": {
+      "tenths_under_seconds": 60
+    },
+    "change": "+{{added}} −{{removed}}",
+    "exit": "exit {{code}}",
+    "hits": "{{count}} hits",
+    "hit": "{{count}} hit",
+    "blocks": [
+      "shell",
+      "edit",
+      "read",
+      "search",
+      "web",
+      "task",
+      "tool",
+      "plan",
+      "hidden"
+    ],
+    "not_drawn": [
+      "plan",
+      "hidden"
+    ],
+    "end": [
+      "stopped",
+      "failed"
+    ],
+    "actions": {
+      "approval": {
+        "once": "Allow once",
+        "always": "Always allow",
+        "deny": "Deny",
+        "deny_reason": "Deny, and say why"
+      },
+      "question": {
+        "something_else": "Something else"
+      },
+      "plan": {
+        "approve_edit": "Approve, continue in Edit",
+        "approve_manual": "Approve, continue in Manual",
+        "revise": "Revise"
+      }
+    },
+    "plain": {
+      "group": "",
+      "decimal": "."
+    }
   }
 }

@@ -11,6 +11,7 @@
     "origin": "",
     "model": "qwen",
     "attachments": [],
+    "end": null,
     "steps": [
       {
         "index": 0,
@@ -41,14 +42,16 @@
             "purpose": "Bake one loaf",
             "text": "baked\n",
             "exit": 0,
+            "ms": 2412,
             "block": {
               "kind": "shell",
               "title": "bake --slow",
-              "chips": [
-                "exit 0"
-              ],
+              "chips": [],
               "added": 0,
-              "removed": 0
+              "removed": 0,
+              "state": "done",
+              "duration": "2.4s",
+              "label": "Bash"
             }
           }
         ]

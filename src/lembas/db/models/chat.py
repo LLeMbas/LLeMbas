@@ -452,6 +452,14 @@ class Message(UUIDPrimaryKey, Timestamps, Base):
     # True when the reader pressed Stop. Distinct from `error`: the text that
     # did arrive is kept and is perfectly usable, it is just cut short.
     stopped: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Why a reply that did not finish stopped (harness spec 3.7.0, display.md
+    # §4): `person`, `steps` or `budget` -- the reason of the progress it ended
+    # with -- so the line on it reads "Stopped: by you" when it is shown again.
+    # NULL or "" where it finished, failed (`error` says), or was stored before
+    # this was kept: such a reply says "Stopped" and no more. A reply stopped
+    # at a limit is not `stopped` in the sense above -- it wrapped up -- and is
+    # known here alone.
+    end_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
     # Typed while a reply was still being written, and not yet handed to a
     # model. A row rather than something held in the browser: it survives a
     # restart, it is in the transcript the moment it is typed, and it can be

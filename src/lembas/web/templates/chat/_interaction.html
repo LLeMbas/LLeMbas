@@ -293,18 +293,26 @@
         hidden, so a card refused plainly cannot post an empty `reason` that
         would have to be told apart from one somebody cleared.
       #}
+      {# The four actions under the spec's words (harness spec 3.7.0,
+         display.md §5, `loop.json` `display.actions.approval`): Allow once,
+         Always allow, Deny, and Deny, and say why -- the same in every
+         client, each in its own translation. #}
       <div class="interaction__actions" x-data="{ explaining: false }">
         <button class="btn btn--primary" type="submit" name="verdict" value="allow">
-          {{ icon("check", "icon--sm") }} {{ t("Allow") }}
+          {{ icon("check", "icon--sm") }} {{ t("Allow once") }}
         </button>
-        <button class="btn" type="submit" name="verdict" value="allow_always">{{ t("Always allow this") }}</button>
+        {# Only where it is offered (harness spec 3.7.0, display.md §5): a
+           device's call that may only ever be allowed once has no "always". #}
+        {% if ask.items | rejectattr("always") | list | length == 0 %}
+        <button class="btn" type="submit" name="verdict" value="allow_always">{{ t("Always allow") }}</button>
+        {% endif %}
         <button class="btn btn--danger" type="submit" name="verdict" value="deny"
                 x-show="!explaining">
-          {{ icon("x", "icon--sm") }} {{ t("Don't") }}
+          {{ icon("x", "icon--sm") }} {{ t("Deny") }}
         </button>
         <button class="btn" type="button" x-show="!explaining"
                 @click="explaining = true; $nextTick(() => $refs.reason.focus())">
-          {{ icon("pencil", "icon--sm") }} {{ t("Give reason") }}
+          {{ icon("pencil", "icon--sm") }} {{ t("Deny, and say why") }}
         </button>
 
         <div class="interaction__deny" x-show="explaining" x-cloak>
@@ -319,7 +327,7 @@
                     placeholder="{{ t('Why not, and what to do instead…') }}"></textarea>
           <div class="interaction__deny-actions">
             <button class="btn btn--danger" type="submit" name="verdict" value="deny">
-              {{ icon("x", "icon--sm") }} {{ t("Don't, and tell it why") }}
+              {{ icon("x", "icon--sm") }} {{ t("Deny, and say why") }}
             </button>
             <button class="btn btn--sm" type="button" @click="explaining = false">{{ t("Cancel") }}</button>
           </div>

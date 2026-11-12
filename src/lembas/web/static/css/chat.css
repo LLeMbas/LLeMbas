@@ -1145,7 +1145,17 @@
 .composer__form {
   display: flex;
   flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+/* The card the message is typed in. The form itself is not the card: on a
+   new agent chat the bar that says where it runs is in the form (its fields
+   are sent with the message) and above the card, not inside it. */
+.composer__card {
+  display: flex;
+  flex-direction: column;
   gap: var(--sp-1);
+  min-width: 0;
   padding: var(--sp-2);
   border: var(--border-w-thick) solid var(--border-strong);
   border-radius: var(--radius-lg);
@@ -1153,7 +1163,7 @@
   box-shadow: var(--shadow-block);
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
-.composer__form:focus-within {
+.composer__card:focus-within {
   border-color: var(--accent);
   box-shadow: var(--shadow-block-accent);
 }
@@ -1495,34 +1505,104 @@
   color: var(--accent);
 }
 
-/* Where a new agent chat runs: a row of its own above the toolbar, which WRAPS.
-   It used to share the toolbar's line and scroll sideways with its scrollbar
-   hidden -- so on a phone the approval mode was off the end of the row, out of
-   sight, which is "cut off" whatever a scroller says. Each control has a floor
-   and may grow; a row that runs out of room starts another. */
+/*
+  --- Where a new agent chat runs (`.composer__target`, chat/_composer.html) ---
+
+  A slim bar directly above the composer's card: computer · folder · mode, in
+  that order, on ONE line -- it never wraps and never scrolls. LLeMbas Desktop
+  draws the same bar; the wiki's Working notes describe it for both.
+
+  Three chips of one family: each is `.btn.btn--sm` (the upward select's
+  button, and the folder's), so one height (`--control-h-sm`) and one look,
+  the chat toolbar's. Sizes, by construction:
+
+  - the mode's words are few and known: it is its text's width, `flex: none`;
+  - the computer and the folder are names: each gives, down to a 6rem floor,
+    and truncates -- the computer capped at `--w-chip-sm`, the folder at
+    `--w-chip`. They are what the row has designated to give.
+
+  The fold is a sum, not a guess: two floors of 6rem, the mode at up to
+  `--w-select-sm` (9rem), two gaps and the bar's padding come to about 22rem,
+  and below 30rem the two names would be floors and nothing more. So under
+  30rem OF THE BAR (a container query: the sidebar and a side panel take from
+  it, the window's width says nothing) the three fold behind one summary chip
+  across the bar, which opens them as a column above itself -- each chip the
+  full width, its name in a shared first column so the chips line up whatever
+  the names are in whichever language.
+
+  `tests/test_target_bar.py` measures it in a browser at 1920, 1280, 1024,
+  800 and 390 with a long computer name and a long path.
+*/
 .composer__target {
+  container: target / inline-size;
+  min-width: 0;
+  padding: 0 var(--sp-1);
+}
+.target {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: var(--sp-2);
   min-width: 0;
-  padding: 0 var(--sp-1) var(--sp-2);
 }
 /* `min-width: 0` because a flex item will not shrink below its content without
-   it, and this one holds a connection name, a path and a mode. */
+   it, and this one holds a computer's name, a path and a mode. */
 .composer__agent {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  flex-wrap: wrap;
   flex: 1 1 auto;
   min-width: 0;
 }
+.target__field {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 6rem;
+}
+.target__field--device { max-width: var(--w-chip-sm); }
+.target__field--dir { max-width: var(--w-chip); }
+/* The mode is read and changed constantly: it never shrinks. */
+.target__field--mode { flex: none; min-width: 0; }
+.target__field > .upward,
+.target__field > .btn { flex: 1 1 auto; min-width: 0; max-width: 100%; }
+/* The names of the three: only in the opened fold, where each chip has a row. */
+.target__name { display: none; }
+.target__summary { display: none; }
+.target__part { white-space: nowrap; }
+.target__part--gives { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.target__part--path { font-family: var(--font-mono); }
+.target__dot { flex: none; color: var(--ink-faint); }
 
-/* Floors, not fixed widths: a select narrower than this shows no text at all,
-   which is worse than the scrolling it was avoiding. */
-.composer__target .select { flex: 0 1 auto; min-width: 6rem; max-width: 100%; }
-/* `.segmented` declares flex: none where it is defined, in app.css. */
+@container target not (min-width: 30rem) {
+  .target { flex-direction: column-reverse; align-items: stretch; }
+  .target__summary {
+    display: flex;
+    justify-content: flex-start;
+    gap: var(--sp-1);
+    width: 100%;
+    min-width: 0;
+  }
+  .composer__agent { display: none; }
+  .composer__target.is-open .composer__agent {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    align-items: center;
+    gap: var(--sp-2);
+  }
+  .composer__target.is-open .target__name {
+    display: block;
+    font-size: var(--text-xs);
+    color: var(--ink-muted);
+    white-space: nowrap;
+  }
+  .composer__target.is-open .target__field { max-width: none; min-width: 0; }
+  /* In a column the three read as a list: each chip's words start at its edge. */
+  .composer__target.is-open .target__field .btn { justify-content: flex-start; }
+  .composer__target.is-open .target__field--mode { flex: 0 1 auto; }
+}
+/* A thumb has to hit them. */
+@media (pointer: coarse) {
+  .composer__target .btn { min-height: var(--tap-min); }
+}
 
 /* Round, and the same size as each other: attach and send read as one pair
    bracketing the row. */
@@ -1537,15 +1617,9 @@
    one because it is the only child here whose content is unbounded -- a
    connection name and a mode are both short and known. */
 .composer__dir {
-  flex: 0 1 auto;
-  min-width: 4rem;
-  max-width: 11rem;
   font-family: var(--font-mono);
   font-weight: 400;
 }
-/* The mode is a control that is read and changed constantly; it never shrinks
-   and never scrolls out of reach. It is the thing that was being cut. */
-.composer__target select[name="agent_mode"] { flex: none; }
 .composer__dir-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Nothing chosen and a send was refused for it: the button says where to look. */
 .composer__dir[aria-invalid="true"] { border-color: var(--danger); color: var(--danger); }
@@ -2125,7 +2199,7 @@
    button that replaced it carried none, so on a phone the connection chooser
    shrank to its caret alone -- 26px, no name in it -- and read as broken even
    before its menu was. */
-.composer__target .upward { flex: 0 1 auto; min-width: 6rem; max-width: 100%; }
+.composer__target .upward { flex: 1 1 auto; min-width: 0; max-width: 100%; }
 .upward__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .upward__menu {
   max-height: min(var(--h-list), 50dvh);
@@ -2296,6 +2370,28 @@
   white-space: nowrap;
 }
 .tool-chip--bad { color: var(--danger); }
+/* A call's state beside its title (harness spec 3.7.0): how long a finished
+   one took, and the dots of one still running -- the dots the waiting row
+   uses, at the size of the line they are in. */
+.tool-time {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+  margin-inline-start: var(--sp-2);
+  white-space: nowrap;
+}
+.tool-state { display: inline-flex; align-items: center; margin-inline-start: var(--sp-2); }
+/* The calls running now, under the text being written (chat/_message.html). */
+.msg__running:empty { display: none; }
+.msg__flow > .msg__running { display: flex; flex-direction: column; gap: var(--sp-2); }
+/* How a reply that did not finish ended (display.md §4): one line at the end
+   of the reply, where it stays. */
+.msg__end {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.msg__end--failed { color: var(--danger); }
 .tool-activity__empty { margin: 0; color: var(--ink-faint); font-size: var(--text-xs); }
 
 /* --- Teams (spec 3.2.0) ---------------------------------------------------------

@@ -276,6 +276,16 @@ templates.env.globals["theme_colour"] = theme_colour
 templates.env.globals["message_steps"] = steps_service.for_message
 # How a tool call is drawn, by its kind (services/tool_blocks.py).
 templates.env.globals["tool_block"] = tool_blocks.block_for
+# How a reply that did not finish ended: the one line that stays on it
+# (harness spec 3.7.0, display.md §4), in the reader's language.
+def _reply_end(message):
+    from lembas.services import display
+    from lembas.services import progress as progress_service
+
+    return display.message_end(message, progress_service.localised())
+
+
+templates.env.globals["reply_end"] = _reply_end
 # The user messages a reply shows inline, where its model took them in.
 templates.env.globals["inline_steers"] = lambda messages: {
     sid for m in messages or [] for sid in steps_service.steered_ids(getattr(m, "steps_json", None))
