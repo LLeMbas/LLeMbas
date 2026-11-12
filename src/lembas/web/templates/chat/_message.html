@@ -262,17 +262,17 @@
       {% set ended = reply_end(message) if message.role == "assistant" else none %}
       {% if ended %}
       <p class="msg__end msg__end--{{ ended.phase }}" data-reply-end="{{ ended.phase }}"
-         {% if ended.phase == "failed" %}role="alert" title="{{ message.error }}"{% endif %}>
+         {% if ended.phase == "failed" %}role="alert"{% endif %}>
         {{ icon("warning" if ended.phase == "failed" else "x", "icon--sm") }} {{ ended.text }}
       </p>
-      {% elif message.error %}
-      <div class="alert alert--error msg__error" role="alert">
-        {{ icon("warning", "alert__icon") }}
-        <div>
-          <strong>{{ t("The reply could not be completed.") }}</strong>
-          <div class="text-sm u-mt-1">{{ message.error }}</div>
-        </div>
-      </div>
+      {#- The line is the error's first line, cut where it is long. The rest
+          is one press away -- not in a tooltip, which a finger cannot reach. -#}
+      {% if ended.phase == "failed" and message.error and message.error.strip() != ended.reason %}
+      <details class="msg__end-details" id="end-{{ message.id }}">
+        <summary class="msg__end-toggle">{{ t("Details") }} {{ icon("chevron-down", "icon--sm reasoning__chevron") }}</summary>
+        <pre class="msg__end-error">{{ message.error }}</pre>
+      </details>
+      {% endif %}
       {% endif %}
 
       {% if message.role == "assistant" %}

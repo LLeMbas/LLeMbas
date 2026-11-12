@@ -684,7 +684,6 @@ MESSAGES: dict[str, str] = {
     "Read this reply aloud": "Přečíst tuto odpověď nahlas",
     "Regenerate reply": "Vygenerovat odpověď znovu",
     "Send now": "Odeslat teď",
-    "The reply could not be completed.": "Odpověď se nepodařilo dokončit.",
     "Thinking": "Přemýšlí",
     "Typed in the terminal on the device; this chat shows the same session": "Napsáno v terminálu na zařízení; tato konverzace ukazuje tutéž relaci",
     "Written by": "Napsal",
@@ -2725,5 +2724,6 @@ MESSAGES.update(
         'Allow once': 'Povolit jednou',
         'Always allow': 'Povolit vždy',
         'Deny, and say why': 'Zamítnout a říct proč',
+        'Details': 'Podrobnosti',
     }
 )

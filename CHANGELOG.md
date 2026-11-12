@@ -24,8 +24,9 @@ answers), vendored from the LLeMbas CLI's `dev` and pinned to its tag at release
   progress line), done, failed, or **not run** when it was refused; a finished call says how
   long it took (`8.4s`, `1m 05s`). `exit` is shown only when it is not 0.
 - **A reply that did not finish says how it ended, in one line that stays on it**:
-  "Stopped: by you", "Stopped: step limit", "Stopped: budget", "Failed: …". It replaces the
-  error box and the "cut short" note, and it is the same line when the chat is opened again
+  "Stopped: by you", "Stopped: step limit", "Stopped: budget", "Failed: …". The whole of a
+  longer error is behind **Details** under it. It replaces the error box and the "cut short"
+  note, and it is the same line when the chat is opened again
   -- the reason is now stored with the reply (replies stopped before this say "Stopped").
 
 ### Fixed

@@ -266,6 +266,28 @@ def test_the_line_stays_on_the_reply_and_nothing_else_says_it(client, db, regist
     assert "data-reply-end" not in client.get(f"/chat/{_reply(db).chat_id}").text
 
 
+def test_the_whole_error_is_one_press_away_not_in_a_tooltip(client, db, registered):
+    """The line is the error's first line, cut at 300 characters; the rest
+    was only in a `title`, which a finger cannot reach."""
+    from tests.test_thread_window import _model
+
+    _model(db)
+    long = "The model's server answered 503.\nTraceback (most recent call last):\n  boom <b>"
+    failed = _reply(db, error=long)
+    page = client.get(f"/chat/{failed.chat_id}").text
+    end = page[page.index('data-reply-end="failed"') - 120:]
+    line = end[: end.index("</p>")]
+    assert "title=" not in line and "Traceback" not in line
+    details = end[end.index("<details") : end.index("</details>")]
+    assert "Details" in details and "Traceback (most recent call last):" in details
+    assert "boom &lt;b&gt;" in details and "<b>" not in details
+    # A one-line error is all in the line: nothing to open.
+    short = _reply(db, error="Upstream said 503.")
+    assert "msg__end-details" not in client.get(f"/chat/{short.chat_id}").text
+    # And the old error box is gone for good.
+    assert "msg__error" not in page
+
+
 def test_a_refused_call_announced_over_acp_is_not_mistaken_for_anything(db):
     """From spec 3.7.0 a refused call is one `tool_call`, failed, with
     `_meta.lembas.denied`. The server draws a device's calls from

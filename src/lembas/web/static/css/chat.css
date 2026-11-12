@@ -145,7 +145,6 @@
 .msg__tail > .msg__body:empty,
 .msg__flow > .interaction-slot:empty { display: none; }
 
-.msg__error { margin: var(--sp-2) 0; align-items: flex-start; }
 
 /* --- Streaming indicator -------------------------------------------------- */
 /* Shown until the first token arrives, then hidden by the `:has()` rule under
@@ -2392,6 +2391,34 @@
   color: var(--ink-muted);
 }
 .msg__end--failed { color: var(--danger); }
+/* The whole error of a failed reply, behind "Details": the line above is its
+   first line. Its own scroller -- a traceback is wide -- so the page never
+   scrolls sideways. */
+.msg__end-details { margin-top: var(--sp-1); font-size: var(--text-sm); }
+.msg__end-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.msg__end-error {
+  margin: var(--sp-2) 0 0;
+  padding: var(--sp-2) var(--sp-3);
+  max-height: var(--h-list);
+  overflow: auto;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+  background: var(--code-bg);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* A thumb has to hit it. */
+@media (pointer: coarse) {
+  .msg__end-toggle { min-height: var(--tap-min); }
+}
 .tool-activity__empty { margin: 0; color: var(--ink-faint); font-size: var(--text-xs); }
 
 /* --- Teams (spec 3.2.0) ---------------------------------------------------------

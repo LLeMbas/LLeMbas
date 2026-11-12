@@ -684,7 +684,6 @@ MESSAGES: dict[str, str] = {
     "Read this reply aloud": "Leggi ad alta voce questa risposta",
     "Regenerate reply": "Rigenera risposta",
     "Send now": "Invia ora",
-    "The reply could not be completed.": "Non è stato possibile completare la risposta.",
     "Thinking": "Ragionamento",
     "Typed in the terminal on the device; this chat shows the same session": "Digitato nel terminale del dispositivo; questa chat mostra la stessa sessione",
     "Written by": "Scritto da",
@@ -2725,5 +2724,6 @@ MESSAGES.update(
         'Allow once': 'Consenti una volta',
         'Always allow': 'Consenti sempre',
         'Deny, and say why': 'Nega e spiega perché',
+        'Details': 'Dettagli',
     }
 )

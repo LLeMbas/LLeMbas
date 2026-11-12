@@ -684,7 +684,6 @@ MESSAGES: dict[str, str] = {
     "Read this reply aloud": "A válasz felolvasása",
     "Regenerate reply": "Válasz újragenerálása",
     "Send now": "Küldés most",
-    "The reply could not be completed.": "A választ nem sikerült befejezni.",
     "Thinking": "Gondolkodás",
     "Typed in the terminal on the device; this chat shows the same session": "Az eszköz termináljában gépelve; ez a csevegés ugyanazt a munkamenetet mutatja",
     "Written by": "Írta:",
@@ -2725,5 +2724,6 @@ MESSAGES.update(
         'Allow once': 'Engedélyezés egyszer',
         'Always allow': 'Mindig engedélyezve',
         'Deny, and say why': 'Elutasítás indoklással',
+        'Details': 'Részletek',
     }
 )

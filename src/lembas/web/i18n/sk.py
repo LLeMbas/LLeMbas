@@ -140,7 +140,6 @@ MESSAGES.update(
             "Tieto sa už modelu neposielajú, namiesto nich ide ich zhrnutie. "
             "Zostávajú tu, aby sa nič nestratilo."
         ),
-        "The reply could not be completed.": "Odpoveď sa nepodarilo dokončiť.",
         "The model is asking you": "Model sa vás pýta",
         "Your own answer…": "Vaša vlastná odpoveď…",
         "Something else": "Niečo iné",
@@ -3385,5 +3384,6 @@ MESSAGES.update(
         'Allow once': 'Povoliť raz',
         'Always allow': 'Povoliť vždy',
         'Deny, and say why': 'Zamietnuť a povedať prečo',
+        'Details': 'Podrobnosti',
     }
 )
