@@ -117,7 +117,17 @@ async def take(db: Db, user: RequiredUser, chat_id: str, page: str) -> Response:
     chat_id = chat.id
     # Not holding the request's database session across the wait.
     db.close()
-    request = await pages.take(chat_id, page_id, timeout=TAKE_SECONDS)
+    return await take_response(chat_id, page_id)
+
+
+async def take_response(chat_id: str, page_id: str) -> Response:
+    """A page's long poll, answered: the call (200), nothing yet (204), or
+    **410** for a page the registry does not know -- it announces again and
+    waits a moment, rather than asking again at once. Shared with `/api/v2`."""
+    try:
+        request = await pages.take(chat_id, page_id, timeout=TAKE_SECONDS)
+    except pages.UnknownPage:
+        return Response(status_code=status.HTTP_410_GONE)
     if request is None:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     return JSONResponse(request, headers={"Cache-Control": "no-store"})

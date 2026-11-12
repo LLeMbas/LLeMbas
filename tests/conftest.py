@@ -153,6 +153,20 @@ def fresh_schedule_ticker() -> Iterator[None]:
     _clear()
 
 
+@pytest.fixture(autouse=True)
+def no_wait_for_a_page(monkeypatch) -> Iterator[None]:
+    """The `python` tool gives a page of its chat twenty seconds to appear
+    before it refuses (`PYTHON_ATTACH_WAIT`). No test has a browser on its
+    way, so here it does not wait; the tests of the wait set their own."""
+    from lembas.services import pages
+    from lembas.services.tools import files as file_tools
+
+    monkeypatch.setattr(file_tools, "PYTHON_ATTACH_WAIT", 0.0)
+    pages.reset()
+    yield
+    pages.reset()
+
+
 @pytest.fixture
 def db() -> Iterator[Session]:
     session = get_session_factory()()

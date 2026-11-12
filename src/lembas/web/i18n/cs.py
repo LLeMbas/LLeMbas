@@ -2701,5 +2701,8 @@ MESSAGES.update(
         'Stopped after this; the run then fails.': 'Pak se zastaví a spuštění selže.',
         'a computer no longer signed in': 'počítač, který už není přihlášen',
         'Earlier messages': 'Starší zprávy',
+        'Name one thing to attach: an attachment, a path or a URL.': 'Uveďte jednu věc k připojení: přílohu, cestu nebo adresu URL.',
+        'That is not available to attach here.': 'To zde nelze připojit.',
+        'That file is too large to attach.': 'Tento soubor je příliš velký na připojení.',
     }
 )

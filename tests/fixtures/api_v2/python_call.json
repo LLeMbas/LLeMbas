@@ -1,0 +1,18 @@
+{
+  "call_id": "0123456789abcdef",
+  "code": "import csv\nprint(sum(1 for _ in csv.reader(open('/home/frodo/in.csv'))))",
+  "files": [
+    {
+      "path": "/home/frodo/in.csv",
+      "content_b64": "YSxiCjEsMgo="
+    }
+  ],
+  "save": [
+    "/home/frodo/out.txt"
+  ],
+  "limits": {
+    "seconds": 30,
+    "memory": "512 MB",
+    "output_chars": 20000
+  }
+}

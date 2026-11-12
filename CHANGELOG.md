@@ -20,6 +20,16 @@ For 2.0.0-beta.11.
 - **Finishing a reply no longer holds up everybody else's.** Writing the finished reply to the
   database and rendering its final bubble (Markdown and syntax highlighting) run in a thread
   instead of on the server's one event loop.
+- **Python in the browser no longer answers "no open browser page is attached" for a page
+  that is there.** Four different things got that one answer. Now: the tool waits up to 20
+  seconds for the chat's page to appear (the first message of a new chat started its reply
+  while the browser was still on its way to the page); a page waiting for calls counts as
+  alive, and a background tab whose timers the browser slows is no longer forgotten after a
+  minute; a page restored with Back attaches again; a call the newest page does not take
+  within a few seconds goes to the chat's next open page; and the model is told which of
+  three things happened -- no page of the chat is open, a page is open but did not answer, or
+  the run took too long -- in the harness spec's words (3.7.0; the same words from the code
+  until that spec is pinned).
 - **A long reply no longer gets slower to draw the longer it gets.** While a reply was being
   written, every update re-sent everything written so far in the current step, and the browser
   parsed and laid it all out again, ten times a second; each time a step ended, every finished
@@ -47,6 +57,18 @@ For 2.0.0-beta.11.
 
 ### Added
 
+- **`/api/v2`: the composer's `/` and `@` menus**, for LLeMbas Desktop:
+  `GET /devices/{id}/commands` and `GET /devices/{id}/files` (a linked device's commands and
+  project files), `GET /mentions` (the chat's earlier attachments, files of the tree the chat
+  can read, a URL) and `POST /attachments/from` (attach a copy of an earlier attachment, a
+  file of the tree, or a web page's text). The same code and the same access rules as the
+  page's own menus (`services/menus.py`).
+- **`/api/v2`: an app can be the page Python runs in.** `POST /chats/{id}/page/announce`
+  and `/withdraw`, `GET /chats/{id}/page/take` and `POST /chats/{id}/page/answer` -- the page's
+  own protocol on the same registry -- and the Pyodide files at
+  `GET /pyodide/{version}/{name}`. `GET /me` carries `python`: whether it is switched on,
+  the version, and the files with their SHA-256 and sizes. A chat open only in an app had no
+  way to run Python at all.
 - `scripts/perf_measure.py`: the chat page and the end of a reply, measured in a headless
   browser against a 300-message chat (typing, long tasks while a reply streams, last token to
   `done` on both streams, how long the server's event loop was held).

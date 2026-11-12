@@ -39,6 +39,13 @@ and memory (`library.py`), the library's writes (`files.py`), a chat's tool and
 skill switches and `/allow/clear` (`chats.py`), and `PATCH /me` for language
 and theme, with `scopes`, `languages` and `themes` on `GET /me`.
 
+The composer's menus (beta.11, `menus.py`): a linked device's `/` commands and
+`@` files, what `@` offers from the server, and `POST /attachments/from`.
+
+The `python` tool's runner (beta.11, `python.py`): a chat's page protocol
+(announce, withdraw, take, answer) and the Pyodide files, so an app's window
+can be the page Python runs in; `python` on `GET /me` says whether it is on.
+
 Voice and images are not here: they are `/v1/audio/*` and
 `/v1/images/generations`, the OpenAI-compatible routes, which need the `models`
 scope. An app asks for `app models` at sign-in (the device login takes any of
@@ -60,7 +67,9 @@ def _include() -> None:
         files,
         folders,
         library,
+        menus,
         misc,
+        python,
         schedules,
         stream,
         terminal,
@@ -74,6 +83,11 @@ def _include() -> None:
     router.include_router(stream.router)
     router.include_router(misc.router)
     router.include_router(terminal.router)
+    # Before nothing it could shadow: `/devices/{id}/commands` and `/files`
+    # are longer than `misc`'s `/devices`, and `/attachments/from` is a POST
+    # where `/attachments/{id}` is a GET and a DELETE.
+    router.include_router(menus.router)
+    router.include_router(python.router)
 
 
 _include()

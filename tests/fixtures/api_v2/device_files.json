@@ -1,0 +1,16 @@
+{
+  "files": [
+    {
+      "path": "README.md",
+      "kind": "file",
+      "name": "README.md"
+    },
+    {
+      "path": "src/loader",
+      "kind": "dir",
+      "name": "loader"
+    }
+  ],
+  "error": "",
+  "device": "workstation"
+}

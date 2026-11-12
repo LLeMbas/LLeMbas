@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "kind": "file",
+      "path": "/home/frodo/bread.md",
+      "name": "bread.md",
+      "detail": "/home/frodo/bread.md"
+    },
+    {
+      "kind": "attachment",
+      "id": "att1",
+      "name": "recipe.pdf",
+      "detail": "document"
+    }
+  ]
+}

@@ -2701,5 +2701,8 @@ MESSAGES.update(
         'Stopped after this; the run then fails.': 'Ezután leáll, és a futás sikertelen.',
         'a computer no longer signed in': 'egy már nem bejelentkezett számítógép',
         'Earlier messages': 'Korábbi üzenetek',
+        'Name one thing to attach: an attachment, a path or a URL.': 'Egyetlen csatolandó dolgot adjon meg: mellékletet, útvonalat vagy URL-t.',
+        'That is not available to attach here.': 'Ez itt nem csatolható.',
+        'That file is too large to attach.': 'Ez a fájl túl nagy a csatoláshoz.',
     }
 )

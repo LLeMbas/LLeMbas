@@ -41,6 +41,7 @@ SHOWN_PERMISSIONS = (
 def _me(caller, db) -> dict[str, Any]:
     from lembas.api.preferences import themes
     from lembas.api.v1.services import available
+    from lembas.api.v2.python import state as python_state
     from lembas.services import branding
 
     user = caller.user
@@ -61,6 +62,7 @@ def _me(caller, db) -> dict[str, Any]:
             if theme.id in offered
         ],
         chosen_language=str((user.settings_json or {}).get("language") or ""),
+        python=python_state(db),
     )
 
 

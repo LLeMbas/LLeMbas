@@ -298,6 +298,7 @@ def me(
     languages: list[dict[str, str]] | None = None,
     themes: list[dict[str, str]] | None = None,
     chosen_language: str = "",
+    python: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """`GET /me`: the account, its language (the app's default until the
     person picks one), theme, default model, what it may do, and which of
@@ -307,7 +308,12 @@ def me(
     `scopes` are the calling token's: voice and images are `/v1`'s and need
     `models` beside `app`, so an app signed in with `app` alone knows to ask
     again. `languages` and `themes` are the choices `PATCH /me` takes;
-    `language_setting` is what the person chose ("" follows the instance)."""
+    `language_setting` is what the person chose ("" follows the instance).
+
+    `python`: the `python` tool runs in the page of its chat, and an app that
+    brings a runner is one (`api/v2/python.py`): whether it is switched on
+    here, the pinned Pyodide `version`, and its `files` (`name`, `sha256`,
+    `size`) under `GET /pyodide/{version}/{name}` -- nothing to fetch when off."""
     from lembas.api.v2 import APP_API
 
     return {
@@ -323,6 +329,7 @@ def me(
         "language_setting": chosen_language,
         "languages": list(languages or []),
         "themes": list(themes or []),
+        "python": python or {"enabled": False, "version": "", "files": []},
     }
 
 
@@ -470,6 +477,33 @@ def attachment(row: Any) -> dict[str, Any]:
         "width": int(row.width or 0),
         "height": int(row.height or 0),
     }
+
+
+def device_command(entry: dict[str, Any]) -> dict[str, str]:
+    """One `/` command a linked device offers (`device_link.clean_commands`):
+    `kind` is "custom", "skill", "builtin" or "" where the device did not say."""
+    return {
+        "name": str(entry.get("name") or ""),
+        "description": str(entry.get("description") or ""),
+        "hint": str(entry.get("hint") or ""),
+        "kind": str(entry.get("kind") or ""),
+    }
+
+
+def mentions(found: Any) -> list[dict[str, str]]:
+    """What `@` offers from the server (`services/menus.Mentions`), in the
+    order the page lists it: a page to read, files of the tree, then what was
+    already sent in this chat. `detail` is the line under the name."""
+    items: list[dict[str, str]] = []
+    if found.website:
+        items.append({"kind": "url", "url": found.website, "name": found.website, "detail": ""})
+    for node in found.tree_files:
+        items.append({"kind": "file", "path": node.path, "name": node.name, "detail": node.path})
+    for row in found.attachments:
+        items.append(
+            {"kind": "attachment", "id": row.id, "name": row.filename, "detail": row.kind or ""}
+        )
+    return items
 
 
 def queued_progress(row: Message, ahead: int | None = None) -> dict[str, Any] | None:

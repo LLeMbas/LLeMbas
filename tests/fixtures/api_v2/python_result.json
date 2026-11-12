@@ -1,0 +1,11 @@
+{
+  "stdout": "2\n",
+  "result": null,
+  "error": "",
+  "files": [
+    {
+      "path": "/home/frodo/out.txt",
+      "content_b64": "b2s="
+    }
+  ]
+}

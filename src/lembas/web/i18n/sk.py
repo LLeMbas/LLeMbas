@@ -3361,5 +3361,8 @@ MESSAGES.update(
         'Stopped after this; the run then fails.': 'Potom sa zastaví a spustenie zlyhá.',
         'a computer no longer signed in': 'počítač, ktorý už nie je prihlásený',
         'Earlier messages': 'Staršie správy',
+        'Name one thing to attach: an attachment, a path or a URL.': 'Uveďte jednu vec na priloženie: prílohu, cestu alebo adresu URL.',
+        'That is not available to attach here.': 'Toto sa tu nedá priložiť.',
+        'That file is too large to attach.': 'Tento súbor je príliš veľký na priloženie.',
     }
 )

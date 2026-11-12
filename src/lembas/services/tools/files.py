@@ -705,8 +705,37 @@ async def _run_show(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
 
 
 # --- python ----------------------------------------------------------------------------
+# How long a call waits for a page of its chat to appear before it is refused.
+# The first message of a new chat starts its reply while the browser is still
+# on its way to the chat's page, which then has to load the runner.
+PYTHON_ATTACH_WAIT = 20.0
+
+# The spec's sentences for a call no page answered and one that ran out of
+# time (harness spec 3.7.0, `tools/python.json` `texts`), word for word, for
+# as long as the vendored spec is older and does not carry them.
+_PYTHON_TEXTS = {
+    "no_answer": (
+        "Python did not run: a page of this chat is open, but it did not answer. It may "
+        "still be loading Python, or be asleep in a background tab — ask the person to "
+        "bring this chat to the front (or reload it), then call python again."
+    ),
+    "timeout": (
+        "Python stopped: the run took longer than {{seconds}} seconds, and nothing it "
+        "wrote was saved. Do less in one call, or split the work over several calls."
+    ),
+}
+
+
 def python_unavailable() -> str:
     return str(harness_spec.tools()["python"]["unavailable"])
+
+
+def python_text(key: str) -> str:
+    """One of the tool's other answers (`no_answer`, `timeout`), from the spec
+    where it has it."""
+    texts = harness_spec.tools()["python"].get("texts") or {}
+    text = str(texts.get(key) or _PYTHON_TEXTS[key])
+    return text.replace("{{seconds}}", str(PYTHON_SECONDS))
 
 
 async def _run_python(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
@@ -718,7 +747,7 @@ async def _run_python(context: ToolContext, args: dict[str, Any]) -> ToolOutcome
     "limits": {"seconds", "memory", "output_chars"}}`; its answer (`answer`):
     `{"stdout", "result", "error", "files": [{"path", "content_b64"}]}`.
     """
-    if not pages.attached(context.chat_id):
+    if not await pages.wait_attached(context.chat_id, timeout=PYTHON_ATTACH_WAIT):
         return _refused("python", python_unavailable())
     code = str(args.get("code") or "")
     wanted = [str(p) for p in (args.get("files") or []) if str(p).strip()]
@@ -748,8 +777,12 @@ async def _run_python(context: ToolContext, args: dict[str, Any]) -> ToolOutcome
     }
     try:
         answer = await pages.run(context.chat_id, request, timeout=PYTHON_SECONDS + 15)
-    except (pages.NotAttached, TimeoutError):
+    except pages.NotAttached:
         return _refused("python", python_unavailable())
+    except pages.NoAnswer:
+        return _refused("python", python_text("no_answer"))
+    except TimeoutError:
+        return _refused("python", python_text("timeout"))
     stdout = str(answer.get("stdout") or "")[:PYTHON_OUTPUT_CHARS]
     result = answer.get("result")
     error = str(answer.get("error") or "")

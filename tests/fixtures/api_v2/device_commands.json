@@ -1,0 +1,17 @@
+{
+  "commands": [
+    {
+      "name": "review",
+      "description": "Review the working tree's changes",
+      "hint": "[base]",
+      "kind": "skill"
+    },
+    {
+      "name": "compact",
+      "description": "Summarise the session so far",
+      "hint": "",
+      "kind": ""
+    }
+  ],
+  "device": "workstation"
+}

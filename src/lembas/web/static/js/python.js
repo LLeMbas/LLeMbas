@@ -74,33 +74,75 @@
     });
   }
 
-  function loop() {
+  /* One loop at a time, and it can be started again: a page put away and
+     brought back (the back/forward cache) had stopped for good, and from then
+     on the chat in front of the person "had no page". */
+  var looping = false;
+  var retryIn = 2000;
+
+  function again(after) {
+    looping = false;
     if (stopped) return;
+    setTimeout(loop, after);
+  }
+
+  function loop() {
+    if (stopped || looping) return;
+    looping = true;
     fetch(base + "take?page=" + page, { credentials: "same-origin" })
       .then(function (response) {
         if (response.status === 200) return response.json();
         if (response.status === 204) return null;
+        if (response.status === 410) {
+          /* The server does not know this page (it restarted, or forgot a tab
+             that was asleep): say so again, then ask -- after a moment, not at
+             once, or this is a loop as fast as the network. */
+          announce();
+          var gone = new Error("unknown page");
+          gone.unknown = true;
+          throw gone;
+        }
         throw new Error("take " + response.status);
       })
       .then(function (request) {
+        retryIn = 2000;
         if (!request) return null;
         return run(request).then(function (result) {
           return post("answer", { page_id: page, call_id: request.call_id, result: result });
         });
       })
-      .then(function () { loop(); })
-      .catch(function () { setTimeout(loop, 5000); });
+      .then(function () { again(0); })
+      .catch(function (error) {
+        var wait = error && error.unknown ? 2000 : retryIn;
+        if (!(error && error.unknown)) retryIn = Math.min(retryIn * 2, 30000);
+        again(wait);
+      });
   }
 
-  announce();
+  function start() {
+    stopped = false;
+    announce();
+    loop();
+  }
+
+  start();
+  /* A browser slows a background tab's timers, down to one a minute; the
+     server allows for that (`pages.TTL`), and the long poll itself counts as a
+     sign of life. */
   setInterval(announce, 20000);
-  loop();
 
   window.addEventListener("pagehide", function () {
     stopped = true;
     try {
       navigator.sendBeacon(base + "withdraw", new Blob([JSON.stringify({ page_id: page })],
         { type: "application/json" }));
-    } catch (error) { /* the server forgets a silent page after a minute anyway */ }
+    } catch (error) { /* the server forgets a silent page after a while anyway */ }
+  });
+  /* Shown again -- restored by Back from the cache, where `pagehide` had
+     withdrawn it and nothing announced it again -- or brought to the front
+     after a while in the background: attached again at once. */
+  window.addEventListener("pageshow", start);
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") start();
   });
 })();

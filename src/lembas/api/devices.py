@@ -423,38 +423,8 @@ async def browse_device(
     )
 
 
-def _owned_device(db, user, token_id: str):
-    """One of this person's device tokens that may run agent chats now, or 404."""
-    from lembas.db.models import TOKEN_DEVICE, ApiToken
-    from lembas.services import device_link
-
-    token = db.get(ApiToken, token_id)
-    if (
-        token is None
-        or token.user_id != user.id
-        or token.kind != TOKEN_DEVICE
-        or device_link.refusal(db, user, token.id)
-    ):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such device.")
-    return token
-
-
-def _where(db, user, token_id: str, chat_id: str, cwd: str) -> dict[str, str]:
-    """What a device question is about: the chat's session when it has
-    one -- the device knows its root -- else the chat's directory, else the one
-    the new-chat screen has chosen."""
-    from lembas.db.models import Chat
-
-    if chat_id:
-        chat = db.get(Chat, chat_id)
-        if chat is None or chat.user_id != user.id or chat.device_token_id != token_id:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "That chat no longer exists.")
-        if chat.device_session_id:
-            return {"sessionId": chat.device_session_id}
-        cwd = chat.project_dir or cwd
-    return {"cwd": cwd} if cwd.strip() else {}
-
-
+# What `/` and `@` offer from a linked device is `services/menus.py`, shared
+# with `/api/v2` (`api/v2/menus.py`): these two routes are the page's door.
 @router.get("/api/devices/{token_id}/files")
 async def device_files(
     request: Request,
@@ -465,42 +435,15 @@ async def device_files(
     chat_id: str = "",
     cwd: str = "",
 ):
-    """What `@` offers from a linked device (capability `files`): the
-    device's own file index, ranked as its terminal's `@` picker ranks it. A
-    chosen file goes in as `@path` text -- the device reads it when it gets the
-    prompt, so nothing is copied here. Empty, saying nothing, for a device that
-    cannot answer; the composer still offers the rest."""
-    from lembas.services import device_link
+    """What `@` offers from a linked device (capability `files`), as the
+    composer's list. See `menus.device_files`."""
+    from lembas.services import menus
 
-    _owned_device(db, user, token_id)
-    where = _where(db, user, token_id, chat_id, cwd)
-    link = device_link.link_for(token_id)
-    files: list[dict[str, str]] = []
-    error = ""
-    if link is not None and link.can("files") and where:
-        try:
-            got = await link.request(
-                "_lembas/files/search", {**where, "query": q[:200], "limit": 20}, timeout=5
-            )
-        except device_link.DeviceError as exc:
-            error = str(exc)
-        except (device_link.LinkClosed, TimeoutError):
-            error = i18n.t("The device did not answer.")
-        else:
-            for entry in (got or {}).get("files") or []:
-                path = str((entry or {}).get("path") or "") if isinstance(entry, dict) else ""
-                if path and "\n" not in path and len(path) <= 1000:
-                    kind = "dir" if entry.get("kind") == "dir" else "file"
-                    files.append({"path": path, "kind": kind,
-                                  "name": path.rstrip("/").rsplit("/", 1)[-1] or path})
+    found = await menus.device_files(db, user, token_id, q=q, chat_id=chat_id, cwd=cwd)
     return render(
         request,
         "chat/_device_files.html",
-        {
-            "files": files[:50],
-            "error": error,
-            "device": device_link.short_name(link) if link else "",
-        },
+        {"files": found.files, "error": found.error, "device": found.device},
     )
 
 
@@ -509,30 +452,12 @@ async def device_commands(
     db: Db, user: RequiredUser, token_id: str, chat_id: str = "", cwd: str = ""
 ) -> JSONResponse:
     """The `/` commands a linked device offers here (capability
-    `commands`): the set its session last announced, or, for a composer with a
-    directory and no session yet, the device's answer to `_lembas/commands`.
-    Only the commands that make sense without its terminal ever come."""
-    from lembas.services import device_link
+    `commands`). See `menus.device_commands`."""
+    from lembas.services import menus
 
-    _owned_device(db, user, token_id)
-    where = _where(db, user, token_id, chat_id, cwd)
-    link = device_link.link_for(token_id)
-    commands: list[dict[str, Any]] = []
-    if link is not None and link.can("commands") and where:
-        session = where.get("sessionId", "")
-        if session and session in link.commands:
-            commands = link.commands[session]
-        else:
-            try:
-                got = await link.request("_lembas/commands", where, timeout=5)
-                commands = device_link.clean_commands((got or {}).get("commands"))
-            except (device_link.DeviceError, device_link.LinkClosed, TimeoutError):
-                commands = []
-            if session:
-                link.commands[session] = commands
+    commands, device = await menus.device_commands(db, user, token_id, chat_id=chat_id, cwd=cwd)
     return JSONResponse(
-        {"commands": commands, "device": device_link.short_name(link) if link else ""},
-        headers={"Cache-Control": "no-store"},
+        {"commands": commands, "device": device}, headers={"Cache-Control": "no-store"}
     )
 
 

@@ -468,6 +468,69 @@ def _files() -> dict[str, object]:
     }
 
 
+def _menus() -> dict[str, object]:
+    """The composer's `/` and `@` menus (`api/v2/menus.py`): a linked device's
+    commands and files, what `@` offers from the server, and what
+    `POST /attachments/from` answers -- the object `POST /attachments` does."""
+    from lembas.services import menus
+
+    commands = device_link.clean_commands([
+        {"name": "review", "description": "Review the working tree's changes",
+         "input": {"hint": "[base]"}, "_meta": {"lembas": {"kind": "skill"}}},
+        {"name": "compact", "description": "Summarise the session so far"},
+    ])
+    offered = menus.Mentions(
+        attachments=[SimpleNamespace(id="att1", filename="recipe.pdf", kind="document")],
+        tree_files=[SimpleNamespace(path="/home/frodo/bread.md", name="bread.md")],
+    )
+    page = menus.Mentions(website="https://example.org/waybread")
+    attached = SimpleNamespace(
+        id="att2", filename="bread.md", media_type="text/markdown", size_bytes=412,
+        kind="text", is_image=False, width=0, height=0,
+    )
+    return {
+        "device_commands": {
+            "commands": [serialise.device_command(c) for c in commands],
+            "device": "workstation",
+        },
+        "device_files": {
+            "files": [
+                {"path": "README.md", "kind": "file", "name": "README.md"},
+                {"path": "src/loader", "kind": "dir", "name": "loader"},
+            ],
+            "error": "",
+            "device": "workstation",
+        },
+        # The `python` tool's runner (`api/v2/python.py`): `python` on
+        # `GET /me` where it is switched on, the call a runner takes
+        # (`GET /chats/{id}/page/take`) and the `result` it answers with.
+        "python_state": {
+            "enabled": True,
+            "version": "0.28.3",
+            "files": [
+                {"name": "pyodide.asm.wasm", "sha256": "0" * 64, "size": 8765432},
+                {"name": "pyodide.mjs", "sha256": "1" * 64, "size": 17931},
+            ],
+        },
+        "python_call": {
+            "call_id": "0123456789abcdef",
+            "code": "import csv\nprint(sum(1 for _ in csv.reader(open('/home/frodo/in.csv'))))",
+            "files": [{"path": "/home/frodo/in.csv", "content_b64": "YSxiCjEsMgo="}],
+            "save": ["/home/frodo/out.txt"],
+            "limits": {"seconds": 30, "memory": "512 MB", "output_chars": 20000},
+        },
+        "python_result": {
+            "stdout": "2\n",
+            "result": None,
+            "error": "",
+            "files": [{"path": "/home/frodo/out.txt", "content_b64": "b2s="}],
+        },
+        "mentions": {"items": serialise.mentions(offered)},
+        "mentions_url": {"items": serialise.mentions(page)},
+        "attachment_from": {"attachment": serialise.attachment(attached)},
+    }
+
+
 def _parity() -> dict[str, object]:
     """The routes the apps need to catch up with the web: folders, search,
     memory and a chat's switches (`folders.py`, `library.py`, `chats.py`)."""
@@ -866,6 +929,7 @@ def _shapes() -> dict[str, object]:
         **_apps(),
         **_files(),
         **_parity(),
+        **_menus(),
         **_activity(),
         **_schedules(),
     }

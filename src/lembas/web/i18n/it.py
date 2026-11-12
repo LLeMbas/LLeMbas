@@ -2701,5 +2701,8 @@ MESSAGES.update(
         'Stopped after this; the run then fails.': "Poi viene fermato e l'esecuzione fallisce.",
         'a computer no longer signed in': 'un computer non più connesso',
         'Earlier messages': 'Messaggi precedenti',
+        'Name one thing to attach: an attachment, a path or a URL.': 'Indica una sola cosa da allegare: un allegato, un percorso o un URL.',
+        'That is not available to attach here.': 'Non è possibile allegarlo qui.',
+        'That file is too large to attach.': 'Il file è troppo grande per essere allegato.',
     }
 )

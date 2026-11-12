@@ -2701,5 +2701,8 @@ MESSAGES.update(
         'Stopped after this; the run then fails.': 'Arrêtée au-delà ; l’exécution échoue alors.',
         'a computer no longer signed in': 'un ordinateur qui n’est plus connecté',
         'Earlier messages': 'Messages précédents',
+        'Name one thing to attach: an attachment, a path or a URL.': 'Indiquez une seule chose à joindre : une pièce jointe, un chemin ou une URL.',
+        'That is not available to attach here.': 'Cela ne peut pas être joint ici.',
+        'That file is too large to attach.': 'Ce fichier est trop volumineux pour être joint.',
     }
 )
