@@ -55,6 +55,8 @@ def test_a_block_says_which_state_it_is_in_and_how_long_it_took():
     assert (failed.state, failed.duration, failed.chips) == ("failed", "1m 05s", ("exit 2",))
     denied = tool_blocks.block_for({**call, "status": "denied", "ms": 12})
     assert (denied.state, denied.duration) == ("denied", ""), "a call not run took no time"
+    # A subagent stopped at a limit gave its account: not a failure.
+    assert tool_blocks.block_for({"name": "task", "status": "stopped"}).state == "done"
     # A stored call whose time was not kept shows none.
     assert tool_blocks.block_for({**call, "status": "ok"}).duration == ""
 

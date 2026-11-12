@@ -249,9 +249,12 @@ def test_python_needs_an_attached_page(db):
     user, chat = _setup(db)
     s = Session(user, chat)
     _, outcome = s.call("python", code="print(1)")
-    assert outcome.content == (
-        "Python cannot run now: no open browser page is attached to this chat."
-    )
+    # The spec's sentence for "no page" (3.7.0 says where Python runs and
+    # what to ask the person), word for word.
+    from lembas.services.tools import files as file_tools
+
+    assert outcome.content == file_tools.python_unavailable()
+    assert outcome.content.startswith("Python cannot run now: no page of this chat is open.")
     db.refresh(chat)
     offered = _offered(db, chat, user)
     assert "python" not in offered and "read" in offered and "recall" in offered

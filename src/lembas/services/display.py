@@ -102,7 +102,10 @@ def state(event: dict[str, Any]) -> str:
         return DENIED
     if status in ("running", "pending"):
         return RUNNING
-    if status in ("ok", "done", ""):
+    # `stopped`: a subagent stopped at a limit. Its result came -- its account
+    # of what it got done -- and the card says "stopped" beside it; that is
+    # not the tool failing.
+    if status in ("ok", "done", "", "stopped"):
         return DONE
     return FAILED
 
