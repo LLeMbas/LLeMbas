@@ -3,7 +3,7 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
-## Unreleased
+## 2.0.0-beta.11 — 2026-11-12
 
 For 2.0.0-beta.11. The harness spec is **3.7.0** (one display in every client; Python's three
 answers), vendored from the LLeMbas CLI's `dev` and pinned to its tag at release.
