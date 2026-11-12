@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
@@ -368,3 +369,182 @@ def test_the_new_chat_screen_offers_no_rename(client: TestClient, db, registered
     """There is no row to rename until the first message is sent."""
     _add_connection(db)
     assert 'data-prompt-field="title"' not in client.get("/chat").text
+
+
+# --- The end of a reply, in a thread -------------------------------------------------
+async def test_a_reply_regenerated_while_it_is_being_written_down_is_not_kept(
+    db, user_id, monkeypatch
+):
+    """`_persist` runs in a thread. It asked "has another generation taken
+    this row?" once, at its start; a regeneration between that and the commit
+    let the abandoned reply be committed over the fresh one's blank row --
+    complete, its usage counted, marked unread."""
+    import asyncio
+    import threading
+
+    from lembas.db.models import Usage
+    from lembas.services import usage as usage_service
+
+    _add_connection(db)
+    chat_id, message_id = _chat_awaiting_a_reply(db, user_id)
+    generation = generation_service.Generation(chat_id=chat_id, message_id=message_id)
+    generation.content.append("The abandoned answer.")
+    generation.completion_tokens = 7
+    generation_service._RUNNING[message_id] = generation
+
+    reached, release = threading.Event(), threading.Event()
+    real = usage_service.record
+
+    def record(*args, **kwargs):  # the last thing before the commit
+        out = real(*args, **kwargs)
+        reached.set()
+        release.wait(5)
+        return out
+
+    monkeypatch.setattr(usage_service, "record", record)
+    writing = asyncio.create_task(
+        asyncio.to_thread(generation_service._persist, generation, "", 1.0)
+    )
+    assert await asyncio.to_thread(reached.wait, 5)
+    # What `restart` does: the row belongs to another generation now.
+    generation_service._RUNNING[message_id] = generation_service.Generation(
+        chat_id=chat_id, message_id=message_id
+    )
+    release.set()
+    await writing
+
+    db.expire_all()
+    row = db.get(Message, message_id)
+    assert row.complete is False and row.content == ""
+    assert db.scalar(select(Usage)) is None, "the superseded reply's usage was counted"
+    assert db.get(Chat, chat_id).unread is False
+
+
+async def test_a_cancel_while_the_reply_is_written_down_starts_nothing_new(
+    db, user_id, monkeypatch
+):
+    """A shutdown that lands during the threaded write: the reply is saved,
+    and the next queued prompt is NOT handed to a new reply on a server that
+    is going down."""
+    import asyncio
+    import threading
+
+    _add_connection(db)
+    chat_id, message_id = _chat_awaiting_a_reply(db, user_id)
+    monkeypatch.setattr(generation_service, "stream_chat", _stub_stream("Like so."))
+
+    async def _titled(*args, **kwargs):
+        return "A title"
+
+    monkeypatch.setattr(chat_service, "generate_title", _titled)
+    reached, release = threading.Event(), threading.Event()
+    real = generation_service._persist
+
+    def persist(*args, **kwargs):
+        reached.set()
+        release.wait(5)
+        return real(*args, **kwargs)
+
+    drained: list[str] = []
+    monkeypatch.setattr(generation_service, "_persist", persist)
+    monkeypatch.setattr(generation_service, "_drain", lambda g: drained.append(g.message_id))
+
+    generation = generation_service.Generation(chat_id=chat_id, message_id=message_id)
+    task = asyncio.create_task(generation_service._run(generation))
+    assert await asyncio.to_thread(reached.wait, 5)
+    task.cancel()
+    release.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert generation.done and drained == []
+    assert generation.title_task is None, "no title is asked for on the way down"
+    db.expire_all()
+    assert db.get(Message, message_id).complete is True
+    assert db.get(Message, message_id).content == "Like so."
+    # Not cancelled: the queue is drained as before.
+    other_chat, other = _chat_awaiting_a_reply(db, user_id)
+    monkeypatch.setattr(generation_service, "_persist", real)
+    await generation_service._run(
+        generation_service.Generation(chat_id=other_chat, message_id=other)
+    )
+    assert drained == [other]
+
+
+async def test_two_replies_back_to_back_ask_for_one_title(db, user_id, monkeypatch):
+    """A queued second message is answered while the first reply's title is
+    still out: it used to launch a second title call -- up to the limit again
+    on a one-slot model -- for a name already on its way."""
+    import asyncio
+
+    _add_connection(db)
+    chat_id, message_id = _chat_awaiting_a_reply(db, user_id)
+    monkeypatch.setattr(generation_service, "stream_chat", _stub_stream("Like so."))
+    release = asyncio.Event()
+    calls: list[str] = []
+
+    async def _slow(_endpoint, _model, question, *_a, **_k):
+        calls.append(question)
+        await release.wait()
+        return "Search indexing, explained"
+
+    monkeypatch.setattr(chat_service, "generate_title", _slow)
+    first = generation_service.Generation(chat_id=chat_id, message_id=message_id)
+    await generation_service._run(first)
+    assert generation_service.title_pending(chat_id)
+
+    db.add(Message(chat_id=chat_id, role="user", content="And the second?", complete=True))
+    db.commit()
+    again = Message(chat_id=chat_id, role=ROLE_ASSISTANT, content="", complete=False)
+    db.add(again)
+    db.commit()
+    second = generation_service.Generation(chat_id=chat_id, message_id=again.id)
+    await generation_service._run(second)
+    await asyncio.sleep(0.05)
+    # The same answer is waited on by both replies' followers.
+    assert second.title_task is first.title_task
+
+    release.set()
+    assert await first.title_task == "Search indexing, explained"
+    assert len(calls) == 1
+    db.expire_all()
+    assert db.get(Chat, chat_id).title == "Search indexing, explained"
+
+    # A chat named meanwhile is not asked about at all.
+    third = Message(chat_id=chat_id, role=ROLE_ASSISTANT, content="", complete=False)
+    db.add(third)
+    db.commit()
+    await generation_service._run(
+        generation_service.Generation(chat_id=chat_id, message_id=third.id)
+    )
+    assert len(calls) == 1
+
+
+async def test_a_rename_is_never_overwritten_and_shutdown_cancels_the_naming(
+    db, user_id, monkeypatch
+):
+    import asyncio
+
+    _add_connection(db)
+    chat_id, message_id = _chat_awaiting_a_reply(db, user_id)
+    # The write carries its own condition: a renamed chat is not touched.
+    chat = db.get(Chat, chat_id)
+    chat.title, chat.title_generated = "Orthanc", True
+    db.commit()
+    assert generation_service._store_title(chat_id, "From the model") == "Orthanc"
+    db.expire_all()
+    assert db.get(Chat, chat_id).title == "Orthanc"
+
+    other_chat, other = _chat_awaiting_a_reply(db, user_id)
+    monkeypatch.setattr(generation_service, "stream_chat", _stub_stream("Like so."))
+
+    async def _never(*args, **kwargs):
+        await asyncio.sleep(60)
+
+    monkeypatch.setattr(chat_service, "generate_title", _never)
+    generation = generation_service.Generation(chat_id=other_chat, message_id=other)
+    await generation_service._run(generation)
+    await asyncio.sleep(0.05)
+    assert generation_service.title_pending(other_chat)
+    await generation_service.shutdown()
+    assert generation.title_task.cancelled() and generation_service._TITLES == {}

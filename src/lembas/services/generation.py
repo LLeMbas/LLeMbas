@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from lembas.db.models import (
     KIND_AGENT,
@@ -697,9 +697,15 @@ async def shutdown() -> None:
     """Stop every running generation, keeping what each has produced."""
     for task in list(_TASKS.values()):
         task.cancel()
-    for task in list(_TASKS.values()):
+    # And the chats being named: a title call left out would hold the model's
+    # request open past the shutdown, to write into a database that is closing.
+    naming = list(_TITLES.values())
+    for task in naming:
+        task.cancel()
+    for task in [*_TASKS.values(), *naming]:
         with contextlib.suppress(asyncio.CancelledError, Exception):
             await task
+    _TITLES.clear()
 
 
 # --- A reasoning effort the model will not take ------------------------------
@@ -1582,7 +1588,15 @@ async def _run(generation: Generation) -> None:
         # reply stayed "Writing" for as long as the title took.
         title = ""
         title_job = None
-        if needs_title and question:
+        # A model is already naming this chat (the reply before this one, a
+        # queued second message answered while that title is still out): one
+        # call, not two -- on a one-slot server the second would hold the
+        # model for up to the limit again, for a name the chat already has
+        # coming.
+        naming = _TITLES.get(generation.chat_id)
+        if naming is not None and naming.done():
+            naming = None
+        if needs_title and question and naming is None:
             title = chat_service.fallback_title(question)
             # Not after a Stop or an error, and not where the prompt *is* the
             # title (an agent chat, a read-only temporary one).
@@ -1627,12 +1641,22 @@ async def _run(generation: Generation) -> None:
                 _announce(announce)
         if title_job is not None and not cancelled and _owns(generation):
             generation.title_task = _title_later(generation.chat_id, title, title_job)
+        elif naming is not None:
+            # Already being named, by the reply before this one: followers of
+            # this reply wait on the same answer.
+            generation.title_task = naming
         # After the row is authoritative and before `done`, for the same reason
         # `_persist` is: `_follow` breaks the instant it sees that flag, and the
         # frame it then sends is the one that has to carry the next turn's
         # bubbles. There is no push channel that outlives a single reply.
         #
-        _drain(generation)
+        # Not when this task was cancelled while the row was being written (a
+        # shutdown, a regeneration): `_drain` refuses a stopped reply, which is
+        # what makes shutdown safe, but a cancel that lands during the threaded
+        # write has not marked this one stopped -- and would start the next
+        # queued reply on a server that is going down.
+        if not cancelled:
+            _drain(generation)
         generation.done = True
         generation.finished_at = datetime.now(UTC)
         generation.touch()
@@ -1694,6 +1718,11 @@ def _title_later(chat_id: str, provisional: str, job: dict) -> asyncio.Task:
     """
 
     async def work() -> str:
+        # Named meanwhile (by the person, or by a title that landed between
+        # this reply's start and its end): nothing to ask a model for.
+        named = await asyncio.to_thread(_named_title, chat_id)
+        if named is not None:
+            return named
         title = ""
         try:
             title = await asyncio.wait_for(
@@ -1724,19 +1753,35 @@ def _title_later(chat_id: str, provisional: str, job: dict) -> asyncio.Task:
     return task
 
 
-def _store_title(chat_id: str, title: str) -> str:
-    """Write the generated title, unless the chat was named meanwhile. Returns
-    the chat's title as it stands."""
+def _named_title(chat_id: str) -> str | None:
+    """The chat's title when it is already named (or the chat is gone: ""),
+    else None."""
     try:
         with session_scope() as db:
             chat = db.get(Chat, chat_id)
             if chat is None:
                 return ""
-            if not chat.title_generated:
-                chat.title = title
-                chat.title_generated = True
-                db.commit()
-            return chat.title
+            return chat.title if chat.title_generated else None
+    except Exception:
+        return None
+
+
+def _store_title(chat_id: str, title: str) -> str:
+    """Write the generated title, unless the chat was named meanwhile. Returns
+    the chat's title as it stands.
+
+    One statement, with the condition in it: read-then-write in two steps let
+    a rename that landed between them be overwritten by the model's title."""
+    try:
+        with session_scope() as db:
+            db.execute(
+                update(Chat)
+                .where(Chat.id == chat_id, Chat.title_generated.is_(False))
+                .values(title=title[:300], title_generated=True)
+            )
+            db.commit()
+            chat = db.get(Chat, chat_id)
+            return chat.title if chat is not None else ""
     except Exception:
         log.exception("could not store the title of chat %s", chat_id)
         return ""
@@ -3105,6 +3150,17 @@ def _persist(
                         "extra": {"chat_id": chat.id, "message_id": message.id},
                     }
 
+            # Asked again, here: this runs in a thread now, and a regeneration
+            # may have taken the row over since the check at the top -- between
+            # the two, the abandoned reply would be committed over the fresh
+            # one's blank row (complete, with its usage counted and an unread
+            # mark and a push for a reply nobody asked to keep).
+            if not _owns(generation):
+                db.rollback()
+                log.debug(
+                    "superseded while persisting generation %s", generation.message_id
+                )
+                return None
             db.commit()
             log.debug(
                 "chat %s finished: %d chars, %d reasoning, %.1fs",
