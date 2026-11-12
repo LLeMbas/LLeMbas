@@ -243,7 +243,7 @@
 
     {% else %}
       <div class="thread-scroll" id="thread-scroll">
-        <div class="thread" id="thread">
+        <div class="thread" id="thread"{% if jump_to %} data-jump="msg-{{ jump_to }}"{% endif %}>
           {% if not messages %}
           <div class="thread__intro">
             {{ scene() }}

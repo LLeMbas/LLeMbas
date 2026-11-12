@@ -2700,5 +2700,6 @@ MESSAGES.update(
         'The command may take (seconds)': 'La commande peut durer (secondes)',
         'Stopped after this; the run then fails.': 'Arrêtée au-delà ; l’exécution échoue alors.',
         'a computer no longer signed in': 'un ordinateur qui n’est plus connecté',
+        'Earlier messages': 'Messages précédents',
     }
 )

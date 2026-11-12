@@ -115,6 +115,26 @@
     el.style.overflowY = el.scrollHeight > max ? "auto" : "hidden";
   }
 
+  /* While typing: once a frame, not once a key. Measuring a box sets its
+     height twice and reads `scrollHeight` between, which makes the browser lay
+     the page out there and then -- and a held key or a fast typist is several
+     input events a frame. The measure waits for the frame those keys are
+     painted in; everything else that sizes a box (a send, a command, a
+     dictation) still calls `autosize` and gets its answer at once. */
+  var toSize = [];
+  function autosizeSoon(el) {
+    if (!el) return;
+    if (!window.requestAnimationFrame) { autosize(el); return; }
+    if (toSize.indexOf(el) !== -1) return;
+    toSize.push(el);
+    if (toSize.length > 1) return;
+    window.requestAnimationFrame(function () {
+      var boxes = toSize;
+      toSize = [];
+      boxes.forEach(function (box) { if (box.isConnected) autosize(box); });
+    });
+  }
+
   /* --- Copy --------------------------------------------------------------
      Falls back to a hidden textarea because navigator.clipboard is unavailable
      on pages served over plain http, which self-hosted installs often are. */
@@ -302,9 +322,95 @@
       if (top === placed) return;
       if (up) stick = false;
       else if (isNearBottom(thread)) stick = true;
+      reading(thread);
+      if (up) wantEarlier(thread);
     },
     true
   );
+
+  /* While the reader is somewhere up the transcript, the browser's scroll
+     anchoring is theirs to have: the messages above them are only laid out
+     when they come into view (`content-visibility` in chat.css), an earlier
+     page arrives above them, and anchoring is what keeps the line they are
+     reading where it is through both. While the page follows a reply it stays
+     off, for the reason chat.css gives. */
+  function reading(thread) {
+    thread.classList.toggle("is-reading", !stick);
+  }
+
+  /* --- Earlier messages ---------------------------------------------------
+     The page holds the newest messages; the row at the top of the thread
+     fetches the page above (`chat/_thread.html`). Pressed here when the
+     reader has scrolled up to within a screen of it, so going up through a
+     long chat needs no button -- and the view is put back where it was after
+     the page lands above it, for the browsers that do not anchor. */
+  var EARLIER_WITHIN = 800;
+  var keepFromBottom = -1;
+
+  function wantEarlier(thread) {
+    if (thread.scrollTop > EARLIER_WITHIN) return;
+    var button = thread.querySelector("[data-thread-earlier]");
+    if (button && window.htmx && !button.classList.contains("htmx-request")) {
+      window.htmx.trigger(button, "lembas:earlier");
+    }
+  }
+
+  function isEarlier(event) {
+    var path = event.detail && event.detail.pathInfo && event.detail.pathInfo.requestPath;
+    return !!(path && path.indexOf("/earlier") !== -1);
+  }
+
+  function noteEarlier(event) {
+    if (!isEarlier(event)) return;
+    var thread = document.getElementById("thread-scroll");
+    if (thread) keepFromBottom = thread.scrollHeight - thread.scrollTop;
+  }
+
+  function placeEarlier(event) {
+    if (!isEarlier(event) || keepFromBottom < 0) return;
+    var thread = document.getElementById("thread-scroll");
+    var from = keepFromBottom;
+    keepFromBottom = -1;
+    if (!thread) return;
+    /* The same distance from the bottom as before the page arrived: the same
+       place, whatever was added above. Where the browser has already anchored
+       the view, this sets what is there. */
+    var top = thread.scrollHeight - from;
+    if (Math.abs(thread.scrollTop - top) > 1) thread.scrollTop = top;
+    lastTop = thread.scrollTop;
+  }
+
+  /* The bottom moves without anything being swapped: a reply off the screen
+     has an estimated height until it is first laid out (`content-visibility`
+     in chat.css), a picture loads, a font arrives. While the page is
+     following, it follows that too -- or it would open a screen short of the
+     newest message, having scrolled to a bottom that then moved. Asked through
+     `scrollThread`, so it is still one scroll a frame from one owner, and
+     nothing happens while the reader is somewhere else. */
+  function followHeight() {
+    var thread = document.getElementById("thread");
+    if (!thread || !window.ResizeObserver) return;
+    new ResizeObserver(function () { scrollThread(false); }).observe(thread);
+  }
+
+  /* A link to one message (`/chat/<id>?at=<message>`, a search hit): the page
+     opens on it rather than at the bottom, and says which one it is. */
+  function jumpToMessage() {
+    var thread = document.getElementById("thread");
+    var id = thread && thread.getAttribute("data-jump");
+    var target = id && document.getElementById(id);
+    if (!target) return false;
+    stick = false;
+    var scroller = document.getElementById("thread-scroll");
+    if (scroller) {
+      var top = target.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+      scroller.scrollTop += top - 16;
+      lastTop = scroller.scrollTop;
+      reading(scroller);
+    }
+    target.classList.add("msg--jumped");
+    return true;
+  }
 
   /* `toggle` does not bubble, so this has to be registered in the CAPTURE phase.
      Without the third argument the listener is never called and the whole thing
@@ -975,7 +1081,7 @@
   });
 
   document.addEventListener("input", function (event) {
-    if (event.target.matches("[data-autosize]")) autosize(event.target);
+    if (event.target.matches("[data-autosize]")) autosizeSoon(event.target);
   });
 
   /* A "select all" box driving every checkbox inside a container. Scoped to a
@@ -1077,7 +1183,8 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll("[data-autosize]").forEach(autosize);
-    scrollThread(true);
+    if (!jumpToMessage()) scrollThread(true);
+    followHeight();
     applyTheme(currentTheme());
     setupDropzone();
     setupResize();
@@ -1320,6 +1427,9 @@
      reaches the panel, and they come ten times a second. The stream frames
      that do carry the section out of band are `activity`, `jobs` and `done`. */
   var CARRIES_PANEL = { activity: true, jobs: true, done: true };
+  document.body.addEventListener("htmx:beforeSwap", noteEarlier);
+  document.body.addEventListener("htmx:afterSettle", placeEarlier);
+
   function noteOpenBeforeSwap(event) {
     if (!isStreamFrame(event)) noteOpen();
   }

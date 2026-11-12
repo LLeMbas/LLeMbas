@@ -55,6 +55,7 @@ from lembas.services import prompts as prompts_service
 from lembas.services import steps as steps_service
 from lembas.services import subagent as subagent_service
 from lembas.services import team as team_rules
+from lembas.services import thread as thread_service
 from lembas.services import tokens as tokens_service
 from lembas.services import tools as tools_service
 from lembas.services.agent import policy as agent_policy
@@ -978,6 +979,30 @@ async def device_model_badge(
         request,
         "chat/_device_model.html",
         {"request": request, "chat": chat, "picker_label": label},
+    )
+
+
+@router.get("/{chat_id}/earlier")
+def thread_earlier(
+    request: Request, db: Db, user: RequiredUser, chat_id: str, before: str = ""
+) -> Response:
+    """The page of the conversation above the oldest message a page holds.
+
+    A chat page draws its newest messages (`services/thread.py`); this is what
+    the "Earlier messages" row at its top fetches, replacing itself with the
+    page above -- which begins with the next such row, or with the summarised
+    turns when it reaches the first message.
+    """
+    chat = _owned_chat(db, chat_id, user.id)
+    known = db.get(Message, before) if before else None
+    if known is None or known.chat_id != chat.id:
+        # A cursor a rewind has since deleted: nothing to add above it. The
+        # row goes; a reload shows the conversation as it now is.
+        return Response(status_code=status.HTTP_200_OK)
+    return templates.TemplateResponse(
+        request,
+        "chat/_thread.html",
+        {"request": request, **_thread_context(db, chat, user, before=before)},
     )
 
 
@@ -1975,17 +2000,43 @@ def _metrics_html(generation) -> str:
     )
 
 
-def _thread_context(db: DBSession, chat: Chat, user: User) -> dict:
-    """Everything chat/_thread.html needs to render the conversation."""
+def thread_window(db: DBSession, chat: Chat, *, before: str = "", at: str = "") -> dict:
+    """The part of the conversation a page draws (`services/thread.py`): the
+    newest page of it, the page above `before`, or from the message `at` on.
+
+    The template's `messages` is that page; `earlier` names the message the
+    next page up ends before ("" when there is none); the summarised turns are
+    drawn only at the very top, with the first page; and `thread_inline` is
+    worked out over the whole conversation, because a message taken into a
+    reply is hidden as a bubble wherever the page boundary falls.
+    """
     everything = list(
         db.scalars(select(Message).where(Message.chat_id == chat.id).order_by(Message.created_at))
     )
     compacted, messages = compaction_service.split(db, chat, everything)
+    inline = {
+        sid for m in everything for sid in steps_service.steered_ids(m.steps_json)
+    }
+    shown = [m for m in messages if m.id not in inline]
+    part = thread_service.window(shown, before=before, at=at)
+    return {
+        "messages": part.messages,
+        "compacted": compacted if not part.earlier else [],
+        "earlier": part.earlier,
+        "thread_inline": inline,
+        # The message a link asked for, when it is on the page.
+        "jump_to": at if at and any(m.id == at for m in part.messages) else "",
+    }
+
+
+def _thread_context(
+    db: DBSession, chat: Chat, user: User, *, before: str = "", at: str = ""
+) -> dict:
+    """Everything chat/_thread.html needs to render the conversation."""
     return {
         "chat": chat,
         "user": user,
-        "messages": messages,
-        "compacted": compacted,
+        **thread_window(db, chat, before=before, at=at),
         "models_by_id": {m.model_id: m for m in chat_service.available_models(db, user)},
         **audio_service.template_flags(db, user),
     }

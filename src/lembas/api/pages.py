@@ -21,14 +21,12 @@ from lembas.db.models import (
     Chat,
     Connection,
     Folder,
-    Message,
     User,
 )
 from lembas.security import permissions
 from lembas.services import audio as audio_service
 from lembas.services import branding as branding_service
 from lembas.services import chat as chat_service
-from lembas.services import compaction as compaction_service
 from lembas.services import data_groups, local_device, model_prefs, settings_store
 from lembas.services import generation as generation_service
 from lembas.services import suggestions as suggestions_service
@@ -1025,7 +1023,9 @@ async def folder_settings(request: Request, db: Db, user: RequiredUser, folder_i
 
 
 @router.get("/chat/{chat_id}")
-async def chat_detail(request: Request, db: Db, user: RequiredUser, chat_id: str):
+async def chat_detail(
+    request: Request, db: Db, user: RequiredUser, chat_id: str, at: str = ""
+):
     chat = db.get(Chat, chat_id)
     if chat is None or chat.user_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, i18n.t("That chat no longer exists."))
@@ -1036,14 +1036,14 @@ async def chat_detail(request: Request, db: Db, user: RequiredUser, chat_id: str
         chat.unread_notified = False
         db.commit()
 
-    everything = list(
-        db.scalars(
-            select(Message).where(Message.chat_id == chat.id).order_by(Message.created_at)
-        )
-    )
-    # Summarised turns are kept and still rendered, behind a divider -- they
-    # have only stopped being part of the request.
-    compacted, messages = compaction_service.split(db, chat, everything)
+    # The newest page of the conversation, not all of it: the rest is fetched
+    # as the reader goes up (`thread_window`, `services/thread.py`). `at` is a
+    # link to one message -- a search hit -- drawn with everything after it.
+    # Summarised turns are kept and still rendered, behind a divider, at the
+    # very top -- they have only stopped being part of the request.
+    from lembas.api.chats import thread_window
+
+    part = thread_window(db, chat, at=at)
     # Opened again -- a reload, or another tab -- so a leave this chat's page
     # reported a moment ago did not happen. See chat_service.sweep_temporary.
     if chat.temporary:
@@ -1097,8 +1097,7 @@ async def chat_detail(request: Request, db: Db, user: RequiredUser, chat_id: str
             "chat": chat,
             # A model is still naming this chat: the page asks for the name.
             "title_pending": generation_service.title_pending(chat.id),
-            "messages": messages,
-            "compacted": compacted,
+            **part,
             "bodies": bodies,
             "jobs": jobs,
             "inherited_prompt": inherited,

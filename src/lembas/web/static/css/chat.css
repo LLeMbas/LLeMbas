@@ -22,6 +22,25 @@
 .thread-scroll {
   overflow-anchor: none;
 }
+/* Except while the reader is up the transcript and nothing is being followed
+   (app.js `reading`): then anchoring is what holds their line still while the
+   messages above are laid out for the first time and an earlier page arrives. */
+.thread-scroll.is-reading {
+  overflow-anchor: auto;
+}
+
+/* The row that fetches the page of messages above (`chat/_thread.html`). */
+.thread__earlier {
+  display: flex;
+  justify-content: center;
+}
+
+/* The message a link pointed at. */
+.msg--jumped {
+  outline: var(--border-w) solid var(--leaf);
+  outline-offset: var(--sp-2);
+  border-radius: var(--radius);
+}
 
 .thread {
   max-width: var(--thread-max-width);
@@ -2797,4 +2816,19 @@ details[open] > summary > .agent__chevron { transform: rotate(90deg); }
     padding: 0 var(--sp-3);
   }
   .chatbar__label { font-size: var(--text-sm); }
+}
+
+/* A finished reply off the screen is not laid out or painted until it comes
+   near: a long chat used to pay for every bubble in it at every keystroke and
+   every frame of a reply. `auto` in the size keeps the height a reply had once
+   it has been seen, so the scrollbar settles as the reader goes. Only where
+   the browser anchors the scroll, which is what keeps the view still when a
+   reply above it takes its real height. Not the bubble being written: it is
+   on the screen, and it changes ten times a second. */
+@supports (overflow-anchor: auto) {
+  .msg:not([sse-connect]) .msg__steps {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 8rem;
+    overflow-clip-margin: var(--sp-3);
+  }
 }

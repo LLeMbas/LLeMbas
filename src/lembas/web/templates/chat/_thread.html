@@ -10,7 +10,25 @@
   and an outerHTML swap would take the container with it.
 #}
 {#- Shown inside the reply that took them in, not as bubbles of their own. -#}
-{% set inline = inline_steers((compacted or []) + (messages or [])) %}
+{#- Worked out over the whole conversation where the caller has it
+    (`thread_window`): the page drawn is only part of it. -#}
+{% set inline = thread_inline if thread_inline is defined else inline_steers((compacted or []) + (messages or [])) %}
+{#
+  The page draws the newest messages; the ones above are fetched a page at a
+  time. This row replaces itself with the page above it, which begins with
+  the next such row -- or with the summarised turns, at the first message.
+  app.js presses it when the reader scrolls up to it and keeps the view where
+  it was; without JavaScript's help it is a button.
+#}
+{% if earlier %}
+<div class="thread__earlier" id="thread-earlier">
+  <button class="btn" type="button"
+          hx-get="/api/chats/{{ chat.id }}/earlier?before={{ earlier }}"
+          hx-trigger="click, lembas:earlier"
+          hx-target="#thread-earlier" hx-swap="outerHTML"
+          hx-sync="this:drop" data-thread-earlier>{{ t("Earlier messages") }}</button>
+</div>
+{% endif %}
 {% if compacted %}
 {# Summarised turns are kept and still readable -- they have only stopped being
    sent. A compaction that summarised badly is then a bad turn rather than a

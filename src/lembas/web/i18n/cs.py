@@ -2700,5 +2700,6 @@ MESSAGES.update(
         'The command may take (seconds)': 'Příkaz může trvat (sekundy)',
         'Stopped after this; the run then fails.': 'Pak se zastaví a spuštění selže.',
         'a computer no longer signed in': 'počítač, který už není přihlášen',
+        'Earlier messages': 'Starší zprávy',
     }
 )

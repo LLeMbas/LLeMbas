@@ -26,6 +26,17 @@ For 2.0.0-beta.11.
   step of the reply was sent and rebuilt again. Finished paragraphs and finished steps are now
   sent once and added to the page; only the paragraph being written is replaced. A long code
   block still being written is sent in parts, drawn as one block.
+- **A long chat opens and types as fast as a short one.** The chat page drew every message of
+  the chat -- three hundred bubbles were twelve thousand elements, each rendered again at every
+  load and restyled at every keystroke. It now draws the newest 50; **Earlier messages** at the
+  top brings the 50 before them, by itself as you scroll up to it (your place is kept) or by a
+  press. Finished replies off the screen are not laid out until they come near. A search hit
+  inside a chat now opens the chat on the message that matched, drawn with everything after
+  it. One thing changes: the browser's own find-in-page finds only what the page has loaded;
+  the search box finds the rest.
+- **Typing in the composer** measures the box and repaints its highlighting once per frame
+  instead of at every key, and no longer searches the whole page for the composer, the reply
+  being written and the Send button at each one.
 - **The page does less on every update of a reply and on every background poll**: the handlers
   that looked through the whole transcript after each one (section toggles, opened blocks, the
   composer's highlighting, the progress line, the folds of the activity panel) now run only

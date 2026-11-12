@@ -2700,5 +2700,6 @@ MESSAGES.update(
         'The command may take (seconds)': 'Der Befehl darf dauern (Sekunden)',
         'Stopped after this; the run then fails.': 'Danach wird er gestoppt, und der Lauf schlägt fehl.',
         'a computer no longer signed in': 'ein Computer, der nicht mehr angemeldet ist',
+        'Earlier messages': 'Frühere Nachrichten',
     }
 )

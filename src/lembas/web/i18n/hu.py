@@ -2700,5 +2700,6 @@ MESSAGES.update(
         'The command may take (seconds)': 'A parancs ennyi ideig tarthat (másodperc)',
         'Stopped after this; the run then fails.': 'Ezután leáll, és a futás sikertelen.',
         'a computer no longer signed in': 'egy már nem bejelentkezett számítógép',
+        'Earlier messages': 'Korábbi üzenetek',
     }
 )

@@ -3360,5 +3360,6 @@ MESSAGES.update(
         'The command may take (seconds)': 'Príkaz môže trvať (sekundy)',
         'Stopped after this; the run then fails.': 'Potom sa zastaví a spustenie zlyhá.',
         'a computer no longer signed in': 'počítač, ktorý už nie je prihlásený',
+        'Earlier messages': 'Staršie správy',
     }
 )

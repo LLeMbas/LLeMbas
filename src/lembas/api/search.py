@@ -140,8 +140,8 @@ def _search_chats(db: DBSession, user: User, needle: str, limit: int) -> list[di
     )
     hits = []
     for chat in chats:
-        first = db.scalar(
-            select(Message.content)
+        first = db.execute(
+            select(Message.id, Message.content)
             .where(
                 Message.chat_id == chat.id,
                 Message.role.in_(spoken),
@@ -149,14 +149,16 @@ def _search_chats(db: DBSession, user: User, needle: str, limit: int) -> list[di
             )
             .order_by(Message.created_at)
             .limit(1)
-        )
+        ).first()
         hits.append(
             {
                 "id": chat.id,
                 "title": chat.title,
-                "url": f"/chat/{chat.id}",
+                # To the message that matched: the chat page draws its newest
+                # messages only, and a hit from last month is not among them.
+                "url": f"/chat/{chat.id}?at={first.id}" if first else f"/chat/{chat.id}",
                 "icon": "terminal" if chat.kind == "agent" else "chat",
-                "snippet": snippet(first, needle) if first else "",
+                "snippet": snippet(first.content, needle) if first else "",
                 "archived": chat.archived,
             }
         )

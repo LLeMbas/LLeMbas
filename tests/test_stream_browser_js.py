@@ -194,7 +194,11 @@ def test_sync_does_not_re_enable_stop_while_it_is_stopping():
     sync = js_function(UI, "sync")
     assert "button.disabled = false" not in sync
     assert js_says(sync, "stopping()", "button.disabled = halting")
-    assert '".msg[data-stopping][sse-connect]"' in js_function(UI, "stopping")
+    assert 'liveBubble("[data-stopping]")' in js_function(UI, "stopping")
+    # The bubble being written is one of the thread's own children: looked for
+    # there, not through every element of a long chat on every keystroke.
+    live = js_function(UI, "liveBubble")
+    assert '":scope > "' in live and '"[sse-connect]"' in live
 
 
 def test_pressing_stop_marks_the_bubble_and_a_failure_undoes_it():

@@ -145,7 +145,9 @@ def test_chats_match_on_title_or_on_what_was_said(client: TestClient, db, regist
 
     page = _results(client.get("/search?q=elevenses").text)
     assert f'href="/chat/{by_title.id}"' in page
-    assert f'href="/chat/{by_message.id}"' in page
+    # To the message that matched: the chat page draws its newest messages
+    # only, and an old hit would not be on it.
+    assert re.search(rf'href="/chat/{by_message.id}\?at=[0-9a-f]+"', page)
     assert "Nothing here" not in page
     # The message hit quotes the message, with the match marked.
     assert "<mark>elevenses</mark>" in page

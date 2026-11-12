@@ -51,8 +51,15 @@
   function runCommand(name, rest) { commands().run(name, rest); }
 
   /* --- Where we are ------------------------------------------------------- */
+  /* Looked up once and kept while it is still in the page: this is asked on
+     every keystroke, several times, and a search of the whole document for it
+     was a measurable part of each one in a long chat. */
+  var composerEl = null;
   function composer() {
-    return document.querySelector("[data-composer-input]");
+    if (!composerEl || !composerEl.isConnected) {
+      composerEl = document.querySelector("[data-composer-input]");
+    }
+    return composerEl;
   }
 
   function context() {
@@ -358,8 +365,12 @@
      Everything is built with createTextNode and textContent -- what is in the
      box is the one string a person controls exactly, and it must never become
      markup. */
+  var mirrorNode = null;
   function mirrorEl() {
-    return document.querySelector("[data-composer-mirror]");
+    if (!mirrorNode || !mirrorNode.isConnected) {
+      mirrorNode = document.querySelector("[data-composer-mirror]");
+    }
+    return mirrorNode;
   }
 
   /* The same rule the server applies to a sent message: `@` at the start or
@@ -563,8 +574,31 @@
        textarea it does: one more keeps the last, empty line the same height
        in both. */
     add(mirror, "\n");
-    mirror.parentNode.classList.add("is-painted");
-    mirror.scrollTop = input.scrollTop;
+    if (!mirror.parentNode.classList.contains("is-painted")) {
+      mirror.parentNode.classList.add("is-painted");
+    }
+    /* Only a box that scrolls has a position to follow, and reading it makes
+       the browser lay out what was just rebuilt: not on every key in a box of
+       three lines. The `scroll` listener below follows it from there. */
+    if (input.style.overflowY === "auto" || mirror.scrollTop) {
+      mirror.scrollTop = input.scrollTop;
+    }
+  }
+
+  /* While typing: once a frame. Several `input` events can land in one frame
+     (a held key, a paste followed by a key), and each repaint rebuilds the
+     whole mirror. The frame they are painted in is early enough -- the
+     callback runs before that paint, so the text and its colours still arrive
+     together. A write through `value` paints at once, as before. */
+  var paintQueued = false;
+  function paintSoon() {
+    if (!window.requestAnimationFrame) { paint(); return; }
+    if (paintQueued) return;
+    paintQueued = true;
+    window.requestAnimationFrame(function () {
+      paintQueued = false;
+      paint();
+    });
   }
 
   /* Every write to the box repaints it -- by construction, not by every
@@ -648,7 +682,7 @@
   document.addEventListener("input", function (event) {
     if (!event.target.closest("[data-composer-input]")) return;
     refresh();
-    paint();
+    paintSoon();
   });
 
   /* The textarea scrolls once it hits data-max-height, and the mirror has to

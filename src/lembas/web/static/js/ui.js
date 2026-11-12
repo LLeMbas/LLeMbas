@@ -972,8 +972,19 @@ document.addEventListener("lembas:notify", function (event) {
   /* The words, in the reader's language: see `lembasT` in base.html. */
   var t = window.lembasT || function (text) { return text; };
 
+  /* The reply being written, if there is one: a bubble of the thread itself.
+     Asked on every keystroke and every change to the thread, so it looks at
+     the thread's own children and not through every element of a long chat. */
+  function liveBubble(extra) {
+    var thread = document.getElementById("thread");
+    var selector = ".msg" + (extra || "") + "[sse-connect]";
+    return thread
+      ? thread.querySelector(":scope > " + selector)
+      : document.querySelector(selector);
+  }
+
   function streamingMessage() {
-    var live = document.querySelector(".msg[sse-connect]");
+    var live = liveBubble();
     if (!live) return null;
     var id = live.id.replace(/^msg-/, "");
     var chat = (live.getAttribute("sse-connect") || "").match(/\/api\/chats\/([^/]+)\//);
@@ -995,7 +1006,7 @@ document.addEventListener("lembas:notify", function (event) {
      answers it: it replaces the article with the finished one, which has
      neither `sse-connect` nor this mark, so nothing has to clear it. */
   function stopping() {
-    return !!document.querySelector(".msg[data-stopping][sse-connect]");
+    return !!liveBubble("[data-stopping]");
   }
 
   /* Written only when it differs. This runs on every mutation of the thread

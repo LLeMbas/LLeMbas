@@ -2700,5 +2700,6 @@ MESSAGES.update(
         'The command may take (seconds)': 'Polecenie może trwać (sekundy)',
         'Stopped after this; the run then fails.': 'Potem jest zatrzymywane, a uruchomienie kończy się błędem.',
         'a computer no longer signed in': 'komputer, który nie jest już zalogowany',
+        'Earlier messages': 'Wcześniejsze wiadomości',
     }
 )
