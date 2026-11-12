@@ -122,6 +122,8 @@ class Session:
         # A draft the new-chat screen has moved away from while somebody was
         # still attached to it (`close_other_drafts`): it ends when they go.
         self.end_when_unwatched = False
+        # The wait that ends a draft nobody came back to (`unwatched`).
+        self.linger: asyncio.Task | None = None
         self.owner_id = owner_id
         self.label = label
         self.project_dir = project_dir
@@ -169,6 +171,15 @@ class Session:
         )
         viewer.snapshot = b"".join(self._scrollback)
         self.viewers[viewer.id] = viewer
+        # Somebody is here again: whatever was going to end this shell for
+        # being unwatched is off -- the mark a folder change left on it, and a
+        # wait started when its last viewer went. Left running, that wait ended
+        # the shell its full time after the *first* leaving, seconds after the
+        # second.
+        self.end_when_unwatched = False
+        if self.linger is not None:
+            self.linger.cancel()
+            self.linger = None
         self.last_active = time.monotonic()
         self.apply_size()
         return viewer
@@ -562,7 +573,10 @@ async def unwatched(key: str, session: Session) -> None:
             _SESSIONS.pop(key, None)
             await session.close(CLOSED_IDLE)
 
+    if session.linger is not None:
+        session.linger.cancel()
     task = asyncio.get_running_loop().create_task(later())
+    session.linger = task
     _LINGERING.add(task)
     task.add_done_callback(_LINGERING.discard)
 

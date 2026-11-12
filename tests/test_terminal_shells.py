@@ -318,3 +318,48 @@ def test_a_panel_narrower_than_the_fewest_columns_keeps_them_and_scrolls():
 
     css = (Path(lembas.__file__).parent / "web/static/css/app.css").read_text()
     assert ".terminal__screen { overflow-x: auto; }" in css
+
+
+# --- Coming back to a draft ------------------------------------------------------------
+async def test_a_draft_somebody_went_back_to_is_no_longer_marked(monkeypatch):
+    """The new-chat screen moved to another folder (the first shell is marked
+    to end when its viewer goes) and then back: the mark must go, or the shell
+    the person is in again ends the moment its panel closes."""
+    monkeypatch.setattr(terminal_service, "DRAFT_LINGER", 0.3)
+    key = terminal_service.draft_key("u1", "tok", "/srv/old")
+    shell = _put(key, directory="/srv/old")
+    first = shell.attach()
+    await terminal_service.close_other_drafts("u1", terminal_service.draft_key("u1", "tok", "/n"))
+    assert shell.end_when_unwatched
+
+    again = shell.attach()  # back in the first folder
+    assert not shell.end_when_unwatched
+    shell.detach(first)
+    shell.detach(again)
+    await terminal_service.unwatched(key, shell)
+    assert not shell.closed, "ended at once, as if it were still marked"
+    await asyncio.sleep(0.1)
+    assert not shell.closed  # inside the ordinary wait
+
+
+async def test_the_wait_starts_again_each_time_the_last_viewer_goes(monkeypatch):
+    """Left at 0, back at 5 s, left again at 18 s: the first leaving's timer
+    used to end the shell at 20 s -- two seconds after the second leaving."""
+    monkeypatch.setattr(terminal_service, "DRAFT_LINGER", 0.4)  # "20 s"
+    key = terminal_service.draft_key("u1", "tok", "/srv/app")
+    shell = _put(key)
+    shell.detach(shell.attach())
+    await terminal_service.unwatched(key, shell)  # left at 0
+    first_wait = shell.linger
+    await asyncio.sleep(0.1)
+    viewer = shell.attach()  # back at "5 s"
+    assert shell.linger is None
+    await asyncio.sleep(0.01)
+    assert first_wait.cancelled()
+    await asyncio.sleep(0.25)
+    shell.detach(viewer)  # left at "18 s"
+    await terminal_service.unwatched(key, shell)
+    await asyncio.sleep(0.1)  # "20 s"
+    assert not shell.closed
+    await asyncio.sleep(0.45)  # its own full wait after the second leaving
+    assert shell.closed
