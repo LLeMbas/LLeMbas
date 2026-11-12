@@ -316,8 +316,12 @@ def _agent_context(db: DBSession, user: User, chat: Chat | None) -> dict:
                  device_link.short_name(link), hosts.get(link.token_id), link.host
              ),
              "recent": recent.get(link.token_id, []), "mode": link.max_mode,
-             # Whether a Terminal is offered on it before the chat exists.
-             "terminal": terminal_here and link.can("terminal")}
+             # Whether a Terminal is offered on it before the chat exists, and
+             # where it is not because the device opens none, the sentence
+             # that says so and how to switch it on.
+             "terminal": terminal_here and link.can("terminal"),
+             "terminal_off": _terminal_off(db, user, link.token_id)[1]
+             if terminal_here and not link.can("terminal") else ""}
             for link in links
         ]
         # Local first; `sort` is stable, so the rest keep their order.
@@ -355,26 +359,34 @@ def _agent_context(db: DBSession, user: User, chat: Chat | None) -> dict:
             for m in agent_policy.MODES
         ],
         "terminal_enabled": _terminal_enabled(db, user, chat),
+        # Why the button, though drawn, cannot open a shell right now ("" when
+        # it can): the device is not linked, or does not open terminals.
+        "terminal_off": _terminal_off(db, user, chat.device_token_id)
+        if chat is not None and getattr(chat, "device_token_id", None) else ("", ""),
     }
 
 
 def _terminal_enabled(db: DBSession, user: User, chat: Chat | None) -> bool:
-    """Whether this chat can offer a shell: a chat on a linked device whose
-    device opens terminals (`remote.terminal`), for somebody who may open
-    one. Every condition, not a subset: the button loads 280KB of terminal and
-    opens a socket, so one that cannot work is worse than none."""
+    """Whether this chat's page carries the Terminal at all: a chat on a
+    device, for somebody who may open a shell, on an instance that has the
+    terminal on. Not whether the device is linked or opens one *now* -- that
+    changes while the page is open (`_terminal_off`), and a button that
+    appears nowhere cannot say why it is not there. The price is the terminal
+    library loaded on a device chat that may not get to use it."""
     if chat is None or not getattr(chat, "device_token_id", None):
         return False
-    from lembas.services import device_link
-
-    link = device_link.link_for(chat.device_token_id)
     values = settings_store.agents(db)
     return bool(
-        link is not None
-        and link.can("terminal")
-        and permissions.has(db, user, "agent.terminal")
-        and values.get("terminal_enabled", True)
+        permissions.has(db, user, "agent.terminal") and values.get("terminal_enabled", True)
     )
+
+
+def _terminal_off(db: DBSession, user: User, token_id: str) -> tuple[str, str]:
+    """(code, sentence) for a Terminal that cannot open on this device now,
+    or ("", "") -- `api/terminal.availability`."""
+    from lembas.api.terminal import availability
+
+    return availability(db, user, token_id)
 
 
 def sidebar_kind(user: User) -> str:
@@ -971,7 +983,7 @@ async def chat_index(
             # a device that opens one for this person is offered. Its buttons
             # start hidden and follow the device and directory chosen (ui.js).
             "terminal_enabled": kind == KIND_AGENT
-            and any(d.get("terminal") for d in context["agent_devices"]),
+            and any(d.get("terminal") or d.get("terminal_off") for d in context["agent_devices"]),
             "starting_folder": starting_folder,
             "starting_device": f"device:{carried['device']}" if carried["device"] else "",
             "suggestions": suggestions_service.visible(db),

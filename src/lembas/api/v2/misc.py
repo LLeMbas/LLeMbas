@@ -202,6 +202,7 @@ async def folders(caller: Me, db: Db) -> dict[str, Any]:
 async def devices(caller: Me, db: Db) -> dict[str, Any]:
     """The devices an agent chat can be started on: this person's device
     tokens that are linked right now (the new-agent-chat screen's list)."""
+    from lembas.api.terminal import availability
     from lembas.services import device_link
     from lembas.services import devices as devices_service
     from lembas.services.schedule import device as scheduled_device
@@ -211,21 +212,15 @@ async def devices(caller: Me, db: Db) -> dict[str, Any]:
         link = device_link.link_for(token.id) if api_tokens.live(token) else None
         if link is None:
             continue
+        terminal_off = availability(db, caller.user, token.id)
         out.append(
-            {
-                "id": token.id,
-                "name": token.name,
-                "host": token.device_host or "",
-                "platform": token.device_platform or "",
-                # Whether it opens a terminal for this person (its
-                # `remote.terminal`, the permission, the instance's switch):
-                # the Terminal is offered on it, before the chat too.
-                "terminal": _terminal_on(db, caller.user, link),
-                # Whether it accepts scheduled work (its "Accept scheduled
-                # work", spec 3.5.0): a schedule may be set to run there.
-                "scheduled": link.can("scheduled") and scheduled_device.accepts(link),
-                "max_mode": link.max_mode or "",
-            }
+            serialise.device(
+                token,
+                terminal=_terminal_on(db, caller.user, link),
+                terminal_off=terminal_off,
+                scheduled=link.can("scheduled") and scheduled_device.accepts(link),
+                max_mode=link.max_mode or "",
+            )
         )
     return {"devices": out}
 

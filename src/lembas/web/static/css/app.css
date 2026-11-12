@@ -956,6 +956,51 @@ body.is-resizing .terminal__screen { pointer-events: none; }
   background: var(--code-bg);
 }
 .terminal__screen .xterm { height: 100%; }
+/* A panel narrower than the fewest columns a shell is given keeps that many
+   (terminal.js `MIN_COLS`) and scrolls sideways inside itself. */
+.terminal__screen { overflow-x: auto; }
+
+/* The person's open shells, shown when one more could not be opened: a row
+   each -- where it is, how long it has been open -- and End. The names give
+   (they truncate); the button keeps its size. */
+.terminal__shells {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: var(--sp-3);
+  list-style: none;
+  border-bottom: var(--border-w) solid var(--border);
+}
+.terminal__shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.terminal__shell-what {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+.terminal__shell-what > strong { flex: none; max-width: 40%; }
+.terminal__shell-what > strong,
+.terminal__shell-dir {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.terminal__shell-dir { flex: 1 1 auto; min-width: 0; font-family: var(--font-mono); }
+.terminal__shell-age { flex: none; color: var(--ink-faint); font-size: var(--text-xs); }
+@media (pointer: coarse) {
+  .terminal__shell-end { min-height: var(--tap-min); min-width: var(--tap-min); }
+}
+/* The Terminal button while its device cannot open one: still there, still
+   pressable (the press says why), drawn as unavailable. */
+[data-terminal-button][aria-disabled="true"] { opacity: var(--opacity-dim); }
 
 .terminal__status {
   flex: none;

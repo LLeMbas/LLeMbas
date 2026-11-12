@@ -967,6 +967,8 @@ async def device_model_badge(
     """The topbar's "on the device: …" badge, polled: the device may
     switch its session's model at any time, from its terminal or its settings,
     and the chat follows (`device_link._remodel`)."""
+    from lembas.api.terminal import availability
+
     chat = _owned_chat(db, chat_id, user.id)
     label = ""
     if not chat.device_model:
@@ -978,7 +980,14 @@ async def device_model_badge(
     return templates.TemplateResponse(
         request,
         "chat/_device_model.html",
-        {"request": request, "chat": chat, "picker_label": label},
+        {
+            "request": request,
+            "chat": chat,
+            "picker_label": label,
+            # Whether the device can open a terminal now, for the button.
+            "terminal_state_oob": bool(chat.device_token_id),
+            "terminal_off": availability(db, user, chat.device_token_id or ""),
+        },
     )
 
 

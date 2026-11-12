@@ -479,6 +479,32 @@ def attachment(row: Any) -> dict[str, Any]:
     }
 
 
+def device(
+    token: Any, *, terminal: bool, terminal_off: tuple[str, str], scheduled: bool, max_mode: str
+) -> dict[str, Any]:
+    """One linked device of `GET /devices`.
+
+    `terminal`: whether it opens a terminal for this person (its
+    `remote.terminal`, the permission, the instance's switch) -- offered on it
+    before the chat too. Where it does not, `terminal_reason` says which of
+    those it is -- `permission`, `instance` or `device` (it does not open
+    terminals: off in the CLI unless switched on) -- and `terminal_hint` is the
+    sentence for the person, with how to switch it on, in their language. Both
+    are "" where it does. `scheduled`: whether it accepts scheduled work
+    (spec 3.5.0), so a schedule may be set to run there."""
+    return {
+        "id": token.id,
+        "name": token.name,
+        "host": token.device_host or "",
+        "platform": token.device_platform or "",
+        "terminal": bool(terminal),
+        "terminal_reason": "" if terminal else terminal_off[0],
+        "terminal_hint": "" if terminal else terminal_off[1],
+        "scheduled": bool(scheduled),
+        "max_mode": max_mode,
+    }
+
+
 def device_command(entry: dict[str, Any]) -> dict[str, str]:
     """One `/` command a linked device offers (`device_link.clean_commands`):
     `kind` is "custom", "skill", "builtin" or "" where the device did not say."""

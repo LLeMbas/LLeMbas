@@ -154,6 +154,7 @@
               <option value="{{ device.value }}" data-recent='{{ device.recent|tojson }}'
                       data-mode="{{ device.mode }}" data-device
                       {% if device.terminal %}data-opens-terminal{% endif %}
+                      {% if device.terminal_off %}data-terminal-off="{{ device.terminal_off }}"{% endif %}
                       {% if device.local %}title="{{ device.title }}"{% endif %}
                       {{ 'selected' if device.value == starting_device }}>{{ device.name }}</option>
               {% endfor %}

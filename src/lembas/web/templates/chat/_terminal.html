@@ -84,16 +84,30 @@
       <option value="copy">{{ t("Auto: copy") }}</option>
       <option value="send">{{ t("Auto: send") }}</option>
     </select>
+    {# End the shell itself, not the panel: closing the panel leaves the
+       shell running on purpose (a build carries on), so until this there was
+       no way to give one of a person's few terminals back. Disabled until
+       there is a shell. #}
+    <button class="btn btn--icon btn--sm" type="button" data-terminal-end disabled
+            title="{{ t('End this shell') }}" aria-label="{{ t('End this shell') }}">
+      {{ icon("stop", "icon--sm") }}
+    </button>
     <button class="btn btn--icon btn--sm" type="button" data-toggle="#terminal"
             aria-label="{{ t('Close terminal') }}">
       {{ icon("x", "icon--sm") }}
     </button>
   </div>
 
+  {# The person's open shells, when this one could not open for there being
+     too many: filled by terminal.js from the refusal, each with End. #}
+  <ul class="terminal__shells" data-terminal-shells hidden
+      aria-label="{{ t('Your open shells') }}"></ul>
+
   <div class="terminal__screen" data-terminal-screen></div>
 
   <div class="terminal__status">
     <span class="terminal__message" data-terminal-message>{{ t("Connecting…") }}</span>
+    <button class="btn btn--sm" type="button" data-terminal-reconnect hidden>{{ t("Reconnect") }}</button>
     <span class="terminal__last" data-terminal-last></span>
     <span>Ctrl+Shift+C / V</span>
   </div>

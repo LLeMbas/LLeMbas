@@ -80,6 +80,8 @@ CLOSED_IDLE = "idle"
 CLOSED_SHUTDOWN = "shutdown"
 CLOSED_REVOKED = "revoked"
 CLOSED_ERROR = "error"
+# Ended by the person, from their list of open shells or the panel.
+CLOSED_ENDED = "ended"
 
 
 @dataclass
@@ -114,6 +116,12 @@ class Session:
         rows: int = 24,
     ) -> None:
         self.chat_id = chat_id
+        # What a person's list of open shells names this one by. Not the
+        # registry key: a draft's key is made of ids nobody should be shown.
+        self.sid = uuid.uuid4().hex[:16]
+        # A draft the new-chat screen has moved away from while somebody was
+        # still attached to it (`close_other_drafts`): it ends when they go.
+        self.end_when_unwatched = False
         self.owner_id = owner_id
         self.label = label
         self.project_dir = project_dir
@@ -380,6 +388,9 @@ class DeviceSession(Session):
 
 _SESSIONS: dict[str, Session] = {}
 _REAPER: asyncio.Task | None = None
+# The waits of drafts whose last viewer has gone (`unwatched`), kept so the
+# tasks are not collected while they sleep.
+_LINGERING: set[asyncio.Task] = set()
 
 
 def get(chat_id: str) -> Session | None:
@@ -430,9 +441,11 @@ async def open_session(
             )
         )
     if count_for(owner_id) >= max_per_user:
-        raise ExecError(
-            f"You already have {max_per_user} terminal"
-            f"{'' if max_per_user == 1 else 's'} open. Close one first."
+        raise TooManyShells(
+            i18n.t(
+                "You already have as many terminals open as you may (%(n)s). End one first.",
+                n=max_per_user,
+            )
         )
 
     common = {
@@ -459,7 +472,65 @@ async def open_session(
     return session
 
 
+class TooManyShells(ExecError):
+    """The person has as many shells open as they may. The door lists them
+    (`shells_of`), each with a way to end it."""
+
+
+def shells_of(owner_id: str) -> list[Session]:
+    """A person's open shells, oldest first."""
+    found = [s for s in _SESSIONS.values() if not s.closed and s.owner_id == owner_id]
+    return sorted(found, key=lambda s: s.started_at)
+
+
+def describe(session: Session) -> dict:
+    """One open shell, as a person's list shows it: where it is, how long it
+    has been open, and which chat it belongs to ("" for one opened before its
+    chat)."""
+    draft = session.chat_id.startswith(DRAFT_PREFIX)
+    return {
+        "id": session.sid,
+        "device": session.label,
+        "directory": session.project_dir,
+        "seconds": int(time.monotonic() - session.started_at),
+        "chat": "" if draft else session.chat_id,
+        "watched": bool(session.viewers),
+    }
+
+
+async def end_shell(owner_id: str, sid: str) -> bool:
+    """End one of a person's own shells, by the id their list gave it."""
+    for key, session in list(_SESSIONS.items()):
+        if session.sid == sid and session.owner_id == owner_id and not session.closed:
+            _SESSIONS.pop(key, None)
+            await session.close(CLOSED_ENDED)
+            return True
+    return False
+
+
 DRAFT_PREFIX = "draft:"
+
+# How long a shell opened before its chat outlives its last viewer. Long
+# enough for the panel to reconnect by itself (a reload, a dropped socket) and
+# for the first message to make the chat that takes it over; not the thirty
+# minutes a chat's shell is given, which held one of a person's three
+# terminals for a new-chat screen they had long since left.
+DRAFT_LINGER = 20.0
+
+
+def normal_dir(project_dir: str) -> str:
+    """A directory as a key: the same string for the same place, however it
+    was typed -- trimmed, without doubled or trailing slashes. A chat stores
+    its directory as the first message sent it and the new-chat screen's
+    terminal opened with what the picker held; `/srv/app/` and `/srv/app` are
+    one directory, and one shell. Only `/` is tidied: a path written with
+    backslashes is the device's own business and is left as it is, trimmed."""
+    cleaned = (project_dir or "").strip()
+    if not cleaned or "/" not in cleaned:
+        return cleaned
+    rooted = cleaned.startswith("/")
+    joined = "/".join(part for part in cleaned.split("/") if part)
+    return ("/" if rooted else "") + joined if joined else "/"
 
 
 def draft_key(owner_id: str, token_id: str, project_dir: str) -> str:
@@ -467,7 +538,33 @@ def draft_key(owner_id: str, token_id: str, project_dir: str) -> str:
     device, in this directory, for this person -- what the new-chat screen has
     chosen. The first message that makes the chat there takes it over
     (`adopt`), so the shell and its scrollback carry on in the chat."""
-    return f"{DRAFT_PREFIX}{owner_id}:{token_id}:{project_dir}"
+    return f"{DRAFT_PREFIX}{owner_id}:{token_id}:{normal_dir(project_dir)}"
+
+
+async def unwatched(key: str, session: Session) -> None:
+    """A viewer of the shell under `key` has gone. A chat's shell carries on
+    (a build runs behind a closed panel; the idle timeout ends it). A draft's
+    does not: marked by `close_other_drafts`, it ends now; otherwise it ends
+    after `DRAFT_LINGER` unless somebody has come back or a chat has taken it
+    over by then."""
+    if session.closed or session.viewers or not key.startswith(DRAFT_PREFIX):
+        return
+    if _SESSIONS.get(key) is not session:
+        return  # taken over by its chat
+    if session.end_when_unwatched:
+        _SESSIONS.pop(key, None)
+        await session.close(CLOSED_REVOKED)
+        return
+
+    async def later() -> None:
+        await asyncio.sleep(DRAFT_LINGER)
+        if _SESSIONS.get(key) is session and not session.viewers and not session.closed:
+            _SESSIONS.pop(key, None)
+            await session.close(CLOSED_IDLE)
+
+    task = asyncio.get_running_loop().create_task(later())
+    _LINGERING.add(task)
+    task.add_done_callback(_LINGERING.discard)
 
 
 def adopt(key: str, chat_id: str) -> bool:
@@ -485,15 +582,25 @@ def adopt(key: str, chat_id: str) -> bool:
 
 
 async def close_other_drafts(owner_id: str, keep: str) -> int:
-    """A person's drafts nobody is watching, other than `keep`: a shell opened
-    for a computer or a directory the new-chat screen has since moved away
-    from. Each would otherwise hold one of the person's terminals until it
-    sat idle long enough."""
-    doomed = [
-        s for key, s in _SESSIONS.items()
-        if key.startswith(DRAFT_PREFIX) and key != keep and s.owner_id == owner_id
-        and not s.closed and not s.viewers
-    ]
+    """A person's drafts other than `keep`: a shell opened for a computer or a
+    directory the new-chat screen has since moved away from. Each would
+    otherwise hold one of the person's terminals.
+
+    One nobody is watching ends now. One somebody is still attached to is
+    marked instead, and ends when they go (`unwatched`): the panel opens the
+    new directory's socket before the old one has finished closing, so at this
+    moment the old shell still has its viewer -- and it used to be passed over
+    here for that, and then left with nobody, for half an hour."""
+    doomed = []
+    for key, session in list(_SESSIONS.items()):
+        if not key.startswith(DRAFT_PREFIX) or key == keep or session.closed:
+            continue
+        if session.owner_id != owner_id:
+            continue
+        if session.viewers:
+            session.end_when_unwatched = True
+        else:
+            doomed.append(session)
     for session in doomed:
         _SESSIONS.pop(session.chat_id, None)
         await session.close(CLOSED_REVOKED)

@@ -25,10 +25,12 @@ import asyncio
 import contextlib
 import json
 import logging
+import time
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Response, WebSocket, WebSocketDisconnect
 
+from lembas.api.deps import RequiredUser
 from lembas.db.models import KIND_AGENT, Chat
 from lembas.db.session import session_scope
 from lembas.security import permissions
@@ -58,6 +60,7 @@ CLOSED_WORDS = {
     terminal_service.CLOSED_SHUTDOWN: N_("LLeMbas restarted, so this shell was closed."),
     terminal_service.CLOSED_REVOKED: N_("The connection behind this terminal was closed."),
     terminal_service.CLOSED_ERROR: N_("The connection to the machine was lost."),
+    terminal_service.CLOSED_ENDED: N_("This shell was ended."),
 }
 
 
@@ -158,6 +161,54 @@ def _on_device(db, user, token_id: str, project_dir: str) -> tuple[str, dict]:
     }
 
 
+def availability(db, user, token_id: str) -> tuple[str, str]:
+    """Whether a terminal can open on this device for this person now, and if
+    not, which thing stands in the way and what to do about it: ("", "") or
+    (code, sentence). The codes: `permission`, `instance` (switched off here),
+    `unlinked` (the device is not connected now) and `device` (it is, and does
+    not open terminals -- the CLI's `remote.terminal`, off unless switched on).
+
+    The page's Terminal button and `GET /api/v2/devices` both say this, so a
+    button that cannot work says why rather than not being there."""
+    from lembas.db.models import ApiToken
+    from lembas.services import device_link
+
+    if not permissions.has(db, user, "agent.terminal"):
+        return "permission", t("You do not have permission to open a terminal.")
+    if not settings_store.agents(db).get("terminal_enabled", True):
+        return "instance", t("The terminal is switched off on this instance.")
+    token = db.get(ApiToken, token_id) if token_id else None
+    link = device_link.link_for(token_id) if token_id else None
+    if link is None:
+        device = (token.device_host or token.name) if token is not None else t("the device")
+        return "unlinked", t("%(device)s is not linked right now.", device=device)
+    if not link.can("terminal"):
+        return "device", t(
+            "%(device)s does not open terminals. Switch it on there: in LLeMbas Desktop's "
+            "settings, or with the LLeMbas CLI's remote.terminal setting.",
+            device=device_link.short_name(link),
+        )
+    return "", ""
+
+
+shells_router = APIRouter(prefix="/api/terminals", tags=["terminal"])
+
+
+@shells_router.get("")
+async def open_shells(user: RequiredUser) -> dict:
+    """The caller's open shells: which computer, which folder, how long."""
+    return {"shells": [terminal_service.describe(s) for s in terminal_service.shells_of(user.id)]}
+
+
+@shells_router.post("/{shell_id}/end", status_code=204)
+async def end_shell(user: RequiredUser, shell_id: str) -> Response:
+    """End one of the caller's own shells. Somebody else's, or one already
+    gone, is a 404 either way."""
+    if not await terminal_service.end_shell(user.id, shell_id):
+        raise HTTPException(404, t("That shell is no longer open."))
+    return Response(status_code=204)
+
+
 @router.websocket("/{chat_id}/terminal/ws")
 async def terminal_socket(
     websocket: WebSocket,
@@ -228,8 +279,21 @@ async def serve(
 
     if key.startswith(terminal_service.DRAFT_PREFIX):
         await terminal_service.close_other_drafts(opening["owner_id"], key)
+    opened_at = time.monotonic()
     try:
         session = await terminal_service.open_session(key, cols=cols, rows=rows, **opening)
+    except terminal_service.TooManyShells as exc:
+        # With the shells that are open, so one can be ended from here: the
+        # limit used to be a sentence with no way to act on it.
+        await _refuse(
+            websocket,
+            str(exc),
+            shells=[
+                terminal_service.describe(s)
+                for s in terminal_service.shells_of(opening["owner_id"])
+            ],
+        )
+        return
     except ExecError as exc:
         await _refuse(websocket, str(exc))
         return
@@ -238,11 +302,17 @@ async def serve(
         await _refuse(websocket, t("The shell could not be started."))
         return
 
+    resumed = session.started_at < opened_at
     viewer = session.attach(cols, rows)
     await websocket.send_text(
         json.dumps(
             {
                 "t": "ready",
+                # What `POST /api/terminals/<id>/end` ends: the panel's End shell.
+                "id": session.sid,
+                # Whether the shell was already running (a second tab, a
+                # reconnect that found it) or was opened by this socket.
+                "resumed": resumed,
                 "label": session.label,
                 "dir": session.project_dir,
                 "cols": session.cols,
@@ -268,11 +338,14 @@ async def serve(
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await task
-        # The session is deliberately left running. Closing the panel, or
+        # A chat's session is deliberately left running. Closing the panel, or
         # navigating away, is not "I am finished with this machine" -- a build
         # carries on and the scrollback is still there on the way back. The
-        # idle timeout is what eventually ends it.
+        # idle timeout is what eventually ends it. A shell opened before its
+        # chat is different: with nobody watching and no chat to come back to,
+        # it ends shortly (`terminal_service.unwatched`).
         session.detach(viewer)
+        await terminal_service.unwatched(key, session)
 
 
 async def _to_browser(websocket: WebSocket, session, viewer) -> None:
@@ -335,10 +408,12 @@ def _words(reason: str) -> str:
     return t(CLOSED_WORDS.get(reason) or N_("This terminal closed."))
 
 
-async def _refuse(websocket: WebSocket, message: str) -> None:
+async def _refuse(websocket: WebSocket, message: str, **more) -> None:
     """Say why, then close. Sent as a frame because a browser cannot read a
-    rejected handshake -- the reason would be lost exactly when it is needed."""
+    rejected handshake -- the reason would be lost exactly when it is needed.
+    `more` rides on the frame: the person's open shells, when the reason is
+    that they have too many."""
     with contextlib.suppress(Exception):
-        await websocket.send_text(json.dumps({"t": "error", "message": message}))
+        await websocket.send_text(json.dumps({"t": "error", "message": message, **more}))
     with contextlib.suppress(Exception):
         await websocket.close()

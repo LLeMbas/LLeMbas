@@ -34,6 +34,22 @@
   var messageEl = null;
   var observer = null;
   var closedOnPurpose = false;
+  /* The shell this panel is attached to, as the server's list names it: what
+     End shell ends. */
+  var shellId = "";
+  /* Reconnecting by itself after the connection went (a dropped link, a
+     restart): how many tries so far, and the timer of the next. `wasOpen`:
+     this panel has had a shell, so the next one that is not the same shell
+     (`resumed` false) is a new one and is said to be. */
+  var retries = 0;
+  var retryTimer = 0;
+  var wasOpen = false;
+  var MAX_RETRIES = 8;
+  /* The fewest columns the far side gives a shell (`MIN_COLS` in
+     services/agent/terminal.py). A panel narrower than that keeps this many
+     and scrolls sideways, or the shell would wrap at a width the screen does
+     not have. */
+  var MIN_COLS = 20;
   /* "off" | "copy" | "send". Three states rather than a boolean, because the
      old one did the wrong one of them: it appended into the composer, on top of
      whatever was being typed there. A select rather than a cycling button --
@@ -104,6 +120,7 @@
     } catch (error) {
       return;
     }
+    if (term.cols < MIN_COLS) term.resize(MIN_COLS, term.rows);
     send({ t: "resize", cols: term.cols, rows: term.rows });
   }
 
@@ -166,7 +183,10 @@
     opened.onclose = function () {
       if (socket !== opened) return;
       socket = null;
-      if (!closedOnPurpose) say(t("Disconnected. Close and reopen to reconnect."));
+      setConnected(false);
+      /* Not closed by a frame that said why (those decide for themselves):
+         the connection went -- the server restarted, a proxy dropped it. */
+      if (!closedOnPurpose) reconnectSoon(t("Disconnected."));
     };
 
     opened.onerror = function () {
@@ -187,9 +207,21 @@
     }
 
     if (payload.t === "ready") {
+      /* After a drop the shell that answers may be the same one (the page's
+         connection went, the shell did not) or a new one (the device's link
+         or the server went, and the shell with it). A new one has lost the
+         directory it was in and whatever was running: said, in one line. */
+      var fresh = wasOpen && retries > 0 && !payload.resumed;
       say(payload.shared
         ? t("Connected. This shell is also open in another tab, and they share a size.")
-        : t("Connected."));
+        : fresh
+          ? t("Reconnected. This is a new shell: the one before ended with the connection.")
+          : t("Connected."));
+      shellId = payload.id || "";
+      wasOpen = true;
+      retries = 0;
+      showShells(null);
+      setConnected(true);
       if (payload.dir) {
         var where = panel.querySelector("[data-terminal-where]");
         if (where) where.textContent = payload.dir;
@@ -219,12 +251,168 @@
     }
 
     if (payload.t === "closed" || payload.t === "error") {
-      say(payload.message || t("This terminal closed."), payload.t === "error");
       closedOnPurpose = true;
-      /* Deliberately no reconnect. A new shell has lost the working directory,
-         the environment and the half-typed command, and quietly substituting
-         one is worse than saying the connection went. */
+      setConnected(false);
+      var message = payload.message || t("This terminal closed.");
+      /* As many shells open as the person may have: the list, each with a way
+         to end it, so the sentence is something that can be acted on. */
+      if (payload.shells) {
+        say(message, true);
+        showShells(payload.shells);
+        return;
+      }
+      /* The connection behind the shell went (the device's link dropped, the
+         server restarted), or a try at coming back was refused (the device is
+         not linked again yet): tried again, with longer waits, and said. What
+         comes back is a new shell and says so. A shell that exited, was ended
+         or sat idle is over: nothing is opened in its place unasked. */
+      var lost = payload.reason === "error" || payload.reason === "shutdown" ||
+        (payload.t === "error" && retries > 0);
+      if (lost) return reconnectSoon(message);
+      say(message, payload.t === "error");
     }
+  }
+
+  /* --- Coming back ---------------------------------------------------------
+     By itself, with back-off, a bounded number of times; and by the Reconnect
+     button at any time. */
+  function setConnected(on) {
+    if (!panel) return;
+    var end = panel.querySelector("[data-terminal-end]");
+    if (end) end.disabled = !on;
+    var again = panel.querySelector("[data-terminal-reconnect]");
+    if (again) again.hidden = on;
+  }
+
+  function reconnectSoon(why) {
+    clearTimeout(retryTimer);
+    if (retries >= MAX_RETRIES || !panel || !panel.dataset.url) {
+      say(t("%(why)s Press Reconnect to try again.", { why: why }), true);
+      return;
+    }
+    var wait = Math.min(30, Math.pow(2, retries));
+    retries += 1;
+    say(t("%(why)s Trying again in %(n)s s…", { why: why, n: wait }));
+    retryTimer = setTimeout(reconnectNow, wait * 1000);
+  }
+
+  function reconnectNow() {
+    clearTimeout(retryTimer);
+    if (socket) {
+      closedOnPurpose = true;
+      socket.close();
+      socket = null;
+    }
+    if (!term || !panel || panel.hidden) return;
+    term.reset();
+    forgetMarks();
+    connect();
+  }
+
+  /* --- The person's open shells --------------------------------------------
+     Drawn over the screen when a shell could not be opened for there being
+     too many. Every word of it is the device's or a directory's name, so it
+     is built with textContent and nothing is ever parsed as markup. */
+  function age(seconds) {
+    var minutes = Math.round(seconds / 60);
+    if (minutes < 1) return t("just now");
+    if (minutes < 60) return t("%(n)s min", { n: minutes });
+    return t("%(n)s h", { n: Math.round(minutes / 60) });
+  }
+
+  function showShells(shells) {
+    var box = panel && panel.querySelector("[data-terminal-shells]");
+    if (!box) return;
+    box.replaceChildren();
+    box.hidden = !shells || !shells.length;
+    if (box.hidden) return;
+    shells.forEach(function (shell) {
+      var row = document.createElement("li");
+      row.className = "terminal__shell";
+      var what = document.createElement("span");
+      what.className = "terminal__shell-what";
+      var device = document.createElement("strong");
+      device.textContent = shell.device || t("the device");
+      var where = document.createElement("span");
+      where.className = "terminal__shell-dir";
+      where.textContent = shell.directory || "~";
+      var when = document.createElement("span");
+      when.className = "terminal__shell-age";
+      when.textContent = age(Number(shell.seconds) || 0);
+      what.appendChild(device);
+      what.appendChild(where);
+      what.appendChild(when);
+      var end = document.createElement("button");
+      end.type = "button";
+      end.className = "btn btn--sm terminal__shell-end";
+      end.textContent = t("End");
+      end.setAttribute("aria-label", t("End the shell on %(device)s in %(dir)s",
+        { device: shell.device || "", dir: shell.directory || "~" }));
+      end.addEventListener("click", function () {
+        end.disabled = true;
+        endShell(shell.id).then(function () {
+          retries = 0;
+          reconnectNow();
+        });
+      });
+      row.appendChild(what);
+      row.appendChild(end);
+      box.appendChild(row);
+    });
+  }
+
+  function endShell(id) {
+    return fetch("/api/terminals/" + encodeURIComponent(id) + "/end",
+      { method: "POST", credentials: "same-origin" }).catch(function () {});
+  }
+
+  /* End shell, in the panel's head: this panel's own. Asked first -- it stops
+     whatever is running in it, and that cannot be taken back. */
+  function endThisShell() {
+    if (!shellId) return;
+    var ask = window.lembas && window.lembas.confirm
+      ? window.lembas.confirm({
+          title: t("End this shell?"),
+          message: t("Whatever is running in it stops, and what it showed is gone."),
+          confirmLabel: t("End shell"),
+          danger: true
+        })
+      : Promise.resolve(true);
+    Promise.resolve(ask).then(function (yes) {
+      if (yes) endShell(shellId);
+    });
+  }
+
+  /* --- The clipboard -------------------------------------------------------
+     `navigator.clipboard` exists only on a secure page, and a self-hosted
+     instance is often plain http: there the calls were made anyway, threw,
+     and Ctrl+Shift+C and V did nothing with nothing said. */
+  function copySelection(text) {
+    function fallback() {
+      if (window.lembas && window.lembas.copyText) window.lembas.copyText(text);
+    }
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).catch(fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  /* True when the paste was taken on here; false to let the browser's own
+     paste through (xterm takes that from its `paste` event), which is the only
+     way there is without the clipboard API. */
+  function pasteClipboard() {
+    if (!(navigator.clipboard && navigator.clipboard.readText && window.isSecureContext)) {
+      return false;
+    }
+    navigator.clipboard.readText().then(function (text) {
+      if (text && socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(new TextEncoder().encode(text));
+      }
+    }).catch(function () {
+      say(t("The browser did not allow reading the clipboard. Use its own paste (the menu, or Shift+Insert)."), true);
+    });
+    return true;
   }
 
   /* --- Building it -------------------------------------------------------- */
@@ -277,16 +465,13 @@
       var key = event.key.toLowerCase();
       if (key === "c") {
         var selection = term.getSelection();
-        if (selection) navigator.clipboard.writeText(selection);
+        if (selection) copySelection(selection);
         return false;
       }
       if (key === "v") {
-        navigator.clipboard.readText().then(function (text) {
-          if (socket && socket.readyState === WebSocket.OPEN) {
-            socket.send(new TextEncoder().encode(text));
-          }
-        });
-        return false;
+        /* Handled here where the clipboard can be read; otherwise the key is
+           left to the browser, whose own paste xterm receives. */
+        return !pasteClipboard();
       }
       return true;
     });
@@ -608,6 +793,15 @@
     });
 
     panel.addEventListener("click", function (event) {
+      if (event.target.closest("[data-terminal-end]")) {
+        endThisShell();
+        return;
+      }
+      if (event.target.closest("[data-terminal-reconnect]")) {
+        retries = 0;
+        reconnectNow();
+        return;
+      }
       if (event.target.closest("[data-terminal-send]")) {
         event.preventDefault();
         return sendToChat();
@@ -668,6 +862,10 @@
 
     window.lembas = window.lembas || {};
     window.lembas.repointTerminal = function () {
+      clearTimeout(retryTimer);
+      retries = 0;
+      wasOpen = false;
+      showShells(null);
       if (socket) {
         closedOnPurpose = true;
         socket.close();
@@ -697,6 +895,51 @@
     if (where) where.textContent = target.projectDir || "";
     if (window.lembas && window.lembas.repointTerminal) window.lembas.repointTerminal();
   }
+
+  /* --- The Terminal button -------------------------------------------------
+     Drawn whenever the chat could have a terminal; `data-terminal-off` holds
+     the sentence for when it cannot open one now -- the device is not linked,
+     or does not open terminals -- and a press then says that instead of
+     opening the panel. Kept current while the page is open: the device poll
+     brings `#terminal-state` up to date (chat/_terminal_state.html), so a
+     device that links after the page was drawn enables the button by itself. */
+  function terminalOff(button, why) {
+    if (!button) return;
+    if (why) {
+      button.setAttribute("aria-disabled", "true");
+      button.setAttribute("data-terminal-off", why);
+      button.title = why;
+    } else {
+      button.removeAttribute("aria-disabled");
+      button.removeAttribute("data-terminal-off");
+      if (button.dataset.titleOn) button.title = button.dataset.titleOn;
+    }
+  }
+  window.lembas = window.lembas || {};
+  window.lembas.terminalOff = terminalOff;
+
+  function applyState() {
+    var state = document.querySelector("[data-terminal-state]");
+    if (!state) return;
+    var why = state.getAttribute("data-off") || "";
+    document.querySelectorAll("[data-terminal-button]").forEach(function (button) {
+      var was = button.getAttribute("data-terminal-off") || "";
+      if (was !== why) terminalOff(button, why);
+    });
+  }
+  document.addEventListener("htmx:oobAfterSwap", function (event) {
+    if (event.target && event.target.id === "terminal-state") applyState();
+  });
+
+  /* Capture phase: before the delegated handler that opens the panel. */
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest && event.target.closest("[data-terminal-button]");
+    if (!button || button.getAttribute("aria-disabled") !== "true") return;
+    event.preventDefault();
+    event.stopPropagation();
+    var why = button.getAttribute("data-terminal-off") || "";
+    if (why && window.lembas && window.lembas.notify) window.lembas.notify(why);
+  }, true);
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", start);

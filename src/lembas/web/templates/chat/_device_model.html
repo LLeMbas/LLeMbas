@@ -19,3 +19,7 @@
 {% if picker_label %}
 <span hx-swap-oob="innerHTML:[data-picker] .picker__label">{{ picker_label }}</span>
 {% endif %}
+{# The Terminal button's state rides along: see `chat/_terminal_state.html`. #}
+{% if terminal_state_oob %}
+{% with oob = true %}{% include "chat/_terminal_state.html" %}{% endwith %}
+{% endif %}

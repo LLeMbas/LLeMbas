@@ -1,0 +1,11 @@
+{
+  "t": "ready",
+  "id": "0123456789abcdef",
+  "resumed": false,
+  "label": "workstation",
+  "dir": "/home/dev/project",
+  "cols": 100,
+  "rows": 30,
+  "shared": false,
+  "osc": true
+}

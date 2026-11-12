@@ -186,8 +186,17 @@
            shows it when `lembas:agent-target` names a connection. On a chat
            that exists the server's answer is complete. #}
         {% if terminal_enabled %}
+        {# Drawn whenever the chat could have a terminal, and saying why when
+           it cannot open one now (`data-terminal-off`: the device is not
+           linked, or does not open terminals): terminal.js then answers a
+           press with that sentence instead of the panel. The state follows
+           the device while the page is open -- `#terminal-state`, below, is
+           brought up to date by the device poll. #}
         <button class="btn btn--icon chatbar__item" type="button" aria-label="{{ t('Terminal') }}"
-                title="{{ t('Open a shell on %(device)s', device=agent_device_name or t('the device')) }}"
+                data-terminal-button
+                data-title-on="{{ t('Open a shell on %(device)s', device=agent_device_name or t('the device')) }}"
+                title="{{ terminal_off[1] if chat and terminal_off[1] else t('Open a shell on %(device)s', device=agent_device_name or t('the device')) }}"
+                {% if chat and terminal_off[1] %}aria-disabled="true" data-terminal-off="{{ terminal_off[1] }}"{% endif %}
                 {% if not chat %}data-agent-only hidden{% endif %}
                 aria-expanded="false" data-toggle="#terminal" data-toggle-group="side">
           {{ icon("terminal") }}<span class="chatbar__label" aria-hidden="true">{{ t("Terminal") }}</span>
@@ -347,6 +356,7 @@
   {% endif %}
   {% if terminal_enabled %}
     {% include "chat/_terminal.html" %}
+    {% if chat %}{% include "chat/_terminal_state.html" %}{% endif %}
   {% endif %}
   {% if chat and user.is_admin %}
     {% include "chat/_inspector.html" %}

@@ -229,7 +229,13 @@ def test_a_device_that_opens_no_terminal_is_not_offered_one(client, db, register
         _hello(ws, [c for c in ALL if c != "terminal"])
         _wait_linked(token_id)
         page = client.get("/chat?kind=agent").text
-        assert "data-terminal-draft" not in page and "js/terminal.js" not in page
+        # Not offered one -- and told why: the device's option carries the
+        # sentence the Terminal button gives when pressed, and how to switch
+        # terminals on there. (It used to be simply absent.)
+        assert "data-opens-terminal" not in page
+        option = page[page.index(f'value="device:{token_id}"'):][:900]
+        assert 'data-terminal-off="' in option and "does not open terminals" in option
         headers = _app_bearer(db)
         devices = client.get("/api/v2/devices", headers=headers).json()["devices"]
         assert [d["terminal"] for d in devices] == [False]
+        assert devices[0]["terminal_reason"] == "device"

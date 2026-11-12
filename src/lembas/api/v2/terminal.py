@@ -24,9 +24,10 @@ closes with 4401 after accepting, so a client can tell "sign in again" from
 
 from __future__ import annotations
 
-from fastapi import APIRouter, WebSocket
+from fastapi import APIRouter, HTTPException, Response, WebSocket
 
 from lembas.api import terminal as page_terminal
+from lembas.api.v2._common import Me
 from lembas.db.session import session_scope
 from lembas.security import api_tokens
 from lembas.services.agent import terminal as terminal_service
@@ -88,6 +89,25 @@ async def draft_terminal(
     await websocket.accept()
     key = terminal_service.draft_key(user_id, device_id, directory.strip())
     await page_terminal.serve(websocket, key, problem, opening, email, cols=cols, rows=rows)
+
+
+@router.get("/terminals")
+async def open_shells(caller: Me) -> dict:
+    """The caller's open shells -- `{"shells": [{id, device, directory,
+    seconds, chat, watched}]}` -- as the socket's `error` frame lists them when
+    the person has as many open as they may (`shells` beside `message`)."""
+    return {
+        "shells": [
+            terminal_service.describe(s) for s in terminal_service.shells_of(caller.user.id)
+        ]
+    }
+
+
+@router.post("/terminals/{shell_id}/end", status_code=204)
+async def end_shell(caller: Me, shell_id: str) -> Response:
+    if not await terminal_service.end_shell(caller.user.id, shell_id):
+        raise HTTPException(404, i18n.t("That shell is no longer open."))
+    return Response(status_code=204)
 
 
 __all__ = ["CLOSE_UNAUTHORIZED", "router"]

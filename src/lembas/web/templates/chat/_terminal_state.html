@@ -1,0 +1,10 @@
+{#
+  Whether this chat's device can open a terminal right now, for terminal.js to
+  put on the Terminal button: empty `data-off` when it can, the sentence when
+  it cannot (not linked; linked and not opening terminals). On the page at
+  load, and again out of band with every answer of the device poll
+  (`/api/chats/<id>/device-model`), so a device that links -- or drops --
+  after the page was drawn changes the button without a reload.
+#}
+<span id="terminal-state" hidden {% if oob %}hx-swap-oob="true"{% endif %}
+      data-terminal-state data-off="{{ terminal_off[1] }}"></span>

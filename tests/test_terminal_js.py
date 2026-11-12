@@ -290,7 +290,7 @@ def test_the_handlers_act_only_when_the_device_said_so():
 
 
 def test_the_ready_frame_decides():
-    ready = _after(CODE, 'payload.t === "ready"', 900)
+    ready = _after(CODE, 'payload.t === "ready"', 2000)
     assert "osc = !!payload.osc" in ready
 
 

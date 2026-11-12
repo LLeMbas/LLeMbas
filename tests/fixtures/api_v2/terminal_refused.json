@@ -1,0 +1,14 @@
+{
+  "t": "error",
+  "message": "You already have as many terminals open as you may (3). End one first.",
+  "shells": [
+    {
+      "id": "0123456789abcdef",
+      "device": "workstation",
+      "directory": "/home/dev/project",
+      "seconds": 754,
+      "chat": "chat2",
+      "watched": false
+    }
+  ]
+}

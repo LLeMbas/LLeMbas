@@ -227,11 +227,14 @@ def test_app_js_reapplies_this_tabs_choices_after_a_swap():
     at = js.index("function reapply(")
     # Every settle and out-of-band swap except a reply's stream frames, which
     # carry no section toggles (and come a dozen times a second).
+    # And where the swap landed, not across the document: the pollers swap
+    # something every few seconds (`swapped`).
     for event in ("htmx:afterSettle", "htmx:oobAfterSwap"):
         assert (
             f'addEventListener("{event}", function (event) {{\n'
-            "    if (!isStreamFrame(event)) reapply(document);"
+            "    if (!isStreamFrame(event)) reapply(swapped(event));"
         ) in js
+    assert "el.isConnected" in js[js.index("function swapped(") :][:200]
     assert "folded[key]" in js[at:]
 
 

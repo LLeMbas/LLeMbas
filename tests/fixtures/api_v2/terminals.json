@@ -1,0 +1,20 @@
+{
+  "shells": [
+    {
+      "id": "0123456789abcdef",
+      "device": "workstation",
+      "directory": "/home/dev/project",
+      "seconds": 754,
+      "chat": "chat2",
+      "watched": false
+    },
+    {
+      "id": "fedcba9876543210",
+      "device": "workstation",
+      "directory": "/home/dev/other",
+      "seconds": 31,
+      "chat": "",
+      "watched": true
+    }
+  ]
+}

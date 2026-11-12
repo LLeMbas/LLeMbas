@@ -208,12 +208,15 @@ def test_the_terminal_button_follows_the_device(db, registered, make_chat):
     chat.project_dir = "/home/dev"
     db.commit()
     link.initialized = {"_meta": {"lembas": {"capabilities": ["steer"]}}}
-    from lembas.api.pages import _terminal_enabled
+    from lembas.api.pages import _terminal_enabled, _terminal_off
 
+    # The button is drawn for a chat on a device either way; what follows the
+    # device is whether it can open a shell now, and the sentence when not.
     user = db.scalar(select(User))
-    assert _terminal_enabled(db, user, db.get(Chat, chat_id)) is False
-    link.initialized = {"_meta": {"lembas": {"capabilities": ["terminal"]}}}
     assert _terminal_enabled(db, user, db.get(Chat, chat_id)) is True
+    assert _terminal_off(db, user, link.token_id)[0] == "device"
+    link.initialized = {"_meta": {"lembas": {"capabilities": ["terminal"]}}}
+    assert _terminal_off(db, user, link.token_id) == ("", "")
 
 
 # --- Continue --------------------------------------------------------------------------

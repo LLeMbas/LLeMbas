@@ -525,6 +525,45 @@ def _menus() -> dict[str, object]:
             "error": "",
             "files": [{"path": "/home/frodo/out.txt", "content_b64": "b2s="}],
         },
+        # `GET /devices`: one that opens a terminal, one that does not and
+        # says why. `GET /terminals`: the person's open shells, which the
+        # terminal socket's refusal also carries (`terminal_refused`) when
+        # they have as many as they may; `POST /terminals/{id}/end` ends one.
+        "devices": {"devices": [
+            serialise.device(
+                SimpleNamespace(id="token1", name="LLeMbas CLI on workstation",
+                                device_host="workstation", device_platform="linux"),
+                terminal=True, terminal_off=("", ""), scheduled=True, max_mode="edit",
+            ),
+            serialise.device(
+                SimpleNamespace(id="token2", name="LLeMbas CLI on laptop",
+                                device_host="laptop", device_platform="darwin"),
+                terminal=False,
+                terminal_off=("device", "laptop does not open terminals. Switch it on there: "
+                              "in LLeMbas Desktop's settings, or with the LLeMbas CLI's "
+                              "remote.terminal setting."),
+                scheduled=False, max_mode="",
+            ),
+        ]},
+        "terminals": {"shells": [
+            {"id": "0123456789abcdef", "device": "workstation", "directory": "/home/dev/project",
+             "seconds": 754, "chat": "chat2", "watched": False},
+            {"id": "fedcba9876543210", "device": "workstation", "directory": "/home/dev/other",
+             "seconds": 31, "chat": "", "watched": True},
+        ]},
+        "terminal_ready": {
+            "t": "ready", "id": "0123456789abcdef", "resumed": False, "label": "workstation",
+            "dir": "/home/dev/project", "cols": 100, "rows": 30, "shared": False, "osc": True,
+        },
+        "terminal_refused": {
+            "t": "error",
+            "message": "You already have as many terminals open as you may (3). End one first.",
+            "shells": [
+                {"id": "0123456789abcdef", "device": "workstation",
+                 "directory": "/home/dev/project", "seconds": 754, "chat": "chat2",
+                 "watched": False},
+            ],
+        },
         "mentions": {"items": serialise.mentions(offered)},
         "mentions_url": {"items": serialise.mentions(page)},
         "attachment_from": {"attachment": serialise.attachment(attached)},

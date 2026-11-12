@@ -1240,7 +1240,10 @@ document.addEventListener("lembas:notify", function (event) {
           profileId: chosen,
           projectDir: dir ? dir.value : "",
           device: device,
-          terminal: !!(device && option && option.hasAttribute("data-opens-terminal"))
+          terminal: !!(device && option && option.hasAttribute("data-opens-terminal")),
+          /* A device that is linked and opens no terminal: the sentence
+             saying so and how to switch it on, for the button to give. */
+          terminalOff: (device && option && option.getAttribute("data-terminal-off")) || ""
         }
       }));
     }
@@ -1500,8 +1503,18 @@ document.addEventListener("lembas:notify", function (event) {
   document.addEventListener("lembas:agent-target", function (event) {
     var detail = event.detail || {};
     var ready = !!(detail.profileId || (detail.terminal && detail.projectDir));
+    /* A device that does not open terminals still gets the Terminal button,
+       once a directory is chosen: disabled, with the reason and how to switch
+       it on (terminal.js answers a press with it). A button that is simply
+       absent cannot say why. */
+    var off = !ready && detail.terminalOff && detail.projectDir ? detail.terminalOff : "";
     document.querySelectorAll("[data-agent-only]").forEach(function (button) {
-      button.hidden = !ready;
+      var explains = !!off && button.hasAttribute("data-terminal-button");
+      button.hidden = !ready && !explains;
+      if (button.hasAttribute("data-terminal-button") && window.lembas &&
+          window.lembas.terminalOff) {
+        window.lembas.terminalOff(button, off);
+      }
       if (ready) return;
       var selector = button.dataset.toggle || "";
       var panel = selector && document.querySelector(selector);

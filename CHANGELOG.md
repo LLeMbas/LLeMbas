@@ -30,6 +30,26 @@ For 2.0.0-beta.11.
   three things happened -- no page of the chat is open, a page is open but did not answer, or
   the run took too long -- in the harness spec's words (3.7.0; the same words from the code
   until that spec is pinned).
+- **Terminals are no longer used up and stuck.** A shell kept running for half an hour after
+  its panel was closed, a person may have three, and there was no way to end one -- so
+  looking at a few folders on the new-chat screen left no terminal to open anywhere. Now:
+  the panel has **End shell**; when the limit is reached, the message lists your open shells
+  (computer, folder, how long) with **End** beside each; a shell opened before its chat
+  exists ends shortly after its panel goes, unless the first message makes the chat that
+  keeps it; and changing folder on the new-chat screen no longer leaves the previous
+  folder's shell behind.
+- **The Terminal button says why it cannot open a shell** instead of not being there: a
+  device that is not linked right now, or one that does not open terminals -- with how to
+  switch that on (LLeMbas Desktop's settings, or the CLI's `remote.terminal`). It becomes
+  usable by itself when the device links, without reloading the page.
+- **A terminal whose connection dropped comes back by itself** (the device's link, or a
+  restart of the server), trying again with longer waits, and has a **Reconnect** button.
+  When what comes back is a new shell, it says so in one line.
+- **Ctrl+Shift+C and V in the terminal on a page served over plain http** did nothing and
+  said nothing. Copy falls back to the page's own copy, and paste is left to the browser's.
+  A panel narrower than twenty columns keeps twenty and scrolls sideways.
+- A shell opened before its chat is taken over by the chat when the folder was written
+  another way (`/srv/app/` and `/srv/app`).
 - **A long reply no longer gets slower to draw the longer it gets.** While a reply was being
   written, every update re-sent everything written so far in the current step, and the browser
   parsed and laid it all out again, ten times a second; each time a step ended, every finished
@@ -69,6 +89,10 @@ For 2.0.0-beta.11.
   `GET /pyodide/{version}/{name}`. `GET /me` carries `python`: whether it is switched on,
   the version, and the files with their SHA-256 and sizes. A chat open only in an app had no
   way to run Python at all.
+- **`/api/v2`: `GET /terminals`** (the caller's open shells) and
+  **`POST /terminals/{id}/end`**; the terminal socket's `ready` frame carries `id` and
+  `resumed`, and its refusal at the limit carries `shells`. Each device of `GET /devices`
+  says why it opens no terminal (`terminal_reason`, `terminal_hint`).
 - `scripts/perf_measure.py`: the chat page and the end of a reply, measured in a headless
   browser against a 300-message chat (typing, long tasks while a reply streams, last token to
   `done` on both streams, how long the server's event loop was held).
