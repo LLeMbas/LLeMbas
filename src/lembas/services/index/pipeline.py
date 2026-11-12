@@ -471,81 +471,110 @@ def _finish(db: DBSession, digest: str, status: str, *, error: str = "", model: 
     )
 
 
+def _read_for_index(digest: str):
+    """(known, source, embedder) for one hash, read in one session."""
+    with session_scope() as db:
+        row = db.get(IndexText, digest)
+        if row is None:
+            return False, None, None
+        return True, _source_text(db, digest), embedder(db)
+
+
+def _set_aside(digest: str, status: str, error: str) -> str:
+    with session_scope() as db:
+        _drop_chunks(db, digest)
+        _finish(db, digest, status, error=error)
+    return status
+
+
+def _rows_of(body: str, pieces: list, groups) -> list[tuple[str, int, int, int, bytes | None]]:
+    rows: list[tuple[str, int, int, int, bytes | None]] = []
+    for n, piece in enumerate(pieces):
+        if groups is None:
+            parts: list[tuple[str, list[float] | None]] = [(piece.text, None)]
+        else:
+            parts = list(groups[n])
+        for part, vector in parts:
+            # A half keeps its place: its lines are found inside its piece.
+            at = body.find(part, piece.start, piece.end) if len(parts) > 1 else piece.start
+            at = piece.start if at < 0 else at
+            first, last = chunks.line_range(body, at, at + len(part))
+            tokens = piece.tokens if len(parts) == 1 else chunks.count_estimate(part)
+            rows.append((part, tokens, first, last, pack(vector) if vector else None))
+    return rows
+
+
+def _store_chunks(digest: str, rows: list, groups, model: str) -> str:
+    """Replace the hash's chunks with `rows`, whole or not at all."""
+    with session_scope() as db:
+        if db.get(IndexText, digest) is None:
+            return ""  # collected while we worked
+        _drop_chunks(db, digest)
+        dims, has_vec = 0, False
+        if groups:
+            dims = len(groups[0][0][1])
+            has_vec = schema.ensure_vec(db, dims)
+        for ordinal, (piece_text, tokens, first, last, vector) in enumerate(rows):
+            chunk = IndexChunk(
+                hash=digest,
+                ordinal=ordinal,
+                text=piece_text,
+                tokens=tokens,
+                line_start=first,
+                line_end=last,
+                vector=vector,
+            )
+            db.add(chunk)
+            db.flush()
+            if vector is not None and has_vec:
+                db.execute(
+                    text(f"INSERT INTO {schema.VEC}(rowid, embedding) "
+                         "VALUES (:id, vec_quantize_binary(:v))"),
+                    {"id": chunk.id, "v": vector},
+                )
+        _finish(db, digest, INDEX_DONE, model=model if groups else "", dims=dims)
+    return INDEX_DONE
+
+
 async def index_hash(digest: str) -> str:
     """Cut (and embed) one hash's text. Returns the status it ended in.
 
     Never raises for one bad file: a failure is the hash's `error` status and
     the queue moves on.
+
+    The reading, the cutting and the writing each run in a thread
+    (`_read_for_index`, `chunks.split`, `_store_chunks`): they are the database
+    and the processor, and this is called for every changed file and message
+    by a worker on the event loop every reply and page is served from. Only
+    the embedding waits on the network, and that was the only part that ever
+    gave the loop back -- with no embedding model, nothing did.
     """
     try:
-        with session_scope() as db:
-            row = db.get(IndexText, digest)
-            if row is None:
-                return ""
-            source = _source_text(db, digest)
-            worker = embedder(db)
+        known, source, worker = await asyncio.to_thread(_read_for_index, digest)
+        if not known:
+            return ""
         if source.skip or source.error:
-            with session_scope() as db:
-                _drop_chunks(db, digest)
-                _finish(db, digest, INDEX_ERROR if source.error else INDEX_SKIPPED,
-                        error=source.error or source.skip)
-            return INDEX_ERROR if source.error else INDEX_SKIPPED
+            return await asyncio.to_thread(
+                _set_aside,
+                digest,
+                INDEX_ERROR if source.error else INDEX_SKIPPED,
+                source.error or source.skip,
+            )
 
         body = chunks.normalise(source.text)
         tokenize = await tokenizer_for(worker, body.strip()) if worker else chunks.estimate
-        pieces = chunks.split(body, tokenize)
+        pieces = await asyncio.to_thread(chunks.split, body, tokenize)
         if not pieces:
-            with session_scope() as db:
-                _drop_chunks(db, digest)
-                _finish(db, digest, INDEX_SKIPPED, error="empty")
-            return INDEX_SKIPPED
+            return await asyncio.to_thread(_set_aside, digest, INDEX_SKIPPED, "empty")
 
         groups: list[list[tuple[str, list[float]]]] | None = None
         if worker is not None:
             groups = await embed_pieces(worker, [p.text for p in pieces])
 
-        rows: list[tuple[str, int, int, int, bytes | None]] = []
-        for n, piece in enumerate(pieces):
-            if groups is None:
-                parts: list[tuple[str, list[float] | None]] = [(piece.text, None)]
-            else:
-                parts = list(groups[n])
-            for part, vector in parts:
-                # A half keeps its place: its lines are found inside its piece.
-                at = body.find(part, piece.start, piece.end) if len(parts) > 1 else piece.start
-                at = piece.start if at < 0 else at
-                first, last = chunks.line_range(body, at, at + len(part))
-                tokens = piece.tokens if len(parts) == 1 else chunks.count_estimate(part)
-                rows.append((part, tokens, first, last, pack(vector) if vector else None))
-
-        with session_scope() as db:
-            if db.get(IndexText, digest) is None:
-                return ""  # collected while we worked
-            _drop_chunks(db, digest)
-            dims, has_vec = 0, False
-            if groups:
-                dims = len(groups[0][0][1])
-                has_vec = schema.ensure_vec(db, dims)
-            for ordinal, (piece_text, tokens, first, last, vector) in enumerate(rows):
-                chunk = IndexChunk(
-                    hash=digest,
-                    ordinal=ordinal,
-                    text=piece_text,
-                    tokens=tokens,
-                    line_start=first,
-                    line_end=last,
-                    vector=vector,
-                )
-                db.add(chunk)
-                db.flush()
-                if vector is not None and has_vec:
-                    db.execute(
-                        text(f"INSERT INTO {schema.VEC}(rowid, embedding) "
-                             "VALUES (:id, vec_quantize_binary(:v))"),
-                        {"id": chunk.id, "v": vector},
-                    )
-            _finish(db, digest, INDEX_DONE, model=worker.model_id if groups else "", dims=dims)
-        return INDEX_DONE
+        rows = await asyncio.to_thread(_rows_of, body, pieces, groups)
+        return await asyncio.to_thread(
+            _store_chunks, digest, rows, groups, worker.model_id if worker else ""
+        )
     except LLMError as exc:
         log.info("index: could not embed %s: %s", digest[:16], exc)
         with session_scope() as db:

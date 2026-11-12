@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from urllib.parse import urlencode
 from zoneinfo import available_timezones
@@ -1102,7 +1103,13 @@ async def chat_detail(
         except Exception:  # the strip is a convenience
             log.debug("could not list the jobs of chat %s", chat.id, exc_info=True)
 
-    return render(
+    # Rendered in a thread: the page is fifty messages through Markdown and
+    # the highlighter, and on the event loop it held every stream and every
+    # other page for as long as it took (about a second for a long chat, in
+    # the measure script). The session is this request's own and nothing else
+    # uses it meanwhile; the language travels with the context.
+    return await asyncio.to_thread(
+        render,
         request,
         "chat/index.html",
         {

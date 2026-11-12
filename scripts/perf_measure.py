@@ -325,6 +325,13 @@ class Server:
             self.port = probe.getsockname()[1]
         inner = app
 
+        # How long each request took to answer, by route (ids folded away).
+        # Wall time, not time on the loop -- but a handler that is `async def`
+        # and does its database and rendering work in line holds the loop for
+        # nearly all of it, so the slow ones here are where to look.
+        self.requests: dict[str, list[float]] = {}
+        took = self.requests
+
         async def wrapped(scope, receive, send):
             lag.start()
             if slow:
@@ -332,7 +339,25 @@ class Server:
                 if not loop.get_debug():
                     loop.set_debug(True)
                     loop.slow_callback_duration = slow
-            await inner(scope, receive, send)
+            if scope.get("type") != "http":
+                await inner(scope, receive, send)
+                return
+            path = re.sub(r"/[0-9a-f]{32}", "/{id}", scope.get("path", ""))
+            path = re.sub(r"/static/.*", "/static/…", path)
+            began = time.perf_counter()
+            first: list[float] = []
+
+            async def timed_send(message):
+                if message.get("type") == "http.response.start" and not first:
+                    first.append(time.perf_counter() - began)
+                await send(message)
+
+            try:
+                await inner(scope, receive, timed_send)
+            finally:
+                # To the first byte of the answer: a stream's length is not its cost.
+                spent = first[0] if first else time.perf_counter() - began
+                took.setdefault(f"{scope.get('method', '')} {path}", []).append(spent)
 
         config = uvicorn.Config(
             wrapped, host="127.0.0.1", port=self.port, log_level="warning", lifespan="on"
@@ -804,6 +829,13 @@ def table(results: dict) -> str:
             lines.append(f"{phase.split('_')[0]}: the page's own time, by function (ms)")
             for item in results[phase]:
                 lines.append(f"  {item['self_ms']:>6}  {item['function']}")
+    if results.get("requests"):
+        lines.append("slowest answers, to the first byte: max / median (ms), count")
+        for item in results["requests"][:8]:
+            lines.append(
+                f"  {item['max_ms']:>6} / {item['median_ms']:<5} {item['count']:>3}x"
+                f"  {item['route']}"
+            )
     if results.get("slow"):
         lines.append("held the event loop (asyncio debug)")
         for item in results["slow"][:15]:
@@ -844,6 +876,14 @@ def main() -> None:
         results["end"] = measure_end(server, upstream, seeded, lag)
         if args.slow:
             results["slow"] = server.slow_log.report()
+        results["requests"] = sorted(
+            (
+                {"route": route, "count": len(times), "max_ms": round(max(times) * 1000),
+                 "median_ms": round(statistics.median(times) * 1000)}
+                for route, times in server.requests.items()
+            ),
+            key=lambda row: -row["max_ms"],
+        )[:12]
     finally:
         server.stop()
     if not args.skip_page:

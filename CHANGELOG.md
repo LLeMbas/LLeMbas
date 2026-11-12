@@ -98,6 +98,11 @@ answers), vendored from the LLeMbas CLI's `dev` and pinned to its tag at release
   that looked through the whole transcript after each one (section toggles, opened blocks, the
   composer's highlighting, the progress line, the folds of the activity panel) now run only
   for a change that concerns them.
+- **Opening a long chat, and the search index catching up, no longer hold everybody else's
+  replies.** The chat page is rendered in a thread, and the index worker reads, cuts and
+  writes in threads: with no embedding model a whole indexing pass -- every message of a long
+  chat, after each start -- ran as one uninterrupted stretch of the server's event loop (over
+  two seconds in the measure script), and the page render held it for up to a second.
 - **A long code block with no language named** is no longer scored against every language at
   its full length each time its chat is opened: the language is guessed from its opening,
   once. A block above 200 kB is shown without colours.

@@ -142,13 +142,25 @@ def notify(orgs=(), messages=(), *, everything: bool = False) -> None:
 
 
 # --- Working ----------------------------------------------------------------------
-def _map_changes() -> int:
-    """Apply what changed to `path_hash`. Returns how many hashes became pending."""
+def _take_changes() -> tuple[set, set, bool]:
+    """What has changed since the last pass, taken and cleared in one step on
+    the event loop -- where `notify` adds to it -- so nothing told between the
+    read and the clear is lost."""
     orgs, messages = set(_STATE.orgs), set(_STATE.messages)
     everything = _STATE.everything
     _STATE.orgs.clear()
     _STATE.messages.clear()
     _STATE.everything = False
+    return orgs, messages, everything
+
+
+def _apply_changes(orgs: set, messages: set, everything: bool) -> int:
+    """Apply what changed to `path_hash`. Returns how many hashes became pending.
+
+    The database, and only the database: run in a thread by `_map_changes`. A
+    reconcile of everything reads every file and message of the instance --
+    over a second on a small one -- and used to do it on the event loop, at
+    every start and every fifteen minutes, with every reply and page waiting."""
     pending = 0
     with session_scope() as db:
         if everything:
@@ -161,6 +173,11 @@ def _map_changes() -> int:
             pending += pipeline.sync_messages(db, sorted(messages))
         pipeline.collect(db)
     return pending
+
+
+async def _map_changes() -> int:
+    taken = _take_changes()
+    return await asyncio.to_thread(_apply_changes, *taken)
 
 
 def _changes_waiting() -> bool:
@@ -176,7 +193,7 @@ async def run_once(*, everything: bool = False) -> int:
     """
     done = 0
     _STATE.everything = _STATE.everything or everything
-    _map_changes()
+    await _map_changes()
     while True:
         with session_scope() as db:
             batch = pipeline.next_pending(db)
@@ -184,7 +201,7 @@ async def run_once(*, everything: bool = False) -> int:
             break
         for digest in batch:
             if _changes_waiting():
-                _map_changes()
+                await _map_changes()
             _STATE.current = digest
             status = await pipeline.index_hash(digest)
             _STATE.current = ""
