@@ -95,3 +95,39 @@ def test_escape_text_is_chunk_safe():
     whole = "<a>&</a> text"
     chunks = ["<a", ">&<", "/a> ", "text"]
     assert "".join(escape_text(c) for c in chunks) == escape_text(whole)
+
+
+def test_a_language_is_guessed_from_the_opening_of_a_block_and_once(monkeypatch):
+    """Guessing asks every lexer to score the text, so it cost seconds on a
+    pasted log -- on the event loop, again at every load of the chat. Only the
+    opening is shown to the guess, and the answer is remembered."""
+    from lembas.services import markdown as markdown_service
+
+    seen: list[int] = []
+    real = markdown_service.guess_lexer
+
+    def counting(sample):
+        seen.append(len(sample))
+        return real(sample)
+
+    monkeypatch.setattr(markdown_service, "guess_lexer", counting)
+    markdown_service._guessed_name.cache_clear()
+    body = "def step(value):\n    return value + 1\n" * 2000
+    text = f"```\n{body}```\n"
+
+    first = markdown_service.render_markdown(text)
+    second = markdown_service.render_markdown(text)
+
+    assert first == second
+    assert seen == [markdown_service.GUESS_SAMPLE]
+
+
+def test_a_very_large_block_is_escaped_not_highlighted(monkeypatch):
+    from lembas.services import markdown as markdown_service
+
+    monkeypatch.setattr(markdown_service, "HIGHLIGHT_MAX", 500)
+    html = markdown_service.render_markdown("```python\n" + "x = '<b>'\n" * 200 + "```\n")
+
+    assert "code-block__label" in html and "python" in html
+    assert "<span" not in html, "no highlighter spans"
+    assert "&lt;b&gt;" in html and "<b>" not in html

@@ -25,7 +25,7 @@ import pytest
 
 from lembas.api.v2 import APP_API, serialise
 from lembas.api.v2.misc import SHOWN_PERMISSIONS
-from lembas.api.v2.stream import frame, status_payload
+from lembas.api.v2.stream import done_payload, frame, status_payload, title_payload
 from lembas.db.models import Chat, Message, Model
 from lembas.services import device_link, interaction
 from lembas.services import generation as generation_service
@@ -849,11 +849,17 @@ def _shapes() -> dict[str, object]:
         "event_ask_phone": {"cards": _phone_cards()},
         "event_jobs": {"jobs": serialise.jobs(generation.jobs)},
         "event_metrics": serialise.metrics(metrics_service.from_message(_assistant().usage_json)),
-        "event_done": {
-            "message": assistant,
-            "chat": {"id": "chat1", "title": "Waybread"},
-            "next": None,
-        },
+        "event_done": done_payload(
+            assistant, "chat1", "Waybread", title_pending=False, following=None
+        ),
+        # The first reply of a new chat: it ends before a model has named the
+        # chat, so `title` is the one made from the prompt and the stream
+        # carries one `title` frame (below) before `close` -- if the app is
+        # still there; it never waits for it.
+        "event_done_title_pending": done_payload(
+            assistant, "chat1", "How is lembas made?", title_pending=True, following=None
+        ),
+        "event_title": title_payload("chat1", "Waybread"),
         "event_close": {},
         "tool_show": {"calls": [serialise.tool_call(SHOW_TREE), serialise.tool_call(SHOW_DEVICE)]},
         "team": {"team": serialise.team(_team())},

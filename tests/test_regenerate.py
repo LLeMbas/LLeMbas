@@ -202,7 +202,7 @@ async def test_the_reply_is_persisted_before_it_is_marked_done(
     reply = _reply(db, chat_id, complete=False)
     seen: list[bool] = []
 
-    def _record(generation, title, elapsed):
+    def _record(generation, title, elapsed, **_):
         seen.append(generation.done)
 
     monkeypatch.setattr(generation_service, "_persist", _record)

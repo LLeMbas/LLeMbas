@@ -22,6 +22,11 @@
 
       <h1 class="topbar__title">
         <span id="chat-title">{{ chat.title if chat else t("New chat") }}</span>
+        {# Where the wait for a generated name goes (`chat/_title_oob.html`):
+           empty unless a model is naming this chat right now. #}
+        <span id="chat-title-wait" hidden
+              {% if chat and title_pending %}hx-get="/api/chats/{{ chat.id }}/title"
+              hx-trigger="load delay:1s" hx-swap="none"{% endif %}></span>
         {#
           Rename, where the name is. A themed dialog through `data-prompt`
           rather than an inline field: the heading is in a flex row beside the

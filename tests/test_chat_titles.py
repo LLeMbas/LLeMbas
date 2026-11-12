@@ -82,9 +82,158 @@ async def test_an_ordinary_chat_still_asks_a_model(db, user_id, monkeypatch):
 
     generation = generation_service.Generation(chat_id=chat_id, message_id=message_id)
     await generation_service._run(generation)
+    # The reply ends first; the name follows it.
+    assert await generation.title_task == "Search indexing, explained"
 
     db.expire_all()
     assert db.get(Chat, chat_id).title == "Search indexing, explained"
+    assert db.get(Chat, chat_id).title_generated is True
+
+
+# --- The reply does not wait for its chat's name ---------------------------------
+async def test_a_slow_title_does_not_hold_the_reply(db, user_id, monkeypatch):
+    """The model's title used to be awaited before the reply was marked done:
+    a finished answer stayed "Writing" for as long as a second completion took,
+    queued behind the first on a one-slot server. Now the reply is saved and
+    done with the name made from the prompt, and the model's comes after."""
+    import asyncio
+
+    _add_connection(db)
+    chat_id, message_id = _chat_awaiting_a_reply(db, user_id)
+    monkeypatch.setattr(generation_service, "stream_chat", _stub_stream("Like so."))
+    release = asyncio.Event()
+
+    async def _slow(*args, **kwargs):
+        await release.wait()
+        return "Search indexing, explained"
+
+    monkeypatch.setattr(chat_service, "generate_title", _slow)
+
+    generation = generation_service.Generation(chat_id=chat_id, message_id=message_id)
+    # A limit, so a regression fails here instead of hanging the suite.
+    await asyncio.wait_for(generation_service._run(generation), 5)
+
+    assert generation.done
+    assert generation_service.title_pending(chat_id)
+    db.expire_all()
+    chat = db.get(Chat, chat_id)
+    assert db.get(Message, message_id).complete is True
+    assert chat.title == "Rebuild the search index"
+    assert chat.title_generated is False, "still to be named by the model"
+
+    release.set()
+    assert await generation.title_task == "Search indexing, explained"
+    await asyncio.sleep(0)
+    assert not generation_service.title_pending(chat_id)
+    db.expire_all()
+    assert db.get(Chat, chat_id).title == "Search indexing, explained"
+
+
+async def test_a_title_that_takes_too_long_is_given_up(db, user_id, monkeypatch):
+    """A title is never worth holding a model for: past the limit the name from
+    the prompt stays, and the chat counts as named."""
+    import asyncio
+
+    _add_connection(db)
+    chat_id, message_id = _chat_awaiting_a_reply(db, user_id)
+    monkeypatch.setattr(generation_service, "stream_chat", _stub_stream("Like so."))
+    monkeypatch.setattr(generation_service, "TITLE_TIMEOUT", 0.05)
+
+    async def _never(*args, **kwargs):
+        await asyncio.sleep(30)
+
+    monkeypatch.setattr(chat_service, "generate_title", _never)
+
+    generation = generation_service.Generation(chat_id=chat_id, message_id=message_id)
+    await generation_service._run(generation)
+    assert await asyncio.wait_for(generation.title_task, 5) == "Rebuild the search index"
+
+    db.expire_all()
+    chat = db.get(Chat, chat_id)
+    assert chat.title == "Rebuild the search index"
+    assert chat.title_generated is True
+
+
+async def test_a_rename_while_the_model_is_naming_wins(db, user_id, monkeypatch):
+    import asyncio
+
+    _add_connection(db)
+    chat_id, message_id = _chat_awaiting_a_reply(db, user_id)
+    monkeypatch.setattr(generation_service, "stream_chat", _stub_stream("Like so."))
+    release = asyncio.Event()
+
+    async def _slow(*args, **kwargs):
+        await release.wait()
+        return "From the model"
+
+    monkeypatch.setattr(chat_service, "generate_title", _slow)
+
+    generation = generation_service.Generation(chat_id=chat_id, message_id=message_id)
+    await generation_service._run(generation)
+    chat = db.get(Chat, chat_id)
+    chat.title = "Orthanc"
+    chat.title_generated = True
+    db.commit()
+
+    release.set()
+    assert await generation.title_task == "Orthanc"
+    db.expire_all()
+    assert db.get(Chat, chat_id).title == "Orthanc"
+
+
+async def test_the_page_is_told_to_ask_for_the_name_and_stops_when_it_has_it(
+    client: TestClient, db, registered, monkeypatch
+):
+    """The page's stream ends with `done`, so the name cannot come on it: the
+    frame carries an element that asks `/title` once a second, and the answer
+    keeps it asking only while the model is still at it."""
+    import asyncio
+
+    from lembas.api import chats as chats_api
+
+    _add_connection(db)
+    user = db.scalar(select(User))
+    chat_id, message_id = _chat_awaiting_a_reply(db, user.id)
+    monkeypatch.setattr(generation_service, "stream_chat", _stub_stream("Like so."))
+    release = asyncio.Event()
+
+    async def _slow(*args, **kwargs):
+        await release.wait()
+        return "Search indexing, explained"
+
+    monkeypatch.setattr(chat_service, "generate_title", _slow)
+
+    generation = generation_service.Generation(chat_id=chat_id, message_id=message_id)
+    await generation_service._run(generation)
+
+    frame, _ = await asyncio.to_thread(chats_api._final_frame, chat_id, message_id, generation)
+    assert "Rebuild the search index" in frame
+    assert f'hx-get="/api/chats/{chat_id}/title"' in frame
+
+    release.set()
+    await generation.title_task
+    await asyncio.sleep(0)
+    frames = chats_api._title_frames(
+        db.get(Chat, chat_id), pending=generation_service.title_pending(chat_id)
+    )
+    db.expire_all()
+    frames = chats_api._title_frames(
+        db.get(Chat, chat_id), pending=generation_service.title_pending(chat_id)
+    )
+    assert "Search indexing, explained" in frames
+    assert 'id="chat-title-wait"' in frames and "hx-get" not in frames
+
+
+def test_the_title_route_answers_with_the_name(client: TestClient, db, registered, make_chat):
+    _add_connection(db)
+    chat_id = make_chat()
+
+    response = client.get(f"/api/chats/{chat_id}/title")
+    assert response.status_code == 200
+    assert 'id="chat-title"' in response.text
+    # Nothing is naming it: the page is not told to ask again.
+    assert 'id="chat-title-wait"' in response.text and "hx-get" not in response.text
+    assert client.get("/api/chats/" + "0" * 32 + "/title").status_code == 404
 
 
 async def test_an_agent_title_is_trimmed_on_a_word_boundary(db, user_id, monkeypatch):

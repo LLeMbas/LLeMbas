@@ -536,6 +536,20 @@ async def inspect_chat(request: Request, db: Db, user: RequiredUser, chat_id: st
     )
 
 
+@router.get("/{chat_id}/title")
+def chat_title(db: Db, user: RequiredUser, chat_id: str) -> HTMLResponse:
+    """The chat's name, out of band, for a page waiting on a generated one.
+
+    A reply ends before its chat is named by a model, so the `done` frame
+    carries the name made from the prompt and an element that asks here once a
+    second; the answer keeps it asking only while the model is still at it.
+    """
+    chat = _owned_chat(db, chat_id, user.id)
+    return HTMLResponse(
+        _title_frames(chat, pending=generation_service.title_pending(chat.id))
+    )
+
+
 @router.get("/{chat_id}/usage")
 async def chat_usage(request: Request, db: Db, user: RequiredUser, chat_id: str) -> Response:
     """What this conversation has cost, and how full the window is.
@@ -1730,13 +1744,41 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
         generation.followers = max(0, generation.followers - 1)
 
     # The producer commits the message before marking itself done, so by here
-    # the row is authoritative and the final bubble can be rendered from it.
+    # the row is authoritative and the final bubble can be rendered from it --
+    # in a thread: it is the whole reply through Markdown and the highlighter,
+    # and on the event loop it held every other stream and page for as long.
+    final = await asyncio.to_thread(_final_frame, chat_id, message_id, generation)
+    if final is None:
+        yield sse.event("close", "")
+        return
+    frame, wants_tasks = final
+    if wants_tasks:
+        # The activity panel's tasks as the reply leaves it: they poll from
+        # here while anything works.
+        with session_scope() as db:
+            chat = db.get(Chat, chat_id)
+            if chat is not None:
+                frame += await _activity_tasks_oob(db, chat)
+    yield sse.event("done", frame)
+    yield sse.event("close", "")
+
+
+def _title_frames(chat: Chat, *, pending: bool) -> str:
+    """The chat's name, out of band, and whether the page should ask again."""
+    return templates.get_template("chat/_title_oob.html").render(
+        {"chat": chat, "title_pending": pending, "title_wait": True}
+    )
+
+
+def _final_frame(chat_id: str, message_id: str, generation) -> tuple[str, bool] | None:
+    """The `done` frame of a reply: the finished bubble and what rides with it
+    out of band. Its own session; runs in a thread. None: the row is gone.
+    The second value: whether the activity panel's tasks are wanted too."""
     with session_scope() as db:
         message = db.get(Message, message_id)
         chat = db.get(Chat, chat_id)
         if message is None or chat is None:
-            yield sse.event("close", "")
-            return
+            return None
 
         owner = db.get(User, chat.user_id)
         final_html = templates.get_template("chat/_message.html").render(
@@ -1768,7 +1810,10 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
                 "just_finished": True,
             }
         )
-        title_html = templates.get_template("chat/_title_oob.html").render({"chat": chat})
+        # The name as it stands -- from the prompt, while a model is still
+        # being asked for a better one; the page then asks for it (see
+        # `chat_title`), because this is the last frame of this stream.
+        title_html = _title_frames(chat, pending=generation_service.title_pending(chat.id))
 
         # What the queue did while this reply was running. There is no push
         # channel that outlives one message's stream, and this is the last frame
@@ -1783,13 +1828,11 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
             if generation.jobs or team_rows
             else ""
         )
-        # The activity panel's tasks as the reply leaves it: they poll from
-        # here while anything works.
-        if team_rows or generation.jobs or team_run.has_team(db, chat.id):
-            jobs_html += await _activity_tasks_oob(db, chat)
+        wants_tasks = bool(team_rows or generation.jobs or team_run.has_team(db, chat.id))
 
-    yield sse.event("done", moved_html + final_html + queue_html + title_html + jobs_html)
-    yield sse.event("close", "")
+    return moved_html + final_html + queue_html + title_html + jobs_html, wants_tasks
+
+
 
 
 def _render_bubble(db: DBSession, chat: Chat, owner: User | None, message: Message) -> str:

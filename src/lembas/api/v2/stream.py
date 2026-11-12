@@ -27,8 +27,17 @@ The rules are `_follow`'s and they are why a flaky phone connection works:
 | `jobs` | `{"jobs": [...]}` -- only once there are any |
 | `tree` | `{"tree": {...}}` -- the subagent tree (spec 3.4.0), once there is one |
 | `metrics` | as on a message |
-| `done` | `{"message", "chat": {"id", "title"}, "next": id or null}` |
+| `done` | `{"message", "chat": {"id", "title", "title_pending"}, "next": id or null}` |
+| `title` | `{"chat": {"id", "title"}}` -- after `done`, only when a model named the chat |
 | `close` | `{}` |
+
+**`done` is the end of the reply**, sent as soon as the reply is saved. A new
+chat is named by a model *after* that (seconds, on a reasoning model): `done`
+carries the name made from the prompt and `title_pending: true`, and the
+stream stays open only for the one `title` frame that follows when the name
+is ready (at most `generation.TITLE_TIMEOUT` seconds), then `close`. An app
+shows the reply as finished at `done` and never waits for `title`: one that
+has gone by then finds the name on its next fetch of the chat or the list.
 """
 
 from __future__ import annotations
@@ -183,13 +192,49 @@ async def follow_json(chat_id: str, message_id: str) -> AsyncIterator[str]:
             if generation.drained
             else None
         )
-        done = {
-            "message": serialise.message(row),
-            "chat": {"id": chat.id, "title": chat.title},
-            "next": following.id if following is not None else None,
-        }
+        naming = generation.title_task
+        pending = naming is not None and not naming.done()
+        done = done_payload(
+            serialise.message(row),
+            chat.id,
+            chat.title,
+            title_pending=pending,
+            following=following.id if following is not None else None,
+        )
     yield frame("done", done)
+    if pending:
+        # The name, when the model has it. Shielded: this follower going away
+        # must not stop the naming, and the limit is the naming's own.
+        named = ""
+        try:
+            named = await asyncio.wait_for(
+                asyncio.shield(naming), generation_service.TITLE_TIMEOUT + 5
+            )
+        except Exception:  # timed out or failed: the name in `done` stands
+            named = ""
+        if named and named != done["chat"]["title"]:
+            yield frame("title", title_payload(chat_id, named))
     yield frame("close", {})
+
+
+def done_payload(
+    message: dict, chat_id: str, title: str, *, title_pending: bool, following: str | None
+) -> dict:
+    """The `done` frame: the reply as saved, the chat's name as it stands, and
+    the reply the queue started after this one (`next`), if any.
+
+    `title_pending`: a model is still naming the chat, so `title` is the one
+    made from the prompt and a `title` frame may follow before `close`."""
+    return {
+        "message": message,
+        "chat": {"id": chat_id, "title": title, "title_pending": title_pending},
+        "next": following,
+    }
+
+
+def title_payload(chat_id: str, title: str) -> dict:
+    """The `title` frame: the name a model gave the chat after `done`."""
+    return {"chat": {"id": chat_id, "title": title}}
 
 
 def status_payload(generation, pacer: progress_service.Pacer | None = None) -> dict | None:
@@ -202,4 +247,11 @@ def status_payload(generation, pacer: progress_service.Pacer | None = None) -> d
     return {"text": generation.status, "progress": value}
 
 
-__all__ = ["follow_json", "frame", "router", "status_payload"]
+__all__ = [
+    "done_payload",
+    "follow_json",
+    "frame",
+    "router",
+    "status_payload",
+    "title_payload",
+]

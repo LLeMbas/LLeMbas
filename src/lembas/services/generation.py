@@ -197,6 +197,10 @@ class Generation:
     error_unreachable: bool = False
     stopped: bool = False
     done: bool = False
+    # Naming the chat, when that is still being asked of a model after the
+    # reply ended (`_title_later`). A follower that wants the name waits on
+    # this; nothing else does. None: there is nothing to wait for.
+    title_task: asyncio.Task | None = None
 
     # Bumped on every change. Followers compare against it rather than being
     # woken individually: with a 100ms cadence a short poll is simpler than
@@ -1533,37 +1537,56 @@ async def _run(generation: Generation) -> None:
         # count this?" unanswerable afterwards, which is what `reported_usage`
         # now records instead.
 
-        # Naming the chat is a second, short completion, so it has to happen
-        # here rather than in the synchronous persist step below. Best-effort:
-        # a chat title is never worth surfacing an error for.
+        # Naming the chat is a second completion -- seconds on a reasoning
+        # model, queued behind the reply on a one-slot server -- and nobody
+        # reading the reply is waiting for a name. So the reply ends first:
+        # the chat is named from the prompt for now, and the model's title is
+        # asked for in the background, with a time limit, and written when it
+        # comes (`_title_later`). It used to be awaited here, and the finished
+        # reply stayed "Writing" for as long as the title took.
         title = ""
+        title_job = None
         if needs_title and question:
-            # Not after a Stop: somebody who pressed it is waiting for the
-            # reply to end, and a second completion -- seconds on a reasoning
-            # model, queued behind the one just abandoned on a one-slot server
-            # -- was the "sometimes" in "Stop takes long".
-            if title_from_prompt or generation.error or endpoint is None or generation.stopped:
-                title = chat_service.fallback_title(question)
-            else:
-                with contextlib.suppress(Exception):
+            title = chat_service.fallback_title(question)
+            # Not after a Stop or an error, and not where the prompt *is* the
+            # title (an agent chat, a read-only temporary one).
+            if not (
+                title_from_prompt or generation.error or endpoint is None or generation.stopped
+            ):
+                title_job = {
                     # Whoever answered: a fallback, when the chat's own failed.
-                    title = await chat_service.generate_title(
-                        route.endpoint if route is not None else endpoint,
-                        route.model_id if route is not None else model_id,
-                        question,
-                        generation.text,
-                        template=title_prompt,
-                        # The chat's own model only: a fallback may not take it.
-                        thinking_off=title_quiet and route is not None
-                        and route.model_id == model_id,
-                    )
-                title = title or chat_service.fallback_title(question)
+                    "endpoint": route.endpoint if route is not None else endpoint,
+                    "model_id": route.model_id if route is not None else model_id,
+                    "question": question,
+                    "answer": generation.text,
+                    "template": title_prompt,
+                    # The chat's own model only: a fallback may not take it.
+                    "thinking_off": title_quiet and route is not None
+                    and route.model_id == model_id,
+                }
 
         # Written *before* `done`, because `_follow` breaks out of its loop the
         # moment it sees that flag and immediately re-renders the bubble from
         # the row. The other order left a window in which the finished frame
         # showed the previous turn's stored values.
-        _persist(generation, title, time.monotonic() - started)
+        #
+        # In a thread: it is a dozen queries, the pricing and a commit, and the
+        # event loop it would otherwise hold is the one every other reply and
+        # page is served from. Not when this task is being cancelled (a
+        # shutdown, a regeneration): then it is written here and now, because
+        # an await in a cancelled task is where the write would be lost.
+        elapsed = time.monotonic() - started
+        cancelled = False
+        if generation.interrupted or asyncio.current_task().cancelling():
+            _persist(generation, title, elapsed, provisional=title_job is not None)
+        else:
+            cancelled, announce = await _in_thread(
+                _persist, generation, title, elapsed, provisional=title_job is not None
+            )
+            if announce:
+                _announce(announce)
+        if title_job is not None and not cancelled and _owns(generation):
+            generation.title_task = _title_later(generation.chat_id, title, title_job)
         # After the row is authoritative and before `done`, for the same reason
         # `_persist` is: `_follow` breaks the instant it sees that flag, and the
         # frame it then sends is the one that has to carry the next turn's
@@ -1574,6 +1597,110 @@ async def _run(generation: Generation) -> None:
         generation.done = True
         generation.finished_at = datetime.now(UTC)
         generation.touch()
+        if cancelled:
+            raise asyncio.CancelledError
+
+
+async def _in_thread(work, *args, **kwargs) -> tuple[bool, Any]:
+    """Run `work` in a thread and wait for it: (cancelled, its result).
+
+    `cancelled` is whether this task was cancelled meanwhile -- reported after
+    the work has finished all the same: what is run here is a write that must
+    not be dropped half-way, so the caller decides when to let the
+    cancellation through."""
+    job = asyncio.ensure_future(asyncio.to_thread(work, *args, **kwargs))
+    cancelled = False
+    while not job.done():
+        try:
+            await asyncio.shield(job)
+        except asyncio.CancelledError:
+            cancelled = True
+        except Exception:  # the work's own failure
+            break
+    if job.cancelled() or job.exception() is not None:
+        if not job.cancelled():
+            log.error("background write failed", exc_info=job.exception())
+        return cancelled, None
+    return cancelled, job.result()
+
+
+def _owns(generation: Generation) -> bool:
+    """Whether this generation is still the one writing its message (see
+    `_persist`)."""
+    owner = _RUNNING.get(generation.message_id)
+    return owner is None or owner is generation
+
+
+# How long the model is given to name a chat. Past it the name from the prompt
+# stays: a title is never worth holding a model's only slot for.
+TITLE_TIMEOUT = 20.0
+
+# The chats being named right now, by chat id (`_title_later`).
+_TITLES: dict[str, asyncio.Task] = {}
+
+
+def title_pending(chat_id: str) -> bool:
+    """Whether a model is still being asked to name this chat."""
+    task = _TITLES.get(chat_id)
+    return task is not None and not task.done()
+
+
+def _title_later(chat_id: str, provisional: str, job: dict) -> asyncio.Task:
+    """Ask the model for the chat's title after the reply has ended.
+
+    The task's result is the title as it now stands (the model's, or the one
+    from the prompt when the model failed, took too long, or the person named
+    the chat meanwhile). Followers that outlive `done` wait on it to send the
+    name on; a page asks `title_pending` instead.
+    """
+
+    async def work() -> str:
+        title = ""
+        try:
+            title = await asyncio.wait_for(
+                chat_service.generate_title(
+                    job["endpoint"],
+                    job["model_id"],
+                    job["question"],
+                    job["answer"],
+                    template=job["template"],
+                    thinking_off=job["thinking_off"],
+                ),
+                TITLE_TIMEOUT,
+            )
+        except Exception:  # TimeoutError included: the provisional one stays
+            log.debug("auto-title for chat %s gave up", chat_id)
+        return await asyncio.to_thread(_store_title, chat_id, title or provisional)
+
+    task = asyncio.get_running_loop().create_task(work())
+    _TITLES[chat_id] = task
+
+    def forget(done: asyncio.Task) -> None:
+        if _TITLES.get(chat_id) is done:
+            del _TITLES[chat_id]
+        if not done.cancelled():
+            done.exception()  # read, so a failure is not "never retrieved"
+
+    task.add_done_callback(forget)
+    return task
+
+
+def _store_title(chat_id: str, title: str) -> str:
+    """Write the generated title, unless the chat was named meanwhile. Returns
+    the chat's title as it stands."""
+    try:
+        with session_scope() as db:
+            chat = db.get(Chat, chat_id)
+            if chat is None:
+                return ""
+            if not chat.title_generated:
+                chat.title = title
+                chat.title_generated = True
+                db.commit()
+            return chat.title
+    except Exception:
+        log.exception("could not store the title of chat %s", chat_id)
+        return ""
 
 
 def _device_turn(db, chat: Chat, message: Message, generation: Generation) -> dict | None:
@@ -2745,8 +2872,19 @@ def _bind_attachments(db, chat, message, ids: list[str]) -> None:
         attachment.message_id = message.id
 
 
-def _persist(generation: Generation, title: str, elapsed: float) -> None:
+def _persist(
+    generation: Generation, title: str, elapsed: float, *, provisional: bool = False
+) -> dict | None:
     """Write the finished reply, name the chat, and set the unread flag.
+
+    `provisional`: the title is the one made from the prompt while a model is
+    still being asked for a better one (`_title_later`), so the chat is not
+    marked as named yet -- that is what lets the later write through, and what
+    has the next reply ask again if the server stopped in between.
+
+    May run in a thread (`_run`'s `finally`): everything here is the database
+    and plain values; the one thing that needs the event loop, the push
+    announcement, is handed back to it.
 
     A generation another one has replaced may not write. A regeneration cancels
     its predecessor, whose `finally:` then runs this on the same row -- and it
@@ -2759,14 +2897,15 @@ def _persist(generation: Generation, title: str, elapsed: float) -> None:
     owner = _RUNNING.get(generation.message_id)
     if owner is not None and owner is not generation:
         log.debug("skipping persist for superseded generation %s", generation.message_id)
-        return
+        return None
 
+    announce: dict | None = None
     try:
         with session_scope() as db:
             message = db.get(Message, generation.message_id)
             chat = db.get(Chat, generation.chat_id)
             if message is None or chat is None:
-                return
+                return None
 
             message.content = generation.text
             message.reasoning = generation.thinking
@@ -2885,7 +3024,7 @@ def _persist(generation: Generation, title: str, elapsed: float) -> None:
 
             if title and not chat.title_generated:
                 chat.title = title
-                chat.title_generated = True
+                chat.title_generated = not provisional
 
             # Nobody watching when it landed, so it is news. The chat page
             # clears this when it is next opened. Not for a temporary chat:
@@ -2903,14 +3042,14 @@ def _persist(generation: Generation, title: str, elapsed: float) -> None:
                 # Not a scheduled run's: its schedule decides whether it is
                 # news (`schedule/notify.py`), and says which run it was.
                 if chat.kind != KIND_TASK:
-                    push_service.announce_later(
-                        chat.user_id,
-                        title=chat.title or i18n.t("New reply"),
-                        body=i18n.t("Your reply is ready."),
-                        url=f"/chat/{chat.id}",
-                        kind="chat",
-                        extra={"chat_id": chat.id, "message_id": message.id},
-                    )
+                    announce = {
+                        "user_id": chat.user_id,
+                        "title": chat.title or i18n.t("New reply"),
+                        "body": i18n.t("Your reply is ready."),
+                        "url": f"/chat/{chat.id}",
+                        "kind": "chat",
+                        "extra": {"chat_id": chat.id, "message_id": message.id},
+                    }
 
             db.commit()
             log.debug(
@@ -2922,6 +3061,24 @@ def _persist(generation: Generation, title: str, elapsed: float) -> None:
             )
     except Exception:  # the task is ending either way
         log.exception("could not persist generation for chat %s", generation.chat_id)
+        return None
+    if announce is None:
+        return None
+    # The announcement is a task on the event loop. Called on it, it is started
+    # here; called in a thread, it is handed back for the caller to start.
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return announce
+    _announce(announce)
+    return None
+
+
+def _announce(announce: dict) -> None:
+    push_service.announce_later(
+        announce["user_id"],
+        **{key: value for key, value in announce.items() if key != "user_id"},
+    )
 
 
 __all__ = [

@@ -169,7 +169,8 @@ def test_a_chat_is_made_from_its_first_message_and_streams_as_json(
     assert stream.headers["content-type"].startswith("text/event-stream")
     events = _events(stream.text)
     names = [name for name, _ in events]
-    assert names[-2:] == ["done", "close"]
+    # `done`, then perhaps the chat's name from the model, then `close`.
+    assert names[-1] == "close" and names[-2] in ("done", "title") and "done" in names
     done = dict(events)["done"]
     # Markdown as the model wrote it -- never HTML.
     text_steps = [s for s in done["message"]["steps"] if s["kind"] == "text"]
@@ -528,3 +529,38 @@ def test_a_devices_show_file_is_its_kept_copy(client, db, registered):
     found = client.get(url, params={"shown": row.id}, headers=headers)
     assert found.status_code == 200 and found.text == "# Plan\n"
     assert client.get(url, params={"shown": "nope"}, headers=headers).status_code == 404
+
+
+def test_done_does_not_wait_for_the_title_and_the_title_follows(
+    client, db, registered, mock_http
+):
+    """`done` goes out when the reply is saved, with the name made from the
+    prompt and `title_pending`; the model's name comes after it, as one
+    `title` frame before `close` -- and is on the chat for whoever left."""
+    import asyncio
+
+    _models(db)
+    plain = _upstream()
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if not json.loads(request.content).get("stream"):
+            await asyncio.sleep(0.6)  # the title, slower than the reply's end
+        return plain(request)
+
+    mock_http(handler)
+    headers = _bearer(db)
+    body = client.post("/api/v2/chats", headers=headers, json={"text": "What is lembas?"}).json()
+    chat_id = body["chat"]["id"]
+
+    stream = client.get(
+        f"/api/v2/chats/{chat_id}/messages/{body['reply']['id']}/stream", headers=headers
+    )
+    events = _events(stream.text)
+    names = [name for name, _ in events]
+    assert names[-3:] == ["done", "title", "close"]
+    done = dict(events)["done"]
+    assert done["message"]["complete"] is True
+    assert done["chat"] == {"id": chat_id, "title": "What is lembas?", "title_pending": True}
+    assert dict(events)["title"] == {"chat": {"id": chat_id, "title": "Waybread"}}
+    fetched = client.get(f"/api/v2/chats/{chat_id}", headers=headers).json()
+    assert fetched["chat"]["title"] == "Waybread"

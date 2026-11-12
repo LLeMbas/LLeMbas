@@ -94,9 +94,11 @@ def fresh_generation_registry() -> Iterator[None]:
 
     generation_service._RUNNING.clear()
     generation_service._TASKS.clear()
+    generation_service._TITLES.clear()
     yield
     generation_service._RUNNING.clear()
     generation_service._TASKS.clear()
+    generation_service._TITLES.clear()
 
 
 @pytest.fixture(autouse=True)

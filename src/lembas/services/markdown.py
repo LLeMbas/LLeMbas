@@ -58,6 +58,37 @@ ALLOWED_ATTRIBUTES = {
 ALLOWED_URL_SCHEMES = {"http", "https", "mailto"}
 
 
+# Guessing a language asks every lexer Pygments has to score the text, so its
+# cost grows with the text: 40 ms for a few kilobytes, seconds for a pasted log.
+# The opening of a block says as much about its language as the whole of it,
+# so only that much is shown to the guess -- and the answer is remembered,
+# because the same block is rendered again on every load of its chat.
+GUESS_SAMPLE = 4000
+
+# Past this a block is escaped rather than highlighted.
+HIGHLIGHT_MAX = 200_000
+
+
+@functools.lru_cache(maxsize=1024)
+def _guessed_name(sample: str) -> str:
+    try:
+        lexer = guess_lexer(sample)
+    except (ClassNotFound, ValueError):
+        return ""
+    return lexer.aliases[0] if lexer.aliases else ""
+
+
+def _guessed(sample: str):
+    """The lexer Pygments guesses for the opening of a block, or None."""
+    name = _guessed_name(sample)
+    if not name:
+        return None
+    try:
+        return get_lexer_by_name(name, stripall=False)
+    except (ClassNotFound, ValueError):
+        return None
+
+
 def _render_fence(tokens, idx, _options, env) -> str:
     """Render a fenced code block.
 
@@ -83,14 +114,17 @@ def _render_fence(tokens, idx, _options, env) -> str:
             lexer = get_lexer_by_name(language, stripall=False)
         except (ClassNotFound, ValueError):
             lexer = None
-    elif code.strip():
+    elif code.strip() and len(code) > 80:
         # Guessing is only worth it for a decent sample; on two lines of text
         # Pygments guesses confidently and wrongly.
-        try:
-            lexer = guess_lexer(code) if len(code) > 80 else None
-        except (ClassNotFound, ValueError):
-            lexer = None
+        lexer = _guessed(code[:GUESS_SAMPLE])
 
+    if lexer is not None and len(code) > HIGHLIGHT_MAX:
+        # A pasted log of half a megabyte: escaped, not coloured. The label
+        # stays, since it was asked for or already worked out.
+        return _code_block(
+            nh3.clean_text(code), language or (lexer.aliases[0] if lexer.aliases else "")
+        )
     if lexer is None:
         body = nh3.clean_text(code)
         label = language

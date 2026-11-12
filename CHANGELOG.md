@@ -3,6 +3,33 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## Unreleased
+
+For 2.0.0-beta.11.
+
+### Fixed
+
+- **A finished reply no longer keeps "Writing" while the chat is being named.** The first reply
+  of a new chat was held open until a second request -- the model naming the chat -- had come
+  back: seconds on a reasoning model, and queued behind the reply on a server with one slot.
+  The reply now ends as soon as it is saved, with the chat named from the prompt; the model's
+  name follows within a time limit (20 s) and replaces it in the heading and the sidebar. In
+  `/api/v2` the stream's `done` frame carries `chat.title_pending`, and one `title` frame
+  follows before `close` when the name is ready; an app never waits for it. Measured with a
+  title that takes 3 s: from the last token to `done`, 3.06 s before and 0.16 s after.
+- **Finishing a reply no longer holds up everybody else's.** Writing the finished reply to the
+  database and rendering its final bubble (Markdown and syntax highlighting) run in a thread
+  instead of on the server's one event loop.
+- **A long code block with no language named** is no longer scored against every language at
+  its full length each time its chat is opened: the language is guessed from its opening,
+  once. A block above 200 kB is shown without colours.
+
+### Added
+
+- `scripts/perf_measure.py`: the chat page and the end of a reply, measured in a headless
+  browser against a 300-message chat (typing, long tasks while a reply streams, last token to
+  `done` on both streams, how long the server's event loop was held).
+
 ## 2.0.0-beta.10 — 2026-11-10
 
 The harness spec is **3.6.0** (phone actions), pinned from LLeMbas CLI v2.0.0-beta.8. It recommends LLeMbas

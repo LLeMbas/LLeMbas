@@ -30,6 +30,7 @@ from lembas.services import branding as branding_service
 from lembas.services import chat as chat_service
 from lembas.services import compaction as compaction_service
 from lembas.services import data_groups, local_device, model_prefs, settings_store
+from lembas.services import generation as generation_service
 from lembas.services import suggestions as suggestions_service
 from lembas.services.schedule import clock
 from lembas.web import i18n
@@ -1094,6 +1095,8 @@ async def chat_detail(request: Request, db: Db, user: RequiredUser, chat_id: str
         "chat/index.html",
         {
             "chat": chat,
+            # A model is still naming this chat: the page asks for the name.
+            "title_pending": generation_service.title_pending(chat.id),
             "messages": messages,
             "compacted": compacted,
             "bodies": bodies,

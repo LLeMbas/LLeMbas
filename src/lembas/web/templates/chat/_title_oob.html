@@ -8,3 +8,16 @@
 <span id="chat-title" hx-swap-oob="true">{{ chat.title }}</span>
 <span id="chat-link-label-{{ chat.id }}" hx-swap-oob="true"
       class="nav-item__label">{{ chat.title }}</span>
+{#
+  While a model is still being asked for the chat's name (the reply ends
+  first; `generation._title_later`), the page asks for it once a second: the
+  reply's own stream has closed by then. `/api/chats/<id>/title` answers with
+  this template again, so the asking stops with the answer that carries the
+  name. Only where the caller says so (`title_wait`): a rename has nothing to
+  wait for and must not disturb a wait in progress.
+#}
+{% if title_wait %}
+<span id="chat-title-wait" hx-swap-oob="true" hidden
+      {% if title_pending %}hx-get="/api/chats/{{ chat.id }}/title"
+      hx-trigger="load delay:1s" hx-swap="none"{% endif %}></span>
+{% endif %}
