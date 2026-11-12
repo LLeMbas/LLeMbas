@@ -2050,14 +2050,38 @@ def thread_window(db: DBSession, chat: Chat, *, before: str = "", at: str = "") 
         sid for m in everything for sid in steps_service.steered_ids(m.steps_json)
     }
     shown = [m for m in messages if m.id not in inline]
-    part = thread_service.window(shown, before=before, at=at)
+    summarised = {m.id for m in compacted}
+    opened = False
+    if before:
+        # The page above `before`, by where that message is in the
+        # conversation -- not by whether it is still drawn as a bubble. One
+        # taken into a reply since still has turns above it; one summarised
+        # since has only the summarised turns above it. Either way never the
+        # newest page, which is what a cursor "not in the list" used to get.
+        at_index = next((i for i, m in enumerate(messages) if m.id == before), None)
+        older = (
+            [m for m in messages[:at_index] if m.id not in inline]
+            if at_index is not None
+            else []
+        )
+        part = thread_service.window(older)
+    elif at and at in summarised:
+        # A link to a summarised turn (a search hit from before a
+        # compaction): the whole live side, so the summarised block is on the
+        # page, opened, with the message in it marked.
+        part = thread_service.window(shown, at=shown[0].id if shown else "")
+        opened = True
+    else:
+        part = thread_service.window(shown, at=at)
+    jump = at if at and (opened or any(m.id == at for m in part.messages)) else ""
     return {
         "messages": part.messages,
         "compacted": compacted if not part.earlier else [],
+        "compacted_open": opened,
         "earlier": part.earlier,
         "thread_inline": inline,
         # The message a link asked for, when it is on the page.
-        "jump_to": at if at and any(m.id == at for m in part.messages) else "",
+        "jump_to": jump,
     }
 
 

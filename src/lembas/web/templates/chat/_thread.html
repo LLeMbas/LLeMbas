@@ -33,7 +33,7 @@
 {# Summarised turns are kept and still readable -- they have only stopped being
    sent. A compaction that summarised badly is then a bad turn rather than a
    lost conversation. #}
-<details class="compacted">
+<details class="compacted"{% if compacted_open | default(false) %} open{% endif %}>
   <summary class="compacted__summary">
     {{ icon("archive", "icon--sm") }}
     <span>{{ t("%(n)s earlier messages, summarised", n=compacted | length) }}</span>

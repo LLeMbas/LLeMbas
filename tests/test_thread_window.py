@@ -210,3 +210,74 @@ def test_typing_measures_and_repaints_once_a_frame():
     assert "requestAnimationFrame" in paint_soon[:400]
     listener = composer[composer.index('document.addEventListener("input"') :][:200]
     assert "paintSoon();" in listener and "paint();" not in listener
+
+
+# --- A cursor the conversation moved under ------------------------------------------
+def test_earlier_above_a_turn_summarised_since_is_the_summary_never_the_newest_page(
+    client, db, registered, make_chat
+):
+    """The page holds an "Earlier messages" row naming its oldest bubble. A
+    compaction then summarises that bubble. The row's fetch used to find its
+    cursor "not in the list" and get the newest page again: every bubble on
+    the page twice, and a second stream on a reply being written."""
+    from lembas.services import compaction
+
+    _model(db)
+    chat_id = make_chat()
+    ids = _long_chat(db, chat_id, count=70)
+    page = client.get(f"/chat/{chat_id}").text
+    assert f"earlier?before={ids[20]}" in page
+
+    chat = db.get(Chat, chat_id)
+    # Summarised up to the last complete reply: the cursor with them.
+    compaction.apply(chat, summary="What was said.", upto=db.get(Message, ids[-1]))
+    db.commit()
+
+    answer = client.get(f"/api/chats/{chat_id}/earlier?before={ids[20]}").text
+    live = answer.split("</details>")[-1]
+    assert 'id="msg-' not in live, "bubbles the page already holds were sent again"
+    assert "sse-connect" not in answer and "thread-earlier" not in answer
+    # What is above it now is the summarised turns, behind their divider.
+    assert 'class="compacted"' in answer
+
+    # The service says the same of any cursor that is not in the list.
+    rows = _rows(10)
+    assert thread_service.window(rows, before="gone").messages == []
+
+
+def test_earlier_above_a_message_taken_into_a_reply_is_what_is_above_it(
+    client, db, registered, make_chat
+):
+    _model(db)
+    chat_id = make_chat()
+    ids = _long_chat(db, chat_id, count=70)
+    # The page's oldest bubble becomes an inline steer of the next reply.
+    reply = db.get(Message, ids[21])
+    reply.steps_json = [{"round": 0, "thinking_to": 0, "text_to": 0, "tools_to": 0,
+                         "thinking_ms": 0, "steer": [{"id": ids[20], "text": "and this"}]}]
+    db.commit()
+
+    answer = client.get(f"/api/chats/{chat_id}/earlier?before={ids[20]}").text
+    assert _bubbles(answer) == ids[:20]
+
+
+def test_a_search_hit_in_a_summarised_turn_opens_on_it(client, db, registered, make_chat):
+    """`?at=` named a message that is behind the divider: the page used to
+    open at the bottom with nothing marked."""
+    from lembas.services import compaction
+
+    _model(db)
+    chat_id = make_chat()
+    ids = _long_chat(db, chat_id, count=120)
+    chat = db.get(Chat, chat_id)
+    compaction.apply(chat, summary="What was said.", upto=db.get(Message, ids[59]))
+    db.commit()
+
+    page = client.get(f"/chat/{chat_id}?at={ids[30]}").text
+    assert f'data-jump="msg-{ids[30]}"' in page
+    block = page[page.index('<details class="compacted"'):]
+    assert block.startswith('<details class="compacted" open>')
+    assert f'id="msg-{ids[30]}"' in block[: block.index("</details>")]
+    # Without the link the block is folded and the page is the newest one.
+    plain = client.get(f"/chat/{chat_id}").text
+    assert '<details class="compacted" open>' not in plain and "data-jump" not in plain

@@ -44,13 +44,20 @@ def window(
     By default the newest `size`. `before`: the `size` messages just above
     that message -- the next page up. `at`: from a little before that message
     to the end, however many that is, so a link to one message always shows
-    it with everything after it in place. An id that is not in the list is
-    ignored: the default page is the honest answer to a stale link.
+    it with everything after it in place. An `at` that is not in the list is
+    ignored: the default page is the honest answer to a stale link. A `before`
+    that is not in the list has no page above it: the answer is empty.
     """
     count = len(messages)
     index = {message.id: position for position, message in enumerate(messages)}
     end = count
-    if before and before in index:
+    if before:
+        # The page above a message that is not in the list (summarised since,
+        # or taken into a reply) is nothing -- never the newest page again,
+        # which the asking page already holds: every bubble twice, and a
+        # second stream opened on the reply being written.
+        if before not in index:
+            return Window(messages=[])
         end = index[before]
         start = max(0, end - size)
     elif at and at in index:
