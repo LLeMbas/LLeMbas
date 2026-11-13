@@ -31,6 +31,7 @@ from lembas.services import branding as branding_service
 from lembas.services import chat as chat_service
 from lembas.services import data_groups, local_device, model_prefs, settings_store
 from lembas.services import generation as generation_service
+from lembas.services import html_pages as html_pages_service
 from lembas.services import reports as reports_service
 from lembas.services import suggestions as suggestions_service
 from lembas.services.schedule import clock
@@ -144,6 +145,11 @@ def _team_context(db: DBSession, user: User, chat: Chat | None, model) -> dict:
         # Harness spec 3.3.0 (subagents.md §4): the chat's model cannot serve
         # subagents itself; another, named in the chat, could.
         "team_own": bool(offered and subagents_rules.own_note(db, user, chat, model)),
+        # HTML pages in answers (harness spec 3.8.0): whether this chat's
+        # switch is shown at all -- the instance and the model allow it, and
+        # it is not an agent chat -- and where it stands.
+        "pages_available": html_pages_service.available(db, chat, model),
+        "pages_on": html_pages_service.chat_on(chat),
     }
 
 

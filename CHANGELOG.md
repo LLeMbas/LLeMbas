@@ -24,6 +24,24 @@ permission layers), vendored from the LLeMbas CLI's `dev` and pinned to its tag 
   about an existing schedule changes.
 - **Scheduled** has its own entry in the sidebar, beside Reports. A task's history shows each
   run's line and a link to the report it left.
+- **HTML pages in answers (experimental, off by default).** Where seeing answers better than
+  reading -- a chart, a diagram, a table laid out with colour -- a model may add a small
+  page to its answer, shown at that place in a sealed frame, with **Open larger** and
+  **View source**. Three switches, all of which must be on: the instance's (Admin › General),
+  the model's ("Can write HTML pages", on the model's page) and the chat's (in the chat's
+  settings menu, shown only where the other two allow it). A scheduled run has no chat to
+  switch, so a report may carry a page when the instance and the model allow it. Never for a
+  subagent, the phone assistant or an agent chat. Switching it during a chat tells the model
+  on the next message; the prompt is not made again.
+  **A page is shown static: HTML, CSS and inline SVG, no script.** A sealed frame keeps a
+  page from reaching LLeMbas either way, but with scripts a page could still *send*
+  something out in two ways no web page's policy closes (a peer connection's STUN request,
+  and a name looked up for a link hint), so scripts do not run and the page is rebuilt
+  without anything that names another host. The page has no network at all, cannot open
+  windows or navigate, and never sees a cookie. Wherever a reply is read as text -- search,
+  titles, read-aloud, notifications, a report's summary -- a page is the one line
+  `[page: Title]`. `/api/v2`: `html_pages` on a model; a text step that carries pages has
+  `pages` (title, digest) and `text` (the step with each page as that line).
 - `/api/v2`: `GET /reports` (`?unread=1`, `?schedule=<id>`), `GET /reports/{id}`,
   `POST /reports/{id}/read`, `DELETE /reports/{id}`, `POST /reports/{id}/reply`; a `reports`
   event on `GET /events` (the unread count and the newest unread report); `notify_when`,

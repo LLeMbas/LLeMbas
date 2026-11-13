@@ -159,6 +159,18 @@
 
 {% include "admin/_python_card.html" %}
 
+<section class="card u-mt-6" data-testid="html-pages-card">
+  <h2 class="card__title">{{ t("HTML pages in answers (experimental)") }}</h2>
+  <form method="post" action="/admin/general/html-pages" class="field">
+    <label class="checkbox">
+      <input type="checkbox" name="html_pages_enabled" value="true" {{ 'checked' if values.html_pages_enabled }}>
+      <span>{{ t("Let models add pages to their answers") }}</span>
+    </label>
+    <p class="field__hint">{{ t("A model may then put a small page — a chart, a diagram, a table laid out with colour — into its answer, shown in a sealed frame at that place. It is offered only to a model you mark as able to write one (on the model's own page) and only in a chat whose person switched it on. The page is shown without scripts and without any network access: HTML, CSS and drawings only. On a phone and in a terminal there is a one-line note in its place. Experimental: off by default, and it may change.") }}</p>
+    <div class="btn-row"><button class="btn" type="submit">{{ t("Save") }}</button></div>
+  </form>
+</section>
+
 <section class="card u-mt-6" data-testid="push-card">
   <h2 class="card__title">{{ t("Notifications when LLeMbas is closed") }}</h2>
   <form method="post" action="/admin/general/push" class="field">

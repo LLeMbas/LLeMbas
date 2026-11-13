@@ -458,7 +458,11 @@ def _source_text(db: DBSession, digest: str) -> extract.Extracted:
         message = db.get(Message, message_id) if message_id else None
         if message is None or chat_hash(message.content or "") != digest:
             return extract.Extracted(skip="message gone or changed")
-        return extract.Extracted(text=message.content)
+        # A page in the answer is indexed as its one line, `[page: title]`
+        # (harness spec 3.8.0): its markup is not what the reply says.
+        from lembas.services import html_pages
+
+        return extract.Extracted(text=html_pages.project(message.content))
     try:
         if blobs.size(db, digest) > extract.MAX_BYTES:
             return extract.Extracted(skip="too large")

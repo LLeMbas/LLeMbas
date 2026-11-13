@@ -113,6 +113,10 @@ class Facts:
     # is never in the prompt, so the first user message of a session says it.
     team: str | None = None
     team_state: str = ""
+    # HTML pages in answers (spec 3.8.0, pages.md §5): whether the model is
+    # offered them now. None where this chat never has them (an agent chat, a
+    # subagent's, the phone assistant's): nothing to tell, ever.
+    pages: bool | None = None
 
     def state(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -127,6 +131,8 @@ class Facts:
             out["instructions"] = {name: _hash(text) for name, text in self.instructions.items()}
         if self.team is not None:
             out["team"] = self.team_state
+        if self.pages is not None:
+            out["pages"] = "on" if self.pages else "off"
         return out
 
 
@@ -155,7 +161,21 @@ def facts(db: DBSession, chat: Chat, user, speaker, tools) -> Facts:
     block, state = team_run.note_block(db, chat, tools)
     if block:
         out.team, out.team_state = block, state
+    from lembas.services import html_pages
+
+    if html_pages.where_of(chat) not in html_pages.spec()["never"]:
+        out.pages = html_pages.on(db, chat, _model(db, chat, speaker))
     return out
+
+
+def _model(db: DBSession, chat: Chat, speaker):
+    from lembas.services import chat as chat_service
+
+    return (
+        chat_service.model_row(db, speaker)
+        if speaker is not None
+        else chat_service.model_for(db, chat)
+    )
 
 
 # --- The frozen prompt -----------------------------------------------------------------
@@ -303,6 +323,15 @@ def _note(
 
     # The team (spec 3.2.0, team.md §10): the size on the first user message
     # and after it changed, then the members the person stopped.
+    # HTML pages (spec 3.8.0, pages.md §5): switched on or off after the
+    # prompt was made -- the block itself when on, one sentence when off.
+    # A prompt made before 3.8.0 says nothing of them: that is "off".
+    if "pages" in current and told.get("pages", "off") != current["pages"]:
+        from lembas.services import html_pages
+
+        lines.append(pages_line(current["pages"], html_pages.block()))
+        changed["pages"] = current["pages"]
+
     if "team" in current and told.get("team") != current["team"]:
         lines.append(now.team or "")
         changed["team"] = current["team"]

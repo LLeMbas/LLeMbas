@@ -2741,5 +2741,18 @@ MESSAGES.update(
         'New report': 'Nouveau rapport',
         'Stops it running and removes the chats its runs worked in. Its reports stay under Reports.': 'L’arrête et supprime les discussions dans lesquelles ses exécutions ont travaillé. Ses rapports restent dans Rapports.',
         'Remove this schedule? It will stop running, and the chats of its runs are removed. Its reports stay.': 'Supprimer cette planification ? Elle ne s’exécutera plus et les discussions de ses exécutions seront supprimées. Ses rapports restent.',
+        'HTML pages in answers (experimental)': 'Pages HTML dans les réponses (expérimental)',
+        'Let models add pages to their answers': 'Autoriser les modèles à ajouter des pages à leurs réponses',
+        "A model may then put a small page — a chart, a diagram, a table laid out with colour — into its answer, shown in a sealed frame at that place. It is offered only to a model you mark as able to write one (on the model's own page) and only in a chat whose person switched it on. The page is shown without scripts and without any network access: HTML, CSS and drawings only. On a phone and in a terminal there is a one-line note in its place. Experimental: off by default, and it may change.": 'Un modèle peut alors placer une petite page — un graphique, un schéma, un tableau mis en couleur — dans sa réponse, affichée à cet endroit dans un cadre scellé. Elle n’est proposée qu’à un modèle que vous marquez comme capable d’en écrire une (sur la page du modèle) et seulement dans une discussion où la personne l’a activée. La page est affichée sans scripts et sans accès au réseau : HTML, CSS et dessins uniquement. Sur un téléphone et dans un terminal, une note d’une ligne la remplace. Expérimental : désactivé par défaut, et susceptible de changer.',
+        'Can write HTML pages': 'Sait écrire des pages HTML',
+        'Tick this for a model that writes a working, self-contained page when asked — the larger models do, the small ones mostly do not. It is then offered pages in answers where the instance allows them (Admin › General) and the chat has them switched on. Unticked, the model is simply not asked to.': 'Cochez pour un modèle qui écrit sur demande une page fonctionnelle et autonome — les grands modèles y arrivent, les petits rarement. Les pages dans les réponses lui sont alors proposées là où l’instance les autorise (Administration › Général) et où la discussion les a activées. Décoché, on ne le lui demande tout simplement pas.',
+        'Pages in answers': 'Pages dans les réponses',
+        'Experimental. The model may add a small page — a chart, a diagram — to an answer, shown here in a sealed frame without scripts or network access.': 'Expérimental. Le modèle peut ajouter à une réponse une petite page — un graphique, un schéma — affichée ici dans un cadre scellé, sans scripts ni accès au réseau.',
+        'Pages in answers are switched off here.': 'Les pages dans les réponses sont désactivées ici.',
+        'Writing the page…': 'Écriture de la page…',
+        'The page “%(title)s”, sealed off from this application': 'La page « %(title)s », isolée de cette application',
+        'This answer has a page: %(title)s': 'Cette réponse contient une page : %(title)s',
+        'Open larger': 'Ouvrir en grand',
+        'View source': 'Voir le code source',
     }
 )

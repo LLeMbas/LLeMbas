@@ -368,6 +368,7 @@ async def update_model(
     single_session: bool = Form(False),
     parallel: str | None = Form(None),
     thinking_switch: bool = Form(False),
+    html_pages: bool = Form(False),
     position: str = Form(""),
     context_length: str = Form(""),
     default_effort: str = Form(""),
@@ -456,6 +457,7 @@ async def update_model(
         model.parallel = typed if typed is not None and 1 <= typed <= MAX_PARALLEL else None
         model.single_session = model.parallel == 1
     model.thinking_switch = thinking_switch
+    model.html_pages = html_pages
 
     # Merged rather than rebuilt, unlike the capabilities below: params_json
     # holds whatever sampling defaults an administrator has set and this form

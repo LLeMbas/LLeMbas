@@ -37,8 +37,11 @@
 #}
 {% set team_slot %}{% include "chat/_team_setting.html" ignore missing %}{% endset %}
 {% set has_team = (team_offered|default(false)) or (team_slot|trim|length > 0) %}
+{# HTML pages in answers (harness spec 3.8.0, experimental): the chat's own
+   switch, here only where the instance and the model allow pages at all. #}
+{% set has_pages = pages_available|default(false) %}
 <div class="chatbar__settings-slot" id="chatbar-settings"{% if oob %} hx-swap-oob="true"{% endif %}>
-{% if effort_control != "none" or has_team %}
+{% if effort_control != "none" or has_team or has_pages %}
 {% set chosen = lv.read(chosen_level) if lv else "" %}
 {% set offered = lv.offered|list if lv else [] %}
 {# An icon button like the bar's others. No short form of the level beside it
@@ -109,6 +112,21 @@
     </div>
     {% endif %}
     {% if has_team %}{{ team_slot }}{% endif %}
+    {% if has_pages %}
+    <div class="pages-setting">
+      <label class="checkbox">
+        <input type="checkbox" name="{{ 'on' if chat else 'html_pages' }}" value="1"
+               {{ 'checked' if pages_on|default(false) }}
+               {% if chat %}
+               hx-post="/api/chats/{{ chat.id }}/html-pages" hx-trigger="change" hx-swap="none"
+               {% else %}
+               form="composer-form"
+               {% endif %}>
+        <span>{{ t("Pages in answers") }}</span>
+      </label>
+      <p class="team-setting__hint">{{ t("Experimental. The model may add a small page — a chart, a diagram — to an answer, shown here in a sealed frame without scripts or network access.") }}</p>
+    </div>
+    {% endif %}
   </div>
 </div>
 {% endif %}

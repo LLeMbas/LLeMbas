@@ -31,7 +31,7 @@ from lembas.db.models import (
     User,
 )
 from lembas.db.models.report import IMPORTANCE_HIGH, IMPORTANCE_NORMAL
-from lembas.services import harness_spec
+from lembas.services import harness_spec, html_pages
 
 ALWAYS, WHEN, NEVER = "always", "when", "never"
 # What `when` was called before spec 3.8.0; read as `when` wherever met.
@@ -103,7 +103,8 @@ def _without_sentinel(answer: str) -> str:
 def note_of(answer: str) -> str:
     """The run's line in its schedule's history: the final answer's first line
     that is not blank, cut; the spec's `no_reply` where there is none."""
-    for line in _without_sentinel(answer).splitlines():
+    # A page in the answer reads as its one line, `[page: title]`.
+    for line in html_pages.project(_without_sentinel(answer)).splitlines():
         if line.strip():
             return _cut(line.strip(), int(spec()["note_max"]))
     return harness_spec.loop()["scheduled"]["texts"]["no_reply"]
@@ -139,7 +140,7 @@ def outcome(
     if written:
         return written[-1], note
     if notify_value(notify) == ALWAYS and said:
-        first = " ".join(said.split("\n\n")[0].split())
+        first = " ".join(html_pages.project(said).split("\n\n")[0].split())
         return (
             {
                 "title": " ".join((title or "").split())[:300] or "Scheduled run",

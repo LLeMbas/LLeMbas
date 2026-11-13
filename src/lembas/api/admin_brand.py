@@ -90,6 +90,19 @@ async def save_push(db: Db, user: AdminUser, web_push_enabled: bool = Form(False
     return back("/admin/general", t("Saved."))
 
 
+@router.post("/admin/general/html-pages")
+async def save_html_pages(
+    db: Db, user: AdminUser, html_pages_enabled: bool = Form(False)
+) -> Response:
+    """HTML pages in answers (harness spec 3.8.0): experimental, off by
+    default. On, a model flagged for it is offered pages in a chat whose
+    person switched them on."""
+    settings_store.update(db, {"html_pages_enabled": html_pages_enabled})
+    db.commit()
+    log.info("html pages %s by %s", "on" if html_pages_enabled else "off", user.email)
+    return back("/admin/general", t("Saved."))
+
+
 def pyodide_state() -> dict:
     """What the Python card draws (admin/_python_card.html)."""
     progress = pyodide_files.PROGRESS

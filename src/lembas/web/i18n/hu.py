@@ -2741,5 +2741,18 @@ MESSAGES.update(
         'New report': 'Új jelentés',
         'Stops it running and removes the chats its runs worked in. Its reports stay under Reports.': 'Leállítja, és eltávolítja azokat a csevegéseket, amelyekben a futásai dolgoztak. A jelentései a Jelentések között maradnak.',
         'Remove this schedule? It will stop running, and the chats of its runs are removed. Its reports stay.': 'Eltávolítja ezt az ütemezést? Nem fut tovább, és a futásainak csevegései törlődnek. A jelentései megmaradnak.',
+        'HTML pages in answers (experimental)': 'HTML-oldalak a válaszokban (kísérleti)',
+        'Let models add pages to their answers': 'A modellek oldalakat adhatnak a válaszaikhoz',
+        "A model may then put a small page — a chart, a diagram, a table laid out with colour — into its answer, shown in a sealed frame at that place. It is offered only to a model you mark as able to write one (on the model's own page) and only in a chat whose person switched it on. The page is shown without scripts and without any network access: HTML, CSS and drawings only. On a phone and in a terminal there is a one-line note in its place. Experimental: off by default, and it may change.": 'A modell ekkor egy kis oldalt — diagramot, ábrát, színekkel elrendezett táblázatot — tehet a válaszába, amely azon a helyen, lezárt keretben jelenik meg. Csak olyan modellnek ajánljuk fel, amelyet Ön erre képesnek jelöl (a modell saját oldalán), és csak olyan csevegésben, ahol a felhasználó bekapcsolta. Az oldal szkriptek és hálózati hozzáférés nélkül jelenik meg: csak HTML, CSS és rajzok. Telefonon és terminálban egysoros megjegyzés áll a helyén. Kísérleti: alapértelmezés szerint kikapcsolva, és változhat.',
+        'Can write HTML pages': 'Tud HTML-oldalakat írni',
+        'Tick this for a model that writes a working, self-contained page when asked — the larger models do, the small ones mostly do not. It is then offered pages in answers where the instance allows them (Admin › General) and the chat has them switched on. Unticked, the model is simply not asked to.': 'Jelölje be olyan modellnél, amely kérésre működő, önálló oldalt ír — a nagyobb modellek tudnak, a kicsik többnyire nem. Ekkor oldalakat ajánlunk fel neki a válaszokban, ahol a példány engedi (Adminisztráció › Általános), és a csevegésben be van kapcsolva. Jelölés nélkül a modellt egyszerűen nem kérjük erre.',
+        'Pages in answers': 'Oldalak a válaszokban',
+        'Experimental. The model may add a small page — a chart, a diagram — to an answer, shown here in a sealed frame without scripts or network access.': 'Kísérleti. A modell egy kis oldalt — diagramot, ábrát — adhat a válaszhoz, amely itt lezárt keretben, szkriptek és hálózati hozzáférés nélkül jelenik meg.',
+        'Pages in answers are switched off here.': 'A válaszokban lévő oldalak itt ki vannak kapcsolva.',
+        'Writing the page…': 'Az oldal írása…',
+        'The page “%(title)s”, sealed off from this application': 'A(z) „%(title)s” oldal, elzárva ettől az alkalmazástól',
+        'This answer has a page: %(title)s': 'Ennek a válasznak van egy oldala: %(title)s',
+        'Open larger': 'Megnyitás nagyobban',
+        'View source': 'Forrás megtekintése',
     }
 )

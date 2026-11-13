@@ -25,10 +25,11 @@ from datetime import UTC, datetime
 from typing import Any
 
 from lembas.db.models import Chat, Message
-from lembas.services import display, interaction, tool_blocks, tool_labels
+from lembas.services import display, html_pages, interaction, tool_blocks, tool_labels
 from lembas.services import metrics as metrics_service
 from lembas.services import progress as progress_service
 from lembas.services import steps as steps_service
+from lembas.services.markdown import pages_in
 
 # What a tool event may carry to the app. A list, not the dict as stored: an
 # event is whatever the tool wrote, and a field nobody chose to publish should
@@ -131,6 +132,10 @@ def model(row, *, default: bool = False, subagents: dict | None = None) -> dict[
         "default": default,
         # Added within APP_API 2 (server 2.0.0-beta.7).
         "subagents": _subagents(subagents, cap=False),
+        # Added within APP_API 2 (server 2.0.0-beta.12; harness spec 3.8.0):
+        # the model can write HTML pages into an answer. A chat on it has
+        # them only where the instance's switch and the chat's are on too.
+        "html_pages": bool(getattr(row, "html_pages", False)),
     }
 
 
@@ -472,6 +477,14 @@ def step(item: steps_service.Step) -> dict[str, Any]:
         out["label"] = item.label
     elif item.kind == steps_service.KIND_TEXT:
         out["markdown"] = item.markdown
+        # Harness spec 3.8.0 (pages.md §3): a text step that carries pages
+        # says so -- each page's title and digest, and `text`, the step as a
+        # reader that cannot draw a page shows it (`[page: title]` in each
+        # page's place). Absent where the step has no page.
+        found = pages_in(item.markdown or "")
+        if found:
+            out["pages"] = [{"title": p.title, "digest": p.digest} for p in found]
+            out["text"] = html_pages.project(item.markdown)
     elif item.kind == steps_service.KIND_TOOLS:
         out["calls"] = [tool_call(e) for e in item.events]
     elif item.kind == steps_service.KIND_STEER:

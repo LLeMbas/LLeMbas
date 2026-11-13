@@ -201,6 +201,16 @@
       <p class="field__hint">{{ tm("Tick this when the model's server turns thinking off for a request that sends <span class=\"mono\">chat_template_kwargs.enable_thinking: false</span> — Qwen3 and Nemotron 3 models on llama.cpp, vLLM or SGLang. A chat then offers <em>off</em>, which sends exactly that and no effort. Without it there is no off: sending no effort leaves such a model thinking at its server's default.") }}</p>
     </div>
 
+    {# Harness spec 3.8.0 `html_pages` (pages.md §4): one of three switches --
+       the instance's (Admin › General), this, and the chat's. #}
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="html_pages" value="true" {{ 'checked' if model.html_pages }}>
+        <span>{{ t("Can write HTML pages") }}</span>
+      </label>
+      <p class="field__hint">{{ t("Tick this for a model that writes a working, self-contained page when asked — the larger models do, the small ones mostly do not. It is then offered pages in answers where the instance allows them (Admin › General) and the chat has them switched on. Unticked, the model is simply not asked to.") }}</p>
+    </div>
+
     <div class="field">
       <label class="field__label" for="default-effort">{{ t("Default reasoning effort") }}</label>
       <select class="select" id="default-effort" name="default_effort">

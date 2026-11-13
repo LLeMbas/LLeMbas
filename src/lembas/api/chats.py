@@ -48,6 +48,7 @@ from lembas.services import (
 )
 from lembas.services import files as files_service
 from lembas.services import generation as generation_service
+from lembas.services import html_pages as html_pages_service
 from lembas.services import jobs as jobs_service
 from lembas.services import metrics as metrics_service
 from lembas.services import progress as progress_service
@@ -195,6 +196,7 @@ def _new_chat(
     skills_off: frozenset[str] = frozenset(),
     agents_min: str = "",
     agents_max: str = "",
+    html_pages: bool = False,
 ) -> Chat:
     """Create a chat row, resolving which model it should use.
 
@@ -336,6 +338,10 @@ def _new_chat(
             **({"families": scoped} if scoped else {}),
             **({"skills": scoped_skills} if scoped_skills else {}),
         }
+    # HTML pages (harness spec 3.8.0): the chat's own switch, chosen before
+    # the first word so the first prompt already has it. Never an agent chat.
+    if html_pages and chat.kind != KIND_AGENT:
+        chat.scope_json = {**(chat.scope_json or {}), html_pages_service.SCOPE_KEY: True}
     db.add(chat)
     db.commit()
     return chat
@@ -369,6 +375,7 @@ async def start_chat(
     # The composer's "Draw a picture" chip on the first message, as on a later
     # one (`FORCEABLE_TOOLS` only; `start_new_chat` drops anything else).
     force_tool: str = Form(""),
+    html_pages: str = Form(""),
 ) -> Response:
     """Create a chat from its first message.
 
@@ -400,6 +407,7 @@ async def start_chat(
         scope_on=frozenset(scope_on),
         skills_off=frozenset(scope_skill_all) - frozenset(scope_skill_on),
         force_tool=force_tool,
+        html_pages=bool(html_pages),
     )
 
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -2890,6 +2898,24 @@ def _remember_always(
         db.commit()
         log.info("chat %s will stop asking about %d action(s)", chat.id, added)
     return added, unmatchable
+
+
+@router.post("/{chat_id}/html-pages")
+async def set_html_pages(
+    db: Db, user: RequiredUser, chat_id: str, on: str = Form("")
+) -> Response:
+    """The chat's switch for HTML pages in answers (harness spec 3.8.0,
+    pages.md §4-§5). The prompt is not made again: the model is told by a
+    line of the session note on the next message (`services/prefix.py`)."""
+    chat = _owned_chat(db, chat_id, user.id)
+    scope = dict(chat.scope_json or {})
+    if on and chat.kind != KIND_AGENT:
+        scope[html_pages_service.SCOPE_KEY] = True
+    else:
+        scope.pop(html_pages_service.SCOPE_KEY, None)
+    chat.scope_json = scope
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/{chat_id}/allow/clear")

@@ -1,0 +1,13 @@
+{
+  "index": 2,
+  "kind": "text",
+  "open": false,
+  "markdown": "Two are unwrapped.\n\n```html-view Cakes\n<p>10 wrapped, 2 not</p>\n```\n",
+  "pages": [
+    {
+      "title": "Cakes",
+      "digest": "526b3a6b58f09769d9f81f628942cc7f"
+    }
+  ],
+  "text": "Two are unwrapped.\n\n[page: Cakes]\n"
+}

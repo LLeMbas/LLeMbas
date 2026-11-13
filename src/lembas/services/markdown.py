@@ -14,6 +14,7 @@ from __future__ import annotations
 import functools
 import html
 import re
+import secrets
 
 import nh3
 from markdown_it import MarkdownIt
@@ -102,6 +103,25 @@ def _render_fence(tokens, idx, _options, env) -> str:
 
     language = (token.info or "").strip().split()[0] if token.info else ""
 
+    # A page in the answer (harness spec 3.8.0, pages.md): a *closed* fence
+    # whose info word is exactly `html-view`. Its place is marked here and the
+    # mount written after sanitising (`_mounts`): what draws a page is ours,
+    # never something the sanitiser was asked to let through.
+    if language == _page_word() and "pages" in env:
+        closed = _closed(token, env.get("lines") or [])
+        if env.get("live"):
+            # Still being written: a placeholder with its title, once -- not
+            # for each part a long open block is sent in, and never its source.
+            if env.get("cont") and not any(t.type == "fence" for t in tokens[:idx]):
+                return ""
+            env["pages"].append((_page_of(token), False))
+            return f'<div class="html-page-slot">{env["nonce"]}:{len(env["pages"]) - 1}</div>'
+        if closed:
+            env["pages"].append((_page_of(token), True))
+            return f'<div class="html-page-slot">{env["nonce"]}:{len(env["pages"]) - 1}</div>'
+        # A reply that ended inside the fence has no page there: it is the
+        # code block it is.
+
     lexer = None
     if env.get("live"):
         # A reply still being written: plain, escaped code. Highlighting --
@@ -142,6 +162,98 @@ def _render_fence(tokens, idx, _options, env) -> str:
         label = language or (lexer.aliases[0] if lexer.aliases else "")
 
     return _code_block(body, label)
+
+
+def _page_word() -> str:
+    from lembas.services import html_pages
+
+    return html_pages.spec()["fence"]
+
+
+def _closed(token, lines: list[str]) -> bool:
+    """Whether a fence token was closed by a line of its own, rather than by
+    the end of the text (markdown-it makes a block of either)."""
+    if not token.map or not token.markup:
+        return False
+    last = lines[token.map[1] - 1] if 0 < token.map[1] <= len(lines) else ""
+    mark = last.strip().lstrip(">").strip()
+    return (
+        token.map[1] - token.map[0] >= 2
+        and bool(mark)
+        and set(mark) == {token.markup[0]}
+        and len(mark) >= len(token.markup)
+    )
+
+
+def _page_of(token):
+    from lembas.services import html_pages
+
+    source = token.content[:-1] if token.content.endswith("\n") else token.content
+    said = (token.info or "").strip()[len(_page_word()):]
+    return html_pages.Page(html_pages._title(said, source), source)
+
+
+def pages_in(text: str) -> list:
+    """The pages of a reply exactly as the renderer finds them -- what the
+    route that serves one looks a digest up in."""
+    if not text or _page_word() not in text:
+        return []
+    src, lines = _source(text)
+    return [
+        _page_of(token)
+        for token in _parser().parse(src, {})
+        if token.type == "fence"
+        and (token.info or "").strip().split()[:1] == [_page_word()]
+        and _closed(token, lines)
+    ]
+
+
+def _mount(page, ready: bool) -> str:
+    """What stands where a page is: its title, the frame (empty until
+    `html-pages.js` gives it an address under the nearest `data-pages-base`),
+    and its source behind a disclosure. A placeholder while it is written."""
+    from lembas.web.i18n import t
+
+    title = nh3.clean_text(page.title)
+    if not ready:
+        return (
+            '<div class="html-page html-page--writing"><div class="html-page__bar">'
+            f'<span class="html-page__title">{title}</span>'
+            f'<span class="html-page__state">{nh3.clean_text(t("Writing the page…"))}</span>'
+            "</div></div>"
+        )
+    frame_title = nh3.clean_text(
+        t("The page “%(title)s”, sealed off from this application", title=page.title)
+    )
+    note = nh3.clean_text(t("This answer has a page: %(title)s", title=page.title))
+    return (
+        f'<figure class="html-page" data-html-page data-digest="{page.digest}">'
+        '<figcaption class="html-page__bar">'
+        f'<span class="html-page__title">{title}</span>'
+        '<button class="btn btn--sm html-page__larger" type="button" data-html-page-larger>'
+        f'{nh3.clean_text(t("Open larger"))}</button></figcaption>'
+        '<iframe class="html-page__frame" sandbox="" referrerpolicy="no-referrer" '
+        f'loading="lazy" title="{frame_title}"></iframe>'
+        f'<p class="html-page__note">{note}</p>'
+        f'<details class="html-page__source"><summary>{nh3.clean_text(t("View source"))}'
+        f'</summary>{_code_block(nh3.clean_text(page.html), "html")}</details>'
+        "</figure>"
+    )
+
+
+def _mounts(html: str, env: dict) -> str:
+    """Put each page's mount where its slot is. A slot is recognised by this
+    render's own nonce, so a `<div class="html-page-slot">` a model wrote into
+    its Markdown is only a div with text in it."""
+    pages = env.get("pages") or []
+    if not pages:
+        return html
+
+    def put(found: re.Match) -> str:
+        index = int(found.group(1))
+        return _mount(*pages[index]) if index < len(pages) else ""
+
+    return re.sub(rf'<div class="html-page-slot">{env["nonce"]}:(\d+)</div>', put, html)
 
 
 def _code_block(body: str, label: str, extra: str = "") -> str:
@@ -197,7 +309,13 @@ def render_markdown(
         return ""
 
     src, lines = _source(text)
-    html = _parser().render(src, {"lines": lines, "live": live, "cont": cont, "more": more})
+    env = {"lines": lines, "live": live, "cont": cont, "more": more}
+    if _page_word() in src:
+        env.update(pages=[], nonce=secrets.token_hex(8))
+    return _mounts(_clean(_parser().render(src, env)), env)
+
+
+def _clean(html: str) -> str:
     return nh3.clean(
         html,
         tags=ALLOWED_TAGS,
@@ -423,6 +541,11 @@ def speakable_text(text: str) -> str:
     if not text:
         return ""
 
+    # A page in the answer is its one-line projection, `[page: title]`
+    # (harness spec 3.8.0): nobody wants a document's markup read to them.
+    from lembas.services import html_pages
+
+    text = html_pages.project(text)
     rendered = _CODE_LABEL.sub(" ", _CODE_BLOCK.sub("\n", render_markdown(text)))
     stripped = html.unescape(_TAG.sub(" ", rendered))
 

@@ -301,6 +301,9 @@ class Model(UUIDPrimaryKey, Timestamps, Base):
     # llama.cpp, vLLM, SGLang): only then is the level `off` offered (harness
     # spec 3.2.0 `thinking_switch`). A column, for the reason `single_session` is.
     thinking_switch: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Whether this model can write a working HTML page into an answer (harness
+    # spec 3.8.0 `html_pages`, pages.md §4). False: it is simply not asked to.
+    html_pages: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Public models are usable by anyone; otherwise access comes from `groups`.
     public: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

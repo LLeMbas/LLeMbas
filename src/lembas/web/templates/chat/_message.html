@@ -33,6 +33,7 @@
 <article class="msg msg--{{ message.role }}{{ ' msg--machine' if machine }}{{ ' msg--queued' if queued }}"
          id="msg-{{ message.id }}"
          data-chat="{{ chat.id }}" data-message="{{ message.id }}"
+         data-pages-base="/pages/m/{{ message.id }}"
   {% if streaming %}
          hx-ext="sse"
          sse-connect="/api/chats/{{ chat.id }}/messages/{{ message.id }}/stream"

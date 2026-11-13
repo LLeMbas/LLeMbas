@@ -536,6 +536,21 @@ def compose(
     team = team_block(db, offered, chat)
     if team:
         block = f"{block}\n\n{team}" if block else team
+    # HTML pages in answers (spec 3.8.0, pages.md §2, §4): the block, when the
+    # instance, the model and the chat all say so. A switch moved later is a
+    # line of the session note (`prefix._note`), never a new prompt.
+    if chat is not None:
+        from lembas.services import chat as chat_service
+        from lembas.services import html_pages
+
+        model = (
+            chat_service.model_row(db, speaker)
+            if speaker is not None
+            else chat_service.model_for(db, chat)
+        )
+        if html_pages.on(db, chat, model):
+            pages = html_pages.block()
+            block = f"{block}\n\n{pages}" if block else pages
     return block
 
 

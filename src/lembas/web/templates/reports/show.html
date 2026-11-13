@@ -31,7 +31,7 @@
   {% if report.summary %}<p class="report__summary">{{ report.summary }}</p>{% endif %}
   {# The body is the model's Markdown, through the one renderer that
      sanitises (services/markdown.py). #}
-  <div class="msg__body report__body">{{ report_body(report) }}</div>
+  <div class="msg__body report__body" data-pages-base="/pages/r/{{ report.id }}">{{ report_body(report) }}</div>
   {% if report.chat_id %}
   <p class="report__continued">
     <a class="btn btn--sm" href="/chat/{{ report.chat_id }}">{{ icon("chat", "icon--sm") }} {{ t("Open the conversation") }}</a>

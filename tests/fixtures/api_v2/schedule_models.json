@@ -26,6 +26,7 @@
         "offered": false,
         "named_only": false
       },
+      "html_pages": false,
       "free": false,
       "busy": "it is answering someone",
       "chosen": true
@@ -53,6 +54,7 @@
         "offered": false,
         "named_only": false
       },
+      "html_pages": false,
       "free": true,
       "busy": null,
       "chosen": false

@@ -201,6 +201,11 @@ def metadata(served: Served) -> dict[str, Any]:
         entry["efforts"] = list(chat_service.model_efforts(model))
     if model.thinking_switch:
         entry["thinking_switch"] = True
+    # Harness spec 3.8.0 (pages.md): the model's flag, as the administrator
+    # set it. Whether a chat is offered pages is also the instance's switch
+    # and the chat's.
+    if model.html_pages:
+        entry["html_pages"] = True
     entry["levels"] = list(levels.offered)
     # The administrator's sampling settings for the model. This server
     # applies them anyway, under whatever a request sets; they are here so a

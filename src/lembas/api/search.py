@@ -37,6 +37,7 @@ from sqlalchemy.orm import Session as DBSession
 from lembas.api.deps import Db, RequiredUser
 from lembas.api.pages import sidebar_context
 from lembas.db.models import KINDS, ROLE_ASSISTANT, ROLE_USER, Chat, Memory, Message, User
+from lembas.services import html_pages
 from lembas.web.templating import render
 
 router = APIRouter(tags=["search"])
@@ -159,7 +160,8 @@ def _search_chats(db: DBSession, user: User, needle: str, limit: int) -> list[di
                 # messages only, and a hit from last month is not among them.
                 "url": f"/chat/{chat.id}?at={first.id}" if first else f"/chat/{chat.id}",
                 "icon": "terminal" if chat.kind == "agent" else "chat",
-                "snippet": snippet(first.content, needle) if first else "",
+                # A page in the reply reads as `[page: title]`, not its markup.
+                "snippet": snippet(html_pages.project(first.content), needle) if first else "",
                 "archived": chat.archived,
             }
         )

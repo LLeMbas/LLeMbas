@@ -249,6 +249,85 @@ class _Rebuild(HTMLParser):
             self.out.append(_text(data))
 
 
+# The frame's variables by the short names they travel under in a query.
+COLOURS = ("bg", "ink", "muted", "accent", "line")
+
+
+# --- The three switches (pages.md §4) ----------------------------------------------
+SCOPE_KEY = "html_pages"
+
+
+def instance_on(db) -> bool:
+    """The instance's switch: off until an administrator turns it on."""
+    from lembas.services import settings_store
+
+    return bool(settings_store.get_group(db, settings_store.GENERAL).get("html_pages_enabled"))
+
+
+def where_of(chat) -> str:
+    """Which of the spec's places a chat is, for `offered`: `agent_chat`,
+    `subagent`, `scheduled`, or "" for a person's own chat."""
+    from lembas.db.models import KIND_AGENT, KIND_TASK
+
+    if chat is None:
+        return ""
+    if chat.kind == KIND_AGENT:
+        return "agent_chat"
+    if getattr(chat, "parent_chat_id", None):
+        return "subagent"
+    if chat.kind == KIND_TASK or getattr(chat, "unattended", False):
+        return "scheduled"
+    # A chat the person's phone app has written into is the phone assistant's
+    # from then on (`phone_action` is offered there, spec 3.6.0): spoken, and
+    # shown on a small screen.
+    if getattr(chat, "phone_message_id", ""):
+        return "phone_assistant"
+    return ""
+
+
+def available(db, chat, model) -> bool:
+    """Whether a chat on this model could have pages at all -- the instance
+    and the model say so, and it is not a place that never has them. What
+    decides whether the chat's switch is shown."""
+    return (
+        instance_on(db)
+        and bool(getattr(model, "html_pages", False))
+        and where_of(chat) not in spec()["never"]
+    )
+
+
+def chat_on(chat) -> bool:
+    """The chat's own switch: off until its person turns it on."""
+    return (getattr(chat, "scope_json", None) or {}).get(SCOPE_KEY) is True
+
+
+def on(db, chat, model) -> bool:
+    """Whether the model answering this chat is offered pages right now."""
+    return offered(
+        instance=instance_on(db),
+        model=bool(getattr(model, "html_pages", False)),
+        chat=chat_on(chat),
+        where=where_of(chat),
+    )
+
+
+# Said after the spec's block, because it is true here and the block does not
+# say it: this server shows a page without running its scripts (see the note
+# above `document`). A model told only the spec's words would draw its chart
+# with a canvas script and the reader would see an empty box.
+STATIC_NOTE = (
+    "- Here a page is shown without running scripts: nothing in a <script> runs, and "
+    "there is no canvas drawing. Build the page from HTML, CSS and inline SVG only — "
+    "an SVG chart, a table, CSS for layout and colour."
+)
+
+
+def block() -> str:
+    """What the model is told: the spec's block (`prompts/blocks/html-pages.md`)
+    and this server's one addition."""
+    return f"{harness_spec.prompt('blocks/html-pages.md').rstrip()}\n{STATIC_NOTE}"
+
+
 def theme(values: dict[str, str] | None) -> dict[str, str]:
     """The frame's variables as given by the page that shows it, each kept
     only when it is plainly a colour: it is written into a style sheet."""
@@ -279,5 +358,6 @@ def document(page: Page, colours: dict[str, str] | None = None) -> str:
 
 
 __all__ = [
-    "Page", "document", "fence", "note", "offered", "pages_of", "project", "spec", "theme",
+    "COLOURS", "SCOPE_KEY", "Page", "available", "block", "chat_on", "document", "fence",
+    "instance_on", "note", "offered", "on", "pages_of", "project", "spec", "theme", "where_of",
 ]

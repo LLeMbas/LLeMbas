@@ -62,6 +62,9 @@ def _general_defaults() -> dict[str, Any]:
         # The `python` tool, run in the person's browser by Pyodide (api/pyodide.py).
         # Off until an administrator turns it on, and only where Pyodide is vendored.
         "pyodide_enabled": False,
+        # HTML pages in answers (harness spec 3.8.0, pages.md): experimental,
+        # off until an administrator turns it on. See services/html_pages.py.
+        "html_pages_enabled": False,
         # Custom instructions and a personality, chosen by each person for
         # themselves. Off until an administrator offers it.
         "personalization_enabled": False,

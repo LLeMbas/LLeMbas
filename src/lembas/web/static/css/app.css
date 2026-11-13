@@ -2971,3 +2971,62 @@ a.card, .card--action { transition: transform var(--dur-2) var(--ease-out),
 }
 .notify-when__words { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
 
+/* A page in an answer (harness spec 3.8.0): a titled box with a sealed frame.
+   The frame's height is fixed -- nothing inside it can tell this page how tall
+   it is, by design -- and it scrolls within; "Open larger" shows it again in
+   a dialog. The bar is a grid, title | button: the title takes what is left
+   and is cut with an ellipsis, so the button keeps its place whatever the
+   title says. */
+.html-page {
+  margin: var(--sp-3) 0;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+.html-page__bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: var(--border-w) solid var(--border);
+  min-height: var(--tap-min);
+}
+.html-page__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.html-page__state { font-size: var(--text-xs); color: var(--ink-faint); }
+.html-page--writing .html-page__bar { border-bottom: 0; }
+.html-page__frame {
+  display: block;
+  width: 100%;
+  height: min(28rem, 70vh);
+  border: 0;
+  background: var(--surface);
+}
+.html-page__note { display: none; margin: 0; padding: var(--sp-3); color: var(--ink-muted); }
+.html-page--plain .html-page__frame,
+.html-page--plain .html-page__larger { display: none; }
+.html-page--plain .html-page__note { display: block; }
+.html-page__source { border-top: var(--border-w) solid var(--border); }
+.html-page__source > summary {
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+.html-page__source .code-block { margin: 0; border: 0; border-radius: 0; max-height: 24rem; overflow: auto; }
+.html-page-dialog {
+  width: min(72rem, 96vw);
+  max-width: none;
+  padding: 0;
+}
+.html-page__frame--large { height: min(85vh, 60rem); }
+.pages-setting { margin-top: var(--sp-3); }
+

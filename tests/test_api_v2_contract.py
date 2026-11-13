@@ -690,6 +690,8 @@ def _schedules() -> dict[str, object]:
     def english(text: str) -> str:
         return text
 
+    from lembas.services import steps as steps_service
+
     told, told_extra = notify.report_push_parts(report, translate=english)
     run.notification_json = told_extra["notification"]
     failed = ScheduleRun(
@@ -793,6 +795,11 @@ def _schedules() -> dict[str, object]:
         "reports": {"reports": [serialise.report(report, "Waybread check")], "unread": 1},
         "report": {"report": serialise.report(report, "Waybread check", whole=True)},
         "report_reply": {"chat": "chat9"},
+        # Harness spec 3.8.0 (pages.md): a text step whose reply carries a page.
+        "step_text_page": serialise.step(steps_service.Step(
+            index=2, kind=steps_service.KIND_TEXT,
+            markdown="Two are unwrapped.\n\n```html-view Cakes\n<p>10 wrapped, 2 not</p>\n```\n",
+        )),
         "event_reports": {"unread": 1, "newest": serialise.report(report, "Waybread check")},
         "schedule_watching": {
             "schedule": runs.schedule_dict(None, watching, owner=owner, last=unchanged)

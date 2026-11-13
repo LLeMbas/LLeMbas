@@ -1135,8 +1135,11 @@ async def generate_title(
     if not template.strip():
         return fallback_title(question)
 
+    from lembas.services import html_pages
     from lembas.services.reasoning import strip_reasoning
 
+    # A page in the answer is `[page: title]` to whoever names the chat.
+    answer = html_pages.project(answer)
     prompt = prompts_service.substitute(
         template, {"question": question[:500], "answer": answer[:500]}
     )

@@ -2741,5 +2741,18 @@ MESSAGES.update(
         'New report': 'Nová zpráva',
         'Stops it running and removes the chats its runs worked in. Its reports stay under Reports.': 'Zastaví jej a odstraní konverzace, ve kterých jeho běhy pracovaly. Jeho zprávy zůstanou ve Zprávách.',
         'Remove this schedule? It will stop running, and the chats of its runs are removed. Its reports stay.': 'Odstranit tento plán? Přestane běžet a konverzace jeho běhů se odstraní. Jeho zprávy zůstanou.',
+        'HTML pages in answers (experimental)': 'HTML stránky v odpovědích (experimentální)',
+        'Let models add pages to their answers': 'Povolit modelům přidávat do odpovědí stránky',
+        "A model may then put a small page — a chart, a diagram, a table laid out with colour — into its answer, shown in a sealed frame at that place. It is offered only to a model you mark as able to write one (on the model's own page) and only in a chat whose person switched it on. The page is shown without scripts and without any network access: HTML, CSS and drawings only. On a phone and in a terminal there is a one-line note in its place. Experimental: off by default, and it may change.": 'Model pak může do odpovědi vložit malou stránku — graf, diagram, barevně uspořádanou tabulku — zobrazenou na tom místě v uzavřeném rámci. Nabízí se jen modelu, který označíte jako schopný ji napsat (na stránce modelu), a jen v konverzaci, kde ji její uživatel zapnul. Stránka se zobrazuje bez skriptů a bez přístupu k síti: jen HTML, CSS a kresby. Na telefonu a v terminálu je na jejím místě jednořádková poznámka. Experimentální: ve výchozím stavu vypnuto a může se změnit.',
+        'Can write HTML pages': 'Umí psát HTML stránky',
+        'Tick this for a model that writes a working, self-contained page when asked — the larger models do, the small ones mostly do not. It is then offered pages in answers where the instance allows them (Admin › General) and the chat has them switched on. Unticked, the model is simply not asked to.': 'Zaškrtněte u modelu, který na požádání napíše funkční, samostatnou stránku — větší modely to umí, malé většinou ne. Stránky v odpovědích se mu pak nabízejí tam, kde je instance povoluje (Správa › Obecné) a konverzace je má zapnuté. Bez zaškrtnutí o ně model prostě není požádán.',
+        'Pages in answers': 'Stránky v odpovědích',
+        'Experimental. The model may add a small page — a chart, a diagram — to an answer, shown here in a sealed frame without scripts or network access.': 'Experimentální. Model může k odpovědi přidat malou stránku — graf, diagram — zobrazenou zde v uzavřeném rámci bez skriptů a přístupu k síti.',
+        'Pages in answers are switched off here.': 'Stránky v odpovědích jsou zde vypnuté.',
+        'Writing the page…': 'Píše se stránka…',
+        'The page “%(title)s”, sealed off from this application': 'Stránka „%(title)s“, oddělená od této aplikace',
+        'This answer has a page: %(title)s': 'Tato odpověď má stránku: %(title)s',
+        'Open larger': 'Otevřít větší',
+        'View source': 'Zobrazit zdroj',
     }
 )

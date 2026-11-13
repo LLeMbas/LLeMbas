@@ -2741,5 +2741,18 @@ MESSAGES.update(
         'New report': 'Nowy raport',
         'Stops it running and removes the chats its runs worked in. Its reports stay under Reports.': 'Zatrzymuje go i usuwa czaty, w których pracowały jego przebiegi. Jego raporty pozostają w Raportach.',
         'Remove this schedule? It will stop running, and the chats of its runs are removed. Its reports stay.': 'Usunąć ten harmonogram? Przestanie działać, a czaty jego przebiegów zostaną usunięte. Jego raporty pozostaną.',
+        'HTML pages in answers (experimental)': 'Strony HTML w odpowiedziach (eksperymentalne)',
+        'Let models add pages to their answers': 'Pozwól modelom dodawać strony do odpowiedzi',
+        "A model may then put a small page — a chart, a diagram, a table laid out with colour — into its answer, shown in a sealed frame at that place. It is offered only to a model you mark as able to write one (on the model's own page) and only in a chat whose person switched it on. The page is shown without scripts and without any network access: HTML, CSS and drawings only. On a phone and in a terminal there is a one-line note in its place. Experimental: off by default, and it may change.": 'Model może wtedy umieścić w odpowiedzi małą stronę — wykres, diagram, tabelę ułożoną kolorem — pokazaną w tym miejscu w zamkniętej ramce. Jest to oferowane tylko modelowi, który oznaczysz jako zdolny ją napisać (na stronie modelu), i tylko w czacie, w którym użytkownik to włączył. Strona jest pokazywana bez skryptów i bez dostępu do sieci: tylko HTML, CSS i rysunki. Na telefonie i w terminalu w jej miejscu jest jednowierszowa notatka. Eksperymentalne: domyślnie wyłączone i może się zmienić.',
+        'Can write HTML pages': 'Potrafi pisać strony HTML',
+        'Tick this for a model that writes a working, self-contained page when asked — the larger models do, the small ones mostly do not. It is then offered pages in answers where the instance allows them (Admin › General) and the chat has them switched on. Unticked, the model is simply not asked to.': 'Zaznacz dla modelu, który na prośbę pisze działającą, samodzielną stronę — większe modele to potrafią, małe przeważnie nie. Strony w odpowiedziach są mu wtedy oferowane tam, gdzie instancja na nie pozwala (Administracja › Ogólne), a czat ma je włączone. Bez zaznaczenia model po prostu nie jest o to proszony.',
+        'Pages in answers': 'Strony w odpowiedziach',
+        'Experimental. The model may add a small page — a chart, a diagram — to an answer, shown here in a sealed frame without scripts or network access.': 'Eksperymentalne. Model może dodać do odpowiedzi małą stronę — wykres, diagram — pokazaną tutaj w zamkniętej ramce, bez skryptów i dostępu do sieci.',
+        'Pages in answers are switched off here.': 'Strony w odpowiedziach są tutaj wyłączone.',
+        'Writing the page…': 'Pisanie strony…',
+        'The page “%(title)s”, sealed off from this application': 'Strona „%(title)s”, odizolowana od tej aplikacji',
+        'This answer has a page: %(title)s': 'Ta odpowiedź ma stronę: %(title)s',
+        'Open larger': 'Otwórz większe',
+        'View source': 'Pokaż źródło',
     }
 )
