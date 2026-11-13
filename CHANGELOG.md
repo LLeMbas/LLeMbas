@@ -5,6 +5,8 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
+## 2.0.0-beta.13 — 2026-11-13
+
 ### Changed
 
 - **HTML pages in answers: one switch is enough.** Turning on Admin › General › *HTML pages in
