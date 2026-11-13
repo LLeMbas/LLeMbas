@@ -48,7 +48,12 @@ from lembas.web.i18n import t
 router = APIRouter()
 
 
-def page_json(db, text: str, digest: str, colours: dict[str, str]) -> dict[str, Any]:
+def page_json(
+    db, text: str, digest: str, colours: dict[str, str], *, offered: bool
+) -> dict[str, Any]:
+    # Only a reply or a report written while pages were offered has pages.
+    if not offered:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
     page = next((p for p in pages_in(text) if p.digest == digest), None)
     if page is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
@@ -77,7 +82,9 @@ async def message_page(
     chat = db.get(Chat, message.chat_id) if message is not None else None
     if chat is None or chat.user_id != caller.user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
-    return page_json(db, message.content or "", digest, _colours(request))
+    return page_json(
+        db, message.content or "", digest, _colours(request), offered=bool(message.html_pages)
+    )
 
 
 @router.get("/pages/r/{report_id}/{digest}")
@@ -87,7 +94,9 @@ async def report_page(
     report = db.get(Report, report_id)
     if report is None or report.owner_id != caller.user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
-    return page_json(db, report.body or "", digest, _colours(request))
+    return page_json(
+        db, report.body or "", digest, _colours(request), offered=bool(report.html_pages)
+    )
 
 
 def switch(db, chat: Chat) -> dict[str, bool]:

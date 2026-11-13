@@ -59,6 +59,9 @@ class Step:
     open: bool = False
     text: str = ""
     html: str = ""
+    # Whether an `html-view` block in this text step is a page: pages were
+    # offered when the reply was written, and the step holds the whole block.
+    pages: bool = False
     # A text step's markdown as the model wrote it, fence reopener included --
     # what `html` was rendered from. The app's JSON door sends this and never
     # the HTML; the app renders and sanitises it itself.
@@ -135,6 +138,7 @@ def for_message(message: Any) -> list[Step]:
         events=list(message.tool_calls_json or []),
         marks=list(getattr(message, "steps_json", None) or []),
         whole_ms=int(getattr(message, "reasoning_ms", 0) or 0),
+        pages=bool(getattr(message, "html_pages", False)),
         # A stored reply has a trailing step and it is not being written. Those
         # are two facts and they used to be one flag: `include_open` both
         # emitted the tail and marked it live, so every finished bubble ending
@@ -158,6 +162,7 @@ def closed_from(generation: Any, since: int) -> list[Step]:
         marks=list(generation.steps),
         since=since,
         include_open=False,
+        pages=bool(getattr(generation, "html_pages", False)),
     )
 
 
@@ -203,6 +208,7 @@ def _build(
     include_open: bool = True,
     live: bool = True,
     whole_ms: int = 0,
+    pages: bool = False,
 ) -> list[Step]:
     """The shared walk.
 
@@ -254,8 +260,9 @@ def _build(
                     index=0,
                     kind=KIND_TEXT,
                     open=live,
-                    html=render_markdown(text),
+                    html=render_markdown(text, pages=pages),
                     markdown=text,
+                    pages=pages,
                 )
             )
         return steps
@@ -299,9 +306,16 @@ def _build(
                     )
                 )
             if said:
+                # A page is a block that opens and closes inside one piece of
+                # text. One a tool call cut in two -- closed here by hand, or
+                # carried on from the piece before -- is two halves of a code
+                # block, not a page of half its source.
+                whole = pages and not marker and not carry
                 steps.append(
                     Step(
-                        index=index, kind=KIND_TEXT, html=render_markdown(source), markdown=source
+                        index=index, kind=KIND_TEXT,
+                        html=render_markdown(source, pages=whole), markdown=source,
+                        pages=whole,
                     )
                 )
             if _shown(ran):
@@ -347,8 +361,9 @@ def _build(
                 index=index,
                 kind=KIND_TEXT,
                 open=live,
-                html=render_markdown(source),
+                html=render_markdown(source, pages=pages and not carry),
                 markdown=source,
+                pages=pages and not carry,
             )
         )
     if trailing_events := _shown(events[tools_from:]):

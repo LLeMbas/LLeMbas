@@ -150,7 +150,9 @@ def seeded(client: TestClient, db, registered) -> dict:
                 "body": f"## Groves\n\n{LONG}.\n\n{PAGE}\n{TABLE}"},
     )
     db.add(Message(chat_id=chat.id, role="user", content="Show me."))
-    db.add(Message(chat_id=chat.id, role="assistant", content=f"Here.\n\n{PAGE}", complete=True))
+    db.add(Message(chat_id=chat.id, role="assistant", content=f"Here.\n\n{PAGE}", complete=True,
+                   html_pages=True))
+    report.html_pages = True
     db.commit()
     reports_service.reply_chat(db, owner, report)
     return {"chat": chat.id, "report": report.id, "schedule": schedule.id}

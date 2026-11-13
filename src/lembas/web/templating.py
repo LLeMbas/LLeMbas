@@ -295,7 +295,9 @@ def _report_body(report):
 
     from lembas.services.markdown import render_markdown
 
-    return Markup(render_markdown(report.body or ""))
+    return Markup(
+        render_markdown(report.body or "", pages=bool(getattr(report, "html_pages", False)))
+    )
 
 
 templates.env.globals["report_body"] = _report_body

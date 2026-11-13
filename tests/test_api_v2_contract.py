@@ -684,6 +684,7 @@ def _schedules() -> dict[str, object]:
              "```html-view Cakes\n<p>10 wrapped, 2 not</p>\n```\n",
         importance="high", schedule_id="sched1", schedule_title="Waybread check",
         run_id="run1", model_id="gpt-oss", unread=True, notified=True, chat_id="chat9",
+        html_pages=True,
         created_at=WHEN,
     )
     waiting = ScheduleRun(
@@ -813,7 +814,7 @@ def _schedules() -> dict[str, object]:
         "chat_html_pages": {"offered": True, "on": False},
         # Harness spec 3.8.0 (pages.md): a text step whose reply carries a page.
         "step_text_page": serialise.step(steps_service.Step(
-            index=2, kind=steps_service.KIND_TEXT,
+            index=2, kind=steps_service.KIND_TEXT, pages=True,
             markdown="Two are unwrapped.\n\n```html-view Cakes\n<p>10 wrapped, 2 not</p>\n```\n",
         )),
         "event_reports": {"unread": 1, "newest": serialise.report(report, "Waybread check")},

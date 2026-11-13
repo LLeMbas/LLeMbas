@@ -460,6 +460,10 @@ class Message(UUIDPrimaryKey, Timestamps, Base):
     error: Mapped[str] = mapped_column(Text, default="")
     # False while a reply is still streaming; flipped when the stream ends.
     complete: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Whether HTML pages were offered to the model when this reply was written
+    # (harness spec 3.8.0, pages.md §4). Only then is an `html-view` block in
+    # it a page; in every other reply it is the code block it is.
+    html_pages: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # True when the reader pressed Stop. Distinct from `error`: the text that
     # did arrive is kept and is perfectly usable, it is just cut short.
     stopped: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

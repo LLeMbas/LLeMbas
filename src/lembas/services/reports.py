@@ -198,10 +198,23 @@ def file(
     row.unread = True
     row.notified = False
     row.page_told = False
+    row.html_pages = _pages_offered(db, run)
     db.flush()
     if run is not None:
         run.report_id = row.id
     return row
+
+
+def _pages_offered(db: DBSession, run: ScheduleRun | None) -> bool:
+    """Whether the run that wrote a report was offered pages: the instance's
+    switch and its model's flag, in a run on this server (pages.md §4). A run
+    on a linked computer is an agent chat and never is."""
+    chat = db.get(Chat, run.chat_id) if run is not None and run.chat_id else None
+    if chat is None:
+        return False
+    from lembas.services import chat as chat_service
+
+    return html_pages.on(db, chat, chat_service.model_for(db, chat))
 
 
 def owned(db: DBSession, user: User, report_id: str) -> Report | None:
@@ -318,6 +331,7 @@ def reply_chat(db: DBSession, user: User, row: Report) -> Chat:
     ))
     opening = f"# {row.title}\n\n{row.body}" if row.title else row.body
     db.add(Message(chat_id=chat.id, role=ROLE_ASSISTANT, content=opening, complete=True,
+                   html_pages=bool(row.html_pages),
                    model_id=row.model_id or "", created_at=now + timedelta(milliseconds=1)))
     row.chat_id = chat.id
     db.commit()

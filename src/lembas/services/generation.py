@@ -117,6 +117,8 @@ class Generation:
 
     chat_id: str
     message_id: str
+    # Whether pages were offered for this reply (`Message.html_pages`).
+    html_pages: bool = False
 
     content: list[str] = field(default_factory=list)
     reasoning: list[str] = field(default_factory=list)
@@ -1001,6 +1003,7 @@ async def _run(generation: Generation) -> None:
                 speaker=speaker,
                 persist=True,
             )
+            generation.html_pages = bool(message.html_pages)
             question = _question_from(payload)
             needs_title = not chat.title_generated
             # An agent chat is titled from its opening words and never costs a

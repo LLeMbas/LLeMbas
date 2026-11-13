@@ -1733,7 +1733,7 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
     # The tail's markdown, rendered at the cost of what is new each pass and
     # rendered once a pass -- it used to be rendered whole, twice at a round's
     # close, ten times a second. See `markdown.LiveRender`.
-    live = LiveRender()
+    live = LiveRender(pages=bool(getattr(generation, "html_pages", False)))
 
     def changed(name: str, payload: str) -> bool:
         if sent.get(name) == payload:

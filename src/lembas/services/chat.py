@@ -680,6 +680,13 @@ def build_request(
         persist=persist,
         new_note=new_note,
     )
+    if persist and upto is not None and getattr(upto, "role", "") == ROLE_ASSISTANT:
+        # The reply about to be written: whether an `html-view` block in it
+        # is a page is settled now, by what its model is offered now
+        # (pages.md §4), and kept with it.
+        from lembas.services import html_pages
+
+        upto.html_pages = html_pages.on(db, chat, model_row(db, speaker))
 
     body: dict[str, Any] = {
         "model": speaker.model_id,

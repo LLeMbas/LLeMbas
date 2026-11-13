@@ -481,7 +481,7 @@ def step(item: steps_service.Step) -> dict[str, Any]:
         # says so -- each page's title and digest, and `text`, the step as a
         # reader that cannot draw a page shows it (`[page: title]` in each
         # page's place). Absent where the step has no page.
-        found = pages_in(item.markdown or "")
+        found = pages_in(item.markdown or "") if item.pages else []
         if found:
             out["pages"] = [{"title": p.title, "digest": p.digest} for p in found]
             out["text"] = html_pages.project(item.markdown)
@@ -527,7 +527,13 @@ def report(row: Any, schedule_title: str | None, *, whole: bool = False) -> dict
         "unread": bool(row.unread),
     }
     if whole:
-        pages, text = html_pages.fence(row.body or "")
+        # Pages only in a report written while they were offered (pages.md
+        # §4); in any other an `html-view` block is the code block it is.
+        pages, text = (
+            html_pages.fence(row.body or "")
+            if getattr(row, "html_pages", False)
+            else ([], row.body or "")
+        )
         out["body"] = row.body or ""
         out["text"] = text
         out["pages"] = [{"title": p.title, "digest": p.digest} for p in pages]

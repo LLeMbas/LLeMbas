@@ -32,7 +32,10 @@ router = APIRouter(tags=["html-pages"])
 _FRAMED = ("iframe", "frame", "embed", "object")
 
 
-def _serve(request: Request, db, text: str, digest: str) -> HTMLResponse:
+def _serve(request: Request, db, text: str, digest: str, *, offered: bool) -> HTMLResponse:
+    # Only a reply or a report written while pages were offered has pages.
+    if not offered:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
     asked_as = request.headers.get("sec-fetch-dest", "")
     if asked_as and asked_as not in _FRAMED:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "A page is shown in its answer.")
@@ -56,7 +59,9 @@ async def message_page(
     # Somebody else's is as absent as one that is not there.
     if chat is None or chat.user_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
-    return _serve(request, db, message.content or "", digest)
+    return _serve(
+        request, db, message.content or "", digest, offered=bool(message.html_pages)
+    )
 
 
 @router.get("/pages/r/{report_id}/{digest}")
@@ -66,7 +71,7 @@ async def report_page(
     report = db.get(Report, report_id)
     if report is None or report.owner_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
-    return _serve(request, db, report.body or "", digest)
+    return _serve(request, db, report.body or "", digest, offered=bool(report.html_pages))
 
 
 __all__ = ["router"]

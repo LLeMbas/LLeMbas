@@ -104,7 +104,7 @@ def test_switching_it_during_a_chat_is_a_note_not_a_new_prompt(db, user_id):
 
 # --- What a reader is shown ---------------------------------------------------------------
 def test_a_finished_page_is_a_mount_and_never_its_markup(db):
-    html = render_markdown(REPLY)
+    html = render_markdown(REPLY, pages=True)
     (page,) = pages_in(REPLY)
     assert (page.title, page.html) == ("Cakes", PAGE)
     assert f'data-html-page data-digest="{page.digest}"' in html
@@ -121,24 +121,27 @@ def test_a_finished_page_is_a_mount_and_never_its_markup(db):
 def test_only_a_closed_fence_with_the_exact_word_is_a_page():
     for info in ("html", "html-views", "HTML-VIEW", "html-view2"):
         text = f"```{info} T\n<p>x</p>\n```\n"
-        assert "data-html-page" not in render_markdown(text), info
+        assert "data-html-page" not in render_markdown(text, pages=True), info
         assert pages_in(text) == []
     # A reply that ended inside the fence has no page there.
     open_ended = "```html-view Cut off\n<p>x</p>\n"
-    assert "data-html-page" not in render_markdown(open_ended) and pages_in(open_ended) == []
-    assert "code-block" in render_markdown(open_ended)
+    assert "data-html-page" not in render_markdown(open_ended, pages=True)
+    assert pages_in(open_ended) == []
+    assert "code-block" in render_markdown(open_ended, pages=True)
     # Four backticks hold a page with a line of three in it.
     nested = "````html-view Code\n<pre>\n```\nx\n```\n</pre>\n````\n"
     (page,) = pages_in(nested)
-    assert "```\nx\n```" in page.html and "data-html-page" in render_markdown(nested)
+    assert "```\nx\n```" in page.html and "data-html-page" in render_markdown(nested, pages=True)
 
 
 def test_a_page_being_written_is_a_placeholder_with_its_title():
-    live = render_markdown("Wait.\n\n```html-view Monthly <b>sales</b>\n<p>half", live=True)
+    live = render_markdown(
+        "Wait.\n\n```html-view Monthly <b>sales</b>\n<p>half", live=True, pages=True
+    )
     assert "html-page--writing" in live and "Monthly" in live
     assert "<b>" not in live and "&lt;p&gt;half" not in live and "<iframe" not in live
     # A long open page is sent in parts: the later ones draw nothing more.
-    assert render_markdown("```html-view T\n<p>more", live=True, cont=True) == ""
+    assert render_markdown("```html-view T\n<p>more", live=True, cont=True, pages=True) == ""
 
 
 def test_a_model_cannot_write_a_mount_of_its_own():
@@ -148,7 +151,7 @@ def test_a_model_cannot_write_a_mount_of_its_own():
         '<figure class="html-page" data-html-page data-digest="' + "a" * 32 + '"></figure>\n\n'
         "```html-view Real\n<p>x</p>\n```\n"
     )
-    html = render_markdown(forged)
+    html = render_markdown(forged, pages=True)
     assert html.count("<iframe") == 1 and html.count("data-html-page data-digest") == 1
     assert "<iframe" not in html.split("<figure")[0]
     assert "a" * 32 not in html
@@ -245,7 +248,9 @@ def _reply(db, user: User) -> Message:
     chat = Chat(user_id=user.id, title="Cakes")
     db.add(chat)
     db.commit()
-    message = Message(chat_id=chat.id, role="assistant", content=REPLY, complete=True)
+    message = Message(
+        chat_id=chat.id, role="assistant", content=REPLY, complete=True, html_pages=True
+    )
     db.add(message)
     db.commit()
     return message
@@ -296,6 +301,7 @@ def test_a_report_shows_its_pages_the_same_way(client: TestClient, db, registere
     report = reports_service.file(
         db, owner_id=owner.id, report={"title": "Cakes", "body": REPLY}
     )
+    report.html_pages = True
     db.commit()
     (page,) = pages_in(REPLY)
     shown = client.get(f"/reports/{report.id}").text
@@ -349,7 +355,7 @@ def test_a_text_step_says_which_pages_it_carries():
 
     (page,) = pages_in(REPLY)
     with_page = serialise.step(steps_service.Step(index=0, kind=steps_service.KIND_TEXT,
-                                                  markdown=REPLY))
+                                                  markdown=REPLY, pages=True))
     assert with_page["markdown"] == REPLY
     assert with_page["pages"] == [{"title": "Cakes", "digest": page.digest}]
     assert with_page["text"] == "Here is the count.\n\n[page: Cakes]\n\nTwo are unwrapped."
@@ -394,9 +400,12 @@ def test_an_app_is_given_the_same_rebuilt_document(client: TestClient, db, regis
     chat = Chat(user_id=owner.id, title="Cakes")
     db.add(chat)
     db.commit()
-    message = Message(chat_id=chat.id, role="assistant", content=hostile, complete=True)
+    message = Message(
+        chat_id=chat.id, role="assistant", content=hostile, complete=True, html_pages=True
+    )
     db.add(message)
     report = reports_service.file(db, owner_id=owner.id, report={"title": "R", "body": hostile})
+    report.html_pages = True
     db.commit()
     (page,) = pages_in(hostile)
 
@@ -580,3 +589,81 @@ def test_the_rebuilt_document_is_remembered():
     assert html_pages.document(page, {"bg": "#fff"}) is first
     assert html_pages._document.cache_info().hits == 1
     assert html_pages.document(page, {"bg": "#000"}) != first
+
+
+# --- A page only where pages were offered (pages.md §4) ------------------------------------------
+def test_a_fence_is_a_page_only_in_a_reply_written_with_pages_offered(
+    client: TestClient, db, registered
+):
+    from lembas.api.v2 import serialise
+    from lembas.services import steps as steps_service
+
+    # The renderer by itself draws no page: a preview, a quoted text, a
+    # subagent's turn in the job panel, a reply from before the switch.
+    plain = render_markdown(REPLY)
+    assert "data-html-page" not in plain and "<iframe" not in plain
+    assert "code-block" in plain and "&lt;p&gt;10 wrapped" in plain
+
+    _on(db)
+    owner = db.scalars(select(User).order_by(User.created_at)).first()
+    chat = Chat(user_id=owner.id, title="Cakes")
+    db.add(chat)
+    db.commit()
+    without = Message(chat_id=chat.id, role="assistant", content=REPLY, complete=True)
+    with_pages = Message(chat_id=chat.id, role="assistant", content=REPLY, complete=True,
+                         html_pages=True)
+    db.add_all([without, with_pages])
+    db.commit()
+    (page,) = pages_in(REPLY)
+
+    # The reply written without pages offered: a code block, no page to fetch,
+    # none in the app's data -- whatever the switches say today.
+    (step,) = steps_service.for_message(without)
+    assert "data-html-page" not in step.html and "pages" not in serialise.step(step)
+    assert client.get(f"/pages/m/{without.id}/{page.digest}").status_code == 404
+    auth = _app(db, owner)
+    assert client.get(
+        f"/api/v2/pages/m/{without.id}/{page.digest}", headers=auth
+    ).status_code == 404
+
+    (step,) = steps_service.for_message(with_pages)
+    assert f'data-digest="{page.digest}"' in step.html
+    assert serialise.step(step)["pages"] == [{"title": "Cakes", "digest": page.digest}]
+    assert client.get(f"/pages/m/{with_pages.id}/{page.digest}").status_code == 200
+
+
+def test_the_reply_being_written_is_marked_by_what_its_model_is_offered(db, user_id):
+    session = Session(db, _chat(db, user_id, scope_json={html_pages.SCOPE_KEY: True}))
+    session.turn("Before.")
+    _on(db)
+    session.turn("After.")
+    replies = list(db.scalars(
+        select(Message).where(Message.chat_id == session.chat.id, Message.role == "assistant")
+        .order_by(Message.created_at)
+    ))
+    assert [m.html_pages for m in replies] == [False, True]
+
+
+def test_a_page_cut_in_two_by_a_tool_call_is_not_a_page():
+    """The model opened the block, called a tool, and went on: the two pieces
+    are closed and reopened by hand to render as code -- a page of half its
+    source would be a digest nothing serves."""
+    from lembas.services import steps as steps_service
+
+    first = "Look:\n\n```html-view Cut\n<p>one</p>\n"
+    second = "<p>two</p>\n```\n\nDone.\n\n```html-view Whole\n<p>w</p>\n```\n"
+    text = first + second
+    built = steps_service._build(
+        text=text, thinking="", events=[{"name": "read"}],
+        marks=[{"text_to": len(first), "tools_to": 1, "thinking_to": 0}],
+        live=False, pages=True,
+    )
+    texts = [s for s in built if s.kind == steps_service.KIND_TEXT]
+    assert len(texts) == 2
+    assert all("data-html-page" not in s.html for s in texts)
+    assert not texts[0].pages and not texts[1].pages
+    # Uncut, the same reply has both.
+    whole = steps_service._build(
+        text=text, thinking="", events=[], marks=[], live=False, pages=True
+    )
+    assert whole[-1].html.count("data-html-page data-digest") == 2
