@@ -414,13 +414,14 @@ async def _run_cancel(context: ToolContext, args: dict[str, Any]) -> ToolOutcome
                 "schedule_list gives the ids you can use.",
             )
         title = schedule.title
-        # The transcript is kept, which is `delete`'s own default and the right
-        # one: removing a timer must not delete a conversation as a side effect.
+        # The chats its runs worked in go with it; its reports stay
+        # (`schedules.delete`). The model is told that, not that everything
+        # is kept.
         schedules_service.delete(db, schedule)
         log.info("%s cancelled schedule %r by model", owner.email if owner else "?", title)
         return _outcome(
-            f"Stopped {title!r}. It will not run again; what it has already "
-            f"written is kept.",
+            f"Stopped {title!r}. It will not run again. The reports it filed are "
+            f"kept (under Reports); the chats its runs worked in are removed.",
             {"name": "schedule_cancel", "query": title, "status": "ok", "results": []},
         )
 

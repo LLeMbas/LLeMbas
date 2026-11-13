@@ -949,6 +949,24 @@ async def _announce_report(run_id: str) -> None:
         log.exception("could not announce the report of schedule run %s", run_id)
 
 
+async def announce_report_alone(report_id: str) -> None:
+    """A report whose run is gone (its schedule was removed while it ran):
+    told once, like any other."""
+    from lembas.db.models import Report
+
+    try:
+        with session_scope() as db:
+            report = db.get(Report, report_id)
+            owner = db.get(User, report.owner_id) if report is not None else None
+            if report is None or owner is None or report.notified:
+                return
+            await notify.announce_report(db, owner, report=report, run=None)
+            report.notified = True
+            db.commit()
+    except Exception:  # a push service having a bad hour must not surface in a delete
+        log.exception("could not announce report %s", report_id)
+
+
 # --- Telling somebody ---------------------------------------------------------------------
 async def _announce(run_id: str, *, failed: bool, ask_pause: bool = False) -> None:
     try:

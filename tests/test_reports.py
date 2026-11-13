@@ -494,3 +494,69 @@ def test_every_page_a_report_lists_is_served(client: TestClient, db, registered,
     assert [p.digest for p in html_pages.pages_of(body)] == [p.digest for p in pages_in(body)]
     if case == "an entity in the title":
         assert said["pages"][0]["title"] == "Sales &amp; costs"  # as written
+
+
+# --- Removing a schedule while one of its runs is going ---------------------------------------
+@pytest.mark.anyio
+async def test_removing_a_schedule_mid_run_stops_the_run_and_keeps_and_tells_its_report(
+    db, registered, monkeypatch
+):
+    from lembas.services import generation as generation_service
+    from lembas.services.schedule import runner
+
+    owner = _owner(db)
+    schedule = _schedule(db, owner)
+    task = Chat(user_id=owner.id, kind=KIND_TASK, title="run")
+    db.add(task)
+    db.commit()
+    reply = Message(chat_id=task.id, role="assistant", content="", complete=False)
+    db.add(reply)
+    db.commit()
+    run = ScheduleRun(schedule_id=schedule.id, user_id=owner.id, status="running",
+                      chat_id=task.id, message_id=reply.id)
+    db.add(run)
+    db.commit()
+    report = _file(db, owner, schedule, run=run, title="Half done")
+    running = generation_service.Generation(chat_id=task.id, message_id=reply.id)
+    monkeypatch.setitem(generation_service._RUNNING, reply.id, running)
+    told: list[str] = []
+
+    async def announce_report(db_, owner_, *, report, run=None):
+        told.append(report.title)
+        return True
+
+    monkeypatch.setattr(notify, "announce_report", announce_report)
+    task_id, report_id = task.id, report.id
+
+    schedules_service.delete(db, schedule)
+    for pending in list(schedules_service._TELLING):
+        await pending
+
+    # Stopped first, as Stop does.
+    assert running.cancel is True and running.stop_event.is_set()
+    db.expunge_all()
+    assert db.get(Chat, task_id) is None and db.get(Schedule, schedule.id) is None
+    # The report it had already filed is kept, and told -- once.
+    kept = db.get(Report, report_id)
+    assert kept is not None and kept.notified and told == ["Half done"]
+    await runner.announce_report_alone(report_id)
+    assert told == ["Half done"]
+    # The reply's last write finds no chat and no row: nothing to do, no error.
+    running.content.append("still writing")
+    assert generation_service._persist(running, "", 0.0) is None
+    await runner.settle(run.id, running)  # the run is gone with its schedule
+
+
+@pytest.mark.anyio
+async def test_the_model_is_told_what_cancelling_a_schedule_removes(db, registered):
+    from lembas.services.schedule import tool as schedule_tool
+    from lembas.services.tools.core import ToolContext
+
+    owner = _owner(db)
+    schedule = _schedule(db, owner)
+    outcome = await schedule_tool._run_cancel(
+        ToolContext(owner_id=owner.id), {"id": schedule.id}
+    )
+    assert "reports it filed are kept" in outcome.content
+    assert "chats its runs worked in are removed" in outcome.content
+    assert "written is kept" not in outcome.content

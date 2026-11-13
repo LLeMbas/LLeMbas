@@ -445,6 +445,24 @@ def delete(db: DBSession, schedule: Schedule) -> None:
 
     A schedule that ran *in a chat of the person's own* (mode `continue` on an
     ordinary chat) never owned that chat: it is left exactly as it is."""
+    # A run in flight is stopped first, as Stop does: its reply must not go
+    # on being written into a chat that is about to be gone. What it has
+    # already filed is a report like any other -- kept, and told, since the
+    # run will never reach the point where it would have told it.
+    from lembas.db.models import RUN_RUNNING
+
+    orphaned: list[str] = []
+    for run in db.scalars(
+        select(ScheduleRun).where(
+            ScheduleRun.schedule_id == schedule.id, ScheduleRun.status == RUN_RUNNING
+        )
+    ):
+        if run.message_id:
+            from lembas.services import generation as generation_service
+
+            generation_service.request_stop(run.message_id)
+        if run.report_id:
+            orphaned.append(run.report_id)
     ids = {schedule.chat_id} if schedule.chat_id else set()
     ids |= {
         cid
@@ -464,6 +482,30 @@ def delete(db: DBSession, schedule: Schedule) -> None:
         chat_service.delete_chats(db, doomed)
     db.delete(schedule)
     db.commit()
+    for report_id in orphaned:
+        _tell_later(report_id)
+
+
+# Announcements started by a delete, held so the loop does not collect one
+# mid-flight (asyncio keeps only a weak reference to a task nobody awaits).
+_TELLING: set = set()
+
+
+def _tell_later(report_id: str) -> None:
+    """Announce a report whose run was removed under it. From a request there
+    is a loop to do it on; from anywhere else (a command, a test without one)
+    it is simply not announced -- the report is still under Reports."""
+    import asyncio
+
+    from lembas.services.schedule import runner
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    task = loop.create_task(runner.announce_report_alone(report_id))
+    _TELLING.add(task)
+    task.add_done_callback(_TELLING.discard)
 
 
 def describe(schedule: Schedule, *, owner: User | None) -> str:
