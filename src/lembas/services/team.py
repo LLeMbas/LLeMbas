@@ -945,18 +945,6 @@ def permission_key(tool: str) -> str:
     return _PERMISSION_KEYS.get(tool, tool)
 
 
-def _rule_action(rules: Any, subject: str) -> str:
-    """One permission key's rules applied to a subject: a single action, or
-    the last matching pattern of a map ("" when none matches)."""
-    if isinstance(rules, str):
-        return rules
-    action = ""
-    for pattern, verdict in (rules or {}).items():
-        if _wildcard(pattern, subject):
-            action = verdict
-    return action
-
-
 def spec_evaluate(
     tool: str, risk: str, subject: str, mode: str, grants: list[dict[str, str]]
 ) -> tuple[str, str]:
@@ -972,25 +960,34 @@ def spec_evaluate(
     paths = (subject,) if subject and tool != "bash" else ()
     if why := policy.refusal(tool, command, paths):
         return DENY, why
-    defaults = harness_spec._json("permission/defaults.json")["rules"]
+    from lembas.services.agent import rules as rule_service
+
     key = permission_key(tool)
-    granted = {
-        g["pattern"]: ALLOW
+    # The default rules, then what the main agent allowed this subagent: rules
+    # made while the session runs, as an "always" answer is. Which one decides
+    # is the spec's (permission/rules.md §2): a broad grant does not unlock
+    # what a default rule says of a narrower case (`bash *` leaves a default
+    # ask asking), and never a written deny.
+    read = rule_service.defaults() + [
+        rule_service.Rule(
+            g.get("permission") or permission_key(g.get("tool", "")), g["pattern"], ALLOW,
+            rule_service.LAYER_MADE, rule_service.BY_ALWAYS,
+        )
         for g in grants
-        if (g.get("permission") or permission_key(g.get("tool", ""))) == key
-    }
-    rules = defaults.get(key, defaults.get("*", ASK))
+    ]
+    specific = False  # whether a rule written for this tool, not the catch-all, decided
     if tool == "bash":
-        merged = {**(rules if isinstance(rules, dict) else {"*": rules}), **granted}
         split = shell.split_command(command)
         if split.unsafe or not split.commands:
             action = ASK
         else:
-            found = [_rule_action(merged, one.strip()) or ASK for one in split.commands]
-            action = DENY if DENY in found else ASK if ASK in found else ALLOW
+            action = rule_service.strictest(
+                rule_service.action(key, one.strip(), read) or ASK for one in split.commands
+            )
     else:
-        merged = {**(rules if isinstance(rules, dict) else {"*": rules}), **granted}
-        action = _rule_action(merged, subject or "*") or str(defaults.get("*", ASK))
+        decided = rule_service.deciding(key, subject or "*", read)
+        action = decided.action if decided is not None else ASK
+        specific = decided is not None and decided.permission != "*"
     if action == DENY:
         return DENY, "a rule refuses it"
     if mode == "auto":
@@ -998,7 +995,7 @@ def spec_evaluate(
     if mode == "edit" and risk in ("read", "write"):
         # Inside what it may reach runs, unless a rule written for that tool
         # asks (reading .env asks in every mode but auto).
-        asked = risk == "read" and action == ASK and isinstance(defaults.get(key), dict)
+        asked = risk == "read" and action == ASK and specific
         return (ASK, "") if asked else (ALLOW, "")
     if mode == "plan" and risk in ("write", "execute"):
         return (ALLOW, "") if action == ALLOW else (DENY, harness_spec.plan_refused())

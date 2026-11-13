@@ -43,6 +43,16 @@ permission layers), vendored from the LLeMbas CLI's `dev` and pinned to its tag 
   ran in a chat of your own never owned that chat and leaves it alone. (`keep_chat` on
   `DELETE /api/v2/schedules/{id}` is accepted and ignored.)
 - A new run is told what the last *report* said, not what a quiet run answered.
+- **One rule for which permission rule decides** (harness spec 3.8.0, the same in the LLeMbas
+  CLI). Rules are read in layers -- the defaults, your own, a project's, then those made
+  while a session runs -- and the last one that matches is the candidate; but a rule made
+  later and more broadly **no longer unlocks a narrower one that was written to ask or
+  deny**. On the server this changes one thing: when a main agent allows a subagent
+  something broad (every read, every `git` command), a default rule for a narrower case
+  (`.env` files, `git push`) still asks -- to allow the narrow thing, it is named. The
+  administrator's allow list and always-ask list, and a chat's "always allow" answers, decide
+  as they did: an always-ask entry wins over any allow. Hand-written rules in a project's
+  configuration are the CLI's; its changelog says what changes there.
 - `[SILENT]` is retired: no run is told about it. A model that still answers it leaves no
   report.
 

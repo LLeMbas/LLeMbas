@@ -38,6 +38,7 @@ from lembas.services.schedule import notify
 ROOT = Path(__file__).resolve().parent.parent
 
 AREAS = {
+    "rules": lambda c: _rules(c),
     "hardline": lambda c: r.id if (r := shell.hardline_command(c["line"])) else None,
     "split": lambda c: (lambda s: {"commands": s.commands, "unsafe": s.unsafe})(
         shell.split_command(c["line"])
@@ -505,10 +506,29 @@ def _python_text(c: dict) -> str:
     return file_tools.python_text(c["situation"])
 
 
+def _rules(c):
+    """permission/rules.md: which rule decides, and what making one does."""
+    from lembas.services.agent import rules
+
+    read = rules.defaults() if c.get("defaults") else []
+    read += rules.from_config(c.get("user"), rules.LAYER_USER)
+    read += rules.from_config(c.get("project"), rules.LAYER_PROJECT)
+    read += [
+        rules.Rule(m["permission"], m["pattern"], m["action"], rules.LAYER_MADE, m["by"])
+        for m in c.get("made") or []
+    ]
+    if "set" in c:
+        new = c["set"]
+        return rules.judge(
+            rules.Rule(new["permission"], new["pattern"], new["action"], rules.LAYER_MADE,
+                       rules.BY_MENU),
+            read,
+        )
+    return rules.action(c["request"]["permission"], c["request"]["pattern"], read)
+
+
 # Areas of the spec LLeMbas does not run yet, or no longer runs, and why.
 PENDING = {
-    "rules": "spec 3.8.0's order of permission rules (a broad allow never unlocks a narrower "
-    "written ask or deny) is the CLI's; the server's evaluation follows it next",
     "permission": "LLeMbas's modes are still its own table (agent/policy.py POLICY); the spec's "
     "modes.json and default rules are adopted later -- see the LLeMbas CLI's harness-parity notes",
     "edit": "run in tests/test_chat_files.py against the chat's edit tool",
