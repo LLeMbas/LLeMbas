@@ -54,6 +54,19 @@ def _pyodide_state() -> dict:
     return pyodide_state()
 
 
+def _pages_state(db: DBSession) -> dict:
+    """HTML pages in answers: which models the instance offers them on, and
+    how many that is as things stand."""
+    from lembas.services import html_pages
+
+    able, everything = html_pages.model_counts(db)
+    return {
+        "pages_models": html_pages.models_scope(db),
+        "pages_able": able,
+        "pages_all": everything,
+    }
+
+
 @router.get("/general")
 async def general_page(
     request: Request, db: Db, user: AdminUser, saved: str = "", error: str = ""
@@ -72,6 +85,7 @@ async def general_page(
             "said": saved if saved not in ("", "1", "true") else "",
             "pyodide": _pyodide_state(),
             "error": error,
+            **_pages_state(db),
         },
     )
 

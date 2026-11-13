@@ -120,10 +120,8 @@ async def set_switch(
             status.HTTP_409_CONFLICT, t("Pages in answers are not offered in this chat.")
         )
     scope = dict(chat.scope_json or {})
-    if wanted:
-        scope[html_pages.SCOPE_KEY] = True
-    else:
-        scope.pop(html_pages.SCOPE_KEY, None)
+    # Written either way: absent means on (`html_pages.chat_on`).
+    scope[html_pages.SCOPE_KEY] = wanted
     chat.scope_json = scope
     db.commit()
     return switch(db, chat)

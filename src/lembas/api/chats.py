@@ -197,7 +197,7 @@ def _new_chat(
     skills_off: frozenset[str] = frozenset(),
     agents_min: str = "",
     agents_max: str = "",
-    html_pages: bool = False,
+    html_pages: bool | None = None,
 ) -> Chat:
     """Create a chat row, resolving which model it should use.
 
@@ -339,10 +339,11 @@ def _new_chat(
             **({"families": scoped} if scoped else {}),
             **({"skills": scoped_skills} if scoped_skills else {}),
         }
-    # HTML pages (harness spec 3.8.0): the chat's own switch, chosen before
-    # the first word so the first prompt already has it. Never an agent chat.
-    if html_pages and chat.kind != KIND_AGENT:
-        chat.scope_json = {**(chat.scope_json or {}), html_pages_service.SCOPE_KEY: True}
+    # HTML pages (harness spec 3.8.0): the chat's own switch, moved before the
+    # first word so the first prompt already follows it. It starts on, so only
+    # "off" is written (`html_pages.chat_on`); None is "nobody said".
+    if html_pages is False and chat.kind != KIND_AGENT:
+        chat.scope_json = {**(chat.scope_json or {}), html_pages_service.SCOPE_KEY: False}
     db.add(chat)
     db.commit()
     return chat
@@ -377,6 +378,9 @@ async def start_chat(
     # one (`FORCEABLE_TOOLS` only; `start_new_chat` drops anything else).
     force_tool: str = Form(""),
     html_pages: str = Form(""),
+    # The composer showed the switch: an unticked box sends nothing, so this
+    # is what tells "switched off" from a form that never had it.
+    html_pages_shown: str = Form(""),
 ) -> Response:
     """Create a chat from its first message.
 
@@ -408,7 +412,7 @@ async def start_chat(
         scope_on=frozenset(scope_on),
         skills_off=frozenset(scope_skill_all) - frozenset(scope_skill_on),
         force_tool=force_tool,
-        html_pages=bool(html_pages),
+        html_pages=bool(html_pages) if html_pages_shown or html_pages else None,
     )
 
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -2928,16 +2932,17 @@ async def set_html_pages(
     chat = _owned_chat(db, chat_id, user.id)
     scope = dict(chat.scope_json or {})
     if on:
-        # Only where pages can be had at all: the instance's switch, the
-        # model's flag, and not an agent chat, a subagent's or the phone
-        # assistant's. Switching it off is always possible.
+        # Only where pages can be had at all: the instance's switch, a model
+        # the instance offers them on, and not an agent chat, a subagent's or
+        # the phone assistant's. Switching it off is always possible.
         if not html_pages_service.available(db, chat, chat_service.model_for(db, chat)):
             raise HTTPException(
                 status.HTTP_409_CONFLICT, t("Pages in answers are not offered in this chat.")
             )
         scope[html_pages_service.SCOPE_KEY] = True
     else:
-        scope.pop(html_pages_service.SCOPE_KEY, None)
+        # Written, not removed: absent means on (`html_pages.chat_on`).
+        scope[html_pages_service.SCOPE_KEY] = False
     chat.scope_json = scope
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

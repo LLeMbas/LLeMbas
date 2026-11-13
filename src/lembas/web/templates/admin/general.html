@@ -166,7 +166,29 @@
       <input type="checkbox" name="html_pages_enabled" value="true" {{ 'checked' if values.html_pages_enabled }}>
       <span>{{ t("Let models add pages to their answers") }}</span>
     </label>
-    <p class="field__hint">{{ t("A model may then put a small page — a chart, a diagram, a table laid out with colour — into its answer, shown in a sealed frame at that place. It is offered only to a model you mark as able to write one (on the model's own page) and only in a chat whose person switched it on. The page is shown without scripts and without any network access: HTML, CSS and drawings only. On a phone and in a terminal there is a one-line note in its place. Experimental: off by default, and it may change.") }}</p>
+    <p class="field__hint">{{ t("A model may then put a small page — a chart, a diagram, a table laid out with colour — into its answer, shown in a sealed frame at that place. This switch is all it takes: pages are then on in every chat, and a person can switch them off in a chat's settings. The page is shown without scripts and without any network access: HTML, CSS and drawings only. On a phone and in a terminal there is a one-line note in its place. Experimental: off by default, and it may change.") }}</p>
+    {# Which models: every one (the start), or only the ones ticked on their
+       own page. One switch must be enough, so "all" is what a fresh instance
+       and one that never chose have. #}
+    <fieldset class="field" data-testid="html-pages-models">
+      <legend class="field__label">{{ t("Which models may write pages") }}</legend>
+      <label class="checkbox">
+        <input type="radio" name="html_pages_models" value="all" {{ 'checked' if pages_models != 'chosen' }}>
+        <span>{{ t("All models") }}</span>
+      </label>
+      <label class="checkbox">
+        <input type="radio" name="html_pages_models" value="chosen" {{ 'checked' if pages_models == 'chosen' }}>
+        <span>{{ t("Only the models marked “Can write HTML pages”") }}</span>
+      </label>
+      <p class="field__hint" data-testid="html-pages-count">
+        {% if not values.html_pages_enabled %}
+          {{ t("Pages are off: no model is offered them.") }}
+        {% else %}
+          {{ t("%(able)s of %(all)s chat models are offered pages now.", able=pages_able, all=pages_all) }}
+        {% endif %}
+        {{ tm('A model is marked on its own page, under <a href="/admin/models">Models</a>.') }}
+      </p>
+    </fieldset>
     <div class="btn-row"><button class="btn" type="submit">{{ t("Save") }}</button></div>
   </form>
 </section>

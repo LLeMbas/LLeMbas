@@ -36,23 +36,75 @@ def _on(db) -> None:
 
 
 # --- When pages are offered ------------------------------------------------------------
-def test_three_switches_and_the_places_that_never_have_pages(db, user_id):
+def test_one_switch_is_enough_and_the_other_two_are_ways_out(db, user_id):
+    """The instance's switch alone gives a chat pages: a model nobody ticked,
+    a chat nobody touched. The model's flag and the chat's switch narrow."""
     chat = _chat(db, user_id)
     model = db.scalars(select(Model)).one()
-    # Off by default, at every level.
+    assert not model.html_pages and html_pages.SCOPE_KEY not in (chat.scope_json or {})
+    # Off by default.
     assert not html_pages.available(db, chat, model) and not html_pages.on(db, chat, model)
+    assert html_pages.why_not(db, chat, model) == "off"
     settings_store.update(db, {"html_pages_enabled": True})
-    assert not html_pages.available(db, chat, model)  # the model is not flagged
-    model.html_pages = True
+    assert html_pages.models_scope(db) == html_pages.MODELS_ALL
+    assert html_pages.available(db, chat, model) and html_pages.on(db, chat, model)
+    assert html_pages.why_not(db, chat, model) == ""
+    assert html_pages.model_counts(db) == (1, 1)
+
+    # The chat's way out: its person switched pages off there.
+    chat.scope_json = {html_pages.SCOPE_KEY: False}
     db.commit()
-    assert html_pages.available(db, chat, model)
-    assert not html_pages.on(db, chat, model)  # the chat's own switch is off
+    assert html_pages.available(db, chat, model) and not html_pages.on(db, chat, model)
     chat.scope_json = {html_pages.SCOPE_KEY: True}
     db.commit()
     assert html_pages.on(db, chat, model)
 
+    # The instance's way out: only the models an administrator chose.
+    settings_store.update(db, {html_pages.MODELS_KEY: html_pages.MODELS_CHOSEN})
+    assert not html_pages.available(db, chat, model) and not html_pages.on(db, chat, model)
+    assert html_pages.why_not(db, chat, model) == "model"
+    assert html_pages.model_counts(db) == (0, 1)
+    model.html_pages = True
+    db.commit()
+    assert html_pages.on(db, chat, model) and html_pages.model_counts(db) == (1, 1)
+    # Anything else stored reads as "all".
+    settings_store.update(db, {html_pages.MODELS_KEY: "nonsense"})
+    assert html_pages.models_scope(db) == html_pages.MODELS_ALL
+
+
+def test_an_instance_that_had_the_switch_on_and_no_model_ticked_gets_pages(db, user_id):
+    """What an instance looked like before this: the switch on, stored
+    without the models choice, no model flagged, chats with no switch of
+    their own. It has pages now with nothing more done -- and a chat in
+    progress is told by a note, not a new prompt."""
+    from lembas.db.models import Setting
+
+    session = Session(db, _chat(db, user_id))
+    first = session.turn("Hello.")
+    assert "html-view" not in _system(first)
+
+    row = db.get(Setting, settings_store.GENERAL) or Setting(key=settings_store.GENERAL, value={})
+    row.value = {**(row.value or {}), "html_pages_enabled": True}
+    row.value.pop(html_pages.MODELS_KEY, None)
+    db.add(row)
+    db.commit()
+    model = db.scalars(select(Model)).one()
+    assert not model.html_pages
+    assert html_pages.on(db, session.chat, model)
+    second = session.turn("Draw it.")
+    assert _system(second) == _system(first)
+    assert "html-view" in _last_user(second) and "<session-note>" in _last_user(second)
+    # A chat started now has the block in its prompt from the first word.
+    assert "html-view" in _system(Session(db, _chat(db, user_id)).turn("Hello."))
+
+
+def test_a_run_has_no_chat_switch_and_three_places_never_have_pages(db, user_id):
+    chat = _chat(db, user_id, scope_json={html_pages.SCOPE_KEY: True})
+    model = db.scalars(select(Model)).one()
+    _on(db)
     # A schedule's run has no chat to switch: the instance and the model decide.
-    run = Chat(user_id=user_id, model_id="m", kind=KIND_TASK)
+    run = Chat(user_id=user_id, model_id="m", kind=KIND_TASK,
+               scope_json={html_pages.SCOPE_KEY: False})
     assert html_pages.on(db, run, model)
     # Never, whatever the switches say.
     never = [
@@ -64,6 +116,7 @@ def test_three_switches_and_the_places_that_never_have_pages(db, user_id):
     for other in never:
         assert not html_pages.on(db, other, model)
         assert not html_pages.available(db, other, model)
+        assert html_pages.why_not(db, other, model) in html_pages.spec()["never"]
 
 
 def test_the_prompt_has_the_block_only_when_offered(db, user_id):
@@ -79,7 +132,7 @@ def test_the_prompt_has_the_block_only_when_offered(db, user_id):
 
 
 def test_switching_it_during_a_chat_is_a_note_not_a_new_prompt(db, user_id):
-    session = Session(db, _chat(db, user_id))
+    session = Session(db, _chat(db, user_id, scope_json={html_pages.SCOPE_KEY: False}))
     _on(db)
     first = session.turn("Hello.")
     assert "html-view" not in _system(first)
@@ -92,7 +145,7 @@ def test_switching_it_during_a_chat_is_a_note_not_a_new_prompt(db, user_id):
     third = session.turn("Again.")
     assert "html-view" not in _last_user(third)  # told once
 
-    session.chat.scope_json = {}
+    session.chat.scope_json = {html_pages.SCOPE_KEY: False}
     db.commit()
     fourth = session.turn("No more pages.")
     assert _system(fourth) == _system(first)
@@ -316,29 +369,97 @@ def test_a_report_shows_its_pages_the_same_way(client: TestClient, db, registere
 
 
 # --- The switches, as they are set ------------------------------------------------------------
-def test_the_chats_switch_is_shown_only_where_pages_can_be(client: TestClient, db, registered):
+def _pages_setting(html: str) -> str:
+    """The chat settings' pages row, or "" when the menu has none."""
+    start = html.find('class="pages-setting"')
+    return html[start:html.find("</div>", start)] if start != -1 else ""
+
+
+def test_the_chats_switch_is_on_from_the_admins_one_switch(client: TestClient, db, registered):
     owner = db.scalars(select(User).order_by(User.created_at)).first()
     chat = _chat(db, owner.id)
     switch = f"/api/chats/{chat.id}/html-pages"
-    assert switch not in client.get(f"/chat/{chat.id}").text
+    assert _pages_setting(client.get(f"/chat/{chat.id}").text) == ""  # off: nothing to say
 
     assert client.post(
         "/admin/general/html-pages", data={"html_pages_enabled": "true"},
         follow_redirects=False,
     ).status_code in (302, 303)
-    assert html_pages.instance_on(db)
-    assert switch not in client.get(f"/chat/{chat.id}").text  # the model is not flagged
-    for model in db.scalars(select(Model)):
-        model.html_pages = True
-    db.commit()
-    assert switch in client.get(f"/chat/{chat.id}").text
+    assert html_pages.instance_on(db) and html_pages.models_scope(db) == html_pages.MODELS_ALL
+    # No model ticked, nothing set on the chat: the switch is there, and on.
+    row = _pages_setting(client.get(f"/chat/{chat.id}").text)
+    assert switch in row and "checked" in row and "disabled" not in row
 
+    assert client.post(f"/api/chats/{chat.id}/html-pages", data={}).status_code == 204
+    db.refresh(chat)
+    assert not html_pages.chat_on(chat) and chat.scope_json[html_pages.SCOPE_KEY] is False
+    assert "checked" not in _pages_setting(client.get(f"/chat/{chat.id}").text)
     assert client.post(f"/api/chats/{chat.id}/html-pages", data={"on": "1"}).status_code == 204
     db.refresh(chat)
     assert html_pages.chat_on(chat)
-    assert client.post(f"/api/chats/{chat.id}/html-pages", data={}).status_code == 204
-    db.refresh(chat)
-    assert not html_pages.chat_on(chat) and html_pages.SCOPE_KEY not in (chat.scope_json or {})
+
+
+def test_the_admin_page_says_how_many_models_and_where_to_change_it(
+    client: TestClient, db, registered
+):
+    owner = db.scalars(select(User).order_by(User.created_at)).first()
+    _chat(db, owner.id)  # makes the one model
+    page = client.get("/admin/general").text
+    assert "Pages are off: no model is offered them." in page
+    assert 'name="html_pages_models" value="all" checked' in page
+
+    def save(**data):
+        assert client.post(
+            "/admin/general/html-pages", data=data, follow_redirects=False
+        ).status_code in (302, 303)
+        return client.get("/admin/general").text
+
+    page = save(html_pages_enabled="true", html_pages_models="chosen")
+    assert html_pages.models_scope(db) == html_pages.MODELS_CHOSEN
+    assert 'name="html_pages_models" value="chosen" checked' in page
+    assert "0 of 1 chat models are offered pages now." in page
+    assert 'href="/admin/models"' in page[page.find('data-testid="html-pages-count"'):][:600]
+    # The switch saved without the choice keeps the choice.
+    save(html_pages_enabled="true")
+    assert html_pages.models_scope(db) == html_pages.MODELS_CHOSEN
+    page = save(html_pages_enabled="true", html_pages_models="all")
+    assert "1 of 1 chat models are offered pages now." in page
+
+
+def test_the_chats_settings_say_why_pages_cannot_be_had(client: TestClient, db, registered):
+    owner = db.scalars(select(User).order_by(User.created_at)).first()
+    chat = _chat(db, owner.id)
+    settings_store.update(
+        db, {"html_pages_enabled": True, html_pages.MODELS_KEY: html_pages.MODELS_CHOSEN}
+    )
+    row = _pages_setting(client.get(f"/chat/{chat.id}").text)
+    assert "disabled" in row and "checked" not in row and "hx-post" not in row
+    assert 'data-testid="pages-why-not"' in row and "Not available with this model" in row
+    for model in db.scalars(select(Model)):
+        model.html_pages = True
+    db.commit()
+    row = _pages_setting(client.get(f"/chat/{chat.id}").text)
+    assert "disabled" not in row and "checked" in row and "pages-why-not" not in row
+
+
+def test_a_new_chat_follows_the_composers_switch(client: TestClient, db, registered):
+    owner = db.scalars(select(User).order_by(User.created_at)).first()
+    _chat(db, owner.id)
+    _on(db)
+    from lembas.api import chats as chats_api
+
+    def start(**said):
+        return chats_api._new_chat(db, owner, model_id="m", **said)
+
+    assert html_pages.chat_on(start())  # nobody said: on
+    assert html_pages.chat_on(start(html_pages=True))
+    off = start(html_pages=False)
+    assert not html_pages.chat_on(off) and off.scope_json[html_pages.SCOPE_KEY] is False
+    # The new-chat screen shows the box ticked, and says it was shown.
+    page = client.get("/chat").text
+    row = _pages_setting(page)
+    assert 'name="html_pages"' in row and "checked" in row
+    assert 'name="html_pages_shown"' in page
 
 
 def test_the_model_flag_is_in_both_model_lists(db, user_id):
@@ -453,13 +574,22 @@ def test_an_app_reads_and_sets_the_chats_switch(client: TestClient, db, register
         "offered": False, "on": False
     }
     _on(db)
+    # What was said stays said: this chat was switched off above.
     assert client.get(url, headers=auth).json() == {"offered": True, "on": False}
-    assert client.post(url, json={"on": True}, headers=auth).json() == {
-        "offered": True, "on": True
+    assert client.post(url, json={"on": True}, headers=auth).json()["on"] is True
+    # A chat nobody touched is offered pages, and has them on.
+    fresh = _chat(db, owner.id)
+    assert client.get(
+        f"/api/v2/chats/{fresh.id}/html-pages", headers=auth
+    ).json() == {"offered": True, "on": True}
+    assert client.post(url, json={"on": False}, headers=auth).json() == {
+        "offered": True, "on": False
     }
     db.refresh(chat)
+    assert not html_pages.chat_on(chat)
+    assert client.post(url, json={"on": True}, headers=auth).json()["on"] is True
+    db.refresh(chat)
     assert html_pages.chat_on(chat)
-    assert client.post(url, json={"on": False}, headers=auth).json()["on"] is False
     # An agent chat never has them, whatever is asked.
     agent = Chat(user_id=owner.id, model_id="m", kind=KIND_AGENT)
     db.add(agent)
@@ -678,7 +808,7 @@ def test_the_web_switch_is_refused_where_pages_are_not_offered(client: TestClien
     url = f"/api/chats/{chat.id}/html-pages"
     assert client.post(url, data={"on": "1"}).status_code == 409  # the instance is off
     db.refresh(chat)
-    assert not html_pages.chat_on(chat)
+    assert html_pages.SCOPE_KEY not in (chat.scope_json or {})
     _on(db)
     assert client.post(url, data={"on": "1"}).status_code == 204
     for never in (
@@ -690,6 +820,6 @@ def test_the_web_switch_is_refused_where_pages_are_not_offered(client: TestClien
         db.commit()
         assert client.post(f"/api/chats/{never.id}/html-pages", data={"on": "1"}).status_code == 409
         db.refresh(never)
-        assert html_pages.SCOPE_KEY not in (never.scope_json or {})
+        assert (never.scope_json or {}).get(html_pages.SCOPE_KEY) is not True
         # Off is always possible.
         assert client.post(f"/api/chats/{never.id}/html-pages", data={}).status_code == 204

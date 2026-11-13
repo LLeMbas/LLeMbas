@@ -146,10 +146,12 @@ def _team_context(db: DBSession, user: User, chat: Chat | None, model) -> dict:
         # subagents itself; another, named in the chat, could.
         "team_own": bool(offered and subagents_rules.own_note(db, user, chat, model)),
         # HTML pages in answers (harness spec 3.8.0): whether this chat's
-        # switch is shown at all -- the instance and the model allow it, and
-        # it is not an agent chat -- and where it stands.
+        # switch can be moved -- the instance offers pages, on this model,
+        # and it is not an agent chat --, where it stands, and when it cannot
+        # be moved, why (`html_pages.why_not`; "off" shows nothing at all).
         "pages_available": html_pages_service.available(db, chat, model),
         "pages_on": html_pages_service.chat_on(chat),
+        "pages_why_not": html_pages_service.why_not(db, chat, model),
     }
 
 

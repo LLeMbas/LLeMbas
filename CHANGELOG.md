@@ -3,6 +3,23 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## Unreleased
+
+### Changed
+
+- **HTML pages in answers: one switch is enough.** Turning on Admin › General › *HTML pages in
+  answers (experimental)* now gives every chat pages, with nothing else to find. It used to
+  take three switches in three places (the instance's, a tick on each model, a switch in each
+  chat), and an instance with only the first on showed no page at all. The other two remain
+  as ways out: Admin › General has **Which models may write pages** -- *All models* (the
+  start) or *Only the models marked "Can write HTML pages"* -- and says how many models are
+  offered pages now, with a link to where a model is marked; and a chat's switch starts
+  **on**, to be switched off in the chat's settings. Where a chat cannot have pages although
+  the instance has them on (a model that was not chosen, an agent chat), its settings show
+  the switch held and say why. **An instance that already has the switch on gets pages
+  without doing anything**; a chat in progress is told on its next message. The model's flag
+  keeps the harness spec's meaning and `/v1/models` sends it as it is stored.
+
 ## 2.0.0-beta.12 — 2026-11-13
 
 For 2.0.0-beta.12. The harness spec is **3.8.0** (reports; HTML pages; one rule for

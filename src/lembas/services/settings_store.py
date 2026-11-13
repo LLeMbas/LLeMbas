@@ -65,6 +65,10 @@ def _general_defaults() -> dict[str, Any]:
         # HTML pages in answers (harness spec 3.8.0, pages.md): experimental,
         # off until an administrator turns it on. See services/html_pages.py.
         "html_pages_enabled": False,
+        # Which models an instance with pages on offers them on: "all" (the
+        # one switch is enough) or "chosen" (only models ticked "Can write
+        # HTML pages"). `html_pages.models_scope`.
+        "html_pages_models": "all",
         # Custom instructions and a personality, chosen by each person for
         # themselves. Off until an administrator offers it.
         "personalization_enabled": False,

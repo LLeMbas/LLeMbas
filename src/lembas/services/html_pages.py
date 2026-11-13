@@ -81,10 +81,15 @@ def note(title: str) -> str:
 
 
 def offered(*, instance: bool, model: bool, chat: bool, where: str = "") -> bool:
-    """Whether the pages block is in a prompt: all three switches on -- the
-    instance's, the model's flag, the chat's -- and never for a subagent, the
-    phone assistant or an agent chat. A schedule's run has no chat switch: the
-    instance's and the model's decide."""
+    """Whether the pages block is in a prompt (pages.md §4): the instance's
+    switch, the model's flag and the chat's switch, all three -- and never
+    for a subagent, the phone assistant or an agent chat. A schedule's run
+    has no chat switch: the instance's and the model's decide.
+
+    This is the spec's rule on plain values, and `conformance/pages.json`
+    drives exactly it. What this server passes in is its own policy, decided
+    in `model_can` and `chat_on`: an instance that offers pages on every
+    model, and a chat whose switch starts on."""
     if where in spec()["never"]:
         return False
     if not (instance and model):
@@ -495,27 +500,82 @@ def where_of(chat) -> str:
     return ""
 
 
+# Which models an instance that has pages on offers them on. The spec's flag
+# (`models/schema.json` `html_pages`) says a model *can* write a working page,
+# and is false unless somebody set it -- which made the feature three switches
+# in three places before one page appeared. So the instance says how it reads
+# the flag: `all` (the start: one switch is enough, every model is taken to be
+# able) or `chosen` (only the models an administrator ticked). The flag itself
+# keeps the spec's meaning, and `/v1/models` still sends it as it is stored.
+MODELS_ALL = "all"
+MODELS_CHOSEN = "chosen"
+MODELS_KEY = "html_pages_models"
+
+
+def models_scope(db) -> str:
+    """`all` or `chosen`; anything else stored reads as `all`."""
+    from lembas.services import settings_store
+
+    stored = settings_store.get_group(db, settings_store.GENERAL).get(MODELS_KEY)
+    return MODELS_CHOSEN if stored == MODELS_CHOSEN else MODELS_ALL
+
+
+def model_can(db, model) -> bool:
+    """The model's part of `offered`, as this instance reads it: its own flag,
+    or every model where the instance says so."""
+    if model is None:
+        return False
+    return models_scope(db) == MODELS_ALL or bool(getattr(model, "html_pages", False))
+
+
+def model_counts(db) -> tuple[int, int]:
+    """`(able, all)`: how many of the instance's enabled chat models are
+    offered pages as things stand, of how many -- what the admin page says."""
+    from sqlalchemy import select
+
+    from lembas.db.models import Model
+
+    rows = [
+        row for row in db.scalars(select(Model))
+        if getattr(row, "enabled", True) and (getattr(row, "kind", "chat") or "chat") == "chat"
+    ]
+    return sum(1 for row in rows if model_can(db, row)), len(rows)
+
+
 def available(db, chat, model) -> bool:
     """Whether a chat on this model could have pages at all -- the instance
     and the model say so, and it is not a place that never has them. What
-    decides whether the chat's switch is shown."""
-    return (
-        instance_on(db)
-        and bool(getattr(model, "html_pages", False))
-        and where_of(chat) not in spec()["never"]
-    )
+    decides whether the chat's switch can be moved."""
+    return not why_not(db, chat, model)
+
+
+def why_not(db, chat, model) -> str:
+    """Why a chat on this model cannot have pages, or "" when it can: `off`
+    (the instance's switch), one of the spec's places that never have them
+    (`agent_chat`, `subagent`, `phone_assistant`), or `model` (the instance
+    offers pages on chosen models only, and this is not one). The chat's
+    settings say it in words rather than hiding the switch."""
+    if not instance_on(db):
+        return "off"
+    where = where_of(chat)
+    if where in spec()["never"]:
+        return where
+    return "" if model_can(db, model) else "model"
 
 
 def chat_on(chat) -> bool:
-    """The chat's own switch: off until its person turns it on."""
-    return (getattr(chat, "scope_json", None) or {}).get(SCOPE_KEY) is True
+    """The chat's own switch. It starts **on**: absent means on, as for every
+    key of `Chat.scope_json`, and a person who does not want pages in a chat
+    switches them off there (`False`). An instance with pages on then needs
+    nothing more from anybody."""
+    return (getattr(chat, "scope_json", None) or {}).get(SCOPE_KEY) is not False
 
 
 def on(db, chat, model) -> bool:
     """Whether the model answering this chat is offered pages right now."""
     return offered(
         instance=instance_on(db),
-        model=bool(getattr(model, "html_pages", False)),
+        model=model_can(db, model),
         chat=chat_on(chat),
         where=where_of(chat),
     )
@@ -560,7 +620,8 @@ def _document(title: str, html: str, colours: tuple[tuple[str, str], ...]) -> st
 
 
 __all__ = [
-    "COLOURS", "SCOPE_KEY", "Page", "available", "block", "chat_on", "document", "fence",
-    "instance_on", "note", "offered", "on", "pages_of", "project", "spec", "static_faults",
-    "theme", "where_of",
+    "COLOURS", "MODELS_ALL", "MODELS_CHOSEN", "MODELS_KEY", "SCOPE_KEY", "Page", "available",
+    "block", "chat_on", "document", "fence", "instance_on", "model_can", "model_counts",
+    "models_scope", "note", "offered", "on", "pages_of", "project", "spec", "static_faults",
+    "theme", "where_of", "why_not",
 ]

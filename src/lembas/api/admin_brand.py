@@ -92,14 +92,27 @@ async def save_push(db: Db, user: AdminUser, web_push_enabled: bool = Form(False
 
 @router.post("/admin/general/html-pages")
 async def save_html_pages(
-    db: Db, user: AdminUser, html_pages_enabled: bool = Form(False)
+    db: Db,
+    user: AdminUser,
+    html_pages_enabled: bool = Form(False),
+    html_pages_models: str = Form(""),
 ) -> Response:
     """HTML pages in answers (harness spec 3.8.0): experimental, off by
-    default. On, a model flagged for it is offered pages in a chat whose
-    person switched them on."""
-    settings_store.update(db, {"html_pages_enabled": html_pages_enabled})
+    default. On, that one switch is enough: every model is offered pages, in
+    every chat that has not switched them off -- unless the instance says
+    "only chosen models", which are the ones ticked on their own page."""
+    from lembas.services import html_pages
+
+    changes: dict[str, object] = {"html_pages_enabled": html_pages_enabled}
+    # A form without the choice (an older page, a script) leaves it as it is.
+    if html_pages_models in (html_pages.MODELS_ALL, html_pages.MODELS_CHOSEN):
+        changes[html_pages.MODELS_KEY] = html_pages_models
+    settings_store.update(db, changes)
     db.commit()
-    log.info("html pages %s by %s", "on" if html_pages_enabled else "off", user.email)
+    log.info(
+        "html pages %s (%s models) by %s",
+        "on" if html_pages_enabled else "off", html_pages.models_scope(db), user.email,
+    )
     return back("/admin/general", t("Saved."))
 
 
