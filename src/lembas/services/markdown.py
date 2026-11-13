@@ -107,7 +107,7 @@ def _render_fence(tokens, idx, _options, env) -> str:
     # whose info word is exactly `html-view`. Its place is marked here and the
     # mount written after sanitising (`_mounts`): what draws a page is ours,
     # never something the sanitiser was asked to let through.
-    if language == _page_word() and "pages" in env:
+    if "pages" in env and _page_info(token.info):
         closed = _closed(token, env.get("lines") or [])
         if env.get("live"):
             # Still being written: a placeholder with its title, once -- not
@@ -199,12 +199,17 @@ def _page_of(token, lines: list[str]):
     return html_pages.Page(html_pages._title(said, source), source)
 
 
+def _page_info(info: str | None) -> bool:
+    """Whether a fence's info string makes it a page: the word straight after
+    the backticks (pages.md §1 -- no space before it), exact, then white space
+    and a title or nothing."""
+    word = _page_word()
+    info = info or ""
+    return info.startswith(word) and (len(info) == len(word) or info[len(word)] in " \t")
+
+
 def _is_page(token, lines: list[str]) -> bool:
-    return (
-        token.type == "fence"
-        and (token.info or "").strip().split()[:1] == [_page_word()]
-        and _closed(token, lines)
-    )
+    return token.type == "fence" and _page_info(token.info) and _closed(token, lines)
 
 
 def find_pages(text: str) -> tuple[list, str]:

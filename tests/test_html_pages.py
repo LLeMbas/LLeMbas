@@ -119,7 +119,9 @@ def test_a_finished_page_is_a_mount_and_never_its_markup(db):
 
 
 def test_only_a_closed_fence_with_the_exact_word_is_a_page():
-    for info in ("html", "html-views", "HTML-VIEW", "html-view2"):
+    # The word is exact and stands straight after the backticks: a space
+    # before it makes an ordinary code block, as the spec and the apps read it.
+    for info in ("html", "html-views", "HTML-VIEW", "html-view2", " html-view", "\thtml-view"):
         text = f"```{info} T\n<p>x</p>\n```\n"
         assert "data-html-page" not in render_markdown(text, pages=True), info
         assert pages_in(text) == []
