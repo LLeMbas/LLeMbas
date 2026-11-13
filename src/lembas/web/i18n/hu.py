@@ -2756,5 +2756,6 @@ MESSAGES.update(
         'View source': 'Forrás megtekintése',
         'Pages in answers are not offered in this chat.': 'Ebben a csevegésben nem érhetők el oldalak a válaszokban.',
         'New report: %(title)s': 'Új jelentés: %(title)s',
+        "A report's conversation stays with its report: it cannot be archived, pinned or moved.": 'Egy jelentés beszélgetése a jelentésénél marad: nem archiválható, nem rögzíthető és nem helyezhető át.',
     }
 )

@@ -3413,5 +3413,6 @@ MESSAGES.update(
         'View source': 'Zobraziť zdroj',
         'Pages in answers are not offered in this chat.': 'Stránky v odpovediach sa v tejto konverzácii neponúkajú.',
         'New report: %(title)s': 'Nová správa: %(title)s',
+        "A report's conversation stays with its report: it cannot be archived, pinned or moved.": 'Konverzácia k správe zostáva pri svojej správe: nedá sa archivovať, pripnúť ani presunúť.',
     }
 )

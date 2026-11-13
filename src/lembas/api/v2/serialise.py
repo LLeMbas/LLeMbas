@@ -24,7 +24,7 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
-from lembas.db.models import Chat, Message
+from lembas.db.models import KIND_REPORT, Chat, Message
 from lembas.services import display, html_pages, interaction, tool_blocks, tool_labels
 from lembas.services import metrics as metrics_service
 from lembas.services import progress as progress_service
@@ -170,6 +170,7 @@ def chat(
     cap: int | None = None,
     level: str | None = None,
     subagents: dict | None = None,
+    report: Any = None,
 ) -> dict[str, Any]:
     """`level` is the level in force (`chat_service.chat_level`), which the
     caller reads with the model; without it, the stored word. `subagents` is
@@ -208,7 +209,34 @@ def chat(
         "subagents": _subagents(subagents) if subagents is not None else None,
         "created_at": stamp(row.created_at),
         "updated_at": stamp(row.updated_at),
+        # Added within APP_API 2 (server 2.0.0-beta.12). What may be done to
+        # this chat from a list or a menu: a report's conversation (kind
+        # `report`) is renamed and deleted, never archived, pinned or filed --
+        # the server refuses those with a 409. `report` is the report such a
+        # chat continues (`{id, title}`), null for every other chat.
+        "controls": list(CONTROLS_REPORT if row.kind == KIND_REPORT else CONTROLS),
+        "report": report_of_chat(row, report),
     }
+
+
+CONTROLS = ("rename", "delete", "archive", "pin", "folder")
+CONTROLS_REPORT = ("rename", "delete")
+
+
+def report_of_chat(row: Chat, known: Any = None) -> dict[str, str] | None:
+    """The report a chat of kind `report` continues: `{id, title}`."""
+    if row.kind != KIND_REPORT:
+        return None
+    found = known
+    if found is None:
+        from sqlalchemy import select
+        from sqlalchemy.orm import object_session
+
+        from lembas.db.models import Report
+
+        db = object_session(row)
+        found = db.scalar(select(Report).where(Report.chat_id == row.id)) if db else None
+    return {"id": found.id, "title": found.title} if found is not None else None
 
 
 def team(view: dict[str, Any] | None) -> dict[str, Any]:
@@ -516,13 +544,20 @@ def report(row: Any, schedule_title: str | None, *, whole: bool = False) -> dict
     `chat`: the conversation a reply continues in, or null until there is one."""
     from lembas.services import html_pages
 
-    title = schedule_title if schedule_title is not None else (row.schedule_title or "")
     out: dict[str, Any] = {
         "id": row.id,
         "title": row.title,
         "summary": row.summary or "",
         "importance": row.importance or "normal",
-        "schedule": {"id": row.schedule_id, "title": title} if row.schedule_id else None,
+        # Null once the schedule is gone (`schedule_title` None: the caller
+        # found none). What it was called when the report was filed is kept
+        # beside it, for "from <title>" on a report that outlived its task.
+        "schedule": (
+            {"id": row.schedule_id, "title": schedule_title}
+            if row.schedule_id and schedule_title is not None
+            else None
+        ),
+        "schedule_title": row.schedule_title or "",
         "created": stamp(row.created_at),
         "unread": bool(row.unread),
     }

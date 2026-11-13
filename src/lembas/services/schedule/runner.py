@@ -619,6 +619,10 @@ def _prepare(db, schedule, owner, run, choice, model, *, now: datetime):
         if previous is not None and not previous_text and previous.message_id:
             said = db.get(Message, previous.message_id)
             previous_text = notify.strip_sentinel(said.content) if said is not None else ""
+    # Once, here: what the device's client reads decides the words it is
+    # sent, and the same answer settles the run -- a link that drops or a
+    # client updated meanwhile must not change the rule mid-run.
+    run.legacy_notify = _legacy_device(schedule)
     content = _preamble(
         schedule,
         zone=zone,
@@ -626,7 +630,7 @@ def _prepare(db, schedule, owner, run, choice, model, *, now: datetime):
         previous=previous,
         previous_text=previous_text,
         watched=str((run.watch_json or {}).get("block") or ""),
-        legacy=_legacy_device(schedule),
+        legacy=run.legacy_notify,
     )
     db.commit()
     return restart, chat.id, content, limit
@@ -893,7 +897,7 @@ def _leave(db, schedule, owner, run, answer: str, *, said: dict, now: datetime):
     from lembas.db.models import Report
 
     policy = notify.policy(schedule.notify, schedule.rule_json or {})
-    if _legacy_device(schedule) and (
+    if run.legacy_notify and (
         said.get("status") == "silent" or notify.is_silent(answer)
     ):
         # A client older than 3.8.0 ran it and said `[SILENT]`, as it was

@@ -22,7 +22,15 @@
       },
       "subagents": null,
       "created_at": "2026-01-02T03:04:05+00:00",
-      "updated_at": "2026-01-02T03:04:05+00:00"
+      "updated_at": "2026-01-02T03:04:05+00:00",
+      "controls": [
+        "rename",
+        "delete",
+        "archive",
+        "pin",
+        "folder"
+      ],
+      "report": null
     }
   ],
   "more": false

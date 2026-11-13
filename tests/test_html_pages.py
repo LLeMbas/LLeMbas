@@ -669,3 +669,27 @@ def test_a_page_cut_in_two_by_a_tool_call_is_not_a_page():
         text=text, thinking="", events=[], marks=[], live=False, pages=True
     )
     assert whole[-1].html.count("data-html-page data-digest") == 2
+
+
+def test_the_web_switch_is_refused_where_pages_are_not_offered(client: TestClient, db, registered):
+    """As the app's route: never "on" stored for a chat that cannot have pages."""
+    owner = db.scalars(select(User).order_by(User.created_at)).first()
+    chat = _chat(db, owner.id)
+    url = f"/api/chats/{chat.id}/html-pages"
+    assert client.post(url, data={"on": "1"}).status_code == 409  # the instance is off
+    db.refresh(chat)
+    assert not html_pages.chat_on(chat)
+    _on(db)
+    assert client.post(url, data={"on": "1"}).status_code == 204
+    for never in (
+        Chat(user_id=owner.id, model_id="m", kind=KIND_AGENT),
+        Chat(user_id=owner.id, model_id="m", parent_chat_id=chat.id),
+        Chat(user_id=owner.id, model_id="m", phone_message_id="0" * 32),
+    ):
+        db.add(never)
+        db.commit()
+        assert client.post(f"/api/chats/{never.id}/html-pages", data={"on": "1"}).status_code == 409
+        db.refresh(never)
+        assert html_pages.SCOPE_KEY not in (never.scope_json or {})
+        # Off is always possible.
+        assert client.post(f"/api/chats/{never.id}/html-pages", data={}).status_code == 204

@@ -253,7 +253,9 @@ async def test_the_event_stream_sends_the_list_then_only_changes(client, db, reg
     # Then the reports: how many are unread, and the newest of them.
     second = await anext(stream)
     assert second.startswith("event: reports\n")
-    assert json.loads(second.split("data: ", 1)[1]) == {"unread": 0, "newest": None}
+    assert json.loads(second.split("data: ", 1)[1]) == {
+        "unread": 0, "newest": None, "latest_created": None,
+    }
     # Nothing changed: the next thing sent is a keepalive, not either again.
     third = await anext(stream)
     assert third.startswith(":")
@@ -269,6 +271,7 @@ async def test_the_event_stream_sends_the_list_then_only_changes(client, db, reg
     assert fourth.startswith("event: reports\n")
     frame = json.loads(fourth.split("data: ", 1)[1])
     assert frame["unread"] == 1 and frame["newest"]["id"] == filed.id
+    assert frame["latest_created"] == frame["newest"]["created"]
     assert frame["newest"]["title"] == "Headlines" and "body" not in frame["newest"]
     assert (await anext(stream)).startswith(":")
     await stream.aclose()

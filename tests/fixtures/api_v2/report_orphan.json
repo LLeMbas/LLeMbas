@@ -1,0 +1,22 @@
+{
+  "report": {
+    "id": "rep1",
+    "title": "Two cakes are unwrapped",
+    "summary": "Two of the twelve cakes have lost their leaves.",
+    "importance": "high",
+    "schedule": null,
+    "schedule_title": "Waybread check",
+    "created": "2026-01-02T03:04:05+00:00",
+    "unread": true,
+    "body": "## What\n\nTwo of the twelve cakes have lost their leaves.\n\n```html-view Cakes\n<p>10 wrapped, 2 not</p>\n```\n",
+    "text": "## What\n\nTwo of the twelve cakes have lost their leaves.\n\n[page: Cakes]\n",
+    "pages": [
+      {
+        "title": "Cakes",
+        "digest": "526b3a6b58f09769d9f81f628942cc7f"
+      }
+    ],
+    "model": "gpt-oss",
+    "chat": "chat9"
+  }
+}

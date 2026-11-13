@@ -646,6 +646,13 @@ def _page() -> dict[str, object]:
     }
 
 
+def _report_chat() -> Chat:
+    row = _chat()
+    row.id, row.kind, row.title = "chat9", "report", "Two cakes are unwrapped"
+    row.folder_id, row.pinned, row.archived = None, False, False
+    return row
+
+
 def _schedules() -> dict[str, object]:
     """`/schedules`, a run, the compile, the preview, the scheduling models and
     the `schedules` event of `GET /events`."""
@@ -817,7 +824,17 @@ def _schedules() -> dict[str, object]:
             index=2, kind=steps_service.KIND_TEXT, pages=True,
             markdown="Two are unwrapped.\n\n```html-view Cakes\n<p>10 wrapped, 2 not</p>\n```\n",
         )),
-        "event_reports": {"unread": 1, "newest": serialise.report(report, "Waybread check")},
+        # `newest` is the newest unread one; `latest_created` is when the
+        # newest of any state was filed -- what an app compares to know that
+        # one arrived.
+        "event_reports": {"unread": 1, "newest": serialise.report(report, "Waybread check"),
+                          "latest_created": serialise.stamp(report.created_at)},
+        # A report that outlived its schedule: `schedule` is null, and what
+        # the schedule was called when it was filed is `schedule_title`.
+        "report_orphan": {"report": serialise.report(report, None, whole=True)},
+        # The conversation that continues a report: kind `report`, the report
+        # it belongs to, and the only controls that apply.
+        "chat_report": serialise.chat(_report_chat(), report=report),
         "schedule_watching": {
             "schedule": runs.schedule_dict(None, watching, owner=owner, last=unchanged)
         },

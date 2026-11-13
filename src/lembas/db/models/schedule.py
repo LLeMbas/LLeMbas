@@ -240,6 +240,10 @@ class ScheduleRun(UUIDPrimaryKey, Timestamps, Base):
     # schedule's history (harness spec 3.8.0, reports.md §4).
     report_id: Mapped[str] = mapped_column(String(32), default="", nullable=False)
     note: Mapped[str] = mapped_column(String(300), default="", nullable=False)
+    # Decided when the run's prompt was made and never again: it ran on a
+    # linked computer whose client reads no `scheduled.notify` (before spec
+    # 3.8.0), so it was told the `[SILENT]` hint and is settled from its text.
+    legacy_notify: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # The result's first lines, model output: escaped wherever it is shown.
     preview: Mapped[str] = mapped_column(Text, default="", nullable=False)
 

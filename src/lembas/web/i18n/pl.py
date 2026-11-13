@@ -2756,5 +2756,6 @@ MESSAGES.update(
         'View source': 'Pokaż źródło',
         'Pages in answers are not offered in this chat.': 'Strony w odpowiedziach nie są oferowane w tym czacie.',
         'New report: %(title)s': 'Nowy raport: %(title)s',
+        "A report's conversation stays with its report: it cannot be archived, pinned or moved.": 'Rozmowa do raportu pozostaje przy swoim raporcie: nie można jej zarchiwizować, przypiąć ani przenieść.',
     }
 )

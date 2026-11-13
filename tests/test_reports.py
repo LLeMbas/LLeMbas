@@ -141,6 +141,7 @@ def test_v2_list_read_reply_delete(client: TestClient, db, registered):
     assert listed["reports"][0] == {
         "id": report.id, "title": "Build is red", "summary": "One test fails",
         "importance": "high", "schedule": {"id": schedule.id, "title": "Build check"},
+        "schedule_title": "Build check",
         "created": listed["reports"][0]["created"], "unread": True,
     }
     # `?unread=1` is what the terminal client sends; `true` is the same.
@@ -560,3 +561,153 @@ async def test_the_model_is_told_what_cancelling_a_schedule_removes(db, register
     assert "reports it filed are kept" in outcome.content
     assert "chats its runs worked in are removed" in outcome.content
     assert "written is kept" not in outcome.content
+
+
+# --- Review: who may do what, once ------------------------------------------------------------
+def _device_auth(db, user: User) -> dict[str, str]:
+    _, raw = api_tokens.create(
+        db, user, name="LLeMbas CLI", scopes=["link"], kind="device", device_host="workstation"
+    )
+    return {"Authorization": f"Bearer {raw}"}
+
+
+def test_a_devices_token_reads_reports_and_changes_nothing(client: TestClient, db, registered):
+    owner = _owner(db)
+    report = _file(db, owner, _schedule(db, owner))
+    device = _device_auth(db, owner)
+    assert client.get("/api/v2/reports", headers=device).status_code == 200
+    assert client.get(f"/api/v2/reports/{report.id}", headers=device).status_code == 200
+    assert client.post(f"/api/v2/reports/{report.id}/read", headers=device).status_code == 200
+    # Deleting and replying are an app's, or the page's.
+    assert client.delete(f"/api/v2/reports/{report.id}", headers=device).status_code in (401, 403)
+    assert client.post(
+        f"/api/v2/reports/{report.id}/reply", headers=device
+    ).status_code in (401, 403)
+    db.expire_all()
+    assert db.get(Report, report.id) is not None and db.get(Report, report.id).chat_id is None
+
+
+def test_two_replies_at_once_make_one_conversation(db, registered):
+    """The second finds the report already has its conversation and is given
+    that one; its own is taken back."""
+    from lembas.db.session import session_scope
+
+    owner = _owner(db)
+    report = _file(db, owner, _schedule(db, owner))
+    with session_scope() as other:
+        first = reports_service.reply_chat(
+            other, other.get(User, owner.id), other.get(Report, report.id)
+        ).id
+    # `db` still holds the report as it was: no conversation yet.
+    assert report.chat_id is None
+    second = reports_service.reply_chat(db, owner, report).id
+    assert second == first
+    db.expire_all()
+    assert db.get(Report, report.id).chat_id == first
+    assert len(db.scalars(select(Chat).where(Chat.kind == KIND_REPORT)).all()) == 1
+
+
+def test_a_reports_conversation_is_renamed_and_deleted_and_nothing_else(
+    client: TestClient, db, registered
+):
+    owner = _owner(db)
+    auth = _bearer(db, owner)
+    schedule = _schedule(db, owner)
+    report = _file(db, owner, schedule, title="Mallorn harvest")
+    chat_id = client.post(f"/api/v2/reports/{report.id}/reply", headers=auth).json()["chat"]
+
+    said = client.get(f"/api/v2/chats/{chat_id}", headers=auth).json()["chat"]
+    assert said["kind"] == "report" and said["controls"] == ["rename", "delete"]
+    assert said["report"] == {"id": report.id, "title": "Mallorn harvest"}
+    # An ordinary chat says what applies to it, and has no report.
+    plain = Chat(user_id=owner.id, title="Plain")
+    db.add(plain)
+    db.commit()
+    ordinary = client.get(f"/api/v2/chats/{plain.id}", headers=auth).json()["chat"]
+    assert ordinary["report"] is None and "archive" in ordinary["controls"]
+
+    for change in ({"archived": True}, {"pinned": True}, {"folder_id": ""}):
+        assert client.patch(
+            f"/api/v2/chats/{chat_id}", json=change, headers=auth
+        ).status_code == 409, change
+        (key, value), = change.items()
+        assert client.patch(
+            f"/api/chats/{chat_id}", data={key: "1" if value else ""}
+        ).status_code == 409
+    db.expire_all()
+    row = db.get(Chat, chat_id)
+    assert not row.archived and not row.pinned and row.folder_id is None
+    assert client.patch(
+        f"/api/v2/chats/{chat_id}", json={"title": "Harvest, discussed"}, headers=auth
+    ).status_code == 200
+    # Its page offers neither: the controls live in the sidebar's rows, and it has none.
+    page = client.get(f"/chat/{chat_id}").text
+    assert f'data-move-chat="{chat_id}"' not in page
+
+
+def test_a_report_whose_schedule_is_gone_says_so(client: TestClient, db, registered):
+    owner = _owner(db)
+    auth = _bearer(db, owner)
+    schedule = _schedule(db, owner, "Waybread check")
+    report = _file(db, owner, schedule)
+    before = client.get(f"/api/v2/reports/{report.id}", headers=auth).json()["report"]
+    assert before["schedule"] == {"id": schedule.id, "title": "Waybread check"}
+    schedules_service.delete(db, schedule)
+    for said in (
+        client.get(f"/api/v2/reports/{report.id}", headers=auth).json()["report"],
+        client.get("/api/v2/reports", headers=auth).json()["reports"][0],
+    ):
+        assert said["schedule"] is None and said["schedule_title"] == "Waybread check"
+
+
+def test_the_events_frame_says_when_the_newest_report_of_any_state_was_filed(db, registered):
+    """`newest` is the newest *unread* one and moves back when that is read;
+    `latest_created` does not: it is what tells an app one arrived."""
+    from lembas.api.v2 import schedules as v2
+
+    owner = _owner(db)
+    schedule = _schedule(db, owner)
+    older = _file(db, owner, schedule, title="Older")
+    newer = _file(db, owner, schedule, title="Newer")
+    now = datetime.now(UTC)
+    older.created_at, newer.created_at = now - timedelta(hours=2), now - timedelta(hours=1)
+    db.commit()
+
+    def frame() -> dict:
+        unread = reports_service.listing(db, owner, unread=True, limit=1)
+        latest = reports_service.latest_created(db, owner.id)
+        return json.loads(v2.reports_frame(
+            reports_service.unread_count(db, owner.id), unread[0] if unread else None,
+            schedule_title="Build check",
+            latest_created=latest.isoformat() if latest else None,
+        ))
+
+    first = frame()
+    assert first["newest"]["title"] == "Newer" and first["unread"] == 2
+    reports_service.mark_read(db, newer)
+    second = frame()
+    # The older one is `newest` now -- and nothing arrived: the time stands.
+    assert second["newest"]["title"] == "Older"
+    assert second["latest_created"] == first["latest_created"]
+
+
+def test_two_tabs_polling_at_once_toast_a_report_once(client: TestClient, db, registered):
+    """The flag is taken by a compare-and-set: a poll that read the report as
+    untold after another already told it says nothing."""
+    from sqlalchemy import update
+
+    owner = _owner(db)
+    report = _file(db, owner, _schedule(db, owner))
+    # Another tab's poll got there between this one's read and its write.
+    took = db.execute(
+        update(Report).where(Report.id == report.id, Report.page_told.is_(False))
+        .values(page_told=True)
+    ).rowcount
+    db.commit()
+    assert took == 1
+    second = db.execute(
+        update(Report).where(Report.id == report.id, Report.page_told.is_(False))
+        .values(page_told=True)
+    ).rowcount
+    assert second == 0
+    assert "HX-Trigger" not in client.get("/api/chats/unread").headers

@@ -13,13 +13,14 @@ from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.orm import Session as DBSession
 
 from lembas.api.deps import Db, RequiredUser, require_permission
 from lembas.db.models import (
     KIND_AGENT,
     KIND_CHAT,
+    KIND_REPORT,
     KINDS,
     ROLE_ASSISTANT,
     ROLE_USER,
@@ -965,13 +966,22 @@ async def unread_poll(request: Request, db: Db, user: RequiredUser) -> Response:
     from lembas.db.models import Report
     from lembas.services import reports as reports_service
 
-    for report in db.scalars(
-        select(Report).where(
+    fresh_reports = db.execute(
+        select(Report.id, Report.title).where(
             Report.owner_id == user.id, Report.unread.is_(True), Report.page_told.is_(False)
         )
-    ):
-        report.page_told = True
-        items.append({"kind": "report", "title": report.title, "url": f"/reports/{report.id}"})
+    ).all()
+    for report_id, title in fresh_reports:
+        # Compare-and-set: of two tabs polling at once, one says it.
+        took = db.execute(
+            update(Report)
+            .where(Report.id == report_id, Report.page_told.is_(False))
+            .values(page_told=True)
+        ).rowcount
+        if took:
+            items.append({"kind": "report", "title": title, "url": f"/reports/{report_id}"})
+    if fresh_reports:
+        db.commit()
     waiting = reports_service.unread_count(db, user.id)
     markup += (
         f'<span id="unread-reports" class="badge badge--leaf nav-item__count" '
@@ -2917,7 +2927,14 @@ async def set_html_pages(
     line of the session note on the next message (`services/prefix.py`)."""
     chat = _owned_chat(db, chat_id, user.id)
     scope = dict(chat.scope_json or {})
-    if on and chat.kind != KIND_AGENT:
+    if on:
+        # Only where pages can be had at all: the instance's switch, the
+        # model's flag, and not an agent chat, a subagent's or the phone
+        # assistant's. Switching it off is always possible.
+        if not html_pages_service.available(db, chat, chat_service.model_for(db, chat)):
+            raise HTTPException(
+                status.HTTP_409_CONFLICT, t("Pages in answers are not offered in this chat.")
+            )
         scope[html_pages_service.SCOPE_KEY] = True
     else:
         scope.pop(html_pages_service.SCOPE_KEY, None)
@@ -3023,6 +3040,15 @@ def apply_chat_update(db: DBSession, user: User, chat: Chat, form) -> tuple[bool
     field means the same thing through either door. See `update_chat`.
     """
     allowed = permissions.resolve(db, user)
+
+    # A report's conversation is reached from its report and is in no list:
+    # archived, pinned or filed it would only be lost. Rename and delete only.
+    if chat.kind == KIND_REPORT and any(k in form for k in ("archived", "pinned", "folder_id")):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            t("A report's conversation stays with its report: it cannot be archived, "
+              "pinned or moved."),
+        )
 
     renamed = False
     if "title" in form:

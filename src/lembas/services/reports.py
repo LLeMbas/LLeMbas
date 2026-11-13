@@ -16,7 +16,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session as DBSession
 
 from lembas.db.models import (
@@ -217,6 +217,18 @@ def _pages_offered(db: DBSession, run: ScheduleRun | None) -> bool:
     return html_pages.on(db, chat, chat_service.model_for(db, chat))
 
 
+def schedule_title(db: DBSession, user: User, schedule_id: str) -> str | None:
+    """A schedule's title as it is now, or None when it is gone (or not this
+    person's): what a report's `schedule` is drawn from."""
+    row = db.get(Schedule, schedule_id) if schedule_id else None
+    return (row.title or "") if row is not None and row.user_id == user.id else None
+
+
+def latest_created(db: DBSession, user_id: str):
+    """When this person's newest report -- read or not -- was filed."""
+    return db.scalar(select(func.max(Report.created_at)).where(Report.owner_id == user_id))
+
+
 def owned(db: DBSession, user: User, report_id: str) -> Report | None:
     row = db.get(Report, report_id) if report_id else None
     return row if row is not None and row.owner_id == user.id else None
@@ -333,8 +345,20 @@ def reply_chat(db: DBSession, user: User, row: Report) -> Chat:
     db.add(Message(chat_id=chat.id, role=ROLE_ASSISTANT, content=opening, complete=True,
                    html_pages=bool(row.html_pages),
                    model_id=row.model_id or "", created_at=now + timedelta(milliseconds=1)))
-    row.chat_id = chat.id
+    # Compare-and-set: of two Replies at once, one conversation is the
+    # report's. The other's is taken back, and it is given the first.
+    took = db.execute(
+        update(Report).where(Report.id == row.id, Report.chat_id.is_(None)).values(chat_id=chat.id)
+    ).rowcount
+    if not took:
+        db.rollback()
+        db.refresh(row)
+        first = db.get(Chat, row.chat_id) if row.chat_id else None
+        if first is not None:
+            return first
+        raise RuntimeError("a report's conversation could not be made")
     db.commit()
+    db.refresh(row)
     return chat
 
 

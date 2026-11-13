@@ -13,8 +13,9 @@ else's is a 404, as one that does not exist is.
 | `DELETE /reports/{id}` | 204; the conversation it continued in goes with it |
 | `POST /reports/{id}/reply` | `{"chat": id}` -- the chat it continues in, made once |
 
-The list and a single report are open to a linked device's token too (the
-CLI's `/reports`); the permission is `schedule.use`. The chat a reply opens
+Listing, reading and marking read are open to a linked device's token too
+(the CLI's `/reports`); deleting and replying are an app's or the page's
+only. The permission is `schedule.use`. The chat a reply opens
 is read and written through the chat routes by its id; it is never in
 `GET /chats`.
 """
@@ -27,7 +28,7 @@ from fastapi import APIRouter, HTTPException, Query, Response, status
 
 from lembas.api.deps import Db
 from lembas.api.v2 import serialise
-from lembas.api.v2._common import MeOrDevice, need
+from lembas.api.v2._common import Me, MeOrDevice, need
 from lembas.db.models import Report, Schedule
 from lembas.services import reports as reports_service
 from lembas.web.i18n import t
@@ -88,13 +89,13 @@ async def read_report(caller: MeOrDevice, db: Db, report_id: str) -> dict[str, A
 
 
 @router.delete("/reports/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_report(caller: MeOrDevice, db: Db, report_id: str) -> Response:
+async def delete_report(caller: Me, db: Db, report_id: str) -> Response:
     reports_service.delete(db, _owned(db, caller, report_id))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/reports/{report_id}/reply")
-async def reply_to_report(caller: MeOrDevice, db: Db, report_id: str) -> dict[str, Any]:
+async def reply_to_report(caller: Me, db: Db, report_id: str) -> dict[str, Any]:
     row = _owned(db, caller, report_id)
     chat = reports_service.reply_chat(db, caller.user, row)
     reports_service.mark_read(db, row)

@@ -316,14 +316,24 @@ async def get_run(caller: MeOrDevice, db: Db, schedule_id: str, run_id: str) -> 
 
 
 # --- The person's event stream -------------------------------------------------------------
-def reports_frame(unread: int, newest) -> str:
-    """The `reports` event: `{"unread": n, "newest": {id, title, summary,
-    importance, created} | null}` -- the newest unread report, or null."""
+def reports_frame(
+    unread: int, newest, *, schedule_title: str | None = None, latest_created: str | None = None
+) -> str:
+    """The `reports` event: `{"unread": n, "newest": report | null,
+    "latest_created": time | null}`.
+
+    `newest` is the newest **unread** report, in the list shape of
+    `GET /reports` -- so it moves *back* to an older one when the newest is
+    read, and is not by itself news. `latest_created` is when the newest
+    report of any state was filed: **a report has arrived when
+    `latest_created` is later than the one the client last saw**, and only
+    then is `newest` worth announcing. Null while there is none."""
     from lembas.api.v2 import serialise
 
     return json.dumps(
         {"unread": int(unread),
-         "newest": serialise.report(newest, None) if newest is not None else None},
+         "newest": serialise.report(newest, schedule_title) if newest is not None else None,
+         "latest_created": latest_created},
         ensure_ascii=False,
         separators=(",", ":"),
     )
@@ -349,6 +359,11 @@ async def _events(user_id: str) -> AsyncIterator[str]:
             listed = _all(db, user)
             unread = reports_service.unread_count(db, user_id)
             newest = reports_service.listing(db, user, unread=True, limit=1)
+            newest_title = (
+                reports_service.schedule_title(db, user, newest[0].schedule_id)
+                if newest else None
+            )
+            latest = reports_service.latest_created(db, user_id)
         version = version_of(listed)
         if version != sent:
             sent = version
@@ -364,7 +379,10 @@ async def _events(user_id: str) -> AsyncIterator[str]:
         # `reports` (harness spec 3.8.0): how many are unread and the newest
         # unread one, whenever either changes -- the first at once -- so an
         # app can badge its Reports entry and say that one arrived.
-        said = reports_frame(unread, newest[0] if newest else None)
+        said = reports_frame(
+            unread, newest[0] if newest else None, schedule_title=newest_title,
+            latest_created=serialise.stamp(latest) if latest else None,
+        )
         if said != reports_sent:
             reports_sent = said
             quiet = 0.0

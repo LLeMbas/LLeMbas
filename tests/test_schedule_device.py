@@ -407,7 +407,7 @@ async def test_a_device_without_reports_is_told_and_settled_as_before(
 
     _agents_on(db)
     token, _ = _token(db)
-    _link(db, token)  # declares `scheduled` and `turns`, not `reports`
+    link, _ = _link(db, token)  # declares `scheduled` and `turns`, not `reports`
     schedule = _on_device(db, token)
     schedule.notify = notify_when
     db.commit()
@@ -419,12 +419,16 @@ async def test_a_device_without_reports_is_told_and_settled_as_before(
         script.generations[message_id].scheduled_outcome = {
             "run_id": "x", "status": status, "text": reply, "error": None,
         }
+        # The client is updated while the run is going: the run was told the
+        # old words, and is settled by the old rule -- decided once, at its start.
+        link.initialized["_meta"]["lembas"]["capabilities"].append("reports")
         return message_id
 
     monkeypatch.setattr(wake_service, "wake_chat", wake)
     await _sweep(script, T0)
     (run,) = _runs(db, schedule)
     assert run.status == "ok", run.error
+    assert run.legacy_notify is True
     # Never an instruction naming a tool the device does not have.
     assert "report_write" not in script.turns[0]
     assert (notify.LEGACY_HINT in script.turns[0]) is hint
