@@ -85,12 +85,17 @@ def test_create_list_get_update_pause_resume_delete(client, db, registered):
 
     changed = client.patch(
         f"/api/v2/schedules/{schedule['id']}",
-        json={"notify": "matters", "title": "News", "rule": {"at": {"times": ["08:00"]}}},
+        # `matters` is what `when` was called before spec 3.8.0: still read.
+        json={"notify": "matters", "notify_when": " the  headlines changed. ",
+              "title": "News", "rule": {"at": {"times": ["08:00"]}}},
         headers=auth,
     ).json()["schedule"]
     assert (changed["notify"], changed["title"], changed["description"]) == (
-        "matters", "News", "Every day at 08:00"
+        "when", "News", "Every day at 08:00"
     )
+    assert changed["notify_when"] == "the headlines changed."
+    assert changed["notify_default"] == "something needs my attention"
+    assert changed["save_file"] is False
 
     paused = client.post(f"/api/v2/schedules/{schedule['id']}/pause", headers=auth).json()
     assert paused["schedule"]["enabled"] is False
@@ -245,7 +250,25 @@ async def test_the_event_stream_sends_the_list_then_only_changes(client, db, reg
     assert set(data) == {"version", "schedules"}
     assert data["version"] == v2.version_of(data["schedules"])
     assert data["schedules"][0]["title"] == "Morning news"
-    # Nothing changed: the next thing sent is a keepalive, not the list again.
+    # Then the reports: how many are unread, and the newest of them.
     second = await anext(stream)
-    assert second.startswith(":")
+    assert second.startswith("event: reports\n")
+    assert json.loads(second.split("data: ", 1)[1]) == {"unread": 0, "newest": None}
+    # Nothing changed: the next thing sent is a keepalive, not either again.
+    third = await anext(stream)
+    assert third.startswith(":")
+    # A report is filed: the count and the report, once.
+    from lembas.services import reports as reports_service
+
+    filed = reports_service.file(
+        db, owner_id=user_id, report={"title": "Headlines", "body": "Three things."},
+        schedule=db.scalars(select(Schedule)).one(), run=None,
+    )
+    db.commit()
+    fourth = await anext(stream)
+    assert fourth.startswith("event: reports\n")
+    frame = json.loads(fourth.split("data: ", 1)[1])
+    assert frame["unread"] == 1 and frame["newest"]["id"] == filed.id
+    assert frame["newest"]["title"] == "Headlines" and "body" not in frame["newest"]
+    assert (await anext(stream)).startswith(":")
     await stream.aclose()

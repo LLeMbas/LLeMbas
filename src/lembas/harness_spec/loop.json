@@ -315,7 +315,7 @@
       "started": "Started in: {{path}} (relative to the project root)"
     },
     "note": {
-      "about": "A note on the next user message (context.md §10, rule 3): what changed since the system prompt was made, after the person's words. Lines in this order, each only when it applies. `plan_ended` is the mode block for a session that leaves plan mode for a mode with no text of its own (a chat). `plan_own` is the plan block for a session that does not resend earlier tool results (a chat): the model's own plan, as its tools left it. `personal` is the {{path}} of the instructions block for the person's own instructions. Spec 3.2.0, where a team is offered (team.md §10): `team` — the size setting, on the first user message and after it changes, followed in the same block by `team_lead` when min ≥ 2 ({{members}} = min − 1), or `team_one` in its place when max is 1; `team_stopped` — members the person stopped, a block of its own. Spec 3.3.0 (subagents.md §4): `team_own` after `team` (and after `team_lead`) in the same block when the session's model cannot serve subagents itself — it serves one request at a time — and another server's model could.",
+      "about": "A note on the next user message (context.md §10, rule 3): what changed since the system prompt was made, after the person's words. Lines in this order, each only when it applies. `plan_ended` is the mode block for a session that leaves plan mode for a mode with no text of its own (a chat). `plan_own` is the plan block for a session that does not resend earlier tool results (a chat): the model's own plan, as its tools left it. `personal` is the {{path}} of the instructions block for the person's own instructions. Spec 3.2.0, where a team is offered (team.md §10): `team` — the size setting, on the first user message and after it changes, followed in the same block by `team_lead` when min ≥ 2 ({{members}} = min − 1), or `team_one` in its place when max is 1; `team_stopped` — members the person stopped, a block of its own. Spec 3.3.0 (subagents.md §4): `team_own` after `team` (and after `team_lead`) in the same block when the session's model cannot serve subagents itself — it serves one request at a time — and another server's model could. Spec 3.8.0 (pages.md §5): `pages_on` when HTML pages are switched on for the chat after its prompt was made ({{pages_text}} = prompts/blocks/html-pages.md as sent), `pages_off` when they are switched off.",
       "open": "<session-note>",
       "close": "</session-note>",
       "date": "Today is {{date}}.",
@@ -327,6 +327,8 @@
       "instructions": "{{path}} changed; it now reads:\n{{text}}",
       "personal": "the person's own instructions",
       "personality": "The person chose a different personality:\n{{personality}}",
+      "pages_on": "HTML pages are now on for this chat:\n{{pages_text}}",
+      "pages_off": "HTML pages are now off for this chat: write no more `html-view` blocks.",
       "mcp": "Instructions from an MCP server that connected since the session began:\n{{instructions}}",
       "team": "The team may have {{min}} to {{max}} agents, you included.",
       "team_lead": "Work through subagents from the start: you lead, and they do the work. The person opened {{members}} slots for them: fill them with team_add.",
@@ -442,7 +444,7 @@
     "pace_per_second": 4
   },
   "scheduled": {
-    "about": "Spec 3.5.0 (acp.md *Scheduled work on a linked computer*): a schedule's run as an agent turn on a linked computer, and the watch command of monitor mode. `setting` is how the device's switch is shown; `modes` the modes a schedule may choose (`default_mode` when it chose none), lowered to remote.max_mode; `approval_wait_seconds` how long an approval in a scheduled turn waits (the schedule's wait, clamped); `sentinel` the word a reply says when there is nothing to tell; `monitor` the watch command's limits. conformance/scheduled.json, silent.json, monitor.json.",
+    "about": "Spec 3.5.0 (acp.md *Scheduled work on a linked computer*): a schedule's run as an agent turn on a linked computer, and the watch command of monitor mode. `setting` is how the device's switch is shown; `modes` the modes a schedule may choose (`default_mode` when it chose none), lowered to remote.max_mode; `approval_wait_seconds` how long an approval in a scheduled turn waits (the schedule's wait, clamped); `sentinel` the word a reply says when there is nothing to tell; `monitor` the watch command's limits. conformance/scheduled.json, silent.json, monitor.json. Spec 3.8.0 (reports.md): `notify` — a schedule's notify-when: its `values`, the `default`, the `default_condition` of `when`, the instruction `texts` placed in the run's prompt ({{condition}} the person's words), what the tool answers (`result`), and the limits of the history line and of a summary made from an answer. `sentinel` is retired: told to no model, and a reply that still carries it leaves no report. conformance/reports.json.",
     "setting": {
       "key": "remote.scheduled",
       "label": "Accept scheduled work",
@@ -482,6 +484,30 @@
       "monitor_asks": "The watch command would need approval in {{mode}} mode ({{reason}}), and a watch has nobody to ask. Allow the command in the project's permission rules, or choose a wider mode for the schedule.",
       "monitor_denied": "The watch command is refused here: {{reason}}.",
       "no_reply": "The run ended without a reply."
+    },
+    "notify": {
+      "values": [
+        "always",
+        "when",
+        "never"
+      ],
+      "default": "when",
+      "default_condition": "something needs my attention",
+      "labels": {
+        "always": "Every run",
+        "when": "When…",
+        "never": "Never"
+      },
+      "texts": {
+        "always": "Reporting: when the work is done, file a report with report_write — every run, also when you found nothing and when nothing matters; then say so in it, briefly. Then end with one short line for this run's history.",
+        "when": "Reporting: file a report with report_write only if this holds: {{condition}}. If it does not hold, file no report and end with one short line saying why not. If it holds, file the report when the work is done, then end with one short line for this run's history."
+      },
+      "result": {
+        "filed": "The report is filed. End your reply now with one short line for this run's history; do not repeat the report.",
+        "replaced": "The report is replaced by this one: a run files one report. End your reply now with one short line for this run's history; do not repeat the report."
+      },
+      "note_max": 200,
+      "summary_max": 300
     }
   },
   "phone": {
@@ -773,5 +799,26 @@
       "group": "",
       "decimal": "."
     }
+  },
+  "pages": {
+    "about": "Spec 3.8.0 (pages.md): HTML pages in answers — experimental, off unless switched on. `fence`: the info word of a page's fenced block; `title_max` and `untitled` for its title; `variables`: the CSS variables the frame provides; `note` what a client that cannot render shows in a page's place and `where` what it may add; `projection` the one line a page is for anything that reads a reply as text; `never`: where pages are never offered, whatever the switches say. conformance/pages.json.",
+    "fence": "html-view",
+    "title_max": 80,
+    "untitled": "Page",
+    "variables": [
+      "--page-bg",
+      "--page-ink",
+      "--page-muted",
+      "--page-accent",
+      "--page-line"
+    ],
+    "note": "This answer has a page: {{title}}",
+    "where": "Open it on the web or in the desktop app to see it.",
+    "projection": "[page: {{title}}]",
+    "never": [
+      "subagent",
+      "phone_assistant",
+      "agent_chat"
+    ]
   }
 }

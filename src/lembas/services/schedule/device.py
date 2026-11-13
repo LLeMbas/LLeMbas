@@ -46,6 +46,8 @@ ERROR_DEVICE = "device"
 ERROR_DEVICE_AWAY = "device_away"
 
 # chat id -> the `scheduled` object its session is told while the run lasts.
+from lembas.services.schedule import notify as notify_service  # noqa: E402
+
 TURNS: dict[str, dict[str, Any]] = {}
 
 
@@ -245,7 +247,20 @@ def scheduled_meta(schedule, run) -> dict[str, Any]:
         "title": schedule.title or "",
         "mode": where.mode if where is not None else default_mode(),
         "approval_wait_s": wait_seconds(minutes * 60),
+        # Notify when (harness spec 3.8.0, reports.md §6): told only to a
+        # device that declares the capability `reports` -- `for_link` takes it
+        # out for any other -- which then offers its own `report_write` and
+        # sends the report with the turn's answer.
+        "notify": notify_service.policy(schedule.notify, schedule.rule_json or {}),
     }
+
+
+def for_link(meta: dict[str, Any], link) -> dict[str, Any]:
+    """The `scheduled` object as one device is sent it: without `notify` for a
+    device that does not declare `reports` (before spec 3.8.0)."""
+    if link is not None and link.can("reports"):
+        return dict(meta)
+    return {key: value for key, value in meta.items() if key != "notify"}
 
 
 def linked(token_id: str | None):

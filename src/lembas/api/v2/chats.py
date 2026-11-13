@@ -79,6 +79,8 @@ async def list_chats(
         Chat.temporary.is_(False),
         Chat.archived.is_(archived),
         Chat.kind.in_([kind] if kind in KINDS else list(KINDS)),
+        # Not a schedule's run on a linked computer: reached from its schedule.
+        Chat.scheduled.is_(False),
     )
     if folder:
         query = query.where(Chat.folder_id == folder)
@@ -113,6 +115,7 @@ async def unread(caller: Me, db: Db) -> dict[str, Any]:
             Chat.archived.is_(False),
             Chat.temporary.is_(False),
             Chat.kind.in_(KINDS),
+            Chat.scheduled.is_(False),
         )
     )
     return {"unread": list(rows)}

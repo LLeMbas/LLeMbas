@@ -12,7 +12,7 @@ so a rule cannot hold through one door and not the other. Every route needs
 | `POST /schedules` | `{title, instruction, rule, …settings}` → 201 `{"schedule"}` |
 | `GET /schedules/{id}` | `{"schedule"}` |
 | `PATCH /schedules/{id}` | any of the create fields, and `enabled` → `{"schedule"}` |
-| `DELETE /schedules/{id}?keep_chat=true` | 204 |
+| `DELETE /schedules/{id}` | 204: its run chats go, its reports stay (`keep_chat`: ignored) |
 | `POST /schedules/{id}/pause`, `/resume` | `{"schedule"}` |
 | `POST /schedules/{id}/run` | 202 `{"run"}`: started now, not counted against the rule |
 | `GET /schedules/{id}/runs?before=&limit=` | `{"runs": [run], "more"}`, newest first |
@@ -44,6 +44,7 @@ from lembas.api.v2 import serialise
 from lembas.api.v2._common import Me, MeOrDevice, calling_device, need
 from lembas.db.models import Message, Schedule, ScheduleRun, User
 from lembas.db.session import session_scope
+from lembas.services import reports as reports_service
 from lembas.services import schedules as schedules_service
 from lembas.services import sse
 from lembas.services.schedule import clock, runner, runs
@@ -253,7 +254,9 @@ async def delete_schedule(
     caller: MeOrDevice, db: Db, schedule_id: str, keep_chat: bool = Query(True)
 ) -> Response:
     need(db, caller.user, PERMISSION)
-    schedules_service.delete(db, _owned(db, schedule_id, caller.user), keep_chat=keep_chat)
+    # `keep_chat` did something before 2.0.0-beta.12; clients still send it.
+    del keep_chat
+    schedules_service.delete(db, _owned(db, schedule_id, caller.user))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -313,6 +316,19 @@ async def get_run(caller: MeOrDevice, db: Db, schedule_id: str, run_id: str) -> 
 
 
 # --- The person's event stream -------------------------------------------------------------
+def reports_frame(unread: int, newest) -> str:
+    """The `reports` event: `{"unread": n, "newest": {id, title, summary,
+    importance, created} | null}` -- the newest unread report, or null."""
+    from lembas.api.v2 import serialise
+
+    return json.dumps(
+        {"unread": int(unread),
+         "newest": serialise.report(newest, None) if newest is not None else None},
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+
 def version_of(payload: list[dict[str, Any]]) -> str:
     encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha256(encoded.encode()).hexdigest()[:16]
@@ -323,6 +339,7 @@ async def _events(user_id: str) -> AsyncIterator[str]:
     paused or deleted, a run starting, waiting or finishing. Whole, as every
     frame here is: a client back from the background needs no bookkeeping."""
     sent = ""
+    reports_sent = ""
     quiet = 0.0
     while True:
         with session_scope() as db:
@@ -330,6 +347,8 @@ async def _events(user_id: str) -> AsyncIterator[str]:
             if user is None:
                 return
             listed = _all(db, user)
+            unread = reports_service.unread_count(db, user_id)
+            newest = reports_service.listing(db, user, unread=True, limit=1)
         version = version_of(listed)
         if version != sent:
             sent = version
@@ -342,6 +361,14 @@ async def _events(user_id: str) -> AsyncIterator[str]:
                     separators=(",", ":"),
                 ),
             )
+        # `reports` (harness spec 3.8.0): how many are unread and the newest
+        # unread one, whenever either changes -- the first at once -- so an
+        # app can badge its Reports entry and say that one arrived.
+        said = reports_frame(unread, newest[0] if newest else None)
+        if said != reports_sent:
+            reports_sent = said
+            quiet = 0.0
+            yield sse.event("reports", said)
         elif quiet >= KEEPALIVE_SECONDS:
             quiet = 0.0
             yield sse.KEEPALIVE
@@ -351,9 +378,11 @@ async def _events(user_id: str) -> AsyncIterator[str]:
 
 @router.get("/events")
 async def events(caller: Me, db: Db) -> StreamingResponse:
-    """Server-sent events for this person, outside any chat. Today: `schedules`
+    """Server-sent events for this person, outside any chat. `schedules`
     (`{"version", "schedules": [schedule]}`), sent first at once and then
-    whenever `version` moves. Without `schedule.use` the stream stays open and
+    whenever `version` moves; and `reports` (`{"unread": n, "newest": report |
+    null}` -- the newest unread one, in the list shape of `GET /reports`),
+    sent at once and whenever either changes. Without `schedule.use` the stream stays open and
     says nothing, so a client needs one code path."""
     from lembas.security import permissions
 

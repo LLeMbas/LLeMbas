@@ -65,12 +65,9 @@ log = logging.getLogger(__name__)
 # `target` is the field a model gets wrong most often, because each is
 # a plausible reading of "tell me".
 TARGET_HELP = (
-    "Where the result goes. "
-    '"report" for something to read later — an investigation, a summary, a '
-    "digest — which is written as a Markdown file in the person's reports/ "
-    "directory and cannot be replied to. "
-    '"chat" to leave it in the task\'s own chat, which is right when the runs '
-    "build on each other and you want the transcript."
+    "What a run finds goes to the person's Reports either way. "
+    '"report" also saves each report as a Markdown file in their reports/ '
+    'directory; "chat" (the default) does not.'
 )
 
 RULE_HELP = (
@@ -163,10 +160,11 @@ def _row(schedule: Schedule, owner: User | None, db=None) -> dict[str, Any]:
 
 
 NOTIFY_HELP = (
-    'When the person is notified of a result: "always" (every run), "matters" '
-    "(every run except one that answers [SILENT] because there was nothing new; "
-    'the default for anything that repeats) or "never" (it is only kept in the '
-    "history). A one-off reminder defaults to always."
+    'When a run files a report for the person: "always" (every run), "when" (only '
+    "when a condition holds -- give it in notify_when, in their words; without one "
+    'it is "something needs my attention"; the default for anything that repeats) '
+    'or "never" (it is only kept in the history). A one-off reminder defaults to '
+    "always."
 )
 MODE_HELP = (
     '"fresh" (the default): each run starts a chat of its own and is told what the '
@@ -205,7 +203,7 @@ MODEL_HELP = (
 def _settings_from(args: dict[str, Any]) -> dict[str, Any]:
     """The run settings a model may pass, under the names the form uses."""
     settings: dict[str, Any] = {}
-    for key in ("notify", "mode"):
+    for key in ("notify", "notify_when", "mode"):
         if args.get(key) is not None:
             settings[key] = str(args.get(key) or "")
     if args.get("watch_url") is not None:
@@ -418,7 +416,7 @@ async def _run_cancel(context: ToolContext, args: dict[str, Any]) -> ToolOutcome
         title = schedule.title
         # The transcript is kept, which is `delete`'s own default and the right
         # one: removing a timer must not delete a conversation as a side effect.
-        schedules_service.delete(db, schedule, keep_chat=True)
+        schedules_service.delete(db, schedule)
         log.info("%s cancelled schedule %r by model", owner.email if owner else "?", title)
         return _outcome(
             f"Stopped {title!r}. It will not run again; what it has already "
@@ -469,8 +467,12 @@ def tool_defs() -> list[ToolDef]:
                     "schedule": {"type": "object", "description": RULE_HELP},
                     "notify": {
                         "type": "string",
-                        "enum": ["always", "matters", "never"],
+                        "enum": ["always", "when", "never"],
                         "description": NOTIFY_HELP,
+                    },
+                    "notify_when": {
+                        "type": "string",
+                        "description": 'The condition for notify "when", in the person\'s words.',
                     },
                     "mode": {
                         "type": "string",
@@ -530,8 +532,12 @@ def tool_defs() -> list[ToolDef]:
                     "schedule": {"type": "object", "description": RULE_HELP},
                     "notify": {
                         "type": "string",
-                        "enum": ["always", "matters", "never"],
+                        "enum": ["always", "when", "never"],
                         "description": NOTIFY_HELP,
+                    },
+                    "notify_when": {
+                        "type": "string",
+                        "description": 'The condition for notify "when", in the person\'s words.',
                     },
                     "mode": {
                         "type": "string",

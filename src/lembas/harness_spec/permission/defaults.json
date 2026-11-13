@@ -26,6 +26,7 @@
     "job_stop": "allow",
     "job_send": "allow",
     "report": "allow",
+    "report_write": "allow",
     "team_add": "allow",
     "team_send": "allow",
     "team_read": "allow",

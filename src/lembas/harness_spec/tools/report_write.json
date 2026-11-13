@@ -1,0 +1,53 @@
+{
+  "name": "report_write",
+  "scope": "shared",
+  "sessions": "both",
+  "risk": "interact",
+  "exclusive": false,
+  "block": "tool",
+  "purpose": false,
+  "requires": [
+    "scheduled"
+  ],
+  "unavailable": "This is not a scheduled run: report_write files the report of a schedule's run, and nobody scheduled this turn. Answer the person here instead.",
+  "aliases": {
+    "cli": [],
+    "llembas": []
+  },
+  "description": "File this run's report for the person who set the schedule. They read it later, in their list of reports, and are notified of it — so write it to be read cold, by someone who does not see this conversation.\n\n- Call it when your instructions for this run say a report is wanted, once, when the work is done.\n- title: what it is about, as a headline. summary: one or two sentences for the list and the notification. body: the report itself, in Markdown — what you found, what you did, what needs their decision.\n- importance: high only when they should look now.\n- A run files one report: calling it again replaces the first.\n- After it, end your reply with one short line for the run's history. Do not repeat the report.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160,
+        "description": "A headline: what the report is about."
+      },
+      "body": {
+        "type": "string",
+        "minLength": 1,
+        "description": "The report, in Markdown."
+      },
+      "summary": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 400,
+        "description": "One or two sentences: what a person needs to know before opening it."
+      },
+      "importance": {
+        "type": "string",
+        "enum": [
+          "normal",
+          "high"
+        ],
+        "description": "high: they should look now. Default normal."
+      }
+    },
+    "required": [
+      "title",
+      "body",
+      "summary"
+    ]
+  }
+}

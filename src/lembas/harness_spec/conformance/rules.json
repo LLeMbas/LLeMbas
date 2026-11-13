@@ -1,0 +1,443 @@
+{
+  "about": "Which permission rule decides (permission/rules.md, spec 3.8.0). The rules by layer: `defaults` true — permission/defaults.json as the `default` layer; `user` and `project` — a configuration's permission map (a key's value an action, or a map of pattern → action, read in the order written); `made` — rules made during the session, in order, each `by` an `always` answer or a `menu`. With `request` (`permission`, `pattern`: what one call asks for): expect the action that decides, or null where no rule matches. With `set` (a rule a person makes now, by a menu): expect `result` — `unchanged` (the action is already in force), `refused` with the rule in its way as `by`, or `made` with `still`, the stricter narrower rules that still apply, in the order read. The same answers for a rule typed into a file as for one a menu wrote. LLeMbas: security/permission rules; CLI: src/permission/evaluate.ts.",
+  "cases": [
+    {
+      "about": "The defaults alone: a file is read, a .env asks.",
+      "defaults": true,
+      "request": {
+        "permission": "read",
+        "pattern": "src/app.ts"
+      },
+      "expect": "allow"
+    },
+    {
+      "about": "The same, for another call.",
+      "defaults": true,
+      "request": {
+        "permission": "read",
+        "pattern": "config/.env"
+      },
+      "expect": "ask"
+    },
+    {
+      "about": "A project says read: allow. A broader rule made later does not unlock the narrower ask: .env still asks.",
+      "defaults": true,
+      "project": {
+        "read": "allow"
+      },
+      "request": {
+        "permission": "read",
+        "pattern": ".env"
+      },
+      "expect": "ask"
+    },
+    {
+      "about": "…and everything the broad default decided is as the project says.",
+      "defaults": true,
+      "project": {
+        "read": "allow"
+      },
+      "request": {
+        "permission": "read",
+        "pattern": "notes.txt"
+      },
+      "expect": "allow"
+    },
+    {
+      "about": "The same rule set in a menu, in the session it was made in.",
+      "defaults": true,
+      "made": [
+        {
+          "permission": "read",
+          "pattern": "*",
+          "action": "allow",
+          "by": "menu"
+        }
+      ],
+      "request": {
+        "permission": "read",
+        "pattern": ".env.local"
+      },
+      "expect": "ask"
+    },
+    {
+      "about": "The project names the narrow thing itself: allowed.",
+      "defaults": true,
+      "project": {
+        "read": {
+          "*.env": "allow"
+        }
+      },
+      "request": {
+        "permission": "read",
+        "pattern": ".env"
+      },
+      "expect": "allow"
+    },
+    {
+      "about": "The broadest rule there is, made in a menu: .env still asks.",
+      "defaults": true,
+      "made": [
+        {
+          "permission": "*",
+          "pattern": "*",
+          "action": "allow",
+          "by": "menu"
+        }
+      ],
+      "request": {
+        "permission": "read",
+        "pattern": ".env"
+      },
+      "expect": "ask"
+    },
+    {
+      "about": "web_fetch: allow in a project leaves private addresses asking.",
+      "defaults": true,
+      "project": {
+        "web_fetch": "allow"
+      },
+      "request": {
+        "permission": "web_fetch",
+        "pattern": "private:http://127.0.0.1:8080/admin"
+      },
+      "expect": "ask"
+    },
+    {
+      "about": "The same, for another call.",
+      "defaults": true,
+      "project": {
+        "web_fetch": "allow"
+      },
+      "request": {
+        "permission": "web_fetch",
+        "pattern": "https://example.org/"
+      },
+      "expect": "allow"
+    },
+    {
+      "about": "The person's own config denies rm; `bash allow` made in a menu does not undo it.",
+      "defaults": true,
+      "user": {
+        "bash": {
+          "rm *": "deny"
+        }
+      },
+      "made": [
+        {
+          "permission": "bash",
+          "pattern": "*",
+          "action": "allow",
+          "by": "menu"
+        }
+      ],
+      "request": {
+        "permission": "bash",
+        "pattern": "rm -rf build"
+      },
+      "expect": "deny"
+    },
+    {
+      "about": "…and allows what only the broad default asked about.",
+      "defaults": true,
+      "user": {
+        "bash": {
+          "rm *": "deny"
+        }
+      },
+      "made": [
+        {
+          "permission": "bash",
+          "pattern": "*",
+          "action": "allow",
+          "by": "menu"
+        }
+      ],
+      "request": {
+        "permission": "bash",
+        "pattern": "make all"
+      },
+      "expect": "allow"
+    },
+    {
+      "about": "The same from a project's file (the next start, after the menu saved it).",
+      "defaults": true,
+      "user": {
+        "bash": {
+          "rm *": "deny"
+        }
+      },
+      "project": {
+        "bash": "allow"
+      },
+      "request": {
+        "permission": "bash",
+        "pattern": "rm -rf build"
+      },
+      "expect": "deny"
+    },
+    {
+      "about": "The person's own `git push *`: ask stands against a project's bash: allow.",
+      "defaults": true,
+      "user": {
+        "bash": {
+          "git push *": "ask"
+        }
+      },
+      "project": {
+        "bash": "allow"
+      },
+      "request": {
+        "permission": "bash",
+        "pattern": "git push origin main"
+      },
+      "expect": "ask"
+    },
+    {
+      "about": "The person's own answer is a floor of any breadth: their bash: ask stands against a project's narrower allow.",
+      "defaults": true,
+      "user": {
+        "bash": "ask"
+      },
+      "project": {
+        "bash": {
+          "make *": "allow"
+        }
+      },
+      "request": {
+        "permission": "bash",
+        "pattern": "make all"
+      },
+      "expect": "ask"
+    },
+    {
+      "about": "The person's own file is read last-match-wins, as it always was: their broad allow after the defaults does unlock .env — it is theirs to say.",
+      "defaults": true,
+      "user": {
+        "read": "allow"
+      },
+      "request": {
+        "permission": "read",
+        "pattern": ".env"
+      },
+      "expect": "allow"
+    },
+    {
+      "about": "Within a project's file too, a narrower stricter line keeps winning over a broader one written after it.",
+      "project": {
+        "bash": {
+          "git push *": "ask",
+          "*": "allow"
+        }
+      },
+      "request": {
+        "permission": "bash",
+        "pattern": "git push origin main"
+      },
+      "expect": "ask"
+    },
+    {
+      "about": "A project's narrow allow after its own broad deny is an exception it wrote: allowed.",
+      "project": {
+        "bash": {
+          "*": "deny",
+          "git status": "allow"
+        }
+      },
+      "request": {
+        "permission": "bash",
+        "pattern": "git status"
+      },
+      "expect": "allow"
+    },
+    {
+      "about": "An \"always\" answer never undoes a written deny, of any breadth.",
+      "project": {
+        "bash": {
+          "*": "deny"
+        }
+      },
+      "made": [
+        {
+          "permission": "bash",
+          "pattern": "git status",
+          "action": "allow",
+          "by": "always"
+        }
+      ],
+      "request": {
+        "permission": "bash",
+        "pattern": "git status"
+      },
+      "expect": "deny"
+    },
+    {
+      "about": "An \"always\" answer for `git *` leaves the narrower `git push --force *`: deny.",
+      "user": {
+        "bash": {
+          "git push --force *": "deny"
+        }
+      },
+      "made": [
+        {
+          "permission": "bash",
+          "pattern": "git *",
+          "action": "allow",
+          "by": "always"
+        }
+      ],
+      "request": {
+        "permission": "bash",
+        "pattern": "git push --force origin main"
+      },
+      "expect": "deny"
+    },
+    {
+      "about": "A stricter rule made later always decides.",
+      "defaults": true,
+      "made": [
+        {
+          "permission": "read",
+          "pattern": "*",
+          "action": "deny",
+          "by": "menu"
+        }
+      ],
+      "request": {
+        "permission": "read",
+        "pattern": "src/app.ts"
+      },
+      "expect": "deny"
+    },
+    {
+      "about": "No rule matches: none decides (the class and the mode do).",
+      "user": {
+        "bash": {
+          "ls *": "allow"
+        }
+      },
+      "request": {
+        "permission": "edit",
+        "pattern": "a.txt"
+      },
+      "expect": null
+    },
+    {
+      "about": "Choosing the action already in force changes nothing.",
+      "defaults": true,
+      "set": {
+        "permission": "read",
+        "pattern": "*",
+        "action": "allow"
+      },
+      "expect": {
+        "result": "unchanged"
+      }
+    },
+    {
+      "about": "A rule that makes something stricter is made; nothing stricter is left standing.",
+      "defaults": true,
+      "set": {
+        "permission": "read",
+        "pattern": "*",
+        "action": "ask"
+      },
+      "expect": {
+        "result": "made",
+        "still": []
+      }
+    },
+    {
+      "about": "A broad allow is made, and says which stricter rules still apply.",
+      "defaults": true,
+      "made": [
+        {
+          "permission": "web_fetch",
+          "pattern": "*",
+          "action": "ask",
+          "by": "menu"
+        }
+      ],
+      "set": {
+        "permission": "web_fetch",
+        "pattern": "*",
+        "action": "allow"
+      },
+      "expect": {
+        "result": "made",
+        "still": [
+          {
+            "permission": "web_fetch",
+            "pattern": "private:*",
+            "action": "ask"
+          }
+        ]
+      }
+    },
+    {
+      "about": "The person's own rule, loosened where it stands: refused, naming it.",
+      "user": {
+        "bash": {
+          "git push *": "ask"
+        }
+      },
+      "set": {
+        "permission": "bash",
+        "pattern": "git push *",
+        "action": "allow"
+      },
+      "expect": {
+        "result": "refused",
+        "by": {
+          "permission": "bash",
+          "pattern": "git push *",
+          "action": "ask"
+        }
+      }
+    },
+    {
+      "about": "A narrower allow under a written deny: refused — the deny takes it in whole.",
+      "user": {
+        "bash": {
+          "rm *": "deny"
+        }
+      },
+      "set": {
+        "permission": "bash",
+        "pattern": "rm -rf build",
+        "action": "allow"
+      },
+      "expect": {
+        "result": "refused",
+        "by": {
+          "permission": "bash",
+          "pattern": "rm *",
+          "action": "deny"
+        }
+      }
+    },
+    {
+      "about": "A broader allow over the person's narrower deny is made — and the deny still applies.",
+      "user": {
+        "bash": {
+          "rm *": "deny"
+        }
+      },
+      "set": {
+        "permission": "bash",
+        "pattern": "*",
+        "action": "allow"
+      },
+      "expect": {
+        "result": "made",
+        "still": [
+          {
+            "permission": "bash",
+            "pattern": "rm *",
+            "action": "deny"
+          }
+        ]
+      }
+    }
+  ]
+}

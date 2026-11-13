@@ -67,6 +67,27 @@
     {#- The reader's own entry. A plain link to /settings: on desktop ui.js
         opens it as the settings window, on a phone and without
         JavaScript it is the page. -#}
+    {#- Reports and Scheduled, side by side on one row: what the schedules
+        found, and the schedules themselves. Two equal tracks, so the two
+        entries are the same width whatever their words are in whichever
+        language (each truncates). The count beside Reports is the unread
+        ones, kept current by the unread poll (`#unread-reports`). -#}
+    {% if can.get("schedule.use") %}
+    <div class="sidebar__sections">
+      <a class="nav-item{{ ' is-active' if section | default('') == 'reports' }}" href="/reports"
+         data-testid="nav-reports">
+        {{ icon("file-text", "icon--sm") }}
+        <span class="nav-item__label">{{ t("Reports") }}</span>
+        <span id="unread-reports" class="badge badge--leaf nav-item__count"
+              {{ "" if unread_reports | default(0) else "hidden" }}>{{ unread_reports | default(0) }}</span>
+      </a>
+      <a class="nav-item{{ ' is-active' if section | default('') == 'scheduled' }}" href="/scheduled"
+         data-testid="nav-scheduled">
+        {{ icon("clock", "icon--sm") }}
+        <span class="nav-item__label">{{ t("Scheduled") }}</span>
+      </a>
+    </div>
+    {% endif %}
     <a class="nav-item" href="/settings">
       {{ icon("user", "icon--sm") }}
       <span class="nav-item__label">{{ user.name }}</span>

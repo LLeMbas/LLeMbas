@@ -3,8 +3,9 @@
 The reply itself is stubbed (`wake_chat` writes a finished or failed reply at
 once, and `generation.get` answers with what the script says), because what is
 tested here is everything around it: which model is chosen and why, waiting for
-a free one, retrying only what is safe, the catch-up window, `[SILENT]`, and how
-often a failure is told. Every one of these fails quietly when it is wrong.
+a free one, retrying only what is safe, the catch-up window, what a run leaves
+(a report or its line in the history) and how often a failure is told. Every
+one of these fails quietly when it is wrong.
 """
 
 from __future__ import annotations
@@ -24,11 +25,13 @@ from lembas.db.models import (
     Connection,
     Message,
     Model,
+    Report,
     Schedule,
     ScheduleRun,
     User,
 )
 from lembas.services import generation as generation_service
+from lembas.services import reports as reports_service
 from lembas.services import schedules as schedules_service
 from lembas.services import settings_store
 from lembas.services import wake as wake_service
@@ -58,6 +61,8 @@ class Script:
         self.generations: dict[str, FakeGeneration] = {}
         self.turns: list[str] = []
         self.told: list[dict] = []
+        # Reports that were announced: (run id, report title).
+        self.reported: list[tuple[str, str]] = []
         self.busy: Counter[str] = Counter()
 
     def next_reply(self) -> dict:
@@ -92,7 +97,20 @@ def script(db, registered, monkeypatch):
             )
             session.add(message)
             session.flush()
-            write(message, s.next_reply())
+            reply = s.next_reply()
+            if reply.get("report"):
+                # What `report_write` does while the run is going.
+                run = session.scalar(
+                    select(ScheduleRun).where(
+                        ScheduleRun.chat_id == chat_id, ScheduleRun.status == "running"
+                    )
+                )
+                reports_service.file(
+                    session, owner_id=run.user_id,
+                    report=reports_service.clean_call(reply["report"]),
+                    schedule=session.get(Schedule, run.schedule_id), run=run,
+                )
+            write(message, reply)
             session.commit()
             return message.id
 
@@ -112,7 +130,12 @@ def script(db, registered, monkeypatch):
     monkeypatch.setattr(wake_service, "wake_chat", wake)
     monkeypatch.setattr(generation_service, "restart", restart)
     monkeypatch.setattr(generation_service, "get", lambda mid: s.generations.get(mid))
+    async def announce_report(db_, owner, *, report, run=None):
+        s.reported.append((report.run_id, report.title))
+        return True
+
     monkeypatch.setattr(notify, "announce", announce)
+    monkeypatch.setattr(notify, "announce_report", announce_report)
     real_ours = models_service.ours
     monkeypatch.setattr(models_service, "ours", lambda d: real_ours(d) + s.busy)
     models_service.forget()
@@ -463,12 +486,19 @@ async def test_fresh_runs_get_a_chat_each_and_the_last_result(db, three, script)
 
 
 @pytest.mark.anyio
-async def test_a_silent_result_is_not_the_previous_result(db, three, script):
+async def test_the_previous_result_is_the_last_report_not_a_quiet_run(db, three, script):
+    """A run that only left its line in the history found nothing: the next
+    one is told what the last *report* said."""
     _make(db, model_id="hosted")
-    script.replies = [{"content": "Red."}, {"content": "[SILENT]"}, {"content": "Green."}]
+    script.replies = [
+        {"content": "Told.", "report": {"title": "Build", "body": "Red: test_x."}},
+        {"content": "Nothing new."},
+        {"content": "Green."},
+    ]
     for hour in range(3):
         await _sweep(script, T0 + timedelta(hours=hour))
-    assert "Red." in script.turns[2]
+    assert "Red: test_x." in script.turns[2]
+    assert "Nothing new." not in script.turns[2]
 
 
 @pytest.mark.anyio
@@ -482,35 +512,86 @@ async def test_continue_runs_share_one_chat(db, three, script):
 
 
 # --- Telling somebody ------------------------------------------------------------------------
+def _reports(db) -> list[Report]:
+    db.expire_all()
+    return list(db.scalars(select(Report).order_by(Report.created_at)))
+
+
 @pytest.mark.anyio
-async def test_silent_is_recorded_and_not_told(db, three, script):
+async def test_when_without_a_report_leaves_a_line_and_tells_nobody(db, three, script):
+    """`when` (the default for anything that repeats): the condition did not
+    hold, so no report, no notification -- the answer's first line is the
+    run's line in the history."""
     schedule = _make(db, model_id="hosted")
-    script.replies = [{"content": "Nothing new.\n[SILENT]"}]
+    assert schedule.notify == "when"
+    script.replies = [{"content": "\nThe build is green, nothing to tell.\nMore words."}]
     await _sweep(script, T0)
     (run,) = _runs(db, schedule)
-    assert run.status == "silent"
-    assert script.told == []
-    assert notify.HINT in script.turns[0]
+    assert (run.status, run.report_id) == ("ok", "")
+    assert run.note == "The build is green, nothing to tell."
+    assert _reports(db) == [] and script.reported == [] and script.told == []
+    # The run is told the condition, and never about [SILENT].
+    assert "something needs my attention" in script.turns[0]
+    assert "report_write" in script.turns[0] and "SILENT" not in script.turns[0]
 
 
 @pytest.mark.anyio
-async def test_a_result_that_matters_is_told(db, three, script):
-    schedule = _make(db, model_id="hosted")
-    script.replies = [{"content": "The build broke."}]
+async def test_when_with_its_own_condition_and_a_report_is_told_once(db, three, script):
+    schedule = _make(db, model_id="hosted", notify="when", notify_when="the build is red.")
+    script.replies = [{
+        "content": "Reported: the build is red.",
+        "report": {"title": "Build is red", "body": "test_x fails.\n\nSince 09:00.",
+                   "summary": "test_x fails", "importance": "high"},
+    }]
     await _sweep(script, T0)
     (run,) = _runs(db, schedule)
-    assert script.told == [{"run": run.id, "status": "ok", "failed": False, "ask_pause": False}]
-    assert run.notified
+    (report,) = _reports(db)
+    assert run.report_id == report.id and run.status == "ok" and run.notified
+    assert (report.title, report.summary, report.importance) == (
+        "Build is red", "test_x fails", "high"
+    )
+    assert (report.schedule_id, report.run_id, report.unread) == (schedule.id, run.id, True)
+    assert run.note == "Reported: the build is red."
+    # Exactly one notification: the report's. No second one for the run.
+    assert script.reported == [(run.id, "Build is red")] and script.told == []
+    assert "the build is red" in script.turns[0]
+    assert "something needs my attention" not in script.turns[0]
 
 
 @pytest.mark.anyio
-async def test_never_is_never_told(db, three, script):
-    _make(db, model_id="hosted", notify="never")
+async def test_always_files_the_answer_when_the_model_filed_nothing(db, three, script):
+    schedule = _make(db, model_id="hosted", notify="always")
+    script.replies = [{"content": "The build broke at 09:00.\n\nDetails follow.\nMore."}]
+    await _sweep(script, T0)
+    (run,) = _runs(db, schedule)
+    (report,) = _reports(db)
+    assert run.report_id == report.id
+    assert report.title == "Build check"
+    assert report.body == "The build broke at 09:00.\n\nDetails follow.\nMore."
+    assert report.summary == "The build broke at 09:00."
+    assert script.reported == [(run.id, "Build check")] and script.told == []
+
+
+@pytest.mark.anyio
+async def test_always_and_only_the_retired_word_leaves_no_report(db, three, script):
+    schedule = _make(db, model_id="hosted", notify="always")
+    script.replies = [{"content": "[SILENT]"}]
+    await _sweep(script, T0)
+    (run,) = _runs(db, schedule)
+    assert (run.status, run.report_id) == ("ok", "")
+    assert _reports(db) == [] and script.reported == []
+
+
+@pytest.mark.anyio
+async def test_never_files_nothing_and_is_never_told(db, three, script):
+    schedule = _make(db, model_id="hosted", notify="never")
     script.replies = [{"content": "The build broke."}, {"error": "x", "status": 400}]
     await _sweep(script, T0)
     await _sweep(script, T0 + timedelta(hours=1))
-    assert script.told == []
-    assert notify.HINT not in script.turns[0]
+    first, _second = _runs(db, schedule)
+    assert first.note == "The build broke." and first.report_id == ""
+    assert _reports(db) == [] and script.reported == [] and script.told == []
+    assert "report_write" not in script.turns[0]
 
 
 @pytest.mark.anyio
@@ -520,7 +601,32 @@ async def test_a_one_shot_defaults_to_always(db, three, script):
     db.commit()
     assert schedule.notify == "always"
     await _sweep(script, T0)
-    assert len(script.told) == 1
+    assert len(script.reported) == 1 and script.told == []
+
+
+@pytest.mark.anyio
+async def test_a_failed_run_keeps_its_report_and_tells_both(db, three, script):
+    """The model filed a report and then the reply failed: what it found is
+    kept and told, and the failure is told as a failure."""
+    schedule = _make(db, model_id="hosted")
+    script.replies = [{
+        "error": "boom", "status": 400,
+        "report": {"title": "Half done", "body": "Found one thing."},
+    }]
+    await _sweep(script, T0)
+    (run,) = _runs(db, schedule)
+    assert run.status == "failed" and run.report_id
+    assert script.reported == [(run.id, "Half done")]
+    assert [(t["run"], t["failed"]) for t in script.told] == [(run.id, True)]
+
+
+def test_an_unknown_or_old_notify_value_reads_as_when():
+    rule = {"every": {"hours": 1}}
+    assert notify.policy("matters", rule) == "when"
+    assert notify.policy("", rule) == "when"
+    assert notify.policy("loudly", rule) == "when"
+    assert notify.policy("", {}) == "when"  # never `always` by accident
+    assert notify.policy("always", rule) == "always"
 
 
 @pytest.mark.anyio
@@ -796,7 +902,8 @@ async def test_a_monitor_runs_the_model_only_when_the_page_changed(
     assert len(script.turns) == 2
     assert "first look" in script.turns[0] and "<watched>\nPrice: 10\n</watched>" in script.turns[0]
     assert "-Price: 10" in script.turns[1] and "+Price: 12" in script.turns[1]
-    assert [t["run"] for t in script.told] == [first.id, changed.id]
+    assert [r for r, _ in script.reported] == [first.id, changed.id]
+    assert script.told == []
     assert same.chat_id in (None, "") and not same.notified
     assert runs.watch_dict(same.watch_json)["changed"] is False
     assert runs.watch_dict(changed.watch_json)["changed"] is True

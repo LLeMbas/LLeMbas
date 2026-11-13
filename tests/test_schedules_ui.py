@@ -167,9 +167,11 @@ def _as_stranger(client: TestClient, db, *, role: str = "user") -> User:
 
 
 def test_the_settings_tab_follows_the_permission(client: TestClient, db, registered):
-    """Scheduled is a tab of Settings, not a sidebar section."""
+    """Scheduled is a tab of Settings, with a way to it beside Reports in the
+    sidebar; both follow the permission."""
     _as_stranger(client, db)
-    assert 'href="/scheduled"' not in client.get("/chat").text
+    sidebar = client.get("/chat").text
+    assert 'href="/scheduled"' in sidebar and 'href="/reports"' in sidebar
     page = client.get("/settings?tab=scheduled").text
     assert 'id="tab-scheduled"' in page
     assert re.search(r'id="tab-scheduled"\s+checked', page)
@@ -180,6 +182,9 @@ def test_the_settings_tab_follows_the_permission(client: TestClient, db, registe
     assert 'id="tab-scheduled"' not in page
     # A link to a tab this account has not got lands on Account, not on nothing.
     assert re.search(r'id="tab-account"\s+checked', page)
+    sidebar = client.get("/chat").text
+    assert 'href="/scheduled"' not in sidebar and 'href="/reports"' not in sidebar
+    assert client.get("/reports").status_code == 403
 
 
 def test_the_old_list_address_lands_on_the_tab(client: TestClient, db, registered):
@@ -228,34 +233,55 @@ def test_a_task_chat_has_no_composer(client: TestClient, db, registered):
     assert f"/api/schedules/{schedule.id}/toggle" in body
 
 
-def test_the_strip_survives_its_schedule_being_removed(
+def test_removing_a_schedule_takes_its_run_chats_and_keeps_its_reports(
     client: TestClient, db, registered
 ):
-    """Removing a schedule keeps its chat by default. The chat becomes an
-    ordinary one, so it is reachable — a KIND_TASK chat with no schedule behind
-    it would be in no list at all."""
+    """A run's chat is the schedule's scratch space and goes with it; what it
+    produced that is worth keeping -- its reports, and a conversation that
+    continued one -- stays."""
+    from lembas.db.models import Report, ScheduleRun, User
+    from lembas.services import reports as reports_service
+
     _make(client)
     schedule = db.scalars(select(Schedule)).one()
     chat_id = schedule.chat_id
+    owner = db.get(User, schedule.user_id)
+    run = ScheduleRun(schedule_id=schedule.id, user_id=owner.id, status="ok", chat_id=chat_id)
+    db.add(run)
+    db.commit()
+    report = reports_service.file(
+        db, owner_id=owner.id, report={"title": "Found", "body": "Something."},
+        schedule=schedule, run=run,
+    )
+    db.commit()
+    reply_id = reports_service.reply_chat(db, owner, report).id
+    report_id = report.id
 
-    client.post(f"/api/schedules/{schedule.id}/delete", data={"keep_chat": "1"})
-
-    chat = db.get(Chat, chat_id)
-    db.refresh(chat)
-    assert chat is not None
-    assert chat.kind == "chat"
-    assert client.get(f"/chat/{chat_id}").status_code == 200
-
-
-def test_removing_a_schedule_can_take_its_chat(client: TestClient, db, registered):
-    _make(client)
-    schedule = db.scalars(select(Schedule)).one()
-    chat_id = schedule.chat_id
-
-    client.post(f"/api/schedules/{schedule.id}/delete", data={"keep_chat": "0"})
+    client.post(f"/api/schedules/{schedule.id}/delete")
 
     db.expunge_all()
     assert db.get(Chat, chat_id) is None
+    kept = db.get(Report, report_id)
+    assert kept is not None and kept.chat_id == reply_id
+    assert db.get(Chat, reply_id) is not None
+    assert client.get(f"/reports/{report_id}").status_code == 200
+
+
+def test_removing_a_schedule_leaves_a_chat_of_the_persons_own(
+    client: TestClient, db, registered
+):
+    """A schedule that ran in an ordinary chat never owned it."""
+    _make(client)
+    schedule = db.scalars(select(Schedule)).one()
+    own = db.get(Chat, schedule.chat_id)
+    own.kind = "chat"
+    db.commit()
+    chat_id = own.id
+
+    client.post(f"/api/schedules/{schedule.id}/delete")
+
+    db.expunge_all()
+    assert db.get(Chat, chat_id) is not None
 
 
 # --- Controls that write -----------------------------------------------------------

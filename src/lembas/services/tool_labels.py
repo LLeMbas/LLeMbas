@@ -104,8 +104,6 @@ LABELS: dict[str, str] = {
     "scratch_write": "Canvas written",
     # Reports.
     "report_write": "Report filed",
-    "report_search": "Reports searched",
-    "report_get": "Report read",
     "image_generate": "Image",
     # Work set up to happen later.
     "schedule_create": "Scheduled",
@@ -192,8 +190,6 @@ ICONS: dict[str, str] = {
     "notes_delete": "trash",
     "scratch_write": "file-text",
     "report_write": "pencil",
-    "report_search": "search",
-    "report_get": "file-text",
     "image_generate": "image",
     "schedule_create": "clock",
     "schedule_list": "clock",
@@ -266,8 +262,6 @@ ACTIONS: dict[str, str] = {
     "notes_delete": "Delete a note",
     "scratch_write": "Write in the canvas",
     "report_write": "File a report",
-    "report_search": "Search reports",
-    "report_get": "Read a report",
     "image_generate": "Generate an image",
     "schedule_create": "Set up a schedule",
     "schedule_update": "Change a schedule",
@@ -313,7 +307,6 @@ DETAIL_KEYS: dict[str, str] = {
     "web_search": "query",
     "knowledge_search": "query",
     "notes_search": "query",
-    "report_search": "query",
     # The title, not the body: a card has room for a line and the body is the
     # report. Editable for the same reason the image prompt is -- correcting
     # what a report will be called before it is filed is cheap, and renaming

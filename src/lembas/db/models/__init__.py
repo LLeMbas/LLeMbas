@@ -35,6 +35,7 @@ from lembas.db.models.chat import (
     JOB_SUBAGENT,
     KIND_AGENT,
     KIND_CHAT,
+    KIND_REPORT,
     KIND_TASK,
     KINDS,
     ROLE_ASSISTANT,
@@ -111,6 +112,7 @@ from lembas.db.models.organisation import (
     Organisation,
     org_models,
 )
+from lembas.db.models.report import IMPORTANCES, Report
 from lembas.db.models.result import (
     RESULT_EDIT,
     RESULT_KINDS,
@@ -130,6 +132,7 @@ from lembas.db.models.schedule import (
     NOTIFY_MATTERS,
     NOTIFY_NEVER,
     NOTIFY_POLICIES,
+    NOTIFY_WHEN,
     ORIGIN_MODEL,
     ORIGIN_USER,
     ORIGINS,
@@ -260,6 +263,7 @@ __all__ = [
     "KIND_CHAT",
     "KIND_DOCUMENT",
     "KIND_IMAGE",
+    "KIND_REPORT",
     "KIND_TASK",
     "KIND_TEXT",
     "RESPONSE_JSON",
@@ -301,6 +305,7 @@ __all__ = [
     "NOTIFY_MATTERS",
     "NOTIFY_NEVER",
     "NOTIFY_POLICIES",
+    "NOTIFY_WHEN",
     "RUN_FAILED",
     "RUN_MISSED",
     "RUN_UNCHANGED",
@@ -337,6 +342,8 @@ __all__ = [
     "MODEL_EMBEDDING",
     "MODEL_KINDS",
     "Model",
+    "Report",
+    "IMPORTANCES",
     "guess_kind",
     "Session",
     "Setting",

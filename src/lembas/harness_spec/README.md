@@ -22,13 +22,16 @@ page *Harness-parity* in LLeMbas CLI's wiki.
 | `permission/defaults.json` | The rules every session starts from |
 | `permission/modes.json` | The four modes — manual, edit, auto, plan — as what each does with each risk class |
 | `models/schema.json` | Model metadata: context, output limit, efforts and the thinking switch, vision, tools, notes, capacity (`parallel`); `levels` — the effort levels a chat offers and what each sends |
-| `loop.json` | How one prompt runs: the step backstop, budgets, wrap-up, nudges, parallel calls, capacity; `jobs` — background work, its marks and limits; `subagents` — the model refusals, what names a model, the setting's label; `team` — a team's size, names, marks, refusals and texts; `progress` — the phases' texts; `context` — result ids, stubs, the output cap, the compaction table, the environment lines, the session notes; `scheduled` (3.5.0) — scheduled work on a linked computer: the setting, the modes, the approval wait, the sentinel, the watch command's limits and the refusals; `phone` (3.6.0) — phone actions: the capability, each action's fields, what is required and checked, the wait and the texts; `display` (3.7.0) — a call's title keys, states and facts, the blocks, the cards' actions |
+| `loop.json` | How one prompt runs: the step backstop, budgets, wrap-up, nudges, parallel calls, capacity; `jobs` — background work, its marks and limits; `subagents` — the model refusals, what names a model, the setting's label; `team` — a team's size, names, marks, refusals and texts; `progress` — the phases' texts; `context` — result ids, stubs, the output cap, the compaction table, the environment lines, the session notes; `scheduled` (3.5.0) — scheduled work on a linked computer: the setting, the modes, the approval wait, the sentinel, the watch command's limits and the refusals; `phone` (3.6.0) — phone actions: the capability, each action's fields, what is required and checked, the wait and the texts; `display` (3.7.0) — a call's title keys, states and facts, the blocks, the cards' actions; `scheduled.notify` (3.8.0) — notify-when and its texts; `pages` (3.8.0) — the fence word, the frame's variables, the note and the projection |
 | `filesystem.md` | The file system a session works in: paths, node kinds, the four access levels, errors, listings, search and indexing by tokens, stacked instruction files, skills, memory |
 | `context.md` | Context hygiene: what happens to a tool result when it is inserted, and never afterwards; the prefix that stays still; reasoning sent back during its turn; no absolute paths in the prompt |
 | `team.md` | Teams: a lead and the members it adds, the size setting, the room, who receives what, reports, a manager's refusals, capacity, stopping |
 | `subagents.md` | Subagents: the word, which model one runs on (the session's, or one the person named), the capacity refusals, and when the Subagents setting is offered; from 3.4.0 (§5–§13) the main agent and its tree — only it adds, permissions inherited and never widened, request options, a subagent's life and its findings, what clients show |
 | `phone.md` | Phone actions (3.6.0): `phone_action`, carried out by the LLeMbas app on the person's phone and confirmed there — who offers it, how a call is checked, the answer, navigation |
 | `progress.md` | Progress (3.4.0): the thirteen phases every client shows the same way, the data each carries, their texts, and where they are sent |
+| `reports.md` | Reports (3.8.0): a schedule's run files a report with `report_write`, or leaves a history line; notify-when (`always`, `when`, `never`) and the instruction for each; what a run leaves; the retired `[SILENT]`; a run on a linked computer |
+| `pages.md` | HTML pages in answers (3.8.0, experimental): the `html-view` fence, what the model is told, the note and the text projection for a reader that cannot show a page, when pages are offered, the session note, the frame |
+| `permission/rules.md` | Which permission rule decides (3.8.0): the layers, the candidate, the floors a later-made rule gives way to, and what making a rule does |
 | `display.md` | Display (3.7.0): one display in every client — a tool call's title, its four states, the duration and the facts beside it, the kinds of block; how `stopped` and `failed` stay on a finished reply; what the approval, question and plan cards offer; numbers in the client's locale |
 | `quirks.json` | What real servers do, and how both harnesses cope |
 | `conformance/<area>.json` | Cases with their expected results, run by both test suites |
@@ -55,7 +58,8 @@ page *Harness-parity* in LLeMbas CLI's wiki.
   plan mode; `team` (3.2.0): the session's team setting allows more than one agent, and a model could
   serve as a subagent (3.3.0: `subagents.md` §4; before, the chat's model serving two requests at
   once); `phone` (3.6.0): a message in the chat came from an app on the person's phone that
-  carries out phone actions (`phone.md` §1). A requirement that goes away between the offer and the call makes the call answer the
+  carries out phone actions (`phone.md` §1). `scheduled` (3.8.0): the session was opened by a schedule for its
+  run, and the turn is that run (`reports.md` §2). A requirement that goes away between the offer and the call makes the call answer the
   tool's `unavailable` text, word for word, as its result. **From 3.1.0 a requirement that can come
   and go during a session does not take the tool out of the list** (`context.md` §10, rule 4): the
   tool is offered from the start and answers `unavailable` while the requirement is not met.
@@ -73,6 +77,42 @@ page *Harness-parity* in LLeMbas CLI's wiki.
   (`context.md` §10). All three are offered in every mode; `plan_submit` (`requires: plan`) is the
   approval in plan mode and answers its `unavailable` text outside it. Their permission key is
   `plan` (`permission/defaults.json`), which a rule written for the former `todo` key still reaches.
+
+## 3.8.0
+
+Written ahead of the implementations; the CLI carries it in the same round.
+
+- **Reports** (`reports.md`, `tools/report_write.json`, `loop.json` `scheduled.notify`). A
+  schedule's run no longer answers into a conversation: the model files a report with
+  **`report_write`** (title, body, summary, importance) or the run leaves one line in the
+  schedule's history. New requirement **`scheduled`**: the tool is offered only in a session a
+  schedule opened for its run, and is unavailable in a turn of it that is not the run. **Notify
+  when** is `always` (a report every run), `when` (only if the person's condition holds; the
+  default) or `never` (the tool is not offered); the instruction for each is a spec text the
+  server puts into the run's prompt. A run files at most one report — a second call replaces the
+  first; under `always` an answer without a report is filed as one. **`[SILENT]` is retired**:
+  told to no model, and a reply that still carries it leaves no report. A run on a linked
+  computer carries its report **in the turn's answer** (`acp.md`, capability `reports`,
+  `scheduled.notify` in the request, `scheduled.report` in the answer) — no new method.
+  Conformance area **`reports`**.
+- **HTML pages in answers** (`pages.md`, `prompts/blocks/html-pages.md`, `loop.json` `pages`,
+  `models/schema.json` `html_pages`) — experimental, off unless switched on. The reply stays
+  Markdown; the model may add a complete, self-contained page in a fence whose info string is
+  `html-view` and a title. Offered only when the instance's switch, the model's flag and the
+  chat's switch are all on (a scheduled run: instance and model); never to a subagent, the phone
+  assistant or an agent chat. A reader that cannot show a page sees *This answer has a page:
+  title*; anything that reads a reply as text sees `[page: title]`. A switch changed mid-chat is
+  a session note (`context.note.pages_on`, `pages_off`). **`blocks/prototypes.md`, the context
+  field `prototypes` and the capability of that name are gone** (the CLI alone had kept them);
+  the conformance area `prototype` is replaced by **`pages`**.
+- **Which permission rule decides** (`permission/rules.md`): the last matching rule is the
+  candidate, and a candidate made after the written ones — a project's, an "always" answer, one
+  set in a menu — gives way to a narrower stricter written rule, to the person's own config, and
+  (an "always" answer) to a written deny. So `read: allow` leaves `read *.env: ask` asking,
+  whether a menu wrote it or a person typed it. Making a rule: the action already in force is a
+  no-op; a rule the person's own config or a written deny takes in whole is refused; the stricter
+  rules that still apply are named. Conformance area **`rules`**. `permission/defaults.json`
+  allows `report_write`.
 
 ## 3.7.0
 

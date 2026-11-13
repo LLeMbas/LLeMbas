@@ -16,8 +16,8 @@ the notification). In order:
    model, effort, team size, tools -- go onto that chat, so the reply is an
    ordinary one and `generation` needs to know nothing about schedules.
 3. **The turn**: what the schedule asks, framed as a scheduled event in words
-   (the role stays `user`), with the time, how late it is, and -- for `matters`
-   -- that it may answer `[SILENT]`.
+   (the role stays `user`), with the time, how late it is, and when it is
+   to file a report (`services/reports.py`, harness spec 3.8.0).
 4. **Following** the reply until it is done, or until nothing has streamed for
    `INACTIVITY_SECONDS` (idle time, not wall clock: a long run that is working
    is never cut off).
@@ -54,7 +54,6 @@ from lembas.db.models import (
     RUN_MISSED,
     RUN_OK,
     RUN_RUNNING,
-    RUN_SILENT,
     RUN_SKIPPED,
     RUN_UNCHANGED,
     RUN_WAITING,
@@ -72,6 +71,8 @@ from lembas.db.models import (
     User,
 )
 from lembas.db.session import session_scope
+from lembas.services import html_pages
+from lembas.services import reports as reports_service
 from lembas.services import wake as wake_service
 from lembas.services.schedule import clock, device, monitor, notify, runs
 from lembas.services.schedule import models as models_service
@@ -161,9 +162,16 @@ def _preamble(
         ]
     if watched:
         lines += ["", watched]
-    if notify.policy(schedule.notify, schedule.rule_json or {}) == "matters":
-        lines += ["", notify.HINT]
     lines += ["", schedule.instruction or schedule.request or ""]
+    # When a report is wanted, in the spec's words (harness spec 3.8.0,
+    # reports.md §3) -- after the schedule's instruction and the run's time,
+    # in this turn and not in the system prompt, which stays the same bytes.
+    # `[SILENT]` is no longer told to any model.
+    reporting = reports_service.instruction(
+        notify.policy(schedule.notify, schedule.rule_json or {}), schedule.notify_when
+    )
+    if reporting:
+        lines += ["", reporting]
     return "\n".join(lines)
 
 
@@ -240,6 +248,9 @@ def _device_chat(db, schedule: Schedule, owner: User, home: Chat | None) -> Chat
         agent_mode=where.mode,
         # Its title is the schedule's and the run's time, not a model's guess.
         title_generated=True,
+        # The schedule's, not one of the person's agent chats: out of the
+        # Agents list, the unread dots, search and the "reply is ready" push.
+        scheduled=True,
     )
     db.add(chat)
     db.flush()
@@ -586,7 +597,12 @@ def _prepare(db, schedule, owner, run, choice, model, *, now: datetime):
     previous_text = ""
     if schedule.mode != MODE_CONTINUE:
         previous = runs.previous_result(db, schedule, before=run)
-        if previous is not None and previous.message_id:
+        if previous is not None and previous.report_id:
+            from lembas.db.models import Report
+
+            left = db.get(Report, previous.report_id)
+            previous_text = html_pages.project(left.body) if left is not None else ""
+        if previous is not None and not previous_text and previous.message_id:
             said = db.get(Message, previous.message_id)
             previous_text = notify.strip_sentinel(said.content) if said is not None else ""
     content = _preamble(
@@ -828,19 +844,14 @@ async def settle(run_id: str, generation, *, timed_out: bool = False, chat_id: s
                 failure = (ERROR_MODEL, message.error or "The reply did not finish.")
         else:
             text = message.content or ""
-            silent = notify.is_silent(text)
             run.preview = notify.preview(text)
-            _finish(run, RUN_SILENT if silent else RUN_OK)
+            # Never `silent` under spec 3.8.0: a run is ok, with a report or
+            # without one.
+            _finish(run, RUN_OK)
             schedule.failure_streak = 0
             schedule.last_error = ""
-            if schedule.target == TARGET_REPORT and not silent:
-                run.report_path = file_report(
-                    db, owner, schedule.title or "Scheduled run",
-                    notify.strip_sentinel(text),
-                    when=clock.as_utc(run.started_at or now),
-                )
-            policy = notify.policy(schedule.notify, schedule.rule_json or {})
-            notify_result = notify.should_notify(policy, run.status)
+            report = _leave(db, schedule, owner, run, text, said=said, now=now)
+            notify_result = report is not None
             db.commit()
 
         if failure is not None:
@@ -848,17 +859,70 @@ async def settle(run_id: str, generation, *, timed_out: bool = False, chat_id: s
             _finish(run, RUN_FAILED, error_class=error_class, error=text)
             schedule.failure_streak = int(schedule.failure_streak or 0) + 1
             schedule.last_error = text[:500]
-            if schedule.target == TARGET_REPORT:
-                run.report_path = file_report(
-                    db, owner, schedule.title or "Scheduled run",
-                    "The run did not produce a reply.", when=clock.as_utc(run.started_at or now),
-                )
+            # A report already written is kept: what the model found is not
+            # thrown away with the error. It is told like any report.
+            notify_result = bool(run.report_id)
             db.commit()
 
     if notify_result:
-        await _announce(run_id, failed=False)
-    elif failure is not None:
+        await _announce_report(run_id)
+    if failure is not None:
         await _announce_failure(run_id)
+
+
+def _leave(db, schedule, owner, run, answer: str, *, said: dict, now: datetime):
+    """What a finished run leaves (harness spec 3.8.0, reports.md §4): its
+    report -- the one `report_write` filed, a device's with its answer, or
+    under `always` the final answer itself -- or none, and its line in the
+    schedule's history. Returns the report or None; the caller commits."""
+    from lembas.db.models import Report
+
+    policy = notify.policy(schedule.notify, schedule.rule_json or {})
+    calls: list[dict] = []
+    filed = db.get(Report, run.report_id) if run.report_id else None
+    if filed is not None:
+        calls = [{"title": filed.title, "body": filed.body, "summary": filed.summary,
+                  "importance": filed.importance}]
+    elif isinstance(said.get("report"), dict) and policy != reports_service.NEVER:
+        # A run on a linked computer: the report travels with its answer.
+        calls = [dict(said["report"])]
+    report, run.note = reports_service.outcome(
+        notify=policy, title=schedule.title or "", calls=calls, answer=answer
+    )
+    if report is None:
+        return None
+    if filed is None:
+        filed = reports_service.file(
+            db, owner_id=owner.id, report=report, schedule=schedule, run=run,
+            model_id=run.model_id or "",
+        )
+    # "Also save as a file": what the `report` target was before 3.8.0.
+    if schedule.save_file or schedule.target == TARGET_REPORT:
+        run.report_path = file_report(
+            db, owner, filed.title or schedule.title or "Scheduled run", filed.body,
+            when=clock.as_utc(run.started_at or now),
+        )
+    return filed
+
+
+async def _announce_report(run_id: str) -> None:
+    """One notification for the run's report -- its title and summary -- and
+    none for a run without one."""
+    from lembas.db.models import Report
+
+    try:
+        with session_scope() as db:
+            run = db.get(ScheduleRun, run_id)
+            owner = db.get(User, run.user_id) if run else None
+            report = db.get(Report, run.report_id) if run and run.report_id else None
+            if run is None or owner is None or report is None or report.notified:
+                return
+            told = await notify.announce_report(db, owner, report=report, run=run)
+            report.notified = True
+            run.notified = told
+            db.commit()
+    except Exception:  # a push service having a bad hour is not the run's failure
+        log.exception("could not announce the report of schedule run %s", run_id)
 
 
 # --- Telling somebody ---------------------------------------------------------------------

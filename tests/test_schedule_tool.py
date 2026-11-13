@@ -236,9 +236,10 @@ async def test_pausing_and_resuming(db, registered):
     assert schedule.enabled
 
 
-async def test_cancelling_removes_the_schedule_and_keeps_the_transcript(db, registered):
-    """Removing a timer must not delete a conversation as a side effect, which
-    is `delete`'s own default and the reason this passes `keep_chat`."""
+async def test_cancelling_removes_the_schedule_and_its_run_chat(db, registered):
+    """A schedule's own task chat is its scratch space and goes with it (it
+    used to be kept and turned into an ordinary chat, which filled the list of
+    chats with the leftovers of deleted schedules)."""
     await _run(
         db, "schedule_create", {"instruction": "x", "schedule": {"at": {"times": ["09:00"]}}}
     )
@@ -248,9 +249,8 @@ async def test_cancelling_removes_the_schedule_and_keeps_the_transcript(db, regi
     await _run(db, "schedule_cancel", {"id": schedule.id})
 
     assert db.scalars(select(Schedule)).all() == []
-    kept = db.get(Chat, chat_id)
-    assert kept is not None
-    assert kept.kind != KIND_TASK  # reachable again, rather than in no list at all
+    db.expunge_all()
+    assert db.get(Chat, chat_id) is None
 
 
 async def test_somebody_elses_schedule_is_invisible(db, registered):
@@ -421,7 +421,7 @@ async def test_the_list_says_the_next_runs_and_the_last_run(db, registered):
     outcome = await _run(db, "schedule_list", {})
     assert "next:" in outcome.content
     assert "last run silent" in outcome.content
-    assert "notify matters" in outcome.content
+    assert "notify when" in outcome.content
 
 
 async def test_update_changes_notify(db, registered):

@@ -814,7 +814,6 @@ MESSAGES: dict[str, str] = {
     "Stop after": "Leállás ennyi után",
     "What should happen": "Mi történjen",
     "What this appears as in the list.": "Ahogyan a listában megjelenik.",
-    "Where the result goes": "Hová kerül az eredmény",
     "Written for a model that will read it with no conversation around it, so say the whole thing. Nobody will be there to answer a question about it.": "Olyan modellnek szól, amely mindenféle beszélgetés nélkül olvassa, ezért írjon le mindent. Senki sem lesz ott, hogy kérdésekre válaszoljon.",
     "Run it now without using up the next scheduled run": "Futtatás most, a következő ütemezett futtatás felhasználása nélkül",
     "This chat belonged to a schedule that has been removed. It is kept as a record of what was done.": "Ez a csevegés egy azóta eltávolított ütemezéshez tartozott. Annak nyilvántartásaként őrizzük meg, ami történt.",
@@ -1501,7 +1500,6 @@ MESSAGES.update(
         "Data group created.": "Adatcsoport létrehozva.",
         "Personalization is off here.": "A személyre szabás itt ki van kapcsolva.",
         "Personalization saved.": "Személyre szabás mentve.",
-        "Its own chat": "Saját csevegése",
         "There is no model configured to work this out, so fill it in yourself.": "Nincs beállítva modell, amely ezt értelmezné, ezért töltse ki saját maga.",
         "That schedule is not available.": "Ez az ütemezés nem érhető el.",
         "The shell exited.": "A shell kilépett.",
@@ -2322,7 +2320,6 @@ MESSAGES['Short facts, shown to every model you talk to on every turn — so the
 MESSAGES['The LLeMbas CLI on your machines, signed in as you. Each uses your models, your memory and your usage, and an agent chat here runs on one of them — under its own limits — while it is linked.'] = 'A gépein futó, az Ön nevében bejelentkezett LLeMbas CLI. Mindegyik az Ön modelljeit, memóriáját és keretét használja, és egy itteni ügynök-csevegés valamelyikükön fut – annak saját korlátai között –, amíg össze van kapcsolva.'
 MESSAGES["A model reads only the memories of the data group its connection is in, and a chat stays in the group it was started in. Two providers in different groups never see each other's."] = 'A modell csak annak az adatcsoportnak a memóriáit olvassa, amelyben a kapcsolata van, és a csevegés abban a csoportban marad, amelyben elindították. Két, különböző csoportban lévő szolgáltató soha nem látja egymás adatait.'
 MESSAGES['Both of the above, and your schedules. Kept: your account, password, settings, groups, usage, and your files, which you delete from the file tree.'] = 'A fenti kettő, valamint ütemezései. Megmarad: a fiókja, jelszava, beállításai, csoportjai, felhasználása és a fájljai, amelyeket a fájlfában törölhet.'
-MESSAGES['A file in your reports folder'] = 'Egy fájl a jelentések mappájában'
 MESSAGES['Read and write your memory'] = 'A memória olvasása és írása'
 MESSAGES['Keep memories and skills of their own.'] = 'Saját memóriák és készségek tartása.'
 MESSAGES['Keep memories and skills of your own.'] = 'Saját memóriák és készségek tartása.'
@@ -2472,9 +2469,6 @@ MESSAGES['Show the next runs'] = 'A következő futtatások megjelenítése'
 MESSAGES['How it runs'] = 'Hogyan fut'
 MESSAGES['The first free one of your scheduling models'] = 'Az ütemezési modelljei közül az első szabad'
 MESSAGES['Tried first. When it is busy answering someone, the next free model runs it instead.'] = 'Először ezzel próbálkozik. Ha éppen valakinek válaszol, a következő szabad modell futtatja helyette.'
-MESSAGES['Tell me'] = 'Értesítés'
-MESSAGES['As usual for this kind of schedule'] = 'Az ilyen ütemezésnél szokásos módon'
-MESSAGES['When it matters: a run with nothing new says so and does not notify you.'] = 'Ha számít: az újdonság nélküli futtatás ezt jelzi, és nem értesíti Önt.'
 MESSAGES['Each run'] = 'Minden futtatás'
 MESSAGES['A fresh chat is told what the previous run found.'] = 'Az új csevegés megtudja, mit talált az előző futtatás.'
 MESSAGES["The model's own"] = 'A modell sajátja'
@@ -2495,12 +2489,10 @@ MESSAGES['It has not run yet.'] = 'Még nem futott.'
 MESSAGES['missed ×%(n)s'] = 'elmaradt ×%(n)s'
 MESSAGES['%(name)s was busy'] = '%(name)s foglalt volt'
 MESSAGES['tries again at %(when)s'] = 'újra próbálja: %(when)s'
-MESSAGES['Open the result'] = 'Eredmény megnyitása'
 MESSAGES['Open the report'] = 'Jelentés megnyitása'
 MESSAGES['Older runs'] = 'Régebbi futtatások'
 MESSAGES['%H:%M'] = '%H:%M'
 MESSAGES['A run takes its own model when it is free, else the first free one of these, in this order. Untick the ones your runs should not use.'] = 'Egy futtatás a saját modelljét használja, ha szabad, különben ezek közül az első szabadot, ebben a sorrendben. Vegye ki a jelölést azokról, amelyeket a futtatásai ne használjanak.'
-MESSAGES['When it matters'] = 'Ha számít'
 MESSAGES['Every run'] = 'Minden futtatásnál'
 MESSAGES['A fresh chat each time'] = 'Minden alkalommal új csevegés'
 MESSAGES['One chat that keeps growing'] = 'Egy folyamatosan bővülő csevegés'
@@ -2725,5 +2717,30 @@ MESSAGES.update(
         'Always allow': 'Mindig engedélyezve',
         'Deny, and say why': 'Elutasítás indoklással',
         'Details': 'Részletek',
+        'Back to the report': 'Vissza a jelentéshez',
+        'Reports': 'Jelentések',
+        'All schedules': 'Minden ütemezés',
+        'Unread only': 'Csak olvasatlanok',
+        'No reports match.': 'Nincs egyező jelentés.',
+        'No reports yet. A scheduled task files one when it has something to tell you.': 'Még nincs jelentés. Egy ütemezett feladat akkor készít egyet, ha van mit közölnie.',
+        'Unread': 'Olvasatlan',
+        'Important': 'Fontos',
+        'Continue this report as a conversation. It stays under Reports.': 'Folytassa ezt a jelentést beszélgetésként. A Jelentések között marad.',
+        'Reply': 'Válasz',
+        'Delete this report? The conversation that continued it goes with it.': 'Törli ezt a jelentést? A belőle folytatott beszélgetés is törlődik.',
+        'Open the conversation': 'Beszélgetés megnyitása',
+        'Also save each report as a file': 'Minden jelentés mentése fájlként is',
+        'In your reports folder, as Markdown, beside the report under Reports.': 'A jelentések mappájába, Markdown formátumban, a Jelentések alatti jelentés mellett.',
+        'Notify when': 'Értesítés, amikor',
+        'A report every time, also when nothing was found.': 'Minden alkalommal jelentés, akkor is, ha semmi sem volt.',
+        'When…': 'Amikor…',
+        'A report only when this holds; otherwise the run leaves one line in the history.': 'Jelentés csak akkor, ha ez teljesül; különben a futás egy sort hagy az előzményekben.',
+        'When to write a report': 'Mikor készüljön jelentés',
+        'No report and no notification: each run is only a line in the history.': 'Nincs jelentés és nincs értesítés: minden futás csak egy sor az előzményekben.',
+        'Also saved as a file in your reports folder': 'Fájlként is mentve a jelentések mappájába',
+        'Open the run': 'Futás megnyitása',
+        'Open the file': 'Fájl megnyitása',
+        'That report no longer exists.': 'Ez a jelentés már nem létezik.',
+        'New report': 'Új jelentés',
     }
 )

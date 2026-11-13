@@ -132,6 +132,7 @@ def _search_chats(db: DBSession, user: User, needle: str, limit: int) -> list[di
                 Chat.user_id == user.id,
                 Chat.temporary.is_(False),
                 Chat.kind.in_(KINDS),
+                Chat.scheduled.is_(False),
                 or_(Chat.title.ilike(pattern, escape="\\"), Chat.id.in_(said)),
             )
             .order_by(Chat.updated_at.desc())
@@ -228,6 +229,10 @@ async def _search_chats_by_meaning(
             continue
         chat = db.get(Chat, hit.node_id)
         if chat is None or chat.user_id != user.id or chat.temporary:
+            continue
+        # A schedule's runs and a report's conversation are not "past chats":
+        # they are found through Scheduled and Reports.
+        if chat.kind not in KINDS or chat.scheduled:
             continue
         seen.add(chat.id)
         out.append(

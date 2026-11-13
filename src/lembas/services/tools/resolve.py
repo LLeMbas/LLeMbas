@@ -391,18 +391,26 @@ def resolve_tools(
         tuple(
             tool
             for tool in book.values()
-            if _family_allowed(
-                tool.family,
-                config=config,
-                capabilities=capabilities,
-                allowed=allowed,
-                images=images_ready,
-                schedules=schedules_on,
-                subagents=subagents_on,
+            # `report_write` is outside the gates: it is in the list of a
+            # schedule's run and nowhere else (`_offered_in`), whatever is
+            # switched on or off -- a run that is told to report must be able to.
+            if (
+                tool.name == "report_write"
+                or (
+                    _family_allowed(
+                        tool.family,
+                        config=config,
+                        capabilities=capabilities,
+                        allowed=allowed,
+                        images=images_ready,
+                        schedules=schedules_on,
+                        subagents=subagents_on,
+                    )
+                    and gate_of(tool.family) not in off
+                    and not (writes_off and tool.risk == RISK_WRITE)
+                    and may_write(tool)
+                )
             )
-            and gate_of(tool.family) not in off
-            and not (writes_off and tool.risk == RISK_WRITE)
-            and may_write(tool)
             # No longer withdrawn with an empty library: a first skill can be
             # written during the session (by the model's skill_manage, or in
             # another tab), and a list that changes with it is a re-read of
@@ -434,6 +442,12 @@ def _offered_in(tool: ToolDef, chat: Chat, db: DBSession | None = None) -> bool:
     chat's session. One that comes and goes during it (a page attached) never
     takes a tool out (spec 3.1.0, context.md §10 rule 4): the tool is offered
     from the start and answers its `unavailable` text while it is not met."""
+    if tool.name == "report_write":
+        # `requires: scheduled` (spec 3.8.0, reports.md §2): a session a
+        # schedule opened for its run, whose notify-when is not `never`.
+        from lembas.services.tools import report as report_tool
+
+        return db is not None and report_tool.session_schedule(db, chat) is not None
     if tool.name == "phone_action":
         # `requires: phone` (spec 3.6.0, phone.md §1): a message came from the
         # person's phone app, once -- kept from then on. Whether the message

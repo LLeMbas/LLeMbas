@@ -1,11 +1,14 @@
 """When a scheduled run is worth telling somebody about, and how.
 
-**Three policies, per schedule.** `always`: every run that produced something.
-`matters` (the default for a repeating schedule): every run except one that
-answered `[SILENT]` -- the run is told it may (`HINT`), which is what lets "check
-the build every hour" stay quiet for the twenty-three hours nothing broke.
-`never`: the history only. A one-shot reminder defaults to `always`: being told
-is the point of it.
+**A notification comes from a report** (harness spec 3.8.0, `reports.md`). A
+schedule's notify-when is `always` (every run files a report), `when` (the
+default: only when its condition holds; otherwise the run leaves one line in
+the history) or `never` (no report, the history only). A run that left a
+report is told once, with the report's title and summary
+(`report_notification`); a run that left none sends nothing. `[SILENT]`, what
+a quiet run answered before 3.8.0, is no longer told to any model -- it is
+still recognised (`is_silent`), so a model that says it out of habit leaves no
+report by accident.
 
 **Failures are told apart, and not too often.** The first failure of a kind is
 told at once; the same failure (`signature`: the error's class and its words
@@ -40,27 +43,14 @@ from datetime import UTC, datetime, timedelta
 from lembas.db.models import (
     NOTIFY_ALWAYS,
     NOTIFY_MATTERS,
-    NOTIFY_NEVER,
     NOTIFY_POLICIES,
-    RUN_OK,
-    RUN_SILENT,
+    NOTIFY_WHEN,
 )
 from lembas.web.i18n import N_
 
-# The literal a run answers when there is nothing worth telling. ASCII and
-# never translated: it is a control word, not a sentence.
+# The literal a run answered, before 3.8.0, when there was nothing worth
+# telling. Retired, and still recognised. ASCII and never translated.
 SILENT = "[SILENT]"
-
-# What the run is told, when its schedule notifies only when it matters. In
-# the turn's own words, after the instruction: it is a property of this run,
-# and the chat's system prompt stays the same bytes (spec 3.1.0).
-HINT = (
-    "If there is genuinely nothing new worth telling the person this time, answer "
-    f"with {SILENT} on a line by itself and nothing else; they are then not "
-    f"notified. {SILENT} is a literal control word: never translate or rephrase it, "
-    "and never combine it with a report. When there is something to say, say it "
-    "normally."
-)
 
 # Said to every run: it is one run of a schedule that already exists.
 NO_RECURSION = (
@@ -77,14 +67,22 @@ KIND_FAILED = "schedule_failed"
 
 
 def default_policy(rule: dict) -> str:
-    """`always` for a one-shot, `matters` for anything that repeats."""
+    """`always` for a one-shot -- somebody who asked to be reminded once wants
+    to hear -- and `when` (the spec's default) for anything that repeats."""
     rule = rule or {}
     repeats = bool(rule.get("every") or rule.get("at"))
-    return NOTIFY_MATTERS if repeats else NOTIFY_ALWAYS
+    return NOTIFY_WHEN if repeats else NOTIFY_ALWAYS
 
 
 def policy(value: str | None, rule: dict) -> str:
-    return value if value in NOTIFY_POLICIES else default_policy(rule)
+    """A schedule's notify-when as one of `always`, `when`, `never` (harness
+    spec 3.8.0). `matters`, what `when` was called before, is read as it."""
+    if value == NOTIFY_MATTERS:
+        return NOTIFY_WHEN
+    # One that says nothing, or something unknown, is `when` -- the spec's
+    # default -- never `always`. (`default_policy` is what a *new* schedule
+    # is given, and that is stored.)
+    return value if value in NOTIFY_POLICIES else NOTIFY_WHEN
 
 
 def _lines(text: str) -> list[str]:
@@ -119,15 +117,6 @@ def preview(text: str, limit: int = 280) -> str:
     escaped wherever it is shown."""
     folded = " ".join(strip_sentinel(text).split())
     return folded if len(folded) <= limit else folded[: limit - 1].rstrip() + "…"
-
-
-def should_notify(value: str, status: str) -> bool:
-    """Whether a finished run's result is told, by its schedule's policy."""
-    if value == NOTIFY_NEVER:
-        return False
-    if value == NOTIFY_ALWAYS:
-        return status in (RUN_OK, RUN_SILENT)
-    return status == RUN_OK
 
 
 _NUMBERS = re.compile(r"\d+")
@@ -261,6 +250,65 @@ def link(schedule, run) -> str:
     return f"/scheduled/{schedule.id}?run={run.id}"
 
 
+KIND_REPORT = "report"
+
+
+def report_notification(report, *, translate) -> dict:
+    """A report's notification (harness spec 3.8.0, reports.md §4): its title
+    and its summary -- or the first lines of its body -- for a screen that is
+    unlocked, and a public version that says only that there is a new report:
+    nothing of the account's on a lock screen."""
+    from lembas.services import html_pages
+
+    title = " ".join((report.title or "").split())[:TITLE_MAX] or translate(N_("Report"))
+    body = report.summary or html_pages.project(report.body or "")
+    return {
+        "title": title,
+        "body": preview(body, BODY_MAX),
+        "public": {"title": translate(N_("New report")), "body": ""},
+        "actions": ["open"],
+        "labels": {"open": translate(N_("Open"))},
+        "ask": "",
+        "importance": report.importance,
+    }
+
+
+def report_push_parts(report, *, translate) -> tuple[str, dict]:
+    """The fixed sentence and the `extra` a report's push carries. The
+    sentence says only that there is a report; the report's own words ride in
+    `notification`, inside the encrypted payload, for the person's own apps."""
+    told = report_notification(report, translate=translate)
+    return translate(N_("New report")), {
+        "report_id": report.id,
+        "schedule_id": report.schedule_id,
+        "run_id": report.run_id,
+        "visibility": "private",
+        "actions": ["open"],
+        "notification": told,
+    }
+
+
+def report_link(report) -> str:
+    return f"/reports/{report.id}"
+
+
+async def announce_report(db, owner, *, report, run=None) -> bool:
+    """Tell every device the owner registered that a report was filed. True
+    when at least one took it."""
+    from lembas.services import push
+    from lembas.web import i18n
+
+    i18n.activate(i18n.for_user(owner))
+    body, extra = report_push_parts(report, translate=i18n.t)
+    if run is not None:
+        run.notification_json = extra["notification"]
+    delivered = await push.announce(
+        db, owner, title=i18n.t("Reports"), body=body, url=report_link(report),
+        kind=KIND_REPORT, extra=extra, plain_body=True,
+    )
+    return delivered > 0
+
+
 async def announce(
     db,
     owner,
@@ -295,13 +343,15 @@ async def announce(
 
 
 __all__ = [
-    "HINT",
     "KIND_FAILED",
     "KIND_RESULT",
     "NO_RECURSION",
     "SILENT",
+    "KIND_REPORT",
     "announce",
+    "announce_report",
     "default_policy",
+    "report_notification",
     "failure_decision",
     "is_silent",
     "notification",
@@ -309,7 +359,6 @@ __all__ = [
     "policy",
     "preview",
     "push_parts",
-    "should_notify",
     "signature",
     "strip_sentinel",
 ]

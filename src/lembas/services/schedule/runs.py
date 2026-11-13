@@ -221,13 +221,18 @@ def latest_by_schedule(db: DBSession, schedule_ids: list[str]) -> dict[str, Sche
 
 
 def previous_result(db: DBSession, schedule: Schedule, *, before: ScheduleRun | None = None):
-    """The last run that said something (`ok`), for a fresh run's context."""
+    """The last run that found something, for a fresh run's context: the
+    newest one that left a report, or -- for a schedule that has none, as
+    under `never` -- the newest that finished. A run that only left its line
+    in the history ("nothing new") is not what the last one *found*."""
     query = select(ScheduleRun).where(
         ScheduleRun.schedule_id == schedule.id, ScheduleRun.status == RUN_OK
     )
     if before is not None:
         query = query.where(ScheduleRun.id != before.id)
-    return db.scalars(query.order_by(ScheduleRun.created_at.desc()).limit(1)).first()
+    query = query.order_by(ScheduleRun.created_at.desc())
+    with_report = db.scalars(query.where(ScheduleRun.report_id != "").limit(1)).first()
+    return with_report or db.scalars(query.limit(1)).first()
 
 
 def schedule_for_chat(db: DBSession, chat: Chat) -> Schedule | None:
@@ -266,7 +271,10 @@ def sweep(db: DBSession, *, now: datetime | None = None) -> int:
     chats = [
         c
         for c in (db.get(Chat, cid) for cid in chat_ids)
-        if c is not None and c.kind == KIND_TASK
+        # Run chats only: a task chat, or a run's agent chat on a linked
+        # computer. Never a report (another table) or the conversation one
+        # continued in (another kind).
+        if c is not None and (c.kind == KIND_TASK or getattr(c, "scheduled", False))
     ]
     if chats:
         chat_service.delete_chats(db, chats)
@@ -350,6 +358,11 @@ def run_dict(row: ScheduleRun) -> dict[str, Any]:
         "chat_id": row.chat_id or None,
         "message_id": row.message_id or None,
         "report_path": row.report_path or None,
+        # Harness spec 3.8.0 (reports.md §4): the report this run filed (its
+        # id; `GET /reports/{id}`) or null, and the run's one line in the
+        # schedule's history.
+        "report": row.report_id or None,
+        "note": row.note or "",
         "preview": row.preview or "",
         "error": {"class": row.error_class, "text": row.error} if row.error_class else None,
         "notified": bool(row.notified),
@@ -411,6 +424,7 @@ def schedule_dict(
         if schedule.enabled and schedule.next_fire_at
         else []
     )
+    from lembas.services import reports as reports_service
     from lembas.services.schedule import notify
 
     return {
@@ -426,7 +440,14 @@ def schedule_dict(
         "next_runs": [_iso(m) for m in nexts],
         "target": schedule.target,
         "mode": schedule.mode,
+        # Notify when (harness spec 3.8.0): `always`, `when` or `never`;
+        # `notify_when` is `when`'s condition in the person's words ("" = the
+        # default, which `notify_default` says); `save_file`: each report is
+        # also saved as a file in the person's reports folder.
         "notify": notify.policy(schedule.notify, schedule.rule_json or {}),
+        "notify_when": schedule.notify_when or "",
+        "notify_default": reports_service.spec()["default_condition"],
+        "save_file": bool(schedule.save_file or schedule.target == "report"),
         "catch_up": schedule.catch_up,
         "grace_minutes": schedule.grace_minutes,
         "model": schedule.model_id or None,

@@ -648,7 +648,7 @@ def _schedules() -> dict[str, object]:
         rule_json=rule.validate({"at": {"nth": [{"n": 2, "weekday": 0}], "times": ["07:30"]}}),
         target="chat", chat_id="chat1", model_id="qwen", enabled=True,
         next_fire_at=datetime(2026, 1, 12, 7, 30, tzinfo=UTC), fired_count=3,
-        last_error="", origin="user", mode="fresh", notify="matters", catch_up="one",
+        last_error="", origin="user", mode="fresh", notify="when", catch_up="one",
         grace_minutes=None, effort="high", agents=None, tools_json=[], failure_streak=0,
         created_at=WHEN,
     )
@@ -660,6 +660,19 @@ def _schedules() -> dict[str, object]:
         switched_from="Qwen", prompt_tokens=1200, completion_tokens=340, cost_micro=0,
         currency="", chat_id="chat1", message_id="msg2", report_path="",
         preview="All the waybread is wrapped.", error_class="", error="", notified=True,
+        report_id="rep1", note="Filed a report: two cakes are unwrapped.",
+    )
+    # Harness spec 3.8.0: what that run filed, as the list and the page give it.
+    from lembas.db.models import Report
+
+    report = Report(
+        id="rep1", owner_id="user1", title="Two cakes are unwrapped",
+        summary="Two of the twelve cakes have lost their leaves.",
+        body="## What\n\nTwo of the twelve cakes have lost their leaves.\n\n"
+             "```html-view Cakes\n<p>10 wrapped, 2 not</p>\n```\n",
+        importance="high", schedule_id="sched1", schedule_title="Waybread check",
+        run_id="run1", model_id="gpt-oss", unread=True, notified=True, chat_id="chat9",
+        created_at=WHEN,
     )
     waiting = ScheduleRun(
         id="run2", schedule_id="sched1", user_id="user1", status="waiting", timing="on_time",
@@ -677,9 +690,7 @@ def _schedules() -> dict[str, object]:
     def english(text: str) -> str:
         return text
 
-    told, told_extra = notify.push_parts(
-        schedule, run, failed=False, ask_pause=False, translate=english
-    )
+    told, told_extra = notify.report_push_parts(report, translate=english)
     run.notification_json = told_extra["notification"]
     failed = ScheduleRun(
         id="run3", schedule_id="sched1", user_id="user1", status="failed", timing="on_time",
@@ -691,8 +702,11 @@ def _schedules() -> dict[str, object]:
         schedule, failed, failed=True, ask_pause=True, translate=english
     )
     pushes = {
-        "push_schedule": push.build_payload(
-            "LLeMbas", body=told, url=notify.link(schedule, run), kind=notify.KIND_RESULT,
+        # A run that left a report is told by the report (kind `report`); a
+        # finished run without one sends nothing. `push_schedule`, the push
+        # of a finished run before 2.0.0-beta.12, is no longer sent.
+        "push_report": push.build_payload(
+            "LLeMbas", body=told, url=notify.report_link(report), kind=notify.KIND_REPORT,
             extra=told_extra,
         ),
         "push_schedule_failed": push.build_payload(
@@ -707,7 +721,7 @@ def _schedules() -> dict[str, object]:
         rule_json=rule.validate({"every": {"hours": 1}}),
         target="chat", chat_id=None, model_id="", enabled=True,
         next_fire_at=datetime(2026, 1, 2, 4, 4, 5, tzinfo=UTC), fired_count=7, last_error="",
-        origin="user", mode="fresh", notify="matters", catch_up="one", grace_minutes=None,
+        origin="user", mode="fresh", notify="when", catch_up="one", grace_minutes=None,
         effort="", agents=None, tools_json=[], failure_streak=0, created_at=WHEN,
         watch_kind="url", watch_target="https://shop.example/mallorn", watch_hash="a" * 64,
         watch_changed_at=WHEN,
@@ -727,7 +741,7 @@ def _schedules() -> dict[str, object]:
         request="every night at 02:00", rule_json=rule.validate({"every": {"hours": 24}}),
         target="chat", chat_id="chat2", model_id="", enabled=True,
         next_fire_at=datetime(2026, 1, 3, 2, 0, 0, tzinfo=UTC), fired_count=3, last_error="",
-        origin="user", mode="fresh", notify="matters", catch_up="one", grace_minutes=None,
+        origin="user", mode="fresh", notify="when", catch_up="one", grace_minutes=None,
         effort="", agents=None, tools_json=[], failure_streak=0, created_at=WHEN,
         watch_kind="command", watch_target="git log -1 --format=%H", watch_timeout=30,
         watch_hash="sha256:" + "b" * 64, watch_changed_at=WHEN,
@@ -776,6 +790,10 @@ def _schedules() -> dict[str, object]:
             "mine": ["gpt-oss"],
         },
         "event_schedules": {"version": version_of(listed), "schedules": listed},
+        "reports": {"reports": [serialise.report(report, "Waybread check")], "unread": 1},
+        "report": {"report": serialise.report(report, "Waybread check", whole=True)},
+        "report_reply": {"chat": "chat9"},
+        "event_reports": {"unread": 1, "newest": serialise.report(report, "Waybread check")},
         "schedule_watching": {
             "schedule": runs.schedule_dict(None, watching, owner=owner, last=unchanged)
         },

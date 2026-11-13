@@ -107,8 +107,8 @@ MAX_AGENTS = 8
 MAX_GRACE_MINUTES = 7 * 24 * 60
 # What `settings` accepts, and nothing else.
 SETTING_KEYS = (
-    "mode", "notify", "catch_up", "grace_minutes", "effort", "agents", "tools", "watch",
-    "runs_on",
+    "mode", "notify", "notify_when", "save_file", "catch_up", "grace_minutes", "effort",
+    "agents", "tools", "watch", "runs_on",
 )
 
 
@@ -133,7 +133,19 @@ def apply_settings(
         schedule.mode = value if value in MODES else MODE_FRESH
     if "notify" in settings:
         value = str(settings.get("notify") or "")
+        # `matters` is what `when` was called before harness spec 3.8.0: a
+        # client or a model that still says it means the same thing.
+        value = "when" if value == "matters" else value
         schedule.notify = value if value in NOTIFY_POLICIES else ""
+    if "notify_when" in settings:
+        # `when`'s condition, in the person's words: one line, bounded.
+        schedule.notify_when = " ".join(str(settings.get("notify_when") or "").split())[:500]
+    if "save_file" in settings:
+        schedule.save_file = bool(settings.get("save_file"))
+        # The `report` target was this switch before 3.8.0; a schedule that
+        # still has it and is told "no file" would go on saving one.
+        if not schedule.save_file and schedule.target == "report":
+            schedule.target = "chat"
     if "catch_up" in settings:
         value = str(settings.get("catch_up") or "")
         schedule.catch_up = value if value in CATCH_UPS else CATCH_UPS[0]
@@ -419,14 +431,20 @@ def set_enabled(db: DBSession, schedule: Schedule, *, owner: User, enabled: bool
     return schedule
 
 
-def delete(db: DBSession, schedule: Schedule, *, keep_chat: bool = True) -> None:
-    """Remove a schedule, and by default keep its transcript.
+def delete(db: DBSession, schedule: Schedule) -> None:
+    """Remove a schedule, and its runs' working chats with it.
 
-    Keeping is the default because deleting a conversation as a side effect of
-    removing a timer is exactly the destructive default this codebase avoids
-    elsewhere. The chat becomes an ordinary one so it is reachable again — a
-    `KIND_TASK` chat with no schedule behind it would be in no list at all.
-    """
+    A run's chat -- a task chat, or the agent chat of a run on a linked
+    computer -- is the schedule's scratch space and goes with it. It used to
+    be *kept* by default and turned into an ordinary chat "so it is reachable
+    again", which is how deleting one schedule put forty chats named after it
+    into the list of chats. What a schedule produced that is worth keeping is
+    its **reports**: they stay, each with the conversation a reply continued
+    in, and say which schedule they came from by the title they were filed
+    under.
+
+    A schedule that ran *in a chat of the person's own* (mode `continue` on an
+    ordinary chat) never owned that chat: it is left exactly as it is."""
     ids = {schedule.chat_id} if schedule.chat_id else set()
     ids |= {
         cid
@@ -435,17 +453,15 @@ def delete(db: DBSession, schedule: Schedule, *, keep_chat: bool = True) -> None
         )
         if cid
     }
-    chats = [
+    doomed = [
         c for c in (db.get(Chat, cid) for cid in ids)
         if c is not None and c.user_id == schedule.user_id
+        and (c.kind == KIND_TASK or getattr(c, "scheduled", False))
     ]
-    if keep_chat:
-        for chat in chats:
-            chat.kind = "chat"
-    elif chats:
+    if doomed:
         from lembas.services import chat as chat_service
 
-        chat_service.delete_chats(db, chats)
+        chat_service.delete_chats(db, doomed)
     db.delete(schedule)
     db.commit()
 

@@ -53,8 +53,6 @@ _LOCAL: dict[str, str] = {
     "fetch": WEB,
     "notes_get": READ,
     "notes_search": SEARCH,
-    "report_get": READ,
-    "report_search": SEARCH,
     "skill_get": READ,
     "subagent_run": TASK,
 }

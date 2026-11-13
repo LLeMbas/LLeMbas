@@ -442,3 +442,14 @@ __all__ = [
     "today",
     "tools_hash",
 ]
+
+
+def pages_line(change: str, pages_text: str = "") -> str:
+    """The session note's line when HTML pages are switched on or off for a
+    chat after its prompt was made (harness spec 3.8.0, pages.md §5): the
+    block itself when on, one sentence when off. The prompt is not made again."""
+    shape = harness_spec.loop()["context"]["note"]
+    if change == "on":
+        return shape["pages_on"].replace("{{pages_text}}", pages_text)
+    return shape["pages_off"]
+

@@ -32,6 +32,8 @@
       "chat_id": null,
       "message_id": null,
       "report_path": null,
+      "report": null,
+      "note": "",
       "preview": "",
       "error": {
         "class": "no_model",
@@ -68,25 +70,26 @@
       "chat_id": "chat1",
       "message_id": "msg2",
       "report_path": null,
+      "report": "rep1",
+      "note": "Filed a report: two cakes are unwrapped.",
       "preview": "All the waybread is wrapped.",
       "error": null,
       "notified": true,
       "notification": {
-        "title": "Waybread check",
-        "body": "All the waybread is wrapped.",
+        "title": "Two cakes are unwrapped",
+        "body": "Two of the twelve cakes have lost their leaves.",
         "public": {
-          "title": "Waybread check",
-          "body": "Finished"
+          "title": "New report",
+          "body": ""
         },
         "actions": [
-          "open",
-          "run_again"
+          "open"
         ],
         "labels": {
-          "open": "Open",
-          "run_again": "Run again"
+          "open": "Open"
         },
-        "ask": ""
+        "ask": "",
+        "importance": "high"
       },
       "watch": null
     }

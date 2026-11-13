@@ -49,6 +49,7 @@ from lembas.db.models import (
     INDEXED_CHAT,
     INDEXED_FILE,
     KIND_FILE,
+    KINDS,
     ROLE_ASSISTANT,
     ROLE_USER,
     Chat,
@@ -334,6 +335,12 @@ def _message_wanted(message: Message, chat: Chat | None) -> bool:
     return (
         chat is not None
         and not chat.temporary
+        # Only the person's own conversations are indexed as chats. A
+        # schedule's run chats (on the server or on a linked computer) and a
+        # report's conversation are not: search by meaning used to surface
+        # every run of every schedule as "a past chat about this".
+        and chat.kind in KINDS
+        and not getattr(chat, "scheduled", False)
         and message.role in CHAT_ROLES
         and bool(message.complete)
         and bool((message.content or "").strip())

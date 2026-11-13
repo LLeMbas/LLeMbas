@@ -209,7 +209,9 @@ self.addEventListener("push", function (event) {
          again (and Pause, when it failed): the server names the actions and
          their labels (`services/schedule/notify.py`); a click is handled
          below, with this browser's own sign-in. Opening is the click itself. */
-      var told = payload.schedule_id && payload.notification &&
+      /* A report (kind "report") is told the same way: its title and its
+         summary, and the click opens it. */
+      var told = (payload.schedule_id || payload.report_id) && payload.notification &&
         typeof payload.notification === "object" ? payload.notification : null;
       var actions = [];
       if (told && Array.isArray(told.actions) && told.labels) {

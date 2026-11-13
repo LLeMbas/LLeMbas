@@ -28,15 +28,15 @@
   <p class="field__hint">{{ t("Written for a model that will read it with no conversation around it, so say the whole thing. Nobody will be there to answer a question about it.") }}</p>
 </div>
 
+{# What a run finds goes to Reports (harness spec 3.8.0); "Notify when",
+   further down, says when it writes one. The old choice of "a file in your
+   reports folder" is this box: the report is *also* saved as a file. #}
 <div class="field">
-  <label class="field__label" for="schedule-target">{{ t("Where the result goes") }}</label>
-  <select class="select" id="schedule-target" name="target">
-    {% for value, label in targets %}
-    <option value="{{ value }}" {{ 'selected' if form.target == value }}>
-      {{ label }}
-    </option>
-    {% endfor %}
-  </select>
+  <label class="checkbox">
+    <input type="checkbox" name="save_file" value="1" {{ "checked" if form.save_file }}>
+    <span>{{ t("Also save each report as a file") }}</span>
+  </label>
+  <p class="field__hint">{{ t("In your reports folder, as Markdown, beside the report under Reports.") }}</p>
 </div>
 
 {# Monitor mode (`services/schedule/monitor.py`): the run looks first, and
@@ -227,14 +227,39 @@
   </div>
 
   <div class="field">
-    <label class="field__label" for="schedule-notify">{{ t("Tell me") }}</label>
-    <select class="select" id="schedule-notify" name="notify">
-      {% if not form.notify %}<option value="" selected>{{ t("As usual for this kind of schedule") }}</option>{% endif %}
-      {% for value, label in notify_choices %}
-      <option value="{{ value }}" {{ 'selected' if form.notify == value }}>{{ label }}</option>
-      {% endfor %}
-    </select>
-    <p class="field__hint">{{ t("When it matters: a run with nothing new says so and does not notify you.") }}</p>
+    {# Notify when (harness spec 3.8.0): when a run writes a report, which is
+       what you are told about. Radios, each with its own sentence, because
+       the three do different things and a select shows one at a time. The
+       condition is always in the form (a field made by a click is a field
+       that submits nothing when the click handler fails) and is read only
+       for "When…". #}
+    <span class="field__label" id="schedule-notify-label">{{ t("Notify when") }}</span>
+    <div class="notify-when" role="radiogroup" aria-labelledby="schedule-notify-label">
+      <label class="notify-when__choice">
+        <input type="radio" name="notify" value="always" {{ "checked" if form.notify == "always" }}>
+        <span class="notify-when__words">
+          <strong>{{ t("Every run") }}</strong>
+          <span class="field__hint">{{ t("A report every time, also when nothing was found.") }}</span>
+        </span>
+      </label>
+      <label class="notify-when__choice">
+        <input type="radio" name="notify" value="when" {{ "checked" if form.notify not in ("always", "never") }}>
+        <span class="notify-when__words">
+          <strong>{{ t("When…") }}</strong>
+          <span class="field__hint">{{ t("A report only when this holds; otherwise the run leaves one line in the history.") }}</span>
+          <input class="input" type="text" name="notify_when" maxlength="500"
+                 value="{{ form.notify_when }}" placeholder="{{ notify_default }}"
+                 aria-label="{{ t('When to write a report') }}">
+        </span>
+      </label>
+      <label class="notify-when__choice">
+        <input type="radio" name="notify" value="never" {{ "checked" if form.notify == "never" }}>
+        <span class="notify-when__words">
+          <strong>{{ t("Never") }}</strong>
+          <span class="field__hint">{{ t("No report and no notification: each run is only a line in the history.") }}</span>
+        </span>
+      </label>
+    </div>
   </div>
 
   <div class="field">

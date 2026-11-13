@@ -55,12 +55,17 @@
   <dl class="detail-list schedule-facts">
     <dt>{{ t("Model") }}</dt>
     <dd>{{ schedule.model_id or t("The first free one of your scheduling models") }}</dd>
-    <dt>{{ t("Tell me") }}</dt>
-    <dd>{{ notify_label.get(form.notify, form.notify) }}</dd>
+    <dt>{{ t("Notify when") }}</dt>
+    <dd>
+      {%- if form.notify == "when" %}{{ form.notify_when or notify_default }}
+      {%- else %}{{ notify_label.get(form.notify, form.notify) }}{% endif -%}
+    </dd>
     <dt>{{ t("Each run") }}</dt>
     <dd>{{ mode_label.get(form.mode, form.mode) }}</dd>
-    <dt>{{ t("Where the result goes") }}</dt>
-    <dd>{{ target_label.get(schedule.target, schedule.target) }}</dd>
+    {% if form.save_file %}
+    <dt>{{ t("Reports") }}</dt>
+    <dd>{{ t("Also saved as a file in your reports folder") }}</dd>
+    {% endif %}
     {% if form.watch_url %}
     <dt>{{ t("Only when this page changes") }}</dt>
     <dd class="u-break">{{ form.watch_url }}</dd>
@@ -98,16 +103,20 @@
           {{ timing_label(run.timing) }}
           {%- if run.missed %} · {{ t("missed ×%(n)s", n=run.missed) }}{% endif %}
           {%- if run.model_label or run.model_id %} · {{ run.model_label or run.model_id }}{% endif %}
+          {%- if run.cost_micro %} · {{ money(run.cost_micro, run.currency) }}{% endif %}
           {%- if run.model_reason == "switched" and run.switched_from %} · {{ t("%(name)s was busy", name=run.switched_from) }}{% endif %}
           {%- if run.status == "waiting" and run.retry_at %} · {{ t("tries again at %(when)s", when=stamp(as_local(run.retry_at), "%H:%M")) }}{% endif %}
         </span>
       </div>
-      {% if run.preview %}<p class="schedule-run__preview">{{ run.preview }}</p>{% endif %}
+      {# The run's one line: the note it left (3.8.0), or what an older run
+         kept as its preview. #}
+      {% if run.note or run.preview %}<p class="schedule-run__preview">{{ run.note or run.preview }}</p>{% endif %}
       {% if run.error and run.status != "ok" %}<p class="schedule-run__error text-sm">{{ run.error }}</p>{% endif %}
-      {% if run.chat_id or run.report_path %}
+      {% if run.chat_id or run.report_path or run.report_id %}
       <div class="btn-row">
-        {% if run.chat_id %}<a class="btn btn--sm" href="/chat/{{ run.chat_id }}">{{ t("Open the result") }}</a>{% endif %}
-        {% if run.report_path %}<a class="btn btn--sm" href="/files/view?path={{ run.report_path|urlencode }}">{{ t("Open the report") }}</a>{% endif %}
+        {% if run.report_id %}<a class="btn btn--sm btn--primary" href="/reports/{{ run.report_id }}">{{ t("Open the report") }}</a>{% endif %}
+        {% if run.chat_id %}<a class="btn btn--sm" href="/chat/{{ run.chat_id }}">{{ t("Open the run") }}</a>{% endif %}
+        {% if run.report_path %}<a class="btn btn--sm" href="/files/view?path={{ run.report_path|urlencode }}">{{ t("Open the file") }}</a>{% endif %}
       </div>
       {% endif %}
     </li>

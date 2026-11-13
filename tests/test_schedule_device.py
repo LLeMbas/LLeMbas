@@ -174,7 +174,11 @@ async def test_a_run_is_an_agent_chat_on_the_computer(db, three, script, monkeyp
     )
     meta = {"schedule_id": schedule.id, "run_id": run.id, "title": "Nightly tests",
             "mode": "edit", "approval_wait_s": 600}
-    assert told == [{**meta, "context": meta}]
+    # `notify` (spec 3.8.0) is the server's own until a device says it reads
+    # it: this one declares no `reports`, so its context carries none.
+    assert told == [{**meta, "notify": "always", "context": meta}]
+    link.initialized["_meta"]["lembas"]["capabilities"].append("reports")
+    assert device.for_link({**meta, "notify": "always"}, link)["notify"] == "always"
     assert device.TURNS == {}  # only while the run lasts
 
 

@@ -13,6 +13,7 @@ from lembas.services.tools import (
     phone,
     plan,
     recall,
+    report,
     skills,
     web,
 )
@@ -30,6 +31,7 @@ REGISTRY: dict[str, ToolDef] = {
         *skills.TOOLS,
         *ask.TOOLS,
         *phone.TOOLS,
+        *report.TOOLS,
         *plan.TOOLS,
     )
 }

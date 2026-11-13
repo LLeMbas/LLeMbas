@@ -60,7 +60,6 @@ change to the protocol is a change here first, then in both projects.
 | `shell` | `shell` and `integration` in `_lembas/terminal/open`'s answer (listed only with `terminal`) |
 | `context` | `system_prompt` and `personalization` in `session/new` and `session/prompt` `_meta.lembas` are read |
 | `library` | `library` in `session/new` and `session/prompt` `_meta.lembas` is read; `_meta.lembas.scope` sent on the instance library's `tools/call`. Spec 3.0.0: an instance's chats have no knowledge bases, so a 3.0.0 instance sends no `library`; the scope is still sent on its `memory` calls (*The HTTP API*) |
-| `prototypes` | `prototypes` in `session/new` and `session/prompt` `_meta.lembas` is read. Spec 3.0.0: a 3.0.0 instance sends none (`show` replaces prototypes) |
 | `plan_state` | the structured plan: `_meta.lembas.plan` on the `plan` session update and on `_lembas/plan`; `plan` in `_lembas/session/status` |
 | `rewind` | `_lembas/session/rewind` |
 | `show` | spec 3.0.0: `_lembas/show`; the `show` tool is offered in a session the client opened when the client said `show: true` in `clientCapabilities._meta.lembas` |
@@ -69,6 +68,7 @@ change to the protocol is a change here first, then in both projects.
 | `agents` | spec 3.4.0: the session's Subagents setting `{ min, max }` is read from `_meta.lembas.agents` on `session/new`, `session/prompt` and `_lembas/configure` (*Subagents in an agent chat*, below) |
 | `tree` | spec 3.4.0 (`subagents.md` §5–§13): the `team` event; `_lembas/team`, `_lembas/team/transcript`, `_lembas/team/findings`, `_lembas/team/stop`; `subagent` on `session/request_permission` |
 | `scheduled` | spec 3.5.0 (*Scheduled work on a linked computer*, below): `scheduled` in `_meta.lembas` of `session/new` and `session/prompt` read, and the run's outcome in the prompt's answer; `scheduled` on `session/request_permission`; `_lembas/monitor`; `limits.scheduled` in `_lembas/hello` and `initialize`. Listed by every build that has it, whatever the setting says: whether this device *accepts* scheduled work is `limits.scheduled` |
+| `reports` | spec 3.8.0 (`reports.md` §6): `scheduled.notify` in `_meta.lembas` of `session/new` and `session/prompt` read; `report_write` offered to the model of a schedule's run that notifies; the report the run wrote carried in the prompt's answer (`scheduled.report`); the status `silent` no longer given to a turn whose request said `notify` |
 
 ## Standard ACP, as used here
 
@@ -146,7 +146,6 @@ texts, as for its own sessions, and these are the pieces the instance holds):
 | `system_prompt: string` | `context` | the chat's effective authored prompt (chat over folder over model over instance), appended after the shared text as `## Instructions from <instance>`; empty: none |
 | `personalization: { personality, personality_custom, instructions } \| null` | `context` | the account's, as `/v1/me/personalization` gives them, used in place of the device's own for this session; `null`: the device's own |
 | `library: { bases: [{ id, name }] }` | `library` | the knowledge bases this chat may search, named to the model (`blocks/library.md`'s `{{knowledge_scope}}`) and sent back as the scope on every library call (below); an empty list: the account's whole library, as before |
-| `prototypes: { offered: boolean, sources: string }` | `prototypes` | whether the model may write a prototype (`blocks/prototypes.md`), and the sentence saying what a page may load (a device offering them on its own, with no instance, sends nothing and the bullet drops) |
 
 ### `session/prompt` — client → agent
 
@@ -406,6 +405,27 @@ In a scheduled turn:
   "scheduled": { "run_id": "run7", "status": "ok", "text": "All the waybread is wrapped.",
                  "error": null } } } }
 ```
+
+**From spec 3.8.0 (capability `reports`, `reports.md` §6)** the client marks the turn with the
+schedule's notify-when — `"scheduled": { …, "notify": "always" | "when" | "never" }` in
+`session/new` and `session/prompt` — and the prompt it composes carries the instruction for it
+(`loop.json` `scheduled.notify.texts`) where the `[SILENT]` hint used to be. A device with the
+capability offers `report_write` in that session unless `notify` is `never`
+(`tools/report_write.json`, `requires: scheduled`: unavailable in a turn of the session that is
+not the schedule's), keeps the last report the run's model wrote, and answers with it:
+
+```json
+"scheduled": { "run_id": "run7", "status": "ok", "text": "Filed a report: the disk is almost full.",
+               "error": null,
+               "report": { "title": "Disk almost full", "summary": "The log partition is at 94%.",
+                           "body": "## What\n\n…", "importance": "high" } }
+```
+
+`report` is absent when none was written; it is kept even when the turn then failed. For a turn
+whose request said `notify`, the sentinel means nothing and `status` is never `silent`. What the
+run leaves — the report, the `always` fallback, the history line, the notification — is the
+client's to decide from this answer (`reports.md` §4). A device without the capability is sent no
+`notify`; a client without it sends none, and everything below is as in 3.5.0.
 
 - **`text`**: the turn's final reply — the text of the last assistant message the turn wrote, as
   written (`[SILENT]` included). Model output: untrusted wherever it is shown.

@@ -55,6 +55,7 @@ from lembas.api import (
     tokens,
     tree,
 )
+from lembas.api import reports as reports_pages
 from lembas.api.deps import RedirectToLogin, is_htmx, login_redirect
 from lembas.api.v1 import admin as api_admin
 from lembas.api.v1 import images as api_images
@@ -238,6 +239,7 @@ def create_app() -> FastAPI:
     app.include_router(terminal.router)
     app.include_router(terminal.devices_router)
     app.include_router(terminal.shells_router)
+    app.include_router(reports_pages.router)
     app.include_router(audio.router)
     app.include_router(files.router)
     app.include_router(folders.router)

@@ -17,6 +17,7 @@ from lembas.config import settings
 from lembas.db.models import (
     KIND_AGENT,
     KIND_CHAT,
+    KIND_REPORT,
     KIND_TASK,
     KINDS,
     Chat,
@@ -30,6 +31,7 @@ from lembas.services import branding as branding_service
 from lembas.services import chat as chat_service
 from lembas.services import data_groups, local_device, model_prefs, settings_store
 from lembas.services import generation as generation_service
+from lembas.services import reports as reports_service
 from lembas.services import suggestions as suggestions_service
 from lembas.services.schedule import clock
 from lembas.web import i18n
@@ -626,6 +628,9 @@ def sidebar_context(db: DBSession, user: User) -> dict:
         # the case that reaches here with "" is precisely an instance with
         # agents disabled, where nobody would ever see the leak coming.
         Chat.kind.in_((kind,) if kind else KINDS),
+        # A schedule's run on a linked computer is its schedule's, not one of
+        # the person's agent chats.
+        Chat.scheduled.is_(False),
     )
     # Pinned chats have a section of their own above `[ CHATS ]`, wherever
     # they are filed (a folder still lists its own); so the unfiled list leaves
@@ -643,6 +648,7 @@ def sidebar_context(db: DBSession, user: User) -> dict:
                     Chat.archived.is_(False),
                     Chat.temporary.is_(False),
                     Chat.kind.in_((kind,) if kind else KINDS),
+                    Chat.scheduled.is_(False),
                 )
                 .order_by(Chat.updated_at.desc())
             )
@@ -665,6 +671,7 @@ def sidebar_context(db: DBSession, user: User) -> dict:
                 Chat.archived.is_(True),
                 Chat.temporary.is_(False),
                 Chat.kind.in_((kind,) if kind else KINDS),
+                Chat.scheduled.is_(False),
             )
             .order_by(Chat.updated_at.desc())
         )
@@ -682,13 +689,18 @@ def sidebar_context(db: DBSession, user: User) -> dict:
                     Chat.archived.is_(False),
                     Chat.temporary.is_(False),
                     Chat.kind == KIND_AGENT,
+                    Chat.scheduled.is_(False),
                 )
                 .order_by(Chat.pinned.desc(), Chat.updated_at.desc())
             )
         )
         device_sections = _device_sections(db, user, every_agent_chat, archived)
         archived = []
+    from lembas.services import reports as reports_service
+
     return {
+        # How many reports are unread: the count beside Reports in the sidebar.
+        "unread_reports": reports_service.unread_count(db, user.id),
         "folders": folders,
         "unfiled_chats": unfiled,
         "pinned_chats": pinned_chats,
@@ -1114,6 +1126,11 @@ async def chat_detail(
         "chat/index.html",
         {
             "chat": chat,
+            # The conversation a report continues in: the page says which
+            # report, offers the way back, and the sidebar stays on Reports.
+            "report_of": reports_service.of_chat(db, chat.id)
+            if chat.kind == KIND_REPORT else None,
+            "section": "reports" if chat.kind == KIND_REPORT else "",
             # A model is still naming this chat: the page asks for the name.
             "title_pending": generation_service.title_pending(chat.id),
             **part,

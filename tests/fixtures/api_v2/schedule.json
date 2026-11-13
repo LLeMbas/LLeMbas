@@ -30,7 +30,10 @@
     ],
     "target": "chat",
     "mode": "fresh",
-    "notify": "matters",
+    "notify": "when",
+    "notify_when": "",
+    "notify_default": "something needs my attention",
+    "save_file": false,
     "catch_up": "one",
     "grace_minutes": null,
     "model": "qwen",
@@ -79,25 +82,26 @@
       "chat_id": "chat1",
       "message_id": "msg2",
       "report_path": null,
+      "report": "rep1",
+      "note": "Filed a report: two cakes are unwrapped.",
       "preview": "All the waybread is wrapped.",
       "error": null,
       "notified": true,
       "notification": {
-        "title": "Waybread check",
-        "body": "All the waybread is wrapped.",
+        "title": "Two cakes are unwrapped",
+        "body": "Two of the twelve cakes have lost their leaves.",
         "public": {
-          "title": "Waybread check",
-          "body": "Finished"
+          "title": "New report",
+          "body": ""
         },
         "actions": [
-          "open",
-          "run_again"
+          "open"
         ],
         "labels": {
-          "open": "Open",
-          "run_again": "Run again"
+          "open": "Open"
         },
-        "ask": ""
+        "ask": "",
+        "importance": "high"
       },
       "watch": null
     },

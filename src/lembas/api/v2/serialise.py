@@ -492,6 +492,37 @@ def attachment(row: Any) -> dict[str, Any]:
     }
 
 
+def report(row: Any, schedule_title: str | None, *, whole: bool = False) -> dict[str, Any]:
+    """One report (harness spec 3.8.0, reports.md §7). In a list: `id`,
+    `title`, `summary`, `importance` (`normal` or `high`), `schedule` (`{id,
+    title}` -- the title as it was when the report was filed where the
+    schedule is gone -- or null), `created`, `unread`. `whole` (a single one)
+    adds `body`, the report's Markdown as the model wrote it -- never HTML --
+    its `pages` (the HTML pages in it, `[{title, digest}]`, each a
+    `[page: title]` line in `text`, the body as plain reading), `model`, and
+    `chat`: the conversation a reply continues in, or null until there is one."""
+    from lembas.services import html_pages
+
+    title = schedule_title if schedule_title is not None else (row.schedule_title or "")
+    out: dict[str, Any] = {
+        "id": row.id,
+        "title": row.title,
+        "summary": row.summary or "",
+        "importance": row.importance or "normal",
+        "schedule": {"id": row.schedule_id, "title": title} if row.schedule_id else None,
+        "created": stamp(row.created_at),
+        "unread": bool(row.unread),
+    }
+    if whole:
+        pages, text = html_pages.fence(row.body or "")
+        out["body"] = row.body or ""
+        out["text"] = text
+        out["pages"] = [{"title": p.title, "digest": p.digest} for p in pages]
+        out["model"] = row.model_id or None
+        out["chat"] = row.chat_id or None
+    return out
+
+
 def device(
     token: Any, *, terminal: bool, terminal_off: tuple[str, str], scheduled: bool, max_mode: str
 ) -> dict[str, Any]:

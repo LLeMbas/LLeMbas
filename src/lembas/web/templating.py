@@ -286,6 +286,19 @@ def _reply_end(message):
 
 
 templates.env.globals["reply_end"] = _reply_end
+
+
+# A report's body: the model's Markdown through the one renderer that
+# sanitises. Markup is safe to mark as such here and only here.
+def _report_body(report):
+    from markupsafe import Markup
+
+    from lembas.services.markdown import render_markdown
+
+    return Markup(render_markdown(report.body or ""))
+
+
+templates.env.globals["report_body"] = _report_body
 # The user messages a reply shows inline, where its model took them in.
 templates.env.globals["inline_steers"] = lambda messages: {
     sid for m in messages or [] for sid in steps_service.steered_ids(getattr(m, "steps_json", None))

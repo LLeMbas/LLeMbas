@@ -41,13 +41,18 @@ KINDS = (KIND_CHAT, KIND_AGENT)
 # A task chat belongs to a schedule and is reached through Scheduled. It is never
 # listed among the chats, so it is not a side of the switch.
 KIND_TASK = "task"
+# The conversation a report continues in (harness spec 3.8.0, reports.md §7):
+# it belongs to its report and is reached from it. Like a task chat it is not
+# in `KINDS`, so every listing that means "the chats" leaves it out by
+# construction -- the sidebar, the unread dots, search, the apps' chats.
+KIND_REPORT = "report"
 
 # What a row's `kind` may actually be. Every listing that means "the sidebar
 # tree" filters on KINDS; every check that means "is this a real value" uses
 # this. Reading `kind == ""` as "no filter" is what leaks a task chat into the
 # ordinary list on an instance with agents switched off, where the sidebar
 # passes "" precisely because there is no switch to read.
-ALL_KINDS = (*KINDS, KIND_TASK)
+ALL_KINDS = (*KINDS, KIND_TASK, KIND_REPORT)
 
 # Duplicated from services/agent/policy.py rather than imported: a model module
 # importing a service would invert the dependency, and this is only the column
@@ -173,6 +178,12 @@ class Chat(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
     # is next opened. `unread_notified` stops the same arrival being announced
     # on every poll.
     unread: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # A schedule's run on a linked computer. It has to be an agent chat to run
+    # there, and it is not one of the person's agent chats: it is reached from
+    # its schedule, like a task chat, and every listing of chats leaves it out
+    # (the Agents list, the unread dots, search, the apps' chats, the "reply
+    # is ready" push).
+    scheduled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     unread_notified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # --- Agent chats ---------------------------------------------------------

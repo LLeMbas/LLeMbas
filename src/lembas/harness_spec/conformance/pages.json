@@ -1,0 +1,286 @@
+{
+  "about": "HTML pages in answers (pages.md, spec 3.8.0). `show` says what is asked. `fence`: a reply's `text` — expect `pages`, each closed `html-view` block in order with its `title` and its `html` (the lines between the fences, joined by newlines), and `projection`, the reply with every page replaced by its `[page: title]` line. `note`: a page's `title` — expect what a client that cannot render shows. `offered`: the `instance` switch, the `model`'s flag (absent: false), the `chat` switch, and `where` (absent: a chat; `scheduled`: a schedule's run on the server, which has no chat switch; `subagent`, `phone_assistant`, `agent_chat`) — expect whether the block is in the prompt. `note_line`: the chat's switch `change`d to `on` or `off` after the prompt was made — expect the session note's `line`. LLeMbas: services/pages.py; CLI: src/prototype/fence.ts.",
+  "cases": [
+    {
+      "about": "A page with a title.",
+      "show": "fence",
+      "text": "Here are the sales.\n\n```html-view Monthly sales\n<!doctype html>\n<html><body><h1>Hi</h1></body></html>\n```\n\nThey rose.",
+      "expect": {
+        "pages": [
+          {
+            "title": "Monthly sales",
+            "html": "<!doctype html>\n<html><body><h1>Hi</h1></body></html>"
+          }
+        ],
+        "projection": "Here are the sales.\n\n[page: Monthly sales]\n\nThey rose."
+      }
+    },
+    {
+      "about": "No title on the line: the page's own <title>.",
+      "show": "fence",
+      "text": "```html-view\n<title>  Q3   results </title><p>x</p>\n```",
+      "expect": {
+        "pages": [
+          {
+            "title": "Q3 results",
+            "html": "<title>  Q3   results </title><p>x</p>"
+          }
+        ],
+        "projection": "[page: Q3 results]"
+      }
+    },
+    {
+      "about": "No title anywhere.",
+      "show": "fence",
+      "text": "```html-view\n<p>x</p>\n```",
+      "expect": {
+        "pages": [
+          {
+            "title": "Page",
+            "html": "<p>x</p>"
+          }
+        ],
+        "projection": "[page: Page]"
+      }
+    },
+    {
+      "about": "The word is exact: html is a code block, and so is html-views.",
+      "show": "fence",
+      "text": "```html\n<p>x</p>\n```\n\n```html-views A\n<p>y</p>\n```",
+      "expect": {
+        "pages": [],
+        "projection": "```html\n<p>x</p>\n```\n\n```html-views A\n<p>y</p>\n```"
+      }
+    },
+    {
+      "about": "An unclosed fence is not a page.",
+      "show": "fence",
+      "text": "Look:\n\n```html-view Chart\n<svg>",
+      "expect": {
+        "pages": [],
+        "projection": "Look:\n\n```html-view Chart\n<svg>"
+      }
+    },
+    {
+      "about": "Three backticks inside a page of four: the inner line does not end it.",
+      "show": "fence",
+      "text": "````html-view Code sample\n<pre>\n```js\nlet a = `x`\n```\n</pre>\n````\nafter",
+      "expect": {
+        "pages": [
+          {
+            "title": "Code sample",
+            "html": "<pre>\n```js\nlet a = `x`\n```\n</pre>"
+          }
+        ],
+        "projection": "[page: Code sample]\nafter"
+      }
+    },
+    {
+      "about": "A closing fence may be longer than the opening, not shorter.",
+      "show": "fence",
+      "text": "````html-view A\n<p>1</p>\n```\n<p>2</p>\n`````",
+      "expect": {
+        "pages": [
+          {
+            "title": "A",
+            "html": "<p>1</p>\n```\n<p>2</p>"
+          }
+        ],
+        "projection": "[page: A]"
+      }
+    },
+    {
+      "about": "Tildes are a fence too; backticks do not close it.",
+      "show": "fence",
+      "text": "~~~html-view Tilde\n<p>x</p>\n```\n~~~",
+      "expect": {
+        "pages": [
+          {
+            "title": "Tilde",
+            "html": "<p>x</p>\n```"
+          }
+        ],
+        "projection": "[page: Tilde]"
+      }
+    },
+    {
+      "about": "Two pages in one reply, and an ordinary code block between them left alone.",
+      "show": "fence",
+      "text": "```html-view One\n<p>1</p>\n```\n```js\nx()\n```\n   ```html-view   Two   words  \n<p>2</p>\n   ```",
+      "expect": {
+        "pages": [
+          {
+            "title": "One",
+            "html": "<p>1</p>"
+          },
+          {
+            "title": "Two words",
+            "html": "<p>2</p>"
+          }
+        ],
+        "projection": "[page: One]\n```js\nx()\n```\n[page: Two words]"
+      }
+    },
+    {
+      "about": "A page fence inside an ordinary code block is that block's text.",
+      "show": "fence",
+      "text": "````markdown\n```html-view Not one\n<p>x</p>\n```\n````",
+      "expect": {
+        "pages": [],
+        "projection": "````markdown\n```html-view Not one\n<p>x</p>\n```\n````"
+      }
+    },
+    {
+      "about": "A long title is cut.",
+      "show": "fence",
+      "text": "```html-view tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt\n<p>x</p>\n```",
+      "expect": {
+        "pages": [
+          {
+            "title": "tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt",
+            "html": "<p>x</p>"
+          }
+        ],
+        "projection": "[page: tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt]"
+      }
+    },
+    {
+      "about": "The note a client that cannot render shows.",
+      "show": "note",
+      "title": "Monthly sales",
+      "expect": {
+        "note": "This answer has a page: Monthly sales"
+      }
+    },
+    {
+      "about": "All three on.",
+      "show": "offered",
+      "instance": true,
+      "model": true,
+      "chat": true,
+      "expect": {
+        "offered": true
+      }
+    },
+    {
+      "about": "The instance's switch off.",
+      "show": "offered",
+      "instance": false,
+      "model": true,
+      "chat": true,
+      "expect": {
+        "offered": false
+      }
+    },
+    {
+      "about": "The model cannot.",
+      "show": "offered",
+      "instance": true,
+      "model": false,
+      "chat": true,
+      "expect": {
+        "offered": false
+      }
+    },
+    {
+      "about": "The model says nothing: false.",
+      "show": "offered",
+      "instance": true,
+      "chat": true,
+      "expect": {
+        "offered": false
+      }
+    },
+    {
+      "about": "The chat's switch off.",
+      "show": "offered",
+      "instance": true,
+      "model": true,
+      "chat": false,
+      "expect": {
+        "offered": false
+      }
+    },
+    {
+      "about": "A scheduled run has no chat switch: the instance and the model decide.",
+      "show": "offered",
+      "instance": true,
+      "model": true,
+      "where": "scheduled",
+      "expect": {
+        "offered": true
+      }
+    },
+    {
+      "about": "A scheduled run on an instance with the switch off.",
+      "show": "offered",
+      "instance": false,
+      "model": true,
+      "where": "scheduled",
+      "expect": {
+        "offered": false
+      }
+    },
+    {
+      "about": "Never to a subagent.",
+      "show": "offered",
+      "instance": true,
+      "model": true,
+      "chat": true,
+      "where": "subagent",
+      "expect": {
+        "offered": false
+      }
+    },
+    {
+      "about": "Never in the phone assistant.",
+      "show": "offered",
+      "instance": true,
+      "model": true,
+      "chat": true,
+      "where": "phone_assistant",
+      "expect": {
+        "offered": false
+      }
+    },
+    {
+      "about": "Never in an agent chat (a device, a terminal).",
+      "show": "offered",
+      "instance": true,
+      "model": true,
+      "chat": true,
+      "where": "agent_chat",
+      "expect": {
+        "offered": false
+      }
+    },
+    {
+      "about": "A scheduled run on a linked computer is an agent chat: never.",
+      "show": "offered",
+      "instance": true,
+      "model": true,
+      "where": "agent_chat",
+      "scheduled": true,
+      "expect": {
+        "offered": false
+      }
+    },
+    {
+      "about": "Switched on mid-chat: the note carries the block.",
+      "show": "note_line",
+      "change": "on",
+      "pages_text": "- (the block)",
+      "expect": {
+        "line": "HTML pages are now on for this chat:\n- (the block)"
+      }
+    },
+    {
+      "about": "Switched off mid-chat.",
+      "show": "note_line",
+      "change": "off",
+      "expect": {
+        "line": "HTML pages are now off for this chat: write no more `html-view` blocks."
+      }
+    }
+  ]
+}

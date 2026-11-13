@@ -17,6 +17,7 @@
     "effort": { "enum": ["minimal", "low", "medium", "high", "xhigh", "max", "off", "default"], "description": "The level a new conversation starts with, when it is one of the levels the model offers (see `levels`); otherwise `medium` when the model takes it, else its first effort, else `default`. `off` — thinking switched off — exists only with thinking_switch; `default` — no effort sent, the model's own — only for a model that takes no efforts." },
     "effort_style": { "enum": ["top", "kwargs", "both"], "description": "OpenAI Chat dialect: where the effort goes — top-level `reasoning_effort`, `chat_template_kwargs.reasoning_effort` (all llama.cpp reads), or both (the default)." },
     "vision": { "type": "boolean", "description": "Takes images. Never sent images otherwise: most servers refuse the whole request." },
+    "html_pages": { "type": "boolean", "default": false, "description": "Spec 3.8.0 (pages.md): this model can write HTML pages — a complete, self-contained page in an `html-view` block of its reply. False by default; pages are offered only when this is true, the instance's switch is on and the chat's is." },
     "tools": { "type": "boolean", "description": "Takes tool calls. false: it can only talk; never sent a tools array." },
     "notes": { "type": "string", "maxLength": 300, "description": "What the model is good at, in a line: other models are told about it in the roster, for handing work over." },
     "capacity": {

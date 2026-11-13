@@ -910,6 +910,8 @@ async def unread_poll(request: Request, db: Db, user: RequiredUser) -> Response:
                 # at elements that are not on the page. htmx says nothing at all
                 # when an OOB target is missing, so this would be silent waste.
                 Chat.kind.in_(KINDS),
+                # Nor a schedule's run on a linked computer: its report is news.
+                Chat.scheduled.is_(False),
             )
         )
     )
@@ -948,6 +950,17 @@ async def unread_poll(request: Request, db: Db, user: RequiredUser) -> Response:
         markup += tree.replace(
             '<div id="sidebar-tree">', '<div id="sidebar-tree" hx-swap-oob="outerHTML">', 1
         )
+
+    # Reports: the count beside the sidebar's entry, and each new one said
+    # once (its title is the news; `Report.notified` is for the push, this
+    # flag is the page's own, kept on the row as `unread` is).
+    from lembas.services import reports as reports_service
+
+    waiting = reports_service.unread_count(db, user.id)
+    markup += (
+        f'<span id="unread-reports" class="badge badge--leaf nav-item__count" '
+        f'hx-swap-oob="true"{"" if waiting else " hidden"}>{waiting}</span>'
+    )
 
     if items:
         db.commit()

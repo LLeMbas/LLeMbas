@@ -182,15 +182,6 @@
       "llembas": [],
       "llembas_text": "identical"
     },
-    "blocks/prototypes.md": {
-      "scope": "cli",
-      "llembas": [],
-      "variables": {
-        "prototype_sources": "whether the page may load anything over https (the instance's network setting), as one sentence",
-        "prototype_surface": "where it is seen on this surface: empty in the web UI, which renders it; in a terminal, that it is saved as a file the person can open, and that the web UI renders it"
-      },
-      "why": "spec 3.0.0: a chat has no prototypes (show replaces them); the CLI keeps the text while a client still offers them over the link"
-    },
     "blocks/library.md": {
       "scope": "cli",
       "llembas": [],
@@ -268,6 +259,12 @@
       "llembas": [],
       "llembas_text": "identical",
       "why": "spec 3.4.0: LLeMbas reads it from the vendored spec (harness_spec.prompt), not from a fragment"
+    },
+    "blocks/html-pages.md": {
+      "scope": "shared",
+      "llembas": [],
+      "llembas_text": "identical",
+      "why": "spec 3.8.0 (pages.md): takes the place of blocks/prototypes.md, the 1.x text the CLI alone had kept. LLeMbas reads it from the vendored spec (harness_spec.prompt), not from a fragment; the CLI never sends it (pages.md §4: an agent chat is never offered pages)."
     }
   }
 }

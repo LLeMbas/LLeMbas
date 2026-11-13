@@ -1,0 +1,61 @@
+{% extends "reports/_layout.html" %}
+{% from "_macros.html" import icon %}
+
+{% block title %}{{ t("Reports") }} - {{ brand.name }}{% endblock %}
+
+{% block reports_content %}
+{#
+  Unread first, then newest. The filter is a plain form (GET): it works without
+  JavaScript and its state is the address.
+#}
+<form class="reports-filter" method="get" action="/reports">
+  <label class="reports-filter__field">
+    <span class="reports-filter__label">{{ t("Schedule") }}</span>
+    <select class="select select--sm" name="schedule" onchange="this.form.submit()">
+      <option value="">{{ t("All schedules") }}</option>
+      {% for id, title in schedules %}
+      <option value="{{ id }}" {{ "selected" if id == picked_schedule }}>{{ title or t("Scheduled task") }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="checkbox reports-filter__field">
+    <input type="checkbox" name="unread" value="1" {{ "checked" if only_unread }}
+           onchange="this.form.submit()">
+    <span>{{ t("Unread only") }}</span>
+  </label>
+  <noscript><button class="btn btn--sm" type="submit">{{ t("Show") }}</button></noscript>
+</form>
+
+{% if not reports %}
+<section class="card">
+  <p class="muted">
+    {% if picked_schedule or only_unread %}
+      {{ t("No reports match.") }}
+    {% else %}
+      {{ t("No reports yet. A scheduled task files one when it has something to tell you.") }}
+    {% endif %}
+  </p>
+  <p><a class="btn btn--sm" href="/scheduled">{{ icon("clock", "icon--sm") }} {{ t("Scheduled") }}</a></p>
+</section>
+{% else %}
+<ul class="reports-list">
+  {% for report in reports %}
+  <li class="reports-list__item{{ ' is-unread' if report.unread }}" data-report="{{ report.id }}">
+    <a class="reports-list__link" href="/reports/{{ report.id }}">
+      <span class="reports-list__head">
+        <span class="unread-dot" {{ "" if report.unread else "hidden" }}
+              title="{{ t('Unread') }}"></span>
+        <strong class="reports-list__title">{{ report.title }}</strong>
+        {% if report.importance == "high" %}<span class="badge badge--warning">{{ t("Important") }}</span>{% endif %}
+      </span>
+      <span class="reports-list__summary">{{ report.summary }}</span>
+      <span class="reports-list__meta">
+        {% if report.schedule_title %}<span>{{ report.schedule_title }}</span>{% endif %}
+        <time datetime="{{ report.created_at.isoformat() }}">{{ stamp(as_local(report.created_at), "%a %-d %b %Y, %H:%M") }}</time>
+      </span>
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

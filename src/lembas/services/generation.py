@@ -30,7 +30,7 @@ from sqlalchemy import select, update
 
 from lembas.db.models import (
     KIND_AGENT,
-    KIND_TASK,
+    KINDS,
     ROLE_ASSISTANT,
     ROLE_USER,
     Chat,
@@ -3140,7 +3140,9 @@ def _persist(
                 # finished and nothing about it should wait on a push service.
                 # Not a scheduled run's: its schedule decides whether it is
                 # news (`schedule/notify.py`), and says which run it was.
-                if chat.kind != KIND_TASK:
+                # Nor a schedule's run on a linked computer, nor a report's
+                # conversation: the report is the news, and it says so itself.
+                if chat.kind in KINDS and not chat.scheduled:
                     announce = {
                         "user_id": chat.user_id,
                         "title": chat.title or i18n.t("New reply"),

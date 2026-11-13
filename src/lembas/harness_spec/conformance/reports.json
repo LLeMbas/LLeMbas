@@ -1,0 +1,331 @@
+{
+  "about": "Reports (reports.md, spec 3.8.0). `show` says what is asked. `offered`: a `session` (`scheduled` — opened by a schedule for its run; `chat`; `agent`), the schedule's `notify` (absent: the default), the `turn` (`run` — the schedule's; `person` — somebody writing into the session) and `subagent` — expect `tool`: `offered`, `absent` (not in the list), or `unavailable` with the `text` a call answers. `instruction`: `notify` and the person's `condition` — expect `text`, the instruction placed in the run's prompt (loop.json scheduled.notify.texts; \"\" for never). `result`: the number of report_write `calls` made so far in the run, this one included — expect the tool's `text`. `run`: the schedule's `notify` and `title`, the report_write `calls` of the run in order, and its final `answer` — expect `report` (title, body, summary, importance) or null, and `note`, the history line. The sentinel of 3.5.0 is read as nothing to tell. LLeMbas: services/schedule/reports.py; CLI: src/acp/scheduled.ts.",
+  "cases": [
+    {
+      "about": "A schedule's run, notify always: offered.",
+      "show": "offered",
+      "session": "scheduled",
+      "notify": "always",
+      "turn": "run",
+      "expect": {
+        "tool": "offered"
+      }
+    },
+    {
+      "about": "Notify when: offered.",
+      "show": "offered",
+      "session": "scheduled",
+      "notify": "when",
+      "turn": "run",
+      "expect": {
+        "tool": "offered"
+      }
+    },
+    {
+      "about": "A schedule that says nothing is `when`.",
+      "show": "offered",
+      "session": "scheduled",
+      "turn": "run",
+      "expect": {
+        "tool": "offered"
+      }
+    },
+    {
+      "about": "Notify never: not in the list at all.",
+      "show": "offered",
+      "session": "scheduled",
+      "notify": "never",
+      "turn": "run",
+      "expect": {
+        "tool": "absent"
+      }
+    },
+    {
+      "about": "The person writes into a run's session afterwards: in the list (a session's list does not change), and it answers its unavailable text.",
+      "show": "offered",
+      "session": "scheduled",
+      "notify": "always",
+      "turn": "person",
+      "expect": {
+        "tool": "unavailable",
+        "text": "This is not a scheduled run: report_write files the report of a schedule's run, and nobody scheduled this turn. Answer the person here instead."
+      }
+    },
+    {
+      "about": "A chat: not in the list.",
+      "show": "offered",
+      "session": "chat",
+      "turn": "person",
+      "expect": {
+        "tool": "absent"
+      }
+    },
+    {
+      "about": "An agent chat on a device: not in the list.",
+      "show": "offered",
+      "session": "agent",
+      "turn": "person",
+      "expect": {
+        "tool": "absent"
+      }
+    },
+    {
+      "about": "A subagent of a run: never — the run's own agent files the report.",
+      "show": "offered",
+      "session": "scheduled",
+      "notify": "always",
+      "turn": "run",
+      "subagent": true,
+      "expect": {
+        "tool": "absent"
+      }
+    },
+    {
+      "about": "Every run.",
+      "show": "instruction",
+      "notify": "always",
+      "expect": {
+        "text": "Reporting: when the work is done, file a report with report_write — every run, also when you found nothing and when nothing matters; then say so in it, briefly. Then end with one short line for this run's history."
+      }
+    },
+    {
+      "about": "When, with the person's own words: trimmed, one line, its closing full stop dropped.",
+      "show": "instruction",
+      "notify": "when",
+      "condition": "  a price dropped below 20 euros,\n or the page is gone.  ",
+      "expect": {
+        "text": "Reporting: file a report with report_write only if this holds: a price dropped below 20 euros, or the page is gone. If it does not hold, file no report and end with one short line saying why not. If it holds, file the report when the work is done, then end with one short line for this run's history."
+      }
+    },
+    {
+      "about": "When, with no words of their own: the default condition.",
+      "show": "instruction",
+      "notify": "when",
+      "condition": "   ",
+      "expect": {
+        "text": "Reporting: file a report with report_write only if this holds: something needs my attention. If it does not hold, file no report and end with one short line saying why not. If it holds, file the report when the work is done, then end with one short line for this run's history."
+      }
+    },
+    {
+      "about": "A schedule that says nothing: when, with the default condition.",
+      "show": "instruction",
+      "expect": {
+        "text": "Reporting: file a report with report_write only if this holds: something needs my attention. If it does not hold, file no report and end with one short line saying why not. If it holds, file the report when the work is done, then end with one short line for this run's history."
+      }
+    },
+    {
+      "about": "Never: nothing is said about reports.",
+      "show": "instruction",
+      "notify": "never",
+      "expect": {
+        "text": ""
+      }
+    },
+    {
+      "about": "A word nobody knows is the default, never `always`.",
+      "show": "instruction",
+      "notify": "sometimes",
+      "expect": {
+        "text": "Reporting: file a report with report_write only if this holds: something needs my attention. If it does not hold, file no report and end with one short line saying why not. If it holds, file the report when the work is done, then end with one short line for this run's history."
+      }
+    },
+    {
+      "about": "The first report of a run.",
+      "show": "result",
+      "calls": 1,
+      "expect": {
+        "text": "The report is filed. End your reply now with one short line for this run's history; do not repeat the report."
+      }
+    },
+    {
+      "about": "A second one replaces it.",
+      "show": "result",
+      "calls": 2,
+      "expect": {
+        "text": "The report is replaced by this one: a run files one report. End your reply now with one short line for this run's history; do not repeat the report."
+      }
+    },
+    {
+      "about": "A report was written: it is the run's, and the last line of the answer is the history line.",
+      "show": "run",
+      "notify": "when",
+      "title": "Disk watch",
+      "calls": [
+        {
+          "title": "Disk almost full",
+          "body": "## What\n\n`/var` is at 94%.",
+          "summary": "The log partition is at 94% and grows 2% a day.",
+          "importance": "high"
+        }
+      ],
+      "answer": "Checked the disks.\n\nFiled a report: /var is almost full.",
+      "expect": {
+        "report": {
+          "title": "Disk almost full",
+          "body": "## What\n\n`/var` is at 94%.",
+          "summary": "The log partition is at 94% and grows 2% a day.",
+          "importance": "high"
+        },
+        "note": "Checked the disks."
+      }
+    },
+    {
+      "about": "Importance left out is normal.",
+      "show": "run",
+      "notify": "always",
+      "title": "Disk watch",
+      "calls": [
+        {
+          "title": "Disk fine again",
+          "body": "Rotated the logs; 41% now.",
+          "summary": "Logs rotated, 41% used."
+        }
+      ],
+      "answer": "Logs rotated; report filed.",
+      "expect": {
+        "report": {
+          "title": "Disk fine again",
+          "body": "Rotated the logs; 41% now.",
+          "summary": "Logs rotated, 41% used.",
+          "importance": "normal"
+        },
+        "note": "Logs rotated; report filed."
+      }
+    },
+    {
+      "about": "One report per run: the second call replaces the first.",
+      "show": "run",
+      "notify": "when",
+      "title": "Disk watch",
+      "calls": [
+        {
+          "title": "Disk almost full",
+          "body": "## What\n\n`/var` is at 94%.",
+          "summary": "The log partition is at 94% and grows 2% a day.",
+          "importance": "high"
+        },
+        {
+          "title": "Disk fine again",
+          "body": "Rotated the logs; 41% now.",
+          "summary": "Logs rotated, 41% used."
+        }
+      ],
+      "answer": "Done.",
+      "expect": {
+        "report": {
+          "title": "Disk fine again",
+          "body": "Rotated the logs; 41% now.",
+          "summary": "Logs rotated, 41% used.",
+          "importance": "normal"
+        },
+        "note": "Done."
+      }
+    },
+    {
+      "about": "When, and the condition did not hold: no report; the model's line says why.",
+      "show": "run",
+      "notify": "when",
+      "title": "Disk watch",
+      "calls": [],
+      "answer": "\nNothing needs attention: every disk is under 60%.\n",
+      "expect": {
+        "report": null,
+        "note": "Nothing needs attention: every disk is under 60%."
+      }
+    },
+    {
+      "about": "Every run, and the model wrote no report: the answer is filed as one — the schedule's title, the first paragraph as the summary.",
+      "show": "run",
+      "notify": "always",
+      "title": "Disk watch",
+      "calls": [],
+      "answer": "**All disks** are under 60%.\nNothing to do.\n\n| disk | used |\n|---|---|\n| /var | 41% |",
+      "expect": {
+        "report": {
+          "title": "Disk watch",
+          "body": "**All disks** are under 60%.\nNothing to do.\n\n| disk | used |\n|---|---|\n| /var | 41% |",
+          "summary": "**All disks** are under 60%. Nothing to do.",
+          "importance": "normal"
+        },
+        "note": "**All disks** are under 60%."
+      }
+    },
+    {
+      "about": "Every run, an empty answer: nothing to file.",
+      "show": "run",
+      "notify": "always",
+      "title": "Disk watch",
+      "calls": [],
+      "answer": "  \n",
+      "expect": {
+        "report": null,
+        "note": "The run ended without a reply."
+      }
+    },
+    {
+      "about": "Never: no report, whatever was answered.",
+      "show": "run",
+      "notify": "never",
+      "title": "Disk watch",
+      "calls": [],
+      "answer": "All quiet.",
+      "expect": {
+        "report": null,
+        "note": "All quiet."
+      }
+    },
+    {
+      "about": "The retired sentinel alone, under every run: no report.",
+      "show": "run",
+      "notify": "always",
+      "title": "Disk watch",
+      "calls": [],
+      "answer": "[SILENT]",
+      "expect": {
+        "report": null,
+        "note": "The run ended without a reply."
+      }
+    },
+    {
+      "about": "The sentinel on the last line, under when: no report, and the line is not the note.",
+      "show": "run",
+      "notify": "when",
+      "title": "Disk watch",
+      "calls": [],
+      "answer": "Nothing new since yesterday.\n[silent].",
+      "expect": {
+        "report": null,
+        "note": "Nothing new since yesterday."
+      }
+    },
+    {
+      "about": "The sentinel on the first line under every run: taken out, and what is left is filed.",
+      "show": "run",
+      "notify": "always",
+      "title": "Disk watch",
+      "calls": [],
+      "answer": "[SILENT]\nChecked the feed: nothing.",
+      "expect": {
+        "report": {
+          "title": "Disk watch",
+          "body": "Checked the feed: nothing.",
+          "summary": "Checked the feed: nothing.",
+          "importance": "normal"
+        },
+        "note": "Checked the feed: nothing."
+      }
+    },
+    {
+      "about": "A long closing line is cut for the history.",
+      "show": "run",
+      "notify": "when",
+      "title": "Disk watch",
+      "calls": [],
+      "answer": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "expect": {
+        "report": null,
+        "note": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…"
+      }
+    }
+  ]
+}

@@ -2128,7 +2128,9 @@ def context_for(db, link: Link, user, chat) -> dict[str, Any]:
         from lembas.services.schedule import device as scheduled_device
 
         if chat.id in scheduled_device.TURNS:
-            context["scheduled"] = dict(scheduled_device.TURNS[chat.id])
+            context["scheduled"] = scheduled_device.for_link(
+                scheduled_device.TURNS[chat.id], link
+            )
     # Spec 3.4.0 (capability `agents`): the chat's Subagents setting, with
     # every turn; `subagents: false` while the instance has them switched off
     # (or the person may not use them), so the device offers none.

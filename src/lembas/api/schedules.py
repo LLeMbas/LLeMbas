@@ -28,14 +28,15 @@ from lembas.db.models import (
     MODE_CONTINUE,
     MODE_FRESH,
     NOTIFY_ALWAYS,
-    NOTIFY_MATTERS,
     NOTIFY_NEVER,
+    NOTIFY_WHEN,
     TARGET_CHAT,
     TARGET_REPORT,
     Schedule,
     ScheduleRun,
 )
 from lembas.services import chat as chat_service
+from lembas.services import reports as reports_service
 from lembas.services import schedules as schedules_service
 from lembas.services.agent import policy
 from lembas.services.schedule import clock, notify, runner, runs
@@ -52,13 +53,6 @@ router = APIRouter(
 )
 
 # What the setup form may ask for, in the order they are offered.
-def offered_targets() -> tuple[tuple[str, str], ...]:
-    """A function so the labels are in the reader's language."""
-    return (
-        (TARGET_CHAT, t("Its own chat")),
-        (TARGET_REPORT, t("A file in your reports folder")),
-    )
-
 REPEAT_ONCE = "once"
 REPEAT_EVERY = "every"
 REPEAT_CALENDAR = "calendar"
@@ -158,6 +152,8 @@ def _settings_defaults(schedule: Schedule | None, rule: dict) -> dict:
         return {
             "model_id": "",
             "notify": notify.default_policy(rule) if rule else "",
+            "notify_when": "",
+            "save_file": False,
             "mode": MODE_FRESH,
             "catch_up": CATCH_UP_ONE,
             "grace_minutes": "",
@@ -175,6 +171,8 @@ def _settings_defaults(schedule: Schedule | None, rule: dict) -> dict:
     return {
         "model_id": schedule.model_id or "",
         "notify": notify.policy(schedule.notify, rule),
+        "notify_when": schedule.notify_when or "",
+        "save_file": bool(schedule.save_file or schedule.target == TARGET_REPORT),
         "mode": schedule.mode or MODE_FRESH,
         "catch_up": schedule.catch_up or CATCH_UP_ONE,
         "grace_minutes": schedule.grace_minutes or "",
@@ -225,6 +223,8 @@ def _settings_from_form(form) -> dict:
         }
     if form.get("notify"):
         settings["notify"] = str(form.get("notify"))
+        settings["notify_when"] = str(form.get("notify_when") or "")
+        settings["save_file"] = bool(form.get("save_file"))
     return settings
 
 
@@ -269,9 +269,10 @@ def _rule_defaults_from(rule: dict) -> dict:
 
 
 def offered_notify() -> tuple[tuple[str, str], ...]:
+    """Notify when (harness spec 3.8.0), under the spec's labels."""
     return (
-        (NOTIFY_MATTERS, t("When it matters")),
         (NOTIFY_ALWAYS, t("Every run")),
+        (NOTIFY_WHEN, t("When…")),
         (NOTIFY_NEVER, t("Never")),
     )
 
@@ -359,8 +360,8 @@ def _context(db, user, schedule: Schedule | None, *, error: str = "") -> dict:
     return {
         "section": "scheduled",
         "schedule": schedule,
-        "targets": offered_targets(),
         "notify_choices": offered_notify(),
+        "notify_default": reports_service.spec()["default_condition"],
         "mode_choices": offered_modes(),
         "catch_up_choices": offered_catch_up(),
         "tool_choices": offered_tools(),
@@ -602,7 +603,6 @@ async def show_schedule(
             "mode_label": dict(offered_modes()),
             "catch_up_label": dict(offered_catch_up()),
             "tool_label": dict(offered_tools()),
-            "target_label": dict(offered_targets()),
             "tools_on": runs.tools_for(schedule),
         },
     )
@@ -730,10 +730,10 @@ async def run_schedule(db: Db, user: RequiredUser, schedule_id: str) -> Response
 
 @router.post("/api/schedules/{schedule_id}/delete")
 async def delete_schedule(
-    db: Db, user: RequiredUser, schedule_id: str, keep_chat: str = Form("1")
+    db: Db, user: RequiredUser, schedule_id: str
 ) -> Response:
     schedule = schedules_service.get(db, schedule_id, user)
     if schedule is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, t("That schedule is not available."))
-    schedules_service.delete(db, schedule, keep_chat=keep_chat not in ("", "0", "false"))
+    schedules_service.delete(db, schedule)
     return RedirectResponse(LIST_URL, status_code=status.HTTP_303_SEE_OTHER)

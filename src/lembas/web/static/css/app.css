@@ -2888,3 +2888,86 @@ a.card, .card--action { transition: transform var(--dur-2) var(--ease-out),
 .sort-handle:hover { background: var(--surface-hover); color: var(--ink); }
 .sort-handle:focus-visible { outline: var(--outline-w) solid var(--ring); outline-offset: var(--outline-offset); }
 .sort-handle:active { cursor: grabbing; }
+
+/* --- Reports and Scheduled in the sidebar ------------------------------------
+   Two entries on one row, on two equal tracks: the same width whatever their
+   words are in whichever language, each truncating. The unread count keeps
+   its size. */
+.sidebar__sections {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--sp-1);
+}
+.sidebar__sections .nav-item { min-width: 0; }
+.sidebar__sections .nav-item__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nav-item__count { flex: none; margin-left: auto; }
+
+/* --- Reports -------------------------------------------------------------------
+   The list: one row a report -- its title, one line of summary, where and
+   when -- stacked, so nothing sits side by side that could fail to line up. */
+.reports-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+.reports-filter__field { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+.reports-filter__label { font-size: var(--text-sm); color: var(--ink-muted); }
+.reports-list { display: flex; flex-direction: column; gap: var(--sp-2); margin: 0; padding: 0; list-style: none; }
+.reports-list__link {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+  min-height: var(--tap-min);
+  padding: var(--sp-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: inherit;
+  text-decoration: none;
+}
+.reports-list__item.is-unread .reports-list__link { border-color: var(--border-strong); }
+.reports-list__head { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+.reports-list__title { min-width: 0; overflow-wrap: anywhere; }
+.reports-list__summary { color: var(--ink-muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.reports-list__meta,
+.report__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: var(--text-xs);
+}
+.report__summary { color: var(--ink-muted); }
+.report__body { min-width: 0; overflow-wrap: anywhere; }
+.report__continued { margin-bottom: 0; }
+.topbar__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--ink-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* Notify when, on the schedule form: three choices, each a radio beside its
+   words -- a fixed first track for the radio, the words taking the rest, so
+   the three line up whatever each says. */
+.notify-when { display: flex; flex-direction: column; gap: var(--sp-2); }
+.notify-when__choice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--sp-2);
+  min-height: var(--tap-min);
+}
+.notify-when__words { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
+

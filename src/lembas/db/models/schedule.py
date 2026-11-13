@@ -32,12 +32,17 @@ MODE_FRESH = "fresh"
 MODE_CONTINUE = "continue"
 MODES = (MODE_FRESH, MODE_CONTINUE)
 
-# When a run's result is worth a notification. `matters` lets the run answer
-# `[SILENT]` when there is nothing to report (`services/schedule/notify.py`).
+# Notify when (harness spec 3.8.0, reports.md §3): `always` -- a report every
+# run; `when` -- only when the person's condition holds (`notify_when`, the
+# spec's default where empty); `never` -- no report. `matters` is what `when`
+# was called before 3.8.0: rows are converted at start
+# (`migrations.notify_values`), and it is still read as `when` wherever one
+# turns up.
 NOTIFY_ALWAYS = "always"
-NOTIFY_MATTERS = "matters"
+NOTIFY_WHEN = "when"
 NOTIFY_NEVER = "never"
-NOTIFY_POLICIES = (NOTIFY_ALWAYS, NOTIFY_MATTERS, NOTIFY_NEVER)
+NOTIFY_MATTERS = "matters"
+NOTIFY_POLICIES = (NOTIFY_ALWAYS, NOTIFY_WHEN, NOTIFY_NEVER)
 
 # A run missed by more than its catch-up window: one catch-up run, or none.
 CATCH_UP_ONE = "one"
@@ -130,7 +135,13 @@ class Schedule(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
     # the scheduling list (`services/schedule/models.py`).
     connection_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     mode: Mapped[str] = mapped_column(String(16), default=MODE_FRESH, nullable=False)
-    notify: Mapped[str] = mapped_column(String(16), default=NOTIFY_MATTERS, nullable=False)
+    notify: Mapped[str] = mapped_column(String(16), default=NOTIFY_WHEN, nullable=False)
+    # `when`'s condition, in the person's words ("" = the spec's default).
+    notify_when: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    # Also save each report as a file in the person's reports folder. What the
+    # `report` target was before reports were their own thing; such schedules
+    # keep saving (`target` is still read).
+    save_file: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     catch_up: Mapped[str] = mapped_column(String(16), default=CATCH_UP_ONE, nullable=False)
     # Minutes a late run may still start in. NULL: half the period, clamped
     # 2 minutes to 2 hours (`services/schedule/runs.py:grace`).
@@ -225,6 +236,10 @@ class ScheduleRun(UUIDPrimaryKey, Timestamps, Base):
     chat_id: Mapped[str] = mapped_column(String(32), default="", nullable=False)
     message_id: Mapped[str] = mapped_column(String(32), default="", nullable=False)
     report_path: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    # The report this run filed ("" = none), and the run's one line in its
+    # schedule's history (harness spec 3.8.0, reports.md §4).
+    report_id: Mapped[str] = mapped_column(String(32), default="", nullable=False)
+    note: Mapped[str] = mapped_column(String(300), default="", nullable=False)
     # The result's first lines, model output: escaped wherever it is shown.
     preview: Mapped[str] = mapped_column(Text, default="", nullable=False)
 

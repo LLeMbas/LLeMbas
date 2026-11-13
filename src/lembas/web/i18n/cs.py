@@ -814,7 +814,6 @@ MESSAGES: dict[str, str] = {
     "Stop after": "Zastavit po",
     "What should happen": "Co se má stát",
     "What this appears as in the list.": "Jak se to zobrazí v seznamu.",
-    "Where the result goes": "Kam jde výsledek",
     "Written for a model that will read it with no conversation around it, so say the whole thing. Nobody will be there to answer a question about it.": "Píše se pro model, který to přečte bez konverzace kolem, takže řekněte celou věc. Nikdo tam nebude, aby na otázku odpověděl.",
     "Run it now without using up the next scheduled run": "Spustit teď, aniž by se spotřeboval další naplánovaný běh",
     "This chat belonged to a schedule that has been removed. It is kept as a record of what was done.": "Tato konverzace patřila plánu, který byl odstraněn. Zůstává jako záznam toho, co se udělalo.",
@@ -1501,7 +1500,6 @@ MESSAGES.update(
         "Data group created.": "Datová skupina vytvořena.",
         "Personalization is off here.": "Přizpůsobení je tu vypnuté.",
         "Personalization saved.": "Přizpůsobení uloženo.",
-        "Its own chat": "Vlastní konverzace",
         "There is no model configured to work this out, so fill it in yourself.": "Není nastavený žádný model, který by to zjistil, takže to vyplňte sami.",
         "That schedule is not available.": "Tento plán není dostupný.",
         "The shell exited.": "Shell se ukončil.",
@@ -2322,7 +2320,6 @@ MESSAGES['Short facts, shown to every model you talk to on every turn — so the
 MESSAGES['The LLeMbas CLI on your machines, signed in as you. Each uses your models, your memory and your usage, and an agent chat here runs on one of them — under its own limits — while it is linked.'] = 'LLeMbas CLI na vašich počítačích, přihlášené za vás. Každé používá vaše modely, vaši paměť a vaši spotřebu a agentní konverzace tady běží na jednom z nich — v jeho vlastních mezích — dokud je připojené.'
 MESSAGES["A model reads only the memories of the data group its connection is in, and a chat stays in the group it was started in. Two providers in different groups never see each other's."] = 'Model čte jen paměť datové skupiny, ve které je jeho připojení, a konverzace zůstává ve skupině, ve které začala. Dva poskytovatelé v různých skupinách nikdy nevidí data toho druhého.'
 MESSAGES['Both of the above, and your schedules. Kept: your account, password, settings, groups, usage, and your files, which you delete from the file tree.'] = 'Obojí výše a k tomu vaše plány. Zůstane: váš účet, heslo, nastavení, skupiny, spotřeba a vaše soubory, které smažete ve stromu souborů.'
-MESSAGES['A file in your reports folder'] = 'Soubor ve vaší složce se zprávami'
 MESSAGES['Read and write your memory'] = 'Číst a psát vaši paměť'
 MESSAGES['Keep memories and skills of their own.'] = 'Mít vlastní záznamy v paměti a dovednosti.'
 MESSAGES['Keep memories and skills of your own.'] = 'Mít vlastní záznamy v paměti a dovednosti.'
@@ -2472,9 +2469,6 @@ MESSAGES['Show the next runs'] = 'Ukázat další běhy'
 MESSAGES['How it runs'] = 'Jak běží'
 MESSAGES['The first free one of your scheduling models'] = 'První volný z vašich modelů pro plánování'
 MESSAGES['Tried first. When it is busy answering someone, the next free model runs it instead.'] = 'Zkouší se jako první. Když právě někomu odpovídá, běh místo něj provede další volný model.'
-MESSAGES['Tell me'] = 'Upozornit mě'
-MESSAGES['As usual for this kind of schedule'] = 'Jako obvykle u takového plánu'
-MESSAGES['When it matters: a run with nothing new says so and does not notify you.'] = 'Když na tom záleží: běh bez ničeho nového to řekne a neupozorní vás.'
 MESSAGES['Each run'] = 'Každý běh'
 MESSAGES['A fresh chat is told what the previous run found.'] = 'Nová konverzace se dozví, co zjistil předchozí běh.'
 MESSAGES["The model's own"] = 'Podle modelu'
@@ -2495,12 +2489,10 @@ MESSAGES['It has not run yet.'] = 'Ještě neběžel.'
 MESSAGES['missed ×%(n)s'] = 'zmeškáno ×%(n)s'
 MESSAGES['%(name)s was busy'] = '%(name)s byl obsazený'
 MESSAGES['tries again at %(when)s'] = 'zkusí znovu v %(when)s'
-MESSAGES['Open the result'] = 'Otevřít výsledek'
 MESSAGES['Open the report'] = 'Otevřít zprávu'
 MESSAGES['Older runs'] = 'Starší běhy'
 MESSAGES['%H:%M'] = '%H:%M'
 MESSAGES['A run takes its own model when it is free, else the first free one of these, in this order. Untick the ones your runs should not use.'] = 'Běh použije vlastní model, když je volný, jinak první volný z těchto, v tomto pořadí. Odškrtněte ty, které vaše běhy používat nemají.'
-MESSAGES['When it matters'] = 'Když na tom záleží'
 MESSAGES['Every run'] = 'Při každém běhu'
 MESSAGES['A fresh chat each time'] = 'Pokaždé nová konverzace'
 MESSAGES['One chat that keeps growing'] = 'Jedna konverzace, která roste'
@@ -2725,5 +2717,30 @@ MESSAGES.update(
         'Always allow': 'Povolit vždy',
         'Deny, and say why': 'Zamítnout a říct proč',
         'Details': 'Podrobnosti',
+        'Back to the report': 'Zpět na zprávu',
+        'Reports': 'Zprávy',
+        'All schedules': 'Všechny plány',
+        'Unread only': 'Jen nepřečtené',
+        'No reports match.': 'Žádná zpráva neodpovídá.',
+        'No reports yet. A scheduled task files one when it has something to tell you.': 'Zatím žádné zprávy. Naplánovaná úloha ji založí, když vám má co říct.',
+        'Unread': 'Nepřečteno',
+        'Important': 'Důležité',
+        'Continue this report as a conversation. It stays under Reports.': 'Pokračujte v této zprávě jako v konverzaci. Zůstane mezi Zprávami.',
+        'Reply': 'Odpovědět',
+        'Delete this report? The conversation that continued it goes with it.': 'Smazat tuto zprávu? Konverzace, která na ni navázala, se smaže s ní.',
+        'Open the conversation': 'Otevřít konverzaci',
+        'Also save each report as a file': 'Každou zprávu uložit také jako soubor',
+        'In your reports folder, as Markdown, beside the report under Reports.': 'Do vaší složky se zprávami, jako Markdown, vedle zprávy ve Zprávách.',
+        'Notify when': 'Kdy upozornit',
+        'A report every time, also when nothing was found.': 'Zpráva pokaždé, i když se nic nenašlo.',
+        'When…': 'Když…',
+        'A report only when this holds; otherwise the run leaves one line in the history.': 'Zpráva jen tehdy, když toto platí; jinak běh zanechá jeden řádek v historii.',
+        'When to write a report': 'Kdy napsat zprávu',
+        'No report and no notification: each run is only a line in the history.': 'Žádná zpráva ani upozornění: každý běh je jen řádek v historii.',
+        'Also saved as a file in your reports folder': 'Ukládají se také jako soubor do vaší složky se zprávami',
+        'Open the run': 'Otevřít běh',
+        'Open the file': 'Otevřít soubor',
+        'That report no longer exists.': 'Tato zpráva už neexistuje.',
+        'New report': 'Nová zpráva',
     }
 )

@@ -19,13 +19,9 @@
 
 <div class="card">
   <h2 class="card__title">{{ t("Remove") }}</h2>
-  <p class="card__lede">{{ t("Stops it running. Its chat is kept by default and becomes an ordinary one, so the transcript of everything it has already done stays where it is.") }}</p>
+  <p class="card__lede">{{ t("Stops it running and removes the chats its runs worked in. Its reports stay under Reports.") }}</p>
   <form method="post" action="/api/schedules/{{ schedule.id }}/delete"
-        data-confirm="{{ t('Remove this schedule? It will stop running.') }}">
-    <label class="checkbox">
-      <input type="checkbox" name="keep_chat" value="1" checked>
-      <span>{{ t("Keep its chat") }}</span>
-    </label>
+        data-confirm="{{ t('Remove this schedule? It will stop running, and the chats of its runs are removed. Its reports stay.') }}">
     <button class="btn btn--danger btn--sm" type="submit">
       {{ icon("trash", "icon--sm") }} {{ t("Remove schedule") }}
     </button>

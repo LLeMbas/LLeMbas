@@ -1,0 +1,29 @@
+{
+  "report_id": "rep1",
+  "schedule_id": "sched1",
+  "run_id": "run1",
+  "visibility": "private",
+  "actions": [
+    "open"
+  ],
+  "notification": {
+    "title": "Two cakes are unwrapped",
+    "body": "Two of the twelve cakes have lost their leaves.",
+    "public": {
+      "title": "New report",
+      "body": ""
+    },
+    "actions": [
+      "open"
+    ],
+    "labels": {
+      "open": "Open"
+    },
+    "ask": "",
+    "importance": "high"
+  },
+  "title": "LLeMbas",
+  "body": "New report",
+  "url": "/reports/rep1",
+  "kind": "report"
+}

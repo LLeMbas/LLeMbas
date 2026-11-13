@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{#
+  The Reports shell: the list and one report. What a schedule's run filed for
+  its owner (harness spec 3.8.0). A report's title, summary and body are a
+  model's words: escaped by Jinja, and the body through services/markdown.py.
+#}
+
+{% block head %}
+<link rel="stylesheet" href="{{ asset('css/chat.css') }}">
+<link rel="stylesheet" href="{{ asset('css/admin.css') }}">
+{% endblock %}
+
+{% block body_attrs %} data-authenticated="true"{% endblock %}
+
+{% block body %}
+<div class="shell">
+  {% include "partials/sidebar.html" %}
+
+  <main class="main">
+    <header class="topbar">
+      {% include "partials/_sidebar_toggle.html" %}
+      <h1 class="topbar__title">{% block heading %}{{ t("Reports") }}{% endblock %}</h1>
+      <div class="topbar__actions">{% block actions %}{% endblock %}</div>
+    </header>
+
+    <div class="admin-scroll">
+      <div class="admin-page">
+        {% block reports_content %}{% endblock %}
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

@@ -294,6 +294,17 @@ def provider_types(engine: Engine) -> list[str]:
     return done
 
 
+def notify_values(engine: Engine) -> list[str]:
+    """A schedule's notify-when in the words of harness spec 3.8.0: `matters`
+    is `when` (its condition empty: the spec's default). `always` and `never`
+    are what they were. Idempotent: nothing is `matters` after it has run."""
+    with engine.begin() as connection:
+        changed = connection.execute(
+            text("UPDATE schedules SET notify = 'when' WHERE notify = 'matters'")
+        ).rowcount
+    return [f"{changed} schedules' notify-when is `when`"] if changed else []
+
+
 def ensure_default_org(engine: Engine) -> list[str]:
     """The first organisation (`organisation.DEFAULT_ORG`), made once.
 
@@ -364,7 +375,7 @@ def sync_schema(engine: Engine) -> list[str]:
 
     # The models this instance embeds with say so. Converges on its own, and
     # failing must not stop the start.
-    for step in (infer_model_kinds,):
+    for step in (infer_model_kinds, notify_values):
         try:
             changes.extend(step(engine))
         except Exception:  # a conversion that fails must not stop a start

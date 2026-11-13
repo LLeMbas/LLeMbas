@@ -376,7 +376,6 @@ MESSAGES.update(
             "Píše sa pre model, ktorý to prečíta bez konverzácie okolo, takže povedzte "
             "celú vec. Nikto tam nebude, aby na otázku odpovedal."
         ),
-        "Where the result goes": "Kam ide výsledok",
         "Every so often": "Každú chvíľu",
         "On particular days": "V určité dni",
         "Starting": "Začína",
@@ -2218,7 +2217,6 @@ MESSAGES.update(
         "Data group created.": "Dátová oblasť vytvorená.",
         "Personalization is off here.": "Prispôsobenie je tu vypnuté.",
         "Personalization saved.": "Prispôsobenie uložené.",
-        "Its own chat": "Vlastná konverzácia",
         "There is no model configured to work this out, so fill it in yourself.": "Nie je nastavený žiadny model, ktorý by to zistil, takže to vyplňte sami.",
         "That schedule is not available.": "Tento plán nie je dostupný.",
         "The shell exited.": "Shell sa ukončil.",
@@ -2982,7 +2980,6 @@ MESSAGES['Short facts, shown to every model you talk to on every turn — so the
 MESSAGES['The LLeMbas CLI on your machines, signed in as you. Each uses your models, your memory and your usage, and an agent chat here runs on one of them — under its own limits — while it is linked.'] = 'LLeMbas CLI na vašich počítačoch, prihlásené za vás. Každé používa vaše modely, vašu pamäť a vašu spotrebu a agentový chat tu beží na jednom z nich — v jeho vlastných medziach — kým je pripojené.'
 MESSAGES["A model reads only the memories of the data group its connection is in, and a chat stays in the group it was started in. Two providers in different groups never see each other's."] = 'Model číta len pamäť dátovej oblasti, v ktorej je jeho pripojenie, a konverzácia zostáva v oblasti, v ktorej sa začala. Dvaja poskytovatelia v rôznych oblastiach nikdy nevidia údaje toho druhého.'
 MESSAGES['Both of the above, and your schedules. Kept: your account, password, settings, groups, usage, and your files, which you delete from the file tree.'] = 'Oboje vyššie a k tomu vaše plány. Zostane: váš účet, heslo, nastavenia, skupiny, spotreba a vaše súbory, ktoré zmažete v strome súborov.'
-MESSAGES['A file in your reports folder'] = 'Súbor vo vašom priečinku so správami'
 MESSAGES['Read and write your memory'] = 'Čítať a písať vašu pamäť'
 MESSAGES['Keep memories and skills of their own.'] = 'Mať vlastné spomienky a schopnosti.'
 MESSAGES['Keep memories and skills of your own.'] = 'Mať vlastné spomienky a schopnosti.'
@@ -3132,9 +3129,6 @@ MESSAGES['Show the next runs'] = 'Ukázať ďalšie behy'
 MESSAGES['How it runs'] = 'Ako beží'
 MESSAGES['The first free one of your scheduling models'] = 'Prvý voľný z vašich modelov na plánovanie'
 MESSAGES['Tried first. When it is busy answering someone, the next free model runs it instead.'] = 'Skúša sa ako prvý. Keď práve niekomu odpovedá, beh namiesto neho vykoná ďalší voľný model.'
-MESSAGES['Tell me'] = 'Upozorniť ma'
-MESSAGES['As usual for this kind of schedule'] = 'Ako zvyčajne pri takomto pláne'
-MESSAGES['When it matters: a run with nothing new says so and does not notify you.'] = 'Keď na tom záleží: beh bez ničoho nového to povie a neupozorní vás.'
 MESSAGES['Each run'] = 'Každý beh'
 MESSAGES['A fresh chat is told what the previous run found.'] = 'Nová konverzácia sa dozvie, čo zistil predchádzajúci beh.'
 MESSAGES["The model's own"] = 'Podľa modelu'
@@ -3155,12 +3149,10 @@ MESSAGES['It has not run yet.'] = 'Ešte nebežal.'
 MESSAGES['missed ×%(n)s'] = 'zmeškané ×%(n)s'
 MESSAGES['%(name)s was busy'] = '%(name)s bol obsadený'
 MESSAGES['tries again at %(when)s'] = 'skúsi znova o %(when)s'
-MESSAGES['Open the result'] = 'Otvoriť výsledok'
 MESSAGES['Open the report'] = 'Otvoriť správu'
 MESSAGES['Older runs'] = 'Staršie behy'
 MESSAGES['%H:%M'] = '%H:%M'
 MESSAGES['A run takes its own model when it is free, else the first free one of these, in this order. Untick the ones your runs should not use.'] = 'Beh použije vlastný model, keď je voľný, inak prvý voľný z týchto, v tomto poradí. Odškrtnite tie, ktoré vaše behy používať nemajú.'
-MESSAGES['When it matters'] = 'Keď na tom záleží'
 MESSAGES['Every run'] = 'Pri každom behu'
 MESSAGES['A fresh chat each time'] = 'Zakaždým nová konverzácia'
 MESSAGES['One chat that keeps growing'] = 'Jedna konverzácia, ktorá rastie'
@@ -3385,5 +3377,30 @@ MESSAGES.update(
         'Always allow': 'Povoliť vždy',
         'Deny, and say why': 'Zamietnuť a povedať prečo',
         'Details': 'Podrobnosti',
+        'Back to the report': 'Späť na správu',
+        'Reports': 'Správy',
+        'All schedules': 'Všetky plány',
+        'Unread only': 'Len neprečítané',
+        'No reports match.': 'Žiadna správa nevyhovuje.',
+        'No reports yet. A scheduled task files one when it has something to tell you.': 'Zatiaľ žiadne správy. Naplánovaná úloha ju založí, keď vám má čo povedať.',
+        'Unread': 'Neprečítané',
+        'Important': 'Dôležité',
+        'Continue this report as a conversation. It stays under Reports.': 'Pokračujte v tejto správe ako v konverzácii. Zostane medzi Správami.',
+        'Reply': 'Odpovedať',
+        'Delete this report? The conversation that continued it goes with it.': 'Vymazať túto správu? Konverzácia, ktorá na ňu nadviazala, sa vymaže s ňou.',
+        'Open the conversation': 'Otvoriť konverzáciu',
+        'Also save each report as a file': 'Každú správu uložiť aj ako súbor',
+        'In your reports folder, as Markdown, beside the report under Reports.': 'Do vášho priečinka so správami, ako Markdown, popri správe v Správach.',
+        'Notify when': 'Kedy upozorniť',
+        'A report every time, also when nothing was found.': 'Správa zakaždým, aj keď sa nič nenašlo.',
+        'When…': 'Keď…',
+        'A report only when this holds; otherwise the run leaves one line in the history.': 'Správa len vtedy, keď toto platí; inak beh zanechá jeden riadok v histórii.',
+        'When to write a report': 'Kedy napísať správu',
+        'No report and no notification: each run is only a line in the history.': 'Žiadna správa ani upozornenie: každý beh je len riadok v histórii.',
+        'Also saved as a file in your reports folder': 'Ukladajú sa aj ako súbor do vášho priečinka so správami',
+        'Open the run': 'Otvoriť beh',
+        'Open the file': 'Otvoriť súbor',
+        'That report no longer exists.': 'Táto správa už neexistuje.',
+        'New report': 'Nová správa',
     }
 )

@@ -814,7 +814,6 @@ MESSAGES: dict[str, str] = {
     "Stop after": "Fermati dopo",
     "What should happen": "Cosa deve succedere",
     "What this appears as in the list.": "Come appare nell'elenco.",
-    "Where the result goes": "Dove va il risultato",
     "Written for a model that will read it with no conversation around it, so say the whole thing. Nobody will be there to answer a question about it.": "Scritto per un modello che lo leggerà senza alcuna conversazione intorno, quindi di' tutto. Non ci sarà nessuno a rispondere a una domanda in merito.",
     "Run it now without using up the next scheduled run": "Eseguila ora senza consumare la prossima esecuzione pianificata",
     "This chat belonged to a schedule that has been removed. It is kept as a record of what was done.": "Questa chat apparteneva a una pianificazione che è stata rimossa. Viene conservata come traccia di ciò che è stato fatto.",
@@ -1501,7 +1500,6 @@ MESSAGES.update(
         "Data group created.": "Gruppo di dati creato.",
         "Personalization is off here.": "La personalizzazione qui è disattivata.",
         "Personalization saved.": "Personalizzazione salvata.",
-        "Its own chat": "La sua chat",
         "There is no model configured to work this out, so fill it in yourself.": "Non c'è alcun modello configurato per elaborarlo, quindi compilalo tu.",
         "That schedule is not available.": "Questa pianificazione non è disponibile.",
         "The shell exited.": "La shell è terminata.",
@@ -2322,7 +2320,6 @@ MESSAGES['Short facts, shown to every model you talk to on every turn — so the
 MESSAGES['The LLeMbas CLI on your machines, signed in as you. Each uses your models, your memory and your usage, and an agent chat here runs on one of them — under its own limits — while it is linked.'] = 'La LLeMbas CLI sulle tue macchine, connessa a tuo nome. Ognuna usa i tuoi modelli, la tua memoria e il tuo consumo, e una chat agente qui viene eseguita su una di esse — entro i suoi limiti — finché è collegata.'
 MESSAGES["A model reads only the memories of the data group its connection is in, and a chat stays in the group it was started in. Two providers in different groups never see each other's."] = "Un modello legge solo le memorie del gruppo di dati in cui si trova la sua connessione, e una chat resta nel gruppo in cui è stata iniziata. Due fornitori in gruppi diversi non vedono mai i dati l'uno dell'altro."
 MESSAGES['Both of the above, and your schedules. Kept: your account, password, settings, groups, usage, and your files, which you delete from the file tree.'] = "Entrambi i precedenti, più le tue pianificazioni. Restano: il tuo account, la password, le impostazioni, i gruppi, il consumo e i tuoi file, che elimini dall'albero dei file."
-MESSAGES['A file in your reports folder'] = 'Un file nella tua cartella dei report'
 MESSAGES['Read and write your memory'] = 'Leggere e scrivere la tua memoria'
 MESSAGES['Keep memories and skills of their own.'] = 'Avere memorie e abilità proprie.'
 MESSAGES['Keep memories and skills of your own.'] = 'Avere memorie e abilità tue.'
@@ -2472,9 +2469,6 @@ MESSAGES['Show the next runs'] = 'Mostra le prossime esecuzioni'
 MESSAGES['How it runs'] = 'Come viene eseguita'
 MESSAGES['The first free one of your scheduling models'] = 'Il primo libero dei tuoi modelli per la pianificazione'
 MESSAGES['Tried first. When it is busy answering someone, the next free model runs it instead.'] = 'Provato per primo. Se è occupato a rispondere a qualcuno, la esegue al suo posto il modello libero successivo.'
-MESSAGES['Tell me'] = 'Avvisami'
-MESSAGES['As usual for this kind of schedule'] = 'Come di consueto per questo tipo di pianificazione'
-MESSAGES['When it matters: a run with nothing new says so and does not notify you.'] = "Quando conta: un'esecuzione senza novità lo dice e non ti avvisa."
 MESSAGES['Each run'] = 'Ogni esecuzione'
 MESSAGES['A fresh chat is told what the previous run found.'] = "A una chat nuova viene detto cosa ha trovato l'esecuzione precedente."
 MESSAGES["The model's own"] = 'Quello del modello'
@@ -2495,12 +2489,10 @@ MESSAGES['It has not run yet.'] = 'Non è ancora stata eseguita.'
 MESSAGES['missed ×%(n)s'] = 'saltate ×%(n)s'
 MESSAGES['%(name)s was busy'] = '%(name)s era occupato'
 MESSAGES['tries again at %(when)s'] = 'riprova alle %(when)s'
-MESSAGES['Open the result'] = 'Apri il risultato'
 MESSAGES['Open the report'] = 'Apri il report'
 MESSAGES['Older runs'] = 'Esecuzioni precedenti'
 MESSAGES['%H:%M'] = '%H:%M'
 MESSAGES['A run takes its own model when it is free, else the first free one of these, in this order. Untick the ones your runs should not use.'] = "Un'esecuzione usa il proprio modello quando è libero, altrimenti il primo libero tra questi, in quest'ordine. Deseleziona quelli che le tue esecuzioni non devono usare."
-MESSAGES['When it matters'] = 'Quando conta'
 MESSAGES['Every run'] = 'A ogni esecuzione'
 MESSAGES['A fresh chat each time'] = 'Una chat nuova ogni volta'
 MESSAGES['One chat that keeps growing'] = "Un'unica chat che continua a crescere"
@@ -2725,5 +2717,30 @@ MESSAGES.update(
         'Always allow': 'Consenti sempre',
         'Deny, and say why': 'Nega e spiega perché',
         'Details': 'Dettagli',
+        'Back to the report': 'Torna al rapporto',
+        'Reports': 'Rapporti',
+        'All schedules': 'Tutte le pianificazioni',
+        'Unread only': 'Solo non letti',
+        'No reports match.': 'Nessun rapporto corrisponde.',
+        'No reports yet. A scheduled task files one when it has something to tell you.': 'Ancora nessun rapporto. Un’attività pianificata ne crea uno quando ha qualcosa da dirti.',
+        'Unread': 'Non letto',
+        'Important': 'Importante',
+        'Continue this report as a conversation. It stays under Reports.': 'Continua questo rapporto come conversazione. Resta in Rapporti.',
+        'Reply': 'Rispondi',
+        'Delete this report? The conversation that continued it goes with it.': 'Eliminare questo rapporto? La conversazione che lo ha proseguito viene eliminata con esso.',
+        'Open the conversation': 'Apri la conversazione',
+        'Also save each report as a file': 'Salva ogni rapporto anche come file',
+        'In your reports folder, as Markdown, beside the report under Reports.': 'Nella tua cartella dei rapporti, in Markdown, oltre al rapporto in Rapporti.',
+        'Notify when': 'Notifica quando',
+        'A report every time, also when nothing was found.': 'Un rapporto ogni volta, anche quando non è stato trovato nulla.',
+        'When…': 'Quando…',
+        'A report only when this holds; otherwise the run leaves one line in the history.': 'Un rapporto solo quando questo vale; altrimenti l’esecuzione lascia una riga nella cronologia.',
+        'When to write a report': 'Quando scrivere un rapporto',
+        'No report and no notification: each run is only a line in the history.': 'Nessun rapporto e nessuna notifica: ogni esecuzione è solo una riga nella cronologia.',
+        'Also saved as a file in your reports folder': 'Salvati anche come file nella tua cartella dei rapporti',
+        'Open the run': 'Apri l’esecuzione',
+        'Open the file': 'Apri il file',
+        'That report no longer exists.': 'Quel rapporto non esiste più.',
+        'New report': 'Nuovo rapporto',
     }
 )

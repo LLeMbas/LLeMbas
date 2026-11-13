@@ -46,6 +46,10 @@ The `python` tool's runner (beta.11, `python.py`): a chat's page protocol
 (announce, withdraw, take, answer) and the Pyodide files, so an app's window
 can be the page Python runs in; `python` on `GET /me` says whether it is on.
 
+Reports (beta.12, `reports.py`, harness spec 3.8.0): what a schedule's run
+filed -- list, one, read, delete, reply -- a `reports` event on `GET /events`,
+and `notify_when`, `note` and `report` on schedules and their runs.
+
 Voice and images are not here: they are `/v1/audio/*` and
 `/v1/images/generations`, the OpenAI-compatible routes, which need the `models`
 scope. An app asks for `app models` at sign-in (the device login takes any of
@@ -70,6 +74,7 @@ def _include() -> None:
         menus,
         misc,
         python,
+        reports,
         schedules,
         stream,
         terminal,
@@ -88,6 +93,7 @@ def _include() -> None:
     # where `/attachments/{id}` is a GET and a DELETE.
     router.include_router(menus.router)
     router.include_router(python.router)
+    router.include_router(reports.router)
 
 
 _include()

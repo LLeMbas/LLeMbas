@@ -67,6 +67,10 @@ AREAS = {
     # the three sentences a `python` call answers when it could not run.
     "display": lambda c: _display(c),
     "python": lambda c: {"text": _python_text(c)},
+    # Spec 3.8.0: what a schedule's run leaves (`services/reports.py`), and
+    # HTML pages in answers as text (`services/html_pages.py`).
+    "reports": lambda c: _reports(c),
+    "pages": lambda c: _pages(c),
     # Spec 3.5.0: what a device makes of a scheduled turn (the server says it
     # in the schedule's form), the `[SILENT]` rule its runs share with the
     # device's, and the watch command's hash (the judge cases are the device's).
@@ -440,6 +444,57 @@ def _display(c: dict) -> dict:
     raise AssertionError(f"display: unknown case {show!r}")
 
 
+def _reports(c: dict) -> dict:
+    from lembas.services import reports
+
+    show = c["show"]
+    if show == "offered":
+        state = reports.tool_state(
+            session=c["session"], notify=c.get("notify"), turn=c.get("turn", "run"),
+            subagent=bool(c.get("subagent")),
+        )
+        if state == "unavailable":
+            return {"tool": state, "text": harness_spec.tools()["report_write"]["unavailable"]}
+        return {"tool": state}
+    if show == "instruction":
+        return {"text": reports.instruction(c.get("notify"), c.get("condition"))}
+    if show == "result":
+        return {"text": reports.result_text(int(c["calls"]))}
+    if show == "run":
+        report, note = reports.outcome(
+            notify=c.get("notify"), title=c.get("title", ""), calls=c.get("calls") or [],
+            answer=c.get("answer", ""),
+        )
+        return {"report": report, "note": note}
+    raise AssertionError(f"reports: unknown case {show!r}")
+
+
+def _pages(c: dict) -> dict:
+    from lembas.services import html_pages
+
+    show = c["show"]
+    if show == "fence":
+        pages, projection = html_pages.fence(c["text"])
+        return {"pages": [{"title": p.title, "html": p.html} for p in pages],
+                "projection": projection}
+    if show == "note":
+        return {"note": html_pages.note(c["title"])}
+    if show == "offered":
+        return {"offered": html_pages.offered(
+            instance=bool(c.get("instance")), model=bool(c.get("model")),
+            chat=bool(c.get("chat")), where=c.get("where", ""),
+        )}
+    if show == "note_line":
+        return {"line": html_pages_note_line(c)}
+    raise AssertionError(f"pages: unknown case {show!r}")
+
+
+def html_pages_note_line(c: dict) -> str:
+    from lembas.services import prefix
+
+    return prefix.pages_line(c["change"], c.get("pages_text", ""))
+
+
 def _python_text(c: dict) -> str:
     from lembas.services.tools import files as file_tools
 
@@ -452,6 +507,8 @@ def _python_text(c: dict) -> str:
 
 # Areas of the spec LLeMbas does not run yet, or no longer runs, and why.
 PENDING = {
+    "rules": "spec 3.8.0's order of permission rules (a broad allow never unlocks a narrower "
+    "written ask or deny) is the CLI's; the server's evaluation follows it next",
     "permission": "LLeMbas's modes are still its own table (agent/policy.py POLICY); the spec's "
     "modes.json and default rules are adopted later -- see the LLeMbas CLI's harness-parity notes",
     "edit": "run in tests/test_chat_files.py against the chat's edit tool",
@@ -543,6 +600,8 @@ DEVICE_TOOLS = (
 # Shared tools LLeMbas offers under the spec's own name, description and
 # parameters -- the definition a model is sent is the spec's, read from it.
 SHARED_ADOPTED = (
+    # Spec 3.8.0: a schedule's run files its report.
+    "report_write",
     # The file tools over the chat's tree (spec 3.0.0), and `show` and `recall`.
     "read",
     "write",

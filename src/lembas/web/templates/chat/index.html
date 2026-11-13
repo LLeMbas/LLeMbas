@@ -21,6 +21,11 @@
       {% include "partials/_sidebar_toggle.html" %}
 
       <h1 class="topbar__title">
+        {# A report's conversation says so, with the way back to the report. #}
+        {% if report_of | default(none) %}
+        <a class="topbar__back" href="/reports/{{ report_of.id }}"
+           title="{{ t('Back to the report') }}">{{ icon("arrow-left", "icon--sm") }} {{ t("Report") }}:</a>
+        {% endif %}
         <span id="chat-title">{{ chat.title if chat else t("New chat") }}</span>
         {# Where the wait for a generated name goes (`chat/_title_oob.html`):
            empty unless a model is naming this chat right now. #}

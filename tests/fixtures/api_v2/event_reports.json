@@ -1,0 +1,15 @@
+{
+  "unread": 1,
+  "newest": {
+    "id": "rep1",
+    "title": "Two cakes are unwrapped",
+    "summary": "Two of the twelve cakes have lost their leaves.",
+    "importance": "high",
+    "schedule": {
+      "id": "sched1",
+      "title": "Waybread check"
+    },
+    "created": "2026-01-02T03:04:05+00:00",
+    "unread": true
+  }
+}

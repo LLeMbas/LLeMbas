@@ -1,0 +1,41 @@
+{% extends "reports/_layout.html" %}
+{% from "_macros.html" import icon %}
+
+{% block title %}{{ report.title }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ report.title }}{% endblock %}
+{% block actions %}
+<a class="btn btn--sm" href="/reports">{{ icon("arrow-left", "icon--sm") }} {{ t("Reports") }}</a>
+<form method="post" action="/reports/{{ report.id }}/reply">
+  <button class="btn btn--sm btn--primary" type="submit"
+          title="{{ t('Continue this report as a conversation. It stays under Reports.') }}">
+    {{ icon("chat", "icon--sm") }} {{ t("Reply") }}
+  </button>
+</form>
+<form method="post" action="/reports/{{ report.id }}/delete"
+      data-confirm="{{ t('Delete this report? The conversation that continued it goes with it.') }}">
+  <button class="btn btn--sm btn--danger" type="submit">{{ icon("trash", "icon--sm") }} {{ t("Delete") }}</button>
+</form>
+{% endblock %}
+
+{% block reports_content %}
+<article class="card report" data-report="{{ report.id }}">
+  <p class="report__meta">
+    {% if schedule_title %}
+      {% if schedule_alive %}<a href="/scheduled/{{ report.schedule_id }}">{{ schedule_title }}</a>
+      {% else %}<span>{{ schedule_title }}</span>{% endif %}
+    {% endif %}
+    <time datetime="{{ report.created_at.isoformat() }}">{{ stamp(as_local(report.created_at), "%a %-d %b %Y, %H:%M") }}</time>
+    {% if report.model_id %}<span>{{ report.model_id }}</span>{% endif %}
+    {% if report.importance == "high" %}<span class="badge badge--warning">{{ t("Important") }}</span>{% endif %}
+  </p>
+  {% if report.summary %}<p class="report__summary">{{ report.summary }}</p>{% endif %}
+  {# The body is the model's Markdown, through the one renderer that
+     sanitises (services/markdown.py). #}
+  <div class="msg__body report__body">{{ report_body(report) }}</div>
+  {% if report.chat_id %}
+  <p class="report__continued">
+    <a class="btn btn--sm" href="/chat/{{ report.chat_id }}">{{ icon("chat", "icon--sm") }} {{ t("Open the conversation") }}</a>
+  </p>
+  {% endif %}
+</article>
+{% endblock %}
