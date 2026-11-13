@@ -254,7 +254,7 @@ def test_a_tag_that_disagrees_with_the_version_is_flagged(db, tagged):
 def test_the_moment_before_the_restart_is_not_a_mismatch(db, monkeypatch):
     """During an update the checkout is at the new tag while the old process is
     still serving the page. Its own older `__version__` is not the tag's fault:
-    the check reads the version the code at the tag declares. ai.lan showed
+    the check reads the version the code at the tag declares. One instance showed
     "tagged 1.5.0 but reports 1.3.0" in that moment, for a release cut right."""
     declared = updates.version_at(updates.checkout_dir(), "HEAD")
     assert declared, "the checkout declares a version"

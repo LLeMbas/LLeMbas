@@ -251,7 +251,7 @@ async def test_a_302_is_refused_and_a_307_is_followed_and_checked(mock_http):
 async def test_a_redirect_to_a_private_address_is_refused(mock_http, monkeypatch):
     def resolve(host, *_args, **_kwargs):
         if host == "inside.test":
-            return [(2, 1, 6, "", ("192.168.1.5", 80))]
+            return [(2, 1, 6, "", ("172.16.1.5", 80))]
         return [(2, 1, 6, "", ("93.184.216.34", 80))]
 
     monkeypatch.setattr("socket.getaddrinfo", resolve)

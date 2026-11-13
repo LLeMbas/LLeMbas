@@ -370,7 +370,7 @@ def test_a_push_endpoint_pointing_inside_the_network_is_refused(client, db, regi
     refused = client.post(
         "/api/push/subscribe",
         json={
-            "endpoint": "https://192.168.1.5:8443/admin/shutdown",
+            "endpoint": "https://172.16.1.5:8443/admin/shutdown",
             "keys": {"p256dh": "BAA" + "A" * 84, "auth": "AAAAAAAA"},
         },
     )

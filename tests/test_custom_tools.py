@@ -163,7 +163,7 @@ async def test_every_redirect_hop_is_checked(mock_http, monkeypatch):
 
     def resolve(host, *_args, **_kwargs):
         if host == "inside.test":
-            return [(2, 1, 6, "", ("192.168.1.5", 80))]
+            return [(2, 1, 6, "", ("172.16.1.5", 80))]
         return [(2, 1, 6, "", ("93.184.216.34", 80))]
 
     monkeypatch.setattr("socket.getaddrinfo", resolve)
