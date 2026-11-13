@@ -40,7 +40,12 @@ A page is a fenced code block whose info string begins with the word **`html-vie
 ## 2. What the model is told
 
 `prompts/blocks/html-pages.md`, as bullets of the system prompt when pages are offered (§4) —
-in short: the answer stays Markdown and must make sense without the page; a page is a complete
+in short: the answer stays Markdown and must make sense without the page; **what the person
+asks to see in the answer is a page, not an HTML file opened with `show`** (3.8.1: without
+this a model wrote a file and showed it, and the person got a card to open instead of the thing
+they asked for); **what has to run is not a page** — the model says a page cannot run anything
+and, where it has `write` and `show`, writes an HTML file and shows that, which a client runs
+in its sealed viewer; a page is a complete
 document in an `html-view` fence with a short title, one page per fence; it is **static** — HTML,
 CSS and inline SVG, nothing that runs and nothing loaded from anywhere; a chart is inline SVG the
 model writes out, shapes and numbers it worked out itself; tables and layout are CSS; colours

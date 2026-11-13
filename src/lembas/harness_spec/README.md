@@ -78,6 +78,17 @@ page *Harness-parity* in LLeMbas CLI's wiki.
   approval in plan mode and answers its `unavailable` text outside it. Their permission key is
   `plan` (`permission/defaults.json`), which a rule written for the former `todo` key still reaches.
 
+## 3.8.1
+
+A text. `prompts/blocks/html-pages.md` (`pages.md` §2) now says which of the two ways of
+showing HTML is for what: **something the person asks to see in the answer is a page** — not
+an HTML file written and opened with `show`, which is what a model did when nothing said
+otherwise, leaving a card to open where the drawing was asked for — and **something that has to
+run is not a page**: a page is static, so for a calculator, a game or anything that reacts to a
+click the model says a page cannot do it and, where it has `write` and `show`, writes an HTML
+file and shows that. Nothing else changes: no tool, rule, field or conformance case; the CLI is
+never offered pages, so its behaviour is the same.
+
 ## 3.8.0
 
 Written ahead of the implementations; the CLI carries it in the same round.

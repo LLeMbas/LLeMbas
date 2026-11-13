@@ -129,6 +129,12 @@ def test_the_prompt_has_the_block_only_when_offered(db, user_id):
     assert "html-view" in asked and "--page-accent" in asked
     # A page is static, and the model is told so: nothing in it runs.
     assert "A page is static" in asked and "inline SVG" in asked
+    # Spec 3.8.1: what is to be seen is a page, not a file opened with `show`
+    # -- with nothing said, a model wrote the file and showed that -- and what
+    # has to run is not a page: it says so, and shows a file.
+    assert "Do not write it to an HTML file and open that with `show`" in asked
+    assert "a page in an answer cannot run anything" in asked
+    assert "<!--" not in asked  # the block's own comment is not the model's to read
 
 
 def test_switching_it_during_a_chat_is_a_note_not_a_new_prompt(db, user_id):

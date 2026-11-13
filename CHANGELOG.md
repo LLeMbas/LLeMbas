@@ -19,6 +19,13 @@ at <https://llembas.eu/changelog.html>.
   the switch held and say why. **An instance that already has the switch on gets pages
   without doing anything**; a chat in progress is told on its next message. The model's flag
   keeps the harness spec's meaning and `/v1/models` sends it as it is stored.
+- **A model is told what a page is for** (harness spec **3.8.1**, vendored from the LLeMbas
+  CLI's `dev` and pinned to its tag at release). With pages on, a model asked to "show" a chart
+  would still write an HTML file and open it with `show`, because nothing said otherwise. The
+  text it is given now says that something the person asks to see in the answer is written as
+  a page -- and that a page is static, so anything that has to run (a calculator, a game,
+  something that reacts to a click) is not a page: the model says so and shows a file instead,
+  which you run in the reply.
 - **A shown HTML file is drawn in the conversation.** When a model opens an HTML file with
   `show`, the web page now draws it in the reply, at that place and at the reply's width: a bar
   with the file's name and path, the page in a sealed frame under it, **Open in viewer** and
