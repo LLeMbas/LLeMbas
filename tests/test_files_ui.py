@@ -423,6 +423,12 @@ def test_a_file_is_still_when_a_rebuild_loses_nothing_that_worked():
         '<img src="chart.svg">',
         "<video></video>",
         "<iframe></iframe>",
+        # Two addresses that worked when the file ran, and so are a loss.
+        '<a href="javascript:go()">x</a>',
+        '<a href=" Java\tScript:go()">x</a>',
+        '<a href="&#106;avascript:go()">x</a>',
+        '<link rel="stylesheet" href="data:text/css,h1{color:red}"><h1>x</h1>',
+        '<link rel="stylesheet" href="blob:https://example.org/1"><h1>x</h1>',
     ):
         assert not html_pages.shown_still(runs), runs
     assert not html_pages.shown_still("<p>" + "x" * (html_pages.MAX_SOURCE + 1))
@@ -473,7 +479,14 @@ def test_a_page_with_scripts_waits_for_run_page():
         assert "<iframe" not in html  # nothing is loaded until its person asks
         assert 'data-show-run' in html and "Run page" in html
         assert 'data-frame="/chat/c1/show/frame?node=n1&amp;version=v1&amp;inline=1"' in html
+        # It names a version: a page its person ran may be run again when the
+        # reply is drawn anew. A card that names the file alone may not.
+        assert "data-show-pinned" in html
+        assert "data-show-pinned" not in _card(version_id="", **said)
+    script = (file_ui_static() / "js" / "files.js").read_text()
+    assert 'ran[card.dataset.showKey] && card.hasAttribute("data-show-pinned")' in script
     device = _card(node_id="", version_id="", shown_id="s1", still=True)
+    assert "data-show-pinned" in device
     assert 'src="/api/chats/c1/shown/s1?page=1&amp;still=1"' in device
     assert 'href="/chat/c1/show?shown=s1"' in device
 

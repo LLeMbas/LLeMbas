@@ -457,7 +457,9 @@
 .show-inline__run { min-height: var(--tap-min); }
 .show-inline__source { border-top: var(--border-w) solid var(--border); }
 .show-inline__source > summary {
+  /* A thumb opens it: the padding and the line make the tap height. */
   padding: var(--sp-2) var(--sp-3);
+  line-height: calc(var(--tap-min) - 2 * var(--sp-2));
   font-size: var(--text-xs);
   color: var(--ink-faint);
   cursor: pointer;

@@ -147,8 +147,11 @@
       added(records, "[data-show-key]").forEach(function (card) {
         if (card.hasAttribute("data-show-inline")) {
           /* Drawn anew by a stream's frame or the finished reply: a page its
-             person ran is run again, not put back behind the button. */
-          if (ran[card.dataset.showKey]) run(card);
+             person ran is run again, not put back behind the button -- but
+             only a card that names one version of the file (or the copy a
+             device sent). One that names the file alone may hold other
+             contents by now than what was run, and waits to be asked. */
+          if (ran[card.dataset.showKey] && card.hasAttribute("data-show-pinned")) run(card);
         } else if (!seen[card.dataset.showKey]) {
           fresh = card;
         }

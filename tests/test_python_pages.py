@@ -209,6 +209,16 @@ async def test_an_app_can_be_the_page_python_runs_in(
 
     user = db.scalar(select(User))
     task = asyncio.create_task(_call(_context(chat_id, user.id)))
+    # The call is queued before the page asks. This test has two event loops
+    # (its own, where the tool runs, and the test client's, where the long
+    # poll waits), and a queue does not wake a getter on another loop: a poll
+    # that got there first slept its whole wait and answered 204. One loop
+    # serves both in the application.
+    for _ in range(500):
+        if pages._calls:
+            break
+        await asyncio.sleep(0.01)
+    assert pages._calls, "the python call was never queued"
     taken = await asyncio.to_thread(
         client.get, f"{base}/take?page=desktop-0001", headers=headers
     )

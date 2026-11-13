@@ -119,6 +119,111 @@ def test_a_run_has_no_chat_switch_and_three_places_never_have_pages(db, user_id)
         assert html_pages.why_not(db, other, model) in html_pages.spec()["never"]
 
 
+def test_a_chat_taken_up_on_the_phone_is_told_pages_are_off(db, user_id):
+    """Its prompt has the block (pages start on); then a message comes from
+    the phone app, which cannot draw a page. The chat is the phone assistant's
+    from then on, and the model must hear it: silence left it writing pages
+    that a phone shows and reads aloud as markup."""
+    _on(db)
+    chat = _chat(db, user_id)
+    # A model that takes no tools: the phone adds no tool to its list, so its
+    # prompt is not made again and only a note can say it.
+    for model in db.scalars(select(Model)):
+        model.capabilities_json = {**(model.capabilities_json or {}), "tools": False}
+    db.commit()
+    session = Session(db, chat)
+    first = session.turn("Hello.")
+    assert "html-view" in _system(first)
+
+    session.chat.phone_message_id = "0" * 32
+    db.commit()
+    assert html_pages.where_of(session.chat) == "phone_assistant"
+    second = session.turn("From the phone.")
+    assert _system(second) == _system(first)  # the prefix stays still
+    told = _last_user(second).split("<session-note>")[1]
+    assert "HTML pages are now off for this chat" in told
+    assert "HTML pages" not in _last_user(session.turn("Again."))  # told once
+
+    # A model with tools is offered `phone_action` from then on, so its prompt
+    # is made again -- without the block, and with nothing more to say.
+    for model in db.scalars(select(Model)):
+        model.capabilities_json = {**(model.capabilities_json or {}), "tools": True}
+    db.commit()
+    tooled = Session(db, _chat(db, user_id))
+    assert "html-view" in _system(tooled.turn("Hello."))
+    tooled.chat.phone_message_id = "2" * 32
+    db.commit()
+    after = tooled.turn("From the phone.")
+    assert "html-view" not in _system(after)
+    assert "HTML pages are now on" not in _last_user(after)
+
+    # A place that never had them and was never told "on" hears nothing.
+    never = Session(db, _chat(db, user_id, phone_message_id="1" * 32))
+    opening = never.turn("Hello.")
+    assert "html-view" not in _system(opening)
+    assert "HTML pages" not in _last_user(opening)
+
+
+def test_an_app_that_cannot_draw_a_page_is_never_offered_one(
+    client: TestClient, db, registered, monkeypatch
+):
+    """Pages start on, and the apps make chats too. What decides is what each
+    app already sends: the Android app declares `client: ["phone_actions"]`
+    with every chat and message, which makes the chat the phone assistant's;
+    the CLI's sessions are agent chats; the desktop app declares nothing,
+    draws pages, and reads the chat's switch."""
+    from lembas.services import generation as generation_service
+
+    monkeypatch.setattr(generation_service, "ensure", lambda *a, **k: None)
+    owner = db.scalars(select(User).order_by(User.created_at)).first()
+    _chat(db, owner.id)  # makes the model
+    _on(db)
+    auth = _app(db, owner)
+
+    def switch(chat_id: str) -> dict:
+        return client.get(f"/api/v2/chats/{chat_id}/html-pages", headers=auth).json()
+
+    def offered(chat_id: str) -> bool:
+        db.expire_all()
+        chat = db.get(Chat, chat_id)
+        return html_pages.on(db, chat, db.scalars(select(Model)).first())
+
+    # The desktop app: nothing declared, pages on, as the chat's endpoint says.
+    desktop = client.post("/api/v2/chats", headers=auth, json={"text": "Hi", "model": "m"})
+    assert desktop.status_code == 201, desktop.text
+    desktop_id = desktop.json()["chat"]["id"]
+    assert switch(desktop_id) == {"offered": True, "on": True} and offered(desktop_id)
+
+    # The phone: never, from the chat's first message.
+    phone = client.post("/api/v2/chats", headers=auth,
+                        json={"text": "Hi", "model": "m", "client": ["phone_actions"]})
+    phone_id = phone.json()["chat"]["id"]
+    assert switch(phone_id) == {"offered": False, "on": False} and not offered(phone_id)
+    assert client.post(f"/api/v2/chats/{phone_id}/html-pages", headers=auth,
+                       json={"on": True}).status_code == 409
+
+    # A chat made elsewhere and continued from the phone: not from then on.
+    sent = client.post(f"/api/v2/chats/{desktop_id}/messages", headers=auth,
+                       json={"text": "And now from the phone", "client": ["phone_actions"]})
+    assert sent.status_code == 201, sent.text
+    assert switch(desktop_id) == {"offered": False, "on": False} and not offered(desktop_id)
+
+    # The CLI's sessions are agent chats.
+    agent = Chat(user_id=owner.id, model_id="m", kind=KIND_AGENT)
+    db.add(agent)
+    db.commit()
+    assert switch(agent.id) == {"offered": False, "on": False}
+
+
+def test_a_chat_with_no_model_is_not_blamed_on_the_model(db, user_id):
+    chat = _chat(db, user_id)
+    settings_store.update(db, {"html_pages_enabled": True})
+    # Every model is offered pages: a model that does not resolve is no reason.
+    assert html_pages.why_not(db, chat, None) == ""
+    settings_store.update(db, {html_pages.MODELS_KEY: html_pages.MODELS_CHOSEN})
+    assert html_pages.why_not(db, chat, None) == "model"
+
+
 def test_the_prompt_has_the_block_only_when_offered(db, user_id):
     session = Session(db, _chat(db, user_id))
     assert "html-view" not in _system(session.turn("Hello."))

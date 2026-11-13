@@ -133,8 +133,10 @@ def model(row, *, default: bool = False, subagents: dict | None = None) -> dict[
         # Added within APP_API 2 (server 2.0.0-beta.7).
         "subagents": _subagents(subagents, cap=False),
         # Added within APP_API 2 (server 2.0.0-beta.12; harness spec 3.8.0):
-        # the model can write HTML pages into an answer. A chat on it has
-        # them only where the instance's switch and the chat's are on too.
+        # the model's flag "can write HTML pages", **as it is stored** -- not
+        # whether a chat on it is offered pages. That is the instance's to
+        # say (it may offer them on every model, flagged or not) and the
+        # chat's: an app asks `GET /chats/{id}/html-pages`.
         "html_pages": bool(getattr(row, "html_pages", False)),
     }
 

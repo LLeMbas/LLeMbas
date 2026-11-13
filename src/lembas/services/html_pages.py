@@ -523,8 +523,9 @@ def models_scope(db) -> str:
 def model_can(db, model) -> bool:
     """The model's part of `offered`, as this instance reads it: its own flag,
     or every model where the instance says so."""
-    if model is None:
-        return False
+    # Where every model is offered pages, a chat whose model does not resolve
+    # (none chosen yet, a row that has gone) is not "a model that was not
+    # chosen": nothing is said against it here.
     return models_scope(db) == MODELS_ALL or bool(getattr(model, "html_pages", False))
 
 
@@ -644,16 +645,44 @@ def _document(
 #
 # What the rebuild drops without loss: `meta`, `link` and `base` (under the
 # sealed policy a linked sheet never loaded anyway) and the address of a link
-# (a sealed frame cannot be navigated anywhere).
+# (a sealed frame cannot be navigated anywhere). Two addresses did work under
+# the scripted policy and are a loss (`_WorkedWhenRun`): a `javascript:` one,
+# which is a script, and a `<link>` to a `data:` or `blob:` sheet.
 _NO_LOSS = frozenset({"element:meta", "element:link", "element:base", "address:href"})
+# What a browser drops from an address before reading its scheme.
+_IN_SCHEME = re.compile(r"[\x00-\x20]+")
+
+
+class _WorkedWhenRun(HTMLParser):
+    """Finds the addresses the fault names cannot tell apart from harmless ones."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.found = False
+
+    def handle_starttag(self, tag: str, attrs) -> None:
+        for name, value in attrs:
+            scheme = _IN_SCHEME.sub("", value or "").lower()
+            if scheme.startswith("javascript:"):
+                self.found = True
+            if tag == "link" and name == "href" and scheme.startswith(("data:", "blob:")):
+                self.found = True
+
+    handle_startendtag = handle_starttag
 
 
 def shown_still(html: str) -> bool:
     """Whether a shown HTML file can be drawn in the conversation at once: it
     is static as written, but for what a sealed frame never honoured."""
-    if len((html or "").encode("utf-8", errors="replace")) > MAX_SOURCE:
+    html = html or ""
+    if len(html.encode("utf-8", errors="replace")) > MAX_SOURCE:
         return False
-    return all(fault in _NO_LOSS for fault in static_faults(html or ""))
+    if not all(fault in _NO_LOSS for fault in static_faults(html)):
+        return False
+    worked = _WorkedWhenRun()
+    worked.feed(html)
+    worked.close()
+    return not worked.found
 
 
 def shown_document(name: str, html: str) -> str:

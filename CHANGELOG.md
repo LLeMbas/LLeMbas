@@ -19,6 +19,12 @@ at <https://llembas.eu/changelog.html>.
   the switch held and say why. **An instance that already has the switch on gets pages
   without doing anything**; a chat in progress is told on its next message. The model's flag
   keeps the harness spec's meaning and `/v1/models` sends it as it is stored.
+  **A scheduled task's report may now carry a page on any model** where the instance offers
+  pages on all of them -- a run has no chat to switch, so the instance and the model decide.
+  **Never where a page cannot be drawn**: a chat made or continued from the Android app is the
+  phone assistant's from then on and has no pages (the model is told they are off if its
+  prompt had them), and the CLI's sessions are agent chats. The desktop app draws pages and
+  needs no update.
 - **A model is told what a page is for** (harness spec **3.8.1**, vendored from the LLeMbas
   CLI's `dev` and pinned to its tag at release). With pages on, a model asked to "show" a chart
   would still write an HTML file and open it with `show`, because nothing said otherwise. The

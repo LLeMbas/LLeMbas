@@ -163,8 +163,11 @@ def facts(db: DBSession, chat: Chat, user, speaker, tools) -> Facts:
         out.team, out.team_state = block, state
     from lembas.services import html_pages
 
-    if html_pages.where_of(chat) not in html_pages.spec()["never"]:
-        out.pages = html_pages.on(db, chat, _model(db, chat, speaker))
+    # Always said, also for a place that never has pages: a chat whose prompt
+    # has the block and that is then continued from the phone must be told
+    # they are off. Where nothing was ever told on, "off" is what the model
+    # was told already (`_note`), and no line is written.
+    out.pages = html_pages.on(db, chat, _model(db, chat, speaker))
     return out
 
 

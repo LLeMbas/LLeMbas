@@ -244,7 +244,7 @@ EDGES = """JSON.stringify({
     return [Math.round(r.width), Math.round(p.width), Math.round(r.height)];
   }),
   taps: [].map.call(document.querySelectorAll(
-      '.show-card__open, [data-show-run]'), function (e) {
+      '.show-card__open, [data-show-run], .show-inline__source > summary'), function (e) {
     return Math.round(e.getBoundingClientRect().height);
   })
 })"""

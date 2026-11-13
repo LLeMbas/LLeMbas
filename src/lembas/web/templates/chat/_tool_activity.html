@@ -115,7 +115,7 @@
       is not words. -#}
   {% set still = shown.still is true %}
   <figure class="show-inline"{% if block_id %} id="{{ block_id }}"{% endif %} data-testid="show-inline"
-          data-show-inline data-show-key="{{ show_key }}" data-mode="{{ 'still' if still else 'run' }}"
+          data-show-inline data-show-key="{{ show_key }}"{% if shown.shown_id or shown.version_id %} data-show-pinned{% endif %} data-mode="{{ 'still' if still else 'run' }}"
           data-frame="{% if shown.shown_id %}/api/chats/{{ chat_ref }}/shown/{{ shown.shown_id|urlencode }}?page=1{% else %}/chat/{{ chat_ref }}/show/frame?{{ query }}{% endif %}&amp;inline=1"
           data-frame-title="{{ t('The page in %(name)s, sealed off from this application', name=shown.name) }}">
     <figcaption class="show-inline__bar">
