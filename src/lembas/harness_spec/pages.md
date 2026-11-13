@@ -2,8 +2,9 @@
 
 Spec 3.8.0. **Experimental, and off unless switched on.** A reply stays Markdown; where seeing
 answers better than reading, the model may add **a page** to it: a complete, self-contained HTML
-document in a fenced block. A client that can, shows the page in a sealed frame at that place in
-the reply; every other reader sees a one-line note. The prompt text is `prompts/blocks/html-pages.md`;
+document in a fenced block — **static: HTML, CSS and inline SVG, no script** (§6). A client that
+can, shows the page in a sealed frame at that place in the reply; every other reader sees a
+one-line note. The prompt text is `prompts/blocks/html-pages.md`;
 the names and texts `loop.json` `pages`; the model flag `models/schema.json` `html_pages`; the
 cases `conformance/pages.json`. (It takes the place of the 1.x *prototypes*, which 2.0 removed:
 one kind of block instead of two, no panel, no network.)
@@ -40,10 +41,10 @@ A page is a fenced code block whose info string begins with the word **`html-vie
 
 `prompts/blocks/html-pages.md`, as bullets of the system prompt when pages are offered (§4) —
 in short: the answer stays Markdown and must make sense without the page; a page is a complete
-document in an `html-view` fence with a short title, one page per fence; everything is inline —
-no external script, style, font or image, the frame has no network; charts are drawn with inline
-SVG or a canvas script; colours come from the frame's variables so the page follows light and
-dark; no forms that submit, no links that navigate.
+document in an `html-view` fence with a short title, one page per fence; it is **static** — HTML,
+CSS and inline SVG, nothing that runs and nothing loaded from anywhere; a chart is inline SVG the
+model writes out, shapes and numbers it worked out itself; tables and layout are CSS; colours
+come from the frame's variables so the page follows light and dark.
 
 **The frame's variables**, set on the page's root by the client that shows it, always used with
 a fallback (`pages.variables`):
@@ -95,11 +96,45 @@ message: `context.note.pages_on` — with the block's text as `{{pages_text}}` �
 is made; a change of those reaches a chat the same way, as the chat's switch going off or
 becoming available.
 
-## 6. The frame
+## 6. A page is static
 
-What a rendering client must hold to (the server's and Desktop's own tests prove it; it is here
-so that a third client does not weaken it): the page runs in a frame of its own origin with
-scripts allowed and nothing else — no cookie, no storage of the app's, **no network** (no fetch,
-no image, font, script or style from anywhere), no navigation of itself or its parent, no forms
-that submit, no pop-ups. The client gives it the five variables and takes its height. A page
-never reaches the app that shows it.
+**Everywhere, in every client: HTML, CSS and inline SVG — nothing that runs, nothing that
+reaches anywhere.** A frame with scripts on cannot be sealed by policy alone: a script can still
+send data out (a WebRTC datagram to a server it chooses), and even without script a document can
+make the browser look a name up (`<link rel="dns-prefetch">`, `preconnect`, `prefetch`). So the
+rule is about the document, not only the frame around it (`loop.json` `pages.static`;
+`conformance/pages.json`, `show: static`):
+
+- **No script of any kind**: no `<script>`, no event-handler attribute (`on…`), no
+  `javascript:` address.
+- **Only the listed elements** (`pages.static.elements`: text, lists, tables, figures, `style`,
+  and the SVG shapes) — so no `<link>`, `<meta>`, `<base>`, no frames (`iframe`, `frame`,
+  `embed`, `object`), no media (`audio`, `video`, `source`, `track`, `canvas`), no forms
+  (`form`, `input`, `button`, `select`, `textarea`), no `<template>`, `<slot>`, `<foreignObject>`.
+- **Only the listed attributes** (`pages.static.attributes`): presentation and structure.
+- **No address but two**: `#fragment` (a link or a reference within the page) and an inline
+  `data:image/png|jpeg|gif|webp;base64,…` image. Nothing else in `href`, `src`, `xlink:href` or
+  any other attribute — no `http:`, `https:`, `//host`, relative paths, `data:` of another kind.
+- **CSS that fetches nothing**: no `@import`, and no `url(…)` other than `url(#fragment)` or
+  such an inline image — in a `<style>` element and in a `style` attribute alike.
+
+A chart is therefore **inline SVG the model writes out**: bars, lines and pie slices as SVG
+shapes, with the numbers it computed; a table is a table, styled with CSS.
+
+**What a client that shows pages must do**, all of it:
+
+1. **Rebuild the document from the allow-list** before showing it: parse what the model wrote,
+   keep the listed elements and attributes and the two kinds of address, drop everything else
+   (the element with its content for `script`, `style` that fetches, and the forbidden
+   elements; the attribute alone for a forbidden attribute). What is shown is the rebuilt
+   document, never the model's text as it came.
+2. Show it in a **frame of its own origin with scripts off** — nothing allowed to the frame:
+   no script, no forms, no pop-ups, no navigation of itself or its parent, no cookie or storage
+   of the app's, no network.
+3. Give it the five variables, a **fixed height with its own scrolling** (a static document
+   cannot report its height), and an **Open larger** control that shows the same rebuilt
+   document larger, in place, under the same rules.
+
+**A client that cannot guarantee all of this shows the note of §3 instead** — a terminal, a
+phone, and any client whose frame cannot be held to it. A page never reaches the app that shows
+it, and never reaches anywhere else.

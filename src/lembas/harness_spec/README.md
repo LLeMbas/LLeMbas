@@ -98,7 +98,11 @@ Written ahead of the implementations; the CLI carries it in the same round.
 - **HTML pages in answers** (`pages.md`, `prompts/blocks/html-pages.md`, `loop.json` `pages`,
   `models/schema.json` `html_pages`) — experimental, off unless switched on. The reply stays
   Markdown; the model may add a complete, self-contained page in a fence whose info string is
-  `html-view` and a title. Offered only when the instance's switch, the model's flag and the
+  `html-view` and a title. **A page is static everywhere** — HTML, CSS and inline SVG; no script,
+  no event handlers, no `<link>`/`<meta>`/`<base>`, frames, media or forms, no address but
+  `#fragment` and an inline `data:image/…`; a client rebuilds it from the allow-list
+  (`loop.json` `pages.static`) and shows it in a frame with scripts off, or shows the note.
+  Offered only when the instance's switch, the model's flag and the
   chat's switch are all on (a scheduled run: instance and model); never to a subagent, the phone
   assistant or an agent chat. A reader that cannot show a page sees *This answer has a page:
   title*; anything that reads a reply as text sees `[page: title]`. A switch changed mid-chat is

@@ -487,6 +487,9 @@ def _pages(c: dict) -> dict:
         )}
     if show == "note_line":
         return {"line": html_pages_note_line(c)}
+    if show == "static":
+        why = html_pages.static_faults(c["html"])
+        return {"static": False, "why": why} if why else {"static": True}
     raise AssertionError(f"pages: unknown case {show!r}")
 
 

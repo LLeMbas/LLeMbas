@@ -74,8 +74,8 @@ def test_the_prompt_has_the_block_only_when_offered(db, user_id):
     _on(db)
     asked = _system(Session(db, chat).turn("Hello."))
     assert "html-view" in asked and "--page-accent" in asked
-    # This server shows a page without running its scripts, and says so.
-    assert html_pages.STATIC_NOTE in asked
+    # A page is static, and the model is told so: nothing in it runs.
+    assert "A page is static" in asked and "inline SVG" in asked
 
 
 def test_switching_it_during_a_chat_is_a_note_not_a_new_prompt(db, user_id):
@@ -183,16 +183,41 @@ def test_the_document_is_rebuilt_static_and_names_no_other_host():
     assert '<a href="#part">in</a>' in out and 'src="data:image/png;base64,AAAA"' in out
     assert '<rect width="5" height="5" fill="url(#g)">' in out
     assert "--page-bg:#101418" in out and "--page-ink:rgb(1 2 3)" in out
-    # Nothing that runs, loads, hints or navigates does.
-    for gone in ("<script", "<link", "<meta http-equiv", "<base", "<iframe", "<object",
-                 "onload", "formaction", "action=", "@import", "<!--"):
+    # Nothing that runs, loads, hints or navigates does -- and a style sheet
+    # that would fetch goes whole.
+    for gone in ("<script", "<link", "<meta http", "<base", "<iframe", "<object", "<form",
+                 "<input", "<button", "onload", "formaction", "action=", "@import", "<!--"):
         assert gone not in out, gone
-    # The one address left is inside a style sheet, where the policy refuses
-    # the request; no element or attribute names the host.
-    without_css = re.sub(r"<style>.*?</style>", "", out, flags=re.S)
-    assert "leak.example.org" not in without_css
-    # Every `<` that is written opens a tag this code chose to write.
-    assert "<link" not in out and "\\3c link" in out
+    # No element or attribute names the other host; what is left of it is
+    # inert text inside a style sheet (below).
+    assert "leak.example.org" not in re.sub(r"<style>.*?</style>", "", out, flags=re.S)
+    # Every `<` that is written opens a tag this code chose to write: inside
+    # a kept style sheet it is a CSS escape.
+    assert "\\3c link" in out
+    # The spec's own account of what was wrong with it, from the same parse.
+    why = html_pages.static_faults(HOSTILE)
+    assert why[:4] == ["element:link", "element:meta", "element:base", "css:import"]
+    assert {"element:script", "attribute:onload", "address:href", "address:src",
+            "element:iframe", "element:form"} <= set(why)
+
+
+def test_the_allow_list_is_the_specs_and_only_the_specs():
+    rules = html_pages.static_rules()
+    assert "script" not in rules["elements"] and "link" not in rules["elements"]
+    assert rules["image_types"] == ["png", "jpeg", "gif", "webp"]  # no svg+xml
+    fine = (
+        '<h1 class="t" data-n="1" aria-label="x">Sales</h1>'
+        '<svg viewBox="0 0 10 10"><use href="#a"/><rect fill="url(#g)" width="5" height="5"/></svg>'
+        '<img alt="" src="data:image/png;base64,AAAA"><style>.a{fill:url(#g)}</style>'
+    )
+    assert html_pages.static_faults(fine) == []
+    built = html_pages.document(html_pages.Page("T", fine))
+    assert 'data-n="1"' in built and '<use href="#a">' in built and "url(#g)" in built
+    # An inline SVG picture is not an allowed image, and `xlink:href` is not listed.
+    odd = '<img alt="" src="data:image/svg+xml;base64,AAAA"><svg><use xlink:href="#a"/></svg>'
+    assert html_pages.static_faults(odd) == ["address:src", "attribute:xlink:href"]
+    built = html_pages.document(html_pages.Page("T", odd))
+    assert "svg+xml" not in built and "xlink" not in built
 
 
 def test_the_frames_colours_are_colours_or_nothing():

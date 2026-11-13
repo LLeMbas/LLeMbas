@@ -1,5 +1,5 @@
 {
-  "about": "HTML pages in answers (pages.md, spec 3.8.0). `show` says what is asked. `fence`: a reply's `text` — expect `pages`, each closed `html-view` block in order with its `title` and its `html` (the lines between the fences, joined by newlines), and `projection`, the reply with every page replaced by its `[page: title]` line. `note`: a page's `title` — expect what a client that cannot render shows. `offered`: the `instance` switch, the `model`'s flag (absent: false), the `chat` switch, and `where` (absent: a chat; `scheduled`: a schedule's run on the server, which has no chat switch; `subagent`, `phone_assistant`, `agent_chat`) — expect whether the block is in the prompt. `note_line`: the chat's switch `change`d to `on` or `off` after the prompt was made — expect the session note's `line`. LLeMbas: services/pages.py; CLI: src/prototype/fence.ts.",
+  "about": "HTML pages in answers (pages.md, spec 3.8.0). `show` says what is asked. `fence`: a reply's `text` — expect `pages`, each closed `html-view` block in order with its `title` and its `html` (the lines between the fences, joined by newlines), and `projection`, the reply with every page replaced by its `[page: title]` line. `note`: a page's `title` — expect what a client that cannot render shows. `offered`: the `instance` switch, the `model`'s flag (absent: false), the `chat` switch, and `where` (absent: a chat; `scheduled`: a schedule's run on the server, which has no chat switch; `subagent`, `phone_assistant`, `agent_chat`) — expect whether the block is in the prompt. `note_line`: the chat's switch `change`d to `on` or `off` after the prompt was made — expect the session note's `line`. `static`: a page's `html` — expect `static` true, or false with `why`: what makes it not static, each once, in the order first met — `element:<name>` (not in pages.static.elements), `attribute:<name>` (not in pages.static.attributes, nor a kept prefix), `address:<attribute>` (an address other than #fragment or an inline data: image of a listed type), `css:import`, `css:url` (a url() that is neither) — names in lower case. It says what the rule is; a client still rebuilds the document with a real parser (pages.md §6). LLeMbas: services/pages.py; CLI: src/prototype/fence.ts.",
   "cases": [
     {
       "about": "A page with a title.",
@@ -280,6 +280,139 @@
       "change": "off",
       "expect": {
         "line": "HTML pages are now off for this chat: write no more `html-view` blocks."
+      }
+    },
+    {
+      "about": "A static page: text, a table, a style element with the variables, inline SVG.",
+      "show": "static",
+      "html": "<!doctype html><html><head><title>Sales</title><style>body{color:var(--page-ink,#222);background:var(--page-bg,#fff)} td{border:1px solid var(--page-line,#ccc)}</style></head><body><h1>Sales</h1><table><tr><th scope=\"col\">Month</th><td colspan=\"2\">12</td></tr></table><svg viewBox=\"0 0 100 40\" role=\"img\" aria-label=\"Bars\"><rect x=\"0\" y=\"10\" width=\"20\" height=\"30\" fill=\"var(--page-accent,#06c)\"/><text x=\"10\" y=\"8\" text-anchor=\"middle\" font-size=\"6\">12</text></svg></body></html>",
+      "expect": {
+        "static": true
+      }
+    },
+    {
+      "about": "A link within the page and an inline picture are the two addresses there are.",
+      "show": "static",
+      "html": "<a href=\"#totals\">Totals</a><h2 id=\"totals\">Totals</h2><img alt=\"dot\" src=\"data:image/png;base64,iVBORw0KGgo=\">",
+      "expect": {
+        "static": true
+      }
+    },
+    {
+      "about": "A script.",
+      "show": "static",
+      "html": "<p>x</p><script>fetch('https://example.org/')</script>",
+      "expect": {
+        "static": false,
+        "why": [
+          "element:script"
+        ]
+      }
+    },
+    {
+      "about": "An event handler.",
+      "show": "static",
+      "html": "<p onclick=\"go()\">x</p><svg onload=\"go()\"></svg>",
+      "expect": {
+        "static": false,
+        "why": [
+          "attribute:onclick",
+          "attribute:onload"
+        ]
+      }
+    },
+    {
+      "about": "A link element — a dns-prefetch needs no script at all.",
+      "show": "static",
+      "html": "<link rel=\"dns-prefetch\" href=\"//example.org\"><p>x</p>",
+      "expect": {
+        "static": false,
+        "why": [
+          "element:link"
+        ]
+      }
+    },
+    {
+      "about": "meta, base, frames, objects, media, canvas, forms.",
+      "show": "static",
+      "html": "<meta http-equiv=\"refresh\" content=\"0;url=https://example.org\"><base href=\"https://example.org/\"><iframe src=\"https://example.org\"></iframe><object data=\"x\"></object><embed src=\"x\"><video src=\"x\"></video><audio></audio><canvas></canvas><form action=\"https://example.org\"><input name=\"q\"><button>go</button></form>",
+      "expect": {
+        "static": false,
+        "why": [
+          "element:meta",
+          "element:base",
+          "element:iframe",
+          "element:object",
+          "element:embed",
+          "element:video",
+          "element:audio",
+          "element:canvas",
+          "element:form",
+          "element:input",
+          "element:button"
+        ]
+      }
+    },
+    {
+      "about": "An address that leaves the page.",
+      "show": "static",
+      "html": "<a href=\"https://example.org/\">out</a><img src=\"https://example.org/p.png\" alt=\"\"><a href=\"page2.html\">next</a>",
+      "expect": {
+        "static": false,
+        "why": [
+          "address:href",
+          "address:src"
+        ]
+      }
+    },
+    {
+      "about": "A javascript: address, a protocol-relative one, a data: address that is not a picture, an SVG picture.",
+      "show": "static",
+      "html": "<a href=\"JavaScript:go()\">x</a><a href=\"//example.org\">y</a><a href=\"data:text/html;base64,PGI+\">z</a><img alt=\"\" src=\"data:image/svg+xml;base64,PHN2Zz4=\">",
+      "expect": {
+        "static": false,
+        "why": [
+          "address:href",
+          "address:src"
+        ]
+      }
+    },
+    {
+      "about": "CSS that would fetch: @import and url() to anywhere; url(#id) and an inline picture are fine.",
+      "show": "static",
+      "html": "<style>@import url(https://example.org/a.css); .a{background:url(https://example.org/b.png)} .b{fill:url(#grad)} .c{background:url(data:image/png;base64,iVBOR=)}</style><p style=\"background:url('//example.org/c.png')\">x</p>",
+      "expect": {
+        "static": false,
+        "why": [
+          "css:import",
+          "css:url"
+        ]
+      }
+    },
+    {
+      "about": "Elements and attributes nobody listed: dropped, whatever they are.",
+      "show": "static",
+      "html": "<marquee>x</marquee><template><p>y</p></template><svg><foreignObject><p>z</p></foreignObject><use href=\"#a\"/></svg><p contenteditable=\"true\" data-n=\"1\" aria-hidden=\"true\">w</p>",
+      "expect": {
+        "static": false,
+        "why": [
+          "element:marquee",
+          "element:template",
+          "element:foreignobject",
+          "attribute:contenteditable"
+        ]
+      }
+    },
+    {
+      "about": "An xlink:href is not a listed attribute; a use that points outside is an address.",
+      "show": "static",
+      "html": "<svg><use xlink:href=\"#a\"/><use href=\"https://example.org/s.svg#a\"/></svg>",
+      "expect": {
+        "static": false,
+        "why": [
+          "attribute:xlink:href",
+          "address:href"
+        ]
       }
     }
   ]

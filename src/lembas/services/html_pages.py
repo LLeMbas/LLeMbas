@@ -15,6 +15,7 @@ security page) and is not here.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import re
 from dataclasses import dataclass
@@ -128,19 +129,21 @@ def offered(*, instance: bool, model: bool, chat: bool, where: str = "") -> bool
     return True if where == "scheduled" else bool(chat)
 
 
-# --- The document a browser is given --------------------------------------------------
+# --- The document a client is given ---------------------------------------------------
 #
-# A page is shown **static**: its HTML, CSS and inline SVG, and no script. That
-# is not the first design. A page with scripts in a sealed frame reaches
-# nothing of this application -- but two ways of *sending* cannot be closed
-# from a web page's policy (measured in Chromium, `tests/test_html_pages_sealed.py`):
-# a peer connection asks a STUN server of the page's choosing (`webrtc 'block'`
-# is not enforced), and a `<link rel="dns-prefetch">` -- which a script can make
-# at any time -- has the browser look a name up, whatever the policy says. A
-# page that anything the model read may have steered would carry a
-# conversation out in either. Without scripts the first is gone, and the
-# second is closed here: the document is rebuilt from what a parser saw, and
-# nothing that names another host is written back.
+# **A page is static** (pages.md §6): HTML, CSS and inline SVG -- nothing that
+# runs, nothing that reaches anywhere. A frame with scripts on cannot be sealed
+# by policy alone (measured in Chromium, `tests/test_html_pages_sealed.py`): a
+# peer connection asks a STUN server of the page's choosing, and a
+# `<link rel="dns-prefetch">` -- which needs no script at all -- has the
+# browser look a name up whatever the policy says. So the rule is about the
+# document, and the document shown is **rebuilt from the spec's allow-list**
+# (`loop.json` `pages.static`): parsed, and written back with the listed
+# elements and attributes and the two kinds of address, and nothing else.
+#
+# There is one list, the spec's, and two readers of it here: `static_faults`
+# says what in a page breaks the rule (the conformance cases), `document`
+# builds what is shown. Both walk the same parse.
 #
 # The rebuilding is deliberately simple, because a clever sanitiser is a
 # parser differential waiting to be found: every `<` in what is written comes
@@ -148,29 +151,53 @@ def offered(*, instance: bool, model: bool, chat: bool, where: str = "") -> bool
 # is written as a CSS escape; comments, declarations and processing
 # instructions are dropped.
 
-# Elements that are dropped with everything inside them, and those dropped
-# alone (they have no content, or their content is kept as it is).
-_DROP_WITH_CONTENT = frozenset({
-    "script", "iframe", "frame", "frameset", "object", "embed", "applet", "noscript",
-    "template", "portal", "fencedframe", "audio", "video",
-})
-_DROP = frozenset({"link", "base", "meta", "source", "track", "param"})
+# Elements with no content: one that is not allowed is dropped by itself.
+# Any other element that is not allowed goes with everything inside it.
 _VOID = frozenset({
-    "area", "br", "col", "hr", "img", "input", "wbr",
-})
-# Attributes whose value is an address. Kept only when it points inside the
-# page (`#id`) or is an inline image.
-_URL_ATTRIBUTES = frozenset({
-    "href", "src", "xlink:href", "action", "formaction", "poster", "data", "background",
-    "srcset", "imagesrcset", "ping", "cite", "manifest", "codebase", "longdesc", "usemap",
-    "icon", "lowsrc", "dynsrc", "profile", "classid", "archive", "attributionsrc",
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param",
+    "source", "track", "wbr",
 })
 _NAME = re.compile(r"^[a-z][a-z0-9:_.-]*$")
-_INLINE_IMAGE = re.compile(r"^data:image/(png|gif|jpeg|webp|svg\+xml|avif)[;,]", re.I)
+_CSS_URL = re.compile(r"url\(\s*(['\"]?)([^)'\"]*)\1\s*\)", re.I)
+_CSS_IMPORT = re.compile(r"@import\b", re.I)
 _COLOUR = re.compile(
     r"^(#[0-9a-fA-F]{3,8}"
     r"|(rgb|rgba|hsl|hsla|oklch|oklab|lab|lch|color)\([0-9a-zA-Z.,%/ +-]{1,80}\))$"
 )
+
+
+def static_rules() -> dict[str, Any]:
+    return spec()["static"]
+
+
+@functools.cache
+def _allowed() -> tuple[frozenset[str], frozenset[str], tuple[str, ...], frozenset[str], Any]:
+    rules = static_rules()
+    return (
+        frozenset(name.lower() for name in rules["elements"]),
+        frozenset(name.lower() for name in rules["attributes"]),
+        tuple(rules["attribute_prefixes"]),
+        frozenset(rules["address_attributes"]),
+        re.compile(f"^data:image/(?:{'|'.join(rules['image_types'])});base64,", re.I),
+    )
+
+
+def address_allowed(value: str) -> bool:
+    """One of the two addresses a page may hold: `#fragment`, or an inline
+    picture of a listed type."""
+    value = (value or "").strip()
+    return value.startswith("#") or bool(_allowed()[4].match(value))
+
+
+def css_faults(css: str) -> list[str]:
+    """What a style sheet would fetch: `@import`, and a `url()` that is not
+    an allowed address."""
+    out = []
+    if _CSS_IMPORT.search(css or ""):
+        out.append("css:import")
+    if any(not address_allowed(found.group(2)) for found in _CSS_URL.finditer(css or "")):
+        out.append("css:url")
+    return out
 
 
 def _attribute(text: str) -> str:
@@ -183,70 +210,99 @@ def _text(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def _local(value: str) -> bool:
-    value = value.strip()
-    return value.startswith("#") or bool(_INLINE_IMAGE.match(value))
+class _Walk(HTMLParser):
+    """One parse of a page, for both readers: `faults` is what breaks the
+    rule, in the order first met; `out` the document rebuilt without it."""
 
-
-class _Rebuild(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.out: list[str] = []
-        self.skipping = ""  # the dropped element being skipped, with its content
+        self.faults: list[str] = []
+        self.skipping = ""  # the element being dropped with its content
         self.depth = 0
-        self.raw = False  # inside <style>: text goes out as CSS
+        self.style: list[str] | None = None  # the text of the <style> being read
+
+    def _say(self, fault: str) -> None:
+        if fault not in self.faults:
+            self.faults.append(fault)
 
     def handle_starttag(self, tag: str, attrs) -> None:
-        if self.skipping:
-            if tag == self.skipping:
-                self.depth += 1
-            return
-        if not _NAME.match(tag) or tag in _DROP:
-            return
-        if tag in _DROP_WITH_CONTENT:
-            self.skipping, self.depth = tag, 1
+        elements, attributes, prefixes, addresses, _ = _allowed()
+        if self.skipping and tag == self.skipping:
+            self.depth += 1
+        if not _NAME.match(tag) or tag not in elements:
+            self._say(f"element:{tag}")
+            if not self.skipping and tag not in _VOID:
+                self.skipping, self.depth = tag, 1
             return
         kept = []
         for name, value in attrs:
             name = (name or "").lower()
-            if not _NAME.match(name) or name.startswith("on"):
-                continue
             value = "" if value is None else value
-            if name in _URL_ATTRIBUTES and not _local(value):
+            if not _NAME.match(name) or not (
+                name in attributes or name.startswith(prefixes)
+            ):
+                self._say(f"attribute:{name}")
+                continue
+            if name in addresses and not address_allowed(value):
+                self._say(f"address:{name}")
+                continue
+            if name == "style" and (found := css_faults(value)):
+                for fault in found:
+                    self._say(fault)
                 continue
             kept.append(f' {name}="{_attribute(value)}"')
-        self.out.append(f"<{tag}{''.join(kept)}>")
-        self.raw = tag == "style"
+        if tag == "style":
+            self.style = []
+            return
+        if not self.skipping:
+            self.out.append(f"<{tag}{''.join(kept)}>")
 
     def handle_startendtag(self, tag: str, attrs) -> None:
         self.handle_starttag(tag, attrs)
-        if not self.skipping and tag not in _VOID and _NAME.match(tag) and tag not in _DROP:
-            self.out.append(f"</{tag}>")
-        if self.skipping == tag:
+        if tag not in _VOID:
             self.handle_endtag(tag)
-        self.raw = False
 
     def handle_endtag(self, tag: str) -> None:
+        if tag == "style" and self.style is not None:
+            css, self.style = "".join(self.style), None
+            found = css_faults(css)
+            for fault in found:
+                self._say(fault)
+            # A style sheet that fetches is dropped whole. One that is kept
+            # never holds a `<`: a browser may be reading as markup what this
+            # parser read as text.
+            if not found and not self.skipping:
+                self.out.append(f"<style>{css.replace('<', chr(92) + '3c ')}</style>")
+            return
         if self.skipping:
             if tag == self.skipping:
                 self.depth -= 1
                 if self.depth <= 0:
                     self.skipping = ""
             return
-        self.raw = False
-        if _NAME.match(tag) and tag not in _DROP and tag not in _VOID:
+        if _NAME.match(tag) and tag in _allowed()[0] and tag not in _VOID:
             self.out.append(f"</{tag}>")
 
     def handle_data(self, data: str) -> None:
-        if self.skipping:
-            return
-        if self.raw:
-            # A style sheet: never a `<` (a browser may be reading it as
-            # markup where this parser read text), and never an `@import`.
-            css = data.replace("<", "\\3c ")
-            self.out.append(re.sub(r"@import\b", "@-no-import", css, flags=re.I))
-        else:
+        if self.style is not None:
+            self.style.append(data)
+        elif not self.skipping:
             self.out.append(_text(data))
+
+
+def _walk(html: str) -> _Walk:
+    walk = _Walk()
+    walk.feed(html or "")
+    walk.close()
+    return walk
+
+
+def static_faults(html: str) -> list[str]:
+    """What makes a page not static, each thing once, in the order first met
+    (`element:<name>`, `attribute:<name>`, `address:<attribute>`,
+    `css:import`, `css:url`); none: it is static as written."""
+    return _walk(html).faults
 
 
 # The frame's variables by the short names they travel under in a query.
@@ -311,21 +367,9 @@ def on(db, chat, model) -> bool:
     )
 
 
-# Said after the spec's block, because it is true here and the block does not
-# say it: this server shows a page without running its scripts (see the note
-# above `document`). A model told only the spec's words would draw its chart
-# with a canvas script and the reader would see an empty box.
-STATIC_NOTE = (
-    "- Here a page is shown without running scripts: nothing in a <script> runs, and "
-    "there is no canvas drawing. Build the page from HTML, CSS and inline SVG only — "
-    "an SVG chart, a table, CSS for layout and colour."
-)
-
-
 def block() -> str:
-    """What the model is told: the spec's block (`prompts/blocks/html-pages.md`)
-    and this server's one addition."""
-    return f"{harness_spec.prompt('blocks/html-pages.md').rstrip()}\n{STATIC_NOTE}"
+    """What the model is told (`prompts/blocks/html-pages.md`)."""
+    return harness_spec.prompt("blocks/html-pages.md")
 
 
 def theme(values: dict[str, str] | None) -> dict[str, str]:
@@ -340,11 +384,8 @@ def theme(values: dict[str, str] | None) -> dict[str, str]:
 
 
 def document(page: Page, colours: dict[str, str] | None = None) -> str:
-    """The document a browser is given for a page: rebuilt, static, with the
-    frame's variables set on its root."""
-    rebuilt = _Rebuild()
-    rebuilt.feed(page.html)
-    rebuilt.close()
+    """The document a client is given for a page: rebuilt from the spec's
+    allow-list, static, with the frame's variables set on its root."""
     variables = "".join(f"{name}:{value};" for name, value in theme(colours).items())
     base = (
         f":root{{{variables}color-scheme:light dark}}"
@@ -353,11 +394,13 @@ def document(page: Page, colours: dict[str, str] | None = None) -> str:
     )
     return (
         "<!doctype html>\n<meta charset=\"utf-8\">"
-        f"<title>{_text(page.title)}</title><style>{base}</style>\n" + "".join(rebuilt.out)
+        f"<title>{_text(page.title)}</title><style>{base}</style>\n"
+        + "".join(_walk(page.html).out)
     )
 
 
 __all__ = [
     "COLOURS", "SCOPE_KEY", "Page", "available", "block", "chat_on", "document", "fence",
-    "instance_on", "note", "offered", "on", "pages_of", "project", "spec", "theme", "where_of",
+    "instance_on", "note", "offered", "on", "pages_of", "project", "spec", "static_faults",
+    "theme", "where_of",
 ]

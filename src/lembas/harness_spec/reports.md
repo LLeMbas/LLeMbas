@@ -51,6 +51,10 @@ A schedule says when its owner wants to hear from it (`scheduled.notify.values`)
 | `never` | Never | nothing about reports | not offered |
 
 A schedule that says nothing is `when` with the default condition (`scheduled.notify.default`).
+The side that creates a schedule may choose otherwise for **a schedule that runs once**: a
+person who asks for one thing, once, wants its answer, so a one-shot may be created as `always`
+(`scheduled.notify.one_shot_default`). The value is the schedule's from then on, and is always
+sent and stored as one of the three — only a schedule that truly carries none is read as `when`.
 
 **The instruction** is `scheduled.notify.texts.<value>`, word for word, `{{condition}}` the
 person's words (trimmed, one line, without a full stop at the end) — `never` has no text. It is
@@ -80,8 +84,8 @@ still says it failed.
 
 ## 5. `[SILENT]` is retired
 
-The sentinel of 3.5.0 (`scheduled.sentinel`) is no longer told to any model: the notify-when
-texts replace the hint. A reply that still carries it — an older prompt, a model's habit — is
+The sentinel of 3.5.0 (`scheduled.sentinel`) is no longer told to a model: the notify-when
+texts replace the hint — but for a run on a device that has no `reports` capability (§6). A reply that still carries it — an older prompt, a model's habit — is
 read as **no report**: its sentinel lines (first or last line, as `conformance/silent.json`
 strips them) are taken out before the history line is made, and under `always` an answer that is
 only the sentinel files nothing. The run's status is never `silent` under 3.8.0; a device that
@@ -102,7 +106,11 @@ The report travels **with the turn's answer** — there is no method of its own:
   answer.
 - The server then applies §4 to that answer exactly as to a run of its own: the `always`
   fallback, the history line and the notification are the server's, never the device's.
-- A device **without** the capability (before 3.8.0) is not sent `notify` and offers no tool: the
+- A device **without** the capability (before 3.8.0) is not sent `notify`, offers no tool, and
+  **must not be sent an instruction that names `report_write`** — its model would be told to
+  call a tool it does not have. Its run's prompt is the one of 3.5.0 instead: for `when`, the
+  `[SILENT]` hint as it was (say the sentinel alone when there is nothing to tell); for `always`
+  and `never`, no hint at all. This is the one place the sentinel is still told to a model. The
   server files by §4 from its `text` alone — under `always` the answer is the report; under
   `when` there is none, and the model's closing line is the note. `silent` from such a device is
   `ok` without a report.
