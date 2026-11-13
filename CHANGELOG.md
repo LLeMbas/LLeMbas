@@ -43,6 +43,11 @@ permission layers), vendored from the LLeMbas CLI's `dev` and pinned to its tag 
   titles, read-aloud, notifications, a report's summary -- a page is the one line
   `[page: Title]`. `/api/v2`: `html_pages` on a model; a text step that carries pages has
   `pages` (title, digest) and `text` (the step with each page as that line).
+  A block is a page only in a reply written while pages were offered for it; in any other --
+  an older reply, a subagent's turn -- it is the code block it is. A page is limited in size
+  (512 KiB, 20,000 elements) and its CSS is kept only when it plainly fetches nothing.
+  For an app: `GET /api/v2/pages/m|r/{id}/{digest}` gives the rebuilt page, and
+  `GET/POST /api/v2/chats/{id}/html-pages` the chat's switch.
 - `/api/v2`: `GET /reports` (`?unread=1`, `?schedule=<id>`), `GET /reports/{id}`,
   `POST /reports/{id}/read`, `DELETE /reports/{id}`, `POST /reports/{id}/reply`; a `reports`
   event on `GET /events` (the unread count and the newest unread report); `notify_when`,
@@ -74,6 +79,8 @@ permission layers), vendored from the LLeMbas CLI's `dev` and pinned to its tag 
   administrator's allow list and always-ask list, and a chat's "always allow" answers, decide
   as they did: an always-ask entry wins over any allow. Hand-written rules in a project's
   configuration are the CLI's; its changelog says what changes there.
+  In a pattern a main agent grants a subagent, `?` now stands for any one character, as it
+  does in every other rule (it was read literally there).
 - `[SILENT]` is retired: no run is told about it. A model that still answers it leaves no
   report.
 
@@ -85,6 +92,8 @@ permission layers), vendored from the LLeMbas CLI's `dev` and pinned to its tag 
 - **Search by meaning no longer returns a schedule's runs** as past chats: run chats and a
   report's conversation are not indexed.
 - Clearing old runs never removes a report or the conversation that continued one.
+- Removing a schedule while one of its runs is going stops that run first; a report it had
+  already filed is kept and told.
 
 ## 2.0.0-beta.11 — 2026-11-12
 
