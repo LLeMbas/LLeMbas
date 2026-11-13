@@ -223,13 +223,15 @@ def test_a_plus_opens_the_new_agent_chat_with_its_device_chosen(
     assert "selected" not in picker[:picker.index("</select>")]
 
 
-def test_reports_and_scheduled_have_left_the_sidebar(client: TestClient, db, registered):
+def test_reports_and_scheduled_are_in_the_sidebar_again(client: TestClient, db, registered):
+    """They left with 2.0.0-beta.1 and came back with Reports (2.0.0-beta.12): a person who may
+    schedule has both entries; the Library stayed gone."""
     _model(db)
     html = client.get("/chat").text
     sidebar = html[html.index('<aside class="sidebar"'):html.index("</aside>")]
-    assert 'href="/reports"' not in sidebar
-    assert 'href="/scheduled"' not in sidebar
-    # And the Library went with the library (2.0): files are the file tree's.
+    assert 'href="/reports"' in sidebar
+    assert 'href="/scheduled"' in sidebar
+    # The Library went with the library (2.0): files are the file tree's.
     assert 'href="/library/' not in sidebar
 
 
