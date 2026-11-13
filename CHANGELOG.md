@@ -3,7 +3,7 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
-## Unreleased
+## 2.0.0-beta.12 — 2026-11-13
 
 For 2.0.0-beta.12. The harness spec is **3.8.0** (reports; HTML pages; one rule for
 permission layers), vendored from the LLeMbas CLI's `dev` and pinned to its tag at release.
