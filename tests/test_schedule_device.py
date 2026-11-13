@@ -383,3 +383,88 @@ def test_the_form_offers_a_computer_that_accepts_it(client, db, registered):
     db.expire_all()
     schedule = db.get(Schedule, schedule.id)
     assert schedule.device_token_id is None and schedule.watch_kind == ""
+
+
+# --- A client older than the reports (harness spec 3.8.0, reports.md §6) ------------------------
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("notify_when", "reply", "status", "hint", "reported"),
+    [
+        # `when`: the 3.5.0 hint, and no report whatever it answers.
+        ("when", "The tests fail.", "ok", True, False),
+        ("when", "[SILENT]", "silent", True, False),
+        # `always`: no hint; the server files its answer -- but not a silence.
+        ("always", "The tests fail.", "ok", False, True),
+        ("always", "[SILENT]", "silent", False, False),
+        ("never", "The tests fail.", "ok", False, False),
+    ],
+)
+async def test_a_device_without_reports_is_told_and_settled_as_before(
+    db, three, script, monkeypatch, notify_when, reply, status, hint, reported
+):
+    from lembas.db.models import Report
+    from lembas.services.schedule import notify
+
+    _agents_on(db)
+    token, _ = _token(db)
+    _link(db, token)  # declares `scheduled` and `turns`, not `reports`
+    schedule = _on_device(db, token)
+    schedule.notify = notify_when
+    db.commit()
+    script.replies = [{"content": reply}]
+    stubbed = wake_service.wake_chat
+
+    async def wake(chat_id, content, **kw):
+        message_id = await stubbed(chat_id, content, **kw)
+        script.generations[message_id].scheduled_outcome = {
+            "run_id": "x", "status": status, "text": reply, "error": None,
+        }
+        return message_id
+
+    monkeypatch.setattr(wake_service, "wake_chat", wake)
+    await _sweep(script, T0)
+    (run,) = _runs(db, schedule)
+    assert run.status == "ok", run.error
+    # Never an instruction naming a tool the device does not have.
+    assert "report_write" not in script.turns[0]
+    assert (notify.LEGACY_HINT in script.turns[0]) is hint
+    db.expire_all()
+    filed = list(db.scalars(select(Report)))
+    assert bool(filed) is reported and bool(run.report_id) is reported
+    if reported:
+        assert filed[0].body == "The tests fail." and script.reported == [(run.id, filed[0].title)]
+    else:
+        assert script.reported == []
+
+
+@pytest.mark.anyio
+async def test_a_device_with_reports_gets_the_new_instruction_and_its_report_is_filed(
+    db, three, script, monkeypatch
+):
+    from lembas.db.models import Report
+
+    _agents_on(db)
+    token, _ = _token(db)
+    _link(db, token, capabilities=("scheduled", "turns", "reports"))
+    schedule = _on_device(db, token)
+    schedule.notify = "when"
+    db.commit()
+    script.replies = [{"content": "Filed a report."}]
+    stubbed = wake_service.wake_chat
+
+    async def wake(chat_id, content, **kw):
+        message_id = await stubbed(chat_id, content, **kw)
+        script.generations[message_id].scheduled_outcome = {
+            "run_id": "x", "status": "ok", "text": "Filed a report.", "error": None,
+            "report": {"title": "Tests fail", "body": "Two of them.", "importance": "high"},
+        }
+        return message_id
+
+    monkeypatch.setattr(wake_service, "wake_chat", wake)
+    await _sweep(script, T0)
+    (run,) = _runs(db, schedule)
+    assert "report_write" in script.turns[0] and "SILENT" not in script.turns[0]
+    db.expire_all()
+    (report,) = db.scalars(select(Report))
+    assert (report.title, report.body, report.importance) == ("Tests fail", "Two of them.", "high")
+    assert run.report_id == report.id and script.reported == [(run.id, "Tests fail")]

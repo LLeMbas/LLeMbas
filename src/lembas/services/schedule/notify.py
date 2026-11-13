@@ -52,6 +52,19 @@ from lembas.web.i18n import N_
 # telling. Retired, and still recognised. ASCII and never translated.
 SILENT = "[SILENT]"
 
+# What a run was told before harness spec 3.8.0 under `when`. Still told in
+# one place (reports.md §6): a run on a linked computer whose client does not
+# declare `reports` -- it has no `report_write` to be pointed at, and answers
+# `[SILENT]` (status `silent`) as it always did. `always` and `never` get no
+# hint there.
+LEGACY_HINT = (
+    "If there is genuinely nothing new worth telling the person this time, answer "
+    f"with {SILENT} on a line by itself and nothing else; they are then not "
+    f"notified. {SILENT} is a literal control word: never translate or rephrase it, "
+    "and never combine it with a report. When there is something to say, say it "
+    "normally."
+)
+
 # Said to every run: it is one run of a schedule that already exists.
 NO_RECURSION = (
     "This is one run of an existing schedule: do the work now. Phrases like "
@@ -344,6 +357,7 @@ async def announce(
 
 __all__ = [
     "KIND_FAILED",
+    "LEGACY_HINT",
     "KIND_RESULT",
     "NO_RECURSION",
     "SILENT",

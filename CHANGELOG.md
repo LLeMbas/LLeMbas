@@ -33,7 +33,8 @@ permission layers), vendored from the LLeMbas CLI's `dev` and pinned to its tag 
   switch, so a report may carry a page when the instance and the model allow it. Never for a
   subagent, the phone assistant or an agent chat. Switching it during a chat tells the model
   on the next message; the prompt is not made again.
-  **A page is shown static: HTML, CSS and inline SVG, no script.** A sealed frame keeps a
+  **A page is static, in every client: HTML, CSS and inline SVG, no script** (the harness
+  spec says which elements and attributes a page may have, and the model is told). A sealed frame keeps a
   page from reaching LLeMbas either way, but with scripts a page could still *send*
   something out in two ways no web page's policy closes (a peer connection's STUN request,
   and a name looked up for a link hint), so scripts do not run and the page is rebuilt
@@ -61,6 +62,8 @@ permission layers), vendored from the LLeMbas CLI's `dev` and pinned to its tag 
   ran in a chat of your own never owned that chat and leaves it alone. (`keep_chat` on
   `DELETE /api/v2/schedules/{id}` is accepted and ignored.)
 - A new run is told what the last *report* said, not what a quiet run answered.
+- A scheduled run on a linked computer whose LLeMbas CLI is older than reports is told what
+  it was told before, and its answer is filed by the server where every run reports.
 - **One rule for which permission rule decides** (harness spec 3.8.0, the same in the LLeMbas
   CLI). Rules are read in layers -- the defaults, your own, a project's, then those made
   while a session runs -- and the last one that matches is the candidate; but a rule made

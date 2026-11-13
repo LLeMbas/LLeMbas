@@ -119,6 +119,7 @@ def _preamble(
     previous: ScheduleRun | None = None,
     previous_text: str = "",
     watched: str = "",
+    legacy: bool = False,
 ) -> str:
     """The turn a firing puts into the chat.
 
@@ -167,12 +168,25 @@ def _preamble(
     # reports.md §3) -- after the schedule's instruction and the run's time,
     # in this turn and not in the system prompt, which stays the same bytes.
     # `[SILENT]` is no longer told to any model.
-    reporting = reports_service.instruction(
-        notify.policy(schedule.notify, schedule.rule_json or {}), schedule.notify_when
-    )
+    policy = notify.policy(schedule.notify, schedule.rule_json or {})
+    if legacy:
+        # A linked computer whose client is older than 3.8.0: no
+        # `report_write` there to name. It is told what it always was.
+        reporting = notify.LEGACY_HINT if policy == reports_service.WHEN else ""
+    else:
+        reporting = reports_service.instruction(policy, schedule.notify_when)
     if reporting:
         lines += ["", reporting]
     return "\n".join(lines)
+
+
+def _legacy_device(schedule: Schedule) -> bool:
+    """Whether this schedule runs on a linked computer whose client does not
+    read `scheduled.notify` (no capability `reports`, before spec 3.8.0)."""
+    if not schedule.device_token_id:
+        return False
+    link = device.linked(schedule.device_token_id)
+    return link is None or not link.can("reports")
 
 
 # --- The chat -----------------------------------------------------------------------
@@ -612,6 +626,7 @@ def _prepare(db, schedule, owner, run, choice, model, *, now: datetime):
         previous=previous,
         previous_text=previous_text,
         watched=str((run.watch_json or {}).get("block") or ""),
+        legacy=_legacy_device(schedule),
     )
     db.commit()
     return restart, chat.id, content, limit
@@ -878,6 +893,15 @@ def _leave(db, schedule, owner, run, answer: str, *, said: dict, now: datetime):
     from lembas.db.models import Report
 
     policy = notify.policy(schedule.notify, schedule.rule_json or {})
+    if _legacy_device(schedule) and (
+        said.get("status") == "silent" or notify.is_silent(answer)
+    ):
+        # A client older than 3.8.0 ran it and said `[SILENT]`, as it was
+        # told it may (reports.md §6): ok, without a report. Its other
+        # answers are filed by §4 below from the text alone -- under
+        # `always` the answer is the report, under `when` there is none.
+        run.note = reports_service.note_of(answer)
+        return None
     calls: list[dict] = []
     filed = db.get(Report, run.report_id) if run.report_id else None
     if filed is not None:
