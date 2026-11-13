@@ -85,20 +85,68 @@
 {% set running = block.state == "running" %}
 {% set failed = block.state in ("failed", "denied") %}
 {% if event.show and not failed %}
-  {#- `show`: a card that opens the file in the viewer. The card names the
-      file and nothing of its contents; the viewer fetches it through a route
-      that rebuilds the chat's view and checks the path again
+  {#- `show`. An HTML file is drawn **in the conversation**, at this place:
+      a bar naming it, then the page in a sealed frame the width of the reply
+      -- at once when the file is still (it is served rebuilt, without script,
+      under the page policy: api/tree.py `shown_frame`), and on **Run page**
+      when it has scripts or anything else a still page cannot hold, because
+      a page with scripts is loaded only when its person asks
+      (security/sealed.py). Every other kind is a compact card that opens the
+      file in the viewer.
+
+      Neither names anything of the file's contents; what is fetched goes
+      through a route that rebuilds the chat's view and checks the path again
       (api/tree.py `chat_show`), or -- a device's file -- reads the copy the
-      device sent (`shown_id`). The words in it are a path a model chose:
-      escaped like everything here. js/files.js opens it, and opens a card
-      that arrives while the page is open by itself, beside the conversation,
-      on a screen wide enough to have room. -#}
+      device sent (`shown_id`). The words are a path a model chose: escaped
+      like everything here. js/files.js runs a page, and opens a compact
+      card's file beside the conversation when it arrives while the page is
+      open on a screen wide enough to have room.
+
+      Both are blocks of the reply's column, as wide as every other row of it
+      (a thought, a tool line): no width of their own. -#}
   {% set shown = event.show %}
   {% set chat_ref = message.chat_id if message is defined and message else "" %}
   {% set query = ("shown=" ~ (shown.shown_id|urlencode)) if shown.shown_id
                  else ("node=" ~ (shown.node_id|urlencode) ~ "&version=" ~ ((shown.version_id or "")|urlencode)) %}
+  {% set show_key = chat_ref ~ ":" ~ (shown.shown_id or shown.version_id or shown.node_id) %}
+  {% if shown.kind == "html" and chat_ref %}
+  {#- Where the page is fetched from: the device's kept copy, or the tree's
+      file through the chat's view. Written out where it is used: an address
+      is not words. -#}
+  {% set still = shown.still is true %}
+  <figure class="show-inline"{% if block_id %} id="{{ block_id }}"{% endif %} data-testid="show-inline"
+          data-show-inline data-show-key="{{ show_key }}" data-mode="{{ 'still' if still else 'run' }}"
+          data-frame="{% if shown.shown_id %}/api/chats/{{ chat_ref }}/shown/{{ shown.shown_id|urlencode }}?page=1{% else %}/chat/{{ chat_ref }}/show/frame?{{ query }}{% endif %}&amp;inline=1"
+          data-frame-title="{{ t('The page in %(name)s, sealed off from this application', name=shown.name) }}">
+    <figcaption class="show-inline__bar">
+      <span class="show-card__mark">{{ icon("eye", "icon--sm") }}</span>
+      <span class="show-card__body">
+        <span class="show-card__name">{{ shown.name }}</span>
+        <code class="show-card__path">{{ shown.path }}</code>
+      </span>
+      <a class="btn btn--sm show-card__open" data-open-viewer data-testid="show-open"
+         href="/chat/{{ chat_ref }}/show?{{ query }}">{{ t("Open in viewer") }}</a>
+    </figcaption>
+    {% if still %}
+    <iframe class="show-inline__frame" sandbox="" referrerpolicy="no-referrer"
+            data-testid="show-frame"
+            src="{% if shown.shown_id %}/api/chats/{{ chat_ref }}/shown/{{ shown.shown_id|urlencode }}?page=1{% else %}/chat/{{ chat_ref }}/show/frame?{{ query }}{% endif %}&amp;still=1"
+            title="{{ t('The page in %(name)s, sealed off from this application', name=shown.name) }}"></iframe>
+    {% else %}
+    <div class="show-inline__hold" data-show-hold>
+      <p class="show-inline__why">{{ t("This page has scripts or other parts that only work when it runs, so it is not shown until you run it. It runs sealed off from LLeMbas.") }}</p>
+      <button class="btn btn--sm show-inline__run" type="button" data-show-run data-testid="show-run">{{ t("Run page") }}</button>
+    </div>
+    {% endif %}
+    <details class="show-inline__source" hx-get="/chat/{{ chat_ref }}/show?{{ query }}&amp;source=1" hx-trigger="toggle once"
+             hx-target="find .show-inline__code" hx-swap="innerHTML">
+      <summary>{{ t("View source") }}</summary>
+      <div class="show-inline__code"></div>
+    </details>
+  </figure>
+  {% else %}
   <div class="show-card"{% if block_id %} id="{{ block_id }}"{% endif %} data-testid="show-card"
-       data-show-key="{{ chat_ref }}:{{ shown.shown_id or shown.version_id or shown.node_id }}">
+       data-show-key="{{ show_key }}">
     <span class="show-card__mark">{{ icon("eye", "icon--sm") }}</span>
     <span class="show-card__body">
       <span class="show-card__name">{{ shown.name }}</span>
@@ -109,6 +157,7 @@
        href="/chat/{{ chat_ref }}/show?{{ query }}{% if shown.line %}&amp;line={{ shown.line|int }}{% endif %}">{{ t("Open") }}</a>
     {% endif %}
   </div>
+  {% endif %}
 {% elif block.kind == "hidden" %}
 {% elif block.kind == "read" %}
   {# Just the file: what was in it is the model's business, and one click to see

@@ -384,6 +384,181 @@ def test_the_card_is_drawn_from_the_show_payload():
     assert "<b>.md" not in html  # escaped
 
 
+# --- A shown HTML file, in the conversation ---------------------------------------------
+STILL = (
+    b'<!doctype html><html lang="en"><head><meta charset="utf-8"><title>T</title>'
+    b'<link rel="stylesheet" href="https://example.org/x.css"><style>h1{color:#246}</style>'
+    b'</head><body><h1>Still</h1><a href="https://example.org/">out</a></body></html>'
+)
+SCRIPTED = b"<h1 id=h>page</h1><script>document.getElementById('h').textContent='ran'</script>"
+
+
+def _card(**show) -> str:
+    from lembas.web.templating import templates
+
+    class Message:
+        id = "m1"
+        chat_id = "c1"
+
+    event = {"name": "show", "status": "ok",
+             "show": {"path": "/home/user/demo.html", "name": "demo.html", "kind": "html",
+                      "node_id": "n1", "version_id": "v1", **show}}
+    return templates.get_template("chat/_tool_activity.html").render(
+        {"tool_events": [event], "message": Message(), "message_id": "m1", "step_index": 0}
+    )
+
+
+def test_a_file_is_still_when_a_rebuild_loses_nothing_that_worked():
+    from lembas.services import html_pages
+
+    assert html_pages.shown_still(STILL.decode())
+    # What a sealed frame never honoured anyway is no loss: meta, link, base, a link's address.
+    assert html_pages.shown_still('<base href="https://example.org/"><p>x</p>')
+    for runs in (
+        SCRIPTED.decode(),
+        '<p onclick="go()">x</p>',
+        "<form><input><button>go</button></form>",
+        "<canvas></canvas>",
+        "<style>@import url(https://example.org/a.css);</style><p>x</p>",
+        '<img src="chart.svg">',
+        "<video></video>",
+        "<iframe></iframe>",
+    ):
+        assert not html_pages.shown_still(runs), runs
+    assert not html_pages.shown_still("<p>" + "x" * (html_pages.MAX_SOURCE + 1))
+
+
+def test_the_show_tool_says_whether_an_html_file_is_still(db, me):
+    import asyncio
+
+    from lembas.services import tools as tools_service
+    from lembas.services.tools import files as files_tools
+
+    user, home = me
+    _write(db, user, f"{home}/still.html", STILL)
+    _write(db, user, f"{home}/app.html", SCRIPTED)
+    _write(db, user, f"{home}/notes.md", b"# x")
+    chat = _chat(db, user)
+    context = tools_service.ToolContext(
+        owner_id=user.id, chat_id=chat.id, display=True, message_id=""
+    )
+
+    def card(name):
+        return asyncio.run(files_tools._run_show(context, {"path": f"{home}/{name}"})).event["show"]
+
+    assert card("still.html")["still"] is True
+    assert card("app.html")["still"] is False
+    assert "still" not in card("notes.md")
+
+
+def test_a_still_page_is_drawn_in_the_conversation_at_once():
+    html = _card(still=True)
+    assert 'data-testid="show-inline"' in html and 'data-mode="still"' in html
+    assert 'data-testid="show-card"' not in html
+    # The frame is in the markup, with its address: nothing has to run for it
+    # to be there, on every load and after every swap. No script in it, ever.
+    frame = html[html.index("<iframe"):html.index("</iframe>")]
+    assert 'sandbox=""' in frame and "allow-scripts" not in frame
+    assert 'src="/chat/c1/show/frame?node=n1&amp;version=v1&amp;still=1"' in frame
+    assert "loading=" not in frame
+    assert "data-show-run" not in html
+    assert 'href="/chat/c1/show?node=n1&amp;version=v1"' in html and "Open in viewer" in html
+    assert 'hx-get="/chat/c1/show?node=n1&amp;version=v1&amp;source=1"' in html
+
+
+def test_a_page_with_scripts_waits_for_run_page():
+    for said in ({"still": False}, {}):  # a card from before this was known waits too
+        html = _card(**said)
+        assert 'data-testid="show-inline"' in html and 'data-mode="run"' in html
+        assert "<iframe" not in html  # nothing is loaded until its person asks
+        assert 'data-show-run' in html and "Run page" in html
+        assert 'data-frame="/chat/c1/show/frame?node=n1&amp;version=v1&amp;inline=1"' in html
+    device = _card(node_id="", version_id="", shown_id="s1", still=True)
+    assert 'src="/api/chats/c1/shown/s1?page=1&amp;still=1"' in device
+    assert 'href="/chat/c1/show?shown=s1"' in device
+
+
+def test_the_frames_in_the_conversation_are_served_sealed(client, db, me):
+    user, home = me
+    node = _write(db, user, f"{home}/app.html", SCRIPTED)
+    chat = _chat(db, user)
+    url = f"/chat/{chat.id}/show/frame?node={node.id}"
+    framed = {"sec-fetch-dest": "iframe"}
+
+    # Still: rebuilt, under the page policy, whatever the file holds -- a file
+    # that is not still comes out without its scripts, never with them.
+    still = client.get(url + "&still=1", headers=framed)
+    assert still.status_code == 200
+    policy = still.headers["content-security-policy"]
+    assert "script-src 'none'" in policy and "allow-scripts" not in policy
+    assert policy.split(";")[0].strip() == "sandbox"
+    assert "<script" not in still.text and "page</h1>" in still.text
+    # ... and it is not a document to open by itself.
+    assert client.get(url + "&still=1", headers={"sec-fetch-dest": "document"}).status_code == 403
+
+    # Run: the file as it is, under the scripted sealed policy, and a line that
+    # says how tall it is.
+    run = client.get(url + "&inline=1", headers=framed)
+    policy = run.headers["content-security-policy"]
+    assert "sandbox allow-scripts allow-forms" in policy and "allow-same-origin" not in policy
+    assert "connect-src 'none'" in policy and "webrtc 'block'" in policy
+    assert run.headers["x-dns-prefetch-control"] == "off"
+    assert run.text.startswith(SCRIPTED.decode()) and "lembasShownHeight" in run.text
+    # The viewer's frame is the file and nothing added.
+    assert client.get(url, headers=framed).text == SCRIPTED.decode()
+
+    # The source, as text.
+    source = client.get(
+        f"/chat/{chat.id}/show?node={node.id}&source=1", headers={"HX-Request": "true"}
+    )
+    assert source.status_code == 200 and "<script>" not in source.text
+    assert "&lt;script&gt;" in source.text and 'data-highlight="xml"' in source.text
+    assert "<html" not in source.text  # a fragment, not a page
+
+
+def test_a_card_in_a_reply_being_written_can_be_opened():
+    """The live step had no chat to name: the card was drawn without its link
+    and under another key than the finished reply's, so a shown file appeared
+    only when the reply ended -- and not at all on a page opened after."""
+    from types import SimpleNamespace
+
+    from lembas.api.chats import _step_html
+    from lembas.services import steps as steps_service
+
+    event = {"name": "show", "status": "ok",
+             "show": {"path": "/home/user/notes.md", "name": "notes.md", "kind": "markdown",
+                      "node_id": "n1", "version_id": "v1"}}
+    step = SimpleNamespace(kind=steps_service.KIND_TOOLS, index=0, events=[event], open=False)
+    live = _step_html("m1", step, "c1")
+    assert 'data-show-key="c1:v1"' in live
+    assert 'href="/chat/c1/show?node=n1&amp;version=v1"' in live
+    # The same key as the finished bubble's card has.
+    finished = _card(kind="markdown", name="notes.md", path="/home/user/notes.md")
+    assert 'data-show-key="c1:v1"' in finished
+
+
+def test_the_card_and_the_page_take_the_width_of_the_reply():
+    """Blocks of the reply's column, like a tool line: no width of their own.
+    The card had the reading measure and stood narrower than every row."""
+    import re
+
+    css = (file_ui_static() / "css" / "files.css").read_text()
+    for selector in (r"\.show-card,\s*\.show-inline \{", r"\.show-card,\s*\.show-inline__bar \{",
+                     r"\.show-inline__frame \{"):
+        rule = re.search(selector + r"[^}]*\}", css)
+        assert rule, selector
+        assert "max-width" not in rule.group(0)
+    assert re.search(r"\.show-inline__frame \{[^}]*width: 100%", css)
+
+
+def file_ui_static() -> "Path":  # noqa: F821, UP037
+    from pathlib import Path
+
+    import lembas
+
+    return Path(lembas.__file__).resolve().parent / "web" / "static"
+
+
 # --- Undo --------------------------------------------------------------------------------
 
 

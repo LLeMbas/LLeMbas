@@ -3422,5 +3422,8 @@ MESSAGES.update(
         'Not available with this model: pages are offered only on models an administrator chose (Admin › General).': 'S týmto modelom nedostupné: stránky sa ponúkajú len modelom, ktoré vybral správca (Správa › Všeobecné).',
         'Not available in an agent chat.': 'V konverzácii s agentom nedostupné.',
         'Not available in this chat.': 'V tejto konverzácii nedostupné.',
+        'Open in viewer': 'Otvoriť v prehliadači súborov',
+        'Run page': 'Spustiť stránku',
+        'This page has scripts or other parts that only work when it runs, so it is not shown until you run it. It runs sealed off from LLeMbas.': 'Táto stránka má skripty alebo iné časti, ktoré fungujú len pri spustení, preto sa nezobrazí, kým ju nespustíte. Beží oddelene od LLeMbas.',
     }
 )

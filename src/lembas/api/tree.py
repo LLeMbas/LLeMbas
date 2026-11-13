@@ -398,6 +398,51 @@ def _sealed(text: str) -> Response:
     return HTMLResponse(text, headers=sealed.headers())
 
 
+def shown_frame(request: Request, name: str, text: str, *, still: bool, inline: bool) -> Response:
+    """A shown HTML file for a frame in the conversation (`chat/_tool_activity.html`).
+
+    `still`: the file rebuilt as a page of an answer is -- no script, nothing
+    that names another host -- under the page policy, so it can be drawn
+    without anybody asking (`html_pages.shown_document`). Whatever the card
+    said about the file, this is what is served: a file that is not still
+    comes out without its scripts, never with them. Like a page of an answer
+    it is not a document to open by itself.
+
+    Otherwise the file as it is, under the scripted sealed policy, exactly as
+    the viewer shows it -- the conversation loads it only when its person
+    pressed Run. `inline` adds a line that tells the frame's parent how tall
+    the page is; the parent takes a number from it and nothing else."""
+    from lembas.security import sealed
+    from lembas.services import html_pages
+
+    if still:
+        asked_as = request.headers.get("sec-fetch-dest", "")
+        if asked_as and asked_as not in ("iframe", "frame", "embed", "object"):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "A page is shown in its answer.")
+        return HTMLResponse(
+            html_pages.shown_document(name, text), headers=sealed.page_headers()
+        )
+    return _sealed(text + (HEIGHT_REPORTER if inline else ""))
+
+
+# Appended to a page run in the conversation: its height, told to the frame's
+# parent whenever it changes. The page is an opaque origin and may say
+# anything; `files.js` reads one number and clamps it. A body no taller than
+# the frame reports its own height (so a short page gets a short frame, and a
+# page laid out to fill the window keeps the frame it has); a document that
+# overflows reports all of it.
+HEIGHT_REPORTER = (
+    "\n<script>(function(){function tell(){try{var d=document.documentElement,b=document.body,"
+    "h=d.scrollHeight;if(b&&h<=window.innerHeight+1){var s=getComputedStyle(b);"
+    "h=b.offsetTop+b.offsetHeight+(parseFloat(s.marginBottom)||0);}"
+    "parent.postMessage({lembasShownHeight:Math.ceil(h)},'*');}catch(e){}}"
+    "window.addEventListener('load',tell);"
+    "if(window.ResizeObserver&&document.documentElement)"
+    "new ResizeObserver(tell).observe(document.body||document.documentElement);tell();})();"
+    "</script>"
+)
+
+
 @router.get("/files/frame")
 async def frame(db: Db, user: RequiredUser, path: str, version: str = ""):
     """An HTML file as a page, sealed: for the viewer's frame only."""
@@ -487,6 +532,7 @@ async def chat_show(
     version: str = "",
     shown: str = "",
     line: int = 0,
+    source: bool = False,
 ):
     """What a `show` card opens: the file as the chat sees it *now* -- the
     chat's view is rebuilt and the path re-checked, so a grant taken away since
@@ -526,6 +572,11 @@ async def chat_show(
                 chat=chat,
             )
         )
+    if source:
+        # What the page is written as, as text: for "View source" under a
+        # page drawn in the conversation. Escaped by the template like any
+        # code; never markup.
+        return render(request, "files/_source.html", context)
     if is_htmx(request):
         return render(request, "files/_viewer.html", context)
     return render(
@@ -546,13 +597,26 @@ def _chat_node(db, user, chat_id: str, node_id: str):
 
 
 @router.get("/chat/{chat_id}/show/frame")
-async def chat_show_frame(db: Db, user: RequiredUser, chat_id: str, node: str, version: str = ""):
+async def chat_show_frame(
+    request: Request,
+    db: Db,
+    user: RequiredUser,
+    chat_id: str,
+    node: str,
+    version: str = "",
+    still: bool = False,
+    inline: bool = False,
+):
+    """The page in a shown HTML file: for the viewer's frame, and (`still`,
+    `inline`: see `shown_frame`) for the frame in the conversation."""
     _chat, found, v = _chat_node(db, user, chat_id, node)
     try:
         opened = file_ui.open_file(v, found.path, version)
     except fs.FsError as refused:
         return _sealed(f"<p>{_escape(refused.message)}</p>")
-    return _sealed(opened.text if opened.kind == "html" else "")
+    if opened.kind != "html":
+        return _sealed("")
+    return shown_frame(request, opened.name, opened.text, still=still, inline=inline)
 
 
 @router.get("/chat/{chat_id}/show/raw")

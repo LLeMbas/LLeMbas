@@ -697,6 +697,13 @@ async def _run_show(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
             "size": len(data),
             "mime": node.mime or mimetypes.guess_type(node.name)[0] or "text/plain",
         }
+        if kind == "html":
+            # Whether the page can be drawn in the conversation as it is, or
+            # is run on a click (`html_pages.shown_still`). The card names a
+            # version, so this is true of it for good.
+            from lembas.services import html_pages
+
+            payload["still"] = html_pages.shown_still(data.decode("utf-8", errors="replace"))
         at = f" at line {line}" if line else ""
         return ToolOutcome(
             f"Shown to the user: {path}{at}.",

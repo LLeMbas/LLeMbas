@@ -1,0 +1,5 @@
+{#- A shown file's text, as text: "View source" under a page drawn in the
+    conversation (chat/_tool_activity.html). Escaped by Jinja; js/files.js
+    highlights it in place from its text. -#}
+<pre class="viewer__code"><code data-highlight="{{ 'xml' if opened.kind == 'html' else opened.language }}"
+     data-hljs-src="{{ asset('vendor/highlight.min.js') }}">{{ opened.text }}</code></pre>

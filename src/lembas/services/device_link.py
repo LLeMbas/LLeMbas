@@ -690,6 +690,12 @@ class Link:
                     params=params,
                 )
                 card = shown.payload(row)
+                if row.kind == "html":
+                    # Drawn in the conversation at once, or run on a click
+                    # (`html_pages.shown_still`).
+                    from lembas.services import html_pages
+
+                    card["still"] = html_pages.shown_still(str(params.get("text") or ""))
                 db.commit()
         except shown.Refused as exc:
             await self._answer(message_id, {"shown": False, "reason": str(exc)})

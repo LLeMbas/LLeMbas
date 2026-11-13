@@ -1469,17 +1469,22 @@ async def stream_message(
     )
 
 
-def _step_html(message_id: str, step) -> str:
+def _step_html(message_id: str, step, chat_id: str = "") -> str:
     """One closed step of a running reply.
 
     `SimpleNamespace` for the message: the partial wants an id to build its
-    element ids from and nothing else, and there is no `Message` in scope here
-    -- the row is not written until the reply ends. `reasoning_ms` is only
-    known then too, so a live step says "Thought" and the stored one says how
-    long for.
+    element ids from, and the chat's id for what a `show` card opens, and
+    there is no `Message` in scope here -- the row is not written until the
+    reply ends. `reasoning_ms` is only known then too, so a live step says
+    "Thought" and the stored one says how long for.
+
+    Without the chat's id a shown file's card was drawn with no way to open
+    it and under another key than the finished reply's, so the file appeared
+    only once the reply had ended, as if it were new then.
     """
     return templates.get_template("chat/_step.html").render(
-        {"step": step, "message": SimpleNamespace(id=message_id, reasoning_ms=0)}
+        {"step": step,
+         "message": SimpleNamespace(id=message_id, chat_id=chat_id, reasoning_ms=0)}
     )
 
 
@@ -1776,7 +1781,7 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
                     settled_oob = _settled_oob(message_id, added_html, whole=False)
                 if len(generation.steps) > marks_done:
                     fresh = [
-                        _step_html(message_id, step)
+                        _step_html(message_id, step, generation.chat_id)
                         for step in steps_service.closed_from(generation, since=marks_done)
                     ]
                     marks_done = len(generation.steps)

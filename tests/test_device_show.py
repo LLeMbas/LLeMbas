@@ -122,6 +122,16 @@ def test_html_is_still_served_as_text(client, db, registered, make_chat):
     assert "sandbox allow-scripts allow-forms" in policy and "allow-same-origin" not in policy
     assert "connect-src 'none'" in policy and "default-src 'none'" in policy
     assert framed.text == "<script>alert(1)</script>"
+    # In the conversation: the card says the file is not still, so it waits
+    # for Run; asked for still all the same, it comes without its script.
+    assert show["still"] is False
+    as_frame = {"sec-fetch-dest": "iframe"}
+    still = client.get(show["url"], params={"page": 1, "still": 1}, headers=as_frame)
+    assert "script-src 'none'" in still.headers["content-security-policy"]
+    assert "<script" not in still.text
+    run = client.get(show["url"], params={"page": 1, "inline": 1}, headers=as_frame)
+    assert "sandbox allow-scripts" in run.headers["content-security-policy"]
+    assert run.text.startswith("<script>alert(1)</script>") and "lembasShownHeight" in run.text
 
 
 def test_over_a_megabyte_is_refused_with_the_reason(client, db, registered, make_chat):

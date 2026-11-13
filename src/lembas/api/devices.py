@@ -530,7 +530,14 @@ async def device_decide(
 
 @router.get("/api/chats/{chat_id}/shown/{shown_id}")
 async def shown_file(
-    db: Db, user: RequiredUser, chat_id: str, shown_id: str, page: bool = False
+    request: Request,
+    db: Db,
+    user: RequiredUser,
+    chat_id: str,
+    shown_id: str,
+    page: bool = False,
+    still: bool = False,
+    inline: bool = False,
 ) -> Response:
     """A file a linked device showed in this chat (`_lembas/show`), as the
     device sent it: plain text, which the viewer draws. `?page=1` on an HTML
@@ -546,6 +553,14 @@ async def shown_file(
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, i18n.t("That file is not here any more."))
     if page and row.kind == "html":
+        if still or inline:
+            # The frame in the conversation: rebuilt and drawn at once, or as
+            # it is once its person pressed Run (`api/tree.shown_frame`).
+            from lembas.api.tree import shown_frame
+
+            return shown_frame(
+                request, row.name, shown.text_of(db, row), still=still, inline=inline
+            )
         return Response(
             shown.text_of(db, row), media_type="text/html; charset=utf-8", headers=sealed.headers()
         )

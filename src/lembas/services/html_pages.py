@@ -606,22 +606,66 @@ def document(page: Page, colours: dict[str, str] | None = None) -> str:
 
 
 @functools.lru_cache(maxsize=64)
-def _document(title: str, html: str, colours: tuple[tuple[str, str], ...]) -> str:
+def _document(
+    title: str, html: str, colours: tuple[tuple[str, str], ...], plain: bool = False
+) -> str:
     variables = "".join(f"{name}:{value};" for name, value in colours)
     base = (
         f":root{{{variables}color-scheme:light dark}}"
         "html{background:var(--page-bg,Canvas);color:var(--page-ink,CanvasText);"
         "font-family:system-ui,sans-serif}"
     )
+    # A file somebody wrote as a page of its own (`shown_document`) is drawn
+    # as a browser draws a page: light, in its own fonts, none of the frame's
+    # variables -- it was not written for them.
+    style = "<style>:root{color-scheme:light}</style>" if plain else f"<style>{base}</style>"
     return (
         "<!doctype html>\n<meta charset=\"utf-8\">"
-        f"<title>{_text(title)}</title><style>{base}</style>\n" + "".join(_walk(html).out)
+        f"<title>{_text(title)}</title>{style}\n" + "".join(_walk(html).out)
     )
+
+
+# --- An HTML file a model showed (`show`), in the conversation ------------------------
+#
+# The web page draws a shown HTML file in the reply, not in a window beside it.
+# Such a file is not a page of an answer -- the model wrote it as a file, with
+# whatever it liked in it, and the viewer runs it in the scripted sealed frame
+# (`security/sealed.policy`) when somebody opens it. In the conversation nobody
+# opened anything, and a frame with scripts can send out what is on the page
+# (the two ways `page_policy` documents). So there are two cases:
+#
+# - the file is **still**: rebuilt as a page of an answer is
+#   (`document`'s rules), it loses nothing that would have worked. It is shown
+#   at once, rebuilt, under the page policy -- it reaches nothing, sends
+#   nothing;
+# - anything else (a script, a handler, a form, a canvas, a style sheet the
+#   rebuild would drop): the place says so and offers **Run page**, which
+#   loads the file as the viewer does, on that click and not before.
+#
+# What the rebuild drops without loss: `meta`, `link` and `base` (under the
+# sealed policy a linked sheet never loaded anyway) and the address of a link
+# (a sealed frame cannot be navigated anywhere).
+_NO_LOSS = frozenset({"element:meta", "element:link", "element:base", "address:href"})
+
+
+def shown_still(html: str) -> bool:
+    """Whether a shown HTML file can be drawn in the conversation at once: it
+    is static as written, but for what a sealed frame never honoured."""
+    if len((html or "").encode("utf-8", errors="replace")) > MAX_SOURCE:
+        return False
+    return all(fault in _NO_LOSS for fault in static_faults(html or ""))
+
+
+def shown_document(name: str, html: str) -> str:
+    """A shown HTML file rebuilt as a still page: the document `document`
+    gives for a page of an answer, without the frame's variables."""
+    return _document(name, html or "", (), True)
 
 
 __all__ = [
     "COLOURS", "MODELS_ALL", "MODELS_CHOSEN", "MODELS_KEY", "SCOPE_KEY", "Page", "available",
     "block", "chat_on", "document", "fence", "instance_on", "model_can", "model_counts",
-    "models_scope", "note", "offered", "on", "pages_of", "project", "spec", "static_faults",
+    "models_scope", "note", "offered", "on", "pages_of", "project", "shown_document",
+    "shown_still", "spec", "static_faults",
     "theme", "where_of", "why_not",
 ]

@@ -2765,5 +2765,8 @@ MESSAGES.update(
         'Not available with this model: pages are offered only on models an administrator chose (Admin › General).': 'Ezzel a modellel nem érhető el: oldalakat csak az adminisztrátor által kiválasztott modellek kapnak (Adminisztráció › Általános).',
         'Not available in an agent chat.': 'Ügynökcsevegésben nem érhető el.',
         'Not available in this chat.': 'Ebben a csevegésben nem érhető el.',
+        'Open in viewer': 'Megnyitás a megjelenítőben',
+        'Run page': 'Oldal futtatása',
+        'This page has scripts or other parts that only work when it runs, so it is not shown until you run it. It runs sealed off from LLeMbas.': 'Ez az oldal szkripteket vagy más, csak futás közben működő részeket tartalmaz, ezért csak akkor jelenik meg, ha futtatja. A LLeMbastól elzárva fut.',
     }
 )

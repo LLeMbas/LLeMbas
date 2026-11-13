@@ -2765,5 +2765,8 @@ MESSAGES.update(
         'Not available with this model: pages are offered only on models an administrator chose (Admin › General).': 'Non disponibile con questo modello: le pagine sono offerte solo ai modelli scelti da un amministratore (Amministrazione › Generale).',
         'Not available in an agent chat.': 'Non disponibile in una chat con agente.',
         'Not available in this chat.': 'Non disponibile in questa chat.',
+        'Open in viewer': 'Apri nel visualizzatore',
+        'Run page': 'Esegui la pagina',
+        'This page has scripts or other parts that only work when it runs, so it is not shown until you run it. It runs sealed off from LLeMbas.': 'Questa pagina ha script o altre parti che funzionano solo quando è in esecuzione, quindi non viene mostrata finché non la esegui. Viene eseguita isolata da LLeMbas.',
     }
 )

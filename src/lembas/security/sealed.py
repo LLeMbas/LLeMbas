@@ -30,6 +30,7 @@ def policy() -> str:
             "object-src 'none'",
             "form-action 'none'",
             "base-uri 'none'",
+            "webrtc 'block'",
             # Only this application may frame it. Not the boundary -- the page
             # is sealed whoever frames it -- but a page out of somebody's
             # conversation has no business inside another site.
@@ -92,11 +93,20 @@ def page_headers() -> dict[str, str]:
 
 
 def headers() -> dict[str, str]:
+    """A file shown as a page, scripts and all. **It can still send out what
+    is on it**: a peer connection's STUN request and a name looked up for a
+    link hint get past any policy of a web page (`page_policy` says how that
+    was measured). So nothing loads such a page by itself: the viewer when
+    its person opens the file, the conversation when they press Run. The two
+    headers below ask a browser that honours them not to; neither is relied
+    on."""
     return {
         "Content-Security-Policy": policy(),
         "X-Content-Type-Options": "nosniff",
         "Referrer-Policy": "no-referrer",
         "Cache-Control": "no-store",
+        "X-DNS-Prefetch-Control": "off",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
     }
 
 

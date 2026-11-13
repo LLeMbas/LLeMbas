@@ -158,6 +158,14 @@ self.addEventListener("fetch", function (event) {
     return;
   }
 
+  /* Only what is under /static/ is kept. This branch used to take every other
+     GET of the origin -- so a fragment a page fetched for somebody (a shown
+     file in the viewer, a chat's undo list) was stored here and handed back
+     from the cache the next time, before the server was asked: a copy with a
+     person in it, and a stale one. Everything that is not an asset goes to
+     the network, untouched. */
+  if (url.pathname.indexOf("/static/") !== 0) return;
+
   // Static assets: serve from cache, refresh in the background. They are
   // versioned by the cache name, so a stale one only lasts until the next
   // release.

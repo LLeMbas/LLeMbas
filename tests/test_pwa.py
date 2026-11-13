@@ -69,6 +69,16 @@ def test_the_worker_leaves_the_api_alone():
     assert "text/event-stream" in source
 
 
+def test_the_worker_keeps_assets_and_nothing_else():
+    """Its last branch took every other GET of the origin, so a fragment a
+    page fetched for somebody -- a shown file in the viewer -- was stored and
+    handed back from the cache the next time. Only /static/ is kept."""
+    source = (STATIC_DIR / "js" / "sw.js").read_text()
+    guard = source.index('if (url.pathname.indexOf("/static/") !== 0) return;')
+    assert source.index('request.mode === "navigate"') < guard
+    assert guard < source.index("caches.match(request)")
+
+
 def test_every_precached_asset_exists(client: TestClient):
     """addAll is all-or-nothing in most implementations, and a missing entry is
     invisible until someone opens the developer tools."""

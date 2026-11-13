@@ -150,6 +150,11 @@
   --h-list: 22rem;         /* a scrolling list or menu */
   --h-block: 24rem;        /* a scrolling block inside a card */
   --h-block-lg: 26rem;     /* a reasoning body, a preview */
+  /* A page drawn in a conversation: the height of its frame, and the least
+     and the most a page that says its own height is given. */
+  --h-page: min(28rem, 70vh);
+  --h-page-min: 8rem;
+  --h-page-max: min(44rem, 80vh);
   --h-media: 20rem;        /* a picture in the transcript */
 
   /* The live reply's two one-line rows -- the waiting row and the metrics --

@@ -19,6 +19,48 @@ at <https://llembas.eu/changelog.html>.
   the switch held and say why. **An instance that already has the switch on gets pages
   without doing anything**; a chat in progress is told on its next message. The model's flag
   keeps the harness spec's meaning and `/v1/models` sends it as it is stored.
+- **A shown HTML file is drawn in the conversation.** When a model opens an HTML file with
+  `show`, the web page now draws it in the reply, at that place and at the reply's width: a bar
+  with the file's name and path, the page in a sealed frame under it, **Open in viewer** and
+  **View source** beside it. It used to be a card that opened the file in a window beside the
+  conversation. Other files (Markdown, code, text) keep a compact card that opens the viewer.
+  The desktop app is unchanged.
+  - **A still page is shown at once** -- one without scripts, forms or anything else that only
+    works when it runs. It is served rebuilt, exactly as a page of an answer is: no script,
+    nothing that names another host, a frame that allows nothing.
+  - **A page with scripts waits for _Run page_.** A sealed frame keeps a page away from
+    LLeMbas, but a page that runs scripts can still send out what is on it (the two ways the
+    pages of answers are static for), so it is loaded when its person asks and not before. It
+    then says how tall it is and the frame follows, between a least and a most, scrolling
+    inside. A page run once is run again when the reply around it is redrawn; a new load asks
+    again.
+
+### Fixed
+
+- **A shown file was sometimes not there when a chat was opened again.** Whether the viewer
+  appeared depended on being there at the right moment: the card of a reply still being
+  written had no **Open** and was counted as another card than the finished reply's, so the
+  viewer opened only once the reply had ended, only on a wide screen, and never on a page
+  opened later -- which showed a card and nothing else. The card can now be opened while the
+  reply is written, a file opens beside the conversation when its card arrives, and an HTML
+  file needs no viewer at all.
+- **The `show` card was narrower than the rows around it.** It had a width of its own (the
+  reading measure); it is now a block of the reply's column like a tool line, and so is a page
+  drawn there. Measured in a browser at 1280 px and at 390 x 844.
+- **The service worker kept pages it was never meant to.** Its last rule stored every `GET` it
+  saw that was not under `/api/`, so a fragment fetched for somebody -- a file in the viewer, a
+  chat's undo list -- was kept in the browser's cache and handed back from there the next time,
+  before the server was asked. It now keeps what is under `/static/` and the offline page, and
+  nothing with a person in it.
+
+### Security
+
+- **A page with scripts is no longer loaded without being asked for.** The viewer used to open
+  by itself on a shown file, an HTML one included, scripts and all. Nothing loads such a page
+  now but its person's click (**Run page**, or opening it in the viewer). The scripted sealed
+  frame also carries `webrtc 'block'`, `X-DNS-Prefetch-Control: off` and a permissions policy,
+  as a page of an answer does; neither is relied on, since a browser does not hold a page with
+  scripts to them.
 
 ## 2.0.0-beta.12 — 2026-11-13
 

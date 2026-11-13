@@ -4,9 +4,16 @@
   * `[data-open-viewer]` (a `show` card's Open, a link to a file) opens the
     viewer in a dialog beside the conversation instead of leaving the page.
     The link is a real address, so a middle click or no JavaScript opens the
-    viewer as a page. A card that arrives while the page is open opens by
-    itself on a wide screen -- that is what `show` is for -- and never on
+    viewer as a page. A compact card that arrives while the page is open opens
+    by itself on a wide screen -- that is what `show` is for -- and never on
     page load, and never on a phone, where a dialog would cover the reply.
+  * `[data-show-inline]` is an HTML file drawn in the conversation
+    (chat/_tool_activity.html). A still page needs nothing from here: its
+    frame has its address in the markup, so it is there on every load, after
+    every swap. A page with scripts waits for **Run page**; pressing it puts
+    the scripted sealed frame in its place, and a page that was run is run
+    again when the reply around it is drawn anew. Nothing a page says is
+    read but its height, a number, clamped by the style sheet.
   * `code[data-highlight]` is highlighted by the vendored highlight.js,
     fetched the first time a page has code to show. It reads the element's
     text and writes spans; the text came escaped from the server and is never
@@ -110,7 +117,8 @@
   }
 
   /* A card that arrives while the page is open. The keys present when the
-     page loaded are known; any new one opens the viewer, once. */
+     page loaded are known; any new one opens the viewer, once. A page drawn
+     in the conversation is already where it is looked at: it opens nothing. */
   var seen = {};
   function markSeen(scope) {
     (scope || document).querySelectorAll("[data-show-key]").forEach(function (card) {
@@ -118,19 +126,33 @@
     });
   }
 
+  function added(records, selector) {
+    var found = [];
+    records.forEach(function (record) {
+      record.addedNodes.forEach(function (node) {
+        if (node.nodeType !== 1) return;
+        if (node.matches && node.matches(selector)) found.push(node);
+        if (node.querySelectorAll) {
+          Array.prototype.push.apply(found, node.querySelectorAll(selector));
+        }
+      });
+    });
+    return found;
+  }
+
   function watchCards() {
     markSeen(document);
     new MutationObserver(function (records) {
       var fresh = null;
-      records.forEach(function (record) {
-        record.addedNodes.forEach(function (node) {
-          if (node.nodeType !== 1) return;
-          var cards = node.matches && node.matches("[data-show-key]") ? [node] : [];
-          cards = cards.concat(Array.prototype.slice.call(node.querySelectorAll ? node.querySelectorAll("[data-show-key]") : []));
-          cards.forEach(function (card) {
-            if (!seen[card.dataset.showKey]) { seen[card.dataset.showKey] = true; fresh = card; }
-          });
-        });
+      added(records, "[data-show-key]").forEach(function (card) {
+        if (card.hasAttribute("data-show-inline")) {
+          /* Drawn anew by a stream's frame or the finished reply: a page its
+             person ran is run again, not put back behind the button. */
+          if (ran[card.dataset.showKey]) run(card);
+        } else if (!seen[card.dataset.showKey]) {
+          fresh = card;
+        }
+        seen[card.dataset.showKey] = true;
       });
       if (fresh && wide()) {
         var open = fresh.querySelector("a[data-open-viewer]");
@@ -138,6 +160,48 @@
       }
     }).observe(document.body, { childList: true, subtree: true });
   }
+
+  /* --- A shown page, run in the conversation ----------------------------- */
+  var ran = {};
+
+  function run(block) {
+    var hold = block.querySelector("[data-show-hold]");
+    var src = block.getAttribute("data-frame");
+    if (!hold || !src) return;
+    var frame = document.createElement("iframe");
+    frame.className = "show-inline__frame show-inline__frame--run";
+    frame.setAttribute("sandbox", "allow-scripts");
+    frame.setAttribute("referrerpolicy", "no-referrer");
+    frame.setAttribute("data-testid", "show-frame");
+    frame.setAttribute("title", block.getAttribute("data-frame-title") || "");
+    frame.setAttribute("src", src);
+    hold.parentNode.replaceChild(frame, hold);
+    block.setAttribute("data-mode", "running");
+  }
+
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest && event.target.closest("[data-show-run]");
+    var block = button && button.closest("[data-show-inline]");
+    if (!block) return;
+    ran[block.dataset.showKey] = true;
+    run(block);
+  });
+
+  /* A page that runs says how tall it is. It may say anything: only a
+     message from a frame we put there is read, only a finite number is
+     taken, and the style sheet keeps it between its least and its most. */
+  window.addEventListener("message", function (event) {
+    var data = event.data;
+    var height = data && typeof data === "object" ? data.lembasShownHeight : null;
+    if (typeof height !== "number" || !isFinite(height) || height <= 0) return;
+    var frames = document.querySelectorAll("iframe.show-inline__frame--run");
+    for (var i = 0; i < frames.length; i++) {
+      if (frames[i].contentWindow === event.source) {
+        frames[i].style.setProperty("--shown-h", Math.min(Math.round(height), 100000) + "px");
+        return;
+      }
+    }
+  });
 
   /* --- The explorer ------------------------------------------------------ */
   var ROW_TYPE = "application/x-lembas-path";

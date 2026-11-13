@@ -407,18 +407,65 @@
   .editor__state { grid-column: 1 / -1; grid-row: 2; }
 }
 
-/* --- The `show` card ----------------------------------------------------------- */
-.show-card {
+/* --- `show`: the card, and a page drawn in the conversation ---------------------
+   Both are blocks of the reply's column and take its width, like a thought
+   or a tool line above and below them: no `max-width` of their own. (The card
+   once had the reading measure, and stood narrower than every row around it.)
+   The bar is a grid -- mark | name and path | button: the middle gives, each
+   line of it cut with an ellipsis, so the button keeps its place whatever the
+   path says. */
+.show-card,
+.show-inline__bar {
   display: grid;
   grid-template-columns: var(--control-h-sm) minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--sp-2);
-  max-width: var(--w-prose);
-  margin: var(--sp-1) 0;
   padding: var(--sp-2) var(--sp-3);
+}
+.show-card,
+.show-inline {
+  min-width: 0;
+  margin: 0 0 var(--sp-2);
   border: var(--border-w) solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-raised);
+}
+.show-inline { overflow: hidden; }
+.show-inline__bar { border-bottom: var(--border-w) solid var(--border); }
+/* The frame's height is known, not found: a still page cannot say how tall it
+   is (no script runs in it), so it has the page height and scrolls inside. A
+   page that runs tells its height (api/tree.py `HEIGHT_REPORTER`), kept
+   between the least and the most; until it has, the page height. */
+.show-inline__frame {
+  display: block;
+  width: 100%;
+  height: var(--h-page);
+  border: 0;
+  background: var(--surface);
+}
+.show-inline__frame--run {
+  height: clamp(var(--h-page-min), var(--shown-h, var(--h-page)), var(--h-page-max));
+}
+.show-inline__hold {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+}
+.show-inline__why { margin: 0; color: var(--ink-muted); font-size: var(--text-sm); }
+.show-inline__run { min-height: var(--tap-min); }
+.show-inline__source { border-top: var(--border-w) solid var(--border); }
+.show-inline__source > summary {
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+.show-inline__code .viewer__code { max-height: var(--h-block); }
+@media (max-width: 40rem) {
+  /* The words above, the button under them at its own width. */
+  .show-inline__hold { grid-template-columns: minmax(0, 1fr); justify-items: start; }
 }
 .show-card__mark { display: inline-flex; justify-content: center; color: var(--accent); }
 .show-card__body { display: grid; min-width: 0; }
