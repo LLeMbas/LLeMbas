@@ -3411,5 +3411,6 @@ MESSAGES.update(
         'This answer has a page: %(title)s': 'Táto odpoveď má stránku: %(title)s',
         'Open larger': 'Otvoriť väčšie',
         'View source': 'Zobraziť zdroj',
+        'Pages in answers are not offered in this chat.': 'Stránky v odpovediach sa v tejto konverzácii neponúkajú.',
     }
 )

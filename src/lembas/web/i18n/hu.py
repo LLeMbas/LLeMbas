@@ -2754,5 +2754,6 @@ MESSAGES.update(
         'This answer has a page: %(title)s': 'Ennek a válasznak van egy oldala: %(title)s',
         'Open larger': 'Megnyitás nagyobban',
         'View source': 'Forrás megtekintése',
+        'Pages in answers are not offered in this chat.': 'Ebben a csevegésben nem érhetők el oldalak a válaszokban.',
     }
 )

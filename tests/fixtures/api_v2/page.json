@@ -1,0 +1,6 @@
+{
+  "title": "Cakes",
+  "digest": "526b3a6b58f09769d9f81f628942cc7f",
+  "html": "<!doctype html>\n<meta charset=\"utf-8\"><title>Cakes</title><style>:root{--page-bg:#101418;--page-ink:#E2E8EC;color-scheme:light dark}html{background:var(--page-bg,Canvas);color:var(--page-ink,CanvasText);font-family:system-ui,sans-serif}</style>\n<p>10 wrapped, 2 not</p>",
+  "policy": "sandbox; default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src 'none'; connect-src 'none'; worker-src 'none'; child-src 'none'; frame-src 'none'; object-src 'none'; manifest-src 'none'; form-action 'none'; base-uri 'none'; webrtc 'block'; frame-ancestors 'self'"
+}

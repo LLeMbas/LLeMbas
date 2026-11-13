@@ -634,6 +634,18 @@ def _parity() -> dict[str, object]:
     }
 
 
+def _page() -> dict[str, object]:
+    from lembas.security import sealed
+    from lembas.services import html_pages
+
+    page = html_pages.Page("Cakes", "<p>10 wrapped, 2 not</p>")
+    return {
+        "title": page.title, "digest": page.digest,
+        "html": html_pages.document(page, {"bg": "#101418", "ink": "#E2E8EC"}),
+        "policy": sealed.page_policy(),
+    }
+
+
 def _schedules() -> dict[str, object]:
     """`/schedules`, a run, the compile, the preview, the scheduling models and
     the `schedules` event of `GET /events`."""
@@ -795,6 +807,10 @@ def _schedules() -> dict[str, object]:
         "reports": {"reports": [serialise.report(report, "Waybread check")], "unread": 1},
         "report": {"report": serialise.report(report, "Waybread check", whole=True)},
         "report_reply": {"chat": "chat9"},
+        # A page as an app is given it: the rebuilt, static document and the
+        # policy its frame must be served under; and a chat's switch.
+        "page": _page(),
+        "chat_html_pages": {"offered": True, "on": False},
         # Harness spec 3.8.0 (pages.md): a text step whose reply carries a page.
         "step_text_page": serialise.step(steps_service.Step(
             index=2, kind=steps_service.KIND_TEXT,

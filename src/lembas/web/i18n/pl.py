@@ -2754,5 +2754,6 @@ MESSAGES.update(
         'This answer has a page: %(title)s': 'Ta odpowiedź ma stronę: %(title)s',
         'Open larger': 'Otwórz większe',
         'View source': 'Pokaż źródło',
+        'Pages in answers are not offered in this chat.': 'Strony w odpowiedziach nie są oferowane w tym czacie.',
     }
 )

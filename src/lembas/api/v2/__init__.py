@@ -73,6 +73,7 @@ def _include() -> None:
         library,
         menus,
         misc,
+        pages,
         python,
         reports,
         schedules,
@@ -94,6 +95,7 @@ def _include() -> None:
     router.include_router(menus.router)
     router.include_router(python.router)
     router.include_router(reports.router)
+    router.include_router(pages.router)
 
 
 _include()

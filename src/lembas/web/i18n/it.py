@@ -2754,5 +2754,6 @@ MESSAGES.update(
         'This answer has a page: %(title)s': 'Questa risposta ha una pagina: %(title)s',
         'Open larger': 'Apri più grande',
         'View source': 'Mostra sorgente',
+        'Pages in answers are not offered in this chat.': 'Le pagine nelle risposte non sono offerte in questa chat.',
     }
 )

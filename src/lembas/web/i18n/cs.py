@@ -2754,5 +2754,6 @@ MESSAGES.update(
         'This answer has a page: %(title)s': 'Tato odpověď má stránku: %(title)s',
         'Open larger': 'Otevřít větší',
         'View source': 'Zobrazit zdroj',
+        'Pages in answers are not offered in this chat.': 'Stránky v odpovědích se v této konverzaci nenabízejí.',
     }
 )

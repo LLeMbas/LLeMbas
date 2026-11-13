@@ -346,3 +346,88 @@ def test_whoever_reads_a_reply_as_text_reads_the_projection(where):
         assert report["body"] == answer  # the report keeps the page itself
     else:
         assert html_pages.project(answer).startswith("[page: Cakes]")
+
+
+# --- For an app: the same document, and the chat's switch --------------------------------------
+def _app(db, user: User) -> dict[str, str]:
+    from lembas.security import api_tokens
+
+    _, raw = api_tokens.create(db, user, name="LLeMbas Desktop", scopes=["app"])
+    return {"Authorization": f"Bearer {raw}"}
+
+
+def test_an_app_is_given_the_same_rebuilt_document(client: TestClient, db, registered):
+    from lembas.services import reports as reports_service
+
+    _on(db)
+    owner = db.scalars(select(User).order_by(User.created_at)).first()
+    auth = _app(db, owner)
+    hostile = (
+        "```html-view Cakes\n<p>ok</p><script>go()</script>"
+        "<link rel=dns-prefetch href=//x>\n```\n"
+    )
+    chat = Chat(user_id=owner.id, title="Cakes")
+    db.add(chat)
+    db.commit()
+    message = Message(chat_id=chat.id, role="assistant", content=hostile, complete=True)
+    db.add(message)
+    report = reports_service.file(db, owner_id=owner.id, report={"title": "R", "body": hostile})
+    db.commit()
+    (page,) = pages_in(hostile)
+
+    got = client.get(
+        f"/api/v2/pages/m/{message.id}/{page.digest}?bg=%23101418&ink=nonsense", headers=auth
+    )
+    assert got.status_code == 200 and got.headers["content-type"].startswith("application/json")
+    body = got.json()
+    assert set(body) == {"title", "digest", "html", "policy"}
+    assert (body["title"], body["digest"]) == ("Cakes", page.digest)
+    assert body["policy"] == sealed.page_policy()
+    # Rebuilt here: the app never sees the model's markup to clean for itself.
+    assert "<p>ok</p>" in body["html"] and "--page-bg:#101418" in body["html"]
+    assert "<script" not in body["html"] and "<link" not in body["html"]
+    assert "nonsense" not in body["html"]
+    # Byte for byte what the web's own frame is served.
+    framed = client.get(f"/pages/m/{message.id}/{page.digest}?bg=%23101418")
+    assert framed.text == body["html"]
+
+    by_report = client.get(f"/api/v2/pages/r/{report.id}/{page.digest}", headers=auth)
+    assert by_report.status_code == 200 and "<p>ok</p>" in by_report.json()["html"]
+    assert client.get(f"/api/v2/pages/m/{message.id}/{'0' * 32}", headers=auth).status_code == 404
+    assert client.get(f"/api/v2/pages/m/{message.id}/{page.digest}").status_code == 401
+
+    # Somebody else's reply and report are as absent as ones that are not there.
+    sam = _as_stranger(client, db)
+    settings_store.update(db, {"default_permissions": {"api.use": True}})
+    other = _app(db, sam)
+    for url in (f"/api/v2/pages/m/{message.id}/{page.digest}",
+                f"/api/v2/pages/r/{report.id}/{page.digest}"):
+        assert client.get(url, headers=other).status_code == 404
+
+
+def test_an_app_reads_and_sets_the_chats_switch(client: TestClient, db, registered):
+    owner = db.scalars(select(User).order_by(User.created_at)).first()
+    auth = _app(db, owner)
+    chat = _chat(db, owner.id)
+    url = f"/api/v2/chats/{chat.id}/html-pages"
+    assert client.get(url, headers=auth).json() == {"offered": False, "on": False}
+    # Not offered: it cannot be switched on (switching it off always can).
+    assert client.post(url, json={"on": True}, headers=auth).status_code == 409
+    assert client.post(url, json={"on": False}, headers=auth).json() == {
+        "offered": False, "on": False
+    }
+    _on(db)
+    assert client.get(url, headers=auth).json() == {"offered": True, "on": False}
+    assert client.post(url, json={"on": True}, headers=auth).json() == {
+        "offered": True, "on": True
+    }
+    db.refresh(chat)
+    assert html_pages.chat_on(chat)
+    assert client.post(url, json={"on": False}, headers=auth).json()["on"] is False
+    # An agent chat never has them, whatever is asked.
+    agent = Chat(user_id=owner.id, model_id="m", kind=KIND_AGENT)
+    db.add(agent)
+    db.commit()
+    agent_url = f"/api/v2/chats/{agent.id}/html-pages"
+    assert client.get(agent_url, headers=auth).json() == {"offered": False, "on": False}
+    assert client.post(agent_url, json={"on": True}, headers=auth).status_code == 409
