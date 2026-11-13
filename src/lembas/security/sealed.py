@@ -38,6 +38,59 @@ def policy() -> str:
     )
 
 
+def page_policy() -> str:
+    """The policy of **a page a model wrote into an answer** (harness spec
+    3.8.0, `pages.md` §6). Tighter than `policy()`, which serves a file the
+    person chose to open: what is on such a page may have been steered by
+    anything the model read, so beyond reaching nothing of this application
+    it must not be able to *send* anything anywhere -- a page that could
+    would be a way to carry a conversation out of the instance.
+
+    **No script runs.** With scripts, two ways out stay open that no policy
+    of a web page closes (`tests/test_html_pages_sealed.py` measures both): a
+    peer connection to a STUN server of the page's choosing, and a name
+    looked up for a `<link rel="dns-prefetch">` a script may add at any time.
+    So the page is HTML, CSS and inline SVG, rebuilt by
+    `services/html_pages.document` without anything that names another host.
+
+    Navigating the frame is not something a document's own policy can
+    refuse; that is the framing page's `frame-src 'self'`
+    (`security/hardening.py`), and the route refuses to be opened as a
+    document of its own (`api/html_pages.py`).
+    """
+    return "; ".join(
+        (
+            "sandbox",
+            "default-src 'none'",
+            "script-src 'none'",
+            "style-src 'unsafe-inline'",
+            "img-src data: blob:",
+            "font-src data:",
+            "media-src 'none'",
+            "connect-src 'none'",
+            "worker-src 'none'",
+            "child-src 'none'",
+            "frame-src 'none'",
+            "object-src 'none'",
+            "manifest-src 'none'",
+            "form-action 'none'",
+            "base-uri 'none'",
+            "webrtc 'block'",
+            "frame-ancestors 'self'",
+        )
+    )
+
+
+def page_headers() -> dict[str, str]:
+    return {
+        **headers(),
+        "Content-Security-Policy": page_policy(),
+        # No DNS lookups for names in the page before anything is clicked.
+        "X-DNS-Prefetch-Control": "off",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+    }
+
+
 def headers() -> dict[str, str]:
     return {
         "Content-Security-Policy": policy(),
@@ -47,4 +100,4 @@ def headers() -> dict[str, str]:
     }
 
 
-__all__ = ["headers", "policy"]
+__all__ = ["headers", "page_headers", "page_policy", "policy"]

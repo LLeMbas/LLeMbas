@@ -394,7 +394,7 @@ class Server:
 
 
 class Browser:
-    def __init__(self, width: int = 1280, height: int = 900) -> None:
+    def __init__(self, width: int = 1280, height: int = 900, args: tuple[str, ...] = ()) -> None:
         if not CHROMIUM:
             raise SystemExit("no chromium on PATH")
         self.profile = tempfile.mkdtemp(prefix="lembas-perf-chromium-", dir=_TMP)
@@ -403,7 +403,7 @@ class Browser:
                 CHROMIUM, "--headless=new", "--no-sandbox", "--disable-gpu",
                 "--remote-debugging-port=0", f"--user-data-dir={self.profile}",
                 "--no-first-run", "--force-device-scale-factor=1",
-                f"--window-size={width},{height}", "about:blank",
+                f"--window-size={width},{height}", *args, "about:blank",
             ],
             stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, text=True,
             start_new_session=True,
