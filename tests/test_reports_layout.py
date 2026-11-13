@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -30,10 +31,20 @@ from lembas.services import settings_store
 from tests.test_prefix import _chat
 
 CHROMIUM = shutil.which("chromium") or shutil.which("chromium-browser")
+# Without a browser this file measures nothing. On a developer's machine that
+# is a skip; where it is run to be relied on -- CI, a release (`CI` or
+# `LEMBAS_REQUIRE_BROWSER` set) -- it is a failure.
+REQUIRED = bool(os.environ.get("CI") or os.environ.get("LEMBAS_REQUIRE_BROWSER"))
 pytestmark = [
     pytest.mark.slow,
-    pytest.mark.skipif(not CHROMIUM, reason="needs a Chromium to measure in"),
+    pytest.mark.skipif(not CHROMIUM and not REQUIRED, reason="needs a Chromium to measure in"),
 ]
+
+
+@pytest.fixture(autouse=True)
+def _a_browser_is_there():
+    if not CHROMIUM:
+        pytest.fail("no Chromium on PATH, and this run requires the browser tests")
 
 LONG = "The eastern grove of mallorn trees is three weeks late this year and nobody knows why"
 PAGE = "```html-view Harvest by grove, with a rather long title for a narrow bar\n<p>x</p>\n```\n"

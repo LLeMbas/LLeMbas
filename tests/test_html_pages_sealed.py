@@ -33,6 +33,7 @@ from __future__ import annotations
 import contextlib
 import importlib.util
 import json
+import os
 import shutil
 import socket
 import threading
@@ -46,10 +47,28 @@ from lembas.security import hardening, sealed
 from lembas.services import html_pages
 
 CHROMIUM = shutil.which("chromium") or shutil.which("chromium-browser")
+# Without a browser this file proves nothing. On a developer's machine that
+# is a skip; where it is run to be relied on -- CI, a release (`CI` or
+# `LEMBAS_REQUIRE_BROWSER` set) -- it is a failure, and so is any check here
+# that could not be made.
+REQUIRED = bool(os.environ.get("CI") or os.environ.get("LEMBAS_REQUIRE_BROWSER"))
 pytestmark = [
     pytest.mark.slow,
-    pytest.mark.skipif(not CHROMIUM, reason="needs a Chromium to prove it in"),
+    pytest.mark.skipif(not CHROMIUM and not REQUIRED, reason="needs a Chromium to prove it in"),
 ]
+
+
+@pytest.fixture(autouse=True)
+def _a_browser_is_there():
+    if not CHROMIUM:
+        pytest.fail("no Chromium on PATH, and this run requires the browser tests")
+
+
+def _cannot_check(why: str) -> None:
+    """Skip -- or fail, where the run requires every check to be made."""
+    if REQUIRED:
+        pytest.fail(why)
+    pytest.skip(why)
 
 SECRET = "session-cookie-of-the-application"
 SEND_FETCH = "fetch(C + '/' + NAME, {mode: 'no-cors'}).catch(function(){});"
@@ -490,7 +509,7 @@ def test_a_page_looks_up_no_name(run):
     """A link hint (`dns-prefetch`, `preconnect`) has the browser resolve a
     name whatever the policy says. The rebuilt page has no such element."""
     if DNS_CONTROL not in run["netlog"]:
-        pytest.skip("the browser's network log did not record the control's lookup")
+        _cannot_check("the browser's network log did not record the control's lookup")
     assert DNS_SEALED not in run["netlog"]
 
 
