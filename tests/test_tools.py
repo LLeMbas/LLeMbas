@@ -305,7 +305,9 @@ def test_every_schema_is_valid_json():
     for name, tool in tools_service.REGISTRY.items():
         json.dumps(tool.schema)
         assert tool.schema["function"]["name"] == name
-        assert tool.family in tools_service.FAMILIES
+        # `report_write` is in no family anybody switches: whether it is
+        # offered is a fact about the session (a schedule's run).
+        assert tool.family in tools_service.FAMILIES or tool.name == "report_write"
 
 
 def test_every_tool_describes_when_to_use_it():
