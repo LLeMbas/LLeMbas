@@ -817,9 +817,6 @@ MESSAGES: dict[str, str] = {
     "Written for a model that will read it with no conversation around it, so say the whole thing. Nobody will be there to answer a question about it.": "Se escribe para un modelo que lo leerá sin ninguna conversación alrededor, así que dígalo todo. No habrá nadie para responder a una pregunta sobre ello.",
     "Run it now without using up the next scheduled run": "Ejecutarla ahora sin gastar la siguiente ejecución programada",
     "This chat belonged to a schedule that has been removed. It is kept as a record of what was done.": "Este chat pertenecía a una programación que se ha eliminado. Se conserva como registro de lo que se hizo.",
-    "Keep its chat": "Conservar su chat",
-    "Remove this schedule? It will stop running.": "¿Eliminar esta programación? Dejará de ejecutarse.",
-    "Stops it running. Its chat is kept by default and becomes an ordinary one, so the transcript of everything it has already done stays where it is.": "Deja de ejecutarse. Su chat se conserva de forma predeterminada y se convierte en uno normal, así que la transcripción de todo lo que ya ha hecho sigue donde está.",
     "Nothing scheduled": "Nada programado",
     "Set something to run later — a daily summary, a check every Monday morning, a reminder in an hour.": "Programe algo para más tarde: un resumen diario, una comprobación cada lunes por la mañana, un recordatorio dentro de una hora.",
     "Work that runs on its own, whether or not you are here. Each one has its own chat, and replies into it every time it comes round.": "Trabajo que se ejecuta por sí solo, esté usted o no. Cada uno tiene su propio chat y responde en él cada vez que le toca.",
@@ -2742,5 +2739,7 @@ MESSAGES.update(
         'Open the file': 'Abrir el archivo',
         'That report no longer exists.': 'Ese informe ya no existe.',
         'New report': 'Nuevo informe',
+        'Stops it running and removes the chats its runs worked in. Its reports stay under Reports.': 'Lo detiene y elimina los chats en los que trabajaron sus ejecuciones. Sus informes permanecen en Informes.',
+        'Remove this schedule? It will stop running, and the chats of its runs are removed. Its reports stay.': '¿Eliminar esta programación? Dejará de ejecutarse y se eliminarán los chats de sus ejecuciones. Sus informes permanecen.',
     }
 )

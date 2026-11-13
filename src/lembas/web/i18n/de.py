@@ -817,9 +817,6 @@ MESSAGES: dict[str, str] = {
     "Written for a model that will read it with no conversation around it, so say the whole thing. Nobody will be there to answer a question about it.": "Geschrieben für ein Modell, das es ohne umgebendes Gespräch liest — sagen Sie also alles. Niemand wird da sein, um eine Frage dazu zu beantworten.",
     "Run it now without using up the next scheduled run": "Jetzt ausführen, ohne den nächsten geplanten Lauf zu verbrauchen",
     "This chat belonged to a schedule that has been removed. It is kept as a record of what was done.": "Dieser Chat gehörte zu einem Zeitplan, der entfernt wurde. Er bleibt als Aufzeichnung dessen erhalten, was getan wurde.",
-    "Keep its chat": "Seinen Chat behalten",
-    "Remove this schedule? It will stop running.": "Diesen Zeitplan entfernen? Er wird nicht mehr ausgeführt.",
-    "Stops it running. Its chat is kept by default and becomes an ordinary one, so the transcript of everything it has already done stays where it is.": "Beendet seine Ausführung. Sein Chat wird standardmäßig behalten und zu einem gewöhnlichen Chat, sodass der Verlauf von allem, was er schon getan hat, bleibt, wo er ist.",
     "Nothing scheduled": "Nichts geplant",
     "Set something to run later — a daily summary, a check every Monday morning, a reminder in an hour.": "Planen Sie etwas für später — eine tägliche Zusammenfassung, eine Prüfung jeden Montagmorgen, eine Erinnerung in einer Stunde.",
     "Work that runs on its own, whether or not you are here. Each one has its own chat, and replies into it every time it comes round.": "Arbeit, die von selbst läuft, ob Sie da sind oder nicht. Jeder Zeitplan hat seinen eigenen Chat und antwortet bei jeder Wiederkehr darin.",
@@ -2742,5 +2739,7 @@ MESSAGES.update(
         'Open the file': 'Datei öffnen',
         'That report no longer exists.': 'Diesen Bericht gibt es nicht mehr.',
         'New report': 'Neuer Bericht',
+        'Stops it running and removes the chats its runs worked in. Its reports stay under Reports.': 'Beendet ihn und entfernt die Chats, in denen seine Läufe gearbeitet haben. Seine Berichte bleiben unter Berichte.',
+        'Remove this schedule? It will stop running, and the chats of its runs are removed. Its reports stay.': 'Diesen Zeitplan entfernen? Er läuft nicht mehr, und die Chats seiner Läufe werden entfernt. Seine Berichte bleiben.',
     }
 )

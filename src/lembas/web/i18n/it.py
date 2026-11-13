@@ -817,9 +817,6 @@ MESSAGES: dict[str, str] = {
     "Written for a model that will read it with no conversation around it, so say the whole thing. Nobody will be there to answer a question about it.": "Scritto per un modello che lo leggerà senza alcuna conversazione intorno, quindi di' tutto. Non ci sarà nessuno a rispondere a una domanda in merito.",
     "Run it now without using up the next scheduled run": "Eseguila ora senza consumare la prossima esecuzione pianificata",
     "This chat belonged to a schedule that has been removed. It is kept as a record of what was done.": "Questa chat apparteneva a una pianificazione che è stata rimossa. Viene conservata come traccia di ciò che è stato fatto.",
-    "Keep its chat": "Mantieni la sua chat",
-    "Remove this schedule? It will stop running.": "Rimuovere questa pianificazione? Smetterà di essere eseguita.",
-    "Stops it running. Its chat is kept by default and becomes an ordinary one, so the transcript of everything it has already done stays where it is.": "Ne interrompe l'esecuzione. La sua chat viene conservata per impostazione predefinita e diventa una chat normale, così la trascrizione di tutto ciò che ha già fatto resta dov'è.",
     "Nothing scheduled": "Niente di pianificato",
     "Set something to run later — a daily summary, a check every Monday morning, a reminder in an hour.": "Imposta qualcosa da eseguire più tardi — un riepilogo giornaliero, un controllo ogni lunedì mattina, un promemoria tra un'ora.",
     "Work that runs on its own, whether or not you are here. Each one has its own chat, and replies into it every time it comes round.": "Lavoro che si esegue da solo, che tu ci sia o no. Ognuna ha la propria chat e vi risponde ogni volta che si ripresenta.",
@@ -2742,5 +2739,7 @@ MESSAGES.update(
         'Open the file': 'Apri il file',
         'That report no longer exists.': 'Quel rapporto non esiste più.',
         'New report': 'Nuovo rapporto',
+        'Stops it running and removes the chats its runs worked in. Its reports stay under Reports.': 'La ferma e rimuove le chat in cui hanno lavorato le sue esecuzioni. I suoi rapporti restano in Rapporti.',
+        'Remove this schedule? It will stop running, and the chats of its runs are removed. Its reports stay.': 'Rimuovere questa pianificazione? Smetterà di essere eseguita e le chat delle sue esecuzioni saranno rimosse. I suoi rapporti restano.',
     }
 )

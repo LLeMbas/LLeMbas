@@ -817,9 +817,6 @@ MESSAGES: dict[str, str] = {
     "Written for a model that will read it with no conversation around it, so say the whole thing. Nobody will be there to answer a question about it.": "Pisane dla modelu, który przeczyta to bez otaczającej rozmowy, więc należy powiedzieć wszystko. Nikogo nie będzie, by odpowiedzieć na pytanie.",
     "Run it now without using up the next scheduled run": "Uruchom teraz, nie zużywając następnego zaplanowanego przebiegu",
     "This chat belonged to a schedule that has been removed. It is kept as a record of what was done.": "Ten czat należał do harmonogramu, który został usunięty. Zostaje jako zapis tego, co zrobiono.",
-    "Keep its chat": "Zachowaj jego czat",
-    "Remove this schedule? It will stop running.": "Usunąć ten harmonogram? Przestanie działać.",
-    "Stops it running. Its chat is kept by default and becomes an ordinary one, so the transcript of everything it has already done stays where it is.": "Zatrzymuje go. Jego czat jest domyślnie zachowywany i staje się zwykłym czatem, więc zapis wszystkiego, co już zrobił, pozostaje na miejscu.",
     "Nothing scheduled": "Nic nie zaplanowano",
     "Set something to run later — a daily summary, a check every Monday morning, a reminder in an hour.": "Można zaplanować coś na później — codzienne podsumowanie, kontrolę w każdy poniedziałek rano, przypomnienie za godzinę.",
     "Work that runs on its own, whether or not you are here. Each one has its own chat, and replies into it every time it comes round.": "Praca, która działa sama, bez względu na obecność użytkownika. Każdy harmonogram ma własny czat i odpowiada w nim przy każdym powtórzeniu.",
@@ -2742,5 +2739,7 @@ MESSAGES.update(
         'Open the file': 'Otwórz plik',
         'That report no longer exists.': 'Ten raport już nie istnieje.',
         'New report': 'Nowy raport',
+        'Stops it running and removes the chats its runs worked in. Its reports stay under Reports.': 'Zatrzymuje go i usuwa czaty, w których pracowały jego przebiegi. Jego raporty pozostają w Raportach.',
+        'Remove this schedule? It will stop running, and the chats of its runs are removed. Its reports stay.': 'Usunąć ten harmonogram? Przestanie działać, a czaty jego przebiegów zostaną usunięte. Jego raporty pozostaną.',
     }
 )

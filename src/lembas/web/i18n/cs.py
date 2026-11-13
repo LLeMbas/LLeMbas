@@ -817,9 +817,6 @@ MESSAGES: dict[str, str] = {
     "Written for a model that will read it with no conversation around it, so say the whole thing. Nobody will be there to answer a question about it.": "Píše se pro model, který to přečte bez konverzace kolem, takže řekněte celou věc. Nikdo tam nebude, aby na otázku odpověděl.",
     "Run it now without using up the next scheduled run": "Spustit teď, aniž by se spotřeboval další naplánovaný běh",
     "This chat belonged to a schedule that has been removed. It is kept as a record of what was done.": "Tato konverzace patřila plánu, který byl odstraněn. Zůstává jako záznam toho, co se udělalo.",
-    "Keep its chat": "Ponechat jeho konverzaci",
-    "Remove this schedule? It will stop running.": "Odstranit tento plán? Přestane běžet.",
-    "Stops it running. Its chat is kept by default and becomes an ordinary one, so the transcript of everything it has already done stays where it is.": "Přestane běžet. Jeho konverzace se ve výchozím stavu zachová a stane se obyčejnou, takže záznam všeho, co už udělal, zůstává na svém místě.",
     "Nothing scheduled": "Nic naplánováno",
     "Set something to run later — a daily summary, a check every Monday morning, a reminder in an hour.": "Nastavte něco na později — denní shrnutí, kontrolu každé pondělní ráno, připomínku za hodinu.",
     "Work that runs on its own, whether or not you are here. Each one has its own chat, and replies into it every time it comes round.": "Práce, která běží sama, ať tu jste, nebo ne. Každá má vlastní konverzaci a při každém opakování do ní odpovídá.",
@@ -2742,5 +2739,7 @@ MESSAGES.update(
         'Open the file': 'Otevřít soubor',
         'That report no longer exists.': 'Tato zpráva už neexistuje.',
         'New report': 'Nová zpráva',
+        'Stops it running and removes the chats its runs worked in. Its reports stay under Reports.': 'Zastaví jej a odstraní konverzace, ve kterých jeho běhy pracovaly. Jeho zprávy zůstanou ve Zprávách.',
+        'Remove this schedule? It will stop running, and the chats of its runs are removed. Its reports stay.': 'Odstranit tento plán? Přestane běžet a konverzace jeho běhů se odstraní. Jeho zprávy zůstanou.',
     }
 )

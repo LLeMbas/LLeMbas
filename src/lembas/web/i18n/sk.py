@@ -399,12 +399,6 @@ MESSAGES.update(
         "Run it now without using up the next scheduled run": (
             "Spustiť teraz bez toho, aby sa spotreboval ďalší naplánovaný beh"
         ),
-        "Remove this schedule? It will stop running.": "Odstrániť tento plán? Prestane bežať.",
-        "Keep its chat": "Nechať jeho konverzáciu",
-        "Stops it running. Its chat is kept by default and becomes an ordinary one, so the transcript of everything it has already done stays where it is.": (
-            "Prestane bežať. Jeho konverzácia sa predvolene zachová a stane sa "
-            "obyčajnou, takže zápis všetkého, čo už urobil, zostáva na svojom mieste."
-        ),
         "This chat belonged to a schedule that has been removed. It is kept as a record of what was done.": (
             "Táto konverzácia patrila plánu, ktorý bol odstránený. Zostáva ako záznam "
             "toho, čo sa urobilo."
@@ -3402,5 +3396,7 @@ MESSAGES.update(
         'Open the file': 'Otvoriť súbor',
         'That report no longer exists.': 'Táto správa už neexistuje.',
         'New report': 'Nová správa',
+        'Stops it running and removes the chats its runs worked in. Its reports stay under Reports.': 'Zastaví ho a odstráni konverzácie, v ktorých jeho behy pracovali. Jeho správy zostanú v Správach.',
+        'Remove this schedule? It will stop running, and the chats of its runs are removed. Its reports stay.': 'Odstrániť tento plán? Prestane bežať a konverzácie jeho behov sa odstránia. Jeho správy zostanú.',
     }
 )

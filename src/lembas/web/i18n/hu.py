@@ -817,9 +817,6 @@ MESSAGES: dict[str, str] = {
     "Written for a model that will read it with no conversation around it, so say the whole thing. Nobody will be there to answer a question about it.": "Olyan modellnek szól, amely mindenféle beszélgetés nélkül olvassa, ezért írjon le mindent. Senki sem lesz ott, hogy kérdésekre válaszoljon.",
     "Run it now without using up the next scheduled run": "Futtatás most, a következő ütemezett futtatás felhasználása nélkül",
     "This chat belonged to a schedule that has been removed. It is kept as a record of what was done.": "Ez a csevegés egy azóta eltávolított ütemezéshez tartozott. Annak nyilvántartásaként őrizzük meg, ami történt.",
-    "Keep its chat": "Csevegés megtartása",
-    "Remove this schedule? It will stop running.": "Eltávolítja ezt az ütemezést? Többé nem fog futni.",
-    "Stops it running. Its chat is kept by default and becomes an ordinary one, so the transcript of everything it has already done stays where it is.": "Leállítja a futását. A csevegése alapértelmezésként megmarad, és hagyományos csevegéssé válik, így mindannak az átirata, amit már elvégzett, ott marad, ahol van.",
     "Nothing scheduled": "Nincs ütemezett feladat",
     "Set something to run later — a daily summary, a check every Monday morning, a reminder in an hour.": "Állítson be valamit későbbi futtatásra – napi összefoglalót, minden hétfő reggeli ellenőrzést, egy óra múlva esedékes emlékeztetőt.",
     "Work that runs on its own, whether or not you are here. Each one has its own chat, and replies into it every time it comes round.": "Magától futó munka, akár itt van, akár nem. Mindegyiknek saját csevegése van, és minden alkalommal abba válaszol, amikor sorra kerül.",
@@ -2742,5 +2739,7 @@ MESSAGES.update(
         'Open the file': 'Fájl megnyitása',
         'That report no longer exists.': 'Ez a jelentés már nem létezik.',
         'New report': 'Új jelentés',
+        'Stops it running and removes the chats its runs worked in. Its reports stay under Reports.': 'Leállítja, és eltávolítja azokat a csevegéseket, amelyekben a futásai dolgoztak. A jelentései a Jelentések között maradnak.',
+        'Remove this schedule? It will stop running, and the chats of its runs are removed. Its reports stay.': 'Eltávolítja ezt az ütemezést? Nem fut tovább, és a futásainak csevegései törlődnek. A jelentései megmaradnak.',
     }
 )

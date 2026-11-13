@@ -3,6 +3,58 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## Unreleased
+
+For 2.0.0-beta.12. The harness spec is **3.8.0** (reports; HTML pages; one rule for
+permission layers), vendored from the LLeMbas CLI's `dev` and pinned to its tag at release.
+
+### Added
+
+- **Reports.** What a scheduled task finds is now a *report*: a titled document with a short
+  summary, kept under **Reports** in the sidebar (with a count of the unread ones) instead of
+  being the last message of a chat nobody opens. The list shows the unread first and filters
+  by schedule; opening a report marks it read; **Reply** continues it as a conversation that
+  stays with the report -- it is not one of your chats, and is not in the sidebar, the unread
+  dots, search or the apps' chat lists. The model files a report with the new tool
+  `report_write`, offered only in a schedule's own run.
+- **Notify when**, on every schedule: **Every run** (a report each time), **When…** (a report
+  only when a condition holds -- yours, in your words, or "something needs my attention" --
+  and otherwise one line in the task's history), or **Never** (the history only). It replaces
+  "Tell me"; "When it matters" becomes **When…** with the default condition, and nothing else
+  about an existing schedule changes.
+- **Scheduled** has its own entry in the sidebar, beside Reports. A task's history shows each
+  run's line and a link to the report it left.
+- `/api/v2`: `GET /reports` (`?unread=1`, `?schedule=<id>`), `GET /reports/{id}`,
+  `POST /reports/{id}/read`, `DELETE /reports/{id}`, `POST /reports/{id}/reply`; a `reports`
+  event on `GET /events` (the unread count and the newest unread report); `notify_when`,
+  `notify_default` and `save_file` on a schedule; `report` and `note` on a run.
+
+### Changed
+
+- **A notification comes from a report, not from a run.** A run that left a report sends one
+  notification with the report's title and summary; a run that left none sends nothing. On a
+  lock screen it says only "New report". Failures are told as before. The push kind is
+  `report` (it was `schedule` for a finished run); `schedule_failed` is unchanged.
+- **"A file in your reports folder" is now a checkbox**, "Also save each report as a file":
+  the report is under Reports either way. Schedules that had it keep saving the file.
+- **Removing a schedule removes the chats its runs worked in.** They used to be kept and
+  turned into ordinary chats, which filled the list of chats with the leftovers of removed
+  schedules. Its reports stay, each with the conversation that continued it. A schedule that
+  ran in a chat of your own never owned that chat and leaves it alone. (`keep_chat` on
+  `DELETE /api/v2/schedules/{id}` is accepted and ignored.)
+- A new run is told what the last *report* said, not what a quiet run answered.
+- `[SILENT]` is retired: no run is told about it. A model that still answers it leaves no
+  report.
+
+### Fixed
+
+- **Runs on a linked computer no longer fill the Agents list.** Each run's agent chat is
+  marked as a schedule's and stays out of the sidebar, the unread dots, search, the apps'
+  lists and the generic "something new" notification.
+- **Search by meaning no longer returns a schedule's runs** as past chats: run chats and a
+  report's conversation are not indexed.
+- Clearing old runs never removes a report or the conversation that continued one.
+
 ## 2.0.0-beta.11 — 2026-11-12
 
 For 2.0.0-beta.11. The harness spec is **3.7.0** (one display in every client; Python's three
