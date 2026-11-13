@@ -110,11 +110,25 @@ def note_of(answer: str) -> str:
     return harness_spec.loop()["scheduled"]["texts"]["no_reply"]
 
 
+# A report is something a person reads. Past this its body is cut -- whoever
+# wrote it: a model here, a linked computer's, or an answer filed as one.
+BODY_MAX = 256 * 1024
+CUT_NOTE = "\n\n[This report was cut here: it was longer than 256 KiB.]"
+
+
+def bounded(body: str) -> str:
+    """A report's body, cut at `BODY_MAX` bytes with a line saying so."""
+    raw = body.encode("utf-8")
+    if len(raw) <= BODY_MAX:
+        return body
+    return raw[:BODY_MAX].decode("utf-8", "ignore").rstrip() + CUT_NOTE
+
+
 def clean_call(call: dict[str, Any]) -> dict[str, str] | None:
     """One `report_write` call as a report, or None when it lacks a title or
     a body."""
     title = " ".join(str(call.get("title") or "").split())
-    body = str(call.get("body") or "").strip()
+    body = bounded(str(call.get("body") or "").strip())
     if not title or not body:
         return None
     importance = str(call.get("importance") or IMPORTANCE_NORMAL)
@@ -144,7 +158,7 @@ def outcome(
         return (
             {
                 "title": " ".join((title or "").split())[:300] or "Scheduled run",
-                "body": said,
+                "body": bounded(said),
                 "summary": _cut(first, int(spec()["summary_max"])),
                 "importance": IMPORTANCE_NORMAL,
             },

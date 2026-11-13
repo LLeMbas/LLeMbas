@@ -429,3 +429,20 @@ async def test_one_notification_and_nothing_of_the_report_on_a_lock_screen(
                                  kind=told["kind"], extra=told["extra"])
     outside = {k: v for k, v in payload.items() if k != "notification"}
     assert "Mallorn" not in json.dumps(outside) and "grove" not in json.dumps(outside)
+
+
+def test_a_reports_body_is_bounded_whoever_wrote_it():
+    """A model's `report_write`, a linked computer's report in its answer, and
+    an answer filed under `always` all end at the same size."""
+    long = "x" * (reports_service.BODY_MAX + 5000)
+    written = reports_service.clean_call({"title": "T", "body": long})
+    assert len(written["body"].encode()) <= reports_service.BODY_MAX + 200
+    assert written["body"].endswith(reports_service.CUT_NOTE)
+    from_device, _ = reports_service.outcome(
+        notify="when", title="T", calls=[{"title": "T", "body": long}], answer="Filed."
+    )
+    assert from_device["body"].endswith(reports_service.CUT_NOTE)
+    from_answer, _ = reports_service.outcome(notify="always", title="T", calls=[], answer=long)
+    assert from_answer["body"].endswith(reports_service.CUT_NOTE)
+    short = reports_service.clean_call({"title": "T", "body": "Fine."})
+    assert short["body"] == "Fine."
