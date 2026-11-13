@@ -536,7 +536,6 @@ PENDING = {
     "(chunk_tokens, run in tests/test_index.py)",
     "library_scope": "knowledge bases are gone from the server (spec 3.0.0); the CLI keeps its "
     "local library",
-    "prototype": "prototypes are gone from the server's chat (spec 3.0.0: `show` replaces them)",
     "chunk_tokens": "run in tests/test_index.py",
     "context": "run in tests/test_context.py",
     "prefix": "the CLI's cases drive its engine (session steps, MCP waits); the server's chat "
@@ -770,9 +769,6 @@ def test_a_shared_text_marked_identical_is_the_fragment_default(path, key, entry
         # The vendored 2.0.0 index still names it; spec 3.0.0 makes the text
         # the CLI's alone, and the server's library is gone.
         pytest.skip("core.library went with the library (spec 3.0.0: blocks/library.md is cli)")
-    if key not in fragments and path == "blocks/prototypes.md":
-        # Likewise: spec 3.0.0 drops prototypes from chat (`show` replaces them).
-        pytest.skip("core.prototypes went with prototypes (spec 3.0.0: `show` replaces them)")
     fragment = fragments[key]
     values = {
         name: prompts.PLAN_DIR if name == "plan_dir" else ""

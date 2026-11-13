@@ -1277,7 +1277,7 @@ async def settings_page(
     # (preferences, library, tokens, devices, schedules) would be thirty places
     # to forget it. A browser says on every request whether it is loading a
     # frame, so the redirect's GET carries the answer by itself. Nothing else
-    # frames /settings -- prototypes have their own sealed route -- and a
+    # frames /settings -- a page in an answer has its own sealed route -- and a
     # browser that sends no such header is caught by ui.js, which reloads the
     # frame with `embed=1` when the page that arrived has a sidebar in it.
     settings_embed = embed == "1" or request.headers.get("sec-fetch-dest") == "iframe"

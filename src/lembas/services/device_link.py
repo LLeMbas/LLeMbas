@@ -2114,9 +2114,8 @@ def context_for(db, link: Link, user, chat) -> dict[str, Any]:
     model over instance, "" when none -- the device appends it as
     "Instructions from <instance>". `personalization`: the account's, in the
     shape `/v1/me/personalization` gives it, or `null` for the device's own
-    (the feature off here, or switched off by the person). No `library` and no
-    `prototypes` (spec 3.0.0): knowledge bases are gone from this side, and
-    `show` replaces prototypes.
+    (the feature off here, or switched off by the person). No `library`
+    (spec 3.0.0): knowledge bases are gone from this side.
     """
     from lembas.services import chat as chat_service
     from lembas.services import personalization
