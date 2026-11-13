@@ -188,12 +188,12 @@ def test_the_document_is_rebuilt_static_and_names_no_other_host():
     for gone in ("<script", "<link", "<meta http", "<base", "<iframe", "<object", "<form",
                  "<input", "<button", "onload", "formaction", "action=", "@import", "<!--"):
         assert gone not in out, gone
-    # No element or attribute names the other host; what is left of it is
-    # inert text inside a style sheet (below).
-    assert "leak.example.org" not in re.sub(r"<style>.*?</style>", "", out, flags=re.S)
-    # Every `<` that is written opens a tag this code chose to write: inside
-    # a kept style sheet it is a CSS escape.
-    assert "\\3c link" in out
+    # The rebuilt document names no other host anywhere: it is safe in a
+    # frame whose policy this server does not write (an app's).
+    assert "leak.example.org" not in out and "example.org" not in out
+    # A style sheet inside SVG is not kept at all (a browser reads it as
+    # markup there), and the page's own, which would fetch, went whole.
+    assert out.count("<style>") == 1  # ours: the frame's variables
     # The spec's own account of what was wrong with it, from the same parse.
     why = html_pages.static_faults(HOSTILE)
     assert why[:4] == ["element:link", "element:meta", "element:base", "css:import"]
@@ -456,3 +456,127 @@ def test_an_app_reads_and_sets_the_chats_switch(client: TestClient, db, register
     agent_url = f"/api/v2/chats/{agent.id}/html-pages"
     assert client.get(agent_url, headers=auth).json() == {"offered": False, "on": False}
     assert client.post(agent_url, json={"on": True}, headers=auth).status_code == 409
+
+
+# --- Probes: every way found of hiding an address, and the caps ---------------------------------
+HOST = "evil.example.org"
+
+
+@pytest.mark.parametrize(
+    "css",
+    [
+        f"a{{background:url(\"http://{HOST}/a'b\")}}",      # a quote inside the string
+        f"a{{background:u\\72l(http://{HOST}/x)}}",          # an escape in the function's name
+        f"a{{background:image-set(\"http://{HOST}/x\" 1x)}}",
+        f"a{{background:-webkit-image-set(\"//{HOST}/x\" 1x)}}",
+        f"@\\69mport \"http://{HOST}/a.css\";",
+        f"@import url(http://{HOST}/a.css);",
+        f"@im/**/port \"http://{HOST}/a.css\";",
+        f"@font-face{{font-family:x;src:url(http://{HOST}/f.woff)}}",
+        f"@namespace svg url(http://{HOST}/);",
+        f"a{{background:ur/**/l(http://{HOST}/x)}}",
+        f"a{{background:URL( 'http://{HOST}/x' )}}",
+        f"a{{background:url(//{HOST}/x)}}",
+        "a{background:url(data:image/svg+xml;base64,AAAA)}",
+        f"a{{background:url(data:image/png;base64,AAAA) , url(http://{HOST}/)}}",
+        f"a{{background:cross-fade(\"http://{HOST}/x\", red)}}",
+        "a{content:attr(data-u url)}",
+        f"a{{background:image(\"http://{HOST}/x\")}}",
+        f"a::after{{content:\"\\75 rl(http://{HOST})\"}}",
+        f"a{{background:&#117;rl(http://{HOST}/x)}}",        # a character reference
+    ],
+)
+def test_css_that_could_fetch_is_dropped_whole(css):
+    assert html_pages.css_faults(css), css
+    for page in (f"<style>{css}</style><p>kept</p>", f'<p style="{css}">kept</p>'):
+        out = html_pages.document(html_pages.Page("T", page))
+        assert HOST not in out and "kept" in out, page
+        assert html_pages.static_faults(page)
+
+
+def test_css_that_fetches_nothing_is_kept():
+    fine = (
+        "body{color:var(--page-ink,#222)} a>b{margin:calc(1px + 2%)} "
+        "@media (max-width:40em){td{padding:0}} @keyframes k{from{opacity:0}} "
+        ".a{fill:url(#grad)} .b{background:url(data:image/png;base64,iVBORw0KGgo=)} "
+        ".curly{color:rgb(1 2 3)} /* a comment */"
+    )
+    assert html_pages.css_faults(fine) == []
+    assert fine in html_pages.document(html_pages.Page("T", f"<style>{fine}</style>"))
+
+
+def test_a_style_sheet_inside_svg_is_never_kept():
+    """There a browser decodes `&#117;rl(` to `url(`, and this parser read text."""
+    page = f"<svg><style>a{{background:&#117;rl(http://{HOST}/x)}}</style><rect/></svg>"
+    out = html_pages.document(html_pages.Page("T", page))
+    assert HOST not in out and "&#117;" not in out and out.count("<style>") == 1
+    harmless = "<svg><style>rect{fill:red}</style><rect/></svg>"
+    assert html_pages.document(html_pages.Page("T", harmless)).count("<style>") == 1
+    assert html_pages.static_faults(harmless) == ["element:style"]
+
+
+@pytest.mark.parametrize(
+    "attribute",
+    ["fill", "stroke", "clip-path", "marker-start", "marker-mid", "marker-end", "style",
+     "transform", "class"],
+)
+def test_every_attribute_value_is_checked_for_an_address(attribute):
+    page = f'<svg><rect {attribute}="url(http://{HOST}/p.svg#g)" width="5"/></svg>'
+    out = html_pages.document(html_pages.Page("T", page))
+    assert HOST not in out and 'width="5"' in out
+    assert "css:url" in html_pages.static_faults(page)
+    kept = html_pages.document(html_pages.Page("T", f'<svg><rect {attribute}="url(#g)"/></svg>'))
+    assert f'{attribute}="url(#g)"' in kept
+
+
+def test_an_address_is_written_exactly_as_it_was_checked():
+    # A no-break space is not white space to a browser: `\u00a0#x` is a
+    # relative address, on this server's own origin. It is not kept.
+    nbsp = html_pages.document(html_pages.Page("T", '<a href="\u00a0#x">a</a>'))
+    assert "href" not in nbsp
+    # ASCII white space is trimmed, and what is written is the trimmed value.
+    spaced = html_pages.document(html_pages.Page("T", '<a href=" \t#x\n">a</a>'))
+    assert '<a href="#x">' in spaced
+    assert html_pages.address("#a b") is None and html_pages.address("#") == "#"
+    assert html_pages.address("data:image/png;base64,AAAA\" onx=\"1") is None
+
+
+def test_a_page_past_its_limits_is_not_shown():
+    huge = "<p>" + "x" * (html_pages.MAX_SOURCE + 1) + "</p>"
+    assert "too large" in html_pages.document(html_pages.Page("T", huge))
+    assert html_pages.static_faults(huge) == ["limit:size"]
+    many = "<p>a</p>" * (html_pages.MAX_ELEMENTS + 1)
+    assert "too large" in html_pages.document(html_pages.Page("T", many))
+    deep = "<div>" * (html_pages.MAX_DEPTH + 5) + "x"
+    assert "too large" in html_pages.document(html_pages.Page("T", deep))
+    # A long list written without end tags is long, not deep.
+    items = "<ul>" + "<li>item" * 2000 + "</ul>"
+    out = html_pages.document(html_pages.Page("T", items))
+    assert "too large" not in out and out.count("<li>") == 2000 == out.count("</li>")
+
+
+def test_a_use_bomb_draws_nothing():
+    """Ten groups, each using the one before ten times: ten thousand million
+    shapes from a few hundred bytes. No `<use>` of such a page is kept."""
+    layers = '<g id="a0"><rect width="1" height="1"/></g>'
+    for n in range(1, 11):
+        layers += f'<g id="a{n}">' + f'<use href="#a{n - 1}"/>' * 10 + "</g>"
+    bomb = f'<svg><defs>{layers}</defs><use href="#a10"/></svg>'
+    out = html_pages.document(html_pages.Page("T", bomb))
+    assert "<use" not in out and "<rect" in out
+    assert "limit:use" in html_pages.static_faults(bomb)
+    # A reference to itself is the same thing.
+    loop = '<svg><g id="a"><use href="#a"/></g></svg>'
+    assert "<use" not in html_pages.document(html_pages.Page("T", loop))
+    # An honest legend is untouched.
+    legend = '<svg><defs><rect id="k" width="4" height="4"/></defs>' + '<use href="#k"/>' * 20
+    assert html_pages.document(html_pages.Page("T", legend + "</svg>")).count("<use") == 20
+
+
+def test_the_rebuilt_document_is_remembered():
+    page = html_pages.Page("T", "<p>once</p>")
+    html_pages._document.cache_clear()
+    first = html_pages.document(page, {"bg": "#fff"})
+    assert html_pages.document(page, {"bg": "#fff"}) is first
+    assert html_pages._document.cache_info().hits == 1
+    assert html_pages.document(page, {"bg": "#000"}) != first

@@ -158,12 +158,36 @@ _VOID = frozenset({
     "source", "track", "wbr",
 })
 _NAME = re.compile(r"^[a-z][a-z0-9:_.-]*$")
-_CSS_URL = re.compile(r"url\(\s*(['\"]?)([^)'\"]*)\1\s*\)", re.I)
-_CSS_IMPORT = re.compile(r"@import\b", re.I)
 _COLOUR = re.compile(
     r"^(#[0-9a-fA-F]{3,8}"
     r"|(rgb|rgba|hsl|hsla|oklch|oklab|lab|lch|color)\([0-9a-zA-Z.,%/ +-]{1,80}\))$"
 )
+
+# What a page may be at most. A page is a chart or a table, not a document
+# store: past any of these it is not shown at all (`TOO_LARGE`), because a
+# browser asked to lay out a million elements, or an SVG that references
+# itself a billion times over, is a tab that does not answer.
+MAX_SOURCE = 512 * 1024  # bytes of what the model wrote
+MAX_ELEMENTS = 20_000
+MAX_DEPTH = 200
+# How many shapes `<use>` may add up to once every reference is followed --
+# ten `<use>` in a group that ten more groups use, ten deep, is 10^10.
+MAX_USE_EXPANSION = 5_000
+TOO_LARGE = "limit:size"
+
+_ASCII_SPACE = " \t\n\r\f"
+# What a start tag closes without being told: `<li>one<li>two` is two items,
+# not one inside the other -- and a list of a thousand such is not a thousand
+# deep.
+_CELLS = frozenset({"td", "th"})
+_ROWS = _CELLS | {"tr"}
+_GROUPS = _ROWS | {"thead", "tbody", "tfoot"}
+_IMPLIED = {
+    "p": frozenset({"p"}), "li": frozenset({"li"}),
+    "dt": frozenset({"dt", "dd"}), "dd": frozenset({"dt", "dd"}),
+    "td": _CELLS, "th": _CELLS, "tr": _ROWS,
+    "thead": _GROUPS, "tbody": _GROUPS, "tfoot": _GROUPS,
+}
 
 
 def static_rules() -> dict[str, Any]:
@@ -178,24 +202,92 @@ def _allowed() -> tuple[frozenset[str], frozenset[str], tuple[str, ...], frozens
         frozenset(name.lower() for name in rules["attributes"]),
         tuple(rules["attribute_prefixes"]),
         frozenset(rules["address_attributes"]),
-        re.compile(f"^data:image/(?:{'|'.join(rules['image_types'])});base64,", re.I),
+        re.compile(
+            f"^data:image/(?:{'|'.join(rules['image_types'])});base64,[A-Za-z0-9+/]*={{0,2}}$",
+            re.I,
+        ),
     )
 
 
+def address(value: str) -> str | None:
+    """An address as it may be written into a page, or None: `#fragment`, or
+    an inline picture of a listed type, spelled exactly. What is returned is
+    what was checked -- ASCII white space trimmed, nothing else touched: a
+    value a browser would read differently from this check is not kept."""
+    value = (value or "").strip(_ASCII_SPACE)
+    if re.fullmatch(r"#[A-Za-z0-9_.:-]*", value) or _allowed()[4].match(value):
+        return value
+    return None
+
+
 def address_allowed(value: str) -> bool:
-    """One of the two addresses a page may hold: `#fragment`, or an inline
-    picture of a listed type."""
-    value = (value or "").strip()
-    return value.startswith("#") or bool(_allowed()[4].match(value))
+    return address(value) is not None
+
+
+# --- CSS: strict, because it cannot be parsed here ------------------------------------
+#
+# A page's CSS must fetch nothing, and that has to be true of the *text*, not
+# only of the frame it is shown in: an app shows the same document in a frame
+# of its own. CSS has too many ways to spell an address for a pattern to find
+# them all (`u\72l(…)`, `image-set("…")`, a quote inside a string, `@\69mport`),
+# so the rule is not "find the bad ones" but "keep only what is plainly none":
+#
+# - no backslash at all: an escape can spell anything;
+# - no `&` and no `<`: where a browser reads a style sheet as markup (inside
+#   SVG) those are character references and tags, and this parser read text;
+# - no at-rule but a short list -- never `@import`, `@font-face`, `@namespace`;
+# - no function that takes an address (`image-set`, `image`, `cross-fade`,
+#   `element`, `paint`, `src`, a typed `attr`), and `url(…)` only as
+#   `url(#fragment)` or an inline picture spelled exactly;
+# - and after those are set aside, the word `url` nowhere.
+_CSS_COMMENT = re.compile(r"/\*.*?\*/", re.S)
+_CSS_AT = re.compile(r"@\s*([a-zA-Z-]*)")
+_CSS_AT_ALLOWED = frozenset({"media", "supports", "keyframes", "container", "layer"})
+_CSS_FUNCTION = re.compile(r"([a-zA-Z_-][a-zA-Z0-9_-]*)\s*\(")
+_CSS_ADDRESS_FUNCTIONS = frozenset({
+    "image-set", "-webkit-image-set", "image", "cross-fade", "-webkit-cross-fade", "element",
+    "-moz-element", "paint", "src", "type", "local", "format", "env",
+})
+_CSS_URL_OK = re.compile(
+    r"url\(\s*(?:\"(?P<d>[^\"()\\]*)\"|'(?P<s>[^'()\\]*)'|(?P<b>[^\"'()\\\s]*))\s*\)", re.I
+)
+_CSS_URL_WORD = re.compile(r"(?<![a-zA-Z0-9_-])url(?![a-zA-Z0-9_-])", re.I)
 
 
 def css_faults(css: str) -> list[str]:
-    """What a style sheet would fetch: `@import`, and a `url()` that is not
-    an allowed address."""
-    out = []
-    if _CSS_IMPORT.search(css or ""):
+    """What stops a piece of CSS -- a style sheet, a `style` attribute, a
+    presentation attribute's value -- being kept: `css:import` (an at-rule
+    that is not allowed) and `css:url` (an address, or anything that could
+    hide one). Empty: it fetches nothing."""
+    css = css or ""
+    out: list[str] = []
+    bare = _CSS_COMMENT.sub(" ", css)
+    # A comment may not be what holds two halves of a word apart, either.
+    joined = _CSS_COMMENT.sub("", css)
+    if any(
+        found.group(1).lower() not in _CSS_AT_ALLOWED
+        for text in (bare, joined)
+        for found in _CSS_AT.finditer(text)
+    ):
         out.append("css:import")
-    if any(not address_allowed(found.group(2)) for found in _CSS_URL.finditer(css or "")):
+    hidden = any(mark in css for mark in ("\\", "&", "<")) or "/*" in bare
+    for text in (bare, joined):
+        if hidden:
+            break
+        if any(
+            found.group(1).lower() in _CSS_ADDRESS_FUNCTIONS
+            for found in _CSS_FUNCTION.finditer(text)
+        ):
+            hidden = True
+            break
+        rest = text
+        for found in _CSS_URL_OK.finditer(text):
+            inner = found.group("d") or found.group("s") or found.group("b") or ""
+            if address(inner) == inner and inner:
+                rest = rest.replace(found.group(0), " ", 1)
+        if _CSS_URL_WORD.search(rest):
+            hidden = True
+    if hidden:
         out.append("css:url")
     return out
 
@@ -210,6 +302,12 @@ def _text(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+# Attributes that are words for a person or for a script-less page's own
+# data, never read as CSS or as an address: everything else is.
+def _is_words(name: str) -> bool:
+    return name in ("alt", "title", "lang", "datetime") or name.startswith(("aria-", "data-"))
+
+
 class _Walk(HTMLParser):
     """One parse of a page, for both readers: `faults` is what breaks the
     rule, in the order first met; `out` the document rebuilt without it."""
@@ -221,6 +319,13 @@ class _Walk(HTMLParser):
         self.skipping = ""  # the element being dropped with its content
         self.depth = 0
         self.style: list[str] | None = None  # the text of the <style> being read
+        self.style_kept = True
+        self.elements = 0
+        self.open: list[tuple[str, str]] = []  # (tag, id) of the elements open now
+        self.svg = 0  # how many <svg> are open
+        self.too_large = False
+        # `<use>`: where each stands in `out`, the ids it is inside, its target.
+        self.uses: list[tuple[int, tuple[str, ...], str]] = []
 
     def _say(self, fault: str) -> None:
         if fault not in self.faults:
@@ -235,7 +340,16 @@ class _Walk(HTMLParser):
             if not self.skipping and tag not in _VOID:
                 self.skipping, self.depth = tag, 1
             return
+        self.elements += 1
+        closes = _IMPLIED.get(tag)
+        while closes and self.open and self.open[-1][0] in closes:
+            self.out.append(f"</{self.open.pop()[0]}>")
+        if self.elements > MAX_ELEMENTS or len(self.open) >= MAX_DEPTH:
+            self.too_large = True
+            return
         kept = []
+        ident = ""
+        target = ""
         for name, value in attrs:
             name = (name or "").lower()
             value = "" if value is None else value
@@ -244,18 +358,39 @@ class _Walk(HTMLParser):
             ):
                 self._say(f"attribute:{name}")
                 continue
-            if name in addresses and not address_allowed(value):
-                self._say(f"address:{name}")
-                continue
-            if name == "style" and (found := css_faults(value)):
+            if name in addresses:
+                checked = address(value)
+                if checked is None:
+                    self._say(f"address:{name}")
+                    continue
+                value = checked
+                target = checked[1:] if checked.startswith("#") else target
+            elif not _is_words(name) and (found := css_faults(value)):
+                # A `style` attribute, and every presentation attribute too:
+                # `fill`, `clip-path`, `marker-end` take `url(…)` as well.
                 for fault in found:
                     self._say(fault)
                 continue
+            if name == "id":
+                ident = value
             kept.append(f' {name}="{_attribute(value)}"')
         if tag == "style":
-            self.style = []
+            # Inside SVG a browser reads a style sheet as markup and decodes
+            # character references in it; this parser read it as raw text.
+            # The two cannot be made to agree, so there is none there.
+            self.style, self.style_kept = [], not self.svg
+            if self.svg:
+                self._say("element:style")
             return
+        if tag not in _VOID:
+            self.open.append((tag, ident))
+        if tag == "svg":
+            self.svg += 1
         if not self.skipping:
+            if tag == "use":
+                self.uses.append(
+                    (len(self.out), tuple(i for _, i in self.open if i), target)
+                )
             self.out.append(f"<{tag}{''.join(kept)}>")
 
     def handle_startendtag(self, tag: str, attrs) -> None:
@@ -269,11 +404,9 @@ class _Walk(HTMLParser):
             found = css_faults(css)
             for fault in found:
                 self._say(fault)
-            # A style sheet that fetches is dropped whole. One that is kept
-            # never holds a `<`: a browser may be reading as markup what this
-            # parser read as text.
-            if not found and not self.skipping:
-                self.out.append(f"<style>{css.replace('<', chr(92) + '3c ')}</style>")
+            # A style sheet that could fetch is dropped whole.
+            if not found and self.style_kept and not self.skipping:
+                self.out.append(f"<style>{css}</style>")
             return
         if self.skipping:
             if tag == self.skipping:
@@ -281,8 +414,20 @@ class _Walk(HTMLParser):
                 if self.depth <= 0:
                     self.skipping = ""
             return
-        if _NAME.match(tag) and tag in _allowed()[0] and tag not in _VOID:
-            self.out.append(f"</{tag}>")
+        if not _NAME.match(tag) or tag not in _allowed()[0] or tag in _VOID:
+            return
+        # Close what is open down to this tag, as a browser would; an end tag
+        # for nothing that is open is dropped.
+        names = [name for name, _ in self.open]
+        if tag not in names:
+            return
+        while self.open:
+            name, _ = self.open.pop()
+            if name == "svg":
+                self.svg -= 1
+            self.out.append(f"</{name}>")
+            if name == tag:
+                break
 
     def handle_data(self, data: str) -> None:
         if self.style is not None:
@@ -290,18 +435,64 @@ class _Walk(HTMLParser):
         elif not self.skipping:
             self.out.append(_text(data))
 
+    def use_expansion(self) -> int:
+        """How many elements the page's `<use>` add up to, references
+        followed (and a reference that comes back to itself counted as past
+        any limit)."""
+        inside: dict[str, list[str]] = {}
+        for _, ancestors, target in self.uses:
+            for ident in ancestors:
+                inside.setdefault(ident, []).append(target)
+        seen: dict[str, int] = {}
+
+        def weight(ident: str, path: frozenset[str]) -> int:
+            if ident in path:
+                return MAX_USE_EXPANSION + 1
+            if ident in seen:
+                return seen[ident]
+            total = 1
+            for target in inside.get(ident, ()):
+                total += weight(target, path | {ident})
+                if total > MAX_USE_EXPANSION:
+                    break
+            seen[ident] = total
+            return total
+
+        total = 0
+        for _, _, target in self.uses:
+            total += weight(target, frozenset())
+            if total > MAX_USE_EXPANSION:
+                break
+        return total
+
 
 def _walk(html: str) -> _Walk:
     walk = _Walk()
-    walk.feed(html or "")
-    walk.close()
+    if len((html or "").encode("utf-8", "replace")) > MAX_SOURCE:
+        walk.too_large = True
+    else:
+        walk.feed(html or "")
+        walk.close()
+    if not walk.too_large and walk.use_expansion() > MAX_USE_EXPANSION:
+        # References that multiply: none of them is drawn.
+        for index, _, _ in walk.uses:
+            walk.out[index] = "<g>"
+        walk.out = [part if part != "</use>" else "</g>" for part in walk.out]
+        walk._say("limit:use")
+    if walk.too_large:
+        walk._say(TOO_LARGE)
+        walk.out = ["<p>This page is too large to show.</p>"]
+    else:
+        # Whatever was left open is closed: the document is whole.
+        walk.out.extend(f"</{name}>" for name, _ in reversed(walk.open))
     return walk
 
 
 def static_faults(html: str) -> list[str]:
     """What makes a page not static, each thing once, in the order first met
     (`element:<name>`, `attribute:<name>`, `address:<attribute>`,
-    `css:import`, `css:url`); none: it is static as written."""
+    `css:import`, `css:url`; and this server's own `limit:size`,
+    `limit:use`); none: it is static as written."""
     return _walk(html).faults
 
 
@@ -385,8 +576,15 @@ def theme(values: dict[str, str] | None) -> dict[str, str]:
 
 def document(page: Page, colours: dict[str, str] | None = None) -> str:
     """The document a client is given for a page: rebuilt from the spec's
-    allow-list, static, with the frame's variables set on its root."""
-    variables = "".join(f"{name}:{value};" for name, value in theme(colours).items())
+    allow-list, static, with the frame's variables set on its root. Kept for
+    a while (`_document`): a frame asks for the same page again on every
+    load, and a rebuild is a parse."""
+    return _document(page.title, page.html, tuple(sorted(theme(colours).items())))
+
+
+@functools.lru_cache(maxsize=64)
+def _document(title: str, html: str, colours: tuple[tuple[str, str], ...]) -> str:
+    variables = "".join(f"{name}:{value};" for name, value in colours)
     base = (
         f":root{{{variables}color-scheme:light dark}}"
         "html{background:var(--page-bg,Canvas);color:var(--page-ink,CanvasText);"
@@ -394,8 +592,7 @@ def document(page: Page, colours: dict[str, str] | None = None) -> str:
     )
     return (
         "<!doctype html>\n<meta charset=\"utf-8\">"
-        f"<title>{_text(page.title)}</title><style>{base}</style>\n"
-        + "".join(_walk(page.html).out)
+        f"<title>{_text(title)}</title><style>{base}</style>\n" + "".join(_walk(html).out)
     )
 
 
