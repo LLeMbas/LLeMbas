@@ -233,8 +233,14 @@ def test_the_pages_list_show_mark_read_and_delete(client: TestClient, db, regist
 def test_the_unread_poll_carries_the_reports_count(client: TestClient, db, registered):
     owner = _owner(db)
     _file(db, owner, _schedule(db, owner))
-    polled = client.get("/api/chats/unread").text
-    assert 'id="unread-reports"' in polled and ">1<" in polled
+    first = client.get("/api/chats/unread")
+    assert 'id="unread-reports"' in first.text and ">1<" in first.text
+    # ...and the report is said once, by the toast a reply gets: then never again.
+    said = json.loads(first.headers["HX-Trigger"])["lembas:unread"]["items"]
+    assert [(i["kind"], i["title"]) for i in said] == [("report", "Build is red")]
+    assert said[0]["url"].startswith("/reports/")
+    again = client.get("/api/chats/unread")
+    assert "HX-Trigger" not in again.headers and ">1<" in again.text
 
 
 # --- Reply: a conversation that stays with its report ---------------------------------------

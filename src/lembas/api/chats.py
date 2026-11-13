@@ -960,10 +960,18 @@ async def unread_poll(request: Request, db: Db, user: RequiredUser) -> Response:
         )
 
     # Reports: the count beside the sidebar's entry, and each new one said
-    # once (its title is the news; `Report.notified` is for the push, this
-    # flag is the page's own, kept on the row as `unread` is).
+    # once, with the same quiet toast a reply gets (`Report.notified` is for
+    # the push; `page_told` is the page's own, kept on the row as `unread` is).
+    from lembas.db.models import Report
     from lembas.services import reports as reports_service
 
+    for report in db.scalars(
+        select(Report).where(
+            Report.owner_id == user.id, Report.unread.is_(True), Report.page_told.is_(False)
+        )
+    ):
+        report.page_told = True
+        items.append({"kind": "report", "title": report.title, "url": f"/reports/{report.id}"})
     waiting = reports_service.unread_count(db, user.id)
     markup += (
         f'<span id="unread-reports" class="badge badge--leaf nav-item__count" '

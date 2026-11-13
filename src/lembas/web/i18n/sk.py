@@ -3412,5 +3412,6 @@ MESSAGES.update(
         'Open larger': 'Otvoriť väčšie',
         'View source': 'Zobraziť zdroj',
         'Pages in answers are not offered in this chat.': 'Stránky v odpovediach sa v tejto konverzácii neponúkajú.',
+        'New report: %(title)s': 'Nová správa: %(title)s',
     }
 )

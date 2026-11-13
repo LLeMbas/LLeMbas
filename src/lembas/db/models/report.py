@@ -53,6 +53,9 @@ class Report(UUIDPrimaryKey, Timestamps, Base):
     # Whether its arrival was announced: the dot stays while it is unread, the
     # notification goes once.
     notified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Said once to an open page (the unread poll's toast): the page's own
+    # flag, as `notified` is the push's.
+    page_told: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # The chat this report continues in; NULL until somebody replies.
     chat_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
 

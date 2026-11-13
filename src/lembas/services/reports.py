@@ -183,6 +183,7 @@ def file(
     row.model_id = model_id or ""
     row.unread = True
     row.notified = False
+    row.page_told = False
     db.flush()
     if run is not None:
         run.report_id = row.id

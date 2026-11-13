@@ -2755,5 +2755,6 @@ MESSAGES.update(
         'Open larger': 'Otevřít větší',
         'View source': 'Zobrazit zdroj',
         'Pages in answers are not offered in this chat.': 'Stránky v odpovědích se v této konverzaci nenabízejí.',
+        'New report: %(title)s': 'Nová zpráva: %(title)s',
     }
 )

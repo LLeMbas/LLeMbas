@@ -662,6 +662,7 @@
     if (items.length > 1) return t("%(n)s new arrivals", { n: items.length });
     var item = items[0];
     if (item.kind === "message") return t("New message");
+    if (item.kind === "report") return t("New report: %(title)s", { title: item.title });
     return t("Reply ready in “%(title)s”", { title: item.title });
   }
 

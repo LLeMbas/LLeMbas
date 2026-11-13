@@ -2755,5 +2755,6 @@ MESSAGES.update(
         'Open larger': 'Größer öffnen',
         'View source': 'Quelltext anzeigen',
         'Pages in answers are not offered in this chat.': 'Seiten in Antworten werden in diesem Chat nicht angeboten.',
+        'New report: %(title)s': 'Neuer Bericht: %(title)s',
     }
 )
