@@ -114,10 +114,10 @@ def _render_fence(tokens, idx, _options, env) -> str:
             # for each part a long open block is sent in, and never its source.
             if env.get("cont") and not any(t.type == "fence" for t in tokens[:idx]):
                 return ""
-            env["pages"].append((_page_of(token), False))
+            env["pages"].append((_page_of(token, env.get("lines") or []), False))
             return f'<div class="html-page-slot">{env["nonce"]}:{len(env["pages"]) - 1}</div>'
         if closed:
-            env["pages"].append((_page_of(token), True))
+            env["pages"].append((_page_of(token, env.get("lines") or []), True))
             return f'<div class="html-page-slot">{env["nonce"]}:{len(env["pages"]) - 1}</div>'
         # A reply that ended inside the fence has no page there: it is the
         # code block it is.
@@ -185,27 +185,66 @@ def _closed(token, lines: list[str]) -> bool:
     )
 
 
-def _page_of(token):
+def _page_of(token, lines: list[str]):
+    """A fence token as a page. The title is what the opening line says after
+    the word, as written -- not markdown-it's reading of the info string,
+    which undoes escapes and entities: one title, whoever asks."""
     from lembas.services import html_pages
 
     source = token.content[:-1] if token.content.endswith("\n") else token.content
-    said = (token.info or "").strip()[len(_page_word()):]
+    opening = lines[token.map[0]] if token.map and token.map[0] < len(lines) else ""
+    word = _page_word()
+    at = opening.find(word)
+    said = opening[at + len(word):] if at >= 0 else ""
     return html_pages.Page(html_pages._title(said, source), source)
 
 
-def pages_in(text: str) -> list:
-    """The pages of a reply exactly as the renderer finds them -- what the
-    route that serves one looks a digest up in."""
-    if not text or _page_word() not in text:
-        return []
-    src, lines = _source(text)
-    return [
-        _page_of(token)
-        for token in _parser().parse(src, {})
-        if token.type == "fence"
+def _is_page(token, lines: list[str]) -> bool:
+    return (
+        token.type == "fence"
         and (token.info or "").strip().split()[:1] == [_page_word()]
         and _closed(token, lines)
+    )
+
+
+def find_pages(text: str) -> tuple[list, str]:
+    """`(pages, projection)` of a reply: every closed `html-view` block in
+    order, and the reply with each replaced by its one line, `[page: title]`.
+
+    **The one finder.** The renderer's mounts, the route that serves a page,
+    the digests the apps are given and the projection every reader of text
+    sees all come from here -- from markdown-it's own tokens, so a fence in a
+    list item or a quotation, a CRLF reply and a title with an entity in it
+    are the same page with the same digest everywhere."""
+    from lembas.services import html_pages
+
+    if not text or _page_word() not in text:
+        return [], text or ""
+    src, lines = _source(text)
+    found = [
+        (token, _page_of(token, lines))
+        for token in _parser().parse(src, {})
+        if _is_page(token, lines)
     ]
+    if not found:
+        return [], text
+    out: list[str] = []
+    at = 0
+    template = html_pages.spec()["projection"]
+    for token, page in found:
+        start, end = token.map
+        if start < at:
+            continue
+        out.extend(lines[at:start])
+        out.append(template.replace("{{title}}", page.title))
+        at = end
+    out.extend(lines[at:])
+    return [page for _, page in found], "\n".join(out)
+
+
+def pages_in(text: str) -> list:
+    """The pages of a reply (`find_pages`)."""
+    return find_pages(text)[0]
 
 
 def _mount(page, ready: bool) -> str:
@@ -298,7 +337,8 @@ def _attribute_filter(element: str, attribute: str, value: str) -> str | None:
 
 
 def render_markdown(
-    text: str, *, live: bool = False, cont: bool = False, more: bool = False
+    text: str, *, live: bool = False, cont: bool = False, more: bool = False,
+    pages: bool = False,
 ) -> str:
     """Markdown to safe HTML, ready to drop into a message bubble.
 
@@ -310,7 +350,9 @@ def render_markdown(
 
     src, lines = _source(text)
     env = {"lines": lines, "live": live, "cont": cont, "more": more}
-    if _page_word() in src:
+    # `pages`: this text is a reply (or a report) written while pages were
+    # offered. Anywhere else an `html-view` block is a code block (pages.md §4).
+    if pages and _page_word() in src:
         env.update(pages=[], nonce=secrets.token_hex(8))
     return _mounts(_clean(_parser().render(src, env)), env)
 
@@ -363,7 +405,8 @@ class LiveRender:
     # its complete lines are settled.
     FENCE_CHUNK = 1200
 
-    def __init__(self) -> None:
+    def __init__(self, *, pages: bool = False) -> None:
+        self._pages = pages
         self._kept = ""
         self._html = ""
         # The fence open at the end of what is kept: (marker, info) or ("", "").
@@ -412,7 +455,8 @@ class LiveRender:
         if after[0]:
             source = f"{source}{'' if source.endswith(chr(10)) else chr(10)}{after[0]}"
         html = render_markdown(
-            source, live=True, cont=bool(self._fence[0]), more=bool(after[0])
+            source, live=True, cont=bool(self._fence[0]), more=bool(after[0]),
+            pages=self._pages,
         )
         return html, after
 

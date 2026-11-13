@@ -40,7 +40,6 @@ class Page:
         return hashlib.sha256(f"{self.title}\n{self.html}".encode()).hexdigest()[:32]
 
 
-_OPEN = re.compile(r"^ {0,3}(`{3,}|~{3,})[ \t]*(\S*)[ \t]*(.*?)[ \t]*$")
 _TITLE = re.compile(r"<title[^>]*>(.*?)</title\s*>", re.I | re.S)
 
 
@@ -58,57 +57,21 @@ def fence(text: str) -> tuple[list[Page], str]:
     """`(pages, projection)` of a reply: every **closed** `html-view` block in
     order, and the reply with each replaced by its `[page: title]` line. A
     block still open (the reply is being written, or was cut off) is not a
-    page and stays as it is, as does every other fenced block."""
-    shape = spec()
-    word = shape["fence"]
-    lines = (text or "").split("\n")
-    pages: list[Page] = []
-    out: list[str] = []
-    index = 0
-    while index < len(lines):
-        opened = _OPEN.match(lines[index])
-        if not opened:
-            out.append(lines[index])
-            index += 1
-            continue
-        marker, info, rest = opened.group(1), opened.group(2), opened.group(3)
-        # The block's end: a line of the same character, at least as long,
-        # with nothing after it.
-        end = None
-        for later in range(index + 1, len(lines)):
-            closing = lines[later].strip()
-            if (
-                closing
-                and set(closing) == {marker[0]}
-                and len(closing) >= len(marker)
-                and len(lines[later]) - len(lines[later].lstrip(" ")) <= 3
-            ):
-                end = later
-                break
-        if end is None:
-            out.extend(lines[index:])
-            break
-        if info == word:
-            html = "\n".join(lines[index + 1 : end])
-            page = Page(_title(rest, html), html)
-            pages.append(page)
-            out.append(shape["projection"].replace("{{title}}", page.title))
-        else:
-            out.extend(lines[index : end + 1])
-        index = end + 1
-    return pages, "\n".join(out)
+    page and stays as it is, as does every other fenced block.
+
+    Found by the Markdown renderer's own parse (`markdown.find_pages`): there
+    is one finder, so a page has one digest wherever it is asked for."""
+    from lembas.services.markdown import find_pages
+
+    return find_pages(text)
 
 
 def project(text: str) -> str:
     """A reply as text: its pages as one line each."""
-    if not text or spec()["fence"] not in text:
-        return text or ""
     return fence(text)[1]
 
 
 def pages_of(text: str) -> list[Page]:
-    if not text or spec()["fence"] not in text:
-        return []
     return fence(text)[0]
 
 

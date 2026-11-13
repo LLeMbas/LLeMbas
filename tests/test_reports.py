@@ -132,6 +132,7 @@ def test_v2_list_read_reply_delete(client: TestClient, db, registered):
                    body="See:\n\n```html-view Failures\n<p>test_x</p>\n```\n")
     other = _file(db, owner, _schedule(db, owner, "News"), title="Headlines")
     other.unread = False
+    report.html_pages = True  # written by a run that was offered pages
     db.commit()
 
     listed = client.get("/api/v2/reports", headers=auth).json()
@@ -446,3 +447,50 @@ def test_a_reports_body_is_bounded_whoever_wrote_it():
     assert from_answer["body"].endswith(reports_service.CUT_NOTE)
     short = reports_service.clean_call({"title": "T", "body": "Fine."})
     assert short["body"] == "Fine."
+
+
+# --- One finder: every page a report lists can be fetched ------------------------------------
+AWKWARD = {
+    "in a list item": "- First:\n\n  ```html-view In a list\n  <p>a</p>\n  ```\n\n- Second.\n",
+    "CRLF": "Top.\r\n\r\n```html-view Windows lines\r\n<p>b</p>\r\n```\r\n\r\nEnd.\r\n",
+    "an entity in the title": "```html-view Sales &amp; costs\n<p>c</p>\n```\n",
+    "a backslash in the title": "```html-view Path C:\\dir \\* star\n<p>d</p>\n```\n",
+    "in a quotation": "> Quoted:\n>\n> ```html-view Quoted page\n> <p>e</p>\n> ```\n\nAfter.\n",
+    "tildes, indented": "  ~~~~html-view Tildes\n  <p>f</p>\n  ~~~~\n",
+    "two, and one cut off": (
+        "```html-view One\n<p>g</p>\n```\n\n```html-view Two\n<p>h</p>\n```\n\n"
+        "```html-view Never closed\n<p>i</p>\n"
+    ),
+}
+
+
+@pytest.mark.parametrize("case", sorted(AWKWARD))
+def test_every_page_a_report_lists_is_served(client: TestClient, db, registered, case):
+    from lembas.services import html_pages
+    from lembas.services.markdown import pages_in, render_markdown
+
+    settings_store.update(db, {"html_pages_enabled": True})
+    owner = _owner(db)
+    auth = _bearer(db, owner)
+    body = AWKWARD[case]
+    report = _file(db, owner, _schedule(db, owner), body=body)
+    report.html_pages = True
+    db.commit()
+
+    said = client.get(f"/api/v2/reports/{report.id}", headers=auth).json()["report"]
+    assert said["pages"], case
+    # As many pages as the text has places for them, and as the page draws.
+    assert said["text"].count("[page: ") == len(said["pages"])
+    drawn = render_markdown(report.body, pages=True)
+    assert drawn.count("data-html-page data-digest") == len(said["pages"])
+    for page in said["pages"]:
+        assert f'data-digest="{page["digest"]}"' in drawn
+        for url in (f"/api/v2/pages/r/{report.id}/{page['digest']}",):
+            got = client.get(url, headers=auth)
+            assert got.status_code == 200, (case, page)
+            assert got.json()["title"] == page["title"]
+        assert client.get(f"/pages/r/{report.id}/{page['digest']}").status_code == 200
+    # The text side and the renderer are one finder.
+    assert [p.digest for p in html_pages.pages_of(body)] == [p.digest for p in pages_in(body)]
+    if case == "an entity in the title":
+        assert said["pages"][0]["title"] == "Sales &amp; costs"  # as written
