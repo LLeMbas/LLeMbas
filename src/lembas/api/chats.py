@@ -697,7 +697,9 @@ def compact_refusal(db, chat: Chat) -> str:
         return t("There is nothing here to summarise yet.")
     if not chat.device_token_id and not prompts_service.resolve(db, "task.compact").strip():
         return t("Compaction is turned off: its prompt is empty under Admin → Prompts.")
-    return ""
+    from lembas.services import interactive
+
+    return interactive.compact_refusal(db, chat)
 
 
 async def compact(db, chat: Chat, user) -> None:

@@ -2770,3 +2770,31 @@ MESSAGES.update(
         'This page has scripts or other parts that only work when it runs, so it is not shown until you run it. It runs sealed off from LLeMbas.': 'Ta strona ma skrypty lub inne części, które działają tylko po uruchomieniu, więc nie jest pokazywana, dopóki jej nie uruchomisz. Działa odizolowana od LLeMbas.',
     }
 )
+
+MESSAGES.update(
+    {
+        "Interactive use only: the provider's terms forbid automated services, batch scripts and scheduled background jobs on a plan, and a key used for them can be suspended. So scheduled and background work never goes to this connection — it goes to a pay-as-you-go one, or is not done. A plan is sold for its subscriber's own use in coding and agent tools; whether this instance's use fits is yours to judge.": 'Tylko do użytku interaktywnego: warunki dostawcy zabraniają w planie zautomatyzowanych usług, skryptów wsadowych i zaplanowanych zadań w tle, a klucz użyty do nich może zostać zawieszony. Dlatego praca zaplanowana i praca w tle nigdy nie trafia do tego połączenia — trafia do połączenia rozliczanego za zużycie albo nie jest wykonywana. Plan jest sprzedawany do własnego użytku subskrybenta w narzędziach do programowania i agentach; czy użycie w tej instancji się w tym mieści, musisz ocenić sam.',
+        "The provider has no balance to read with a model key and does not say what a reply cost: a cost here is this instance's estimate from the model's prices.": 'Dostawca nie ma salda, które dałoby się odczytać kluczem do modeli, i nie podaje, ile kosztowała odpowiedź: koszt tutaj to szacunek tej instancji na podstawie cen modelu.',
+        'Region': 'Region',
+        'As typed above': 'Jak wpisano powyżej',
+        "Fills the base URL, which stays editable. A key works only with the address of its own product and region; for a workspace's own host, change the host and keep the path.": 'Wypełnia bazowy URL, który można dalej edytować. Klucz działa tylko z adresem własnego produktu i regionu; dla własnego hosta przestrzeni roboczej zmień hosta i zostaw ścieżkę.',
+        "This key does not look like one for this type: a plan's key starts with sk-sp-, a pay-as-you-go key does not. A key works only with its own product's address.": 'Ten klucz nie wygląda na klucz tego typu: klucz planu zaczyna się od sk-sp-, a klucz rozliczany za zużycie nie. Klucz działa tylko z adresem własnego produktu.',
+        "This model's connection is a subscription. Its replies are counted — tokens, cached tokens, time — and never priced: a figure per token would be made up. What the plan has left is in the provider's console.": 'Połączenie tego modelu to subskrypcja. Jego odpowiedzi są liczone — tokeny, tokeny z pamięci podręcznej, czas — i nigdy nie są wyceniane: kwota za token byłaby zmyślona. Ile zostało w planie, widać w konsoli dostawcy.',
+        "Replace {WorkspaceId} in the base URL with your workspace's id: the provider's console shows the whole host.": 'Zastąp {WorkspaceId} w bazowym URL identyfikatorem swojej przestrzeni roboczej: konsola dostawcy pokazuje cały host.',
+        "%(model)s is on a connection for interactive use only: its provider's terms do not allow scheduled or background work. Choose a model on a pay-as-you-go connection.": '%(model)s jest na połączeniu tylko do użytku interaktywnego: warunki jego dostawcy nie pozwalają na pracę zaplanowaną ani w tle. Wybierz model na połączeniu rozliczanym za zużycie.',
+        "This chat's model is on a connection for interactive use only, and compacting is background work its provider's terms do not allow. It needs the same model on a pay-as-you-go connection, or a default model that is not interactive-only.": 'Model tego czatu jest na połączeniu tylko do użytku interaktywnego, a streszczanie to praca w tle, na którą warunki jego dostawcy nie pozwalają. Potrzebny jest ten sam model na połączeniu rozliczanym za zużycie albo model domyślny, który nie jest tylko interaktywny.',
+        'Singapore (international)': 'Singapur (międzynarodowy)',
+        'China (Beijing)': 'Chiny (Pekin)',
+        'US (Virginia)': 'USA (Wirginia)',
+        'China (Hong Kong)': 'Chiny (Hongkong)',
+        "Germany (Frankfurt), your workspace's host": 'Niemcy (Frankfurt), host twojej przestrzeni roboczej',
+        "Japan (Tokyo), your workspace's host": 'Japonia (Tokio), host twojej przestrzeni roboczej',
+        'Token Plan, Singapore': 'Token Plan, Singapur',
+        'Token Plan, China (Beijing)': 'Token Plan, Chiny (Pekin)',
+        'Coding Plan (international)': 'Coding Plan (międzynarodowy)',
+        'Alibaba Cloud Model Studio (pay-as-you-go)': 'Alibaba Cloud Model Studio (rozliczenie za zużycie)',
+        'Alibaba Cloud Model Studio (Token Plan, Coding Plan)': 'Alibaba Cloud Model Studio (Token Plan, Coding Plan)',
+        "The plan's quota is used up. The provider does not fall back to pay-as-you-go: wait for the plan's next month, add to the plan, or choose a model on another connection.": 'Limit planu został wyczerpany. Dostawca nie przechodzi na rozliczenie za zużycie: poczekaj na kolejny miesiąc planu, rozszerz plan albo wybierz model na innym połączeniu.',
+        "That model is on a connection for interactive use only: its provider's terms do not allow scheduled work. Choose a model on a pay-as-you-go connection.": 'Ten model jest na połączeniu tylko do użytku interaktywnego: warunki jego dostawcy nie pozwalają na pracę zaplanowaną. Wybierz model na połączeniu rozliczanym za zużycie.',
+    }
+)

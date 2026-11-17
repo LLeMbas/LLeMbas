@@ -24,9 +24,11 @@ from lembas.services.llm.openai_client import Endpoint, LLMError, StreamError, c
 
 
 # --- The registry -------------------------------------------------------------------
-def test_five_types_and_what_a_host_names():
+def test_the_types_and_what_a_host_names():
     assert providers.TYPE_IDS == (
-        "openai_compatible", "openai", "anthropic", "deepseek", "openrouter"
+        "openai_compatible", "openai", "anthropic", "deepseek", "openrouter",
+        # Alibaba Cloud Model Studio's two: tests/test_interactive_only.py.
+        "alibaba", "alibaba_plan",
     )
     assert providers.by_host("https://api.deepseek.com/v1").id == "deepseek"
     assert providers.by_host("https://openrouter.ai/api/v1").id == "openrouter"

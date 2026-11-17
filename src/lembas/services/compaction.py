@@ -203,6 +203,17 @@ async def summarise(chat_id: str, *, upto_id: str, speaker=None) -> str:
         owner = db.get(User, chat.user_id)
         speaker = speaker or chat_service.speaker_for(db, chat)
         endpoint, model_id = chat_service.resolve_endpoint(db, chat, speaker)
+        # A summary is background work: off an interactive-only connection
+        # it goes to the same model elsewhere or the default model, or it is
+        # refused here, before anything is sent (`services/interactive.py`).
+        from lembas.services import interactive
+        from lembas.services.llm.openai_client import LLMError
+        from lembas.web.i18n import t
+
+        routed = interactive.background(db, chat, endpoint, model_id)
+        if routed is None:
+            raise LLMError(t(interactive.COMPACT_REFUSED))
+        endpoint, model_id = routed
         offered = tools_service.resolve_tools(db, chat, owner, speaker).schemas
         body = chat_service.build_request(
             db,

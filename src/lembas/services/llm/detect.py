@@ -96,7 +96,11 @@ async def detect(url: str, api_key: str = "") -> dict[str, Any]:
         return {
             "ok": True,
             "provider_type": known.id,
-            "base_url": known.default_base_url,
+            # A type with several addresses (Alibaba's regions and workspace
+            # hosts) keeps the one that was pasted; a key works only there.
+            "base_url": (
+                providers.base_url_for(known, url) if known.regions else known.default_base_url
+            ),
             "server": known.id,
             "models": None,
             "suggest": {},

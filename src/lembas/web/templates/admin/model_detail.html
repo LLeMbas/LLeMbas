@@ -409,6 +409,11 @@
      worked out when it is written and kept with it (services/pricing.py). #}
   <section class="card">
     <h2 class="card__title">{{ t("Price") }}</h2>
+    {% if subscription %}
+    {#- A provider's plan (providers.subscription): what a reply cost is not a
+        sum per token, so none is worked out. -#}
+    <p class="card__lede" data-testid="price-subscription">{{ t("This model's connection is a subscription. Its replies are counted — tokens, cached tokens, time — and never priced: a figure per token would be made up. What the plan has left is in the provider's console.") }}</p>
+    {% else %}
     <p class="card__lede">{{ t("What a reply on this model costs, in %(currency)s. Per million tokens, except per reply. Each reply's cost is worked out when it is written and kept with it, so a new price does not change old replies. Leave everything empty to make it free — a local model, say.", currency=currency_sign) }}</p>
     <div class="price-grid">
       {% for key, label, hint in price_fields %}
@@ -420,6 +425,7 @@
       </div>
       {% endfor %}
     </div>
+    {% endif %}
   </section>
 
   {#- Opt-in fallback (services/fallback.py). Put in order by dragging a row's

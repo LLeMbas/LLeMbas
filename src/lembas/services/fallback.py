@@ -63,10 +63,13 @@ def plan(db: DBSession, chat, owner, model, endpoint: Endpoint, model_id: str) -
     if not wanted:
         return route
     from lembas.services import chat as chat_service
-    from lembas.services import data_groups
+    from lembas.services import data_groups, interactive
 
     group = data_groups.for_chat(db, chat)
     usable = {m.id: m for m in chat_service.available_models(db, owner, group=group)}
+    if interactive.scheduled_work(db, chat):
+        # A scheduled run does not fall back onto an interactive-only one.
+        usable = {key: m for key, m in usable.items() if not interactive.model_only(m)}
     for row_id in wanted:
         candidate = usable.get(row_id)
         if candidate is None or candidate.id == getattr(model, "id", None):

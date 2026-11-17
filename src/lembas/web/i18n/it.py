@@ -2770,3 +2770,31 @@ MESSAGES.update(
         'This page has scripts or other parts that only work when it runs, so it is not shown until you run it. It runs sealed off from LLeMbas.': 'Questa pagina ha script o altre parti che funzionano solo quando è in esecuzione, quindi non viene mostrata finché non la esegui. Viene eseguita isolata da LLeMbas.',
     }
 )
+
+MESSAGES.update(
+    {
+        "Interactive use only: the provider's terms forbid automated services, batch scripts and scheduled background jobs on a plan, and a key used for them can be suspended. So scheduled and background work never goes to this connection — it goes to a pay-as-you-go one, or is not done. A plan is sold for its subscriber's own use in coding and agent tools; whether this instance's use fits is yours to judge.": "Solo per uso interattivo: le condizioni del fornitore vietano, con un piano, servizi automatizzati, script batch e attività pianificate in background, e una chiave usata per questi può essere sospesa. Perciò il lavoro pianificato e in background non va mai a questa connessione: va a una a consumo, oppure non viene fatto. Un piano è venduto per l'uso personale dell'abbonato in strumenti di programmazione e agenti; se l'uso di questa istanza vi rientri spetta a voi giudicarlo.",
+        "The provider has no balance to read with a model key and does not say what a reply cost: a cost here is this instance's estimate from the model's prices.": 'Il fornitore non ha un saldo leggibile con una chiave dei modelli e non dice quanto è costata una risposta: un costo qui è la stima di questa istanza dai prezzi del modello.',
+        'Region': 'Regione',
+        'As typed above': 'Come scritto sopra',
+        "Fills the base URL, which stays editable. A key works only with the address of its own product and region; for a workspace's own host, change the host and keep the path.": "Compila l'URL di base, che resta modificabile. Una chiave funziona solo con l'indirizzo del proprio prodotto e della propria regione; per l'host proprio di uno spazio di lavoro, cambiate l'host e mantenete il percorso.",
+        "This key does not look like one for this type: a plan's key starts with sk-sp-, a pay-as-you-go key does not. A key works only with its own product's address.": "Questa chiave non sembra di questo tipo: la chiave di un piano inizia con sk-sp-, quella a consumo no. Una chiave funziona solo con l'indirizzo del proprio prodotto.",
+        "This model's connection is a subscription. Its replies are counted — tokens, cached tokens, time — and never priced: a figure per token would be made up. What the plan has left is in the provider's console.": 'La connessione di questo modello è un abbonamento. Le sue risposte vengono contate — token, token in cache, tempo — e mai prezzate: una cifra per token sarebbe inventata. Quanto resta al piano è nella console del fornitore.',
+        "Replace {WorkspaceId} in the base URL with your workspace's id: the provider's console shows the whole host.": "Sostituite {WorkspaceId} nell'URL di base con l'identificativo del vostro spazio di lavoro: la console del fornitore mostra l'host intero.",
+        "%(model)s is on a connection for interactive use only: its provider's terms do not allow scheduled or background work. Choose a model on a pay-as-you-go connection.": '%(model)s è su una connessione solo per uso interattivo: le condizioni del suo fornitore non consentono lavoro pianificato o in background. Scegliete un modello su una connessione a consumo.',
+        "This chat's model is on a connection for interactive use only, and compacting is background work its provider's terms do not allow. It needs the same model on a pay-as-you-go connection, or a default model that is not interactive-only.": 'Il modello di questa chat è su una connessione solo per uso interattivo, e la compattazione è lavoro in background che le condizioni del suo fornitore non consentono. Serve lo stesso modello su una connessione a consumo, oppure un modello predefinito che non sia solo interattivo.',
+        'Singapore (international)': 'Singapore (internazionale)',
+        'China (Beijing)': 'Cina (Pechino)',
+        'US (Virginia)': 'Stati Uniti (Virginia)',
+        'China (Hong Kong)': 'Cina (Hong Kong)',
+        "Germany (Frankfurt), your workspace's host": "Germania (Francoforte), l'host del vostro spazio di lavoro",
+        "Japan (Tokyo), your workspace's host": "Giappone (Tokyo), l'host del vostro spazio di lavoro",
+        'Token Plan, Singapore': 'Token Plan, Singapore',
+        'Token Plan, China (Beijing)': 'Token Plan, Cina (Pechino)',
+        'Coding Plan (international)': 'Coding Plan (internazionale)',
+        'Alibaba Cloud Model Studio (pay-as-you-go)': 'Alibaba Cloud Model Studio (a consumo)',
+        'Alibaba Cloud Model Studio (Token Plan, Coding Plan)': 'Alibaba Cloud Model Studio (Token Plan, Coding Plan)',
+        "The plan's quota is used up. The provider does not fall back to pay-as-you-go: wait for the plan's next month, add to the plan, or choose a model on another connection.": "La quota del piano è esaurita. Il fornitore non passa al consumo: attendete il mese successivo del piano, ampliate il piano o scegliete un modello su un'altra connessione.",
+        "That model is on a connection for interactive use only: its provider's terms do not allow scheduled work. Choose a model on a pay-as-you-go connection.": 'Quel modello è su una connessione solo per uso interattivo: le condizioni del suo fornitore non consentono lavoro pianificato. Scegliete un modello su una connessione a consumo.',
+    }
+)

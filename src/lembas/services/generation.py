@@ -948,6 +948,17 @@ async def _run(generation: Generation) -> None:
                 if refused:
                     generation.error = refused
                     return
+                # A scheduled run on the computer asks for its model through
+                # `/v1`, where a request does not say what it is for: an
+                # interactive-only model is refused here, before the turn.
+                from lembas.services import interactive
+
+                asked = chat_service.speaker_for(db, chat, message)
+                if interactive.scheduled_work(db, chat) and interactive.model_only(
+                    chat_service.model_row(db, asked)
+                ):
+                    generation.error = interactive.scheduled_refusal(asked.model_id)
+                    return
                 needs_title = not chat.title_generated
                 question = device["prompt"]
                 title_from_prompt = True
@@ -983,6 +994,14 @@ async def _run(generation: Generation) -> None:
                 generation.error = moved
                 return
             endpoint, model_id = chat_service.resolve_endpoint(db, chat, speaker)
+            # Scheduled work -- a run, its subagents -- never goes to a
+            # connection its provider sells for interactive use only.
+            from lembas.services import interactive
+
+            if interactive.endpoint_only(endpoint) and interactive.scheduled_work(db, chat):
+                generation.error = interactive.scheduled_refusal(model_id)
+                endpoint = None
+                return
 
             # Read while the session is open: everything below outlives it.
             # Resolved once, so that what the loop is allowed to *run* is the
@@ -1728,14 +1747,24 @@ def _title_later(chat_id: str, provisional: str, job: dict) -> asyncio.Task:
             return named
         title = ""
         try:
+            # Naming a chat is not the answer to anybody's turn: off an
+            # interactive-only connection it goes, or it is not asked at all
+            # and the name from the prompt stays.
+            routed = await asyncio.to_thread(
+                _title_route, chat_id, job["endpoint"], job["model_id"]
+            )
+            if routed is None:
+                return await asyncio.to_thread(_store_title, chat_id, provisional)
+            endpoint, model_id = routed
             title = await asyncio.wait_for(
                 chat_service.generate_title(
-                    job["endpoint"],
-                    job["model_id"],
+                    endpoint,
+                    model_id,
                     job["question"],
                     job["answer"],
                     template=job["template"],
-                    thinking_off=job["thinking_off"],
+                    # Asked only of the model the mark was read from.
+                    thinking_off=job["thinking_off"] and endpoint is job["endpoint"],
                 ),
                 TITLE_TIMEOUT,
             )
@@ -1754,6 +1783,18 @@ def _title_later(chat_id: str, provisional: str, job: dict) -> asyncio.Task:
 
     task.add_done_callback(forget)
     return task
+
+
+def _title_route(chat_id: str, endpoint, model_id: str):
+    """Where the chat's title is asked for (`interactive.background`): the
+    reply's own endpoint, another when that one is interactive-only, or None."""
+    from lembas.services import interactive
+
+    with session_scope() as db:
+        chat = db.get(Chat, chat_id)
+        if chat is None:
+            return None
+        return interactive.background(db, chat, endpoint, model_id)
 
 
 def _named_title(chat_id: str) -> str | None:

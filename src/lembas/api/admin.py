@@ -167,7 +167,54 @@ def _row_context(db: DBSession, connection: Connection) -> dict:
         "provider_types": providers.TYPES,
         "currencies": tuple(settings_store.CURRENCIES),
         "has_balance": balance_service.available(connection.provider_type),
+        # The form's region choice and its warning for a key of another
+        # product; the stored key is judged here, never sent.
+        "regions": _regions(),
+        "key_rules": _key_rules(),
+        "key_mismatch": providers.key_mismatch(
+            connection.provider_type, decrypt(connection.api_key_encrypted)
+        ),
+        "interactive_only": providers.interactive_only(
+            connection.provider_type, connection.base_url
+        ),
     }
+
+
+def _regions() -> dict[str, list[dict[str, str]]]:
+    """Per provider type that has them, the addresses its form offers."""
+    return {
+        kind.id: [{"label": i18n.t(r.label), "url": r.base_url} for r in kind.regions]
+        for kind in providers.TYPES.values()
+        if kind.regions
+    }
+
+
+def _key_rules() -> dict[str, dict[str, str]]:
+    """Per provider type, what its keys start with or never start with."""
+    return {
+        kind.id: {"prefix": kind.key_prefix, "not": kind.key_not_prefix}
+        for kind in providers.TYPES.values()
+        if kind.key_prefix or kind.key_not_prefix
+    }
+
+
+def _checked_url(base_url: str) -> str:
+    """A submitted base URL, or the 400 that says what is wrong with it."""
+    if not base_url.startswith(("http://", "https://")):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            i18n.t("The base URL must start with http:// or https://"),
+        )
+    if "{" in base_url or "}" in base_url:
+        # A region's pattern, sent as it stood.
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            i18n.t(
+                "Replace {WorkspaceId} in the base URL with your workspace's id: "
+                "the provider's console shows the whole host."
+            ),
+        )
+    return base_url
 
 
 @router.get("/connections")
@@ -184,6 +231,11 @@ async def connections_page(request: Request, db: Db, user: AdminUser, message: s
             "provider_defaults": {t.id: t.default_base_url for t in providers.TYPES.values()},
             "billing_types": [
                 t.id for t in providers.TYPES.values() if t.balance_needs_billing_key
+            ],
+            "regions": _regions(),
+            "key_rules": _key_rules(),
+            "interactive_types": [
+                t.id for t in providers.TYPES.values() if t.interactive_only
             ],
             "currencies": tuple(settings_store.CURRENCIES),
             "default_currency": settings_store.currency(db) or DEFAULT_CURRENCY,
@@ -275,12 +327,9 @@ async def create_connection(
     server: str = Form(""),
 ) -> Response:
     chosen_type = _type(provider_type, kind)
-    base_url = base_url.strip().rstrip("/") or providers.get(chosen_type).default_base_url
-    if not base_url.startswith(("http://", "https://")):
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            i18n.t("The base URL must start with http:// or https://"),
-        )
+    base_url = _checked_url(
+        base_url.strip().rstrip("/") or providers.get(chosen_type).default_base_url
+    )
     # Required by the form; a scripted POST that leaves it out gets one made from
     # the name, as an older row does (`Connection`'s insert hook).
     chosen = _provider(db, provider) if provider.strip() else None
@@ -375,7 +424,7 @@ async def update_connection(
         if group is not None and group.owner_id is None:
             connection.data_group_id = group.id
     connection.name = name.strip()[:120] or connection.name
-    connection.base_url = base_url.strip().rstrip("/")
+    connection.base_url = _checked_url(base_url.strip().rstrip("/"))
     connection.enabled = enabled
     # How to ask this endpoint to drop its model, for image generation's
     # Preserve VRAM. Empty means it cannot be unloaded, which is the honest

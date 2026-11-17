@@ -225,7 +225,12 @@ def _model_for(db, owner: User, args: dict[str, Any], context) -> str:
     from lembas.services import chat as chat_service
 
     own = context.model_id or ""
-    usable = {m.model_id for m in chat_service.available_models(db, owner)}
+    from lembas.services import interactive
+
+    # Not the chat's own when that is interactive-only: the list decides.
+    usable = {
+        m.model_id for m in interactive.usable(chat_service.available_models(db, owner))
+    }
     return own if own in usable else ""
 
 

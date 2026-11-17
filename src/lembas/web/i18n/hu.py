@@ -2770,3 +2770,31 @@ MESSAGES.update(
         'This page has scripts or other parts that only work when it runs, so it is not shown until you run it. It runs sealed off from LLeMbas.': 'Ez az oldal szkripteket vagy más, csak futás közben működő részeket tartalmaz, ezért csak akkor jelenik meg, ha futtatja. A LLeMbastól elzárva fut.',
     }
 )
+
+MESSAGES.update(
+    {
+        "Interactive use only: the provider's terms forbid automated services, batch scripts and scheduled background jobs on a plan, and a key used for them can be suspended. So scheduled and background work never goes to this connection — it goes to a pay-as-you-go one, or is not done. A plan is sold for its subscriber's own use in coding and agent tools; whether this instance's use fits is yours to judge.": 'Csak interaktív használatra: a szolgáltató feltételei előfizetéses csomagnál tiltják az automatizált szolgáltatásokat, a kötegelt szkripteket és az ütemezett háttérfeladatokat, és az ilyenre használt kulcsot felfüggeszthetik. Ezért ütemezett és háttérmunka soha nem megy erre a kapcsolatra — használat alapján fizetett kapcsolatra megy, vagy elmarad. A csomagot az előfizető saját használatára adják el programozó- és ügynökeszközökben; hogy ennek a példánynak a használata megfelel-e ennek, azt Önnek kell megítélnie.',
+        "The provider has no balance to read with a model key and does not say what a reply cost: a cost here is this instance's estimate from the model's prices.": 'A szolgáltatónál nincs modellkulccsal lekérdezhető egyenleg, és azt sem mondja meg, mennyibe került egy válasz: az itt látható költség ennek a példánynak a becslése a modell áraiból.',
+        'Region': 'Régió',
+        'As typed above': 'Ahogy fent be van írva',
+        "Fills the base URL, which stays editable. A key works only with the address of its own product and region; for a workspace's own host, change the host and keep the path.": 'Kitölti az alap-URL-t, amely szerkeszthető marad. Egy kulcs csak a saját termékének és régiójának címével működik; egy munkaterület saját gazdagépéhez a gazdagépet írja át, az útvonalat hagyja meg.',
+        "This key does not look like one for this type: a plan's key starts with sk-sp-, a pay-as-you-go key does not. A key works only with its own product's address.": 'Ez a kulcs nem ehhez a típushoz valónak látszik: egy csomag kulcsa sk-sp- előtaggal kezdődik, a használat alapján fizetett kulcs nem. Egy kulcs csak a saját termékének címével működik.',
+        "This model's connection is a subscription. Its replies are counted — tokens, cached tokens, time — and never priced: a figure per token would be made up. What the plan has left is in the provider's console.": 'Ennek a modellnek a kapcsolata előfizetés. A válaszait számoljuk — tokenek, gyorsítótárazott tokenek, idő —, de soha nem árazzuk: a tokenenkénti összeg kitalált volna. Hogy a csomagból mennyi maradt, az a szolgáltató konzoljában látható.',
+        "Replace {WorkspaceId} in the base URL with your workspace's id: the provider's console shows the whole host.": 'Cserélje a(z) {WorkspaceId} részt az alap-URL-ben a munkaterülete azonosítójára: a szolgáltató konzolja a teljes gazdagépet megmutatja.',
+        "%(model)s is on a connection for interactive use only: its provider's terms do not allow scheduled or background work. Choose a model on a pay-as-you-go connection.": 'A(z) %(model)s csak interaktív használatra szóló kapcsolaton van: a szolgáltatója feltételei nem engednek ütemezett vagy háttérmunkát. Válasszon modellt használat alapján fizetett kapcsolaton.',
+        "This chat's model is on a connection for interactive use only, and compacting is background work its provider's terms do not allow. It needs the same model on a pay-as-you-go connection, or a default model that is not interactive-only.": 'Ennek a csevegésnek a modellje csak interaktív használatra szóló kapcsolaton van, a tömörítés pedig háttérmunka, amelyet a szolgáltatója feltételei nem engednek. Ugyanez a modell kell egy használat alapján fizetett kapcsolaton, vagy egy olyan alapértelmezett modell, amely nem csak interaktív.',
+        'Singapore (international)': 'Szingapúr (nemzetközi)',
+        'China (Beijing)': 'Kína (Peking)',
+        'US (Virginia)': 'USA (Virginia)',
+        'China (Hong Kong)': 'Kína (Hongkong)',
+        "Germany (Frankfurt), your workspace's host": 'Németország (Frankfurt), a munkaterülete gazdagépe',
+        "Japan (Tokyo), your workspace's host": 'Japán (Tokió), a munkaterülete gazdagépe',
+        'Token Plan, Singapore': 'Token Plan, Szingapúr',
+        'Token Plan, China (Beijing)': 'Token Plan, Kína (Peking)',
+        'Coding Plan (international)': 'Coding Plan (nemzetközi)',
+        'Alibaba Cloud Model Studio (pay-as-you-go)': 'Alibaba Cloud Model Studio (használat alapján fizetett)',
+        'Alibaba Cloud Model Studio (Token Plan, Coding Plan)': 'Alibaba Cloud Model Studio (Token Plan, Coding Plan)',
+        "The plan's quota is used up. The provider does not fall back to pay-as-you-go: wait for the plan's next month, add to the plan, or choose a model on another connection.": 'A csomag kvótája elfogyott. A szolgáltató nem vált át használat alapú fizetésre: várja meg a csomag következő hónapját, bővítse a csomagot, vagy válasszon modellt egy másik kapcsolaton.',
+        "That model is on a connection for interactive use only: its provider's terms do not allow scheduled work. Choose a model on a pay-as-you-go connection.": 'Ez a modell csak interaktív használatra szóló kapcsolaton van: a szolgáltatója feltételei nem engednek ütemezett munkát. Válasszon modellt használat alapján fizetett kapcsolaton.',
+    }
+)

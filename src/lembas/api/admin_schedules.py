@@ -31,7 +31,9 @@ def _model_rows(db, user) -> list[dict]:
     from lembas.services import chat as chat_service
 
     listed = list(settings_store.schedules(db).get("models") or [])
-    rows = chat_service.available_models(db, user)
+    from lembas.services import interactive
+
+    rows = interactive.usable(chat_service.available_models(db, user))
     seen: set[str] = set()
     unique = []
     for row in rows:

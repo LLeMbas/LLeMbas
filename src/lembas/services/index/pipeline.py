@@ -114,6 +114,12 @@ def embedder(db: DBSession) -> Embedder | None:
     connection = db.get(Connection, model.connection_id)
     if connection is None:
         return None
+    from lembas.services import interactive
+
+    if interactive.connection_only(connection):
+        # Indexing is background work, which a connection sold for
+        # interactive use only is never sent: keywords only.
+        return None
     return Embedder(
         endpoint=Endpoint.from_connection(connection),
         model_id=model.model_id,

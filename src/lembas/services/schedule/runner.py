@@ -413,7 +413,19 @@ async def attempt(run_id: str) -> None:
         on_device = bool(schedule.device_token_id)
         if on_device and not _device_ready(db, schedule, owner, run, now=now):
             return
+        if on_device and (refused := _device_model_refusal(db, schedule, owner)):
+            _fail_on_device(db, schedule, run, refused)
+            return
         order = [] if on_device else models_service.candidates(db, owner, schedule)
+        if (
+            not on_device
+            and not order
+            and (refused := models_service.interactive_refusal(db, owner, schedule))
+        ):
+            # Its own model is now on an interactive-only connection: said,
+            # not quietly run on another.
+            _fail_on_device(db, schedule, run, refused, error_class=ERROR_MODEL)
+            return
         if order:
             choice = await models_service.choose(db, owner, schedule)
             if choice.model is None:
@@ -685,8 +697,32 @@ def _device_ready(db, schedule, owner, run, *, now: datetime) -> bool:
     return True
 
 
-def _fail_on_device(db, schedule, run, error: str) -> None:
-    _finish(run, RUN_FAILED, error_class=device.ERROR_DEVICE, error=error)
+def _device_model_refusal(db, schedule, owner) -> str:
+    """Why this run's model may not do scheduled work, or "": the computer
+    asks for it through `/v1`, where a request does not say what it is for,
+    so a model on an interactive-only connection is refused before the turn
+    (`services/interactive.py`). Not retried: it is somebody's setting."""
+    from lembas.services import chat as chat_service
+    from lembas.services import interactive
+
+    model_id = schedule.model_id or ""
+    if not model_id:
+        start = chat_service.default_model(db, owner)
+        model_id = start[0] if start else ""
+    if not model_id:
+        return ""
+    rows = [m for m in chat_service.available_models(db, owner) if m.model_id == model_id]
+    if rows and all(interactive.model_only(m) for m in rows):
+        return interactive.scheduled_refusal(model_id)
+    return ""
+
+
+def _fail_on_device(
+    db, schedule, run, error: str, *, error_class: str = device.ERROR_DEVICE
+) -> None:
+    """Fail the run before its turn, for a reason that is somebody's setting
+    (the computer's, or the model's connection): not retried, and told."""
+    _finish(run, RUN_FAILED, error_class=error_class, error=error)
     schedule.claimed_at = None
     schedule.failure_streak = int(schedule.failure_streak or 0) + 1
     schedule.last_error = run.error[:500]

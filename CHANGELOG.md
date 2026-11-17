@@ -5,6 +5,56 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
+### Added
+
+- **Two connection types for Alibaba Cloud Model Studio (Qwen and the models it resells):
+  pay-as-you-go and a subscription plan (Token Plan, Coding Plan).** They are two types because
+  they are two products whose keys and addresses do not cross: a key works only with the
+  address of its own product and region. The connection form has a **Region** choice that
+  fills the base URL -- Singapore, Beijing, Virginia and Hong Kong on the shared hosts,
+  Frankfurt and Tokyo as the pattern of a workspace's own host, Token Plan and Coding Plan on
+  theirs -- and the URL stays editable (a workspace host is the same path on another host; a
+  pattern left with `{WorkspaceId}` in it is refused). It warns when the key does not look
+  like one for the chosen type (a plan's key starts `sk-sp-`), for a typed key in the page
+  and for the stored one on the server, without sending either anywhere. Detect recognises
+  the hosts and keeps the address that was pasted. What the type carries: thinking is
+  switched with the provider's top-level `enable_thinking` (a model marked *Can switch
+  thinking off* is told *on* as well as *off*, because some of the provider's models think by
+  default and some do not; an effort is `reasoning_effort` on the models given efforts);
+  reasoning is read from `reasoning_content`; cached prompt tokens from
+  `prompt_tokens_details.cached_tokens` and tokens written to an explicit cache from
+  `cache_creation_input_tokens`, priced with the model's *Cached input* price and at 125 % of
+  input. Models are listed from the endpoint's `/models`. Neither type has a balance to read
+  with a model key and neither says what a reply cost, so no balance is shown and a
+  pay-as-you-go cost is this instance's estimate from the model's prices. Not wired, on
+  purpose: the provider's own web search (`enable_search`), its Responses API tools, its
+  explicit cache markers (the automatic cache needs nothing) and a thinking budget.
+- **A plan's replies are counted and never priced.** A subscription is not paid per token, so
+  a model on a plan connection has no price fields and its replies carry tokens and no cost:
+  a figure would be invented. Prices typed before the connection became a plan are kept.
+- **A plan whose quota is used up says so.** The provider answers `429 insufficient_quota`
+  and does not fall back to pay-as-you-go; the reply now ends with "The plan's quota is used
+  up…" in the reader's language instead of a rate-limit line. Pay-as-you-go uses the same code
+  for an ordinary rate limit, which stays one.
+- **Scheduled and background work never goes to a plan.** A plan's terms allow interactive
+  use only -- no automated service, batch script or scheduled background job -- and a key used
+  for those can be suspended. This is a property of the connection's type (and of a plan's
+  host under any type, so the plan's Anthropic-shaped address is held to it too), and the
+  form says so in one sentence. **Schedules:** the schedule form, Settings › Scheduled and
+  Admin › Scheduling do not offer such a model; the web form, `/api/v2/schedules` and a
+  model's own scheduling tool refuse it in words (where the same model id is also on a
+  pay-as-you-go connection, the schedule gets that one); and a run whose model has since
+  become interactive-only **fails and says why** -- on the server and on a linked computer,
+  before anything is sent, never quietly on another model. A scheduled run's subagents and
+  fallback models are the same run. **Background calls for a chat on a plan** go to the same
+  model on a connection that is not interactive-only (in the chat's data group), else to the
+  instance's default model when that is not interactive-only, else: the chat is named from its
+  first words, and compacting is refused with the reason (the Compact button says it before
+  it is pressed; automatic compaction is skipped and the reply goes on). The search index is
+  not built with an embedding model on such a connection. What a person starts in a chat --
+  its replies, their tool calls, the subagents and teams it starts -- stays on the chat's
+  model. `/v1/models` and `/api/v2/models` say `interactive_only` for such a model.
+
 ## 2.0.0-beta.13 — 2026-11-13
 
 ### Changed

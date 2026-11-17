@@ -138,7 +138,18 @@ def model(row, *, default: bool = False, subagents: dict | None = None) -> dict[
         # say (it may offer them on every model, flagged or not) and the
         # chat's: an app asks `GET /chats/{id}/html-pages`.
         "html_pages": bool(getattr(row, "html_pages", False)),
+        # Added within APP_API 2 (server 2.0.0-beta.14): the model's
+        # connection is one its provider sells for interactive use only. A
+        # schedule cannot be given it (`GET /schedules/models` never lists
+        # it, and creating one with it answers 400).
+        "interactive_only": _interactive_only(row),
     }
+
+
+def _interactive_only(row) -> bool:
+    from lembas.services import interactive
+
+    return interactive.model_only(row)
 
 
 def _subagents(value: dict | None, *, cap: bool = True) -> dict[str, Any]:

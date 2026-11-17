@@ -41,6 +41,7 @@ from typing import Any
 from sqlalchemy.orm import Session as DBSession
 
 from lembas.db.models import Message, Model, Schedule, User
+from lembas.services import interactive
 
 log = logging.getLogger(__name__)
 
@@ -108,7 +109,9 @@ def offered_models(db: DBSession, user: User | None, group: str | None = None) -
     or every chat model they may use when the instance has no list."""
     from lembas.services import chat as chat_service
 
-    available = chat_service.available_models(db, user, group)
+    # Never an interactive-only one (`services/interactive.py`): its
+    # provider's terms do not allow scheduled work.
+    available = interactive.usable(chat_service.available_models(db, user, group))
     wanted = instance_list(db)
     if not wanted:
         return available
@@ -126,8 +129,18 @@ def candidates(db: DBSession, owner: User, schedule: Schedule) -> list[Model]:
     from lembas.services import chat as chat_service
 
     group = schedule.data_group_id or None
-    available = chat_service.available_models(db, owner, group)
+    everything = chat_service.available_models(db, owner, group)
+    available = interactive.usable(everything)
     if not available:
+        return []
+    if (
+        schedule.model_id
+        and all(m.model_id != schedule.model_id for m in available)
+        and any(m.model_id == schedule.model_id for m in everything)
+    ):
+        # The schedule's own model is now only on an interactive-only
+        # connection. Not another model in its place: the run says why it
+        # cannot run (`generation`'s refusal), and the person chooses.
         return []
     first: Model | None = None
     if schedule.model_id:
@@ -151,6 +164,23 @@ def candidates(db: DBSession, owner: User, schedule: Schedule) -> list[Model]:
         if row is not None and all(row.id != seen.id for seen in order):
             order.append(row)
     return order
+
+
+def interactive_refusal(db: DBSession, owner: User, schedule: Schedule) -> str:
+    """Why a schedule's own model may not run it, said to a person, or "":
+    every connection that offers it to the owner is interactive-only."""
+    from lembas.services import chat as chat_service
+
+    if not schedule.model_id:
+        return ""
+    rows = [
+        m
+        for m in chat_service.available_models(db, owner, schedule.data_group_id or None)
+        if m.model_id == schedule.model_id
+    ]
+    if rows and all(interactive.model_only(m) for m in rows):
+        return interactive.scheduled_refusal(schedule.model_id)
+    return ""
 
 
 def ours(db: DBSession) -> Counter[str]:
@@ -281,6 +311,7 @@ __all__ = [
     "candidates",
     "choose",
     "instance_list",
+    "interactive_refusal",
     "offered_models",
     "ours",
     "person_list",

@@ -11,7 +11,17 @@
 {% set balance = health.balance or {} %}
 <section class="card connection" id="connection-{{ connection.id }}">
   <form method="post" action="/admin/connections/{{ connection.id }}" class="form-grid"
-        x-data="{ type: '{{ connection.provider_info.id }}' }">
+        x-data="{
+          type: '{{ connection.provider_info.id }}',
+          key: '{{ row.unchanged if connection.api_key_encrypted else '' }}',
+          keyRules: {{ row.key_rules | tojson | forceescape }},
+          wrongKey() {
+            const rule = this.keyRules[this.type];
+            if (!rule || !this.key || this.key === '{{ row.unchanged }}') return false;
+            return (rule.prefix && !this.key.startsWith(rule.prefix))
+              || (rule.not && this.key.startsWith(rule.not));
+          }
+        }">
     <div class="card__header">
       <div class="row u-gap-2 u-shrink">
         {# The last health check (services/llm/health.py), every few minutes and
@@ -89,6 +99,15 @@
         <option value="{{ type.id }}" {{ 'selected' if connection.provider_info.id == type.id }}>{{ t(type.label) }}</option>
         {% endfor %}
       </select>
+      {#- All three slots of a field, whatever the type (the hint is empty
+          for most): the row below does not move when the type changes. -#}
+      <p class="field__hint">
+        {% if row.interactive_only %}
+        <span data-testid="interactive-only-note">{{ t("Interactive use only: the provider's terms forbid automated services, batch scripts and scheduled background jobs on a plan, and a key used for them can be suspended. So scheduled and background work never goes to this connection — it goes to a pay-as-you-go one, or is not done. A plan is sold for its subscriber's own use in coding and agent tools; whether this instance's use fits is yours to judge.") }}</span>
+        {% elif connection.provider_info.regions %}
+        {{ t("The provider has no balance to read with a model key and does not say what a reply cost: a cost here is this instance's estimate from the model's prices.") }}
+        {% endif %}
+      </p>
     </div>
 
     <div class="field">
@@ -111,10 +130,26 @@
              value="{{ connection.base_url }}" required x-ref="url">
     </div>
 
+    {% for type_id, choices in row.regions.items() %}
+    <div class="field" x-show="type === '{{ type_id }}'" x-cloak data-testid="region-{{ type_id }}">
+      <label class="field__label" for="region-{{ type_id }}-{{ connection.id }}">{{ t("Region") }}</label>
+      <select class="select" id="region-{{ type_id }}-{{ connection.id }}"
+              @change="if ($event.target.value) { $refs.url.value = $event.target.value }">
+        {#- The stored address may be a workspace's own host: none of the
+            choices, and choosing nothing leaves it as it is. -#}
+        <option value="">{{ t("As typed above") }}</option>
+        {% for choice in choices %}
+        <option value="{{ choice.url }}" {{ 'selected' if connection.base_url == choice.url and connection.provider_info.id == type_id }}>{{ choice.label }}</option>
+        {% endfor %}
+      </select>
+      <p class="field__hint">{{ t("Fills the base URL, which stays editable. A key works only with the address of its own product and region; for a workspace's own host, change the host and keep the path.") }}</p>
+    </div>
+    {% endfor %}
+
     <div class="field">
       <label class="field__label" for="key-{{ connection.id }}">{{ t("API key") }}</label>
       <input class="input input--mono" id="key-{{ connection.id }}" name="api_key"
-             type="password" autocomplete="off"
+             type="password" autocomplete="off" x-model="key"
              value="{{ row.unchanged if connection.api_key_encrypted else '' }}"
              placeholder="{{ t('No key set') }}">
       <p class="field__hint">
@@ -124,6 +159,12 @@
           {{ t("No key is stored for this endpoint.") }}
         {% endif %}
       </p>
+      {#- The stored key judged on the server (`row.key_mismatch`), a typed
+          one in the page: neither sends a key anywhere. -#}
+      <div class="alert alert--error" role="status" data-testid="key-mismatch"
+           {% if row.key_mismatch %}x-show="wrongKey() || key === '{{ row.unchanged }}'"{% else %}x-show="wrongKey()" x-cloak{% endif %}>
+        {{ icon("warning", "alert__icon") }}<span>{{ t("This key does not look like one for this type: a plan's key starts with sk-sp-, a pay-as-you-go key does not. A key works only with its own product's address.") }}</span>
+      </div>
     </div>
 
     {# Only for the types whose spend is read with a separate admin key. #}

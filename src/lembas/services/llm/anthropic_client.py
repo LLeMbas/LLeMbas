@@ -584,8 +584,21 @@ def _error_from(response: httpx.Response) -> LLMError:
         body: Any = response.json()
     except ValueError:
         body = response.text
+    from lembas.services.llm import providers
     from lembas.services.llm.openai_client import retry_after_of
 
+    # A subscription plan reached through its Anthropic-shaped address: its
+    # quota used up is that, in the reader's language, not a rate limit.
+    try:
+        asked = str(response.request.url)
+    except RuntimeError:
+        asked = ""
+    if providers.quota_exhausted("", asked, response.status_code, body):
+        from lembas.web import i18n
+
+        error = LLMError(i18n.t(providers.QUOTA_EXHAUSTED), status_code=response.status_code)
+        error.quota_exhausted = True
+        return error
     return LLMError(
         describe_error(response.status_code, body),
         status_code=response.status_code,

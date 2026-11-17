@@ -59,6 +59,7 @@ from lembas.services.llm.openai_client import (
     Endpoint,
     LLMError,
     describe_http_error,
+    http_error,
     require_openai,
 )
 
@@ -206,6 +207,13 @@ def metadata(served: Served) -> dict[str, Any]:
     # and the chat's.
     if model.html_pages:
         entry["html_pages"] = True
+    # A connection its provider sells for a person's own turns only
+    # (`services/interactive.py`): a client does not offer the model for a
+    # schedule, and sends no scheduled or background call to it.
+    from lembas.services import interactive
+
+    if interactive.connection_only(connection):
+        entry["interactive_only"] = True
     entry["levels"] = list(levels.offered)
     # The administrator's sampling settings for the model. This server
     # applies them anyway, under whatever a request sets; they are here so a
@@ -356,9 +364,8 @@ def _record(
     from lembas.services.llm import providers
 
     usage = usage or {}
-    details = usage.get("prompt_tokens_details")
     cached = providers.cached_tokens(usage) or 0
-    written = details.get("cache_write_tokens", 0) if isinstance(details, dict) else 0
+    written = providers.cache_write_tokens(usage) or 0
     counts = {
         "prompt_tokens": int(usage.get("prompt_tokens") or 0),
         "completion_tokens": int(usage.get("completion_tokens") or 0),
@@ -449,7 +456,8 @@ async def chat_completions(request: Request, db: Db, caller: ModelsCaller):
                     response.raise_for_status()
                 except httpx.HTTPStatusError as exc:
                     return error_response(
-                        response.status_code, describe_http_error(exc), "upstream_error"
+                        response.status_code, http_error(exc, endpoint).message,
+                        "upstream_error",
                     )
             data = response.json()
         except httpx.RequestError as exc:
@@ -499,7 +507,8 @@ async def chat_completions(request: Request, db: Db, caller: ModelsCaller):
             upstream_response.raise_for_status()
         except httpx.HTTPStatusError as exc:
             return error_response(
-                upstream_response.status_code, describe_http_error(exc), "upstream_error"
+                upstream_response.status_code, http_error(exc, endpoint).message,
+                "upstream_error",
             )
 
     cleanup = _once(

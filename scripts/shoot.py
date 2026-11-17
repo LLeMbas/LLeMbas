@@ -11,6 +11,8 @@ development instrument, like the Node DOM stub the JavaScript is driven under
 and like `fetch_vendor.py` -- it is not imported by the application and nothing
 in `src/` knows it exists.
 
+`SHOOT_PLAN=1` seeds a subscription-plan connection (its region choice and
+note on `/admin/connections`).
 `SHOOT_KIND=agent` shoots the sidebar on its Agents side; `SHOOT_OPEN=sel,…`
 clicks selectors once the page has loaded (a popover, a side panel);
 `SHOOT_FILL=#sel=/path,…` puts the fragment served at `/path` inside `#sel`
@@ -365,6 +367,14 @@ def build_client():
                 capabilities_json={"reasoning": True, "tools": True},
             )
         )
+        if os.environ.get("SHOOT_PLAN"):
+            # `SHOOT_PLAN=1`: a subscription-plan connection, for the region
+            # choice and the interactive-only note on /admin/connections.
+            from lembas.services.llm import providers
+
+            plan = providers.get(providers.ALIBABA_PLAN)
+            db.add(Connection(name="Plan", base_url=plan.default_base_url,
+                              api_key_encrypted="", provider_type=plan.id))
         owner = db.query(User).first()
         db.add(Memory(owner_id=owner.id, content="Prefers metric units.", author="user",
                       data_group_id="default"))

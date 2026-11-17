@@ -3427,3 +3427,31 @@ MESSAGES.update(
         'This page has scripts or other parts that only work when it runs, so it is not shown until you run it. It runs sealed off from LLeMbas.': 'Táto stránka má skripty alebo iné časti, ktoré fungujú len pri spustení, preto sa nezobrazí, kým ju nespustíte. Beží oddelene od LLeMbas.',
     }
 )
+
+MESSAGES.update(
+    {
+        "Interactive use only: the provider's terms forbid automated services, batch scripts and scheduled background jobs on a plan, and a key used for them can be suspended. So scheduled and background work never goes to this connection — it goes to a pay-as-you-go one, or is not done. A plan is sold for its subscriber's own use in coding and agent tools; whether this instance's use fits is yours to judge.": 'Len na interaktívne použitie: podmienky poskytovateľa zakazujú na predplatenom pláne automatizované služby, dávkové skripty a naplánované úlohy na pozadí a kľúč použitý na ne môže byť pozastavený. Naplánovaná práca a práca na pozadí preto na toto spojenie nikdy nejde — ide na spojenie platené podľa spotreby, alebo sa nevykoná. Plán sa predáva na vlastné použitie predplatiteľa v nástrojoch na programovanie a v agentoch; či mu použitie v tejto inštancii zodpovedá, musíte posúdiť vy.',
+        "The provider has no balance to read with a model key and does not say what a reply cost: a cost here is this instance's estimate from the model's prices.": 'Poskytovateľ nemá zostatok, ktorý by sa dal prečítať kľúčom k modelom, a nehovorí, koľko odpoveď stála: cena tu je odhad tejto inštancie z cien modelu.',
+        'Region': 'Región',
+        'As typed above': 'Ako je napísané vyššie',
+        "Fills the base URL, which stays editable. A key works only with the address of its own product and region; for a workspace's own host, change the host and keep the path.": 'Vyplní základnú URL, ktorú možno ďalej upravovať. Kľúč funguje len s adresou vlastného produktu a regiónu; pre vlastný hostiteľ pracovného priestoru zmeňte hostiteľa a cestu ponechajte.',
+        "This key does not look like one for this type: a plan's key starts with sk-sp-, a pay-as-you-go key does not. A key works only with its own product's address.": 'Tento kľúč nevyzerá ako kľúč pre tento typ: kľúč plánu sa začína na sk-sp-, kľúč platený podľa spotreby nie. Kľúč funguje len s adresou vlastného produktu.',
+        "This model's connection is a subscription. Its replies are counted — tokens, cached tokens, time — and never priced: a figure per token would be made up. What the plan has left is in the provider's console.": 'Spojenie tohto modelu je predplatné. Jeho odpovede sa počítajú — tokeny, tokeny z vyrovnávacej pamäte, čas — a nikdy sa neoceňujú: suma za token by bola vymyslená. Koľko v pláne zostáva, je v konzole poskytovateľa.',
+        "Replace {WorkspaceId} in the base URL with your workspace's id: the provider's console shows the whole host.": 'Nahraďte {WorkspaceId} v základnej URL identifikátorom svojho pracovného priestoru: konzola poskytovateľa ukazuje celého hostiteľa.',
+        "%(model)s is on a connection for interactive use only: its provider's terms do not allow scheduled or background work. Choose a model on a pay-as-you-go connection.": '%(model)s je na spojení určenom len na interaktívne použitie: podmienky jeho poskytovateľa nedovoľujú naplánovanú prácu ani prácu na pozadí. Vyberte model na spojení platenom podľa spotreby.',
+        "This chat's model is on a connection for interactive use only, and compacting is background work its provider's terms do not allow. It needs the same model on a pay-as-you-go connection, or a default model that is not interactive-only.": 'Model tohto chatu je na spojení určenom len na interaktívne použitie a zhrnutie je práca na pozadí, ktorú podmienky jeho poskytovateľa nedovoľujú. Potrebuje ten istý model na spojení platenom podľa spotreby, alebo predvolený model, ktorý nie je len na interaktívne použitie.',
+        'Singapore (international)': 'Singapur (medzinárodný)',
+        'China (Beijing)': 'Čína (Peking)',
+        'US (Virginia)': 'USA (Virgínia)',
+        'China (Hong Kong)': 'Čína (Hongkong)',
+        "Germany (Frankfurt), your workspace's host": 'Nemecko (Frankfurt), hostiteľ vášho pracovného priestoru',
+        "Japan (Tokyo), your workspace's host": 'Japonsko (Tokio), hostiteľ vášho pracovného priestoru',
+        'Token Plan, Singapore': 'Token Plan, Singapur',
+        'Token Plan, China (Beijing)': 'Token Plan, Čína (Peking)',
+        'Coding Plan (international)': 'Coding Plan (medzinárodný)',
+        'Alibaba Cloud Model Studio (pay-as-you-go)': 'Alibaba Cloud Model Studio (platba podľa spotreby)',
+        'Alibaba Cloud Model Studio (Token Plan, Coding Plan)': 'Alibaba Cloud Model Studio (Token Plan, Coding Plan)',
+        "The plan's quota is used up. The provider does not fall back to pay-as-you-go: wait for the plan's next month, add to the plan, or choose a model on another connection.": 'Kvóta plánu je vyčerpaná. Poskytovateľ neprechádza na platbu podľa spotreby: počkajte na ďalší mesiac plánu, plán rozšírte, alebo vyberte model na inom spojení.',
+        "That model is on a connection for interactive use only: its provider's terms do not allow scheduled work. Choose a model on a pay-as-you-go connection.": 'Tento model je na spojení určenom len na interaktívne použitie: podmienky jeho poskytovateľa nedovoľujú naplánovanú prácu. Vyberte model na spojení platenom podľa spotreby.',
+    }
+)

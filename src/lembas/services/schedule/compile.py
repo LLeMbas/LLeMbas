@@ -236,7 +236,12 @@ def endpoint_for(db, user: User, model_id: str = "") -> tuple[Endpoint, str] | N
     else:
         chosen = chat_service.default_model(db, user)
         group = data_groups.for_pair(db, user, *chosen) if chosen else data_groups.DEFAULT_GROUP
+    from lembas.services import interactive
+
     models = chat_service.available_models(db, user, group)
+    # A schedule is being written, so by a model a schedule may use where
+    # there is one; the person pressing the button is still a person.
+    models = interactive.usable(models) or models
     if not models:
         return None
     chosen = next((m for m in models if m.pinned), models[0])

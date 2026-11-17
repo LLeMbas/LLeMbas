@@ -1030,7 +1030,16 @@ def apply_level(body: dict[str, Any], model, stored: str | None) -> None:
     if model is None:
         apply_effort(body, stored if stored in EFFORTS else None)
         return
-    fields = level_fields(stored, **model_meta(model))
+    meta = model_meta(model)
+    fields = level_fields(stored, **meta)
+    if (
+        not fields
+        and meta.get("thinking_switch")
+        and _explicit_thinking(model)
+    ):
+        # A provider whose models may think or not by default (Alibaba's):
+        # on a model with the switch, "not off" is said, not left to it.
+        fields = {"chat_template_kwargs": {"enable_thinking": True}}
     if "reasoning_effort" in fields:
         body["reasoning_effort"] = fields["reasoning_effort"]
     if fields.get("chat_template_kwargs"):
@@ -1038,6 +1047,16 @@ def apply_level(body: dict[str, Any], model, stored: str | None) -> None:
             **(body.get("chat_template_kwargs") or {}),
             **fields["chat_template_kwargs"],
         }
+
+
+def _explicit_thinking(model) -> bool:
+    """Whether the model's provider reads a thinking switch in both
+    directions (`providers.EFFORT_ALIBABA`)."""
+    from lembas.services.llm import providers
+
+    connection = getattr(model, "connection", None)
+    kind = getattr(connection, "provider_type", "") if connection is not None else ""
+    return providers.get(kind).effort == providers.EFFORT_ALIBABA
 
 
 def default_model(db: DBSession, user=None) -> tuple[str, str] | None:

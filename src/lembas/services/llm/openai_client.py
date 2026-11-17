@@ -50,6 +50,8 @@ class LLMError(Exception):
         self.retry_after = retry_after
         # The server was not reached at all (`wrap_transport_error`).
         self.unreachable = False
+        # A subscription's quota is used up (`http_error`): not a rate limit.
+        self.quota_exhausted = False
 
 
 def retry_after_of(response: httpx.Response | None) -> float | None:
@@ -255,6 +257,27 @@ def describe_http_error(exc: httpx.HTTPStatusError) -> str:
     if friendly and detail:
         return f"{friendly} {detail}"
     return friendly or detail or f"The endpoint returned HTTP {status}."
+
+
+def http_error(exc: httpx.HTTPStatusError, endpoint: Endpoint) -> LLMError:
+    """The LLMError for an upstream error response. A subscription whose quota
+    is used up says so in the reader's language, as itself: it is not a rate
+    limit, waiting a minute does not help, and nothing should try again."""
+    from lembas.services.llm import providers
+    from lembas.web import i18n
+
+    code = exc.response.status_code
+    try:
+        body = exc.response.json()
+    except (ValueError, json.JSONDecodeError):
+        body = None
+    if providers.quota_exhausted(endpoint.provider_type, endpoint.base_url, code, body):
+        error = LLMError(i18n.t(providers.QUOTA_EXHAUSTED), status_code=code)
+        error.quota_exhausted = True
+        return error
+    return LLMError(
+        describe_http_error(exc), status_code=code, retry_after=retry_after_of(exc.response)
+    )
 
 
 def require_openai(endpoint: Endpoint, what: str) -> None:
@@ -522,11 +545,7 @@ async def _stream_once(
                 yield chunk
 
     except httpx.HTTPStatusError as exc:
-        raise LLMError(
-            describe_http_error(exc),
-            status_code=exc.response.status_code,
-            retry_after=retry_after_of(exc.response),
-        ) from exc
+        raise http_error(exc, endpoint) from exc
     except httpx.RequestError as exc:
         raise wrap_transport_error(exc, endpoint) from exc
 
@@ -548,7 +567,7 @@ async def complete(endpoint: Endpoint, payload: dict[str, Any]) -> str:
             response.raise_for_status()
             data = response.json()
     except httpx.HTTPStatusError as exc:
-        raise LLMError(describe_http_error(exc), status_code=exc.response.status_code) from exc
+        raise http_error(exc, endpoint) from exc
     except httpx.RequestError as exc:
         raise wrap_transport_error(exc, endpoint) from exc
     except ValueError as exc:
@@ -737,18 +756,18 @@ def chunk_usage(chunk: dict[str, Any]) -> dict[str, int] | None:
     # in `timings.cache_n` beside the usage.
     from lembas.services.llm import providers
 
-    details = raw.get("prompt_tokens_details")
     cached = providers.cached_tokens(raw)
     if cached is None:
         timings = chunk.get("timings") if isinstance(chunk, dict) else None
         cached = timings.get("cache_n") if isinstance(timings, dict) else None
     if isinstance(cached, (int, float)) and not isinstance(cached, bool) and cached > 0:
         counts["cached_tokens"] = int(cached)
-    # Prompt tokens written to the cache (Anthropic), which cost more
-    # than ordinary input; part of `prompt_tokens`, as `cached_tokens` is.
-    written = details.get("cache_write_tokens") if isinstance(details, dict) else None
-    if written is None:
-        written = raw.get("cache_write_tokens")
+    # Prompt tokens written to the cache (Anthropic, Alibaba's explicit
+    # cache), which cost more than ordinary input; part of `prompt_tokens`, as
+    # `cached_tokens` is.
+    # Alibaba calls the same figure `cache_creation_input_tokens`
+    # (`providers.cache_write_tokens`).
+    written = providers.cache_write_tokens(raw)
     if isinstance(written, (int, float)) and not isinstance(written, bool) and written > 0:
         counts["cache_write_tokens"] = int(written)
     # What the provider says the reply cost (OpenRouter's `usage.cost`), in

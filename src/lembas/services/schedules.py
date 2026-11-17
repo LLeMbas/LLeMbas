@@ -39,6 +39,14 @@ MAX_TITLE_CHARS = 200
 MAX_INSTRUCTION_CHARS = 8000
 
 
+# A schedule cannot be given a model whose connection is sold for interactive
+# use only (`services/interactive.py`).
+INTERACTIVE_ONLY = N_(
+    "That model is on a connection for interactive use only: its provider's terms do not "
+    "allow scheduled work. Choose a model on a pay-as-you-go connection."
+)
+
+
 class ScheduleError(Exception):
     """Something a person needs told, in words they can act on.
 
@@ -245,11 +253,15 @@ def model_choice(db: DBSession, owner: User, model_id: str) -> tuple[str, str | 
     model_id = (model_id or "").strip()
     if not model_id:
         return "", None
-    row = next(
-        (m for m in chat_service.available_models(db, owner) if m.model_id == model_id), None
-    )
-    if row is None:
+    from lembas.services import interactive
+
+    rows = [m for m in chat_service.available_models(db, owner) if m.model_id == model_id]
+    if not rows:
         raise ScheduleError(N_("That model is not one you can use."))
+    # The same id on two connections: the one scheduled work may use.
+    row = next((m for m in rows if not interactive.model_only(m)), None)
+    if row is None:
+        raise ScheduleError(INTERACTIVE_ONLY)
     return row.model_id, row.connection_id
 
 

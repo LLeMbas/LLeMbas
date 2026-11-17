@@ -277,6 +277,7 @@ async def model_detail(
                 ),
             ),
             "price_values": _money_prices(db, model),
+            "subscription": pricing_service.subscription(model),
             "currency_sign": _currency_sign(db, model),
             "detected_caps": {
                 **capabilities_service.clean(model.capabilities_detected_json),
@@ -405,7 +406,10 @@ async def update_model(
             value = float(raw.strip()) if raw.strip() else 0.0
             if 0 < value < 1e9:
                 pricing[key] = value
-    model.pricing_json = pricing
+    # A subscription's models are not priced, and the form shows no price
+    # fields for them: what was stored before stays, for the day it moves.
+    if not pricing_service.subscription(model):
+        model.pricing_json = pricing
     # Chat or embedding. Absent from the post (an older form) keeps
     # what is stored rather than resetting it.
     if kind in MODEL_KINDS:

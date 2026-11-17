@@ -6,7 +6,9 @@ tokens -- `input`, `cached_input`, `output`, `reasoning` (the output price when
 unset) -- and `per_request` per reply, in its **connection's** currency
 (`Connection.currency`, USD unless set). A model with no prices is free and its
 replies are unpriced (`cost_micro` NULL), which is what a local model usually
-is. Where the provider reports what a reply cost itself (OpenRouter's
+is -- and so is every model on a **subscription** connection (a provider's
+plan, `providers.subscription`), where what a reply cost is not a sum per
+token and none is made up. Where the provider reports what a reply cost itself (OpenRouter's
 `usage.cost`), that figure is used instead, in the provider's currency, and
 `priced_json.source` says `provider` -- the price list's estimate is `list`.
 
@@ -35,6 +37,8 @@ CACHE_WRITE_FACTOR = 1.25
 def prices(model: Any) -> dict[str, float]:
     """The model's non-zero prices. Anything else in the dict (an old
     `"unit"` mark) is ignored."""
+    if subscription(model):
+        return {}
     raw = (getattr(model, "pricing_json", None) or {}) if model is not None else {}
     out: dict[str, float] = {}
     for key in PRICE_KEYS:
@@ -45,6 +49,20 @@ def prices(model: Any) -> dict[str, float]:
         if value > 0:
             out[key] = value
     return out
+
+
+def subscription(model: Any) -> bool:
+    """Whether the model's connection is paid for as a subscription (a plan):
+    its replies are counted and never priced, whatever a price list says --
+    a figure per token would be an invented one."""
+    from lembas.services.llm import providers
+
+    connection = getattr(model, "connection", None) if model is not None else None
+    if connection is None:
+        return False
+    return providers.subscription(
+        getattr(connection, "provider_type", ""), getattr(connection, "base_url", "")
+    )
 
 
 def free(model: Any) -> bool:
@@ -174,4 +192,5 @@ __all__ = [
     "price_reply",
     "prices",
     "service_cost_micro",
+    "subscription",
 ]
