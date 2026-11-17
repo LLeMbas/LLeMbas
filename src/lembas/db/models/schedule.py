@@ -223,7 +223,9 @@ class ScheduleRun(UUIDPrimaryKey, Timestamps, Base):
     model_id: Mapped[str] = mapped_column(String(300), default="", nullable=False)
     connection_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     model_label: Mapped[str] = mapped_column(String(300), default="", nullable=False)
-    # Why this model: "pinned" (the first choice) or "switched" (it was busy).
+    # Why this model: "pinned" (the first choice) or "switched" (it was busy);
+    # on a linked computer "pinned" (the schedule names it), "directory" (the
+    # model last used in its directory there, spec 3.9.0) or "default".
     model_reason: Mapped[str] = mapped_column(String(16), default="", nullable=False)
     # The first choice that was passed over, when switched.
     switched_from: Mapped[str] = mapped_column(String(300), default="", nullable=False)
@@ -258,6 +260,10 @@ class ScheduleRun(UUIDPrimaryKey, Timestamps, Base):
     # A monitor schedule's look for this run: kind, hash, bytes, changed,
     # first, error -- and `block`, the turn's text about it, kept for a retry.
     watch_json: Mapped[dict] = mapped_column(JSONDict, default=dict)
+    # Where an Agentic schedule's run ran, as it was when the run started
+    # (the schedule may be moved since): `{device, device_name, cwd, mode}`.
+    # Empty: a Chat schedule's run, on the server.
+    ran_on_json: Mapped[dict] = mapped_column(JSONDict, default=dict)
 
     def __repr__(self) -> str:
         return f"<ScheduleRun {self.schedule_id} {self.status}>"

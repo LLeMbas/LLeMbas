@@ -80,6 +80,10 @@ AREAS = {
         "silent": notify.is_silent(c["text"]), "stripped": notify.strip_sentinel(c["text"])
     },
     "monitor": lambda c: _monitor(c),
+    # Spec 3.9.0: the model a new agent chat on a device and directory, or a
+    # schedule's run there, starts on (`services/directories.py start`). The
+    # `start` and `record` kinds are the device's own.
+    "last_model": lambda c: _last_model(c),
     # Spec 3.6.0: a phone_action call checked, and the phone's answer as the
     # text the model is told (`services/phone.py`).
     "phone": lambda c: (
@@ -411,6 +415,17 @@ def _scheduled(case: dict) -> dict:
     return device.effective(
         accept=case["accept"], mode=case.get("mode"), max_mode=case["max_mode"],
         approval_wait_s=case.get("approval_wait_s"),
+    )
+
+
+def _last_model(c):
+    from lembas.services import directories
+
+    if c["kind"] != "client":
+        pytest.skip(f"last_model {c['kind']}: {_ON_THE_DEVICE}")
+    return directories.start(
+        named=c.get("named"), directory=c.get("directory"), has=list(c["has"]),
+        default=c.get("default"),
     )
 
 

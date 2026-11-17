@@ -1,5 +1,5 @@
 {
-  "version": "d55e588277f6c90b",
+  "version": "31f4ad7e7995d215",
   "schedules": [
     {
       "id": "sched1",
@@ -76,6 +76,7 @@
           "reason": "switched",
           "switched_from": "Qwen"
         },
+        "ran_on": null,
         "tokens": {
           "prompt": 1200,
           "completion": 340

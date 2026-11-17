@@ -381,6 +381,9 @@ async def start_chat(
     # The composer showed the switch: an unticked box sends nothing, so this
     # is what tells "switched off" from a form that never had it.
     html_pages_shown: str = Form(""),
+    # Whether the model was the person's own choice on this screen (the
+    # picker was used: `?model=`), rather than the one the screen opened on.
+    model_chosen: str = Form(""),
 ) -> Response:
     """Create a chat from its first message.
 
@@ -393,6 +396,12 @@ async def start_chat(
     if not content and not file_ids:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+    # A new agent chat the person chose no model for starts on the model
+    # last used in its directory on that device (harness spec 3.9.0).
+    model_id = await directory_start_model(
+        db, user, kind=kind, device=ssh_profile_id, project_dir=project_dir,
+        model_id=model_id, chosen=bool(model_chosen.strip()),
+    )
     chat, _, _ = start_new_chat(
         db,
         user,
@@ -463,6 +472,31 @@ def start_new_chat(
     forced = force_tool.strip() if force_tool.strip() in FORCEABLE_TOOLS else ""
     generation_service.ensure(chat.id, assistant.id, force_tool=forced)
     return chat, user_message, assistant
+
+
+async def directory_start_model(
+    db: DBSession, user: User, *, kind: str, device: str, project_dir: str,
+    model_id: str, chosen: bool,
+) -> str:
+    """The model id a new chat is made with (harness spec 3.9.0, `acp.md` *The
+    client's rule*; `directories.start`): the person's choice; else, for an
+    agent chat on a device and directory, the model last used in that
+    directory there when the person still has it; else `model_id` as it came
+    -- what the chat would have started on before.
+
+    The device is asked once, the cheap way, and briefly: a device that is
+    away, older, slow or remembers nothing leaves the start as it was. Nothing
+    of the answer is kept but the chat's own model. One implementation for the
+    page's route and `/api/v2`'s."""
+    from lembas.services import directories
+
+    if chosen or not project_dir.strip():
+        return model_id
+    target = _device_target(db, user, kind, device)
+    if target is None:
+        return model_id
+    row = await directories.model_for(db, user, target[0], project_dir.strip())
+    return row.model_id if row is not None else model_id
 
 
 def _device_target(db: DBSession, user: User, kind: str, value: str) -> tuple[str, str] | None:

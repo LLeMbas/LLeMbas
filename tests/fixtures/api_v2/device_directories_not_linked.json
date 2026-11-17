@@ -1,0 +1,14 @@
+{
+  "device": "token1",
+  "path": "",
+  "name": "",
+  "accepted": true,
+  "reason": "",
+  "model": null,
+  "parent": "",
+  "roots": [],
+  "entries": [],
+  "remembers": false,
+  "code": "device_not_linked",
+  "error": "This device is not linked right now."
+}

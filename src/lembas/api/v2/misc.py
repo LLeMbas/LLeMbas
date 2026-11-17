@@ -110,7 +110,8 @@ async def apps(caller: Me) -> dict[str, Any]:
 
 @router.get("/models")
 async def models(
-    caller: Me, db: Db, chat: str = Query(""), kind: str = Query(""), device: str = Query("")
+    caller: Me, db: Db, chat: str = Query(""), kind: str = Query(""), device: str = Query(""),
+    directory: str = Query(""),
 ) -> dict[str, Any]:
     """What this person may start a chat with -- or, with `chat`, what that chat
     may switch to: its data group's models only, the page's rule.
@@ -121,7 +122,14 @@ async def models(
     same `team_run.agent_offered` the web's new-chat slider reads), and
     `agent_subagents` says it once, with `device_runs` for `device` (one of
     the person's devices): whether it lists `agents` and `tree`, null while
-    it is not linked or none is named."""
+    it is not linked or none is named.
+
+    With `directory` as well (spec 3.9.0): `start` -- `{model, from}`, the
+    model a new agent chat on that device and directory starts on when the
+    app names none, and where it comes from: `directory` (the model last used
+    there, which the device remembers and the person still has) or `default`.
+    It is what `POST /chats` without a `model` will do, asked the same way:
+    an app shows it as the draft's model and need not send it."""
     from lembas.api.v2._common import owned_chat
     from lembas.services import data_groups
 
@@ -153,7 +161,20 @@ async def models(
             "offered": agent_offered,
             "device_runs": _device_runs(db, caller.user, device) if device else None,
         }
+        if device and directory.strip():
+            answer["start"] = await _agent_start(db, caller.user, device, directory.strip(), start)
     return answer
+
+
+async def _agent_start(db, user, token_id: str, path: str, default) -> dict[str, Any]:
+    """`start` of `GET /models?kind=agent&device=&directory=`."""
+    from lembas.services import directories
+
+    token = directories.owned_device(db, user, token_id)
+    row = await directories.model_for(db, user, token.id, path) if token is not None else None
+    if row is not None:
+        return {"model": row.model_id, "from": directories.FROM_DIRECTORY}
+    return {"model": default[0] if default else None, "from": directories.FROM_DEFAULT}
 
 
 def _device_runs(db, user, token_id: str) -> bool | None:
@@ -220,6 +241,7 @@ async def devices(caller: Me, db: Db) -> dict[str, Any]:
                 terminal_off=terminal_off,
                 scheduled=link.can("scheduled") and scheduled_device.accepts(link),
                 max_mode=link.max_mode or "",
+                directory_model=link.can("directory_model"),
             )
         )
     return {"devices": out}

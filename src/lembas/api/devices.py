@@ -373,34 +373,13 @@ async def browse_device(
     whose CLI does not know `_lembas/directories` answers "method not found";
     the dialog then says so and a typed path still works.
     """
-    from lembas.db.models import TOKEN_DEVICE, ApiToken
-    from lembas.services import device_link
+    from lembas.services import device_link, directories
 
-    token = db.get(ApiToken, token_id)
-    if (
-        token is None
-        or token.user_id != user.id
-        or token.kind != TOKEN_DEVICE
-        or device_link.refusal(db, user, token.id)
-    ):
+    token = directories.owned_device(db, user, token_id)
+    if token is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, i18n.t("No such device."))
-    answer: dict[str, Any] = {}
-    error = ""
+    found = await directories.browse(db, user, token, path)
     link = device_link.link_for(token.id)
-    if link is None:
-        error = i18n.t("This device is not linked right now.")
-    else:
-        try:
-            got = await link.request("_lembas/directories", {"path": path}, timeout=10)
-            answer = got if isinstance(got, dict) else {}
-        except device_link.DeviceError as exc:
-            message = str(exc)
-            older = i18n.t("This device's LLeMbas CLI is too old to list its directories. Type the path below.")  # noqa: E501
-            error = older if "not found" in message.lower() else message
-        except (device_link.LinkClosed, TimeoutError):
-            error = i18n.t("The device did not answer.")
-    here = str(answer.get("path") or "")
-    entries = answer.get("entries") if here else answer.get("places")
     # A device that allows no folder at all says so where one would be
     # chosen. Its hello's `limits.roots` is what says it: empty when its
     # `remote.roots` is, or when remote work is off and only what its terminal
@@ -413,14 +392,45 @@ async def browse_device(
         {
             "no_roots": no_roots,
             "local": local_device.is_local(token.device_host, link.host if link else ""),
-            "here": here,
-            "parent": str(answer.get("parent") or ""),
-            "accepted": bool(answer.get("accepted", True)),
-            "reason": str(answer.get("reason") or ""),
-            "entries": [e for e in (entries or []) if isinstance(e, dict) and e.get("path")],
-            "error": error or str(answer.get("error") or ""),
+            "here": found["path"],
+            "parent": found["parent"],
+            "accepted": found["accepted"],
+            "reason": found["reason"],
+            # The model last used in this directory, when the person still
+            # has it (harness spec 3.9.0): what a chat started here starts on.
+            "model": found["model"],
+            "entries": found["entries"],
+            "error": _browse_error(found),
         },
     )
+
+
+def _browse_error(found: dict[str, Any]) -> str:
+    from lembas.services import directories
+
+    if found["code"] in directories.ERRORS:
+        return i18n.t(directories.ERRORS[found["code"]])
+    return found["error"]
+
+
+@router.get("/api/devices/{token_id}/directory-model")
+async def directory_model(db: Db, user: RequiredUser, token_id: str, path: str = ""):
+    """The model a new agent chat in this directory of this device starts on
+    when the person chooses none (harness spec 3.9.0): `{"model": {id, name}}`
+    or `{"model": null}` -- nothing remembered, a model the person no longer
+    has, an older or absent device. The composer shows it as the choice the
+    chat starts from; `POST /api/chats/start` asks again and decides."""
+    from lembas.services import directories
+
+    token = directories.owned_device(db, user, token_id)
+    if token is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, i18n.t("No such device."))
+    row = await directories.model_for(db, user, token.id, path.strip())
+    return {
+        "model": {"id": row.model_id, "name": row.display_name or row.model_id}
+        if row is not None
+        else None
+    }
 
 
 # What `/` and `@` offer from a linked device is `services/menus.py`, shared

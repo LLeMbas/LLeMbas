@@ -1,0 +1,34 @@
+{
+  "device": "token1",
+  "path": "",
+  "name": "",
+  "accepted": true,
+  "reason": "",
+  "model": null,
+  "parent": "",
+  "roots": [
+    "/home/user"
+  ],
+  "entries": [
+    {
+      "path": "/home/user",
+      "name": "user",
+      "accepted": true,
+      "reason": "",
+      "model": null
+    },
+    {
+      "path": "/home/user/project",
+      "name": "project",
+      "accepted": true,
+      "reason": "",
+      "model": {
+        "id": "qwen",
+        "name": "Qwen"
+      }
+    }
+  ],
+  "remembers": true,
+  "code": "",
+  "error": ""
+}

@@ -9,7 +9,8 @@
       "terminal_reason": "",
       "terminal_hint": "",
       "scheduled": true,
-      "max_mode": "edit"
+      "max_mode": "edit",
+      "directory_model": true
     },
     {
       "id": "token2",
@@ -20,7 +21,8 @@
       "terminal_reason": "device",
       "terminal_hint": "laptop does not open terminals. Switch it on there: in LLeMbas Desktop's settings, or with the LLeMbas CLI's remote.terminal setting.",
       "scheduled": false,
-      "max_mode": ""
+      "max_mode": "",
+      "directory_model": false
     }
   ]
 }

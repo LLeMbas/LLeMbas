@@ -591,7 +591,8 @@ def report(row: Any, schedule_title: str | None, *, whole: bool = False) -> dict
 
 
 def device(
-    token: Any, *, terminal: bool, terminal_off: tuple[str, str], scheduled: bool, max_mode: str
+    token: Any, *, terminal: bool, terminal_off: tuple[str, str], scheduled: bool, max_mode: str,
+    directory_model: bool = False,
 ) -> dict[str, Any]:
     """One linked device of `GET /devices`.
 
@@ -602,7 +603,8 @@ def device(
     terminals: off in the CLI unless switched on) -- and `terminal_hint` is the
     sentence for the person, with how to switch it on, in their language. Both
     are "" where it does. `scheduled`: whether it accepts scheduled work
-    (spec 3.5.0), so a schedule may be set to run there."""
+    (spec 3.5.0), so a schedule may be set to run there. `directory_model`
+    (spec 3.9.0): whether it says the model last used in a directory."""
     return {
         "id": token.id,
         "name": token.name,
@@ -613,6 +615,37 @@ def device(
         "terminal_hint": "" if terminal else terminal_off[1],
         "scheduled": bool(scheduled),
         "max_mode": max_mode,
+        "directory_model": bool(directory_model),
+    }
+
+
+def directories(found: dict[str, Any]) -> dict[str, Any]:
+    """`GET /devices/{id}/directories` (`services/directories.browse`): the
+    directory, its entries, and -- where there is no listing -- the code and
+    the sentence that say why. Added within APP_API 2 (server 2.0.0-beta.14)."""
+    from lembas.services import directories as directories_service
+    from lembas.web.i18n import t
+
+    def entry(raw: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "path": raw["path"],
+            "name": raw["name"],
+            "accepted": bool(raw["accepted"]),
+            "reason": raw["reason"],
+            "model": raw["model"],
+        }
+
+    code = found["code"]
+    sentence = directories_service.ERRORS.get(code)
+    return {
+        "device": found["device"],
+        **entry(found),
+        "parent": found["parent"],
+        "roots": list(found["roots"]),
+        "entries": [entry(e) for e in found["entries"]],
+        "remembers": bool(found["remembers"]),
+        "code": code,
+        "error": t(sentence) if sentence else found["error"],
     }
 
 

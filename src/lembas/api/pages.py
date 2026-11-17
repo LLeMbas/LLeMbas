@@ -977,6 +977,8 @@ async def chat_index(
             "bodies": {},
             **context,
             "current_model": preselected,
+            # Whether that model is the person's own choice on this screen.
+            "model_chosen": bool(carried["model"]),
             # `_chat_context` reads the levels off the *chat's* model, and there
             # is no chat here -- so every new chat was offered the generic three
             # whatever it was about to talk to. On Bonsai (low, medium, xhigh)

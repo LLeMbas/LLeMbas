@@ -324,6 +324,18 @@ def run_progress(row: ScheduleRun, now: datetime | None = None) -> dict[str, Any
     return None
 
 
+def _ran_on(row: ScheduleRun) -> dict[str, Any] | None:
+    where = getattr(row, "ran_on_json", None) or {}
+    if not where.get("device"):
+        return None
+    return {
+        "device": str(where.get("device") or ""),
+        "device_name": str(where.get("device_name") or ""),
+        "cwd": str(where.get("cwd") or ""),
+        "mode": str(where.get("mode") or ""),
+    }
+
+
 def run_dict(row: ScheduleRun) -> dict[str, Any]:
     """One run as the API sends it and the page reads it. `preview` and `error`
     are model output or a server's words: escaped wherever shown."""
@@ -346,6 +358,9 @@ def run_dict(row: ScheduleRun) -> dict[str, Any]:
             "reason": row.model_reason or None,
             "switched_from": row.switched_from or None,
         },
+        # Where an Agentic schedule's run ran, as it was then: `{device,
+        # device_name, cwd, mode}`; null for a run on the server (Chat).
+        "ran_on": _ran_on(row),
         "tokens": {
             "prompt": int(row.prompt_tokens or 0),
             "completion": int(row.completion_tokens or 0),

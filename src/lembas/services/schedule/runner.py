@@ -66,6 +66,7 @@ from lembas.db.models import (
     WAIT_RETRY,
     Chat,
     Message,
+    Model,
     Schedule,
     ScheduleRun,
     User,
@@ -413,9 +414,17 @@ async def attempt(run_id: str) -> None:
         on_device = bool(schedule.device_token_id)
         if on_device and not _device_ready(db, schedule, owner, run, now=now):
             return
-        if on_device and (refused := _device_model_refusal(db, schedule, owner)):
-            _fail_on_device(db, schedule, run, refused)
-            return
+        device_model: tuple[Model | None, str] = (None, "")
+        if on_device:
+            # Only now, with the computer linked (spec 3.9.0, *The run's
+            # model*): what the schedule names, else the model last used in
+            # its directory there, else as before.
+            found, why, refused = await _device_model(db, schedule, owner)
+            if refused:
+                _fail_on_device(db, schedule, run, refused)
+                return
+            device_model = (found, why)
+            run.ran_on_json = device.runs_on_dict(db, schedule) or {}
         order = [] if on_device else models_service.candidates(db, owner, schedule)
         if (
             not on_device
@@ -431,9 +440,10 @@ async def attempt(run_id: str) -> None:
             if choice.model is None:
                 _wait_for_model(db, schedule, owner, run, choice, now=now)
                 return
-        model = choice.model if choice is not None else None
+        model = choice.model if choice is not None else device_model[0]
         try:
-            prepared = _prepare(db, schedule, owner, run, choice, model, now=now)
+            prepared = _prepare(db, schedule, owner, run, choice, model, now=now,
+                                reason=device_model[1])
         except BaseException:
             if choice is not None:
                 models_service.release(choice)
@@ -573,7 +583,7 @@ async def _look_on_device(schedule, run) -> monitor.Outcome:
     return monitor.compare_command(schedule, answer)
 
 
-def _prepare(db, schedule, owner, run, choice, model, *, now: datetime):
+def _prepare(db, schedule, owner, run, choice, model, *, now: datetime, reason: str = ""):
     """Everything up to the turn, in the run's session: the chat (or, for a
     safe retry, the reply blanked for `restart`), the settings and the words.
     Returns `(restart, chat_id, content, max_queued)`, or None when the run
@@ -609,7 +619,13 @@ def _prepare(db, schedule, owner, run, choice, model, *, now: datetime):
             return None
         _apply_settings(db, chat, schedule, model)
 
-    _record_model(run, choice, model)
+    _record_model(run, choice, model, reason=reason)
+    if schedule.device_token_id and model is None:
+        # A conversation the schedule continues on the computer keeps its
+        # session's model: that is the run's.
+        kept = chat_service_model(db, chat)
+        if kept is not None:
+            _record_model(run, None, kept, reason=REASON_SESSION)
     run.status = RUN_RUNNING
     run.waiting_for = ""
     run.retry_at = None
@@ -648,13 +664,19 @@ def _prepare(db, schedule, owner, run, choice, model, *, now: datetime):
     return restart, chat.id, content, limit
 
 
-def _record_model(run: ScheduleRun, choice, model) -> None:
+def chat_service_model(db, chat: Chat):
+    from lembas.services import chat as chat_service
+
+    return chat_service.model_row(db, chat_service.speaker_for(db, chat))
+
+
+def _record_model(run: ScheduleRun, choice, model, *, reason: str = "") -> None:
     if model is None:
         return
     run.model_id = model.model_id
     run.connection_id = model.connection_id
     run.model_label = model.label
-    run.model_reason = choice.reason if choice is not None else ""
+    run.model_reason = choice.reason if choice is not None else reason
     run.switched_from = choice.switched_from if choice is not None else ""
 
 
@@ -697,24 +719,81 @@ def _device_ready(db, schedule, owner, run, *, now: datetime) -> bool:
     return True
 
 
-def _device_model_refusal(db, schedule, owner) -> str:
-    """Why this run's model may not do scheduled work, or "": the computer
-    asks for it through `/v1`, where a request does not say what it is for,
-    so a model on an interactive-only connection is refused before the turn
-    (`services/interactive.py`). Not retried: it is somebody's setting."""
-    from lembas.services import chat as chat_service
-    from lembas.services import interactive
+# Why a run on a linked computer has its model (`ScheduleRun.model_reason`).
+REASON_DIRECTORY = "directory"
+REASON_DEFAULT = "default"
+REASON_SESSION = "session"
 
-    model_id = schedule.model_id or ""
-    if not model_id:
-        start = chat_service.default_model(db, owner)
-        model_id = start[0] if start else ""
-    if not model_id:
-        return ""
-    rows = [m for m in chat_service.available_models(db, owner) if m.model_id == model_id]
-    if rows and all(interactive.model_only(m) for m in rows):
-        return interactive.scheduled_refusal(model_id)
-    return ""
+
+async def _device_model(db, schedule, owner) -> tuple[Model | None, str, str]:
+    """The model a run on a linked computer starts on (harness spec 3.9.0,
+    `acp.md` *The run's model*; `directories.start`): `(row, why, refusal)`.
+
+    1. the model the schedule names;
+    2. else the model last used in the schedule's directory on that computer
+       -- asked of it now, the cheap way -- when the owner still has it;
+    3. else as before: the owner's default.
+
+    A schedule that continues one conversation there keeps its session's model
+    unless it names one: `(None, "", "")`, and the chat is left as it is.
+
+    Never a model on an interactive-only connection (`services/interactive.py`):
+    the computer asks for its model through `/v1`, where a request does not say
+    what it is for. A named one, or a default, that is only on such a
+    connection is the `refusal`, said to a person and not retried; the
+    directory's is simply not taken -- a person may well chat there on a plan."""
+    from lembas.services import chat as chat_service
+    from lembas.services import directories, interactive
+
+    everything = chat_service.available_models(db, owner)
+    usable = interactive.usable(everything)
+
+    def row_of(model_id: str) -> Model | None:
+        return next((m for m in usable if m.model_id == model_id), None)
+
+    def only_interactive(model_id: str) -> bool:
+        return row_of(model_id) is None and any(m.model_id == model_id for m in everything)
+
+    if schedule.model_id:
+        if only_interactive(schedule.model_id):
+            return None, "", interactive.scheduled_refusal(schedule.model_id)
+        return row_of(schedule.model_id), models_service.REASON_PINNED, ""
+    if _continues_there(db, schedule, owner):
+        return None, "", ""
+    where = device.runs_on_of(schedule)
+    # In the schedule's own data group: a run must not carry its group's
+    # memories to a model of another (`models.candidates`' rule).
+    grouped = {
+        m.id for m in chat_service.available_models(db, owner, schedule.data_group_id or None)
+    }
+    remembered = await directories.model_for(
+        db, owner, where.device, where.cwd,
+        usable=lambda m: m.id in grouped and not interactive.model_only(m),
+    )
+    if remembered is not None:
+        return remembered, REASON_DIRECTORY, ""
+    start = chat_service.default_model(db, owner)
+    if start is None:
+        return None, "", ""
+    if only_interactive(start[0]):
+        return None, "", interactive.scheduled_refusal(start[0])
+    return row_of(start[0]), REASON_DEFAULT, ""
+
+
+def _continues_there(db, schedule, owner) -> bool:
+    """Whether this run goes on in the schedule's own conversation on the
+    computer (`_device_chat`'s first branch, with turns in it already)."""
+    home = db.get(Chat, schedule.chat_id) if schedule.chat_id else None
+    where = device.runs_on_of(schedule)
+    return (
+        home is not None
+        and home.user_id == owner.id
+        and home.kind == KIND_AGENT
+        and home.device_token_id == where.device
+        and (home.project_dir or "") == where.cwd
+        and schedule.mode == MODE_CONTINUE
+        and _has_messages(db, home.id)
+    )
 
 
 def _fail_on_device(

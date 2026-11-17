@@ -1,0 +1,16 @@
+{
+  "device": "token1",
+  "path": "",
+  "name": "",
+  "accepted": true,
+  "reason": "",
+  "model": null,
+  "parent": "",
+  "roots": [
+    "/home/user"
+  ],
+  "entries": [],
+  "remembers": false,
+  "code": "cli_too_old",
+  "error": "This device's LLeMbas CLI is too old to list its directories. Type the path below."
+}

@@ -1,0 +1,44 @@
+{
+  "device": "token1",
+  "path": "/home/user/project",
+  "name": "project",
+  "accepted": true,
+  "reason": "",
+  "model": {
+    "id": "qwen",
+    "name": "Qwen"
+  },
+  "parent": "/home/user",
+  "roots": [
+    "/home/user"
+  ],
+  "entries": [
+    {
+      "path": "/home/user/project/docs",
+      "name": "docs",
+      "accepted": true,
+      "reason": "",
+      "model": null
+    },
+    {
+      "path": "/home/user/project/server",
+      "name": "server",
+      "accepted": true,
+      "reason": "",
+      "model": {
+        "id": "gpt-oss",
+        "name": "gpt-oss"
+      }
+    },
+    {
+      "path": "/home/user/project/vendor",
+      "name": "vendor",
+      "accepted": false,
+      "reason": "This directory is not trusted on the device.",
+      "model": null
+    }
+  ],
+  "remembers": true,
+  "code": "",
+  "error": ""
+}

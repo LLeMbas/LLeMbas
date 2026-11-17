@@ -484,6 +484,40 @@ def _files() -> dict[str, object]:
     }
 
 
+def _directories() -> dict[str, object]:
+    from lembas.services import directories
+
+    def found(**fields) -> dict:
+        base = {"device": "token1", "path": "", "name": "", "parent": "",
+                "roots": ["/home/user"], "accepted": True, "reason": "", "model": None,
+                "entries": [], "remembers": True, "code": "", "error": ""}
+        return serialise.directories({**base, **fields})
+
+    def entry(path: str, **fields) -> dict:
+        return {"path": path, "name": path.rsplit("/", 1)[-1], "accepted": True,
+                "reason": "", "model": None, **fields}
+
+    qwen = {"id": "qwen", "name": "Qwen"}
+    return {
+        "device_directories": found(
+            **entry("/home/user/project", model=qwen), parent="/home/user",
+            entries=[
+                entry("/home/user/project/docs"),
+                entry("/home/user/project/server", model={"id": "gpt-oss", "name": "gpt-oss"}),
+                entry("/home/user/project/vendor", accepted=False,
+                      reason="This directory is not trusted on the device."),
+            ],
+        ),
+        "device_directories_places": found(
+            entries=[entry("/home/user"), entry("/home/user/project", model=qwen)],
+        ),
+        "device_directories_not_linked": found(
+            roots=[], remembers=False, code=directories.NOT_LINKED),
+        "device_directories_cli_too_old": found(
+            remembers=False, code=directories.CLI_TOO_OLD),
+    }
+
+
 def _menus() -> dict[str, object]:
     """The composer's `/` and `@` menus (`api/v2/menus.py`): a linked device's
     commands and files, what `@` offers from the server, and what
@@ -509,6 +543,11 @@ def _menus() -> dict[str, object]:
             "commands": [serialise.device_command(c) for c in commands],
             "device": "workstation",
         },
+        # `GET /devices/{id}/directories?path=` (spec 3.9.0): a directory of
+        # the device with the model last used in it and in one of its
+        # entries; the device's places (no `path`); and the answers that are
+        # no listing -- a device that is not linked, a CLI too old to list.
+        **_directories(),
         "device_files": {
             "files": [
                 {"path": "README.md", "kind": "file", "name": "README.md"},
@@ -550,6 +589,7 @@ def _menus() -> dict[str, object]:
                 SimpleNamespace(id="token1", name="LLeMbas CLI on workstation",
                                 device_host="workstation", device_platform="linux"),
                 terminal=True, terminal_off=("", ""), scheduled=True, max_mode="edit",
+                directory_model=True,
             ),
             serialise.device(
                 SimpleNamespace(id="token2", name="LLeMbas CLI on laptop",
@@ -789,6 +829,20 @@ def _schedules() -> dict[str, object]:
         "schedules": {"schedules": listed},
         "schedule_runs": {"runs": [runs.run_dict(waiting), runs.run_dict(run)], "more": False},
         "schedule_run": {"run": runs.run_dict(run), "text": "All the waybread is *wrapped*."},
+        # A run of an Agentic schedule (spec 3.9.0): `ran_on` is where it ran,
+        # as it was then, and `model.reason` why it ran on that model --
+        # `pinned` (the schedule names it), `directory` (the model last used
+        # in its folder there), `default`, or `session` (the conversation it
+        # continues kept its own).
+        "schedule_run_agentic": {"run": runs.run_dict(ScheduleRun(
+            id="run6", schedule_id="sched3", user_id="user1", status="ok", timing="on_time",
+            missed=0, due_at=WHEN, first_try_at=WHEN, started_at=WHEN, finished_at=WHEN,
+            attempts=1, retries=0, model_id="qwen", connection_id="conn1", model_label="Qwen",
+            model_reason="directory", switched_from="", chat_id="chat2", message_id="msg7",
+            preview="", note="The tests pass.", error_class="", error="", notified=False,
+            ran_on_json={"device": "tok1", "device_name": "workstation",
+                         "cwd": "/home/user/project", "mode": "edit"},
+        )), "text": "The tests pass."},
         "schedule_compile": {
             "ok": True, "reason": None, "title": "Waybread check",
             "instruction": "Check the waybread is wrapped.", "target": "chat",
@@ -969,6 +1023,18 @@ def _shapes() -> dict[str, object]:
             ],
             "subagents_cap": 32,
             "agent_subagents": {"offered": True, "device_runs": True},
+        },
+        # The same with `&directory=` (spec 3.9.0): `start` is the model a
+        # new agent chat there starts on when the app names none.
+        "models_agent_directory": {
+            "models": [
+                serialise.model(row, default=index == 0,
+                                subagents={"offered": True, "named_only": False})
+                for index, row in enumerate(_models())
+            ],
+            "subagents_cap": 32,
+            "agent_subagents": {"offered": True, "device_runs": True},
+            "start": {"model": "gpt-oss", "from": "directory"},
         },
         # An agent chat's subagents are its device's (spec 3.4.0, subagents.md
         # §14): offered where the instance and the person allow them; the

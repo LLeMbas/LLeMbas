@@ -3324,10 +3324,8 @@ MESSAGES.update(
         "That computer's LLeMbas CLI is too old to run scheduled work. Update it.": 'LLeMbas CLI na tomto počítači je príliš staré na plánovanú prácu. Aktualizujte ho.',
         'Where it runs': 'Kde sa spúšťa',
         'Computer': 'Počítač',
-        'On this server': 'Na tomto serveri',
         'not linked now': 'teraz nie je prepojený',
         'does not accept scheduled work': 'neprijíma plánovanú prácu',
-        'A run on a computer is an agent chat there. The computer must allow it: “Accept scheduled work” in its LLeMbas CLI (lembas service scheduled on).': 'Spustenie na počítači je tam agentový chat. Počítač to musí povoliť: „Accept scheduled work“ v jeho LLeMbas CLI (lembas service scheduled on).',
         'Folder on the computer': 'Priečinok na počítači',
         'A full path, inside a folder the computer allows remote work in.': 'Úplná cesta v priečinku, v ktorom počítač povoľuje vzdialenú prácu.',
         'Edit unless you choose otherwise; Auto runs commands without asking. The computer may lower it.': 'Edit, ak nevyberiete inak; Auto spúšťa príkazy bez pýtania. Počítač ho môže znížiť.',
@@ -3453,5 +3451,20 @@ MESSAGES.update(
         'Alibaba Cloud Model Studio (Token Plan, Coding Plan)': 'Alibaba Cloud Model Studio (Token Plan, Coding Plan)',
         "The plan's quota is used up. The provider does not fall back to pay-as-you-go: wait for the plan's next month, add to the plan, or choose a model on another connection.": 'Kvóta plánu je vyčerpaná. Poskytovateľ neprechádza na platbu podľa spotreby: počkajte na ďalší mesiac plánu, plán rozšírte, alebo vyberte model na inom spojení.',
         "That model is on a connection for interactive use only: its provider's terms do not allow scheduled work. Choose a model on a pay-as-you-go connection.": 'Tento model je na spojení určenom len na interaktívne použitie: podmienky jeho poskytovateľa nedovoľujú naplánovanú prácu. Vyberte model na spojení platenom podľa spotreby.',
+    }
+)
+
+MESSAGES.update(
+    {
+        'Last used here: %(model)s. A new chat in this directory starts on it unless you choose another.': 'Naposledy tu použitý: %(model)s. Nový chat v tomto priečinku začne na ňom, ak nevyberiete iný.',
+        "Runs on this server, like a chat: with the server's tools (search, your files here, memory) and on a scheduling model.": 'Beží na tomto serveri ako chat: s nástrojmi servera (vyhľadávanie, vaše súbory tu, pamäť) a na modeli určenom na plánovanie.',
+        'Agentic': 'Agentický',
+        "Runs on one of your computers, in one folder there, as an agent: with the agent's tools on that computer — its files and its shell — under the computer's own limits. It belongs to that computer and folder.": 'Beží na jednom z vašich počítačov, v jednom priečinku na ňom, ako agent: s nástrojmi agenta na tom počítači — jeho súbormi a jeho shellom — v rámci vlastných obmedzení počítača. Patrí k tomu počítaču a priečinku.',
+        'None of your computers accepts scheduled work now. Link one and switch on “Accept scheduled work” in its LLeMbas CLI (lembas service scheduled on).': 'Žiadny z vašich počítačov teraz neprijíma naplánovanú prácu. Prepojte niektorý a zapnite „Accept scheduled work“ v jeho LLeMbas CLI (lembas service scheduled on).',
+        "The computer must allow it: “Accept scheduled work” in its LLeMbas CLI (lembas service scheduled on). When it is not linked at the time of a run, the run waits for it; if it has not come back before the run's time has passed, the run is recorded as missed and you are told.": 'Počítač to musí povoliť: „Accept scheduled work“ v jeho LLeMbas CLI (lembas service scheduled on). Keď v čase spustenia nie je prepojený, spustenie naň počká; ak sa nevráti, kým čas spustenia neuplynie, spustenie sa zaznamená ako zmeškané a dozviete sa o tom.',
+        'Browse': 'Prehľadávať',
+        "The folder's usual model": 'Zvyčajný model priečinka',
+        "The folder's usual model is the one you last used in that folder on that computer — the computer remembers it, and each run asks it — or your default model where there is none. A model chosen here is the run's, whatever the folder's is. A run never changes the folder's model.": 'Zvyčajný model priečinka je ten, ktorý ste v tom priečinku na tom počítači použili naposledy — počítač si ho pamätá a každé spustenie sa ho naň opýta — alebo váš predvolený model, ak žiadny nie je. Model vybraný tu je modelom spustenia, nech je model priečinka akýkoľvek. Spustenie nikdy nemení model priečinka.',
+        "the folder's usual model": 'zvyčajný model priečinka',
     }
 )

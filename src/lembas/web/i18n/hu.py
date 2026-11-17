@@ -2667,10 +2667,8 @@ MESSAGES.update(
         "That computer's LLeMbas CLI is too old to run scheduled work. Update it.": 'A számítógép LLeMbas CLI-je túl régi az ütemezett munkához. Frissítse.',
         'Where it runs': 'Hol fut',
         'Computer': 'Számítógép',
-        'On this server': 'Ezen a szerveren',
         'not linked now': 'most nincs összekapcsolva',
         'does not accept scheduled work': 'nem fogad ütemezett munkát',
-        'A run on a computer is an agent chat there. The computer must allow it: “Accept scheduled work” in its LLeMbas CLI (lembas service scheduled on).': 'A számítógépen futás ott egy ügynök-csevegés. A számítógépnek engedélyeznie kell: „Accept scheduled work” a LLeMbas CLI-jében (lembas service scheduled on).',
         'Folder on the computer': 'Mappa a számítógépen',
         'A full path, inside a folder the computer allows remote work in.': 'Teljes elérési út, olyan mappán belül, ahol a számítógép engedi a távoli munkát.',
         'Edit unless you choose otherwise; Auto runs commands without asking. The computer may lower it.': 'Edit, hacsak mást nem választ; az Auto kérdezés nélkül futtat parancsokat. A számítógép csökkentheti.',
@@ -2796,5 +2794,20 @@ MESSAGES.update(
         'Alibaba Cloud Model Studio (Token Plan, Coding Plan)': 'Alibaba Cloud Model Studio (Token Plan, Coding Plan)',
         "The plan's quota is used up. The provider does not fall back to pay-as-you-go: wait for the plan's next month, add to the plan, or choose a model on another connection.": 'A csomag kvótája elfogyott. A szolgáltató nem vált át használat alapú fizetésre: várja meg a csomag következő hónapját, bővítse a csomagot, vagy válasszon modellt egy másik kapcsolaton.',
         "That model is on a connection for interactive use only: its provider's terms do not allow scheduled work. Choose a model on a pay-as-you-go connection.": 'Ez a modell csak interaktív használatra szóló kapcsolaton van: a szolgáltatója feltételei nem engednek ütemezett munkát. Válasszon modellt használat alapján fizetett kapcsolaton.',
+    }
+)
+
+MESSAGES.update(
+    {
+        'Last used here: %(model)s. A new chat in this directory starts on it unless you choose another.': 'Itt legutóbb használt: %(model)s. Egy új csevegés ebben a mappában ezzel indul, hacsak nem választ másikat.',
+        "Runs on this server, like a chat: with the server's tools (search, your files here, memory) and on a scheduling model.": 'Ezen a szerveren fut, mint egy csevegés: a szerver eszközeivel (keresés, az itteni fájljai, memória) és egy ütemezési modellen.',
+        'Agentic': 'Ügynöki',
+        "Runs on one of your computers, in one folder there, as an agent: with the agent's tools on that computer — its files and its shell — under the computer's own limits. It belongs to that computer and folder.": 'Az egyik számítógépén fut, annak egy mappájában, ügynökként: az ügynök eszközeivel azon a számítógépen — a fájljaival és a shelljével — a számítógép saját korlátain belül. Ahhoz a számítógéphez és mappához tartozik.',
+        'None of your computers accepts scheduled work now. Link one and switch on “Accept scheduled work” in its LLeMbas CLI (lembas service scheduled on).': 'Egyik számítógépe sem fogad most ütemezett munkát. Kapcsoljon össze egyet, és kapcsolja be az „Accept scheduled work” beállítást a LLeMbas CLI-jében (lembas service scheduled on).',
+        "The computer must allow it: “Accept scheduled work” in its LLeMbas CLI (lembas service scheduled on). When it is not linked at the time of a run, the run waits for it; if it has not come back before the run's time has passed, the run is recorded as missed and you are told.": 'A számítógépnek engedélyeznie kell: „Accept scheduled work” a LLeMbas CLI-jében (lembas service scheduled on). Ha egy futás idején nincs összekapcsolva, a futás megvárja; ha nem tér vissza, mielőtt a futás ideje letelik, a futás kihagyottként kerül feljegyzésre, és erről értesítést kap.',
+        'Browse': 'Tallózás',
+        "The folder's usual model": 'A mappa szokásos modellje',
+        "The folder's usual model is the one you last used in that folder on that computer — the computer remembers it, and each run asks it — or your default model where there is none. A model chosen here is the run's, whatever the folder's is. A run never changes the folder's model.": 'A mappa szokásos modellje az, amelyet abban a mappában azon a számítógépen legutóbb használt — a számítógép megjegyzi, és minden futás megkérdezi tőle —, vagy az alapértelmezett modellje, ha nincs ilyen. Az itt választott modell a futásé, bármi is a mappáé. Egy futás soha nem változtatja meg a mappa modelljét.',
+        "the folder's usual model": 'a mappa szokásos modellje',
     }
 )

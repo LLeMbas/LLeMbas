@@ -53,8 +53,18 @@
 <section class="card">
   <h2 class="card__title">{{ t("How it runs") }}</h2>
   <dl class="detail-list schedule-facts">
+    {#- The type first (harness spec 3.9.0): Chat on the server, or Agentic
+        on a computer and a folder -- and the model, which an unset one reads
+        differently for each. -#}
+    <dt>{{ t("Type") }}</dt>
+    <dd data-testid="schedule-type">{{ t("Agentic") if form.device else t("Chat") }}</dd>
+    {% if form.device %}
+    {% set chosen_device = (devices|selectattr("id", "equalto", form.device)|first) %}
+    <dt>{{ t("Where it runs") }}</dt>
+    <dd class="u-break">{{ chosen_device.name if chosen_device else t("a computer no longer signed in") }} · <code>{{ form.device_dir }}</code> · {{ form.device_mode|capitalize }}</dd>
+    {% endif %}
     <dt>{{ t("Model") }}</dt>
-    <dd>{{ schedule.model_id or t("The first free one of your scheduling models") }}</dd>
+    <dd class="u-break">{{ schedule.model_id or (t("The folder's usual model") if form.device else t("The first free one of your scheduling models")) }}</dd>
     <dt>{{ t("Notify when") }}</dt>
     <dd>
       {%- if form.notify == "when" %}{{ form.notify_when or notify_default }}
@@ -69,11 +79,6 @@
     {% if form.watch_url %}
     <dt>{{ t("Only when this page changes") }}</dt>
     <dd class="u-break">{{ form.watch_url }}</dd>
-    {% endif %}
-    {% if form.device %}
-    {% set chosen_device = (devices|selectattr("id", "equalto", form.device)|first) %}
-    <dt>{{ t("Where it runs") }}</dt>
-    <dd class="u-break">{{ chosen_device.name if chosen_device else t("a computer no longer signed in") }} · <code>{{ form.device_dir }}</code> · {{ form.device_mode|capitalize }}</dd>
     {% endif %}
     {% if form.watch_command %}
     <dt>{{ t("Only when this command's output changes") }}</dt>
@@ -102,7 +107,9 @@
         <span class="text-xs faint">
           {{ timing_label(run.timing) }}
           {%- if run.missed %} · {{ t("missed ×%(n)s", n=run.missed) }}{% endif %}
+          {%- if run.ran_on_json and run.ran_on_json.device %} · {{ t("Agentic") }} · {{ run.ran_on_json.device_name or t("a computer no longer signed in") }} · <code>{{ run.ran_on_json.cwd }}</code>{% elif run.model_label or run.model_id or run.chat_id %} · {{ t("Chat") }}{% endif %}
           {%- if run.model_label or run.model_id %} · {{ run.model_label or run.model_id }}{% endif %}
+          {%- if run.model_reason == "directory" %} · {{ t("the folder's usual model") }}{% endif %}
           {%- if run.cost_micro %} · {{ money(run.cost_micro, run.currency) }}{% endif %}
           {%- if run.model_reason == "switched" and run.switched_from %} · {{ t("%(name)s was busy", name=run.switched_from) }}{% endif %}
           {%- if run.status == "waiting" and run.retry_at %} · {{ t("tries again at %(when)s", when=stamp(as_local(run.retry_at), "%H:%M")) }}{% endif %}

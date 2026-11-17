@@ -24,6 +24,7 @@
         "reason": null,
         "switched_from": null
       },
+      "ran_on": null,
       "tokens": {
         "prompt": 0,
         "completion": 0
@@ -62,6 +63,7 @@
         "reason": "switched",
         "switched_from": "Qwen"
       },
+      "ran_on": null,
       "tokens": {
         "prompt": 1200,
         "completion": 340

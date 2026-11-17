@@ -2667,10 +2667,8 @@ MESSAGES.update(
         "That computer's LLeMbas CLI is too old to run scheduled work. Update it.": 'Le LLeMbas CLI de cet ordinateur est trop ancien pour le travail planifié. Mettez-le à jour.',
         'Where it runs': 'Où elle s’exécute',
         'Computer': 'Ordinateur',
-        'On this server': 'Sur ce serveur',
         'not linked now': 'non relié pour l’instant',
         'does not accept scheduled work': 'n’accepte pas le travail planifié',
-        'A run on a computer is an agent chat there. The computer must allow it: “Accept scheduled work” in its LLeMbas CLI (lembas service scheduled on).': 'Une exécution sur un ordinateur y est un chat d’agent. L’ordinateur doit l’autoriser : « Accept scheduled work » dans son LLeMbas CLI (lembas service scheduled on).',
         'Folder on the computer': 'Dossier sur l’ordinateur',
         'A full path, inside a folder the computer allows remote work in.': 'Un chemin complet, dans un dossier où l’ordinateur autorise le travail à distance.',
         'Edit unless you choose otherwise; Auto runs commands without asking. The computer may lower it.': 'Edit sauf choix contraire ; Auto exécute les commandes sans demander. L’ordinateur peut l’abaisser.',
@@ -2796,5 +2794,20 @@ MESSAGES.update(
         'Alibaba Cloud Model Studio (Token Plan, Coding Plan)': 'Alibaba Cloud Model Studio (Token Plan, Coding Plan)',
         "The plan's quota is used up. The provider does not fall back to pay-as-you-go: wait for the plan's next month, add to the plan, or choose a model on another connection.": "Le quota du forfait est épuisé. Le fournisseur ne bascule pas vers le paiement à l'usage : attendez le mois suivant du forfait, complétez le forfait ou choisissez un modèle sur une autre connexion.",
         "That model is on a connection for interactive use only: its provider's terms do not allow scheduled work. Choose a model on a pay-as-you-go connection.": "Ce modèle est sur une connexion réservée à l'usage interactif : les conditions de son fournisseur n'autorisent pas le travail planifié. Choisissez un modèle sur une connexion payée à l'usage.",
+    }
+)
+
+MESSAGES.update(
+    {
+        'Last used here: %(model)s. A new chat in this directory starts on it unless you choose another.': 'Dernier utilisé ici : %(model)s. Une nouvelle conversation dans ce dossier commence avec lui, sauf si vous en choisissez un autre.',
+        "Runs on this server, like a chat: with the server's tools (search, your files here, memory) and on a scheduling model.": "S'exécute sur ce serveur, comme une conversation : avec les outils du serveur (recherche, vos fichiers ici, mémoire) et sur un modèle de planification.",
+        'Agentic': 'Agentique',
+        "Runs on one of your computers, in one folder there, as an agent: with the agent's tools on that computer — its files and its shell — under the computer's own limits. It belongs to that computer and folder.": "S'exécute sur l'un de vos ordinateurs, dans un dossier de celui-ci, en tant qu'agent : avec les outils de l'agent sur cet ordinateur — ses fichiers et son shell — dans les limites propres à l'ordinateur. Elle appartient à cet ordinateur et à ce dossier.",
+        'None of your computers accepts scheduled work now. Link one and switch on “Accept scheduled work” in its LLeMbas CLI (lembas service scheduled on).': "Aucun de vos ordinateurs n'accepte de travail planifié pour l'instant. Reliez-en un et activez « Accept scheduled work » dans son LLeMbas CLI (lembas service scheduled on).",
+        "The computer must allow it: “Accept scheduled work” in its LLeMbas CLI (lembas service scheduled on). When it is not linked at the time of a run, the run waits for it; if it has not come back before the run's time has passed, the run is recorded as missed and you are told.": "L'ordinateur doit l'autoriser : « Accept scheduled work » dans son LLeMbas CLI (lembas service scheduled on). S'il n'est pas relié au moment d'une exécution, l'exécution l'attend ; s'il n'est pas revenu avant que son heure soit passée, l'exécution est enregistrée comme manquée et vous en êtes informé.",
+        'Browse': 'Parcourir',
+        "The folder's usual model": 'Le modèle habituel du dossier',
+        "The folder's usual model is the one you last used in that folder on that computer — the computer remembers it, and each run asks it — or your default model where there is none. A model chosen here is the run's, whatever the folder's is. A run never changes the folder's model.": "Le modèle habituel du dossier est celui que vous avez utilisé en dernier dans ce dossier sur cet ordinateur — l'ordinateur s'en souvient et chaque exécution le lui demande — ou votre modèle par défaut s'il n'y en a pas. Un modèle choisi ici est celui de l'exécution, quel que soit celui du dossier. Une exécution ne change jamais le modèle du dossier.",
+        "the folder's usual model": 'le modèle habituel du dossier',
     }
 )

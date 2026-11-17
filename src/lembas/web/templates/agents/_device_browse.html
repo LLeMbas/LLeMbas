@@ -14,6 +14,12 @@
     {{ icon("folder-open", "icon--sm") }}
     <span class="mono">{{ here or t("Places on this device") }}</span>
   </p>
+  {#- The model last used in this directory, kept by the device (harness
+      spec 3.9.0): what a chat started here starts on unless another is
+      chosen. A model's name is an administrator's text: autoescaped. -#}
+  {% if model %}
+  <p class="dialog__note" data-dir-model="{{ model.id }}">{{ t("Last used here: %(model)s. A new chat in this directory starts on it unless you choose another.", model=model.name) }}</p>
+  {% endif %}
 
   {% if error %}
   <div class="alert alert--danger">{{ error }}</div>
@@ -42,6 +48,7 @@
           <span class="picker__option-name">{{ entry.name }}</span>
           {% if not here %}<span class="picker__option-note mono">{{ entry.path }}</span>{% endif %}
           {% if not entry.accepted %}<span class="picker__option-note">{{ t("Not trusted on the device") }}</span>{% endif %}
+          {% if entry.model %}<span class="picker__option-note" data-entry-model>{{ entry.model.name }}</span>{% endif %}
         </span>
         {{ icon("chevron-right", "icon--sm") }}
       </button>

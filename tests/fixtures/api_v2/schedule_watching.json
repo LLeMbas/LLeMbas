@@ -65,6 +65,7 @@
         "reason": null,
         "switched_from": null
       },
+      "ran_on": null,
       "tokens": {
         "prompt": 0,
         "completion": 0

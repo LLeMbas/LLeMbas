@@ -2667,10 +2667,8 @@ MESSAGES.update(
         "That computer's LLeMbas CLI is too old to run scheduled work. Update it.": 'LLeMbas CLI na tym komputerze jest zbyt stare na zaplanowaną pracę. Zaktualizuj je.',
         'Where it runs': 'Gdzie działa',
         'Computer': 'Komputer',
-        'On this server': 'Na tym serwerze',
         'not linked now': 'teraz niepołączony',
         'does not accept scheduled work': 'nie przyjmuje zaplanowanej pracy',
-        'A run on a computer is an agent chat there. The computer must allow it: “Accept scheduled work” in its LLeMbas CLI (lembas service scheduled on).': 'Uruchomienie na komputerze jest tam czatem agenta. Komputer musi na to pozwolić: „Accept scheduled work” w jego LLeMbas CLI (lembas service scheduled on).',
         'Folder on the computer': 'Folder na komputerze',
         'A full path, inside a folder the computer allows remote work in.': 'Pełna ścieżka, w folderze, w którym komputer pozwala na pracę zdalną.',
         'Edit unless you choose otherwise; Auto runs commands without asking. The computer may lower it.': 'Edit, chyba że wybierzesz inaczej; Auto uruchamia polecenia bez pytania. Komputer może go obniżyć.',
@@ -2796,5 +2794,20 @@ MESSAGES.update(
         'Alibaba Cloud Model Studio (Token Plan, Coding Plan)': 'Alibaba Cloud Model Studio (Token Plan, Coding Plan)',
         "The plan's quota is used up. The provider does not fall back to pay-as-you-go: wait for the plan's next month, add to the plan, or choose a model on another connection.": 'Limit planu został wyczerpany. Dostawca nie przechodzi na rozliczenie za zużycie: poczekaj na kolejny miesiąc planu, rozszerz plan albo wybierz model na innym połączeniu.',
         "That model is on a connection for interactive use only: its provider's terms do not allow scheduled work. Choose a model on a pay-as-you-go connection.": 'Ten model jest na połączeniu tylko do użytku interaktywnego: warunki jego dostawcy nie pozwalają na pracę zaplanowaną. Wybierz model na połączeniu rozliczanym za zużycie.',
+    }
+)
+
+MESSAGES.update(
+    {
+        'Last used here: %(model)s. A new chat in this directory starts on it unless you choose another.': 'Ostatnio używany tutaj: %(model)s. Nowy czat w tym folderze zaczyna się od niego, chyba że wybierzesz inny.',
+        "Runs on this server, like a chat: with the server's tools (search, your files here, memory) and on a scheduling model.": 'Działa na tym serwerze, jak czat: z narzędziami serwera (wyszukiwanie, twoje pliki tutaj, pamięć) i na modelu do planowania.',
+        'Agentic': 'Agentowy',
+        "Runs on one of your computers, in one folder there, as an agent: with the agent's tools on that computer — its files and its shell — under the computer's own limits. It belongs to that computer and folder.": 'Działa na jednym z twoich komputerów, w jednym folderze na nim, jako agent: z narzędziami agenta na tym komputerze — jego plikami i jego powłoką — w ramach własnych ograniczeń komputera. Należy do tego komputera i folderu.',
+        'None of your computers accepts scheduled work now. Link one and switch on “Accept scheduled work” in its LLeMbas CLI (lembas service scheduled on).': 'Żaden z twoich komputerów nie przyjmuje teraz zaplanowanej pracy. Połącz któryś i włącz „Accept scheduled work” w jego LLeMbas CLI (lembas service scheduled on).',
+        "The computer must allow it: “Accept scheduled work” in its LLeMbas CLI (lembas service scheduled on). When it is not linked at the time of a run, the run waits for it; if it has not come back before the run's time has passed, the run is recorded as missed and you are told.": 'Komputer musi na to pozwolić: „Accept scheduled work” w jego LLeMbas CLI (lembas service scheduled on). Gdy w czasie uruchomienia nie jest połączony, uruchomienie na niego czeka; jeśli nie wróci, zanim minie czas uruchomienia, zostaje ono zapisane jako pominięte i dostajesz o tym informację.',
+        'Browse': 'Przeglądaj',
+        "The folder's usual model": 'Zwykły model folderu',
+        "The folder's usual model is the one you last used in that folder on that computer — the computer remembers it, and each run asks it — or your default model where there is none. A model chosen here is the run's, whatever the folder's is. A run never changes the folder's model.": 'Zwykły model folderu to ten, którego ostatnio użyłeś w tym folderze na tym komputerze — komputer go pamięta, a każde uruchomienie go o niego pyta — albo twój model domyślny, gdy takiego nie ma. Model wybrany tutaj jest modelem uruchomienia, niezależnie od modelu folderu. Uruchomienie nigdy nie zmienia modelu folderu.',
+        "the folder's usual model": 'zwykły model folderu',
     }
 )

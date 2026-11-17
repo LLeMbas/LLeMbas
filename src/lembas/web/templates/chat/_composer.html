@@ -189,7 +189,14 @@
       <div class="composer__attachments" id="attachments"></div>
 
       {% if not chat and current_model %}
-      <input type="hidden" name="model_id" value="{{ current_model.model_id }}">
+      <input type="hidden" name="model_id" value="{{ current_model.model_id }}"
+             data-start-model data-default-model="{{ current_model.model_id }}"
+             data-default-label="{{ current_model.label }}">
+      {#- Only when the picker was used on this screen (`?model=`): then the
+          model is the person's, whatever the directory remembers. Without it
+          a new agent chat starts on the model last used in its directory
+          (harness spec 3.9.0; ui.js shows it, `/api/chats/start` decides). -#}
+      {% if model_chosen %}<input type="hidden" name="model_chosen" value="1">{% endif %}
       {% endif %}
       {% if not chat and starting_temporary %}
       <input type="hidden" name="temporary" value="true">

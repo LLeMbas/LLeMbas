@@ -5,7 +5,50 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
+This release carries harness spec **3.9.0** (the model last used in a directory; Chat and
+Agentic schedules; one permission rule set right), vendored from the LLeMbas CLI's `dev` and
+pinned to its tag at release.
+
 ### Added
+
+- **A new agent chat starts on the model you last used in that folder.** A linked computer
+  whose LLeMbas CLI carries spec 3.9.0 remembers, per directory, the model last used there --
+  on the computer, and nowhere else: this server keeps no record of it. A new agent chat on a
+  computer and a folder for which you chose no model now asks the computer (one short
+  question, two seconds at most) and starts on that model if you still have it; otherwise on
+  your default, as before -- also when the computer is away, older, or slow to answer. A model
+  you choose is the chat's, whatever the folder remembers. On the web the model picker shows
+  the folder's model as soon as the folder is chosen, and the directory dialog says "Last
+  used here" for the folder you are in and names the model beside each folder that has one.
+- **`/api/v2`: a device's directories, so an app need not ask for a typed path.**
+  `GET /api/v2/devices/{id}/directories?path=` is the JSON twin of the web's directory dialog,
+  behind the same door: the directory (`path`, `name`, `parent`, `accepted`, `reason`), the
+  device's `roots`, its subdirectories as `entries` with whether a session may be opened in
+  each, and `model` -- the model last used there, as one the person still has (`{id, name}`)
+  or null. Without `path` it lists the device's places. Where there is no listing the answer
+  is still 200, with `code` (`device_not_linked`, `cli_too_old`, `no_answer`, `refused`) and
+  the sentence for it. `GET /api/v2/models?kind=agent&device=&directory=` adds `start`
+  (`{model, from}`): the model a new agent chat there starts on when the app names none --
+  what `POST /api/v2/chats` without a `model` then does. `GET /api/v2/devices` says
+  `directory_model` for a device that remembers.
+- **Schedules have two types: Chat and Agentic.** The form asks the type first. **Chat** runs
+  on this server, like a chat, as schedules always have. **Agentic** belongs to one of your
+  computers and one folder on it and runs there as an agent, with the agent's tools on that
+  computer -- its files and its shell -- in the mode you choose, under the computer's own
+  limits. Its fields are the computer, the folder (with the same directory dialog a new agent
+  chat uses, or a typed path), the mode, how long an approval waits, and the model -- **the
+  folder's usual model** unless you choose one: the model you last used in that folder on
+  that computer, asked of the computer as each run starts, else your default. A run never
+  changes the folder's model. A schedule that continues one conversation there keeps that
+  conversation's model. The type is not a new setting: Agentic is a schedule with a computer
+  (`runs_on`), Chat one without, so every existing schedule already has its type. The form
+  says what happens when the computer is not linked at the time (the run waits, and is
+  recorded as missed and told once its time has passed); the type is not offered while none
+  of your computers accepts scheduled work, and says so. A schedule's page shows its type,
+  computer, folder and model, and each run in its history says where it ran and on which
+  model (and when that was the folder's usual one). `/api/v2`: a run carries `ran_on`
+  (`{device, device_name, cwd, mode}` or null) and `model.reason` gains `directory`,
+  `default` and `session`.
 
 - **Two connection types for Alibaba Cloud Model Studio (Qwen and the models it resells):
   pay-as-you-go and a subscription plan (Token Plan, Coding Plan).** They are two types because
@@ -54,6 +97,14 @@ at <https://llembas.eu/changelog.html>.
   not built with an embedding model on such a connection. What a person starts in a chat --
   its replies, their tool calls, the subagents and teams it starts -- stays on the chat's
   model. `/v1/models` and `/api/v2/models` say `interactive_only` for such a model.
+
+### Fixed
+
+- **A broad "allow" no longer makes an example file start asking** (harness spec 3.9.0,
+  permission rules §2). After allowing `read` for everything, reading `.env.example` asked
+  for approval although it never had before: the rule that asks about `*.env.*` counted as a
+  floor even where the later rule for `*.env.example` narrows it again. A narrower rule that
+  a later one narrows again is now set aside, as on the CLI.
 
 ## 2.0.0-beta.13 — 2026-11-13
 

@@ -163,6 +163,7 @@ def _settings_defaults(schedule: Schedule | None, rule: dict) -> dict:
             "watch_url": "",
             "watch_command": "",
             "watch_timeout": "",
+            "type": "chat",
             "device": "",
             "device_dir": "",
             "device_mode": "edit",
@@ -182,11 +183,29 @@ def _settings_defaults(schedule: Schedule | None, rule: dict) -> dict:
         "watch_url": schedule.watch_target if schedule.watch_kind == "url" else "",
         "watch_command": schedule.watch_target if schedule.watch_kind == "command" else "",
         "watch_timeout": schedule.watch_timeout or "",
+        "type": "agentic" if schedule.device_token_id else "chat",
         "device": schedule.device_token_id or "",
         "device_dir": schedule.device_dir or "",
         "device_mode": schedule.device_mode or "edit",
         "approval_wait_minutes": schedule.approval_wait_minutes or "",
     }
+
+
+def _agentic(form) -> bool:
+    """Whether the form asks for an Agentic schedule: its type says so, or --
+    a form from before the two types -- it names a computer."""
+    kind = str(form.get("type") or "").strip()
+    if kind:
+        return kind == "agentic"
+    return bool(str(form.get("device") or "").strip())
+
+
+def _model_from_form(form) -> str:
+    """The schedule's own model: each type has its field (an Agentic one's
+    empty choice is "the folder's usual model", a Chat one's the scheduling
+    list), and the type says which is read."""
+    name = "device_model_id" if _agentic(form) and "device_model_id" in form else "model_id"
+    return str(form.get(name) or "").strip()
 
 
 def _settings_from_form(form) -> dict:
@@ -200,23 +219,29 @@ def _settings_from_form(form) -> dict:
         "tools": [str(t) for t in form.getlist("tools")],
         "watch": str(form.get("watch_url") or "").strip(),
     }
-    # Where it runs (harness spec 3.5.0): only from a form that offers it.
-    if "device" in form:
+    # The type (harness spec 3.9.0): Chat is no computer, Agentic one computer
+    # and one folder on it. Only from a form that offers it; a form from
+    # before the two types sends `device` alone, empty for the server.
+    agentic = _agentic(form)
+    if "device" in form or "type" in form:
         chosen = str(form.get("device") or "").strip()
-        settings["runs_on"] = (
-            {
+        if not agentic:
+            settings["runs_on"] = None
+        elif not chosen:
+            # Agentic with no computer is not a Chat schedule by accident:
+            # `device.validate` says which one is missing.
+            settings["runs_on"] = "?"
+        else:
+            settings["runs_on"] = {
                 "device": chosen,
                 "cwd": str(form.get("device_dir") or "").strip(),
                 "mode": str(form.get("device_mode") or "").strip(),
                 "approval_wait_minutes": str(form.get("approval_wait_minutes") or "").strip(),
             }
-            if chosen
-            else None
-        )
-    # The command field is hidden while "On this server" is chosen: what it
-    # still holds then is not a watch.
+    # The command field is hidden while Chat is chosen: what it still holds
+    # then is not a watch.
     command = str(form.get("watch_command") or "").strip()
-    if command and str(form.get("device") or "").strip():
+    if command and agentic:
         settings["watch"] = {
             "kind": "command", "command": command,
             "timeout_s": str(form.get("watch_timeout") or "").strip(),
@@ -374,7 +399,10 @@ def _context(db, user, schedule: Schedule | None, *, error: str = "") -> dict:
         ))),
         "form": _form_values(schedule=schedule),
         "error": error,
-        "devices": _devices(db, user),
+        "devices": (devices := _devices(db, user)),
+        # The Agentic type is offered while a computer of the person's
+        # accepts scheduled work (spec 3.9.0).
+        "agentic_offered": any(d["accepts"] for d in devices),
         "device_modes": [(m, policy.MODE_LABELS[m]) for m in scheduled_device.modes()],
         "models": models,
         "levels": _levels(models),
@@ -510,7 +538,7 @@ async def describe_schedule(request: Request, db: Db, user: RequiredUser):
     described = str(form.get("request") or "").strip()
 
     template = prompts_service.resolve(db, "task.schedule_compile")
-    resolved = compile_service.endpoint_for(db, user, str(form.get("model_id") or "").strip())
+    resolved = compile_service.endpoint_for(db, user, _model_from_form(form))
     if resolved is None:
         compiled = compile_service.Compiled(
             instruction=described,
@@ -631,7 +659,7 @@ async def create_schedule(request: Request, db: Db, user: RequiredUser) -> Respo
             request=str(form.get("instruction") or ""),
             rule=_rule_from_form(form),
             target=str(form.get("target") or TARGET_CHAT),
-            model_id=str(form.get("model_id") or ""),
+            model_id=_model_from_form(form),
             settings=_settings_from_form(form),
         )
     except schedules_service.ScheduleError as error:
@@ -660,7 +688,7 @@ async def save_schedule(
             instruction=str(form.get("instruction") or ""),
             rule=_rule_from_form(form),
             target=str(form.get("target") or TARGET_CHAT),
-            model_id=str(form.get("model_id") or ""),
+            model_id=_model_from_form(form),
             settings=_settings_from_form(form),
         )
     except schedules_service.ScheduleError as error:

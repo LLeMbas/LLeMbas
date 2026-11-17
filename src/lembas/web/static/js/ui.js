@@ -1179,8 +1179,54 @@ document.addEventListener("lembas:notify", function (event) {
         if (value) button.removeAttribute("aria-invalid");
       }
       announce();
+      followModel();
       /* Chosen by hand in the opened fold: the three fold away again. */
       if (dir.dataset.touched) fold(false);
+    }
+
+    /* The model a new agent chat starts on (harness spec 3.9.0): the one last
+       used in this directory on this computer, which the computer remembers
+       and this page asks it for -- unless the person chose a model on this
+       screen (`model_chosen`), which is then theirs whatever the directory
+       says. Shown in the picker and put in the field that is sent; the server
+       asks again when the chat is made and has the last word. An answer that
+       comes back for a directory since left is dropped. */
+    var startModel = root.querySelector("[data-start-model]");
+    var modelAsk = 0;
+    function showStartModel(id, label) {
+      if (!startModel || !id || startModel.value === id) return;
+      startModel.value = id;
+      var holder = document.querySelector("[data-picker]");
+      if (!holder) return;
+      var shown = holder.querySelector(".picker__button .picker__label");
+      if (shown) shown.textContent = label || id;
+      var was = holder.querySelector(".picker__button .picker__avatar");
+      holder.querySelectorAll("[data-picker-value]").forEach(function (option) {
+        var mine = option.dataset.pickerValue === id;
+        option.classList.toggle("is-selected", mine);
+        option.setAttribute("aria-selected", mine ? "true" : "false");
+        var avatar = mine && option.querySelector(".picker__avatar");
+        if (avatar && was) was.replaceWith(avatar.cloneNode(true));
+      });
+    }
+    function followModel() {
+      if (!startModel || root.querySelector('input[name="model_chosen"]')) return;
+      var ask = ++modelAsk;
+      function asBefore() {
+        if (ask !== modelAsk) return;
+        showStartModel(startModel.dataset.defaultModel, startModel.dataset.defaultLabel);
+      }
+      if (kind.value !== "agent" || !onDevice() || !dir || !dir.value) { asBefore(); return; }
+      var url = "/api/devices/" + encodeURIComponent(picker.value.replace(/^device:/, "")) +
+        "/directory-model?path=" + encodeURIComponent(dir.value);
+      fetch(url, { credentials: "same-origin" })
+        .then(function (response) { return response.ok ? response.json() : null; })
+        .then(function (found) {
+          if (ask !== modelAsk) return;
+          if (found && found.model && found.model.id) showStartModel(found.model.id, found.model.name);
+          else asBefore();
+        })
+        .catch(asBefore);
     }
 
     function sync() {
@@ -1188,6 +1234,7 @@ document.addEventListener("lembas:notify", function (event) {
       var agent = chosen ? chosen.value === "agent" : kind.value === "agent";
       kind.value = agent ? "agent" : "chat";
       extra.hidden = !agent;
+      followModel();
     }
 
     /* A device says the most it allows (its own `remote.max_mode`), and that is
@@ -1498,6 +1545,9 @@ document.addEventListener("lembas:notify", function (event) {
     function show(path) {
       value.value = path || "";
       if (label) label.textContent = path || t("the connection's own default");
+      /* A field somebody can also type in (a schedule's folder) hears of
+         it as it would of typing. */
+      value.dispatchEvent(new Event("change", { bubbles: true }));
     }
 
     if (event.target.closest("[data-dir-clear]")) {
@@ -1511,7 +1561,9 @@ document.addEventListener("lembas:notify", function (event) {
     /* The connection this folder points at. Browsing needs one, and saying so
        beats a dialog that opens onto nothing. */
     var form = field.closest("form");
-    var picker = form && form.querySelector('select[name="ssh_profile_id"]');
+    /* `data-dir-device`: a select of linked computers by their own id (a
+       schedule's), which the dialog asks as it does a chat's `device:<id>`. */
+    var picker = form && form.querySelector('select[name="ssh_profile_id"], select[data-dir-device]');
     var profileId = picker ? picker.value : "";
     if (!profileId) {
       window.lembas.notify(t("Choose a connection first — there is nothing to browse without one."));

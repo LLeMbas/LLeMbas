@@ -133,13 +133,22 @@ async def create_chat(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> d
     if not text and not files:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, t("A message cannot be empty."))
     device = str(body.get("device") or "")
+    # No `model`: an agent chat starts on the model last used in its
+    # directory on that device, when the person still has it (spec 3.9.0) --
+    # the page's rule, from the same function.
+    named = str(body.get("model") or "")
+    model_id = await chats_api.directory_start_model(
+        db, caller.user, kind=str(body.get("kind") or KIND_CHAT),
+        device=f"device:{device}" if device else "",
+        project_dir=str(body.get("directory") or ""), model_id=named, chosen=bool(named),
+    )
     chat, user_message, reply = chats_api.start_new_chat(
         db,
         caller.user,
         text,
         file_ids=files,
         folder_id=str(body.get("folder_id") or ""),
-        model_id=str(body.get("model") or ""),
+        model_id=model_id,
         temporary=bool(body.get("temporary")),
         kind=str(body.get("kind") or KIND_CHAT),
         ssh_profile_id=f"device:{device}" if device else "",

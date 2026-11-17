@@ -49,16 +49,41 @@
   <p class="field__hint">{{ t("Optional. Each run first looks at this address; when nothing changed since the last look, the run stops there and you are not told.") }}</p>
 </div>
 
-{# Harness spec 3.5.0 (`services/schedule/device.py`): a run as an agent turn
-   on one of the person's linked computers -- only one whose LLeMbas CLI
-   accepts scheduled work. Every field below is sent whatever is chosen, and
-   the server ignores the computer's when "On this server" is. #}
-<fieldset class="schedule-device" data-testid="schedule-device">
-  <legend class="field__label">{{ t("Where it runs") }}</legend>
-  <div class="field">
+{# The two types of schedule (harness spec 3.9.0, acp.md *Two types of
+   schedule*; `services/schedule/device.py`). The type is what is stored as
+   where it runs -- there is no field of its own: Chat is a schedule with no
+   computer, Agentic one tied to a computer and a folder on it. Chosen first,
+   because everything else about the schedule is read differently after it.
+
+   The Agentic fields are shown and hidden by the radio (`:has()` in
+   admin.css), with no script, like the repeat fieldset below. They are sent
+   whatever is chosen, and the server reads them only for Agentic. #}
+<fieldset class="schedule-device" data-testid="schedule-type">
+  <legend class="field__label" id="schedule-type-label">{{ t("Type") }}</legend>
+  <div class="notify-when" role="radiogroup" aria-labelledby="schedule-type-label">
+    <label class="notify-when__choice">
+      <input type="radio" name="type" value="chat" {{ "checked" if form.type != "agentic" }}>
+      <span class="notify-when__words">
+        <strong>{{ t("Chat") }}</strong>
+        <span class="field__hint">{{ t("Runs on this server, like a chat: with the server's tools (search, your files here, memory) and on a scheduling model.") }}</span>
+      </span>
+    </label>
+    <label class="notify-when__choice">
+      <input type="radio" name="type" value="agentic" {{ "checked" if form.type == "agentic" }}
+             {{ "disabled" if not agentic_offered and form.type != "agentic" }}>
+      <span class="notify-when__words">
+        <strong>{{ t("Agentic") }}</strong>
+        <span class="field__hint">{{ t("Runs on one of your computers, in one folder there, as an agent: with the agent's tools on that computer — its files and its shell — under the computer's own limits. It belongs to that computer and folder.") }}</span>
+        {% if not agentic_offered %}
+        <span class="field__hint" data-testid="agentic-unavailable">{{ t("None of your computers accepts scheduled work now. Link one and switch on “Accept scheduled work” in its LLeMbas CLI (lembas service scheduled on).") }}</span>
+        {% endif %}
+      </span>
+    </label>
+  </div>
+
+  <div class="field" data-type="agentic">
     <label class="field__label" for="schedule-device">{{ t("Computer") }}</label>
-    <select class="select" id="schedule-device" name="device">
-      <option value="" {{ 'selected' if not form.device }}>{{ t("On this server") }}</option>
+    <select class="select" id="schedule-device" name="device" data-dir-device>
       {% for d in devices %}
       <option value="{{ d.id }}" {{ 'selected' if form.device == d.id }}
               {{ 'disabled' if not d.accepts and form.device != d.id }}>
@@ -66,16 +91,24 @@
       </option>
       {% endfor %}
     </select>
-    <p class="field__hint">{{ t("A run on a computer is an agent chat there. The computer must allow it: “Accept scheduled work” in its LLeMbas CLI (lembas service scheduled on).") }}</p>
+    <p class="field__hint">{{ t("The computer must allow it: “Accept scheduled work” in its LLeMbas CLI (lembas service scheduled on). When it is not linked at the time of a run, the run waits for it; if it has not come back before the run's time has passed, the run is recorded as missed and you are told.") }}</p>
   </div>
-  <div class="field">
+  {# The folder: the dialog a new agent chat chooses its directory in
+     (ui.js `[data-dir-field]`, the device's own listing), and a field to
+     type in for a computer that is not linked now or cannot list. #}
+  <div class="field" data-type="agentic" data-dir-field>
     <label class="field__label" for="schedule-device-dir">{{ t("Folder on the computer") }}</label>
-    <input class="input" id="schedule-device-dir" name="device_dir" maxlength="1000"
-           autocomplete="off" spellcheck="false" value="{{ form.device_dir }}"
-           placeholder="/home/you/project">
+    <div class="btn-row">
+      <input class="input input--mono u-grow u-shrink" id="schedule-device-dir" name="device_dir"
+             maxlength="1000" autocomplete="off" spellcheck="false" value="{{ form.device_dir }}"
+             placeholder="/home/you/project" data-dir-value>
+      <button class="btn" type="button" data-dir-browse>
+        {{ icon("folder", "icon--sm") }} {{ t("Browse") }}
+      </button>
+    </div>
     <p class="field__hint">{{ t("A full path, inside a folder the computer allows remote work in.") }}</p>
   </div>
-  <div class="field">
+  <div class="field" data-type="agentic">
     <label class="field__label" for="schedule-device-mode">{{ t("Mode") }}</label>
     <select class="select" id="schedule-device-mode" name="device_mode">
       {% for value, label in device_modes %}
@@ -84,21 +117,31 @@
     </select>
     <p class="field__hint">{{ t("Edit unless you choose otherwise; Auto runs commands without asking. The computer may lower it.") }}</p>
   </div>
-  <div class="field">
+  <div class="field" data-type="agentic">
     <label class="field__label" for="schedule-approval-wait">{{ t("An approval waits (minutes)") }}</label>
     <input class="input u-w-field-xs" type="number" id="schedule-approval-wait"
            name="approval_wait_minutes" min="1" max="1440" step="1" inputmode="numeric"
            value="{{ form.approval_wait_minutes }}" placeholder="30">
     <p class="field__hint">{{ t("A command the run needs approved comes to your phone as a card. Unanswered by then, it counts as denied.") }}</p>
   </div>
-  <div class="field">
+  <div class="field" data-type="agentic">
+    <label class="field__label" for="schedule-device-model">{{ t("Model") }}</label>
+    <select class="select" id="schedule-device-model" name="device_model_id">
+      <option value="">{{ t("The folder's usual model") }}</option>
+      {% for model in models %}
+      <option value="{{ model.model_id }}" {{ 'selected' if form.model_id == model.model_id }}>{{ model.display_name or model.model_id }}</option>
+      {% endfor %}
+    </select>
+    <p class="field__hint">{{ t("The folder's usual model is the one you last used in that folder on that computer — the computer remembers it, and each run asks it — or your default model where there is none. A model chosen here is the run's, whatever the folder's is. A run never changes the folder's model.") }}</p>
+  </div>
+  <div class="field" data-type="agentic">
     <label class="field__label" for="schedule-watch-command">{{ t("Only when this command's output changes") }}</label>
     <input class="input" id="schedule-watch-command" name="watch_command" maxlength="4000"
            autocomplete="off" spellcheck="false" value="{{ form.watch_command }}"
            placeholder="git log -1 --format=%H">
     <p class="field__hint">{{ t("Optional, on the computer. Run in the folder before each run; when its output is the same as last time, the run stops there. A command the mode would ask about is refused.") }}</p>
   </div>
-  <div class="field">
+  <div class="field" data-type="agentic">
     <label class="field__label" for="schedule-watch-timeout">{{ t("The command may take (seconds)") }}</label>
     <input class="input u-w-field-xs" type="number" id="schedule-watch-timeout"
            name="watch_timeout" min="1" max="600" step="1" inputmode="numeric"
@@ -215,7 +258,9 @@
 <fieldset class="schedule-settings">
   <legend class="field__label">{{ t("How it runs") }}</legend>
 
-  <div class="field">
+  {#- A Chat schedule's model. An Agentic one's is with its computer and
+      folder above (`device_model_id`): the two are read by the type. -#}
+  <div class="field" data-type="chat">
     <label class="field__label" for="schedule-model">{{ t("Model") }}</label>
     <select class="select" id="schedule-model" name="model_id">
       <option value="">{{ t("The first free one of your scheduling models") }}</option>

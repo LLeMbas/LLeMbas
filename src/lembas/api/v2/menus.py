@@ -12,6 +12,7 @@ may read it.
 |---|---|
 | `GET /devices/{id}/commands?chat=&cwd=` | `{"commands": [{name, description, hint, kind}]}` |
 | `GET /devices/{id}/files?q=&chat=&cwd=` | `{"files": [{path, kind, name}], "error", "device"}` |
+| `GET /devices/{id}/directories?path=` | a directory of the device: `device_directories` |
 | `GET /mentions?q=&chat=` | `{"items": [{kind, id?, path?, url?, name, detail}]}` |
 | `POST /attachments/from` | `{"attachment": {...}}`, as `POST /attachments` answers |
 
@@ -53,6 +54,42 @@ async def device_commands(
         db, caller.user, token_id, chat_id=chat, cwd=cwd
     )
     return {"commands": [serialise.device_command(c) for c in commands], "device": device}
+
+
+@router.get("/devices/{token_id}/directories")
+async def device_directories(
+    caller: Me, db: Db, token_id: str, path: str = Query("")
+) -> dict[str, Any]:
+    """A directory on one of this person's devices, for choosing where an
+    agent chat or an Agentic schedule works -- the JSON twin of the page's
+    directory dialog (`GET /api/devices/{id}/browse`), from the same answer
+    (`services/directories.browse`) behind the same door: the device is the
+    caller's and may run agent chats now, else 404.
+
+    Without `path`: the device's places (its remote roots and the trusted
+    directories in them) as `entries`, `path` "". With one: that directory --
+    `path`, `name`, `parent` ("" at a root), whether a session may be opened
+    there (`accepted`, else `reason` in the device's words) and its
+    subdirectories as `entries`, each `{path, name, accepted, reason, model}`.
+    `roots` are the device's remote roots.
+
+    `model` (harness spec 3.9.0), on the directory and on each entry: the
+    model last used in exactly that directory on the device, **as a model
+    this person still has** -- `{id, name}` -- else null. It is what a new
+    agent chat there starts on when `POST /chats` names no `model`, and what
+    an Agentic schedule without a model runs on. `remembers` is false for a
+    device whose CLI is older than that: every `model` is then null.
+
+    No listing is an answer, not an HTTP error: `code` says why --
+    `device_not_linked`, `cli_too_old` (it cannot list; a typed path still
+    works), `no_answer`, `refused` -- with `error` the sentence for the
+    person, and `entries` empty. `code` is "" for a listing."""
+    from lembas.services import directories
+
+    token = directories.owned_device(db, caller.user, token_id)
+    if token is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, t("No such device."))
+    return serialise.directories(await directories.browse(db, caller.user, token, path))
 
 
 @router.get("/devices/{token_id}/files")
