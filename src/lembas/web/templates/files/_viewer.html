@@ -21,7 +21,7 @@
       {{ icon("file-text", "icon--sm") }}
       <code class="viewer__path" title="{{ opened.path }}">{{ opened.path }}</code>
     </span>
-    <span class="viewer__meta">{{ size(opened.size) }}{% if opened.version %} · {{ t("an older version") }}{% endif %}</span>
+    <span class="viewer__meta">{{ size(opened.size) }}{% if opened.older %} · {{ t("an older version") }}{% endif %}</span>
     <span class="viewer__tools">
       {% if opened.writable and not chat and opened.kind in ("markdown", "code", "text", "html") %}
       <a class="btn btn--sm" href="/files/view?path={{ opened.path|urlencode }}" data-testid="viewer-edit">

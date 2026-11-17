@@ -183,6 +183,9 @@ STATIC = {
 }
 
 
+SILENT = "(a connection that said nothing)"
+
+
 class Canary:
     """Whatever touches it, it remembers: the first line of a TCP request, and
     that a datagram came."""
@@ -190,11 +193,23 @@ class Canary:
     def __init__(self) -> None:
         self.seen: list[str] = []
         self.datagrams = 0
-        self.tcp = socket.socket()
-        self.tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.tcp.bind(("0.0.0.0", 0))
-        self.tcp.listen(64)
+        self.tcp = self._listener()
         self.port = self.tcp.getsockname()[1]
+        # A TCP port of their own for the controls, for the reason the
+        # datagrams have one: a connection says by where it lands who made it.
+        # A browser opens spare connections beside a request (a second socket
+        # for a navigation, one kept for the next request) and says nothing on
+        # them; this listener takes one connection at a time and waits two
+        # seconds on a silent one, so under load a control's spare socket was
+        # still being read after the controls were over, and was counted
+        # against the sealed pages as "a connection that said nothing".
+        self.control_seen: list[str] = []
+        self.tcp_control = self._listener()
+        self.control_port = self.tcp_control.getsockname()[1]
+        # And one for the pages whose policy was loosened to let scripts run.
+        self.scripted_seen: list[str] = []
+        self.tcp_scripted = self._listener()
+        self.scripted_port = self.tcp_scripted.getsockname()[1]
         # Two UDP ports: one the sealed pages are given, one the controls --
         # a datagram says by where it lands which of them sent it.
         self.udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -209,7 +224,13 @@ class Canary:
         self.udp_scripted_port = self.udp_scripted.getsockname()[1]
         self.scripted_datagrams = 0
         self.open = True
-        threading.Thread(target=self._tcp, daemon=True).start()
+        threading.Thread(target=self._tcp, args=(self.tcp, self.seen), daemon=True).start()
+        threading.Thread(
+            target=self._tcp, args=(self.tcp_control, self.control_seen), daemon=True
+        ).start()
+        threading.Thread(
+            target=self._tcp, args=(self.tcp_scripted, self.scripted_seen), daemon=True
+        ).start()
         threading.Thread(target=self._udp, args=(self.udp, "datagrams"), daemon=True).start()
         threading.Thread(
             target=self._udp, args=(self.udp_control, "control_datagrams"), daemon=True
@@ -218,19 +239,32 @@ class Canary:
             target=self._udp, args=(self.udp_scripted, "scripted_datagrams"), daemon=True
         ).start()
 
-    def _tcp(self) -> None:
+    @staticmethod
+    def _listener() -> socket.socket:
+        listener = socket.socket()
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind(("0.0.0.0", 0))
+        listener.listen(64)
+        return listener
+
+    def _tcp(self, listener: socket.socket, seen: list[str]) -> None:
         while self.open:
             try:
-                connection, _ = self.tcp.accept()
+                connection, _ = listener.accept()
             except OSError:
                 return
+            # Counted the moment it is made, before anything is read: a
+            # connection is a connection whether or not it goes on to speak.
+            seen.append(SILENT)
+            mine = len(seen) - 1
             with connection:
                 connection.settimeout(2)
                 try:
                     first = connection.recv(2048).split(b"\r\n", 1)[0].decode("latin-1")
                 except OSError:
                     first = ""
-                self.seen.append(first or "(a connection that said nothing)")
+                if first:
+                    seen[mine] = first
                 with contextlib.suppress(OSError):
                     connection.sendall(
                         b"HTTP/1.1 200 OK\r\nAccess-Control-Allow-Origin: *\r\n"
@@ -249,13 +283,15 @@ class Canary:
     def close(self) -> None:
         self.open = False
         self.tcp.close()
+        self.tcp_control.close()
+        self.tcp_scripted.close()
         self.udp.close()
         self.udp_control.close()
         self.udp_scripted.close()
 
-    def names(self) -> set[str]:
+    def names(self, seen: list[str] | None = None) -> set[str]:
         out = set()
-        for line in self.seen:
+        for line in list(self.seen if seen is None else seen):
             parts = line.split(" ")
             # `GET /name?x HTTP/1.1` is `name`; a connection that sent nothing
             # (a preconnect) is kept as the sentence it was recorded as.
@@ -299,6 +335,8 @@ class Site:
     def __init__(self, canary: Canary) -> None:
         host = _address()
         self.canary_url = f"http://{host}:{canary.port}"
+        # Where the controls send: the same listener's other port.
+        self.control_url = f"http://{host}:{canary.control_port}"
         attempts = {**REACH, **SEND}
         pages: dict[str, bytes] = {}
         for name, body in attempts.items():
@@ -311,17 +349,18 @@ class Site:
                 static.replace("{C}", self.canary_url),
             ))
         # The same policy with scripts allowed, served as written.
+        self.scripted_url = f"http://{host}:{canary.scripted_port}"
         for name, body in SCRIPTED.items():
             pages[name] = _hostile(
-                name, self.canary_url, host, canary.udp_scripted_port, body
+                name, self.scripted_url, host, canary.udp_scripted_port, body
             ).encode()
         # The controls: the same attempts, named apart, under no policy.
         self.controls = ["fetch", "image", "navigate_location", "webrtc", "form", "static_meta"]
         for name in self.controls:
             pages["control_" + name] = _hostile(
-                "control_" + name, self.canary_url, host, canary.udp_control_port,
+                "control_" + name, self.control_url, host, canary.udp_control_port,
                 attempts.get(name, ""),
-                STATIC.get(name, "").replace("{C}", self.canary_url).replace(
+                STATIC.get(name, "").replace("{C}", self.control_url).replace(
                     "static_meta", "control_static_meta"
                 ),
             ).encode()
@@ -420,13 +459,15 @@ def run(tmp_path_factory):
         browser.call("Page.navigate", url=f"{site.base}/open")
         deadline = time.monotonic() + 20
         while time.monotonic() < deadline:
-            heard = canary.names()
+            heard = canary.names(canary.control_seen)
             if {"control_fetch", "control_image", "control_navigate_location"} <= heard:
                 break
             time.sleep(0.2)
         time.sleep(4)  # the slower ones: a refresh, a peer connection
-        controls = set(canary.names())
-        canary.seen.clear()
+        controls = set(canary.names(canary.control_seen))
+        # What reached the sealed pages' port while only the controls ran:
+        # nothing can have, and the test below says so.
+        early = set(canary.names())
 
         browser.call("Page.navigate", url=f"{site.base}/")
         browser.wait_for("document.readyState === 'complete'", timeout=30)
@@ -444,6 +485,7 @@ def run(tmp_path_factory):
         browser.close()
         site.close()
         heard = set(canary.names())
+        scripted = list(canary.scripted_seen)
         datagrams, control_datagrams = canary.datagrams, canary.control_datagrams
         scripted_datagrams = canary.scripted_datagrams
         canary.close()
@@ -452,7 +494,7 @@ def run(tmp_path_factory):
     return {
         "controls": controls, "control_datagrams": control_datagrams,
         "scripted_datagrams": scripted_datagrams,
-        "heard": heard, "datagrams": datagrams, "got": json.loads(got or "{}"),
+        "heard": heard, "early": early, "scripted": scripted, "datagrams": datagrams, "got": json.loads(got or "{}"),
         "title": title, "frames": frames, "top": top, "site": site, "netlog": log,
         "pages": [t for t in targets if t.get("type") == "page"],
     }
@@ -493,7 +535,14 @@ def test_a_page_reaches_nothing_of_the_application(run):
 def test_a_page_sends_nothing_anywhere(run):
     """Not by a request of any kind, and not by taking itself somewhere --
     the scripted comparison included, for everything a policy does refuse."""
+    # Every connection made to the sealed pages' port, from the moment the
+    # listener stood: one that never spoke (a preconnect) counts as one.
+    assert run["early"] == set(), sorted(run["early"])
     assert run["heard"] == set(), sorted(run["heard"])
+    # With scripts allowed, still no request: the policy refuses those. (A
+    # connection that says nothing is another matter: `test_why_no_script_runs`.)
+    asked = {line for line in run["scripted"] if line != SILENT}
+    assert asked == set(), sorted(asked)
     moved = {
         name: url for name, url in run["frames"].items()
         if run["site"].canary_url in url
@@ -515,14 +564,22 @@ def test_a_page_looks_up_no_name(run):
 
 def test_why_no_script_runs(run):
     """With scripts allowed under the very same policy, a page still gets
-    something out: a STUN request to a server of its choosing, and a lookup
-    of a name of its choosing. That is why a page is shown static. If this
-    browser has closed both, scripts in pages can be thought about again."""
+    something out: a STUN request to a server of its choosing, a lookup of a
+    name of its choosing, and a bare connection to an address of its choosing.
+    That is why a page is shown static. If this browser has closed them all,
+    scripts in pages can be thought about again."""
     out = []
     if run["scripted_datagrams"]:
         out.append("a peer connection's STUN request")
     if DNS_SCRIPTED in run["netlog"]:
         out.append("a name looked up for a link a script added")
+    if SILENT in run["scripted"]:
+        # Found when the listener was given a port per kind of page: a script
+        # that sends its own frame somewhere has the browser open a
+        # connection to that address before the framing page's `frame-src`
+        # refuses the navigation. Nothing is sent on it, but it is made, to
+        # an address of the page's choosing.
+        out.append("a connection opened for a navigation a script started")
     if not out:
-        pytest.skip("this browser let neither out: scripts in pages can be reconsidered")
+        pytest.skip("this browser let none of them out: scripts in pages can be reconsidered")
     assert out

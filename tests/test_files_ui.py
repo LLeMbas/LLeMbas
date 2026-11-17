@@ -159,6 +159,30 @@ def test_code_you_may_only_read_is_highlighted_in_the_viewer(client, db, me):
     assert 'name="content"' not in page
 
 
+def test_only_an_older_version_is_called_an_older_version(client, db, me):
+    """A card of `show` names the version it showed. Until the file is
+    written again that version is the file as it stands, and the viewer said
+    "an older version" of it all the same."""
+    user, home = me
+    node = _write(db, user, f"{home}/z.md", b"# One")
+    _write(db, user, f"{home}/z.md", b"# Two")
+    first, newest = db.scalars(
+        select(NodeVersion).where(NodeVersion.node_id == node.id).order_by(NodeVersion.at)
+    ).all()
+    at = f"/files/view?path={quote(home + '/z.md')}&version="
+    old = client.get(at + first.id).text
+    assert "an older version" in old and "Back to the current one" in old
+    now = client.get(at + newest.id).text
+    assert "an older version" not in now and "Back to the current one" not in now
+    # The side viewer, which a shown file's card opens, says the same.
+    chat = Chat(user_id=user.id, model_id="m")
+    db.add(chat)
+    db.commit()
+    side = f"/chat/{chat.id}/show?node={node.id}&version="
+    assert "an older version" not in client.get(side + newest.id).text
+    assert "an older version" in client.get(side + first.id).text
+
+
 def test_a_new_file_opens_in_the_editor(client, db, me):
     user, home = me
     made = client.post("/files/new", data={"path": home, "name": "notes.md"},

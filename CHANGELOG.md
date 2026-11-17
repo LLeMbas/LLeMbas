@@ -105,6 +105,30 @@ pinned to its tag at release.
   for approval although it never had before: the rule that asks about `*.env.*` counted as a
   floor even where the later rule for `*.env.example` narrows it again. A narrower rule that
   a later one narrows again is now set aside, as on the CLI.
+- **The viewer called a shown file's newest version "an older version".** A card of `show`
+  names the version it showed; opened from the card, the viewer said "an older version" (and
+  the file page offered "Back to the current one") even while that version was the file as it
+  stands. It says so now only of a version that has been written over.
+- **A reply asked for from the phone app is the phone assistant's, whichever button asked.**
+  `/api/v2`'s edit, regenerate, continue and plan/execute routes now read `client` as create
+  and send do (the body is optional; an app that sends none is unaffected). A chat written on
+  the web and then regenerated, edited or continued from the phone was treated as a web chat
+  and could be sent an HTML page the phone cannot draw.
+
+### Security
+
+- **With scripts allowed, a page can also make the browser open a connection.** Giving the
+  sealed-pages test's listener a port for each kind of page showed a third thing a *scripted*
+  page gets out under the pages' policy, beside the STUN request and the name lookup already
+  known: a script that sends its own frame somewhere has Chromium open a TCP connection to
+  that address before the framing page's `frame-src` refuses the navigation. Nothing is sent
+  on it, but it is made, to an address of the page's choosing. Nothing changes for pages in
+  answers, which run no script, and the test holds that they make no connection at all; it is
+  one more reason they stay static, and it applies to an HTML file a person chooses to run
+  (**Run page**), which is why that is never done without being asked. The test that failed
+  once in a full run with "(a connection that said nothing)" was this connection, or a
+  control's spare one, counted against the sealed pages because all three shared one port;
+  each kind of page now has its own, and a connection is counted when it is made.
 
 ## 2.0.0-beta.13 — 2026-11-13
 

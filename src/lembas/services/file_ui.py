@@ -170,6 +170,10 @@ class Opened:
     language: str
     text: str
     level: str
+    # Whether `version` is an *older* one. A version named by its id may be
+    # the file's newest -- a card of `show` names the version it showed, and
+    # until the file is written again that is the file as it stands.
+    older: bool = False
 
     @property
     def writable(self) -> bool:
@@ -221,7 +225,21 @@ def open_file(v: fs.View, path: str, version_id: str = "") -> Opened:
         language=language,
         text=text,
         level=v.level(node.path),
+        older=version is not None and not _newest(v.db, node, version),
     )
+
+
+def _newest(db: DBSession, node: Node, version: NodeVersion) -> bool:
+    """Whether `version` is the file as it stands: its newest version (the
+    order `fs.versions` lists them in), holding what the node holds now."""
+
+    latest = db.scalar(
+        select(NodeVersion.id)
+        .where(NodeVersion.node_id == node.id)
+        .order_by(NodeVersion.at.desc(), NodeVersion.id)
+        .limit(1)
+    )
+    return latest == version.id and version.blob_hash == (node.blob_hash or "")
 
 
 def stream(v: fs.View, path: str, version_id: str = ""):

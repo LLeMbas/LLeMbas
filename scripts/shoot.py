@@ -727,8 +727,12 @@ def _seed_devices_reports_schedules() -> None:
                     token_id=token.id, user_id=owner.id, name=token.name,
                     send_text=None, close=None,
                     hello={"device": {"host": host},
-                           "limits": {"roots": ["~/projects"], "max_mode": "edit"}},
-                    initialized={"_meta": {"lembas": {"capabilities": ["jobs", "status"]}}},
+                           # device-1 accepts scheduled work, so the schedule
+                           # form's Agentic type can be chosen (`SHOOT_OPEN`).
+                           "limits": {"roots": ["~/projects"], "max_mode": "edit",
+                                      "scheduled": host == "device-1"}},
+                    initialized={"_meta": {"lembas": {"capabilities": [
+                        "jobs", "status", "scheduled"]}}},
                 )
                 link.request = _fake_device_requests  # type: ignore[method-assign]
                 device_link.LINKS[token.id] = link

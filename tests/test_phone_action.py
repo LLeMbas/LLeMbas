@@ -255,3 +255,85 @@ def test_the_interactions_route_carries_the_result(client, db, registered, monke
     assert response.status_code == 200, response.text
     assert got["picks"]["phone"] == ["failed"]
     assert got["picks"]["text.phone"] == ["Google Maps cannot stop a route."]
+
+
+def test_every_route_that_starts_a_reply_reads_the_capability(client, db, registered,
+                                                               monkeypatch):
+    """A chat written on the web and then edited, regenerated or carried on
+    from the phone is the phone assistant's from that turn on -- so it is not
+    sent a page the phone cannot draw. Without the capability (the desktop
+    app, an older phone app, no body at all) nothing changes."""
+    from lembas.db.models import Message
+    from lembas.services import html_pages
+
+    monkeypatch.setattr(generation_service, "ensure", lambda *a, **k: None)
+    monkeypatch.setattr(generation_service, "restart", lambda *a, **k: None)
+    _model(db)
+    headers = _bearer(db)
+    declared = {"client": ["phone_actions"]}
+
+    def web_chat() -> tuple[str, str, str]:
+        made = client.post("/api/v2/chats", headers=headers, json={"text": "Hi", "model": "m"})
+        assert made.status_code == 201, made.text
+        chat_id = made.json()["chat"]["id"]
+        asked, reply = made.json()["message"]["id"], made.json()["reply"]["id"]
+        finish(chat_id)
+        return chat_id, asked, reply
+
+    def finish(chat_id: str) -> None:
+        db.expire_all()
+        for row in db.scalars(select(Message).where(Message.chat_id == chat_id)):
+            row.complete = True
+            row.content = row.content or "Done."
+        db.commit()
+
+    def mark(chat_id: str) -> str:
+        db.expire_all()
+        return db.get(Chat, chat_id).phone_message_id
+
+    # Regenerate: with no body, then with one that declares nothing.
+    chat_id, asked, reply = web_chat()
+    url = f"/api/v2/chats/{chat_id}/messages/{reply}/regenerate"
+    assert client.post(url, headers=headers).status_code == 200
+    finish(chat_id)
+    assert client.post(url, headers=headers, json={}).status_code == 200
+    finish(chat_id)
+    assert mark(chat_id) == ""
+    assert html_pages.where_of(db.get(Chat, chat_id)) == ""
+    # From the phone: the turn it answers is the phone's.
+    assert client.post(url, headers=headers, json=declared).status_code == 200
+    assert mark(chat_id) == asked
+    assert html_pages.where_of(db.get(Chat, chat_id)) == "phone_assistant"
+
+    # Edit.
+    chat_id, asked, _ = web_chat()
+    url = f"/api/v2/chats/{chat_id}/messages/{asked}/edit"
+    assert client.post(url, headers=headers, json={"text": "Hello"}).status_code == 200
+    finish(chat_id)
+    assert mark(chat_id) == ""
+    assert client.post(url, headers=headers, json={"text": "Hey", **declared}).status_code == 200
+    assert mark(chat_id) == asked
+
+    # Continue: the turn it writes is the phone's.
+    chat_id, _, _ = web_chat()
+    url = f"/api/v2/chats/{chat_id}/continue"
+    assert client.post(url, headers=headers).status_code == 201
+    finish(chat_id)
+    assert mark(chat_id) == ""
+    carried = client.post(url, headers=headers, json=declared)
+    assert carried.status_code == 201 and mark(chat_id) == carried.json()["message"]["id"]
+
+    # Carrying out a plan.
+    chat_id, _, _ = web_chat()
+    chat = db.get(Chat, chat_id)
+    chat.plan_json = {"version": 2, "title": "Bake", "phases": [
+        {"id": "p1", "title": "Bake", "tasks": [{"id": "t1", "title": "Knead", "status": "todo"}]}
+    ]}
+    db.commit()
+    url = f"/api/v2/chats/{chat_id}/plan/execute"
+    plain = client.post(url, headers=headers)
+    assert plain.status_code == 201, plain.text
+    finish(chat_id)
+    assert mark(chat_id) == ""
+    done = client.post(url, headers=headers, json=declared)
+    assert done.status_code == 201 and mark(chat_id) == done.json()["message"]["id"]

@@ -70,7 +70,7 @@
     <span class="fx-file__name">
       {{ icon("file-code" if opened.kind in ("code", "html") else "file-text", "icon--sm") }}
       <strong class="truncate">{{ opened.name }}</strong>
-      <span class="fx-file__meta">{{ size(opened.size) }}{% if opened.version %} · {{ t("an older version") }}{% elif not opened.writable %} · {{ t("read-only") }}{% endif %}</span>
+      <span class="fx-file__meta">{{ size(opened.size) }}{% if opened.older %} · {{ t("an older version") }}{% elif not opened.writable %} · {{ t("read-only") }}{% endif %}</span>
     </span>
 
     {% if editing and previewable %}
@@ -126,7 +126,7 @@
       </div>
       {% endif %}
 
-      {% if opened.version %}
+      {% if opened.older %}
       <a class="btn btn--sm" href="/files/view?path={{ path|urlencode }}">{{ t("Back to the current one") }}</a>
       {% endif %}
       <a class="btn btn--icon btn--sm" href="{{ raw_url }}" download

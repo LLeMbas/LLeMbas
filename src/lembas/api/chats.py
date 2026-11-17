@@ -2300,11 +2300,14 @@ async def edit_message(
 
 
 async def rewind_to(
-    db: DBSession, chat: Chat, user: User, message_id: str, content: str
+    db: DBSession, chat: Chat, user: User, message_id: str, content: str,
+    *, phone: bool = False,
 ) -> Message:
     """Rewrite one of the person's turns, drop everything after it, and start
     the reply again: the new reply's row. The core of `edit_message`, shared
-    with the app's JSON door."""
+    with the app's JSON door. `phone`: the edit came from the person's phone
+    app (`_from_phone`), so the reply is the phone assistant's -- as it would
+    be had the message been sent from there."""
     message = db.get(Message, message_id)
     if message is None or message.chat_id != chat.id or message.role != ROLE_USER:
         raise HTTPException(status.HTTP_404_NOT_FOUND, t("That message no longer exists."))
@@ -2336,6 +2339,8 @@ async def rewind_to(
     if chat.device_token_id:
         await _device_rewind(chat, message)
 
+    if phone:
+        _from_phone(db, chat, message)
     message.content = content
 
     # Attachments cascade with their message, so the files go too.
@@ -3380,10 +3385,15 @@ async def regenerate(
     )
 
 
-async def regenerate_reply(db: DBSession, chat: Chat, user: User, message_id: str) -> Message:
+async def regenerate_reply(
+    db: DBSession, chat: Chat, user: User, message_id: str, *, phone: bool = False
+) -> Message:
     """Blank a reply and produce it again: the row, reused. The core of
     `regenerate`, shared with the app's JSON door. A reply still being
-    written is stopped first, as for an edit."""
+    written is stopped first, as for an edit. `phone`: asked for from the
+    person's phone app, so the new reply is the phone assistant's
+    (`_from_phone`, on the turn it answers) -- a chat written on the web and
+    regenerated on the phone must not be sent a page the phone cannot draw."""
     await _stop_running(db, chat)
     message = db.get(Message, message_id)
     if message is None or message.chat_id != chat.id or message.role != ROLE_ASSISTANT:
@@ -3408,6 +3418,18 @@ async def regenerate_reply(db: DBSession, chat: Chat, user: User, message_id: st
         await _device_rewind(chat, asked)
         _renew_turn(db, asked)
 
+    if phone:
+        asked = db.scalars(
+            select(Message)
+            .where(
+                Message.chat_id == chat.id,
+                Message.role == ROLE_USER,
+                Message.created_at <= message.created_at,
+            )
+            .order_by(Message.created_at.desc())
+        ).first()
+        if asked is not None:
+            _from_phone(db, chat, asked)
     message.content = ""
     message.error = ""
     message.complete = False

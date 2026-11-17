@@ -333,25 +333,47 @@ async def stop(caller: Me, db: Db, chat_id: str, message_id: str) -> Response:
 async def edit(
     caller: Me, db: Db, chat_id: str, message_id: str, body: dict[str, Any] = Body(...)
 ) -> dict[str, Any]:
+    """Rewrite a turn and answer it again. `text`, and `client` as on
+    `POST /chats/{id}/messages`: every route that starts a reply reads it, so
+    a reply asked for from the phone is the phone assistant's whichever
+    button asked."""
     chat = owned_chat(db, chat_id, caller.user)
-    reply = await chats_api.rewind_to(db, chat, caller.user, message_id, _text(body))
+    reply = await chats_api.rewind_to(
+        db, chat, caller.user, message_id, _text(body), phone=_phone(body)
+    )
     return _turn(None, reply)
 
 
+def _phone(body: dict[str, Any] | None) -> bool:
+    """Whether the sending app declared `client: ["phone_actions"]` (harness
+    spec 3.6.0). No body, or none of it: an app that does not -- the desktop
+    app, an older phone app -- and nothing changes for it."""
+    return phone_service.declares((body or {}).get("client"))
+
+
 @router.post("/chats/{chat_id}/messages/{message_id}/regenerate")
-async def regenerate(caller: Me, db: Db, chat_id: str, message_id: str) -> dict[str, Any]:
+async def regenerate(
+    caller: Me, db: Db, chat_id: str, message_id: str,
+    body: dict[str, Any] | None = Body(None),
+) -> dict[str, Any]:
+    """Answer a turn again. The body is optional: `{"client": [...]}`."""
     chat = owned_chat(db, chat_id, caller.user)
-    reply = await chats_api.regenerate_reply(db, chat, caller.user, message_id)
+    reply = await chats_api.regenerate_reply(
+        db, chat, caller.user, message_id, phone=_phone(body)
+    )
     return _turn(None, reply)
 
 
 @router.post("/chats/{chat_id}/continue", status_code=status.HTTP_201_CREATED)
-async def continue_chat(caller: Me, db: Db, chat_id: str) -> dict[str, Any]:
+async def continue_chat(
+    caller: Me, db: Db, chat_id: str, body: dict[str, Any] | None = Body(None)
+) -> dict[str, Any]:
+    """Carry on. The body is optional: `{"client": [...]}`."""
     from lembas.services import harness_spec
 
     chat = owned_chat(db, chat_id, caller.user)
     user_message, reply = chats_api.write_turn(
-        db, chat, caller.user, harness_spec.prompt("tasks/continue.md")
+        db, chat, caller.user, harness_spec.prompt("tasks/continue.md"), phone=_phone(body)
     )
     return _turn(user_message, reply)
 
@@ -649,11 +671,14 @@ async def execute_plan(
     caller: Me, db: Db, chat_id: str, body: dict[str, Any] | None = Body(None)
 ) -> dict[str, Any]:
     """Carry out a plan: `message_id` names the reply whose snapshot to carry
-    out, or is absent for the chat's plan as it stands (the panel's button)."""
+    out, or is absent for the chat's plan as it stands (the panel's button).
+    `client` as on every route that starts a reply."""
     chat = owned_chat(db, chat_id, caller.user)
     which = str((body or {}).get("message_id") or "current")
     content = chats_api.plan_prompt(db, chat, which)
-    user_message, reply = chats_api.write_turn(db, chat, caller.user, content)
+    user_message, reply = chats_api.write_turn(
+        db, chat, caller.user, content, phone=_phone(body)
+    )
     return _turn(user_message, reply)
 
 
