@@ -1,6 +1,6 @@
 # Permission rules: which one decides
 
-Spec 3.8.0. The rules are data (`defaults.json`, the person's own config, a project's, and those
+Spec 3.8.0; §2 rule 2 amended in 3.9.0. The rules are data (`defaults.json`, the person's own config, a project's, and those
 made while a session runs); the modes say what happens to a call no rule settles (`modes.json`);
 the hardline is under all of it (`hardline.json`). This says **which rule decides a call when
 several match** — in both implementations, for a rule a person typed into a file exactly as for
@@ -38,6 +38,15 @@ than it (`deny` over `ask` over `allow`) — the strictest of them decides:
    `read *.env: ask` asking, and `bash: allow` leaves `bash "git push *": ask`: a later, broader
    rule changes what a broader rule decided, never what somebody wrote for the narrower case. To
    allow the narrow thing, name it.
+
+   **A narrower rule that a later one narrows again does not count** (spec 3.9.0): among those
+   rules, one is set aside when a rule read after it also matches the call and is narrower than
+   it — that later rule is what was written for the case. The defaults say `read *.env.*: ask`
+   and then `read *.env.example: allow`; under a candidate `read *` only the second counts for
+   `.env.example`, so an example file is read without asking after a broad allow exactly as
+   before it. (Before 3.9.0 both counted and the strictest won: making `read: allow` *started*
+   asking about `.env.example`.) Order still matters as it does in a file: a narrower rule read
+   *before* the rule it narrows sets nothing aside.
 3. **The person's own answer.** What the `user` layer alone says of the call — its last matching
    rule, of any breadth. A project, an "always" answer and a menu cannot loosen what the person's
    own configuration says.
@@ -66,4 +75,5 @@ When a person makes a rule — an "always" answer, or one set in a menu:
   every call the same way.
 - The person is told what it did: where it holds, whether it was saved, and **which stricter
   rules still apply** — every rule of the `default`, `user` or `project` layer that is narrower
-  than the new rule and stricter than it.
+  than the new rule and stricter than it. (A rule set aside for every call it could decide is
+  still listed: the list is of rules, not of calls.)

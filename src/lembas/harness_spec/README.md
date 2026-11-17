@@ -31,11 +31,11 @@ page *Harness-parity* in LLeMbas CLI's wiki.
 | `progress.md` | Progress (3.4.0): the thirteen phases every client shows the same way, the data each carries, their texts, and where they are sent |
 | `reports.md` | Reports (3.8.0): a schedule's run files a report with `report_write`, or leaves a history line; notify-when (`always`, `when`, `never`) and the instruction for each; what a run leaves; the retired `[SILENT]`; a run on a linked computer |
 | `pages.md` | HTML pages in answers (3.8.0, experimental): the `html-view` fence, what the model is told, the note and the text projection for a reader that cannot show a page, when pages are offered, the session note, the frame |
-| `permission/rules.md` | Which permission rule decides (3.8.0): the layers, the candidate, the floors a later-made rule gives way to, and what making a rule does |
+| `permission/rules.md` | Which permission rule decides (3.8.0): the layers, the candidate, the floors a later-made rule gives way to (3.9.0: a narrower rule that a later one narrows again is set aside), and what making a rule does |
 | `display.md` | Display (3.7.0): one display in every client — a tool call's title, its four states, the duration and the facts beside it, the kinds of block; how `stopped` and `failed` stay on a finished reply; what the approval, question and plan cards offer; numbers in the client's locale |
 | `quirks.json` | What real servers do, and how both harnesses cope |
 | `conformance/<area>.json` | Cases with their expected results, run by both test suites |
-| `acp.md` | The link between them: ACP plus every `_lembas/*` method, field and capability |
+| `acp.md` | The link between them: ACP plus every `_lembas/*` method, field and capability; scheduled work on a linked computer (3.5.0) and the two types of schedule, Chat and Agentic (3.9.0); the model last used in a directory (3.9.0) |
 
 ## Vocabulary
 
@@ -77,6 +77,38 @@ page *Harness-parity* in LLeMbas CLI's wiki.
   (`context.md` §10). All three are offered in every mode; `plan_submit` (`requires: plan`) is the
   approval in plan mode and answers its `unavailable` text outside it. Their permission key is
   `plan` (`permission/defaults.json`), which a rule written for the former `todo` key still reaches.
+
+## 3.9.0
+
+Written ahead of the implementations; the CLI carries it in the same round. A new capability and
+a field, a rule amended, no tool and no text for a model.
+
+- **The model last used in a directory** (`acp.md`, section of that name; capability
+  `directory_model`; `conformance/last_model.json`). A new agent session in a directory starts on
+  the model last used in exactly that directory — from the terminal, the web, the desktop app or
+  a phone — instead of the instance's default. The memory is the device's and stays on it
+  (`models.json` in the CLI's state): the server keeps no record. The device writes it when a
+  person's turn begins and when the person changes the session's model; never for a subagent, a
+  turn the harness started, a command's own model, a one-shot run or a schedule's session. A
+  session of the device's own starts by: the model asked for, the project's setting, **the
+  directory's model** (while it is served), the global setting, the instance's default.
+  `_lembas/directories` carries it — `model` on each `Dir` and on the answered directory — and
+  takes `list: false` to describe one directory without listing it. The client's rule: a new
+  agent chat on (device, directory) with no model chosen starts on that model when the person
+  still has it, else as before; an older device sends no `model`, which reads as *as before*.
+- **Schedules have two types, Chat and Agentic** (`acp.md` *Scheduled work on a linked
+  computer*): Agentic is a schedule with `runs_on` — one device, one directory, the agent's tools
+  there — and Chat one without; no new field. **The run's model** of an Agentic schedule: the
+  model the schedule names, else the model last used in its directory on that device (asked of
+  the device as the run starts) when the person still has it, else as before. **A scheduled run
+  never becomes the directory's model.** A device that is away was already specified (3.5.0: the
+  run waits, then is missed); the model is resolved only once it is linked.
+- **Permission rules** (`permission/rules.md` §2 rule 2; six cases in `conformance/rules.json`):
+  among the narrower rules a later-made candidate gives way to, one that a later rule narrows
+  again is set aside. The defaults ask about `*.env.*` and then allow `*.env.example`; after a
+  broad `read: allow` both counted and the strictest won, so making the allow *started* asking
+  about `.env.example`. Now the example file is read without asking after it as before it.
+  LLeMbas: the same change in its rule lookup, if it has the same floor.
 
 ## 3.8.1
 

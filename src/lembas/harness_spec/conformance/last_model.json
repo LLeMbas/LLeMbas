@@ -1,0 +1,312 @@
+{
+  "about": "Spec 3.9.0 (acp.md *The model last used in a directory*; *Scheduled work*, *The run's model*). Three kinds. `kind: start` — the device: which model a session of its own starts on. `asked`: the model asked for at the start (--model; model / lembas_model in session/new); `project`: `model` in a trusted project's configuration; `directory`: the model remembered for exactly this directory; `global`: `model` in the device's global configuration; `served`: the ids the login serves now; `default`: the instance's default. → `{model, from}`, `from` one of `asked`, `project`, `directory`, `global`, `default`. Only the directory's model is checked against `served` and skipped when it is not there; the others are taken as written (a model nobody serves is that source's own error, as before). `kind: record` — the device: whether something makes the session's model the directory's. `session`: `terminal`, `link` (a session the client opened, or a terminal's shared one), `stdio`, `run` (one-shot lembas run) or `scheduled` (a session a schedule opened for its run); `agent`: `main` or `subagent`; `what`: `turn` (a turn begins; `machine: true` when the harness started it), `change` (the person changes the session's model: /model, a setting, _lembas/configure) or `command` (a command's own model, for its prompt). → true or false. `kind: client` — the client (LLeMbas): the model a new agent chat on a device and directory, or a schedule's run there, starts on. `named`: the model the person chose for the chat, or the schedule names (absent: none); `directory`: `model` of the directory in the device's _lembas/directories answer (absent: none, an older device, or a device not asked); `has`: the models the person has now; `default`: what a chat or schedule without a model started on before 3.9.0. → `{model, from}`, `from` one of `named`, `directory`, `default`. CLI: src/session/lastmodel.ts.",
+  "cases": [
+    {
+      "about": "Nothing but the instance's default.",
+      "kind": "start",
+      "served": [
+        "deepseek/deepseek-flash",
+        "qwen/qwen3"
+      ],
+      "default": "deepseek/deepseek-flash",
+      "expect": {
+        "model": "deepseek/deepseek-flash",
+        "from": "default"
+      }
+    },
+    {
+      "about": "The global setting — what a login writes — over the instance's default.",
+      "kind": "start",
+      "global": "qwen/qwen3",
+      "served": [
+        "deepseek/deepseek-flash",
+        "qwen/qwen3"
+      ],
+      "default": "deepseek/deepseek-flash",
+      "expect": {
+        "model": "qwen/qwen3",
+        "from": "global"
+      }
+    },
+    {
+      "about": "The model last used in this directory over the global setting.",
+      "kind": "start",
+      "directory": "mistral/devstral",
+      "global": "qwen/qwen3",
+      "served": [
+        "deepseek/deepseek-flash",
+        "qwen/qwen3",
+        "mistral/devstral"
+      ],
+      "default": "deepseek/deepseek-flash",
+      "expect": {
+        "model": "mistral/devstral",
+        "from": "directory"
+      }
+    },
+    {
+      "about": "The project's setting over the directory's memory: it is written down on purpose.",
+      "kind": "start",
+      "project": "qwen/qwen3",
+      "directory": "mistral/devstral",
+      "global": "deepseek/deepseek-flash",
+      "served": [
+        "deepseek/deepseek-flash",
+        "qwen/qwen3",
+        "mistral/devstral"
+      ],
+      "default": "deepseek/deepseek-flash",
+      "expect": {
+        "model": "qwen/qwen3",
+        "from": "project"
+      }
+    },
+    {
+      "about": "The model asked for over everything.",
+      "kind": "start",
+      "asked": "deepseek/deepseek-flash",
+      "project": "qwen/qwen3",
+      "directory": "mistral/devstral",
+      "global": "qwen/qwen3",
+      "served": [
+        "deepseek/deepseek-flash",
+        "qwen/qwen3",
+        "mistral/devstral"
+      ],
+      "default": "qwen/qwen3",
+      "expect": {
+        "model": "deepseek/deepseek-flash",
+        "from": "asked"
+      }
+    },
+    {
+      "about": "The remembered model is no longer served: skipped, the global setting decides.",
+      "kind": "start",
+      "directory": "mistral/devstral",
+      "global": "qwen/qwen3",
+      "served": [
+        "deepseek/deepseek-flash",
+        "qwen/qwen3"
+      ],
+      "default": "deepseek/deepseek-flash",
+      "expect": {
+        "model": "qwen/qwen3",
+        "from": "global"
+      }
+    },
+    {
+      "about": "…and with no global setting, the instance's default.",
+      "kind": "start",
+      "directory": "mistral/devstral",
+      "served": [
+        "deepseek/deepseek-flash",
+        "qwen/qwen3"
+      ],
+      "default": "deepseek/deepseek-flash",
+      "expect": {
+        "model": "deepseek/deepseek-flash",
+        "from": "default"
+      }
+    },
+    {
+      "about": "A global setting is not checked against the list here: it is taken as written.",
+      "kind": "start",
+      "global": "old/model",
+      "served": [
+        "deepseek/deepseek-flash"
+      ],
+      "default": "deepseek/deepseek-flash",
+      "expect": {
+        "model": "old/model",
+        "from": "global"
+      }
+    },
+    {
+      "about": "A person's turn in a terminal.",
+      "kind": "record",
+      "session": "terminal",
+      "agent": "main",
+      "what": "turn",
+      "expect": true
+    },
+    {
+      "about": "A person's turn in a session the client opened.",
+      "kind": "record",
+      "session": "link",
+      "agent": "main",
+      "what": "turn",
+      "expect": true
+    },
+    {
+      "about": "An editor's session.",
+      "kind": "record",
+      "session": "stdio",
+      "agent": "main",
+      "what": "turn",
+      "expect": true
+    },
+    {
+      "about": "The person switches model.",
+      "kind": "record",
+      "session": "terminal",
+      "agent": "main",
+      "what": "change",
+      "expect": true
+    },
+    {
+      "about": "The chat's model is changed from the client between turns.",
+      "kind": "record",
+      "session": "link",
+      "agent": "main",
+      "what": "change",
+      "expect": true
+    },
+    {
+      "about": "A turn the harness started — a finished job's note — is nobody's choice.",
+      "kind": "record",
+      "session": "terminal",
+      "agent": "main",
+      "what": "turn",
+      "machine": true,
+      "expect": false
+    },
+    {
+      "about": "A subagent's model is not the directory's.",
+      "kind": "record",
+      "session": "terminal",
+      "agent": "subagent",
+      "what": "turn",
+      "expect": false
+    },
+    {
+      "about": "A command's own model holds for its prompt only.",
+      "kind": "record",
+      "session": "terminal",
+      "agent": "main",
+      "what": "command",
+      "expect": false
+    },
+    {
+      "about": "A one-shot run from a script.",
+      "kind": "record",
+      "session": "run",
+      "agent": "main",
+      "what": "turn",
+      "expect": false
+    },
+    {
+      "about": "A scheduled run never becomes the directory's model.",
+      "kind": "record",
+      "session": "scheduled",
+      "agent": "main",
+      "what": "turn",
+      "expect": false
+    },
+    {
+      "about": "…nor does a model change on a schedule's session.",
+      "kind": "record",
+      "session": "scheduled",
+      "agent": "main",
+      "what": "change",
+      "expect": false
+    },
+    {
+      "about": "A new agent chat, no model chosen, the directory remembers one the person has.",
+      "kind": "client",
+      "directory": "mistral/devstral",
+      "has": [
+        "deepseek/deepseek-flash",
+        "mistral/devstral"
+      ],
+      "default": "deepseek/deepseek-flash",
+      "expect": {
+        "model": "mistral/devstral",
+        "from": "directory"
+      }
+    },
+    {
+      "about": "The person chose a model: theirs, whatever the directory remembers.",
+      "kind": "client",
+      "named": "deepseek/deepseek-flash",
+      "directory": "mistral/devstral",
+      "has": [
+        "deepseek/deepseek-flash",
+        "mistral/devstral"
+      ],
+      "default": "deepseek/deepseek-flash",
+      "expect": {
+        "model": "deepseek/deepseek-flash",
+        "from": "named"
+      }
+    },
+    {
+      "about": "The person no longer has the remembered model: as before.",
+      "kind": "client",
+      "directory": "mistral/devstral",
+      "has": [
+        "deepseek/deepseek-flash"
+      ],
+      "default": "deepseek/deepseek-flash",
+      "expect": {
+        "model": "deepseek/deepseek-flash",
+        "from": "default"
+      }
+    },
+    {
+      "about": "An older device, or one that remembers nothing there: as before.",
+      "kind": "client",
+      "has": [
+        "deepseek/deepseek-flash",
+        "mistral/devstral"
+      ],
+      "default": "deepseek/deepseek-flash",
+      "expect": {
+        "model": "deepseek/deepseek-flash",
+        "from": "default"
+      }
+    },
+    {
+      "about": "An Agentic schedule that names no model follows the directory.",
+      "kind": "client",
+      "directory": "qwen/qwen3",
+      "has": [
+        "deepseek/deepseek-flash",
+        "qwen/qwen3"
+      ],
+      "default": "deepseek/deepseek-flash",
+      "expect": {
+        "model": "qwen/qwen3",
+        "from": "directory"
+      }
+    },
+    {
+      "about": "A schedule that names one runs on it.",
+      "kind": "client",
+      "named": "deepseek/deepseek-flash",
+      "directory": "qwen/qwen3",
+      "has": [
+        "deepseek/deepseek-flash",
+        "qwen/qwen3"
+      ],
+      "default": "qwen/qwen3",
+      "expect": {
+        "model": "deepseek/deepseek-flash",
+        "from": "named"
+      }
+    },
+    {
+      "about": "The directory's model is compared exactly: another spelling is not the model.",
+      "kind": "client",
+      "directory": "Mistral/Devstral",
+      "has": [
+        "deepseek/deepseek-flash",
+        "mistral/devstral"
+      ],
+      "default": "deepseek/deepseek-flash",
+      "expect": {
+        "model": "deepseek/deepseek-flash",
+        "from": "default"
+      }
+    }
+  ]
+}

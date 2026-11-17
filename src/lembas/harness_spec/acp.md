@@ -68,6 +68,7 @@ change to the protocol is a change here first, then in both projects.
 | `agents` | spec 3.4.0: the session's Subagents setting `{ min, max }` is read from `_meta.lembas.agents` on `session/new`, `session/prompt` and `_lembas/configure` (*Subagents in an agent chat*, below) |
 | `tree` | spec 3.4.0 (`subagents.md` §5–§13): the `team` event; `_lembas/team`, `_lembas/team/transcript`, `_lembas/team/findings`, `_lembas/team/stop`; `subagent` on `session/request_permission` |
 | `scheduled` | spec 3.5.0 (*Scheduled work on a linked computer*, below): `scheduled` in `_meta.lembas` of `session/new` and `session/prompt` read, and the run's outcome in the prompt's answer; `scheduled` on `session/request_permission`; `_lembas/monitor`; `limits.scheduled` in `_lembas/hello` and `initialize`. Listed by every build that has it, whatever the setting says: whether this device *accepts* scheduled work is `limits.scheduled` |
+| `directory_model` | spec 3.9.0 (*The model last used in a directory*, below): `model` on a `Dir` of `_lembas/directories`' answer; `list: false` in its params |
 | `reports` | spec 3.8.0 (`reports.md` §6): `scheduled.notify` in `_meta.lembas` of `session/new` and `session/prompt` read; `report_write` offered to the model of a schedule's run that notifies; the report the run wrote carried in the prompt's answer (`scheduled.report`); the status `silent` no longer given to a turn whose request said `notify` |
 
 ## Standard ACP, as used here
@@ -133,6 +134,9 @@ device never answers on a model of its own instead, and never falls back on its 
 is true for every session the client opened, and a client has nothing to say about a device having
 "answered on its own model": that notice is gone. A session a terminal shares (`announce`) keeps the
 terminal's model, and its `instance` says which it is.
+A session opened with neither `lembas_model` nor `model` starts as a session of the device's own
+does (*The model last used in a directory*: the project's setting, else the model last used in
+`cwd`, else the device's global setting, else the instance's default).
 The id is the device's store id and lasts: a session the client names later that is not in memory
 is opened from the store under the same rules (capability `sessions`). With capability `commands`,
 an `available_commands_update` follows the answer.
@@ -334,6 +338,20 @@ server. The server decides *when*; the device decides *whether*, and *how far* �
 chat has still holds, and the ones below are added. Numbers and texts: `loop.json` `scheduled`.
 Conformance areas `scheduled`, `silent`, `monitor`.
 
+### Two types of schedule: Chat and Agentic (spec 3.9.0)
+
+Every client presents a schedule as one of two types, and the type is what `runs_on` says —
+there is no field of its own:
+
+| Type | `runs_on` | A run is |
+|---|---|---|
+| **Chat** | `null` | a turn on the server, with the server's tools, as a chat's |
+| **Agentic** | `{ device, cwd, mode, approval_wait_minutes }` | an agent turn on **that device**, in **that directory**, with the agent's tools there (the shell, the files), under the device's limits and the schedule's mode |
+
+An Agentic schedule is tied to one device and one directory; it has no meaning without them, and
+a client does not offer the type while no device of the person's accepts scheduled work
+(`limits.scheduled`). Everything below is about the Agentic type.
+
 ### The device's setting: Accept scheduled work
 
 - **`remote.scheduled`** in the device's global config, **off by default**; shown as **Accept
@@ -373,6 +391,27 @@ instead of a second run). A schedule that continues one conversation (`continue`
 session again on its next run; a fresh run opens a new one. The prompt's text is the server's own
 for a scheduled run — the instruction, the run's time, and for a schedule that notifies only when
 it matters the `[SILENT]` hint — composed exactly as for a run on the server; the device adds nothing.
+
+**The run's model** (spec 3.9.0; `conformance/last_model.json`, `kind: client`). The client
+resolves it for every run that opens a session, when the run starts, and sends it as
+`lembas_model`:
+
+1. **the model the schedule names**, when it names one;
+2. else **the model last used in the schedule's directory on that device** — asked of the device
+   then (`_lembas/directories` with `path: cwd, list: false`, capability `directory_model`) —
+   when the person still has it;
+3. else as before 3.9.0: the default a schedule without a model runs on.
+
+So an Agentic schedule that names no model follows the directory: change the model you work with
+there, and the next run uses it. A schedule that continues one conversation keeps its session's
+model from run to run; the client changes it (`_lembas/configure`) only when the schedule names a
+model and the session is on another. The device is linked whenever this is asked — a run whose
+device is away is `waiting` before anything is resolved (*When the device is away*).
+
+**A scheduled run never becomes the directory's model.** The device records nothing for a session
+a schedule opened — not the run's turn, not a `_lembas/configure` on it, not a turn the person
+writes into the run's chat afterwards (`kind: record`). Otherwise a schedule that names a small
+model for a nightly check would decide what the person's next chat in that folder starts on.
 
 **The mode** (`scheduled.mode`; `_meta.mode` is ignored for a scheduled session): `manual`, `edit`
 or `auto`, and **`edit` when absent** — so a run is never wider than Edit unless the person picked
@@ -476,6 +515,82 @@ tool reads them — followed by a newline and the exit status as decimal digits 
 the device hashes the output as it streams, however long). Nothing is normalised: a watch command
 that prints a time changes every time, and should not.
 
+## The model last used in a directory (spec 3.9.0)
+
+**A new agent session in a directory starts on the model last used in that directory**, wherever
+it is started from — the terminal, the web, the desktop app, a phone — instead of the instance's
+default. What is remembered is **the device's, and stays on the device**: the server keeps no
+record of it, so removing a device, or LLeMbas from it, leaves nothing of it behind on the
+server. Capability `directory_model`; conformance area `last_model`.
+
+### What the device remembers
+
+- **One model per directory**: the ref (`provider/model`, the served id) of the model last used in
+  a session whose working directory is exactly that directory. The key is the directory's absolute
+  path as the file system has it — symlinks followed, no trailing slash — compared exactly:
+  **a directory does not inherit its parent's model, nor a parent its child's.**
+- **Where**: in the device's own state (`models.json` in the CLI's state directory, written
+  atomically, mode 0600; local mode keeps it in the local root). Never in the project, never in
+  a session, never on the server. `lembas uninstall --purge` removes it with the rest of the
+  state; a plain uninstall keeps it with the settings and sessions, as it keeps those. The file
+  holds at most 500 directories — the ones used longest ago go first — and a directory that no
+  longer exists is dropped when the file is next written.
+- **When it is written** (`conformance/last_model.json`, `kind: record`) — for the main agent of a
+  session, in a terminal, on the link (`lembas service`) and on `serve --stdio` alike:
+  1. **a turn a person started begins**: the model the turn runs on is the directory's;
+  2. **the person changes the session's model** between turns or during one (`/model`, a setting,
+     `_lembas/configure` with a `model`): the new model is the directory's at once.
+
+  And **not**: a turn the harness started (`machine`: a job's note, a subagent's message); a
+  subagent's model; a command's own `model`, which holds for that prompt only; a one-shot
+  `lembas run`; and **anything in a session a schedule opened for its run** — a scheduled run
+  uses the directory's model (below) and never changes it, whichever model the schedule names.
+
+### How a session of the device's own starts
+
+The first of these that names a model (`kind: start`):
+
+| # | Source | |
+|---|---|---|
+| 1 | the model asked for at the start | `--model`; `model` / `lembas_model` in `session/new` |
+| 2 | the project's setting | `model` in a trusted project's configuration |
+| 3 | **the model last used in this directory** | only while the login still serves it; otherwise skipped, silently, and kept |
+| 4 | the device's global setting | `model` in the global configuration — what a login writes as its default |
+| 5 | the instance's default | |
+
+A project's setting comes first because it is written down on purpose and travels with the
+project; the directory's memory comes before the global setting because the global setting is the
+default for every directory that has none. A session opened from the store again starts by the
+same order; so does a one-shot `lembas run`, which records nothing.
+
+### What the device tells the client
+
+`_lembas/directories` (below) says the remembered model of each directory it describes: `model`
+on a `Dir`, and on the answered directory itself — present only where one is remembered **and**
+the directory is `accepted`. It is the ref as recorded; the device does not vouch that the
+instance still serves it. To ask about one directory without listing it, `list: false`.
+
+A device without the capability (before 3.9.0) sends no `model` and ignores `list`: the client
+then finds no `model` in the answer and starts as it did before.
+
+### The client's rule
+
+**A new agent chat on (device, directory) for which the person chose no model starts on the
+directory's `model`, when the person still has that model** (it is one the instance serves to
+them now); otherwise as before 3.9.0 — the person's or the instance's default. The same holds
+for a schedule's run on a device (*Scheduled work*, *The run's model*).
+
+- The client asks when the chat is made (`_lembas/directories` with the chat's `path` and
+  `list: false`; a directory dialog that has just listed the folder already holds the answer) and
+  may show the model as the choice it starts from. A device that is not linked then, or has no
+  capability, or answers without `model`: as before.
+- A model the person chose is the chat's whatever the directory remembers — and, once a turn runs
+  on it, it is what the directory remembers next.
+- **The client does not keep it**: the `model` of a directory is used for the session being
+  opened and stored nowhere but as that chat's own model. The device is asked again next time.
+  (`kind: client` — the model a chat or a run starts on, from what was named, what the directory
+  says, the models the person has and the default.)
+
 ## `_lembas/*` methods
 
 Direction is who sends it. "→ result" marks a request; the others are notifications.
@@ -540,10 +655,39 @@ of the output as it streams and keeps at most `scheduled.monitor.output_max_byte
 
 ### `_lembas/directories` — client → agent → result
 
-Params `{ path?: string }`. Without a path: `{ path: "", places: Dir[] }`, the remote roots and every
-trusted directory inside them. With one (absolute, inside the roots): `{ …Dir, parent, entries: Dir[], error? }`.
-`Dir = { path, name, accepted: boolean, reason? }` — whether `session/new` would accept it.
-Only on the link (an error on `serve --stdio`).
+Params `{ path?: string, list?: boolean }`. Only on the link (an error on `serve --stdio`).
+
+`Dir = { path, name, accepted: boolean, reason?, model? }` — `accepted`: whether `session/new`
+would accept it (`reason`: why not); **`model`** (capability `directory_model`, spec 3.9.0): the
+ref of the model last used in exactly that directory, absent where none is remembered or the
+directory is not accepted (*The model last used in a directory*).
+
+- **Without a path**: `{ path: "", places: Dir[] }`, the remote roots and every trusted directory
+  inside them. (`list` is ignored.)
+- **With one** (absolute, inside the roots): `{ …Dir, parent, entries: Dir[], error? }` — the
+  directory itself, its parent (`""` at a root), and its subdirectories (hidden ones and
+  `node_modules` left out, at most 300, by name).
+- **With one and `list: false`** (capability `directory_model`): `{ …Dir, parent }` — the directory
+  alone; nothing is listed, and `entries` is absent. This is how a client asks for one
+  directory's `model`.
+
+```json
+→ { "path": "/home/user" }
+← { "path": "/home/user", "name": "user", "accepted": false, "reason": "…", "parent": "",
+    "entries": [
+      { "path": "/home/user/notes", "name": "notes", "accepted": true },
+      { "path": "/home/user/project", "name": "project", "accepted": true, "model": "deepseek/deepseek-flash" } ] }
+
+→ { "path": "/home/user/project", "list": false }
+← { "path": "/home/user/project", "name": "project", "accepted": true,
+    "model": "deepseek/deepseek-flash", "parent": "/home/user" }
+
+→ { "path": "/home/user/notes", "list": false }
+← { "path": "/home/user/notes", "name": "notes", "accepted": true, "parent": "/home/user" }
+```
+
+A device before 3.9.0 ignores `list` and answers the second request with `entries` and without
+`model`; a client reads `model` only, and an absent one means *start as before*.
 
 ### `_lembas/configure` — client → agent → result
 
@@ -882,7 +1026,8 @@ Besides `/v1/models`, the chat completions, `/api/v1/instance` and `/mcp`:
   `instruction`, `rule`, `description`, `next_runs`, `timezone`. A run's `status` may also be
   **`unchanged`** (monitor mode: the watch saw nothing new; no model ran), and `waiting_for` may be
   **`device`**. A schedule that runs on a linked computer has
-  **`runs_on: { device, device_name, cwd, mode, approval_wait_minutes }`** (else `null`); one that
+  **`runs_on: { device, device_name, cwd, mode, approval_wait_minutes }`** (else `null`) — the
+  **Agentic** type, `null` being **Chat** (spec 3.9.0, *Two types of schedule*); one that
   watches has **`watch: { kind: "url", url } | { kind: "command", command, timeout_s }`** (else
   `null`). Creating one with the device's token, `runs_on.device: "this"` names the calling device.
   A server without these answers 401 or 403 to the device's token, and the CLI says the server is

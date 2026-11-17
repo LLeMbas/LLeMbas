@@ -113,9 +113,16 @@ def deciding(permission: str, pattern: str, rules: list[Rule]) -> Rule | None:
     candidate = hits[-1]
     if candidate.layer in (LAYER_DEFAULT, LAYER_USER):
         return candidate
-    floors = [
+    under = [
         r for r in hits
         if r is not candidate and r.layer in WRITTEN and narrower(r, candidate)
+    ]
+    # A narrower rule that a later one narrows again is set aside (spec 3.9.0):
+    # `read *.env.*: ask` gives way to `read *.env.example: allow` read after
+    # it, as it does with no candidate above them.
+    floors = [
+        r for index, r in enumerate(under)
+        if not any(narrower(later, r) for later in under[index + 1:])
     ]
     own = _last(hits, lambda r: r.layer == LAYER_USER)
     if own is not None:

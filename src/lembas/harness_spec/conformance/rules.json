@@ -1,5 +1,5 @@
 {
-  "about": "Which permission rule decides (permission/rules.md, spec 3.8.0). The rules by layer: `defaults` true — permission/defaults.json as the `default` layer; `user` and `project` — a configuration's permission map (a key's value an action, or a map of pattern → action, read in the order written); `made` — rules made during the session, in order, each `by` an `always` answer or a `menu`. With `request` (`permission`, `pattern`: what one call asks for): expect the action that decides, or null where no rule matches. With `set` (a rule a person makes now, by a menu): expect `result` — `unchanged` (the action is already in force), `refused` with the rule in its way as `by`, or `made` with `still`, the stricter narrower rules that still apply, in the order read. The same answers for a rule typed into a file as for one a menu wrote. LLeMbas: security/permission rules; CLI: src/permission/evaluate.ts.",
+  "about": "Which permission rule decides (permission/rules.md, spec 3.8.0; rule 2's set-aside 3.9.0). The rules by layer: `defaults` true — permission/defaults.json as the `default` layer; `user` and `project` — a configuration's permission map (a key's value an action, or a map of pattern → action, read in the order written); `made` — rules made during the session, in order, each `by` an `always` answer or a `menu`. With `request` (`permission`, `pattern`: what one call asks for): expect the action that decides, or null where no rule matches. With `set` (a rule a person makes now, by a menu): expect `result` — `unchanged` (the action is already in force), `refused` with the rule in its way as `by`, or `made` with `still`, the stricter narrower rules that still apply, in the order read. The same answers for a rule typed into a file as for one a menu wrote. LLeMbas: security/permission rules; CLI: src/permission/evaluate.ts.",
   "cases": [
     {
       "about": "The defaults alone: a file is read, a .env asks.",
@@ -321,6 +321,113 @@
         "pattern": "a.txt"
       },
       "expect": null
+    },
+    {
+      "about": "Spec 3.9.0: a narrower rule that a later one narrows again does not count. The defaults ask about *.env.* and then allow *.env.example; after a broad allow made in a menu the example file is still read without asking.",
+      "defaults": true,
+      "made": [
+        {
+          "permission": "read",
+          "pattern": "*",
+          "action": "allow",
+          "by": "menu"
+        }
+      ],
+      "request": {
+        "permission": "read",
+        "pattern": ".env.example"
+      },
+      "expect": "allow"
+    },
+    {
+      "about": "The same under a project's read: allow, in a subdirectory.",
+      "defaults": true,
+      "project": {
+        "read": "allow"
+      },
+      "request": {
+        "permission": "read",
+        "pattern": "config/.env.example"
+      },
+      "expect": "allow"
+    },
+    {
+      "about": "The same under the broadest rule, made by an \"always\" answer.",
+      "defaults": true,
+      "made": [
+        {
+          "permission": "*",
+          "pattern": "*",
+          "action": "allow",
+          "by": "always"
+        }
+      ],
+      "request": {
+        "permission": "read",
+        "pattern": ".env.example"
+      },
+      "expect": "allow"
+    },
+    {
+      "about": "…and the sibling the defaults do not except still asks: only *.env.* speaks of it.",
+      "defaults": true,
+      "made": [
+        {
+          "permission": "read",
+          "pattern": "*",
+          "action": "allow",
+          "by": "menu"
+        }
+      ],
+      "request": {
+        "permission": "read",
+        "pattern": ".env.production"
+      },
+      "expect": "ask"
+    },
+    {
+      "about": "Order matters as in a file: the narrow allow is read before the ask that takes it in, so nothing is set aside and the ask decides — as it does without the broad rule.",
+      "project": {
+        "read": {
+          "notes.private.md": "allow",
+          "*.private.*": "ask"
+        }
+      },
+      "made": [
+        {
+          "permission": "read",
+          "pattern": "*",
+          "action": "allow",
+          "by": "menu"
+        }
+      ],
+      "request": {
+        "permission": "read",
+        "pattern": "notes.private.md"
+      },
+      "expect": "ask"
+    },
+    {
+      "about": "A later, narrower rule that is stricter is the one that counts just the same.",
+      "project": {
+        "bash": {
+          "git *": "ask",
+          "git push --force *": "deny"
+        }
+      },
+      "made": [
+        {
+          "permission": "bash",
+          "pattern": "*",
+          "action": "allow",
+          "by": "menu"
+        }
+      ],
+      "request": {
+        "permission": "bash",
+        "pattern": "git push --force origin main"
+      },
+      "expect": "deny"
     },
     {
       "about": "Choosing the action already in force changes nothing.",
