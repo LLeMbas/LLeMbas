@@ -5,6 +5,12 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
+## 2.0.0-beta.16 — 2026-11-18
+
+### Fixed
+
+- **A connection's own speech and pictures on Alibaba Cloud Model Studio failed** with "Error -3 while decompressing data: incorrect header check". The provider compresses its answers; the answer was read, and its copy still said it was compressed, so it was undone a second time. Nothing was wrong at the provider, although the message said it could not be reached.
+
 ## 2.0.0-beta.15 — 2026-11-18
 
 ### Added

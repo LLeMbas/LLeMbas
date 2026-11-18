@@ -122,9 +122,14 @@ async def post(
                 data.extend(chunk)
                 if len(data) > MAX_ANSWER_BYTES:
                     raise LLMError(t("The endpoint's answer is larger than this server reads."))
-            answered = httpx.Response(
-                response.status_code, content=bytes(data), headers=response.headers
-            )
+            # `aiter_bytes` has already undone the answer's compression: the
+            # copy made of it must not say it is compressed still, or reading
+            # it undoes it a second time and fails ("incorrect header check").
+            kept = {
+                name: value for name, value in response.headers.items()
+                if name.lower() not in ("content-encoding", "content-length", "transfer-encoding")
+            }
+            answered = httpx.Response(response.status_code, content=bytes(data), headers=kept)
     except httpx.RequestError as exc:
         raise wrap_transport_error(exc, endpoint) from exc
     if answered.status_code >= 400:

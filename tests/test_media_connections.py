@@ -1242,3 +1242,28 @@ def test_the_old_words_and_the_old_order_stay(client, db, registered, mock_http)
                            json={**ask, "model": "comfyui/nope"}).status_code == 404
     finally:
         usage_service.over_image_budget = original
+
+
+async def test_a_compressed_answer_is_read_once(db, user_id, mock_http):
+    """A provider that compresses its JSON (as the real one does): the answer
+    is undone once while it is read, and the copy made of it does not claim to
+    be compressed still -- which failed as "incorrect header check"."""
+    import gzip
+
+    cloud = _connection(db, base_url=CLOUD_URL, provider_type=providers.ALIBABA)
+    _media(db, cloud, {"capability": "image", "model": "qwen-image-3.0"})
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            body = json.dumps({"output": {"choices": [{"message": {"content": [
+                {"image": "https://results.example.org/x.png?Expires=1"}]}}]}}).encode()
+            return httpx.Response(
+                200, content=gzip.compress(body),
+                headers={"Content-Encoding": "gzip", "Content-Type": "application/json"},
+            )
+        return httpx.Response(200, content=PNG)
+
+    mock_http(handler)
+    settings_store.update(db, {"enabled": True}, key=settings_store.IMAGES)
+    source = sources.chain(db, "image", cloud)[0]
+    assert await pictures.generate(source, "a lamp", width=1024, height=768) == PNG
