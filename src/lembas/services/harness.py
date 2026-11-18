@@ -199,6 +199,17 @@ def _image_models(db: DBSession) -> str:
     return ", ".join(settings_store.images(db).get("checkpoints") or [])
 
 
+def _image_hosted(offered: list[dict[str, Any]]) -> bool:
+    """Whether the image tool on offer is the one for a connection's own
+    image model: it takes no `template`."""
+    for tool in offered:
+        function = tool.get("function") if isinstance(tool, dict) else None
+        if isinstance(function, dict) and function.get("name") == "image_generate":
+            properties = (function.get("parameters") or {}).get("properties") or {}
+            return "template" not in properties
+    return False
+
+
 def _document_names(db: DBSession, chat) -> str:
     """The names of the non-image files attached anywhere in this chat."""
     from lembas.db.models import Attachment
@@ -318,8 +329,15 @@ def context_variables(
         # request path, so asking ComfyUI itself what it has would hold the
         # request open while somebody's box thought about it. The admin page
         # discovers; this reads what it stored.
-        "image_templates": _image_templates(db) if "image" in families else "",
-        "image_models": _image_models(db) if "image" in families else "",
+        # Neither where this chat's pictures come from a connection's own image
+        # model (`services/media/`): a workflow and a checkpoint are the
+        # ComfyUI's, and a list the tool does not take is worse than none.
+        "image_templates": (
+            _image_templates(db) if "image" in families and not _image_hosted(offered) else ""
+        ),
+        "image_models": (
+            _image_models(db) if "image" in families and not _image_hosted(offered) else ""
+        ),
         # The gate on `core.temporary`, and its one variable: how long the chat
         # has. A person's temporary chat only, never a helper's, which is also
         # `temporary` but is told what it may do by `core.subagent`.

@@ -631,6 +631,22 @@ def test_the_tool_is_offered_where_the_connection_draws_and_takes_its_parameters
     ).by_name
 
 
+def test_a_hosted_chat_is_not_told_about_workflows_and_checkpoints(db, user_id):
+    from lembas.services import harness
+
+    _comfy(db)
+    cloud = _connection(db)
+    _media(db, cloud, {"capability": "image", "model": "draw-one"})
+    local = _connection(db, "Local", base_url="http://172.16.0.5:8080/v1")
+    user = db.get(User, user_id)
+    for connection, listed in ((cloud, False), (local, True)):
+        chat = _chat_on(db, user_id, connection)
+        offered = tools_service.resolve_tools(db, chat, user)
+        values = harness.context_variables(db, user, offered.schemas, chat)
+        assert bool(values["image_models"]) is listed, connection.name
+        assert bool(values["image_templates"]) is listed, connection.name
+
+
 async def test_a_picture_from_the_connection_is_this_chats_file_and_counted(
     db, user_id, mock_http
 ):
