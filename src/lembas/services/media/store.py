@@ -2,9 +2,22 @@
 
 ```
 {"prefer_audio": bool, "prefer_image": bool,
- "models": [{"capability": "stt" | "tts" | "image", "model": "<id>",
-             "enabled": bool, "price": <money>, "voice": "<tts only>"}]}
+ "models": [{"capability": "stt" | "tts" | "image" | ..., "model": "<id>",
+             "enabled": bool, "price": <money>, "voice": "<tts only>",
+             "name": "<shown>", "description": "<shown>",
+             "options": {<what this model is asked with, per capability>}}]}
 ```
+
+**A capability is a value, not a column.** `stt`, `tts` and `image` are served
+today (`CAPABILITIES`); `image_edit`, `video`, `music` and `model3d` are named
+(`NAMED`) so a model can be kept under them, and nothing serves them yet. A new
+one is a string here and a function in `services/media/`, never a schema change.
+
+**Every connection type keeps its media here**, the two that serve nothing
+else included: a ComfyUI's models are its checkpoints (capability `image`), a
+speech server's are the model ids it transcribes and reads with. Those two are
+the instance's own equipment (`equipment`): no chat is ever "on" them, so
+their models are reached only as the instance's default.
 
 A JSON document on the connection and not model rows, on purpose: a media
 model is typed by an administrator rather than discovered (a refresh deletes
@@ -21,7 +34,7 @@ Everything here is pure: it reads a row (or a dict) and returns plain values.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from lembas.services.llm import providers
@@ -30,9 +43,29 @@ CAP_STT = "stt"
 CAP_TTS = "tts"
 CAP_IMAGE = "image"
 CAPABILITIES = (CAP_STT, CAP_TTS, CAP_IMAGE)
+# Named, kept and listed; served by nothing yet.
+CAP_IMAGE_EDIT = "image_edit"
+CAP_VIDEO = "video"
+CAP_MUSIC = "music"
+CAP_MODEL3D = "model3d"
+NAMED = (CAP_IMAGE_EDIT, CAP_VIDEO, CAP_MUSIC, CAP_MODEL3D)
+ALL = CAPABILITIES + NAMED
+# What a model row is (`Model.kind`), in the same vocabulary: the one list of
+# models says a capability for every line, whichever table it comes from.
+CAP_CHAT = "chat"
+CAP_EMBEDDING = "embedding"
+EVERY = (CAP_CHAT, CAP_EMBEDDING, *ALL)
 
-# The most media models one connection keeps: a form, not a catalogue.
-MAX_MODELS = 24
+# The audio formats a speech model may be asked for (`services/audio.FORMATS`).
+AUDIO_FORMATS = ("mp3", "wav", "flac", "aac")
+NAME_MAX = 120
+DESCRIPTION_MAX = 500
+MAX_VOICES = 200
+MAX_SIZES = 8
+
+# The most media models one connection keeps. A ComfyUI's checkpoints are a
+# folder somebody filled, so the ceiling is a folder's, not a form's.
+MAX_MODELS = 200
 MODEL_MAX = 200
 VOICE_MAX = 120
 
@@ -48,6 +81,15 @@ class Entry:
     # Text to speech only: the voice this model reads in. A provider's voices
     # are its own, so this is not the instance's default voice.
     voice: str = ""
+    # What an administrator calls it and says about it; empty: the id.
+    name: str = ""
+    description: str = ""
+    # How this model is asked (`clean_options`): only keys somebody set.
+    options: dict[str, Any] = field(default_factory=dict, hash=False, compare=False)
+
+    @property
+    def label(self) -> str:
+        return self.name or self.model
 
     def as_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -58,6 +100,12 @@ class Entry:
         }
         if self.capability == CAP_TTS and self.voice:
             out["voice"] = self.voice
+        if self.name:
+            out["name"] = self.name
+        if self.description:
+            out["description"] = self.description
+        if self.options:
+            out["options"] = dict(self.options)
         return out
 
 
@@ -69,22 +117,113 @@ def _price(value: Any) -> float:
     return number if number > 0 and number == number and number != float("inf") else 0.0
 
 
+def _printable(value: Any, limit: int) -> str:
+    return "".join(ch for ch in str(value or "").strip() if ch.isprintable())[:limit]
+
+
+def _number(value: Any, low: float, high: float, *, whole: bool = False) -> Any:
+    """A number inside its bounds, or None for "nobody said"."""
+    try:
+        number = float(str(value).strip().replace(",", "."))
+    except (TypeError, ValueError):
+        return None
+    if number != number or number in (float("inf"), float("-inf")):
+        return None
+    number = min(max(number, low), high)
+    return int(number) if whole else number
+
+
+def _names(value: Any, limit: int, most: int) -> list[str]:
+    """A list of names: from a list, or one per line (or comma) of text."""
+    if isinstance(value, str):
+        value = value.replace(",", "\n").splitlines()
+    out: list[str] = []
+    for item in value if isinstance(value, list) else []:
+        name = _printable(item, limit)
+        if name and name not in out:
+            out.append(name)
+    return out[:most]
+
+
+def size_of(value: Any) -> tuple[int, int] | None:
+    """`1024x768` (or `1024*768`, `1024×768`) as two sides, each 64 to 4096."""
+    parts = str(value or "").lower().replace("*", "x").replace("×", "x").split("x")
+    if len(parts) != 2:
+        return None
+    try:
+        width, height = int(parts[0].strip()), int(parts[1].strip())
+    except ValueError:
+        return None
+    return (width, height) if 64 <= width <= 4096 and 64 <= height <= 4096 else None
+
+
+# The options a model of each capability can carry. Every one has a reader:
+# `speech.speak` and `speech.transcribe` (language, speed, format),
+# `instance.audio_view` (the voice list a person chooses from), the image
+# tool (`sizes`, `negative`; and for a ComfyUI checkpoint the sampling four).
+OPTION_KEYS: dict[str, tuple[str, ...]] = {
+    CAP_STT: ("language",),
+    CAP_TTS: ("voices", "speed", "format", "language"),
+    CAP_IMAGE: ("sizes", "negative", "steps", "cfg", "sampler", "scheduler"),
+}
+
+
+def clean_options(capability: str, raw: Any) -> dict[str, Any]:
+    """A model's options as stored: the keys its capability has, each
+    checked, and only the ones that say something -- an absent key is "no
+    opinion", which falls through to the instance's or the provider's own."""
+    raw = raw if isinstance(raw, dict) else {}
+    out: dict[str, Any] = {}
+    for key in OPTION_KEYS.get(capability, ()):
+        value = raw.get(key)
+        if value in (None, "", []):
+            continue
+        if key == "language":
+            cleaned: Any = _printable(value, 32)
+        elif key == "voices":
+            cleaned = _names(value, VOICE_MAX, MAX_VOICES)
+        elif key == "speed":
+            cleaned = _number(value, 0.25, 4.0)
+        elif key == "format":
+            cleaned = str(value).strip().lower()
+            cleaned = cleaned if cleaned in AUDIO_FORMATS else None
+        elif key == "sizes":
+            cleaned = [
+                f"{pair[0]}x{pair[1]}"
+                for pair in map(size_of, _names(value, 16, MAX_SIZES * 2))
+                if pair is not None
+            ][:MAX_SIZES]
+        elif key == "negative":
+            cleaned = str(value).strip()[:500]
+        elif key == "steps":
+            cleaned = _number(value, 1, 150, whole=True)
+        elif key == "cfg":
+            cleaned = _number(value, 0.0, 30.0)
+        else:  # sampler, scheduler: a name the ComfyUI knows
+            cleaned = _printable(value, 80)
+        if cleaned not in (None, "", []):
+            out[key] = cleaned
+    return out
+
+
 def _entry(raw: Any) -> Entry | None:
     if not isinstance(raw, dict):
         return None
     capability = str(raw.get("capability") or "").strip().lower()
     # A model id is sent to a provider as it stands: no control characters,
     # and nothing that is not a printable id.
-    model = "".join(ch for ch in str(raw.get("model") or "").strip() if ch.isprintable())
-    if capability not in CAPABILITIES or not model:
+    model = _printable(raw.get("model"), MODEL_MAX)
+    if capability not in ALL or not model:
         return None
-    voice = "".join(ch for ch in str(raw.get("voice") or "").strip() if ch.isprintable())
     return Entry(
         capability=capability,
-        model=model[:MODEL_MAX],
+        model=model,
         enabled=bool(raw.get("enabled")),
         price=_price(raw.get("price")),
-        voice=voice[:VOICE_MAX] if capability == CAP_TTS else "",
+        voice=_printable(raw.get("voice"), VOICE_MAX) if capability == CAP_TTS else "",
+        name=_printable(raw.get("name"), NAME_MAX),
+        description=str(raw.get("description") or "").strip()[:DESCRIPTION_MAX],
+        options=clean_options(capability, raw.get("options")),
     )
 
 
@@ -158,6 +297,83 @@ DASHSCOPE_TTS = "dashscope_tts"  # native `audio/tts/SpeechSynthesizer`
 DASHSCOPE_IMAGE = "dashscope_image"  # native multimodal-generation, synchronous
 
 
+# The ComfyUI: drawn by `services/images/`, with a workflow and a checkpoint.
+COMFYUI = "comfyui"
+
+
+def equipment(provider_type: str | None) -> bool:
+    """Whether a connection is the instance's own equipment -- a ComfyUI, a
+    speech server -- rather than a provider of chat models. No chat is on
+    one, so its models serve only as the instance's default; and it answers
+    as the instance did before these were connections (the same names on the
+    usage page and in `/v1/models`)."""
+    return not providers.serves_chat(provider_type)
+
+
+def capabilities_of(provider_type: str | None, base_url: str | None = "") -> tuple[str, ...]:
+    """The capabilities a connection of this type can keep models for."""
+    type_id = providers.get(provider_type).id
+    if type_id == providers.COMFYUI:
+        return (CAP_IMAGE,)
+    if type_id == providers.SPEECH:
+        return (CAP_STT, CAP_TTS)
+    return CAPABILITIES if supported(provider_type, base_url) else ()
+
+
+# --- What a type keeps besides the columns every connection has -----------------
+COMFY_TIMEOUT = 600.0
+
+
+def type_options(connection: Any) -> dict[str, Any]:
+    """`Connection.options_json`, checked, for the type it is. A ComfyUI: how
+    long a generation may take, whether the chat's model is unloaded while it
+    draws, its default workflow, and the samplers and schedulers it was found
+    to have. Nothing for any other type."""
+    raw = getattr(connection, "options_json", None)
+    raw = raw if isinstance(raw, dict) else {}
+    if providers.get(getattr(connection, "provider_type", "")).id != providers.COMFYUI:
+        return {}
+    timeout = _number(raw.get("timeout"), 10.0, 3600.0)
+    return {
+        "timeout": timeout if timeout is not None else COMFY_TIMEOUT,
+        "preserve_vram": bool(raw.get("preserve_vram")),
+        "default_workflow_id": _printable(raw.get("default_workflow_id"), 32),
+        "samplers": _names(raw.get("samplers"), 80, 200),
+        "schedulers": _names(raw.get("schedulers"), 80, 200),
+    }
+
+
+def with_entry(connection: Any, entry: Entry, *, was: tuple[str, str] | None = None) -> dict:
+    """The connection's media with `entry` put in: in place of the one it
+    names (`was`: its capability and id before an edit), else at the end."""
+    media = of(connection)
+    key = was or (entry.capability, entry.model)
+    models, placed = [], False
+    for item in media["models"]:
+        if (item["capability"], item["model"]) == key and not placed:
+            models.append(entry.as_dict())
+            placed = True
+        elif (item["capability"], item["model"]) != (entry.capability, entry.model):
+            models.append(item)
+    if not placed:
+        models.append(entry.as_dict())
+    return normalise({**media, "models": models})
+
+
+def without_entry(connection: Any, capability: str, model: str) -> dict:
+    media = of(connection)
+    return normalise(
+        {**media, "models": [
+            m for m in media["models"] if (m["capability"], m["model"]) != (capability, model)
+        ]}
+    )
+
+
+def get_entry(connection: Any, capability: str, model: str) -> Entry | None:
+    """The stored model of that capability and id, enabled or not."""
+    return next((e for e in entries(connection, capability) if e.model == model), None)
+
+
 def is_alibaba(provider_type: str | None, base_url: str | None = "") -> bool:
     if providers.get(provider_type).id in (providers.ALIBABA, providers.ALIBABA_PLAN):
         return True
@@ -177,6 +393,8 @@ def supported(provider_type: str | None, base_url: str | None = "") -> bool:
 
 def dialect(provider_type: str | None, base_url: str | None, capability: str, model: str) -> str:
     """Which API a media model on a connection is reached through."""
+    if providers.get(provider_type).id == providers.COMFYUI:
+        return COMFYUI
     if not is_alibaba(provider_type, base_url):
         return OPENAI
     name = model.lower()
@@ -234,7 +452,10 @@ def form_rows(connection: Any) -> list[dict[str, Any]]:
     """The rows the connection form shows: what is stored, then what the
     provider offers and is not stored yet (switched off), then one blank row
     per capability to type a model id into."""
-    stored = entries(connection)
+    kinds = capabilities_of(
+        getattr(connection, "provider_type", ""), getattr(connection, "base_url", "")
+    )
+    stored = [e for e in entries(connection) if e.capability in kinds]
     have = {(e.capability, e.model) for e in stored}
     rows = [{**e.as_dict(), "voice": e.voice, "offered": False} for e in stored]
     for offer in offers(
@@ -242,7 +463,7 @@ def form_rows(connection: Any) -> list[dict[str, Any]]:
     ):
         if (offer.capability, offer.model) not in have:
             rows.append({**offer.as_dict(), "voice": offer.voice, "offered": True})
-    for capability in CAPABILITIES:
+    for capability in kinds:
         rows.append(
             {"capability": capability, "model": "", "enabled": False, "price": 0.0,
              "voice": "", "offered": False}
@@ -252,7 +473,19 @@ def form_rows(connection: Any) -> list[dict[str, Any]]:
 
 __all__ = [
     "ALIBABA_CHAT_ASR",
+    "ALL",
     "CAPABILITIES",
+    "COMFYUI",
+    "EVERY",
+    "NAMED",
+    "capabilities_of",
+    "clean_options",
+    "equipment",
+    "get_entry",
+    "size_of",
+    "type_options",
+    "with_entry",
+    "without_entry",
     "CAP_IMAGE",
     "CAP_STT",
     "CAP_TTS",

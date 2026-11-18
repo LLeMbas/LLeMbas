@@ -128,6 +128,11 @@ def model(row, *, default: bool = False, subagents: dict | None = None) -> dict[
         "provider": connection.provider_name if connection is not None else "",
         "connection": connection.name if connection is not None else "",
         "name": row.display_name or row.model_id,
+        # Added within APP_API 2: what the model is for. Every model the app
+        # is offered here is one a chat can start on, so this says `chat`;
+        # the field is the one `/v1/models` and the administration use, where
+        # speech and picture models are listed too.
+        "capability": "embedding" if getattr(row, "kind", "") == "embedding" else "chat",
         "vision": bool(caps.get("vision")),
         "tools": bool(caps.get("tools")),
         "efforts": list(chat_service.model_efforts(row)),

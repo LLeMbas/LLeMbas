@@ -7,6 +7,39 @@ at <https://llembas.eu/changelog.html>.
 
 ### Added
 
+- **Every endpoint is a connection.** A ComfyUI and a speech server (anything that
+  speaks OpenAI's `/audio/transcriptions` and `/audio/speech`, such as whisper.cpp or
+  Kokoro) are connection types now, beside the providers of chat models -- several of
+  each if you have them. *Add connection* starts by asking what is at the address.
+  - **What the upgrade does to your settings.** At the first start, the ComfyUI address
+    and the speech addresses you had typed under Admin › Image generation and Admin ›
+    Audio become connections named *ComfyUI*, *Speech to text* and *Text to speech*
+    (one named *Speech* where both directions used one server and one key), with the
+    same address and the same key, still encrypted. Your checkpoints become that
+    ComfyUI's models, your workflows are attached to it, and your speech models, voice,
+    speed, format, language and prices become models of the speech connection. The
+    defaults keep pointing at the same things; dictation, read-aloud, pictures, the
+    usage page and `/v1` answer as before. Nothing is retyped and nothing is removed:
+    the old settings stay where they were, unused, so an older release run on the same
+    database still finds them. A provider you had already chosen as a default stays
+    the default; the *use its own* switches and the ticked models of your connections
+    are untouched. A later start changes nothing.
+  - To undo it: an older release run on this database reads the old settings as it
+    always did, and shows the new connections as extra lines under Connections, which
+    can be deleted there.
+- **A capability on every model**, and **one list of models**: chat, embedding, speech
+  to text, text to speech and pictures in one place, with a filter by capability, by
+  connection, by on or off, and a search. A ComfyUI's models are its checkpoints.
+  `/v1/models` and `/api/v2` model objects say `capability` (beside `kind`, which stays).
+- **A page of its own for every model.** A media model has options it did not have: a
+  speech model its voices, default voice, speed, format and language hint; a picture
+  model its sizes and negative prompt; a ComfyUI checkpoint also its own steps, CFG,
+  sampler, scheduler and its own price per picture. Each applies where the request
+  and the person have no opinion of their own.
+- **Test on a model's own page** for a speech model and a checkpoint, and on a
+  connection's page. A provider's picture model has no test: it would be a picture
+  somebody pays for.
+
 - **A viewer for every kind of file**, on a file's page and where a chat shows a file:
   - **Pictures, and SVG as a picture.** An SVG is drawn as an image and nothing in it runs;
     its source is still there to edit.
@@ -77,6 +110,26 @@ at <https://llembas.eu/changelog.html>.
   were actually given. A schedule can be created or changed with such a ref.
 
 ### Changed
+
+- **Admin › Connections is a list**: one line per connection -- what it is, what it
+  offers, whether it answers. A line opens the connection's own page, in tabs with
+  addresses of their own: Overview (address, key, the type's options, Test), Models,
+  Media (the *use its own* switches and which of its media models are on), Workflows
+  on a ComfyUI, and Remove.
+- **Admin › Models is a plain list**, and a model's page is in tabs: General, Limits
+  and reasoning, Prices, Capabilities. Each tab has its own Save, which writes that
+  tab only. The switch at the end of a line turns a model on or off at once.
+- **Admin › Audio and Admin › Image generation are one page, Media**, with a tab for
+  speech to text, text to speech and pictures: whether it is on, the default model --
+  chosen from the models you have added -- the order sources are tried in, and what is
+  no single model's (the review of generated pictures, the limits, the instructions,
+  the drawing defaults). No address and no key there any more. The old addresses lead
+  to it.
+- A ComfyUI's *Preserve VRAM*, its timeout and its default workflow are that
+  connection's, so two ComfyUIs can differ. A workflow belongs to a ComfyUI (or to
+  every one) and is offered only where that one draws.
+- The health round no longer asks a ComfyUI or a speech server for a list of chat
+  models; Test asks each its own question.
 
 - **A PDF and a 3D model are never opened by this application's own pages.** They are drawn
   inside a sealed frame that can reach neither your account nor the network, the way an HTML

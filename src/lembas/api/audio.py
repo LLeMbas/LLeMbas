@@ -229,11 +229,17 @@ async def available_voices(config: dict, *, refresh: bool = False) -> tuple[list
     if (
         not config.get("tts_enabled")
         or not (config.get("tts_base_url") or "").strip()
-        # The default is a connection's model: its voice is set beside it,
-        # and the endpoint below is not what reads.
-        or (config.get("tts_connection") or "").strip()
+        # The default is a provider's model: its voice is set beside it,
+        # and no speech server of the instance's is what reads. (Where the
+        # default is the instance's own speech server -- `tts_server`, from
+        # `media.instance.audio_view` -- the address above is that server's.)
+        or ((config.get("tts_connection") or "").strip() and not config.get("tts_server"))
     ):
         return [], ""
+    # The voices typed (or fetched) on the default model's own page, where
+    # there are any: the server is then not asked.
+    if config.get("tts_voices"):
+        return [str(voice) for voice in config["tts_voices"]], ""
     try:
         return await audio_service.voices(
             audio_service.endpoint_for(config, "tts"), refresh=refresh

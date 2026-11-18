@@ -12,12 +12,12 @@
   {# Walking the list without going back to it, which is what you want when
      tidying up a freshly imported connection. #}
   {% if previous %}
-  <a class="btn btn--sm" href="/admin/models/{{ previous.id }}/edit"
+  <a class="btn btn--sm" href="/admin/models/{{ previous.id }}{{ tab_suffix }}"
      title="{{ previous.label }}">{{ icon("arrow-up", "icon--sm") }} {{ t("Previous") }}</a>
   {% endif %}
   <span class="text-xs faint">{{ t("%(n)s of %(total)s", n=position_of, total=total) }}</span>
   {% if next %}
-  <a class="btn btn--sm" href="/admin/models/{{ next.id }}/edit"
+  <a class="btn btn--sm" href="/admin/models/{{ next.id }}{{ tab_suffix }}"
      title="{{ next.label }}">{{ t("Next") }} {{ icon("arrow-down", "icon--sm") }}</a>
   {% endif %}
 </nav>
@@ -33,7 +33,10 @@
       <div class="u-shrink">
         <strong>{{ model.label }}</strong>
         <div><code class="text-xs faint">{{ model.model_id }}</code></div>
-        <div class="text-xs faint">{{ t("via %(connection)s", connection=model.connection.name) }}</div>
+        <div class="text-xs faint">
+          <a href="/admin/connections/{{ model.connection.id }}">{{ t("via %(connection)s", connection=model.connection.name) }}</a>
+          · <span data-testid="model-capability">{{ t(capability_labels[model_capability]) }}</span>
+        </div>
       </div>
     </div>
     <div class="btn-row">
@@ -49,6 +52,14 @@
     </div>
   </div>
 
+</section>
+
+{% include "admin/_tabs.html" %}
+
+{% if tab == "general" %}
+{# ------------------------------------------------------------------ General #}
+<section class="card">
+  <h2 class="card__title">{{ t("Icon") }}</h2>
   <div class="btn-row">
     <form method="post" action="/admin/models/{{ model.id }}/image"
           enctype="multipart/form-data" class="btn-row">
@@ -68,13 +79,8 @@
   <p class="field__hint">{{ t("PNG, JPEG, WEBP or GIF, under 2 MB. Without one, the model gets a generated badge whose colour is derived from its id.") }}</p>
 </section>
 
-{# Empty, hidden, and outside every other form: the Detect button further down
-   is associated with it by `form="detect-efforts"`. It carries no fields on
-   purpose — detection asks the endpoint and needs nothing from this page. #}
-<form id="detect-efforts" method="post"
-      action="/admin/models/{{ model.id }}/detect-efforts" hidden></form>
-
-<form method="post" action="/admin/models/{{ model.id }}">
+<form method="post" action="/admin/models/{{ model.id }}" data-testid="model-tab-general">
+  <input type="hidden" name="tab" value="general">
   <section class="card">
     <h2 class="card__title">{{ t("Presentation") }}</h2>
 
@@ -97,6 +103,117 @@
       </div>
     </div>
 
+    {# What the model is for, as `/v1/models` says it -- and which of
+       `/v1/chat/completions` and `/v1/embeddings` takes it. #}
+    <div class="field">
+      <label class="field__label" for="model-kind">{{ t("Kind") }}</label>
+      <select class="select" id="model-kind" name="kind">
+        {% for value, label in model_kinds %}
+        <option value="{{ value }}" {{ 'selected' if (model.kind or 'chat') == value }}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <p class="field__hint">{{ t("Chat models answer through the API's chat completions; embedding models only through its embeddings. A model saved before this existed answers both until it is set.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="description">{{ t("Description") }}</label>
+      <textarea class="textarea" id="description" name="description" rows="2"
+                placeholder="{{ t('What is this model good at?') }}">{{ model.description }}</textarea>
+      <p class="field__hint">
+        {{ t("Shown in the chat settings panel and your users' settings — and, if any
+        model here may ask another one a question, read by those models too.") }}
+      </p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="notes">{{ t("Facts for other models") }}</label>
+      <textarea class="textarea" id="notes" name="notes" rows="3"
+                placeholder="{{ t('Parameters, quantisation, a benchmark figure, what it is bad at') }}">{{ model.notes }}</textarea>
+      <p class="field__hint">{{ t("Never shown to a person. It goes into the list of the other models that a model sees when it is allowed to ask one of them a question, so write what would help it choose: size, what this one is good and bad at, a score you trust. Leave it empty and the description above carries that on its own.") }}</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("System prompt") }}</h2>
+    <p class="card__lede">{{ t("Used by chats on this model that have no prompt of their own. A chat's own prompt overrides this; this overrides the instance prompt.") }}</p>
+    <div class="field">
+      <label class="field__label visually-hidden" for="system-prompt">{{ t("System prompt") }}</label>
+      <textarea class="textarea" id="system-prompt" name="system_prompt" rows="5"
+                placeholder="{{ instance_prompt or t('No instance prompt is set.') }}"
+      >{{ model.system_prompt }}</textarea>
+      <p class="field__hint">
+        {% if instance_prompt %}
+          {{ t("Leave empty to fall back to the instance prompt shown above.") }}
+        {% else %}
+          {{ t("Leave empty to send no system prompt.") }}
+        {% endif %}
+      </p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Availability") }}</h2>
+    <div class="field">
+      <div class="checkbox-row">
+        <label class="checkbox">
+          <input type="checkbox" name="enabled" value="true" {{ 'checked' if model.enabled }}>
+          <span>{{ t("Enabled — offered in chats") }}</span>
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" name="pinned" value="true" {{ 'checked' if model.pinned }}>
+          <span>{{ t("Pinned — shortcut in the chat sidebar") }}</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="public" value="true" {{ 'checked' if model.public }}>
+        <span>{{ t("Available to everyone") }}</span>
+      </label>
+      <p class="field__hint">{{ t("Uncheck to restrict this model to chosen groups. Administrators always have access.") }}</p>
+    </div>
+
+    <div class="field">
+      <span class="field__label">{{ t("Groups with access") }}</span>
+      {% if groups %}
+      <div class="checkbox-row">
+        {% for group in groups %}
+        <label class="checkbox">
+          <input type="checkbox" name="group_ids" value="{{ group.id }}"
+                 {{ 'checked' if group in model.groups }}>
+          <span>{{ group.name }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      <p class="field__hint">{{ t("Ignored while the model is available to everyone.") }}</p>
+      {% else %}
+      <p class="field__hint">
+        {{ tm("No groups yet — <a href=\"/admin/groups\">create one</a> to restrict access.") }}
+      </p>
+      {% endif %}
+    </div>
+  </section>
+
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">{{ t("Save changes") }}</button>
+    <a class="btn btn--ghost" href="/admin/models">{{ t("Back to all models") }}</a>
+  </div>
+</form>
+
+{% elif tab == "limits" %}
+{# ---------------------------------------------------- Limits and reasoning #}
+{# Empty, hidden, and outside every other form: the Detect button further down
+   is associated with it by `form="detect-efforts"`. It carries no fields on
+   purpose — detection asks the endpoint and needs nothing from this page. #}
+<form id="detect-efforts" method="post"
+      action="/admin/models/{{ model.id }}/detect-efforts" hidden></form>
+
+<form method="post" action="/admin/models/{{ model.id }}" data-testid="model-tab-limits">
+  <input type="hidden" name="tab" value="limits">
+  <section class="card">
+    <h2 class="card__title">{{ t("Limits") }}</h2>
+
     <div class="field">
       <label class="field__label" for="context-length">{{ t("Context length") }}</label>
       <input class="input" id="context-length" name="context_length" type="number"
@@ -109,17 +226,28 @@
       </p>
     </div>
 
-    {# What the model is for, as `/v1/models` says it -- and which of
-       `/v1/chat/completions` and `/v1/embeddings` takes it. #}
     <div class="field">
-      <label class="field__label" for="model-kind">{{ t("Kind") }}</label>
-      <select class="select" id="model-kind" name="kind">
-        {% for value, label in model_kinds %}
-        <option value="{{ value }}" {{ 'selected' if (model.kind or 'chat') == value }}>{{ label }}</option>
-        {% endfor %}
-      </select>
-      <p class="field__hint">{{ t("Chat models answer through the API's chat completions; embedding models only through its embeddings. A model saved before this existed answers both until it is set.") }}</p>
+      <span class="field__label">{{ t("Longest reply") }}</span>
+      <p class="field__hint" data-testid="model-output-limit">
+        {% if model.output_limit %}{{ t("The endpoint says this model writes at most %(n)s tokens in one reply. A ceiling only: no request asks for all of it by default.", n=model.output_limit) }}{% else %}{{ t("The endpoint does not say how much this model can write in one reply.") }}{% endif %}
+      </p>
     </div>
+
+    {# Spec 3.2.0 `capacity.parallel`; the older "one request at a time" box
+       is 1 here and is kept equal to it by the save. #}
+    <div class="field">
+      <label class="field__label" for="parallel">{{ t("Requests at once") }}</label>
+      <input class="input" id="parallel" name="parallel" type="number"
+             min="1" max="256" step="1" inputmode="numeric"
+             placeholder="{{ t('no limit') }}"
+             value="{{ model.parallel_limit or '' }}">
+      <p class="field__hint">{{ t("How many requests the model's server answers at the same time — llama.cpp's slots, a vLLM batch. Empty is no limit, right for a hosted API. At 1 the model cannot be its own subagent, because the subagent would take the only slot and push out the conversation the server has cached, so the waiting reply would have to read it all again. Other models can still be its subagents.") }}</p>
+    </div>
+
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Reasoning") }}</h2>
 
     <div class="field">
       <span class="field__label">{{ t("Reasoning efforts this model accepts") }}</span>
@@ -201,17 +329,6 @@
       <p class="field__hint">{{ tm("Tick this when the model's server turns thinking off for a request that sends <span class=\"mono\">chat_template_kwargs.enable_thinking: false</span> — Qwen3 and Nemotron 3 models on llama.cpp, vLLM or SGLang. A chat then offers <em>off</em>, which sends exactly that and no effort. Without it there is no off: sending no effort leaves such a model thinking at its server's default.") }}</p>
     </div>
 
-    {# Harness spec 3.8.0 `html_pages` (pages.md §4): the model's flag. It
-       decides only where the instance offers pages on chosen models
-       (Admin › General); where it offers them on all, every model has them. #}
-    <div class="field">
-      <label class="checkbox">
-        <input type="checkbox" name="html_pages" value="true" {{ 'checked' if model.html_pages }}>
-        <span>{{ t("Can write HTML pages") }}</span>
-      </label>
-      <p class="field__hint">{{ tm('Tick this for a model that writes a working, self-contained page when asked — the larger models do, the small ones mostly do not. It matters where pages in answers are offered on chosen models only (<a href="/admin/general">General</a>): there an unticked model is simply not asked to. Where they are offered on all models, every model has them.') }}</p>
-    </div>
-
     <div class="field">
       <label class="field__label" for="default-effort">{{ t("Default reasoning effort") }}</label>
       <select class="select" id="default-effort" name="default_effort">
@@ -247,42 +364,90 @@
       </p>
     </div>
 
-    <div class="field">
-      <label class="field__label" for="description">{{ t("Description") }}</label>
-      <textarea class="textarea" id="description" name="description" rows="2"
-                placeholder="{{ t('What is this model good at?') }}">{{ model.description }}</textarea>
-      <p class="field__hint">
-        {{ t("Shown in the chat settings panel and your users' settings — and, if any
-        model here may ask another one a question, read by those models too.") }}
-      </p>
-    </div>
+  </section>
 
-    <div class="field">
-      <label class="field__label" for="notes">{{ t("Facts for other models") }}</label>
-      <textarea class="textarea" id="notes" name="notes" rows="3"
-                placeholder="{{ t('Parameters, quantisation, a benchmark figure, what it is bad at') }}">{{ model.notes }}</textarea>
-      <p class="field__hint">{{ t("Never shown to a person. It goes into the list of the other models that a model sees when it is allowed to ask one of them a question, so write what would help it choose: size, what this one is good and bad at, a score you trust. Leave it empty and the description above carries that on its own.") }}</p>
+  {#- Opt-in fallback (services/fallback.py). Put in order by dragging a row's
+      handle, or by focusing it and pressing the arrow keys (js/dnd.js); added
+      and removed with the buttons. The list has no URL of its own: the order
+      is the order the hidden inputs post in, with the rest of this form.
+      `fallback_submitted` posts even when the list is empty, so emptying it
+      is a change the server sees. -#}
+  {%- macro fallback_row(id, label) -%}
+  <li class="btn-row fallback-list__item" data-sortable-item data-id="{{ id }}" draggable="true">
+    <input type="hidden" name="fallback_model_ids" value="{{ id }}">
+    <button class="sort-handle" type="button" data-sortable-handle
+            aria-label="{{ t('Move %(name)s: drag, or use the arrow keys', name=label) }}"
+            title="{{ t('Drag to put in order') }}">{{ icon("grip", "icon--sm") }}</button>
+    <span class="u-grow truncate" data-sortable-label>{{ label }}</span>
+    <button class="btn btn--icon btn--sm" type="button" data-sortable-remove
+            aria-label="{{ t('Remove %(name)s', name=label) }}" title="{{ t('Remove') }}">{{ icon("x", "icon--sm") }}</button>
+  </li>
+  {%- endmacro %}
+  <section class="card" data-testid="fallback-list" data-sortable-editor>
+    <h2 class="card__title">{{ t("Fallback models") }}</h2>
+    <p class="card__lede">{{ t("Tried in order when this model's connection cannot be reached, times out or answers with a server error, before anything of the reply was written — never on Stop or on a refused request. A reply from a fallback says which model answered, and keeps its cost. Only models in the same data group are tried. None listed: a failed reply fails, as it always has.") }}</p>
+    <ol class="fallback-list" data-sortable data-testid="fallback-order">
+      {% for item in fallback_items %}{{ fallback_row(item.id, item.label) }}{% endfor %}
+    </ol>
+    {#- What "Add" copies: the same row, `__ID__` and `__NAME__` filled in by
+        the script from the chosen option (as text, never as markup). -#}
+    <template data-sortable-template>{{ fallback_row("__ID__", "__NAME__") }}</template>
+    <input type="hidden" name="fallback_submitted" value="1">
+    {% set listed = fallback_items | map(attribute="id") | list %}
+    <div class="btn-row">
+      <select class="select u-grow u-shrink" data-sortable-pick aria-label="{{ t('Add a fallback model') }}">
+        <option value="">{{ t("Add a fallback model…") }}</option>
+        {% for choice in fallback_choices %}
+        <option value="{{ choice.id }}" {{ 'disabled' if choice.id in listed }}>{{ choice.label }}</option>
+        {% endfor %}
+      </select>
     </div>
   </section>
 
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">{{ t("Save changes") }}</button>
+    <a class="btn btn--ghost" href="/admin/models">{{ t("Back to all models") }}</a>
+  </div>
+</form>
+
+{% elif tab == "prices" %}
+{# ------------------------------------------------------------------- Prices #}
+<form method="post" action="/admin/models/{{ model.id }}" data-testid="model-tab-prices">
+  <input type="hidden" name="tab" value="prices">
+  {# The price, in money in the connection's currency -- a provider's price
+     list typed in as it is. Empty everywhere is free. A reply's cost is
+     worked out when it is written and kept with it (services/pricing.py). #}
   <section class="card">
-    <h2 class="card__title">{{ t("System prompt") }}</h2>
-    <p class="card__lede">{{ t("Used by chats on this model that have no prompt of their own. A chat's own prompt overrides this; this overrides the instance prompt.") }}</p>
-    <div class="field">
-      <label class="field__label visually-hidden" for="system-prompt">{{ t("System prompt") }}</label>
-      <textarea class="textarea" id="system-prompt" name="system_prompt" rows="5"
-                placeholder="{{ instance_prompt or t('No instance prompt is set.') }}"
-      >{{ model.system_prompt }}</textarea>
-      <p class="field__hint">
-        {% if instance_prompt %}
-          {{ t("Leave empty to fall back to the instance prompt shown above.") }}
-        {% else %}
-          {{ t("Leave empty to send no system prompt.") }}
-        {% endif %}
-      </p>
+    <h2 class="card__title">{{ t("Price") }}</h2>
+    {% if subscription %}
+    {#- A provider's plan (providers.subscription): what a reply cost is not a
+        sum per token, so none is worked out. -#}
+    <p class="card__lede" data-testid="price-subscription">{{ t("This model's connection is a subscription. Its replies are counted — tokens, cached tokens, time — and never priced: a figure per token would be made up. What the plan has left is in the provider's console.") }}</p>
+    {% else %}
+    <p class="card__lede">{{ t("What a reply on this model costs, in %(currency)s. Per million tokens, except per reply. Each reply's cost is worked out when it is written and kept with it, so a new price does not change old replies. Leave everything empty to make it free — a local model, say.", currency=currency_sign) }}</p>
+    <div class="price-grid">
+      {% for key, label, hint in price_fields %}
+      <div class="field">
+        <label class="field__label" for="price-{{ key }}">{{ label }} ({{ currency_sign }})</label>
+        <input class="input" id="price-{{ key }}" name="price_{{ key }}" type="number"
+               min="0" step="any" placeholder="0" value="{{ price_values.get(key, '') }}">
+        <p class="field__hint">{{ hint }}</p>
+      </div>
+      {% endfor %}
     </div>
+    {% endif %}
   </section>
 
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">{{ t("Save changes") }}</button>
+    <a class="btn btn--ghost" href="/admin/models">{{ t("Back to all models") }}</a>
+  </div>
+</form>
+
+{% elif tab == "capabilities" %}
+{# ------------------------------------------------------------- Capabilities #}
+<form method="post" action="/admin/models/{{ model.id }}" data-testid="model-tab-capabilities">
+  <input type="hidden" name="tab" value="capabilities">
   {# Detected where the endpoint says (services/llm/capabilities.py); a choice
      made here always wins, and "As detected" follows the endpoint. Every field
      emits its three slots, so the row lines up whatever the hints say. #}
@@ -349,120 +514,26 @@
   </section>
 
   <section class="card">
-    <h2 class="card__title">{{ t("Availability") }}</h2>
+    <h2 class="card__title">{{ t("Pages and plans") }}</h2>
 
-    <div class="field">
-      <div class="checkbox-row">
-        <label class="checkbox">
-          <input type="checkbox" name="enabled" value="true" {{ 'checked' if model.enabled }}>
-          <span>{{ t("Enabled — offered in chats") }}</span>
-        </label>
-        <label class="checkbox">
-          <input type="checkbox" name="pinned" value="true" {{ 'checked' if model.pinned }}>
-          <span>{{ t("Pinned — shortcut in the chat sidebar") }}</span>
-        </label>
-      </div>
-    </div>
-
-    {# Spec 3.2.0 `capacity.parallel`; the older "one request at a time" box
-       is 1 here and is kept equal to it by the save. #}
-    <div class="field">
-      <label class="field__label" for="parallel">{{ t("Requests at once") }}</label>
-      <input class="input" id="parallel" name="parallel" type="number"
-             min="1" max="256" step="1" inputmode="numeric"
-             placeholder="{{ t('no limit') }}"
-             value="{{ model.parallel_limit or '' }}">
-      <p class="field__hint">{{ t("How many requests the model's server answers at the same time — llama.cpp's slots, a vLLM batch. Empty is no limit, right for a hosted API. At 1 the model cannot be its own subagent, because the subagent would take the only slot and push out the conversation the server has cached, so the waiting reply would have to read it all again. Other models can still be its subagents.") }}</p>
-    </div>
-
+    {# Harness spec 3.8.0 `html_pages` (pages.md §4): the model's flag. It
+       decides only where the instance offers pages on chosen models
+       (Admin › General); where it offers them on all, every model has them. #}
     <div class="field">
       <label class="checkbox">
-        <input type="checkbox" name="public" value="true" {{ 'checked' if model.public }}>
-        <span>{{ t("Available to everyone") }}</span>
+        <input type="checkbox" name="html_pages" value="true" {{ 'checked' if model.html_pages }}>
+        <span>{{ t("Can write HTML pages") }}</span>
       </label>
-      <p class="field__hint">{{ t("Uncheck to restrict this model to chosen groups. Administrators always have access.") }}</p>
+      <p class="field__hint">{{ tm('Tick this for a model that writes a working, self-contained page when asked — the larger models do, the small ones mostly do not. It matters where pages in answers are offered on chosen models only (<a href="/admin/general">General</a>): there an unticked model is simply not asked to. Where they are offered on all models, every model has them.') }}</p>
     </div>
 
-    <div class="field">
-      <span class="field__label">{{ t("Groups with access") }}</span>
-      {% if groups %}
-      <div class="checkbox-row">
-        {% for group in groups %}
-        <label class="checkbox">
-          <input type="checkbox" name="group_ids" value="{{ group.id }}"
-                 {{ 'checked' if group in model.groups }}>
-          <span>{{ group.name }}</span>
-        </label>
-        {% endfor %}
-      </div>
-      <p class="field__hint">{{ t("Ignored while the model is available to everyone.") }}</p>
-      {% else %}
+    {#- A plan's terms are its connection's (providers.interactive_only):
+        said here, set nowhere on a model. -#}
+    <div class="field" data-testid="model-interactive-only">
+      <span class="field__label">{{ t("Interactive use only") }}</span>
       <p class="field__hint">
-        {{ tm("No groups yet — <a href=\"/admin/groups\">create one</a> to restrict access.") }}
+        {% if interactive_only %}{{ tm('Yes — from its connection, <a href="/admin/connections/%(id)s">%(name)s</a>, a provider\'s plan: a person\'s own turns only, never scheduled or background work.', id=model.connection.id, name=model.connection.name) }}{% else %}{{ t("No. Its connection allows scheduled and background work.") }}{% endif %}
       </p>
-      {% endif %}
-    </div>
-  </section>
-
-  {# The price, in money in the connection's currency -- a provider's price
-     list typed in as it is. Empty everywhere is free. A reply's cost is
-     worked out when it is written and kept with it (services/pricing.py). #}
-  <section class="card">
-    <h2 class="card__title">{{ t("Price") }}</h2>
-    {% if subscription %}
-    {#- A provider's plan (providers.subscription): what a reply cost is not a
-        sum per token, so none is worked out. -#}
-    <p class="card__lede" data-testid="price-subscription">{{ t("This model's connection is a subscription. Its replies are counted — tokens, cached tokens, time — and never priced: a figure per token would be made up. What the plan has left is in the provider's console.") }}</p>
-    {% else %}
-    <p class="card__lede">{{ t("What a reply on this model costs, in %(currency)s. Per million tokens, except per reply. Each reply's cost is worked out when it is written and kept with it, so a new price does not change old replies. Leave everything empty to make it free — a local model, say.", currency=currency_sign) }}</p>
-    <div class="price-grid">
-      {% for key, label, hint in price_fields %}
-      <div class="field">
-        <label class="field__label" for="price-{{ key }}">{{ label }} ({{ currency_sign }})</label>
-        <input class="input" id="price-{{ key }}" name="price_{{ key }}" type="number"
-               min="0" step="any" placeholder="0" value="{{ price_values.get(key, '') }}">
-        <p class="field__hint">{{ hint }}</p>
-      </div>
-      {% endfor %}
-    </div>
-    {% endif %}
-  </section>
-
-  {#- Opt-in fallback (services/fallback.py). Put in order by dragging a row's
-      handle, or by focusing it and pressing the arrow keys (js/dnd.js); added
-      and removed with the buttons. The list has no URL of its own: the order
-      is the order the hidden inputs post in, with the rest of this form.
-      `fallback_submitted` posts even when the list is empty, so emptying it
-      is a change the server sees. -#}
-  {%- macro fallback_row(id, label) -%}
-  <li class="btn-row fallback-list__item" data-sortable-item data-id="{{ id }}" draggable="true">
-    <input type="hidden" name="fallback_model_ids" value="{{ id }}">
-    <button class="sort-handle" type="button" data-sortable-handle
-            aria-label="{{ t('Move %(name)s: drag, or use the arrow keys', name=label) }}"
-            title="{{ t('Drag to put in order') }}">{{ icon("grip", "icon--sm") }}</button>
-    <span class="u-grow truncate" data-sortable-label>{{ label }}</span>
-    <button class="btn btn--icon btn--sm" type="button" data-sortable-remove
-            aria-label="{{ t('Remove %(name)s', name=label) }}" title="{{ t('Remove') }}">{{ icon("x", "icon--sm") }}</button>
-  </li>
-  {%- endmacro %}
-  <section class="card" data-testid="fallback-list" data-sortable-editor>
-    <h2 class="card__title">{{ t("Fallback models") }}</h2>
-    <p class="card__lede">{{ t("Tried in order when this model's connection cannot be reached, times out or answers with a server error, before anything of the reply was written — never on Stop or on a refused request. A reply from a fallback says which model answered, and keeps its cost. Only models in the same data group are tried. None listed: a failed reply fails, as it always has.") }}</p>
-    <ol class="fallback-list" data-sortable data-testid="fallback-order">
-      {% for item in fallback_items %}{{ fallback_row(item.id, item.label) }}{% endfor %}
-    </ol>
-    {#- What "Add" copies: the same row, `__ID__` and `__NAME__` filled in by
-        the script from the chosen option (as text, never as markup). -#}
-    <template data-sortable-template>{{ fallback_row("__ID__", "__NAME__") }}</template>
-    <input type="hidden" name="fallback_submitted" value="1">
-    {% set listed = fallback_items | map(attribute="id") | list %}
-    <div class="btn-row">
-      <select class="select u-grow u-shrink" data-sortable-pick aria-label="{{ t('Add a fallback model') }}">
-        <option value="">{{ t("Add a fallback model…") }}</option>
-        {% for choice in fallback_choices %}
-        <option value="{{ choice.id }}" {{ 'disabled' if choice.id in listed }}>{{ choice.label }}</option>
-        {% endfor %}
-      </select>
     </div>
   </section>
 
@@ -471,5 +542,6 @@
     <a class="btn btn--ghost" href="/admin/models">{{ t("Back to all models") }}</a>
   </div>
 </form>
+{% endif %}
 
 {% endblock %}

@@ -1,0 +1,196 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "media" %}
+
+{% block title %}{{ t("Media") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Media") }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">
+  {{ tm('Speech and pictures, for the whole instance: whether each is on, which model is the default, and what is not any one model\'s. Where it comes from is a <a href="/admin/connections">connection</a>, and how a model is asked is on the <a href="/admin/models">model\'s</a> own page.') }}
+</p>
+
+{% if saved %}
+<div data-flash="success" class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
+{% endif %}
+
+{% include "admin/_tabs.html" %}
+
+<form method="post" action="/admin/media/{{ capability }}" data-testid="media-form">
+  <section class="card">
+    <h2 class="card__title">{{ t(capability_labels[capability]) }}</h2>
+
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="enabled" value="true"
+               {{ 'checked' if (values.enabled if capability == 'image' else values[capability ~ '_enabled']) }}>
+        <span>
+          {%- if capability == "stt" %}{{ t("Dictation is on") }}
+          {%- elif capability == "tts" %}{{ t("Read-aloud is on") }}
+          {%- else %}{{ t("Image generation is on") }}{% endif -%}
+        </span>
+      </label>
+      <p class="field__hint">{{ t("Off is off for every source, a connection's own included.") }}</p>
+    </div>
+
+    <div class="field" data-testid="media-default">
+      <label class="field__label" for="default">{{ t("Default model") }}</label>
+      <select class="select" id="default" name="default">
+        {#- Nobody has chosen: shown as what it is, and chosen away from. -#}
+        {% if not chosen %}
+        <option value="" selected>{{ t("An address from an older release (it becomes a connection at the next start)") if legacy else t("Not chosen yet") }}</option>
+        {% endif %}
+        {% for choice in choices %}
+        <option value="{{ choice.value }}" {{ 'selected' if chosen == choice.value }}>{{ choice.label }}</option>
+        {% endfor %}
+        {% if stale %}
+        <option value="{{ stale }}" selected>{{ t("(no longer available)") }}</option>
+        {% endif %}
+        <option value="{{ none }}" {{ 'selected' if chosen == none }}>{{ t("None") }}</option>
+      </select>
+      <p class="field__hint">
+        {{ t("Chosen from the models that are added and switched on. It serves every chat whose own connection has none of its own.") }}
+        {% if default_href %}<a href="{{ default_href }}">{{ t("Open the default model's page") }}</a>{% endif %}
+      </p>
+      {% if stale %}
+      <div class="alert alert--warning" role="status" data-testid="media-stale">
+        {{ icon("warning", "alert__icon") }}
+        <span>{{ t("The model chosen as the default can no longer serve: it was removed, switched off, or its connection was. Until you choose again nothing is served by default.") }}</span>
+      </div>
+      {% elif not choices %}
+      <p class="field__hint" data-testid="media-nothing-added">
+        {{ tm('No model of this kind is added yet. Add one on a <a href="/admin/connections">connection</a>\'s Models tab.') }}
+      </p>
+      {% endif %}
+    </div>
+
+    <div class="field" data-testid="media-order">
+      <span class="field__label">{{ t("The order sources are tried in") }}</span>
+      <ol class="order-list">
+        <li>
+          {{ t("The chat's own connection, where that connection is set to use its own:") }}
+          {% for connection in own_sources %}<a href="/admin/connections/{{ connection.id }}/media">{{ connection.name }}</a>{{ ", " if not loop.last }}{% else %}{{ t("none is, at present.") }}{% endfor %}
+        </li>
+        <li>
+          {{ t("The default above:") }}
+          {% if default %}<strong>{{ default.label }}</strong>{% else %}{{ t("nothing.") }}{% endif %}
+        </li>
+      </ol>
+      <p class="field__hint">{{ t("One step, in this direction only, and the answer says which source gave it. A chat on a local model is never sent to a provider unless that provider's model is the default here.") }}</p>
+    </div>
+
+    {% if capability == "tts" %}
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="tts_autoplay" value="true" {{ 'checked' if values.tts_autoplay }}>
+        <span>{{ t("Read replies aloud by default") }}</span>
+      </label>
+      <p class="field__hint">{{ t("Where each person's own setting starts. It forces nothing on anyone.") }}</p>
+    </div>
+    {% endif %}
+  </section>
+
+  {% if capability == "image" %}
+  <section class="card">
+    <h2 class="card__title">{{ t("Review of generated pictures") }}</h2>
+    <p class="card__lede">{{ t("A vision model looks at what a ComfyUI drew and says whether to keep it. A provider's model is never reviewed: every retry would be a picture somebody pays for.") }}</p>
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="review_enabled" value="true" {{ 'checked' if values.review_enabled }}>
+        <span>{{ t("Review each picture before it is kept") }}</span>
+      </label>
+    </div>
+    <div class="field-grid">
+      <div class="field">
+        <label class="field__label" for="review-model">{{ t("Model that reviews") }}</label>
+        <select class="select" id="review-model" name="review_model_id">
+          <option value="">{{ t("The chat's own, when it has vision") }}</option>
+          {% for model in vision_models %}
+          {% if (model.capabilities_json or {}).get("vision") or model.model_id == values.review_model_id %}
+          <option value="{{ model.model_id }}" {{ 'selected' if model.model_id == values.review_model_id }}>{{ model.label }}</option>
+          {% endif %}
+          {% endfor %}
+        </select>
+        <p class="field__hint">{{ t("Only models marked as having vision can review.") }}</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="max-tries">{{ t("Tries") }}</label>
+        <input class="input" id="max-tries" name="max_tries" type="number" min="1" max="10"
+               value="{{ values.max_tries }}">
+        <p class="field__hint">{{ t("How many pictures may be drawn for one request before the last is kept.") }}</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Limits and price") }}</h2>
+    <div class="field-grid">
+      <div class="field">
+        <label class="field__label" for="api-max">{{ t("Pictures per API request") }}</label>
+        <input class="input" id="api-max" name="api_max_images" type="number" min="1" max="10"
+               value="{{ values.api_max_images }}">
+        <p class="field__hint">{{ tm("The most one <code>/v1/images/generations</code> may ask for.") }}</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="per-image">{{ t("Price per picture") }} ({{ currency_sign }})</label>
+        <input class="input" id="per-image" name="per_image" type="number" min="0" step="any"
+               value="{{ values.per_image or '' }}" placeholder="0">
+        <p class="field__hint">{{ t("For a picture a ComfyUI draws, unless its checkpoint has a price of its own.") }}</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Instructions to the model") }}</h2>
+    <div class="field">
+      <label class="field__label visually-hidden" for="instructions">{{ t("Instructions to the model") }}</label>
+      <textarea class="textarea" id="instructions" name="instructions" rows="4" maxlength="4000">{{ values.instructions }}</textarea>
+      <p class="field__hint">{{ t("Given to every model that can draw, beside the tool's own guidance. Where “always add these words to the negative prompt” lives.") }}</p>
+    </div>
+  </section>
+
+  <section class="card" data-testid="media-drawing-defaults">
+    <h2 class="card__title">{{ t("Drawing defaults for a ComfyUI") }}</h2>
+    <p class="card__lede">{{ t("What a generation uses when neither the request nor the checkpoint's own page says. Empty is no opinion: the built-in floor applies.") }}</p>
+    <div class="field-grid">
+      {% for name, label, step in (
+        ("steps", t("Steps"), "1"), ("cfg", t("CFG"), "0.1"),
+        ("width", t("Width"), "64"), ("height", t("Height"), "64"),
+        ("denoise", t("Denoise"), "0.05"), ("batch", t("Pictures per run"), "1"),
+      ) %}
+      <div class="field">
+        <label class="field__label" for="default-{{ name }}">{{ label }}</label>
+        <input class="input" id="default-{{ name }}" name="default_{{ name }}" type="number"
+               step="{{ step }}" min="0" value="{{ values['default_' ~ name] }}">
+        <p class="field__hint"></p>
+      </div>
+      {% endfor %}
+      <div class="field">
+        <label class="field__label" for="default-sampler">{{ t("Sampler") }}</label>
+        <input class="input input--mono" id="default-sampler" name="default_sampler"
+               value="{{ values.default_sampler }}" maxlength="80" list="known-samplers">
+        <p class="field__hint"></p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="default-scheduler">{{ t("Scheduler") }}</label>
+        <input class="input input--mono" id="default-scheduler" name="default_scheduler"
+               value="{{ values.default_scheduler }}" maxlength="80" list="known-schedulers">
+        <p class="field__hint"></p>
+      </div>
+    </div>
+    <datalist id="known-samplers">{% for name in values.samplers %}<option value="{{ name }}"></option>{% endfor %}</datalist>
+    <datalist id="known-schedulers">{% for name in values.schedulers %}<option value="{{ name }}"></option>{% endfor %}</datalist>
+    <div class="field">
+      <label class="field__label" for="default-negative">{{ t("Negative prompt") }}</label>
+      <input class="input" id="default-negative" name="default_negative"
+             value="{{ values.default_negative }}" maxlength="500">
+      <p class="field__hint">{{ t("What to keep out of every picture, unless the request says its own.") }}</p>
+    </div>
+  </section>
+  {% endif %}
+
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">{{ t("Save") }}</button>
+  </div>
+</form>
+{% endblock %}

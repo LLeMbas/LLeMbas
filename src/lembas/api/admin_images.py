@@ -1,11 +1,10 @@
-"""Image generation administration: the ComfyUI, and the workflows to run on it.
+"""Image generation administration: the workflows a ComfyUI draws with.
 
-Two shapes on one nav entry, because they are two different kinds of thing. The
-connection, the checkpoints and the switches are instance settings and get a
-settings page. A workflow is an authored document with a name, a description and
-a body, so the workflows are list-plus-detail -- the shape the working notes require
-of any admin list, and for the reason it gives: a page that renders a ten-line
-JSON textarea per row is unusable at three rows.
+A workflow is an authored document with a name, a description and a body, so
+it has a page of its own; the list of them is a tab of the ComfyUI connection
+they are for (`api/admin_connections.py`). The ComfyUI's address and
+checkpoints are that connection's; what is instance-wide is under Admin ›
+Media (`api/admin_media.py`), where `/admin/images` itself now leads.
 
 Route order matters and is not alphabetical. `/admin/images/workflows/new` is
 registered before `/admin/images/workflows/{workflow_id}`, or "new" is captured
@@ -18,21 +17,17 @@ import json
 import logging
 import re
 from datetime import UTC, datetime
-from typing import Any
 from urllib.parse import quote
 
-from fastapi import APIRouter, Form, HTTPException, Request, Response, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
 
 from lembas.api.deps import AdminUser, Db
-from lembas.db.models import ImageWorkflow, Model
+from lembas.db.models import Connection, ImageWorkflow
 from lembas.services import settings_store
-from lembas.services.crypto import UNCHANGED_SENTINEL, decrypt, keep_or_replace, mask
-from lembas.services.images import comfy
 from lembas.services.images import workflow as workflow_service
-from lembas.services.llm.openai_client import LLMError
-from lembas.services.media import sources as media_sources
+from lembas.services.llm import providers
 from lembas.web.i18n import t
 from lembas.web.templating import render
 
@@ -46,255 +41,6 @@ SLUG_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]{0,47}$")
 # it draws the same picture whatever anybody types, which is the one failure
 # somebody would not think to look for.
 REQUIRED_PLACEHOLDERS = ("prompt",)
-
-
-def _lines(text: str) -> list[str]:
-    """One name per line, blanks dropped. The `admin_agents` pattern."""
-    seen: list[str] = []
-    for line in (text or "").splitlines():
-        name = line.strip()
-        if name and name not in seen:
-            seen.append(name)
-    return seen
-
-
-def _number(raw: str, name: str, *, whole: bool = True) -> Any:
-    """A filled box as a clamped number, an empty one as "".
-
-    The empty string is load-bearing and is not a missing value: it is how an
-    administrator says "no opinion about this one", which `workflow.resolve`
-    reads as "fall through to the built-in floor". Turning it into a zero here
-    would silently set every instance to zero steps.
-    """
-    text = (raw or "").strip()
-    if not text:
-        return ""
-    try:
-        value = float(text)
-    except ValueError:
-        return ""
-    low, high = workflow_service.LIMITS.get(name, (None, None))
-    if low is not None:
-        value = min(max(value, low), high)
-    return int(value) if whole else value
-
-
-def _config(db: Db) -> comfy.Config:
-    values = settings_store.images(db)
-    return comfy.Config(
-        base_url=str(values.get("base_url") or ""),
-        api_key=decrypt(str(values.get("api_key_encrypted") or "")),
-        timeout=30.0,
-    )
-
-
-def _page(request: Request, db: Db, **extra) -> Response:
-    values = settings_store.images(db)
-    workflows = list(
-        db.scalars(select(ImageWorkflow).order_by(ImageWorkflow.position, ImageWorkflow.slug))
-    )
-    return render(
-        request,
-        "admin/images.html",
-        {
-            "values": values,
-            "workflows": workflows,
-            # Only models an administrator has marked as having vision can
-            # review, so the picker offers those and nothing else -- a list
-            # including text-only models would be a list of choices that
-            # silently do nothing.
-            "vision_models": list(
-                db.scalars(
-                    select(Model)
-                    .where(Model.enabled.is_(True))
-                    .order_by(Model.position, Model.model_id)
-                )
-            ),
-            "checkpoints_text": "\n".join(values.get("checkpoints") or []),
-            "masked": mask(decrypt(values.get("api_key_encrypted") or "")),
-            "unchanged": UNCHANGED_SENTINEL,
-            "currency_sign": settings_store.CURRENCIES.get(settings_store.currency(db), ""),
-            # The connections' own image models, for "use a connection's
-            # model" as the default source.
-            "source_choices": media_sources.choices(db, "image"),
-            "stale": media_sources.stale(db, "image"),
-            **extra,
-        },
-    )
-
-
-def _whole(raw: str, fallback: int) -> int:
-    try:
-        return min(max(int(raw.strip()), 1), 10)
-    except (AttributeError, ValueError):
-        return int(fallback)
-
-
-@router.get("")
-async def images_page(request: Request, db: Db, user: AdminUser, saved: str = "") -> Response:
-    return _page(request, db, saved=saved)
-
-
-@router.post("")
-async def save_images(
-    request: Request,
-    db: Db,
-    user: AdminUser,
-    enabled: bool = Form(False),
-    base_url: str = Form(""),
-    api_key: str = Form(""),
-    timeout: float = Form(600.0),
-    checkpoints: str = Form(""),
-    default_workflow_id: str = Form(""),
-    review_enabled: bool = Form(False),
-    review_model_id: str = Form(""),
-    max_tries: int = Form(4),
-    preserve_vram: bool = Form(False),
-    instructions: str = Form(""),
-    # The generation defaults. Every one is a *string* even where it is a
-    # number, because "" is how an administrator says "no opinion" and an
-    # `int = Form(0)` cannot express that -- zero steps is a value, and one
-    # somebody could mean. `_number` below turns a filled box into a clamped
-    # number and an empty one back into "".
-    default_checkpoint: str = Form(""),
-    default_steps: str = Form(""),
-    default_cfg: str = Form(""),
-    default_width: str = Form(""),
-    default_height: str = Form(""),
-    default_sampler: str = Form(""),
-    default_scheduler: str = Form(""),
-    default_denoise: str = Form(""),
-    default_negative: str = Form(""),
-    default_batch: str = Form(""),
-    per_image: str = Form(""),
-    api_max_images: str = Form(""),
-    connection: str = Form(""),
-) -> Response:
-    """Save the settings.
-
-    Every toggle defaults to False because an unticked checkbox is simply absent
-    from a form post -- that absence *is* the off signal, the rule
-    `admin_audio` states.
-
-    The discovered sampler and scheduler lists are deliberately not submitted
-    and not cleared here: they belong to whatever ComfyUI was tested, and a save
-    that only changed the instructions box has no opinion about them.
-    """
-    current = settings_store.images(db)
-    settings_store.update(
-        db,
-        {
-            "enabled": enabled,
-            "base_url": base_url.strip().rstrip("/"),
-            "api_key_encrypted": keep_or_replace(
-                api_key, current.get("api_key_encrypted") or ""
-            ),
-            "timeout": min(max(timeout, 10.0), 3600.0),
-            "checkpoints": _lines(checkpoints),
-            "default_workflow_id": default_workflow_id.strip(),
-            "review_enabled": review_enabled,
-            "review_model_id": review_model_id.strip(),
-            "max_tries": min(max(max_tries, 1), 10),
-            "preserve_vram": preserve_vram,
-            "instructions": instructions.strip()[:4000],
-            # Clamped here to the same bounds `workflow.LIMITS` uses on the way
-            # out. Twice, deliberately: a number stored by an earlier version,
-            # or written straight into the settings row, still has to be safe
-            # when a generation reads it.
-            "default_checkpoint": default_checkpoint.strip(),
-            "default_steps": _number(default_steps, "steps"),
-            "default_cfg": _number(default_cfg, "cfg", whole=False),
-            "default_width": _number(default_width, "width"),
-            "default_height": _number(default_height, "height"),
-            "default_sampler": default_sampler.strip(),
-            "default_scheduler": default_scheduler.strip(),
-            "default_denoise": _number(default_denoise, "denoise", whole=False),
-            "default_negative": default_negative.strip()[:500],
-            "default_batch": _number(default_batch, "batch"),
-            # Money, never negative; and the API's `n`, 1-10.
-            "per_image": settings_store.money_amount(per_image),
-            "api_max_images": _whole(api_max_images, current.get("api_max_images") or 4),
-            # A connection's image model as the default source, only one that
-            # is on offer; anything else is the ComfyUI, as before.
-            # The stored one left as it is stays (a choice that has gone is
-            # shown as gone until somebody chooses again).
-            "connection": (
-                connection.strip()
-                if connection.strip()
-                and (
-                    connection.strip() == str(current.get("connection") or "")
-                    or any(c["value"] == connection.strip()
-                           for c in media_sources.choices(db, "image"))
-                )
-                else ""
-            ),
-        },
-        key=settings_store.IMAGES,
-    )
-    log.info("image generation %s by %s", "enabled" if enabled else "disabled", user.email)
-    return RedirectResponse(
-        f"/admin/images?saved={quote(t('Saved.'))}", status_code=status.HTTP_303_SEE_OTHER
-    )
-
-
-@router.post("/test")
-async def test_images(request: Request, db: Db, user: AdminUser) -> Response:
-    """Ask ComfyUI what it can do, and remember the answer.
-
-    Against the *saved* settings rather than the unsaved form, so what is tested
-    is what a chat would actually reach -- the same rule `/admin/search/test`
-    follows.
-
-    The lists are stored rather than only shown, because the request path may
-    never ask ComfyUI anything: `harness.context_variables` is synchronous and
-    the tool schema is built per request, so both read what this button wrote.
-    """
-    config = _config(db)
-    if not config.configured:
-        return render(
-            request,
-            "admin/_images_result.html",
-            {"message": t("Set a base URL first."), "message_kind": "error"},
-        )
-    try:
-        checkpoints, samplers, schedulers = await comfy.discover(config)
-    except LLMError as exc:
-        return render(
-            request,
-            "admin/_images_result.html",
-            {"message": exc.message, "message_kind": "error"},
-        )
-
-    stored = settings_store.images(db)
-    changes: dict = {"samplers": samplers, "schedulers": schedulers}
-    # The checkpoint list is filled in only when nobody has one yet, for the
-    # reason a refreshed connection does not overwrite a context length an
-    # administrator typed: they are usually narrowing it deliberately.
-    if not stored.get("checkpoints"):
-        changes["checkpoints"] = checkpoints
-    settings_store.update(db, changes, key=settings_store.IMAGES)
-
-    counts = {"checkpoints": len(checkpoints), "samplers": len(samplers),
-              "schedulers": len(schedulers)}
-    found = (
-        t("Found 1 checkpoint, %(samplers)s samplers and %(schedulers)s schedulers.", **counts)
-        if len(checkpoints) == 1
-        else t(
-            "Found %(checkpoints)s checkpoints, %(samplers)s samplers and "
-            "%(schedulers)s schedulers.",
-            **counts,
-        )
-    )
-    return render(
-        request,
-        "admin/_images_result.html",
-        {
-            "message": found,
-            "message_kind": "success",
-            "checkpoints": checkpoints,
-            "kept": bool(stored.get("checkpoints")),
-        },
-    )
 
 
 # --- Workflows -----------------------------------------------------------------
@@ -330,6 +76,30 @@ def _placeholder_help(db: Db) -> list[tuple[str, str, str, str]]:
     return out
 
 
+def _comfyuis(db: Db) -> list[Connection]:
+    return list(
+        db.scalars(
+            select(Connection)
+            .where(Connection.provider_type == providers.COMFYUI)
+            .order_by(Connection.position, Connection.name)
+        )
+    )
+
+
+def _list_of(db: Db, row: ImageWorkflow) -> str:
+    """Where a workflow's list is: its ComfyUI's Workflows tab; for one that
+    belongs to every ComfyUI, the first one's; with no ComfyUI at all, the
+    connections."""
+    connection = db.get(Connection, row.connection_id) if row.connection_id else None
+    if connection is None:
+        connection = next(iter(_comfyuis(db)), None)
+    return (
+        f"/admin/connections/{connection.id}/workflows"
+        if connection is not None
+        else "/admin/connections"
+    )
+
+
 def _detail(
     request: Request, db: Db, row: ImageWorkflow, *, is_new: bool, error: str = "", **extra
 ):
@@ -340,6 +110,8 @@ def _detail(
             "workflow": row,
             "is_new": is_new,
             "error": error,
+            "comfyuis": _comfyuis(db),
+            "back": _list_of(db, row),
             "placeholders": workflow_service.PLACEHOLDERS,
             "placeholder_help": _placeholder_help(db),
             "workflow_text": extra.pop(
@@ -354,6 +126,10 @@ def _populate(row: ImageWorkflow, form) -> None:
     row.name = str(form.get("name") or "").strip()[:120]
     row.description = str(form.get("description") or "").strip()[:2000]
     row.enabled = "enabled" in form
+    # Which ComfyUI it is for; empty is every one. Absent from the post (an
+    # older page) leaves it as it is.
+    if "connection_id" in form:
+        row.connection_id = str(form.get("connection_id") or "").strip()[:32] or None
 
 
 def _problem(db: Db, row: ImageWorkflow, form, *, existing_id: str = "") -> str:
@@ -411,7 +187,9 @@ def _problem(db: Db, row: ImageWorkflow, form, *, existing_id: str = "") -> str:
 
 
 @router.get("/workflows/new")
-async def new_workflow(request: Request, db: Db, user: AdminUser) -> Response:
+async def new_workflow(
+    request: Request, db: Db, user: AdminUser, connection: str = ""
+) -> Response:
     """A draft, never persisted -- the `admin_tools` shape.
 
     Registered before `/workflows/{workflow_id}`: FastAPI matches in
@@ -426,6 +204,7 @@ async def new_workflow(request: Request, db: Db, user: AdminUser) -> Response:
         description="",
         workflow_json=json.loads(base.read_text(encoding="utf-8")),
         enabled=True,
+        connection_id=connection.strip()[:32] or None,
     )
     return _detail(request, db, draft, is_new=True)
 
@@ -452,7 +231,7 @@ async def create_workflow(request: Request, db: Db, user: AdminUser) -> Response
     db.commit()
     log.info("%s added image workflow %s", user.email, row.slug)
     return RedirectResponse(
-        f"/admin/images?saved={quote(t('Added %(name)s.', name=row.name))}",
+        f"{_list_of(db, row)}?saved={quote(t('Added %(name)s.', name=row.name))}",
         status_code=status.HTTP_303_SEE_OTHER,
     )
 
@@ -466,11 +245,12 @@ async def edit_workflow(request: Request, db: Db, user: AdminUser, workflow_id: 
 async def delete_workflow(db: Db, user: AdminUser, workflow_id: str) -> Response:
     row = _workflow(db, workflow_id)
     name = row.name
+    back = _list_of(db, row)
     db.delete(row)
     db.commit()
     log.info("%s deleted image workflow %s", user.email, name)
     return RedirectResponse(
-        f"/admin/images?saved={quote(t('Deleted %(name)s.', name=name))}",
+        f"{back}?saved={quote(t('Deleted %(name)s.', name=name))}",
         status_code=status.HTTP_303_SEE_OTHER,
     )
 
@@ -482,7 +262,9 @@ async def update_workflow(request: Request, db: Db, user: AdminUser, workflow_id
 
     # Validated against a draft, so a rejected save leaves the stored row alone
     # and the form still holds what was typed.
-    draft = ImageWorkflow(workflow_json={}, position=row.position)
+    draft = ImageWorkflow(
+        workflow_json={}, position=row.position, connection_id=row.connection_id
+    )
     _populate(draft, form)
     problem = _problem(db, draft, form, existing_id=row.id)
     if problem:
@@ -504,6 +286,6 @@ async def update_workflow(request: Request, db: Db, user: AdminUser, workflow_id
     db.commit()
     log.info("%s updated image workflow %s", user.email, row.slug)
     return RedirectResponse(
-        f"/admin/images?saved={quote(t('Saved %(name)s.', name=row.name))}",
+        f"{_list_of(db, row)}?saved={quote(t('Saved %(name)s.', name=row.name))}",
         status_code=status.HTTP_303_SEE_OTHER,
     )

@@ -117,7 +117,7 @@ def test_media_is_normalised_and_a_model_is_kept_once():
             {"capability": "tts", "model": " voice-one ", "enabled": True, "price": "2,5",
              "voice": "ada"},
             {"capability": "tts", "model": "voice-one", "enabled": False},
-            {"capability": "video", "model": "nope"},
+            {"capability": "hologram", "model": "nope"},
             {"capability": "stt", "model": ""},
             {"capability": "image", "model": "draw\x00-one", "price": -3, "voice": "x"},
         ]}
@@ -742,9 +742,13 @@ def test_a_scheduled_run_does_not_draw_on_a_plan(db, user_id):
 # --- The administrator's pages ----------------------------------------------------
 def test_the_connection_form_keeps_media_and_shows_no_key(client, db, registered):
     cloud = _connection(db, base_url="https://api.openai.com/v1", provider_type=providers.OPENAI)
-    page = client.get("/admin/connections").text
-    assert 'data-testid="connection-media"' in page
+    # Its media has a tab of its own; what the provider documents is offered
+    # where a model is added, under Models.
+    page = client.get(f"/admin/connections/{cloud.id}/media").text
+    assert 'data-testid="connection-media"' in page and "connection-key" not in page
+    page = client.get(f"/admin/connections/{cloud.id}/models").text
     assert "whisper-1" in page and "connection-key" not in page
+    assert "connection-key" not in client.get(f"/admin/connections/{cloud.id}").text
     form = {
         "name": "Cloud", "base_url": "https://api.openai.com/v1", "provider": "cloud",
         "provider_type": "openai", "api_key": "•" * 8, "enabled": "true", "currency": "USD",
@@ -778,18 +782,18 @@ def test_the_settings_say_they_are_defaults_and_take_a_connections_model(client,
     cloud = _connection(db)
     _media(db, cloud, {"capability": "tts", "model": "say-one"},
            {"capability": "image", "model": "draw-one"})
-    audio = client.get("/admin/audio").text
-    assert 'data-testid="audio-defaults-note"' in audio
+    audio = client.get("/admin/media/tts").text
+    assert 'data-testid="media-default"' in audio
     assert f'value="{cloud.id}/say-one"' in audio and "connection-key" not in audio
-    client.post("/admin/audio", data={
-        "tts_enabled": "true", "tts_connection": f"{cloud.id}/say-one",
-        "stt_connection": f"{cloud.id}/say-one",  # not a speech-to-text model: refused
-    })
+    client.post("/admin/media/tts", data={"enabled": "true", "default": f"{cloud.id}/say-one"})
+    # Not a speech-to-text model: refused.
+    client.post("/admin/media/stt", data={"enabled": "true", "default": f"{cloud.id}/say-one"})
     values = settings_store.audio(db)
     assert values["tts_connection"] == f"{cloud.id}/say-one" and values["stt_connection"] == ""
-    images = client.get("/admin/images").text
-    assert 'data-testid="image-defaults"' in images and f'value="{cloud.id}/draw-one"' in images
-    client.post("/admin/images", data={"enabled": "true", "connection": f"{cloud.id}/draw-one"})
+    images = client.get("/admin/media/image").text
+    assert 'data-testid="media-default"' in images and f'value="{cloud.id}/draw-one"' in images
+    client.post("/admin/media/image",
+                data={"enabled": "true", "default": f"{cloud.id}/draw-one"})
     assert settings_store.images(db)["connection"] == f"{cloud.id}/draw-one"
     assert sources.default(db, "image").model == "draw-one"
 
@@ -1022,21 +1026,22 @@ def test_a_default_that_has_gone_is_shown_as_gone(client, db, registered):
         key=settings_store.AUDIO,
     )
     settings_store.update(db, {"connection": f"{cloud.id}/draw-one"}, key=settings_store.IMAGES)
-    assert 'data-testid="stale-default"' not in client.get("/admin/audio").text
+    assert 'data-testid="media-stale"' not in client.get("/admin/media/tts").text
     cloud.enabled = False
     db.commit()
     # A disabled connection's models are not offered as a default...
     assert sources.choices(db, "tts") == [] and sources.stale(db, "tts")
-    for path in ("/admin/audio", "/admin/images"):
+    for path in ("/admin/media/tts", "/admin/media/image"):
         page = client.get(path).text
-        assert 'data-testid="stale-default"' in page, path
+        assert 'data-testid="media-stale"' in page, path
         assert "(no longer available)" in page and "selected" in page
     # ...and saving the page as it stands keeps what it says, not the endpoint.
-    client.post("/admin/audio", data={"tts_enabled": "true",
-                                      "tts_connection": f"{cloud.id}/say-one"})
+    client.post("/admin/media/tts", data={"enabled": "true",
+                                          "default": f"{cloud.id}/say-one"})
     assert settings_store.audio(db)["tts_connection"] == f"{cloud.id}/say-one"
-    client.post("/admin/audio", data={"tts_enabled": "true", "tts_connection": ""})
-    assert settings_store.audio(db)["tts_connection"] == ""
+    # Choosing away from it is choosing None: there is no endpoint to go back to.
+    client.post("/admin/media/tts", data={"enabled": "true", "default": "none"})
+    assert settings_store.audio(db)["tts_connection"] == "none"
     # Deleting a connection that is a default says where to choose again.
     gone = client.post(f"/admin/connections/{cloud.id}/delete", follow_redirects=False)
     assert "message=" in gone.headers["location"] and "Cloud" in gone.headers["location"]

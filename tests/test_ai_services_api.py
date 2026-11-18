@@ -489,16 +489,33 @@ async def test_the_chat_tool_prices_its_picture(db, registered, fake):
 
 # --- Where the prices are set ---------------------------------------------------------
 def test_the_admin_pages_save_the_service_prices(client, db, registered):
-    client.post(
-        "/admin/audio",
-        data={"stt_per_minute": "0.006", "tts_per_1m_chars": "-4", "tts_speed": "1"},
-    )
+    from lembas.services.media import catalog, store
+
+    # A speech price is its model's: set on the model's own page, and read
+    # where it always was once that model is the default.
+    speech = Connection(name="Speech", provider_type="speech",
+                        base_url="http://speech.test/v1", api_key_encrypted="")
+    speech.media_json = store.normalise({"models": [
+        {"capability": "stt", "model": "whisper-local", "enabled": True},
+        {"capability": "tts", "model": "kokoro", "enabled": True},
+    ]})
+    db.add(speech)
+    db.commit()
+    for capability, model, price in (("stt", "whisper-local", "0.006"), ("tts", "kokoro", "-4")):
+        saved = client.post(catalog.media_href(speech.id, capability, model),
+                            data={"enabled": "true", "price": price}, follow_redirects=False)
+        assert saved.status_code == 303
+        client.post(f"/admin/media/{capability}",
+                    data={"enabled": "true", "default": f"{speech.id}/{model}"})
+    db.expire_all()
     audio = settings_store.audio(db)
     assert audio["stt_per_minute"] == 0.006 and audio["tts_per_1m_chars"] == 0.0
-    page = client.get("/admin/audio").text
-    assert 'name="stt_per_minute"' in page and "($)" in page
+    page = client.get(catalog.media_href(speech.id, "stt", "whisper-local")).text
+    assert 'name="price"' in page and 'value="0.006"' in page
+    assert f"({speech.currency} " in page
 
-    client.post("/admin/images", data={"per_image": "0.04", "api_max_images": "99"})
+    client.post("/admin/media/image", data={"per_image": "0.04", "api_max_images": "99"})
     images = settings_store.images(db)
     assert images["per_image"] == 0.04 and images["api_max_images"] == 10
-    assert 'name="per_image"' in client.get("/admin/images").text
+    page = client.get("/admin/media/image").text
+    assert 'name="per_image"' in page and "($)" in page

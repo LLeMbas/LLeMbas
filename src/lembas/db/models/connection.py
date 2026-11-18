@@ -55,9 +55,10 @@ DEFAULT_CURRENCY = "USD"
 # `Llama` and `llama` cannot be two providers that a person cannot tell apart.
 # What a model row is for, as `/v1/models` names it. A row is a chat
 # model or an embedding model; speech and pictures are not rows at all -- they
-# come from the instance's audio and image settings (the defaults) or from a
-# connection's own media (`Connection.media_json`), and `/v1/models` lists the
-# instance's defaults beside these as `stt`, `tts` and `image`.
+# are models of their connection's own media (`Connection.media_json`), a
+# ComfyUI's and a speech server's included, and `/v1/models` lists the
+# instance's defaults beside these as `stt`, `tts` and `image`. The one list
+# of both, each with its capability, is `services/media/catalog.py`.
 MODEL_CHAT = "chat"
 MODEL_EMBEDDING = "embedding"
 MODEL_KINDS = (MODEL_CHAT, MODEL_EMBEDDING)
@@ -102,8 +103,9 @@ def unique_provider(base: str, taken: set[str]) -> str:
 class Connection(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
     """A configured upstream endpoint, of a provider type
     (`services/llm/providers.py`): OpenAI-compatible (llama.cpp, llama-swap,
-    vLLM, Ollama, LM Studio and the like), OpenAI, Anthropic, DeepSeek or
-    OpenRouter. The type carries what differs between them.
+    vLLM, Ollama, LM Studio and the like), OpenAI, Anthropic, DeepSeek,
+    OpenRouter, Alibaba's two -- or one that serves no chat at all, a ComfyUI
+    or a speech server. The type carries what differs between them.
     """
 
     __tablename__ = "connections"
@@ -183,13 +185,19 @@ class Connection(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
 
     # The media this connection offers besides chat (`services/media/store.py`):
     # `{"prefer_audio": bool, "prefer_image": bool, "models": [{"capability":
-    # "stt" | "tts" | "image", "model": id, "enabled": bool, "price": money,
-    # "voice": str}]}`. Not model rows: a media model is not discovered by a
+    # "stt" | "tts" | "image" | ..., "model": id, "enabled": bool, "price": money,
+    # "voice": str, "options": {...}}]}`. Not model rows: a media model is not discovered by a
     # refresh (which deletes rows the endpoint no longer lists), is never
     # something a chat can be started on, and is priced in its own unit -- per
     # minute, per million characters, per picture. Empty is "none", which is
     # what every connection from before the column is.
     media_json: Mapped[dict[str, Any]] = mapped_column(JSONDict, default=dict)
+
+    # What a type keeps that is not a column of every connection
+    # (`services/media/store.py` `type_options`). A ComfyUI: `timeout`,
+    # `preserve_vram`, `default_workflow_id`, and what it was found to have --
+    # `samplers`, `schedulers`. Empty for every other type today.
+    options_json: Mapped[dict[str, Any]] = mapped_column(JSONDict, default=dict)
 
     # Result of the most recent "Test & refresh", surfaced in the admin list.
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -7,171 +7,73 @@
 
 {% block admin_content %}
 <p class="admin-lede">
-  {{ t("A connection is one provider: a server of your own that speaks the OpenAI API (llama.cpp, llama-swap, vLLM, Ollama, LM Studio), or OpenAI, Anthropic, DeepSeek or OpenRouter. %(brand)s asks each one for its model list and offers those models in the chat picker.", brand=brand.name) }}
-  {{ t("Paste an address and press Detect: the type is found for you, and what it says about its models is filled in.") }}
+  {{ t("A connection is anything this instance reaches at an address: a provider of chat models, a ComfyUI that draws, a server that transcribes and reads aloud. What each one offers are models, listed under Models; a line here opens the connection's own page.") }}
 </p>
 
 {% if message %}
 <div data-flash="success" class="alert alert--success">{{ message }}</div>
 {% endif %}
 
-<section class="card">
-  <h2 class="card__title">{{ t("Add a connection") }}</h2>
-  {# `detect()` asks /admin/connections/detect, which asks only the address
-     typed here (services/llm/detect.py), and fills the form from the answer.
-     Every field still posts as typed: detection is a suggestion. #}
-  <form method="post" action="/admin/connections" data-testid="connection-add"
-        x-data="{
-          type: 'openai_compatible', detecting: false, found: '', error: '', key: '',
-          defaults: {{ provider_defaults | tojson | forceescape }},
-          billing: {{ billing_types | tojson | forceescape }},
-          keyRules: {{ key_rules | tojson | forceescape }},
-          interactive: {{ interactive_types | tojson | forceescape }},
-          wrongKey() {
-            const rule = this.keyRules[this.type];
-            if (!rule || !this.key) return false;
-            return (rule.prefix && !this.key.startsWith(rule.prefix))
-              || (rule.not && this.key.startsWith(rule.not));
-          },
-          async detect() {
-            this.detecting = true; this.found = ''; this.error = '';
-            const body = new URLSearchParams({ base_url: $refs.url.value, api_key: $refs.key.value });
-            try {
-              const r = await fetch('/admin/connections/detect', { method: 'POST', body: body,
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
-              const d = await r.json();
-              if (!d.ok) { this.error = d.error || ''; return; }
-              this.type = d.provider_type;
-              if (d.base_url) $refs.url.value = d.base_url;
-              $refs.server.value = d.server || '';
-              $refs.single.checked = !!(d.suggest && d.suggest.one_model_at_a_time);
-              $refs.unload.value = (d.suggest && d.suggest.unload_url) || '';
-              $refs.unloadMethod.value = $refs.unload.value ? 'GET' : 'POST';
-              this.found = d.label + (d.server && d.server !== d.provider_type ? ' · ' + d.server : '')
-                + (d.models != null ? ' · ' + d.models : '');
-            } catch (e) { this.error = {{ t("The address could not be asked.") | tojson | forceescape }}; }
-            finally { this.detecting = false; }
-          }
-        }">
-    <div class="field">
-      <label class="field__label" for="new-url">{{ t("Base URL") }}</label>
-      <div class="btn-row">
-        <input class="input input--mono u-grow u-shrink" id="new-url" name="base_url" x-ref="url"
-               placeholder="{{ t('http://localhost:1234/v1') }}">
-        <button class="btn" type="button" @click="detect()" :disabled="detecting"
-                data-testid="connection-detect">
-          {{ icon("search", "icon--sm") }} {{ t("Detect") }}
-        </button>
-      </div>
-      <p class="field__hint">
-        {{ tm("With or without the trailing <code>/v1</code> — both are accepted. Empty takes the type's own address.") }}
-        <span x-show="found" x-cloak>{{ t("Found:") }} <strong x-text="found"></strong></span>
-      </p>
-      <div class="alert alert--error" x-show="error" x-cloak role="status">
-        {{ icon("warning", "alert__icon") }}<span x-text="error"></span>
-      </div>
-      <input type="hidden" name="server" x-ref="server" value="">
-      <input type="hidden" name="unload_url" x-ref="unload" value="">
-      <input type="hidden" name="unload_method" x-ref="unloadMethod" value="POST">
-    </div>
-
-    <div class="field">
-      <label class="field__label" for="new-type">{{ t("Type") }}</label>
-      <select class="select" id="new-type" name="provider_type" x-model="type"
-              @change="if (defaults[type] && (!$refs.url.value || Object.values(defaults).includes($refs.url.value))) { $refs.url.value = defaults[type] }">
-        {% for type in provider_types.values() %}
-        <option value="{{ type.id }}">{{ t(type.label) }}</option>
-        {% endfor %}
-      </select>
-      <p class="field__hint">{{ t("The type carries what differs between providers — how usage, cached tokens and reasoning are sent and read, and where a balance is found — so none of it has to be set by hand.") }}</p>
-      <p class="field__hint" x-show="interactive.includes(type)" x-cloak data-testid="interactive-only-note">{{ t("Interactive use only: the provider's terms forbid automated services, batch scripts and scheduled background jobs on a plan, and a key used for them can be suspended. So this server sends no scheduled or background work of its own to this connection — it goes to a pay-as-you-go one, or is not done — and refuses its models to personal API keys. A linked LLeMbas CLI may use them and is trusted to keep its own scheduled and background calls off them. A plan is sold for its subscriber's own use in coding and agent tools; whether this instance's use fits is yours to judge.") }}</p>
-    </div>
-
-    {#- One select per type that has regions, shown for that type: choosing
-        fills the address above, which stays a field anybody can edit. -#}
-    {% for type_id, choices in regions.items() %}
-    <div class="field" x-show="type === '{{ type_id }}'" x-cloak data-testid="region-{{ type_id }}">
-      <label class="field__label" for="new-region-{{ type_id }}">{{ t("Region") }}</label>
-      <select class="select" id="new-region-{{ type_id }}"
-              @change="$refs.url.value = $event.target.value">
-        {% for choice in choices %}
-        <option value="{{ choice.url }}">{{ choice.label }}</option>
-        {% endfor %}
-      </select>
-      <p class="field__hint">{{ t("Fills the base URL, which stays editable. A key works only with the address of its own product and region; for a workspace's own host, change the host and keep the path.") }}</p>
-    </div>
-    {% endfor %}
-
-    <div class="field">
-      <label class="field__label" for="new-name">{{ t("Name") }}</label>
-      <input class="input" id="new-name" name="name" required placeholder="{{ t('Local LM Studio') }}">
-    </div>
-
-    <div class="field">
-      <label class="field__label" for="new-provider">{{ t("Provider name") }}</label>
-      <input class="input input--mono" id="new-provider" name="provider" required
-             pattern="[a-z0-9][a-z0-9\-]{0,31}" maxlength="32" autocomplete="off"
-             placeholder="{{ t('llama') }}">
-      <p class="field__hint">{{ tm("How clients such as the LLeMbas CLI name this connection's models: <code>provider/model</code>, for example <code>llama/bonsai</code>. Lowercase letters, digits and hyphens, unique among connections.") }}</p>
-    </div>
-
-    <div class="field">
-      <label class="field__label" for="new-key">{{ t("API key") }}</label>
-      <input class="input input--mono" id="new-key" name="api_key" type="password" x-ref="key"
-             x-model="key" autocomplete="off" placeholder="{{ t('sk-…') }}">
-      <p class="field__hint">{{ t("Encrypted before it is stored, and never sent back to the browser. Leave empty for endpoints that need no key.") }}</p>
-      <div class="alert alert--error" x-show="wrongKey()" x-cloak role="status" data-testid="key-mismatch">
-        {{ icon("warning", "alert__icon") }}<span>{{ t("This key does not look like one for this type: a plan's key starts with sk-sp-, a pay-as-you-go key does not. A key works only with its own product's address.") }}</span>
-      </div>
-    </div>
-
-    <div class="field" x-show="billing.includes(type)" x-cloak>
-      <label class="field__label" for="new-billing">{{ t("Billing key (optional)") }}</label>
-      <input class="input input--mono" id="new-billing" name="billing_key" type="password"
-             autocomplete="off">
-      <p class="field__hint">{{ t("An admin key from the provider, used only to read what the account has spent. Never used for a reply; a reply never fails on it.") }}</p>
-    </div>
-
-    <div class="field">
-      <label class="field__label" for="new-currency">{{ t("Currency") }}</label>
-      <select class="select" id="new-currency" name="currency">
-        {% for code in currencies %}<option value="{{ code }}" {{ 'selected' if code == default_currency }}>{{ code }}</option>{% endfor %}
-      </select>
-      <p class="field__hint">{{ t("What this connection's model prices are typed in, and what a reply on one of them costs in.") }}</p>
-    </div>
-
-    <div class="field">
-      <label class="checkbox">
-        <input type="checkbox" name="one_model_at_a_time" value="true" x-ref="single">
-        <span>{{ t("Holds one model at a time") }}</span>
-      </label>
-    </div>
-
-    <div class="btn-row u-mt-5">
-      <button class="btn btn--primary" type="submit">
-        {{ icon("plus", "icon--sm") }} {{ t("Add and load models") }}
-      </button>
-    </div>
-  </form>
-</section>
-
-<h2 class="admin-section-title">
-  {{ t("Configured connections") }}
-  <span class="badge">{{ connections|length }}</span>
-</h2>
+<div class="btn-row">
+  <a class="btn btn--primary" href="/admin/connections/new" data-testid="connection-add">
+    {{ icon("plus", "icon--sm") }} {{ t("Add connection") }}
+  </a>
+</div>
 
 {% if not connections %}
 <div class="empty u-pad-y-10">
   {{ icon("server", "empty__mark") }}
-  <p class="empty__text">{{ t("Nothing configured yet. Add a connection above and its models appear here.") }}</p>
+  <p class="empty__text">{{ t("No roads lead anywhere yet. Add a connection and its models appear under Models.") }}</p>
 </div>
-{% endif %}
-
-<div id="connection-list">
+{% else %}
+{#- One grid, every line a subgrid of it (admin.css `.catalog`): mark, name
+    and address, type, what it offers, state. A line is its name's link. -#}
+<div class="catalog u-mt-5" data-testid="connection-list">
   {% for connection in connections %}
-    {% with row = rows[connection.id] %}
-      {% include "admin/_connection_row.html" %}
-    {% endwith %}
+  {% set health = connection.health_json or {} %}
+  {% set status = health.status if connection.enabled else "off" %}
+  {% set info = connection.provider_info %}
+  <div class="catalog__row {{ 'is-off' if not connection.enabled }}" data-testid="connection-line">
+    <span class="catalog__lead"></span>
+    <span class="catalog__mark">{{ icon("image" if info.id == "comfyui" else "mic" if info.id == "speech" else "server") }}</span>
+    <span class="catalog__main">
+      <a class="catalog__name" href="/admin/connections/{{ connection.id }}">{{ connection.name }}</a>
+      <code class="catalog__id">{{ connection.base_url }}</code>
+    </span>
+    <span class="catalog__cell" data-testid="connection-type">{{ health.server if info.id == "openai_compatible" and health.server else t(info.label) if info.id in ("openai_compatible", "speech") else info.label }}</span>
+    <span class="catalog__cell catalog__marks" data-testid="connection-offers">
+      {% for capability in offers[connection.id] %}
+      <span class="cap-mark cap-mark--icon" title="{{ t(capability_labels[capability]) }}">
+        {{ icon(capability_icons[capability], "icon--sm") }}
+        <span class="visually-hidden">{{ t(capability_labels[capability]) }}</span>
+      </span>
+      {% else %}
+      <span class="text-xs faint">{{ t("no models") }}</span>
+      {% endfor %}
+    </span>
+    <span class="catalog__state">
+      <span class="status-dot {{ 'is-off' if status == 'off'
+                                  else 'is-ok' if status == 'ok'
+                                  else 'is-wait' if status == 'loading'
+                                  else 'is-bad' if status in ('down', 'error') or connection.last_error
+                                  else 'is-off' }}"
+            data-testid="connection-health" data-status="{{ status or 'unknown' }}" role="img"
+            aria-label="{{ t('Disabled') if status == 'off'
+                           else t('Answering') if status == 'ok'
+                           else t('Loading a model') if status == 'loading'
+                           else t('Unreachable') if status == 'down'
+                           else t('Answering with an error') if status == 'error'
+                           else t('Not checked yet') }}"
+            title="{{ t('Disabled') if status == 'off'
+                      else t('Answering') if status == 'ok'
+                      else t('Loading a model') if status == 'loading'
+                      else t('Unreachable') if status == 'down'
+                      else t('Answering with an error') if status == 'error'
+                      else t('Not checked yet') }}"></span>
+      <span class="badge">{{ t("on") if connection.enabled else t("off") }}</span>
+    </span>
+  </div>
   {% endfor %}
 </div>
+{% endif %}
 {% endblock %}

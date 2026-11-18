@@ -1,15 +1,23 @@
 """Media from connections: speech to text, text to speech and pictures.
 
-The instance has **defaults** -- the two audio endpoints (Admin › Audio) and
-the ComfyUI (Admin › Image generation). A connection may also carry media
-models of its own (`Connection.media_json`, `store.py`), and two switches say
-whether a chat whose model is on that connection uses them.
+Everything that serves speech or pictures is a **connection**: a provider of
+chat models that also has media models, or the instance's own equipment -- a
+speech server, a ComfyUI (`providers.SPEECH`, `providers.COMFYUI`). What each
+offers are models with a capability, kept on the connection
+(`Connection.media_json`, `store.py`). The instance has a **default** model
+per capability (Admin › Media); a provider's connection may also be set to
+use its own for the chats on its models.
 
 The parts:
 
 - `store.py` -- what a connection offers: its models per capability, each
   enabled and priced on its own, the two switches, and what a known provider
   type is pre-filled with.
+- `instance.py` -- the equipment as connections: the default's place in the
+  settings, the settings as the ComfyUI and audio code read them, and the
+  one-time carry of an older release's addresses into connections.
+- `catalog.py` -- the one list of models, rows and media alike.
+- `probe.py` -- what Test does for a media model.
 - `sources.py` -- the one decision: for a capability and a chat's connection,
   the **sources to try, in order** -- the connection's own (switch on, a model
   enabled, and allowed for this kind of work), then the instance's default.

@@ -1,10 +1,20 @@
-"""Model administration: ordering, defaults, images, access and capabilities."""
+"""Model administration: the one list of models, and a chat model's page.
+
+The list (`/admin/models`) is every model with its capability
+(`services/media/catalog.py`): chat and embedding models, which are rows, and
+speech and picture models, which their connection keeps. A line opens the
+model's own page. A chat model's is here, in link tabs with addresses of
+their own -- General (`/admin/models/{id}`), Limits and reasoning (`…/limits`),
+Prices (`…/prices`), Capabilities (`…/capabilities`); a media model's is
+`api/admin_media.py`'s. One Save per tab: the save says which tab it is
+(`tab`) and only that tab's fields are written.
+"""
 
 from __future__ import annotations
 
 import contextlib
 import logging
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, Response, UploadFile, status
 from fastapi.responses import FileResponse, RedirectResponse
@@ -17,7 +27,10 @@ from lembas.services import chat as chat_service
 from lembas.services import pricing as pricing_service
 from lembas.services import settings_store, uploads
 from lembas.services.llm import capabilities as capabilities_service
+from lembas.services.llm import providers
 from lembas.services.llm.openai_client import MAX_CONTEXT
+from lembas.services.media import catalog
+from lembas.services.media import store as media_store
 from lembas.web import i18n
 from lembas.web.templating import render
 
@@ -97,24 +110,8 @@ def _renumber(db: DBSession) -> None:
 PAGE_SIZE = 40
 
 # Filters offered as tabs above the list. Each is a predicate over a Model.
-FILTERS: dict[str, object] = {
-    "all": lambda m: True,
-    "enabled": lambda m: m.enabled,
-    "disabled": lambda m: not m.enabled,
-    "pinned": lambda m: m.pinned,
-    "restricted": lambda m: not m.public,
-}
-
-
-def _filter_labels() -> dict[str, str]:
-    """The tabs' names, in the reader's language (hence not in FILTERS)."""
-    return {
-        "all": i18n.t("All"),
-        "enabled": i18n.t("Enabled"),
-        "disabled": i18n.t("Disabled"),
-        "pinned": i18n.t("Pinned"),
-        "restricted": i18n.t("Restricted"),
-    }
+STATES = ("on", "off")
+TABS = ("general", "limits", "prices", "capabilities")
 
 
 @router.get("/admin/models")
@@ -124,58 +121,60 @@ async def models_page(
     user: AdminUser,
     saved: str = "",
     q: str = "",
-    filter: str = "all",
+    capability: str = "",
     connection: str = "",
+    state: str = "",
     page: int = 1,
+    filter: str = "",
 ):
-    """The model list.
+    """The model list: one plain line per model, whatever its capability.
 
-    Compact rows only -- editing happens on a page of its own. A connection can
-    advertise a hundred models, and a list that renders a full form for each of
-    them is unusable at that size.
+    Compact rows only -- everything about a model is on a page of its own. A
+    connection can advertise a hundred models, and a list that renders a form
+    for each of them is unusable at that size. The filters are in the address,
+    so a filtered view is one that can be kept or shared.
     """
-    everything = _ordered(db)
-
-    predicate = FILTERS.get(filter, FILTERS["all"])
-    needle = q.strip().lower()
-
-    matching = [
-        model
-        for model in everything
-        if predicate(model)
-        and (not connection or model.connection_id == connection)
-        and (
-            not needle
-            or needle in model.model_id.lower()
-            or needle in (model.display_name or "").lower()
-        )
-    ]
-
+    # The older address's `filter=enabled|disabled` still means what it did.
+    state = state if state in STATES else {"enabled": "on", "disabled": "off"}.get(filter, "")
+    capability = capability if capability in media_store.EVERY else ""
+    everything = catalog.items(db)
+    matching = catalog.items(
+        db, capability=capability, connection_id=connection, q=q, state=state
+    )
     pages = max(1, -(-len(matching) // PAGE_SIZE))
     page = max(1, min(page, pages))
     start = (page - 1) * PAGE_SIZE
-    visible = matching[start : start + PAGE_SIZE]
+    counted = catalog.counts(everything)
+    query = {"q": q.strip(), "capability": capability, "connection": connection, "state": state}
 
     return render(
         request,
         "admin/models.html",
         {
-            "models": visible,
+            "items": matching[start : start + PAGE_SIZE],
             "total": len(everything),
             "matched": len(matching),
             "page": page,
             "pages": pages,
             "page_start": start,
             "connections": list(db.scalars(select(Connection).order_by(Connection.name))),
-            "default_model": settings_store.get(db, "default_model") or "",
-            "counts": {
-                key: sum(1 for m in everything if test(m)) for key, test in FILTERS.items()
-            },
-            "filters": _filter_labels(),
-            "active_filter": filter if filter in FILTERS else "all",
+            # Only the capabilities this instance has a model of are offered
+            # as a filter (and the one in force, so it can be seen and left).
+            "capabilities": [
+                c for c in catalog.LABELS if counted.get(c) or c == capability
+            ],
+            "counts": counted,
             "q": q,
+            "capability": capability,
             "connection_id": connection,
+            "state": state,
+            "filtered": bool(q.strip() or capability or connection or state),
+            # Dragging puts the pickers in order: only where the whole list
+            # of rows is on the page, unfiltered.
+            "sortable": not (q.strip() or capability or connection or state),
+            "base": "/admin/models?" + urlencode({k: v for k, v in query.items() if v}),
             "saved": saved,
+            **catalog.context(),
         },
     )
 
@@ -236,18 +235,55 @@ def _fallbacks(db: DBSession, model: Model) -> tuple[list[dict], list[dict]]:
     return items, [{"id": m.id, "label": label(m)} for m in candidates]
 
 
-@router.get("/admin/models/{model_id}/edit")
+def model_tabs(model: Model) -> list[tuple[str, str, str]]:
+    """`(key, address, label)` of each tab of a chat model's page. An
+    embedding model answers no chat, so it has no reasoning, tools or pages
+    to set: its Capabilities tab is not shown."""
+    base = f"/admin/models/{model.id}"
+    out = [
+        ("general", base, i18n.t("General")),
+        ("limits", f"{base}/limits", i18n.t("Limits and reasoning")),
+        ("prices", f"{base}/prices", i18n.t("Prices")),
+    ]
+    if catalog.capability_of(model) != media_store.CAP_EMBEDDING:
+        out.append(("capabilities", f"{base}/capabilities", i18n.t("Capabilities")))
+    return out
+
+
+def _tab_href(model: Model, tab: str) -> str:
+    return f"/admin/models/{model.id}" + ("" if tab == "general" else f"/{tab}")
+
+
+@router.get("/admin/models/{model_id}")
+async def model_general(
+    request: Request, db: Db, user: AdminUser, model_id: str,
+    saved: str = "", detected: str = "", message: str = "",
+):
+    return await model_detail(request, db, user, model_id, "general", saved, detected, message)
+
+
+@router.get("/admin/models/{model_id}/{tab}")
 async def model_detail(
     request: Request,
     db: Db,
     user: AdminUser,
     model_id: str,
+    tab: str,
     saved: str = "",
     detected: str = "",
     message: str = "",
 ):
-    """Everything about one model, on its own page."""
+    """One tab of a model's own page. `…/edit` is the page's older address
+    and shows General."""
+    tab = "general" if tab == "edit" else tab
     model = _model(db, model_id)
+    tabs = model_tabs(model)
+    if tab in TABS and tab not in {key for key, _, _ in tabs}:
+        # A tab this model does not have (Previous and Next keep the tab):
+        # its General.
+        return RedirectResponse(f"/admin/models/{model.id}", status_code=303)
+    if tab not in TABS:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, i18n.t("That page does not exist."))
     ordered = _ordered(db)
     index = next((i for i, m in enumerate(ordered) if m.id == model.id), 0)
     fallback_items, fallback_choices = _fallbacks(db, model)
@@ -257,6 +293,14 @@ async def model_detail(
         "admin/model_detail.html",
         {
             "model": model,
+            "tabs": tabs,
+            "tab": tab,
+            "model_capability": catalog.capability_of(model),
+            # From the connection, shown and not set here: a plan's terms.
+            "interactive_only": providers.interactive_only(
+                model.connection.provider_type, model.connection.base_url
+            ),
+            **catalog.context(),
             "price_fields": (
                 ("input", i18n.t("Input"), i18n.t("Per million prompt tokens.")),
                 (
@@ -318,6 +362,9 @@ async def model_detail(
             "total": len(ordered),
             "previous": ordered[index - 1] if index > 0 else None,
             "next": ordered[index + 1] if index + 1 < len(ordered) else None,
+            # Previous and next stay on the tab being worked through, where
+            # the neighbour has it.
+            "tab_suffix": "" if tab == "general" else f"/{tab}",
             "saved": saved,
         },
     )
@@ -388,8 +435,16 @@ async def update_model(
     price_reasoning: str = Form(""),
     price_per_request: str = Form(""),
     kind: str = Form(""),
+    tab: str = Form(""),
 ) -> Response:
     model = _model(db, model_id)
+    # One Save per tab: a post that names its tab writes that tab's fields
+    # and leaves the rest of the model alone. A post that names none (an
+    # older page, a script) is the whole model, as it always was.
+    tab = tab if tab in TABS else ""
+
+    def on(name: str) -> bool:
+        return not tab or tab == name
 
     # Money per million tokens (per reply for per_request), in the instance's
     # currency. Junk and zero are absent, so an empty form is a free model
@@ -408,24 +463,27 @@ async def update_model(
                 pricing[key] = value
     # A subscription's models are not priced, and the form shows no price
     # fields for them: what was stored before stays, for the day it moves.
-    if not pricing_service.subscription(model):
+    if on("prices") and not pricing_service.subscription(model):
         model.pricing_json = pricing
     # Chat or embedding. Absent from the post (an older form) keeps
     # what is stored rather than resetting it.
-    if kind in MODEL_KINDS:
+    if on("general") and kind in MODEL_KINDS:
         model.kind = kind
 
-    model.display_name = display_name.strip()[:300]
-    model.description = description.strip()[:2000]
-    model.notes = notes.strip()[:2000]
-    model.system_prompt = system_prompt.strip()[:8000]
+    if on("general"):
+        model.display_name = display_name.strip()[:300]
+        model.description = description.strip()[:2000]
+        model.notes = notes.strip()[:2000]
+        model.system_prompt = system_prompt.strip()[:8000]
     # A string, so an emptied field is distinguishable and junk can be ignored
     # rather than becoming a 422 -- the same shape `position` uses below. A
     # number typed is an override (it wins over what the endpoint says); empty
     # follows the endpoint, and with nothing detected is "unknown".
     override = capabilities_service.clean(model.capabilities_override_json)
     detected = capabilities_service.clean(model.capabilities_detected_json)
-    if context_length.strip():
+    if not on("limits"):
+        pass
+    elif context_length.strip():
         with contextlib.suppress(ValueError):
             typed = min(max(int(context_length), 0), MAX_CONTEXT)
             if typed and typed == detected.get("context_length"):
@@ -439,16 +497,19 @@ async def update_model(
         override.pop("context_length", None)
         if "context_length" not in detected:
             model.context_length = 0
-    model.enabled = enabled
-    model.pinned = pinned
-    model.public = public
+    if on("general"):
+        model.enabled = enabled
+        model.pinned = pinned
+        model.public = public
     # Requests at once (spec 3.2.0 `capacity.parallel`): a number, or empty for
     # "no limit anybody stated". The older "one request at a time" box is the
     # same as 1, so it is kept equal for whatever reads only that column; a
     # form that posts no `parallel` (an older one) still sets the box. FastAPI
     # reads an empty field as None too, so an emptied field lands here: with
     # the box unticked it clears a 1 and keeps any larger number.
-    if parallel is None:
+    if not on("limits"):
+        pass
+    elif parallel is None:
         model.single_session = single_session
         if single_session:
             model.parallel = 1
@@ -460,8 +521,10 @@ async def update_model(
             typed = int(parallel.strip()) if parallel.strip() else None
         model.parallel = typed if typed is not None and 1 <= typed <= MAX_PARALLEL else None
         model.single_session = model.parallel == 1
-    model.thinking_switch = thinking_switch
-    model.html_pages = html_pages
+    if on("limits"):
+        model.thinking_switch = thinking_switch
+    if on("capabilities"):
+        model.html_pages = html_pages
 
     # Merged rather than rebuilt, unlike the capabilities below: params_json
     # holds whatever sampling defaults an administrator has set and this form
@@ -471,10 +534,17 @@ async def update_model(
     # the common three. Stored in the order `EFFORTS` declares rather than the
     # order a browser happened to send.
     chosen = [value for value in chat_service.EFFORTS if value in (reasoning_efforts or [])]
-    model.reasoning_efforts = chosen
+    if on("limits"):
+        model.reasoning_efforts = chosen
 
     params = dict(model.params_json or {})
-    wanted = default_effort.strip().lower()
+    # Another tab's save carries no default effort: the stored one is checked
+    # again below, because that tab may have changed which levels there are.
+    wanted = (
+        default_effort.strip().lower()
+        if on("limits")
+        else str(params.get("reasoning_effort") or "")
+    )
     # Checked against the levels this model offers, not against everything this
     # application has heard of -- a default of `high` on a model whose template
     # refuses it is a chat that fails on its first turn, and `off` exists only
@@ -493,7 +563,7 @@ async def update_model(
         "tools": cap_tools, "embeddings": cap_embeddings,
     }
     rebuilt = {name: (name in capability) for name in CAPABILITIES}
-    for name in PROTOCOL_CAPABILITIES:
+    for name in PROTOCOL_CAPABILITIES if on("capabilities") else ():
         choice = chosen_caps[name]
         if choice is None:
             override[name] = name in capability
@@ -504,7 +574,8 @@ async def update_model(
             # Following detection, and the endpoint said nothing: off, as an
             # unticked box always was.
             rebuilt[name] = bool(detected.get(name, False))
-    model.capabilities_json = rebuilt
+    if on("capabilities"):
+        model.capabilities_json = rebuilt
     capabilities_service.set_override(model, override)
 
     params = dict(model.params_json or {})
@@ -516,13 +587,15 @@ async def update_model(
 
     # The fallback list, in the order posted; only other chat models that
     # exist (validated again when a reply uses it, `services/fallback.py`).
-    if fallback_submitted or fallback_model_ids:
+    if on("limits") and (fallback_submitted or fallback_model_ids):
         known = {m.id for m in db.scalars(select(Model).where(Model.id != model.id))}
         model.fallback_model_ids = list(
             dict.fromkeys(i for i in fallback_model_ids if i in known)
         )[:10]
 
-    if public:
+    if not on("general"):
+        pass
+    elif public:
         # Group rows would be dead weight and misleading in the UI.
         model.groups = []
     else:
@@ -532,7 +605,7 @@ async def update_model(
 
     # Typing a position is the only workable way to reorder a long list; the
     # up/down buttons are for nudging a model one place.
-    if position.strip():
+    if on("general") and position.strip():
         try:
             wanted = max(1, int(position)) - 1
         except ValueError:
@@ -545,9 +618,8 @@ async def update_model(
             db.commit()
 
     log.info("model %s updated by %s", model.model_id, user.email)
-    return RedirectResponse(
-        f"/admin/models/{model.id}/edit?saved={quote(i18n.t('Saved.'))}", status_code=303
-    )
+    target = _tab_href(model, tab) if tab else f"/admin/models/{model.id}/edit"
+    return RedirectResponse(f"{target}?saved={quote(i18n.t('Saved.'))}", status_code=303)
 
 
 @router.post("/admin/models/{model_id}/detect-efforts")
@@ -594,9 +666,26 @@ async def detect_efforts(db: Db, user: AdminUser, model_id: str) -> Response:
         kind = "warning"
 
     return RedirectResponse(
-        f"/admin/models/{model.id}/edit?detected={kind}&message={quote(message)}",
+        f"/admin/models/{model.id}/limits?detected={kind}&message={quote(message)}",
         status_code=status.HTTP_303_SEE_OTHER,
     )
+
+
+def local_back(back: str, fallback: str) -> str:
+    """Where a switch in a list returns to: the list's own address, and
+    nothing that is not a path of this administration."""
+    return back if back.startswith("/admin/") and "//" not in back else fallback
+
+
+@router.post("/admin/models/{model_id}/toggle")
+async def toggle_model(db: Db, user: AdminUser, model_id: str, back: str = "") -> Response:
+    """On or off, from a list: applies at once, and comes back to the list."""
+    model = _model(db, model_id)
+    model.enabled = not model.enabled
+    db.commit()
+    log.info("model %s switched %s by %s", model.model_id,
+             "on" if model.enabled else "off", user.email)
+    return RedirectResponse(local_back(back, "/admin/models"), status_code=303)
 
 
 @router.post("/admin/models/{model_id}/default")
@@ -608,7 +697,7 @@ async def set_default_model(
     settings_store.update(db, {"default_model": model.model_id})
     log.info("default model set to %s by %s", model.model_id, user.email)
     return RedirectResponse(
-        back or f"/admin/models/{model.id}/edit?saved={quote(i18n.t('Now the default model.'))}",
+        back or f"/admin/models/{model.id}?saved={quote(i18n.t('Now the default model.'))}",
         status_code=303,
     )
 

@@ -45,7 +45,7 @@ def test_a_redirect_back_is_answered_with_the_page(client, registered):
 
 
 def test_a_redirect_elsewhere_becomes_a_navigation(client, registered):
-    response = _post(client, "/admin/general", {"instance_name": "Bree"}, "/admin/audio")
+    response = _post(client, "/admin/general", {"instance_name": "Bree"}, "/admin/media/stt")
     assert response.status_code == 200
     assert response.headers["hx-redirect"].startswith("/admin/general")
     assert response.text == ""
@@ -173,12 +173,22 @@ def test_htmx_still_merges_headers_past_disinherit():
     assert "hx-disinherit" not in body
 
 
-def test_rows_swapped_on_their_own_sit_inside_in_place_forms():
-    """The case above, as the markup has it: if these buttons ever leave their
-    forms the test above guards nothing, and that is fine."""
-    row = (ROOT / "web/templates/admin/_connection_row.html").read_text(encoding="utf-8")
-    form = row[row.index("<form") : row.index("</form>")]
-    assert 'hx-post="/admin/connections/{{ connection.id }}/test"' in form
+def test_the_status_swapped_on_its_own_sits_outside_every_form():
+    """The case above, as the markup has it now: "Test & refresh" left its
+    form. It is a plain button in the connection's status, which holds no form
+    and is included before the page's own, so it has no in-place swap to
+    inherit; it names its own target and swap."""
+    status = (ROOT / "web/templates/admin/_connection_status.html").read_text(encoding="utf-8")
+    assert "<form" not in status
+    button = status[: status.index('hx-post="/admin/connections/{{ connection.id }}/test"')]
+    button = button[button.rindex("<button") :]
+    assert 'type="button"' in button
+    after = status[status.index('hx-post="/admin/connections/{{ connection.id }}/test"') :]
+    after = after[: after.index(">")]
+    assert 'hx-target="#connection-{{ connection.id }}"' in after
+    assert 'hx-swap="outerHTML"' in after
+    page = (ROOT / "web/templates/admin/connection_detail.html").read_text(encoding="utf-8")
+    assert page.index('include "admin/_connection_status.html"') < page.index("<form")
 
 
 def test_the_result_of_an_action_is_always_a_toast():

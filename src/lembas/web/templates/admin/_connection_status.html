@@ -1,0 +1,108 @@
+{% from "_macros.html" import icon %}
+{#
+  A connection's head: what it is, its state, and Test. Swapped in place by
+  "Test" and "Check balance", so it renders on its own as well as inside the
+  page; everything besides `connection` comes in `row` (api/admin.py
+  `_row_context`).
+#}
+{% set health = connection.health_json or {} %}
+{% set status = health.status if connection.enabled else "off" %}
+{% set balance = health.balance or {} %}
+{% set info = connection.provider_info %}
+<section class="card connection" id="connection-{{ connection.id }}" data-testid="connection-status">
+  <div class="item-head">
+    <span class="item-head__mark">{{ icon("image" if info.id == "comfyui" else "mic" if info.id == "speech" else "server") }}</span>
+    <div class="item-head__main">
+      <div class="item-head__name">
+        <span class="status-dot {{ 'is-off' if status == 'off'
+                                    else 'is-ok' if status == 'ok'
+                                    else 'is-wait' if status == 'loading'
+                                    else 'is-bad' if status in ('down', 'error') or connection.last_error
+                                    else 'is-off' }}"
+              data-testid="connection-health" data-status="{{ status or 'unknown' }}" role="img"
+              aria-label="{{ t('Disabled') if status == 'off'
+                             else t('Answering') if status == 'ok'
+                             else t('Loading a model') if status == 'loading'
+                             else t('Unreachable') if status == 'down'
+                             else t('Answering with an error') if status == 'error'
+                             else t('Not checked yet') }}"
+              title="{{ t('Disabled') if status == 'off'
+                        else t('Answering') if status == 'ok'
+                        else t('Loading a model') if status == 'loading'
+                        else t('Unreachable') if status == 'down'
+                        else t('Answering with an error') if status == 'error'
+                        else t('Not checked yet') }}"></span>
+        <strong class="truncate">{{ connection.name }}</strong>
+        {% if row.chat %}<span class="badge" title="{{ t('Provider name') }}"><code>{{ connection.provider_name }}</code></span>{% endif %}
+        <span class="badge">{{ health.server if info.id == "openai_compatible" and health.server else t(info.label) if info.id in ("openai_compatible", "speech") else info.label }}</span>
+        {% if health.latency_ms is defined and status in ('ok', 'loading') %}
+        <span class="badge" title="{{ t('Time to answer the last check') }}">{{ t("%(ms)s ms", ms=health.latency_ms) }}</span>
+        {% endif %}
+        {% if status == 'loading' and health.loading %}
+        <span class="badge">{{ t("loading %(model)s", model=health.loading) }}</span>
+        {% endif %}
+        {% if row.chat and row.model_count is defined %}
+        <span class="badge">{{ t("1 model") if row.model_count == 1 else t("%(n)s models", n=row.model_count) }}</span>
+        {% endif %}
+        {% if not connection.enabled %}<span class="badge">{{ t("disabled") }}</span>{% endif %}
+      </div>
+      <div class="item-head__sub">
+        <code>{{ connection.base_url }}</code> ·
+        {% if connection.last_checked_at %}
+          {{ t("Last checked %(when)s UTC", when=connection.last_checked_at.strftime("%Y-%m-%d %H:%M")) }}
+        {% else %}
+          {{ t("Never checked") }}
+        {% endif %}
+      </div>
+    </div>
+    <div class="item-head__actions">
+      {% if row.has_balance %}
+      <button class="btn btn--sm" type="button"
+              hx-post="/admin/connections/{{ connection.id }}/balance"
+              hx-target="#connection-{{ connection.id }}" hx-swap="outerHTML">
+        {{ icon("refresh", "icon--sm") }} {{ t("Check balance") }}
+      </button>
+      {% endif %}
+      <button class="btn btn--sm" type="button" data-testid="connection-test"
+              hx-post="/admin/connections/{{ connection.id }}/test"
+              hx-target="#connection-{{ connection.id }}" hx-swap="outerHTML">
+        {{ icon("refresh", "icon--sm") }} {{ t("Test & refresh") if row.chat else t("Test") }}
+      </button>
+    </div>
+  </div>
+
+  {% if message %}
+  {#- What Test or Check balance just said: a toast (ui.js), like any result. -#}
+  <div data-flash="{{ message_kind|default('success') }}" class="alert alert--{{ message_kind|default('success') }}">
+    {% if message_kind == "error" %}{{ icon("warning", "alert__icon") }}{% endif %}
+    <span>{{ message }}</span>
+  </div>
+  {% elif connection.last_error %}
+  <div class="alert alert--error">
+    {{ icon("warning", "alert__icon") }}
+    <span>{{ connection.last_error }}</span>
+  </div>
+  {% elif status in ('down', 'error') and health.error %}
+  <div class="alert alert--error">
+    {{ icon("warning", "alert__icon") }}
+    <span>{{ health.error }}</span>
+  </div>
+  {% endif %}
+
+  {% if row.has_balance %}
+  {# What the provider itself says is left, or was spent -- its figure,
+     beside (never mixed into) this instance's own cost estimate. #}
+  <p class="field__hint" data-testid="connection-balance">
+    <span>{{ t("Balance at the provider") if balance.kind != 'spent_30d' else t("Spent at the provider, last 30 days") }}:</span>
+    {% if balance.ok %}
+      {% for item in balance["items"] %}<strong>{{ item.amount }} {{ item.currency }}</strong>{{ " · " if not loop.last }}{% else %}{{ t("Nothing reported.") }}{% endfor %}
+    {% elif balance.error %}
+      {{ t(balance.error) }}
+    {% else %}
+      {{ t("Not read yet.") }}
+    {% endif %}
+    {% if balance.checked_at %}{{ t("As the provider reported it at %(when)s UTC.", when=balance.checked_at[:16].replace("T", " ")) }}{% endif %}
+    {{ t("The provider's own figure. A reply's cost here is this instance's estimate from the model's prices, or the provider's when it reports one.") }}
+  </p>
+  {% endif %}
+</section>

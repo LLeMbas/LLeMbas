@@ -1,0 +1,270 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "models" %}
+{% set unit = t(capability_units[entry.capability]) if entry.capability in capability_units else "" %}
+
+{% block title %}{{ entry.label }} - {{ t("Models") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ entry.label }}{% endblock %}
+
+{% block admin_content %}
+<nav class="crumbs">
+  <a href="/admin/models">{{ icon("chevron-right", "icon--sm crumbs__back") }} {{ t("All models") }}</a>
+  <span class="spacer"></span>
+  {% if previous %}
+  <a class="btn btn--sm" href="{{ previous.href }}" title="{{ previous.label }}">{{ icon("arrow-up", "icon--sm") }} {{ t("Previous") }}</a>
+  {% endif %}
+  <span class="text-xs faint">{{ t("%(n)s of %(total)s", n=position_of, total=total) }}</span>
+  {% if next %}
+  <a class="btn btn--sm" href="{{ next.href }}" title="{{ next.label }}">{{ t("Next") }} {{ icon("arrow-down", "icon--sm") }}</a>
+  {% endif %}
+</nav>
+
+{% if saved %}
+<div data-flash="success" class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
+{% endif %}
+{% if error %}
+<div data-flash="error" class="alert alert--error">{{ icon("warning", "alert__icon") }} <span>{{ error }}</span></div>
+{% endif %}
+
+<section class="card" data-testid="media-model-head">
+  <div class="item-head">
+    <span class="item-head__mark">{{ icon(capability_icons[entry.capability]) }}</span>
+    <div class="item-head__main">
+      <div class="item-head__name">
+        <strong class="truncate">{{ entry.label }}</strong>
+        <span class="badge" data-testid="model-capability">{{ t(capability_labels[entry.capability]) }}</span>
+        {% if is_default %}<span class="badge badge--leaf">{{ icon("star", "icon--sm") }} {{ t("default") }}</span>{% endif %}
+        {% if not entry.enabled %}<span class="badge">{{ t("off") }}</span>{% endif %}
+      </div>
+      <div class="item-head__sub">
+        <code>{{ entry.model }}</code> ·
+        <a href="/admin/connections/{{ connection.id }}">{{ t("via %(connection)s", connection=connection.name) }}</a>
+      </div>
+    </div>
+    <div class="item-head__actions">
+      {% if testable %}
+      <form method="post" action="{{ base }}/test">
+        <button class="btn btn--sm" type="submit" data-testid="media-model-test">{{ icon("play", "icon--sm") }} {{ t("Test") }}</button>
+      </form>
+      {% endif %}
+      {% if served and not is_default %}
+      <form method="post" action="{{ base }}/default">
+        <button class="btn btn--sm" type="submit" data-testid="media-model-default">{{ icon("star", "icon--sm") }} {{ t("Make default") }}</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% if not served %}
+  <p class="field__hint">{{ t("Kept and listed. Nothing on this instance asks a model of this capability for anything yet.") }}</p>
+  {% elif not testable %}
+  <p class="field__hint">{{ t("There is no Test for a provider's picture model: the only test would be a picture somebody pays for.") }}</p>
+  {% endif %}
+</section>
+
+{% include "admin/_tabs.html" %}
+
+{% if tab == "general" %}
+{# ------------------------------------------------------------------ General #}
+<form method="post" action="{{ base }}" data-testid="media-model-general">
+  <section class="card">
+    <h2 class="card__title">{{ t("Presentation") }}</h2>
+    <div class="field">
+      <label class="field__label" for="name">{{ t("Display name") }}</label>
+      <input class="input" id="name" name="name" value="{{ entry.name }}" maxlength="120"
+             placeholder="{{ entry.model }}">
+      <p class="field__hint">{{ t("Shown instead of the raw id. Empty uses the id.") }}</p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="description">{{ t("Description") }}</label>
+      <textarea class="textarea" id="description" name="description" rows="2" maxlength="500"
+                placeholder="{{ t('What is this model good at?') }}">{{ entry.description }}</textarea>
+      <p class="field__hint">{{ t("For whoever administers this instance next: what it is, and why it is here.") }}</p>
+    </div>
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="enabled" value="true" {{ 'checked' if entry.enabled }}>
+        <span>{{ t("On — may be used") }}</span>
+      </label>
+      <p class="field__hint">
+        {% if equipment %}{{ t("Off, it cannot be the default and is not offered to a chat.") }}
+        {% else %}{{ t("Off, it serves neither its connection's own chats nor as the default.") }}{% endif %}
+      </p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Price") }}</h2>
+    {% if subscription %}
+    <p class="card__lede" data-testid="price-subscription">{{ t("This model's connection is a subscription. What it does is counted and never priced: a figure would be made up.") }}</p>
+    <input type="hidden" name="price" value="{{ entry.price or '' }}">
+    {% else %}
+    <div class="field">
+      <label class="field__label" for="price">{{ t("Price") }} ({{ connection.currency }} {{ unit }})</label>
+      <input class="input" id="price" name="price" type="number" min="0" step="any"
+             value="{{ entry.price or '' }}" placeholder="0">
+      <p class="field__hint">
+        {% if comfyui %}{{ t("What one picture from this checkpoint costs. Empty takes the instance's price per picture, under Media.") }}
+        {% else %}{{ t("In the connection's currency, in the unit the provider bills in. Empty is free, which is what a server of your own is.") }}{% endif %}
+      </p>
+    </div>
+    {% endif %}
+  </section>
+
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">{{ t("Save changes") }}</button>
+    <a class="btn btn--ghost" href="/admin/models">{{ t("Back to all models") }}</a>
+  </div>
+</form>
+
+{% elif tab == "options" %}
+{# ------------------------------------------------------------------ Options #}
+{% if "voices" in option_fields and not comfyui %}
+{#- Its own form, declared before the main one: asking the server is not a
+    save, and a form inside a form truncates the outer one. -#}
+<form id="fetch-voices" method="post" action="{{ base }}/voices" hidden></form>
+{% endif %}
+<form method="post" action="{{ base }}/options" data-testid="media-model-options">
+  <section class="card">
+    <h2 class="card__title">{{ t("How this model is asked") }}</h2>
+    <p class="card__lede">{{ t("Each of these is this model's own. An empty box is no opinion: the instance's setting, or the provider's own default, applies.") }}</p>
+
+    <div class="field-grid">
+      {% if "voice" in option_fields %}
+      <div class="field">
+        <label class="field__label" for="voice">{{ t("Default voice") }}</label>
+        {% if entry.options.voices %}
+        <select class="select" id="voice" name="voice">
+          <option value="">{{ t("The server's own") }}</option>
+          {% for name in entry.options.voices %}<option value="{{ name }}" {{ 'selected' if name == entry.voice }}>{{ name }}</option>{% endfor %}
+          {% if entry.voice and entry.voice not in entry.options.voices %}<option value="{{ entry.voice }}" selected>{{ entry.voice }}</option>{% endif %}
+        </select>
+        {% else %}
+        <input class="input" id="voice" name="voice" value="{{ entry.voice }}" maxlength="120"
+               autocomplete="off" placeholder="{{ t('voice') }}">
+        {% endif %}
+        <p class="field__hint">{{ t("Read in when a person has chosen none of their own.") }}</p>
+      </div>
+      {% endif %}
+      {% if "speed" in option_fields %}
+      <div class="field">
+        <label class="field__label" for="speed">{{ t("Speed") }}</label>
+        <input class="input" id="speed" name="speed" type="number" min="0.25" max="4" step="0.05"
+               value="{{ entry.options.speed or '' }}" placeholder="1.0">
+        <p class="field__hint">{{ t("0.25 to 4. A person's own speed wins.") }}</p>
+      </div>
+      {% endif %}
+      {% if "format" in option_fields %}
+      <div class="field">
+        <label class="field__label" for="format">{{ t("Audio format") }}</label>
+        <select class="select" id="format" name="format">
+          <option value="">{{ t("No opinion") }}</option>
+          {% for value in formats %}<option value="{{ value }}" {{ 'selected' if value == entry.options.format }}>{{ value }}</option>{% endfor %}
+        </select>
+        <p class="field__hint">{{ t("What the model is asked to answer in.") }}</p>
+      </div>
+      {% endif %}
+      {% if "language" in option_fields %}
+      <div class="field">
+        <label class="field__label" for="language">{{ t("Language hint") }}</label>
+        <input class="input" id="language" name="language" value="{{ entry.options.language or '' }}"
+               maxlength="32" autocomplete="off" placeholder="{{ t('detect') }}">
+        <p class="field__hint">{{ t("A code such as en or sk. Empty lets the model detect it, which it usually does best.") }}</p>
+      </div>
+      {% endif %}
+      {% if "steps" in option_fields %}
+      <div class="field">
+        <label class="field__label" for="steps">{{ t("Steps") }}</label>
+        <input class="input" id="steps" name="steps" type="number" min="1" max="150" step="1"
+               value="{{ entry.options.steps or '' }}">
+        <p class="field__hint">{{ t("More is slower, not always better.") }}</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="cfg">{{ t("CFG") }}</label>
+        <input class="input" id="cfg" name="cfg" type="number" min="0" max="30" step="0.1"
+               value="{{ entry.options.cfg if entry.options.cfg is defined else '' }}">
+        <p class="field__hint">{{ t("How closely to follow the prompt.") }}</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="sampler">{{ t("Sampler") }}</label>
+        {% if samplers %}
+        <select class="select" id="sampler" name="sampler">
+          <option value="">{{ t("No opinion") }}</option>
+          {% for name in samplers %}<option value="{{ name }}" {{ 'selected' if name == entry.options.sampler }}>{{ name }}</option>{% endfor %}
+          {% if entry.options.sampler and entry.options.sampler not in samplers %}<option value="{{ entry.options.sampler }}" selected>{{ entry.options.sampler }}</option>{% endif %}
+        </select>
+        {% else %}
+        <input class="input input--mono" id="sampler" name="sampler" value="{{ entry.options.sampler or '' }}" maxlength="80">
+        {% endif %}
+        <p class="field__hint"></p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="scheduler">{{ t("Scheduler") }}</label>
+        {% if schedulers %}
+        <select class="select" id="scheduler" name="scheduler">
+          <option value="">{{ t("No opinion") }}</option>
+          {% for name in schedulers %}<option value="{{ name }}" {{ 'selected' if name == entry.options.scheduler }}>{{ name }}</option>{% endfor %}
+          {% if entry.options.scheduler and entry.options.scheduler not in schedulers %}<option value="{{ entry.options.scheduler }}" selected>{{ entry.options.scheduler }}</option>{% endif %}
+        </select>
+        {% else %}
+        <input class="input input--mono" id="scheduler" name="scheduler" value="{{ entry.options.scheduler or '' }}" maxlength="80">
+        {% endif %}
+        <p class="field__hint"></p>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if "voices" in option_fields %}
+    <div class="field">
+      <label class="field__label" for="voices">{{ t("Voices") }}</label>
+      <textarea class="textarea input--mono" id="voices" name="voices" rows="4"
+                placeholder="{{ t('one voice per line') }}">{{ (entry.options.voices or []) | join("\n") }}</textarea>
+      <p class="field__hint">{{ t("The voices this model has, one per line: what a person chooses from where this model is the default. Empty asks the server each time.") }}</p>
+      {% if not comfyui %}
+      <button class="btn btn--sm" type="submit" form="fetch-voices" data-testid="fetch-voices">
+        {{ icon("refresh", "icon--sm") }} {{ t("Ask the server for its voices") }}
+      </button>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% if "sizes" in option_fields %}
+    <div class="field">
+      <label class="field__label" for="sizes">{{ t("Sizes") }}</label>
+      <textarea class="textarea input--mono" id="sizes" name="sizes" rows="3"
+                placeholder="1024x1024">{{ (entry.options.sizes or []) | join("\n") }}</textarea>
+      <p class="field__hint">{{ t("Width x height, one per line; the first is what a picture is drawn at when nothing asks for a size.") }}</p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="negative">{{ t("Negative prompt") }}</label>
+      <input class="input" id="negative" name="negative" value="{{ entry.options.negative or '' }}" maxlength="500">
+      <p class="field__hint">{{ t("What to keep out of every picture, unless the request says its own.") }}</p>
+    </div>
+    {% endif %}
+  </section>
+
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">{{ t("Save changes") }}</button>
+  </div>
+</form>
+
+{% elif tab == "remove" %}
+{# ------------------------------------------------------------------- Remove #}
+<section class="card" data-testid="media-model-remove">
+  <h2 class="card__title">{{ t("Remove this model") }}</h2>
+  <p class="card__lede">
+    {{ t("It is taken off its connection, with its options and its price. Nothing is deleted at the provider.") }}
+    {% if comfyui %}{{ t("A checkpoint the ComfyUI still has comes back, switched off, at the next refresh.") }}{% endif %}
+  </p>
+  {% if is_default %}
+  <div class="alert alert--warning">{{ icon("warning", "alert__icon") }}
+    <span>{{ t("This is a default under Media. Removing it leaves that default pointing at nothing until you choose another there: nothing is quietly served in its place.") }}</span>
+  </div>
+  {% endif %}
+  <form method="post" action="{{ base }}/delete">
+    <button class="btn btn--danger" type="submit"
+            data-confirm-button="{{ t('Remove the model “%(name)s” from %(connection)s?', name=entry.label, connection=connection.name) }}">
+      {{ icon("trash", "icon--sm") }} {{ t("Remove") }}
+    </button>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

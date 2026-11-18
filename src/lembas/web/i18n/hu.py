@@ -62,7 +62,6 @@ MESSAGES: dict[str, str] = {
     "API key": "API-kulcs",
     "Base URL": "Alap-URL",
     "Data group": "Adatcsoport",
-    "Enabled — its models are offered in chats": "Engedélyezve – modelljei elérhetők a csevegésekben",
     "Extra headers": "További fejlécek",
     "GET": "GET",
     "HTTP-Referer: https://example.org": "HTTP-Referer: https://example.org",
@@ -145,28 +144,15 @@ MESSAGES: dict[str, str] = {
     "When a model asks a question it can offer answers to pick from, and by default a box to write something else. Turn this off if you would rather nobody typed free text into a prompt a model composed.": "Amikor egy modell kérdez, választható válaszokat kínálhat, és alapértelmezésként egy mezőt is, ahová mást lehet írni. Kapcsolja ki, ha nem szeretné, hogy bárki szabad szöveget írjon egy modell által megfogalmazott promptba.",
     "and": "és",
     "stopped": "leállítva",
-    "Adds a microphone to the composer. Recordings are sent to this endpoint and never written to disk.": "Mikrofont ad az üzenetszerkesztőhöz. A felvételek erre a végpontra kerülnek, és soha nem íródnak lemezre.",
-    "Adds a speaker button to every reply. Each reader can pick their own voice in their settings; what is chosen here is the default.": "Felolvasógombot ad minden válaszhoz. Minden olvasó kiválaszthatja a saját hangját a beállításaiban; az itt választott az alapértelmezés.",
-    "Allow messages to be dictated": "Üzenetek diktálásának engedélyezése",
-    "Allow replies to be read out": "Válaszok felolvasásának engedélyezése",
-    "Audio settings saved.": "Hangbeállítások mentve.",
     "Default voice": "Alapértelmezett hang",
     "Encrypted at rest. Clear the field to remove it.": "Tároláskor titkosítva. A törléshez ürítse ki a mezőt.",
-    "Format": "Formátum",
     "Language": "Nyelv",
     "Model": "Modell",
-    "Only the starting value for each account — anyone can turn it off in their own settings, and nobody is made to listen.": "Csak a kiinduló érték minden fióknál – bárki kikapcsolhatja a saját beállításaiban, és senkit sem kényszerítünk, hogy hallgassa.",
-    "Read new replies aloud as they finish, by default": "Új válaszok felolvasása elkészültükkor, alapértelmezésként",
     "Save settings": "Beállítások mentése",
     "Speed": "Sebesség",
-    "Two endpoints speaking the OpenAI audio API: one that turns speech into text so a message can be dictated, one that reads a reply out. They are configured separately because they usually are separate servers — whisper.cpp and Kokoro, say, or Speaches for both.": "Két, az OpenAI audio API-t beszélő végpont: az egyik szöveggé alakítja a beszédet, hogy üzenetet lehessen diktálni, a másik felolvassa a választ. Külön állíthatók be, mert általában külön szerverek – például whisper.cpp és Kokoro, vagy mindkettőre a Speaches.",
     "detect": "felismerés",
-    "http://127.0.0.1:8081": "http://127.0.0.1:8081",
-    "http://127.0.0.1:8880": "http://127.0.0.1:8880",
     "off": "ki",
     "on": "be",
-    "tts-1": "tts-1",
-    "whisper-1": "whisper-1",
     "%(total)s events · page %(page)s of %(pages)s": "%(total)s esemény · %(page)s. / %(pages)s oldal",
     "A prefix: auth finds every sign-in.": "Előtag: az auth minden bejelentkezést megtalál.",
     "Action": "Művelet",
@@ -188,10 +174,8 @@ MESSAGES: dict[str, str] = {
     "Who": "Ki",
     "Who did what, when and from where: sign-ins and failed ones, tokens and devices, every change an administrator makes, people starting over, updates. It names things and never quotes them — no chat, note or password is ever in it.": "Ki mit, mikor és honnan tett: bejelentkezések és sikertelen kísérletek, tokenek és eszközök, a rendszergazdák minden módosítása, újrakezdések, frissítések. Megnevezi a dolgokat, de sosem idézi őket – csevegés, jegyzet vagy jelszó soha nem kerül bele.",
     "token": "token",
-    "Add a connection": "Kapcsolat hozzáadása",
     "Encrypted before it is stored, and never sent back to the browser. Leave empty for endpoints that need no key.": "Tárolás előtt titkosítva, és soha nem kerül vissza a böngészőbe. Hagyja üresen a kulcsot nem igénylő végpontoknál.",
     "Local LM Studio": "Helyi LM Studio",
-    "Nothing configured yet. Add a connection above and its models appear here.": "Még nincs semmi beállítva. Adjon hozzá fent egy kapcsolatot, és a modelljei itt jelennek meg.",
     "http://localhost:1234/v1": "http://localhost:1234/v1",
     "sk-…": "sk-…",
     "Account": "Fiók",
@@ -292,54 +276,19 @@ MESSAGES: dict[str, str] = {
     "Save baseline": "Alap mentése",
     "What every signed-in user can do before any group is considered. Turn something off here and grant it through a group to make it opt-in.": "Amit minden bejelentkezett felhasználó megtehet, mielőtt bármely csoportot figyelembe vennénk. Kapcsoljon ki itt valamit, és adja meg egy csoporton keresztül, hogy választhatóvá tegye.",
     "quotas": "kvóták",
-    "A vision model is shown the picture and the request it came from, and says keep or retry. Only clearly wrong images are retried — a missing subject, a mangled picture — because taste is not a fault and the next attempt is not promised to be better. The reader sees only the image that was kept.": "Egy képfelismerő modell megkapja a képet és a kérést, amelyből készült, és azt mondja: megtartani vagy újra. Csak az egyértelműen hibás képeket generáljuk újra – hiányzó téma, eltorzult kép –, mert az ízlés nem hiba, és a következő próbálkozás sem garantáltan jobb. Az olvasó csak a megtartott képet látja.",
-    "Attempts per image": "Próbálkozások képenként",
-    "Available checkpoints": "Elérhető checkpointok",
-    "Checking the result": "Az eredmény ellenőrzése",
-    "Checkpoint": "Checkpoint",
-    "Checkpoints": "Checkpointok",
     "ComfyUI": "ComfyUI",
     "Default workflow": "Alapértelmezett munkafolyamat",
     "Denoise": "Zajmentesítés (denoise)",
-    "Export (API)": "Exportálás (API)",
-    "Extra instructions": "További utasítások",
-    "For a machine that cannot hold both at once. Before generating, the chat's own connection is asked to unload — set an unload URL on it under Connections, or nothing happens. Afterwards ComfyUI is asked to free its own models, and the language model loads again by itself on the next request.": "Olyan géphez, amely nem tudja egyszerre mindkettőt betöltve tartani. Generálás előtt a csevegés saját kapcsolatát megkérjük a kiürítésre – ehhez állítson be rajta kiürítési URL-t a Kapcsolatok alatt, különben semmi sem történik. Utána a ComfyUI-t kérjük meg, hogy szabadítsa fel a saját modelljeit, a nyelvi modell pedig a következő kérésnél magától újra betöltődik.",
-    "Guidance (cfg)": "Irányítás (cfg)",
     "Height": "Magasság",
-    "How long to wait for one image, queue included. Far longer than any other timeout here, because the thing being waited for genuinely takes that long.": "Mennyit várjunk egy képre, a sorban állással együtt. Jóval hosszabb, mint bármely más időkorlát itt, mert amire várunk, az valóban ennyi ideig tart.",
-    "Images per run": "Kép futtatásonként",
-    "Including the first. The last attempt is kept whatever the review says, so a request always produces a picture.": "Az elsőt is beleértve. Az utolsó próbálkozást az ellenőrzés eredményétől függetlenül megtartjuk, így egy kérés mindig ad képet.",
-    "Lets a model draw a picture and show it in the conversation, on a ComfyUI you are running. It is offered as a tool the model chooses to call, so nothing changes for a conversation that never asks for one — and it is only offered once there is a ComfyUI, a workflow and at least one checkpoint, because a tool that fails on its first call is worse than a tool nobody was given.": "Lehetővé teszi, hogy egy modell képet rajzoljon és megjelenítse a beszélgetésben, egy Ön által futtatott ComfyUI-on. Eszközként kínáljuk fel, amelyet a modell maga dönt el, hogy meghív-e, így semmi sem változik az olyan beszélgetésben, amely soha nem kér ilyet – és csak akkor kínáljuk fel, ha van ComfyUI, munkafolyamat és legalább egy checkpoint, mert az első hívásra hibát adó eszköz rosszabb, mint az, amelyet meg sem kapott senki.",
-    "Look at each image before showing it, and try again if it is wrong": "Minden kép megtekintése megjelenítés előtt, és új próbálkozás, ha hibás",
     "Memory": "Memória",
     "Model that reviews": "Ellenőrző modell",
     "Negative prompt": "Negatív prompt",
-    "No workflows yet. One is needed before anything can be drawn; the default one is filled in for you when you add the first.": "Még nincsenek munkafolyamatok. Rajzolás előtt szükség van egyre; az elsőnél az alapértelmezettet kitöltjük Önnek.",
-    "Offer image generation to models that support tools": "Képgenerálás felkínálása az eszközöket támogató modelleknek",
-    "One filename per line, exactly as ComfyUI spells it. This is the list the model chooses from, so leaving out a checkpoint is how you stop it being used. Press Test below to read them off ComfyUI — that fills this in the first time and never overwrites it afterwards.": "Soronként egy fájlnév, pontosan úgy írva, ahogy a ComfyUI írja. Ebből a listából választ a modell, így egy checkpoint kihagyásával akadályozható meg a használata. Nyomja meg alább a Tesztelés gombot, hogy kiolvassa őket a ComfyUI-ból – első alkalommal ez kitölti a mezőt, utána soha nem írja felül.",
-    "Only models marked as having vision are listed. If there is nothing to ask, the first image is kept and nothing fails.": "Csak a képfelismerőként jelölt modellek szerepelnek a listában. Ha nincs kit megkérdezni, az első képet megtartjuk, és semmi sem hiúsul meg.",
-    "Prefer the SDXL template for anything photographic.": "Bármi fotószerűhöz inkább az SDXL-sablont válassza.",
-    "Preserve VRAM: unload the language model while ComfyUI works": "VRAM kímélése: a nyelvi modell kiürítése, amíg a ComfyUI dolgozik",
     "Sampler": "Mintavételező",
     "Scheduler": "Ütemező",
-    "Set default": "Beállítás alapértelmezettként",
     "Steps": "Lépések",
-    "The chat's own model, when it has vision": "A csevegés saját modellje, ha képfelismerő",
-    "The first in the list above": "A fenti lista első eleme",
-    "The first one": "Az első",
     "Timeout (seconds)": "Időkorlát (másodperc)",
-    "Used when the model does not write one of its own. It writes one often, so this is a floor rather than something always applied — “always add these words” belongs in the instructions below, where the model is told to include them.": "Akkor használjuk, ha a modell nem ír sajátot. Gyakran ír, így ez inkább alsó határ, mint mindig alkalmazott szöveg – az „ezeket a szavakat mindig add hozzá” az alábbi utasításokba való, ahol a modell azt az utasítást kapja, hogy foglalja bele őket.",
-    "Used when the model names no template and the chat has no preference.": "Akkor használjuk, ha a modell nem nevez meg sablont, és a csevegésnek nincs preferenciája.",
-    "What a generation uses by default": "Amit egy generálás alapértelmezésként használ",
-    "What every picture is drawn with unless the model names otherwise. Leave a box empty to use the built-in value shown beside it — the built-ins are SD1.5-era, and 512×512 on an SDXL checkpoint is what produces the duplicated limbs.": "Amivel minden kép készül, hacsak a modell mást nem nevez meg. Hagyjon üresen egy mezőt a mellette látható beépített érték használatához – a beépített értékek az SD1.5 korából valók, és SDXL-checkpointon az 512×512 okozza a megkettőzött végtagokat.",
-    "Where ComfyUI is listening. An address on this machine or this network is fine here and is not checked against the request-forgery rules — you typed it, unlike an address a model asks for.": "Ahol a ComfyUI figyel. Itt megfelel egy cím ezen a gépen vagy ezen a hálózaton is, és nem ellenőrizzük a kéréshamisítási szabályok alapján – ezt Ön írta be, nem egy modell kéri.",
     "Width": "Szélesség",
     "Workflows": "Munkafolyamatok",
-    "euler (built-in)": "euler (beépített)",
-    "http://127.0.0.1:8188": "http://127.0.0.1:8188",
-    "normal (built-in)": "normal (beépített)",
-    "sd_xl_base_1.0.safetensors": "sd_xl_base_1.0.safetensors",
-    "text, watermark": "text, watermark",
     "A server's tool names and descriptions are sent to the model as instructions, and what it returns is read back as fact. Add servers you trust, the way you would a dependency.": "A szerver eszközneveit és -leírásait utasításként kapja meg a modell, és amit visszaad, azt tényként olvassa vissza. Olyan szervereket adjon hozzá, amelyekben megbízik, ahogyan egy függőséget is.",
     "No servers yet. You will need the URL of an MCP endpoint that speaks streamable HTTP — local ones launched as a subprocess are not supported.": "Még nincsenek szerverek. Szüksége lesz egy streamable HTTP-t beszélő MCP-végpont URL-jére – az alfolyamatként indított helyi szerverek nem támogatottak.",
     "- Use the GitHub tools for anything about our repositories.": "- Bármihez, ami a repozitóriumainkat érinti, használd a GitHub-eszközöket.",
@@ -403,7 +352,6 @@ MESSAGES: dict[str, str] = {
     "Search models": "Modellek keresése",
     "Search models…": "Modellek keresése…",
     "Select all": "Összes kijelölése",
-    "Select every model on this page": "Az oldal összes modelljének kijelölése",
     "With selected:": "A kijelöltekkel:",
     "pinned": "kitűzve",
     "Agent mode": "Ügynök mód",
@@ -960,8 +908,6 @@ MESSAGES.update(
         "Last checked %(when)s UTC": "Utolsó ellenőrzés: %(when)s UTC",
         "Never checked": "Még nem ellenőrizve",
         "Delete the connection “%(name)s”? Existing chats keep their history.": "Törli a(z) „%(name)s” kapcsolatot? A meglévő csevegések megtartják az előzményeiket.",
-        "Your list above was left alone. What ComfyUI has:": "A fenti listát nem módosítottuk. Ami a ComfyUI-ban van:",
-        "Filled in above:": "Fent kitöltve:",
         "Groups & permissions": "Csoportok és jogosultságok",
         "1 tool": "1 eszköz",
         "%(n)s tools": "%(n)s eszköz",
@@ -979,18 +925,7 @@ MESSAGES.update(
         "<strong>Asking another model a question uses the same switch and the same allowance below</strong>, because it costs the same thing: one reply setting another reply going. Which people may do it is a separate permission — <strong>%(permission)s</strong> — and which models may is a switch on each model's own page.": "<strong>Egy másik modellnek feltett kérdés ugyanazt a kapcsolót és ugyanazt az alábbi keretet használja</strong>, mert ugyanannyiba kerül: egy válasz elindít egy másik választ. Hogy kik tehetik meg, az külön jogosultság – <strong>%(permission)s</strong> –, hogy mely modellek, az pedig egy kapcsoló az egyes modellek saját oldalán.",
         'People also need the <strong>%(permission)s</strong> permission, and the model needs the <strong>%(capability)s</strong> capability. Off by default: a reply that spawns subagents spends model time multiplicatively, and on one local endpoint four at once is four times the queue rather than four times the speed.': 'Ezen felül kell a <strong>%(permission)s</strong> jogosultság, a modellnek pedig a <strong>%(capability)s</strong> képesség. Alapértelmezésként kikapcsolva: az alügynököket indító válasz megsokszorozza a modellidőt, és egyetlen helyi végponton négy egyszerre négyszeres sort jelent, nem négyszeres sebességet.',
         'Seconds. Past it the subagent is <em>stopped</em>, not abandoned: what it had written is kept and handed back with a note saying it is partial.': 'Másodperc. Ezen túl az alügynök <em>leáll</em>, nem marad magára: amit addig megírt, azt megtartjuk és visszaadjuk egy megjegyzéssel, hogy részleges.',
-        "Where <code>/v1/audio/transcriptions</code> lives — whisper.cpp's <code>whisper-server</code>, Speaches, or anything else speaking it. With or without <code>/v1</code>; either is understood.": "Ahol a <code>/v1/audio/transcriptions</code> található – a whisper.cpp <code>whisper-server</code>-e, a Speaches vagy bármi más, ami ezt beszéli. <code>/v1</code> végződéssel vagy anélkül; mindkettőt megértjük.",
-        "None needed for a local server": "Helyi szerverhez nem szükséges",
-        "A server hosting one model <strong>ignores this</strong> and uses whatever it was started with — <code>whisper-1</code> is then just a label. It only selects anything on a server that hosts several.": "Az egyetlen modellt kiszolgáló szerver <strong>figyelmen kívül hagyja ezt</strong>, és azt használja, amivel elindították – a <code>whisper-1</code> ekkor csak címke. Csak a több modellt kiszolgáló szerveren választ ki bármit.",
-        "An ISO code such as <code>en</code> or <code>sk</code>. Leave empty to let the server detect it, which is what whisper does best.": "ISO-kód, például <code>en</code> vagy <code>sk</code>. Hagyja üresen, hogy a szerver ismerje fel – ebben a whisper a legjobb.",
-        "Test dictation": "Diktálás tesztelése",
-        "Read aloud": "Felolvasás",
-        "Where <code>/v1/audio/speech</code> lives — Kokoro-FastAPI, OpenAI, or anything else speaking it.": "Ahol a <code>/v1/audio/speech</code> található – Kokoro-FastAPI, OpenAI vagy bármi más, ami ezt beszéli.",
-        "Could not read the voice list: %(error)s": "Nem sikerült beolvasni a hanglistát: %(error)s",
-        "Read from the endpoint. Save and test to refresh it.": "A végpontról olvasva. Frissítéshez mentsen és teszteljen.",
-        "Test speech": "Beszéd tesztelése",
         "Add and load models": "Modellek hozzáadása és betöltése",
-        "Configured connections": "Beállított kapcsolatok",
         "Extraction and search": "Kinyerés és keresés",
         "One extension per line, <code>.env</code> or <code>env</code>. Only needed to pick a media type — whether the bytes decode as text is what actually decides, so an unlisted extension already works.": "Soronként egy kiterjesztés, <code>.env</code> vagy <code>env</code>. Csak a médiatípus kiválasztásához kell – valójában az dönt, hogy a bájtok szövegként dekódolhatók-e, így egy listán nem szereplő kiterjesztés is működik.",
         "Keyword search finds a document that uses your words. This finds one that means the same thing — <em>\"how do I get in\"</em> reaching a note about passwords. Both run and the two rankings are fused, so nothing that keyword search found is lost.": "A kulcsszavas keresés azt a dokumentumot találja meg, amely az Ön szavait használja. Ez azt, amelyik ugyanazt jelenti – <em>„hogyan jutok be”</em> egy jelszavakról szóló jegyzetre talál. Mindkettő lefut, és a két rangsort egyesítjük, így semmi sem vész el abból, amit a kulcsszavas keresés talált.",
@@ -1015,16 +950,7 @@ MESSAGES.update(
         "+1 permission": "+1 jogosultság",
         "+%(n)s permissions": "+%(n)s jogosultság",
         "Create group": "Csoport létrehozása",
-        "Who may use it is a permission — <code>tools.image</code> under Groups &amp; permissions. Which models may is a checkbox on each model.": "Hogy ki használhatja, az jogosultság – <code>tools.image</code> a Csoportok és jogosultságok alatt. Hogy mely modellek, az egy jelölőnégyzet az egyes modelleknél.",
         "Currently <code>%(masked)s</code>. Leave the dots alone to keep it, or clear the field to remove it.": "Jelenleg <code>%(masked)s</code>. A megtartásához hagyja a pontokat, az eltávolításához ürítse ki a mezőt.",
-        "Only needed if something sits in front of ComfyUI. Encrypted at rest.": "Csak akkor kell, ha valami a ComfyUI előtt áll. Tároláskor titkosítva.",
-        "Test & read what it has": "Tesztelés és tartalom beolvasása",
-        "%(name)s (not in this ComfyUI's list)": "%(name)s (nem szerepel ennek a ComfyUI-nak a listájában)",
-        "Press <strong>%(button)s</strong> above to fill the sampler and scheduler lists from your ComfyUI.": "Nyomja meg fent a <strong>%(button)s</strong> gombot, hogy a mintavételező- és ütemezőlistát kitöltse a ComfyUI-ból.",
-        "Both are on, so every retry costs two model loads — one to review, one to generate again. That is the slow combination; consider two attempts rather than %(n)s.": "Mindkettő be van kapcsolva, így minden újrapróbálás két modellbetöltésbe kerül – egy az ellenőrzéshez, egy az újrageneráláshoz. Ez a lassú kombináció; fontolja meg a két próbálkozást %(n)s helyett.",
-        "Added to what every model is told about image generation, on this instance. Where “always put <em>%(example)s</em> in the negative prompt” lives. Leave it empty and nothing is added at all.": "Hozzáadódik ahhoz, amit minden modell a képgenerálásról megtud ebben a példányban. Ide való az „a negatív promptba mindig kerüljön <em>%(example)s</em>”. Ha üresen hagyja, semmi sem adódik hozzá.",
-        "A workflow is a ComfyUI graph exported with <strong>%(menu)s</strong>, with <code>&lbrace;&lbrace;prompt&rbrace;&rbrace;</code> and the other placeholders where the values go. The model picks between them by their descriptions, so write the description for a reader who cannot see the graph.": "A munkafolyamat egy <strong>%(menu)s</strong> paranccsal exportált ComfyUI-gráf, amelyben a <code>&lbrace;&lbrace;prompt&rbrace;&rbrace;</code> és a többi helyőrző áll ott, ahová az értékek kerülnek. A modell a leírásuk alapján választ közöttük, ezért a leírást olyan olvasónak írja, aki nem látja a gráfot.",
-        "Add a workflow": "Munkafolyamat hozzáadása",
         "Remote servers speaking the Model Context Protocol over HTTP. Their tools are offered beside the built-in ones to models marked <strong>%(mcp)s</strong>. The list of tools is discovered and cached — press <strong>%(button)s</strong> after adding one, and again whenever the server changes.": "Távoli szerverek, amelyek HTTP-n keresztül beszélik a Model Context Protocolt. Eszközeiket a beépítettek mellett kínáljuk fel a <strong>%(mcp)s</strong> jelölésű modelleknek. Az eszközlistát felfedezzük és gyorsítótárazzuk – hozzáadás után nyomja meg a <strong>%(button)s</strong> gombot, és újra, valahányszor a szerver változik.",
         "Add a server": "Szerver hozzáadása",
         "New server": "Új szerver",
@@ -1059,7 +985,6 @@ MESSAGES.update(
         "Built-in tools": "Beépített eszközök",
         "What this model is given, as opposed to what it is capable of. None of it applies unless <strong>tools</strong> is ticked above. Each one is also subject to the instance being configured for it and to the reader's own permissions — this only decides whether it is offered to <em>this</em> model.": "Amit ez a modell megkap, szemben azzal, amire képes. Ebből semmi sem érvényes, hacsak a fenti <strong>tools</strong> nincs bejelölve. Mindegyikhez az is kell, hogy a példány be legyen rá állítva, és az olvasónak meglegyenek a saját jogosultságai – ez csak azt dönti el, hogy felkínáljuk-e <em>ennek</em> a modellnek.",
         "Back to all models": "Vissza az összes modellhez",
-        "Every model discovered across your connections. The order here is the order users see in the picker. <strong>Pinning</strong> does not reorder anything — it puts a shortcut in the chat sidebar. The <strong>default</strong> is what a new chat starts with.": "A kapcsolatain felfedezett összes modell. Az itteni sorrend az, amelyet a felhasználók a modellválasztóban látnak. A <strong>kitűzés</strong> semmit sem rendez át – parancsikont helyez a csevegés oldalsávjába. Az <strong>alapértelmezett</strong> az, amellyel egy új csevegés indul.",
         "No models yet. <a href=\"/admin/connections\">Add a connection</a> and run “%(button)s”.": "Még nincsenek modellek. <a href=\"/admin/connections\">Adjon hozzá kapcsolatot</a>, és futtassa a(z) „%(button)s” műveletet.",
         "Clear": "Törlés",
         "Select %(name)s": "%(name)s kijelölése",
@@ -1340,13 +1265,11 @@ MESSAGES.update(
         "Heard \"%(text)s\".": "Ezt hallotta: „%(text)s”.",
         "Heard nothing, as expected.": "Nem hallott semmit, ahogy várható volt.",
         "The endpoint answered. %(heard)s": "A végpont válaszolt. %(heard)s",
-        "Unknown endpoint.": "Ismeretlen végpont.",
         "No such data group.": "Nincs ilyen adatcsoport.",
         "A data group needs a name.": "Az adatcsoportnak név kell.",
         "Extraction saved.": "Kinyerés mentve.",
         "Search saved.": "Keresés mentve.",
         "Search saved. Rebuild the index to use the new model.": "Keresés mentve. Az új modell használatához építse újra az indexet.",
-        "Set a base URL first.": "Először állítson be alap-URL-t.",
         "Found 1 checkpoint, %(samplers)s samplers and %(schedulers)s schedulers.": "1 checkpoint, %(samplers)s mintavételező és %(schedulers)s ütemező található.",
         "Found %(checkpoints)s checkpoints, %(samplers)s samplers and %(schedulers)s schedulers.": "%(checkpoints)s checkpoint, %(samplers)s mintavételező és %(schedulers)s ütemező található.",
         "That workflow no longer exists.": "Ez a munkafolyamat már nem létezik.",
@@ -1367,7 +1290,6 @@ MESSAGES.update(
         "All": "Mind",
         "Enabled": "Engedélyezve",
         "Disabled": "Letiltva",
-        "Pinned": "Kitűzve",
         "Restricted": "Korlátozva",
         "%(n)s model(s) updated.": "%(n)s modell frissítve.",
         "This model's template accepts: %(efforts)s.": "A modell sablonja ezeket fogadja el: %(efforts)s.",
@@ -1824,14 +1746,6 @@ MESSAGES.update(
     {
         "More for the folder %(name)s": "Továbbiak a(z) %(name)s mappához",
         "Price": "Ár",
-        "Speech to text, per minute": "Beszédből szöveg, percenként",
-        "Per minute of recording, by the length the server reports, or the recording's own.": "A felvétel percenként, a szerver által jelzett hossz szerint, különben a felvétel saját hossza szerint.",
-        "Text to speech, per million characters": "Szövegből beszéd, millió karakterenként",
-        "Per character read aloud.": "Felolvasott karakterenként.",
-        "Price and the API": "Ár és API",
-        "Per picture": "Képenként",
-        "Most pictures per API request": "Legtöbb kép API-kérésenként",
-        "The largest n a program may ask /v1/images/generations for. Each is a full generation.": "A legnagyobb n, amelyet egy program kérhet a /v1/images/generations végponttól. Mindegyik egy teljes generálás.",
         "Chat models answer through the API's chat completions; embedding models only through its embeddings. A model saved before this existed answers both until it is set.": "A csevegőmodellek az API chat completions végpontján válaszolnak, a beágyazómodellek csak az embeddings végponton. Az e beállítás előtt mentett modell mindkettőre válaszol, amíg be nem állítják.",
         "Cost": "Költség",
     }
@@ -2022,7 +1936,6 @@ MESSAGES['The preset is what a new chat in this group may reach until its person
 MESSAGES['%(failed)s did not answer (%(reason)s), so %(answered)s answered instead.'] = '%(failed)s nem válaszolt (%(reason)s), ezért helyette %(answered)s válaszolt.'
 MESSAGES['%(ms)s ms'] = '%(ms)s ms'
 MESSAGES['%(name)s: balance read.'] = '%(name)s: egyenleg lekérdezve.'
-MESSAGES['A connection is one provider: a server of your own that speaks the OpenAI API (llama.cpp, llama-swap, vLLM, Ollama, LM Studio), or OpenAI, Anthropic, DeepSeek or OpenRouter. %(brand)s asks each one for its model list and offers those models in the chat picker.'] = 'Egy kapcsolat egy szolgáltató: egy saját szerver, amely az OpenAI API-ját beszéli (llama.cpp, llama-swap, vLLM, Ollama, LM Studio), vagy az OpenAI, az Anthropic, a DeepSeek vagy az OpenRouter. A(z) %(brand)s mindegyiktől lekéri a modellek listáját, és felkínálja őket a csevegés modellválasztójában.'
 MESSAGES['Add a fallback model'] = 'Tartalék modell hozzáadása'
 MESSAGES['Add a fallback model…'] = 'Tartalék modell hozzáadása…'
 MESSAGES['An admin key from the provider, used only to read what the account has spent. Never used for a reply; a reply never fails on it.'] = 'A szolgáltató adminisztrátori kulcsa, csak annak lekérdezésére, mennyit költött a fiók. Válaszhoz sosem használjuk, és egy válasz sosem hiúsul meg miatta.'
@@ -2048,14 +1961,12 @@ MESSAGES['Nothing at that address answered like a model server.'] = 'Ezen a cím
 MESSAGES['Nothing reported.'] = 'Nincs jelentve semmi.'
 MESSAGES['OpenAI-compatible (llama.cpp, llama-swap, vLLM, Ollama, LM Studio)'] = 'OpenAI-kompatibilis (llama.cpp, llama-swap, vLLM, Ollama, LM Studio)'
 MESSAGES["OpenRouter's answer had no credits in it."] = 'Az OpenRouter válaszában nem volt kredit.'
-MESSAGES['Paste an address and press Detect: the type is found for you, and what it says about its models is filled in.'] = 'Illesszen be egy címet, és nyomja meg a Felismerés gombot: a típust megtaláljuk, és kitöltjük, amit a modelljeiről mond.'
 MESSAGES['Spent at the provider, last 30 days'] = 'A szolgáltatónál elköltve az elmúlt 30 napban'
 MESSAGES['The address could not be asked.'] = 'A címet nem sikerült lekérdezni.'
 MESSAGES['The endpoint says %(n)s tokens (%(source)s). A number typed here wins over it; empty follows the endpoint.'] = 'A végpont szerint %(n)s token (%(source)s). Az ide írt szám felülírja; üresen a végpontot követi.'
 MESSAGES['The key was refused for this.'] = 'A kulcsot ehhez elutasították.'
 MESSAGES['The provider did not answer with a balance.'] = 'A szolgáltató nem egyenleggel válaszolt.'
 MESSAGES["The provider's own figure. A reply's cost here is this instance's estimate from the model's prices, or the provider's when it reports one."] = 'A szolgáltató saját adata. Egy válasz költsége itt ennek a példánynak a modell árai alapján készült becslése, vagy a szolgáltatóé, ha jelenti.'
-MESSAGES['The type carries what differs between providers — how usage, cached tokens and reasoning are sent and read, and where a balance is found — so none of it has to be set by hand.'] = 'A típus hordozza, miben különböznek a szolgáltatók — hogyan küldjük és olvassuk a használatot, a gyorsítótárazott tokeneket és a gondolkodást, és hol található egyenleg —, így ezek egyikét sem kell kézzel beállítani.'
 MESSAGES['This needs an admin key from the provider (the billing key).'] = 'Ehhez a szolgáltató adminisztrátori kulcsa kell (a számlázási kulcs).'
 MESSAGES['This provider has no balance to read.'] = 'Ennél a szolgáltatónál nincs lekérdezhető egyenleg.'
 MESSAGES['Time to answer the last check'] = 'A legutóbbi ellenőrzés válaszideje'
@@ -2297,13 +2208,11 @@ MESSAGES['with %(count)s earlier versions'] = '%(count)s korábbi verzióval'
 # --- 2.0: files, memory and money in place of the library and credits ---------
 MESSAGES["Its models read only this group's memories, and a chat started on one of them stays in it. Moving a connection does not move any data: it starts reading the other group."] = 'Modelljei csak ennek a csoportnak a memóriáit olvassák, és az egyikükkel indított csevegés ebben a csoportban marad. Egy kapcsolat áthelyezése nem helyez át adatot: egyszerűen a másik csoportot kezdi olvasni.'
 MESSAGES["A subagent cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads and searches files and the web, and the general kind writes what the chat may write. It cannot send subagents of its own; it can message the main agent, and be messaged, while it works. <strong>%(mode)s</strong> is not inherited: a subagent's task text can have come from a page it read."] = 'Az alügynök senkitől nem kérdezhet semmit, így a beszélgetésében semmi nem állhat meg jóváhagyásra. Ezért csak azt kapja, amit ez a beszélgetés már kérdezés <em>nélkül</em> is megtehetett: olvas és keres a fájlokban és a weben, a general fajta pedig írja, amit a beszélgetés írhat. Saját alügynököket nem küldhet; munka közben írhat a főügynöknek, és az is neki. A(z) <strong>%(mode)s</strong> mód nem öröklődik: az alügynök feladatának szövege egy általa olvasott oldalról is származhat.'
-MESSAGES['What speech costs, in %(currency)s — in the browser and through the API alike. 0 is free, which is what a server of your own usually is.'] = 'Mennyibe kerül a beszéd %(currency)s pénznemben — a böngészőben és az API-n át egyaránt. A 0 ingyenes, ami a saját szerver általában.'
 MESSAGES["A data group keeps one provider's models away from the data another provider's models have been given. Every connection is in one group. Its models read only that group's memories and personalities, and a chat stays in the group it was started in."] = 'Az adatcsoport távol tartja az egyik szolgáltató modelljeit azoktól az adatoktól, amelyeket egy másik szolgáltató modelljei kaptak. Minden kapcsolat egy csoportban van. Modelljei csak ennek a csoportnak a memóriáit és személyiségeit olvassák, és a csevegés abban a csoportban marad, amelyben elindították.'
 MESSAGES['Prices'] = 'Árak'
 MESSAGES['API only switches off chats, agent chats, scheduled tasks and the MCP server; the API, device sign-in, Settings and Admin keep working.'] = 'A Csak API kikapcsolja a csevegéseket, az ügynök-csevegéseket, az ütemezett feladatokat és az MCP-szervert; az API, az eszközök bejelentkeztetése, a Beállítások és az Adminisztráció továbbra is működik.'
 MESSAGES['Several tools can be called in one round, so this is not a count of tools. Leave room for at least two: <code>search</code> finds a passage and <code>read</code> reads the file around it, so a ceiling of one leaves files searchable and not readable. <code>0</code> means no ceiling, which is how an agent chat already works — those are bounded under <a href="/admin/agents">Agents</a> by time and tokens instead.'] = 'Egy körben több eszköz is meghívható, így ez nem az eszközök száma. Hagyjon helyet legalább kettőnek: a <code>search</code> megtalál egy részletet, a <code>read</code> pedig beolvassa körülötte a fájlt, így az egyes korlát mellett a fájlokban lehet keresni, de olvasni nem. A <code>0</code> korlátlant jelent – az ügynök-csevegések már így működnek, őket az <a href="/admin/agents">Ügynökök</a> alatt idő és tokenek korlátozzák.'
 MESSAGES['A temporary chat is not listed in the sidebar, may read files and memories but cannot change anything — no files, memories, skills or schedules — and is deleted when its time is up. Keep this chat turns one into an ordinary chat.'] = 'Az ideiglenes csevegés nem jelenik meg az oldalsávban, olvashatja a fájlokat és a memóriát, de semmit sem változtathat meg – se fájlt, se memóriát, se készséget, se ütemezést –, és az ideje lejártával törlődik. A Csevegés megtartása hagyományos csevegéssé alakítja.'
-MESSAGES['What one picture costs, in a chat or through the API. 0 is free.'] = 'Mennyibe kerül egy kép, csevegésben vagy az API-n át. A 0 ingyenes.'
 MESSAGES['%d %B %Y'] = '%Y. %B %-d.'
 MESSAGES["What a reply on this model costs, in %(currency)s. Per million tokens, except per reply. Each reply's cost is worked out when it is written and kept with it, so a new price does not change old replies. Leave everything empty to make it free — a local model, say."] = 'Mennyibe kerül egy válasz ezen a modellen %(currency)s pénznemben. Millió tokenenként, kivéve a válaszonkénti árat. Minden válasz költsége a megírásakor számolódik ki, és vele együtt tárolódik, így egy új ár nem változtatja meg a régi válaszokat. Ha mindent üresen hagy, a modell ingyenes — például egy helyi modell.'
 MESSAGES['Delete %(email)s? Their chats and folders go with them.'] = 'Törli a(z) %(email)s fiókot? A csevegései és mappái is vele együtt törlődnek.'
@@ -2819,7 +2728,6 @@ MESSAGES.update(
 # Media from connections: speech and pictures a connection carries itself.
 MESSAGES.update(
     {
-        'Speech and pictures': 'Beszéd és képek',
         "Use this connection's own speech models for its chats": 'A kapcsolat saját beszédmodelljeinek használata a csevegéseihez',
         "Use this connection's own image model for its chats": 'A kapcsolat saját képmodelljének használata a csevegéseihez',
         'On': 'Be',
@@ -2830,16 +2738,7 @@ MESSAGES.update(
         'per minute': 'percenként',
         'per 1M characters': '1 millió karakterenként',
         'per picture': 'képenként',
-        "A chat whose model is on this connection uses these when the switch above is on and a model of that kind is ticked — the first ticked one. Otherwise, and once when this connection's own does not answer, the instance's default under Audio and Image generation is used; the result says which answered. A chat on another connection is never sent here unless you make one of these the default there. To remove a model, clear its id.": 'Az a csevegés, amelynek modellje ezen a kapcsolaton van, akkor használja ezeket, ha a fenti kapcsoló be van kapcsolva, és az adott fajtából van bejelölt modell — az első bejelölt. Egyébként, és egyszer akkor is, ha a kapcsolat sajátja nem válaszol, a példány alapértelmezése szolgál ki a Hang és a Képgenerálás oldalról; az eredmény megmondja, melyik válaszolt. Más kapcsolaton lévő csevegés soha nem kerül ide, hacsak Ön nem teszi ott alapértelmezetté valamelyiket. Modell eltávolításához törölje az azonosítóját.',
         "On a plan this is for a person's own turns only — dictation, a reply they asked to hear, a picture inside their own reply — never for scheduled work or a personal API key, and it is counted, not priced.": 'Előfizetéses csomagon ez csak egy személy saját lépéseire való — diktálás, egy válasz, amelyet meg akart hallgatni, egy kép a saját válaszában —, ütemezett munkára vagy személyes API-kulcsra soha, és számolva van, nem árazva.',
-        'These are the <strong>defaults</strong>, for connections without speech models of their own. A connection can carry its own under <a href="/admin/connections">Connections</a>; a chat on it then uses those, and comes back here once if they do not answer.': 'Ezek az <strong>alapértelmezések</strong> a saját beszédmodell nélküli kapcsolatokhoz. Egy kapcsolatnak lehetnek sajátjai a <a href="/admin/connections">Kapcsolatok</a> oldalon; a rajta lévő csevegés akkor azokat használja, és egyszer ide tér vissza, ha nem válaszolnak.',
-        'Default source': 'Alapértelmezett forrás',
-        'The endpoint below': 'Az alábbi végpont',
-        "A connection's own model can be the default instead of the endpoint below. Chats on every connection without its own are then sent there, so choose a cloud one only on purpose.": 'Az alábbi végpont helyett egy kapcsolat saját modellje is lehet az alapértelmezés. Ekkor minden saját modell nélküli kapcsolat csevegései oda kerülnek, ezért felhőbelit csak szándékosan válasszon.',
-        "These are the endpoints' prices; a connection's own model has its price beside it.": 'Ezek a végpontok árai; egy kapcsolat saját modelljének ára mellette áll.',
-        'What is set on this page is the <strong>default</strong>, for connections without an image model of their own. A connection can carry its own under <a href="/admin/connections">Connections</a>; a chat on it then draws with that, and comes back here once if it does not answer.': 'Amit ezen az oldalon beállít, az az <strong>alapértelmezés</strong> a saját képmodell nélküli kapcsolatokhoz. Egy kapcsolatnak lehet sajátja a <a href="/admin/connections">Kapcsolatok</a> oldalon; a rajta lévő csevegés akkor azzal rajzol, és egyszer ide tér vissza, ha az nem válaszol.',
-        'The ComfyUI below': 'Az alábbi ComfyUI',
-        "A connection's own model can be the default instead of the ComfyUI. Chats on every connection without its own are then sent there, so choose a cloud one only on purpose. Workflows, checkpoints, review and the price below belong to the ComfyUI.": 'A ComfyUI helyett egy kapcsolat saját modellje is lehet az alapértelmezés. Ekkor minden saját modell nélküli kapcsolat csevegései oda kerülnek, ezért felhőbelit csak szándékosan válasszon. A munkafolyamatok, a checkpointok, az ellenőrzés és az alábbi ár a ComfyUI-hoz tartoznak.',
         'QwenCloud, Singapore': 'QwenCloud, Szingapúr',
         'QwenCloud, US (Virginia)': 'QwenCloud, USA (Virginia)',
         'QwenCloud, Germany (Frankfurt)': 'QwenCloud, Németország (Frankfurt)',
@@ -2862,11 +2761,6 @@ MESSAGES.update(
         "Read by %(source)s: this chat's own speech model did not answer.": 'Felolvasta: %(source)s — a csevegés saját beszédmodellje nem válaszolt.',
     }
 )
-MESSAGES["Prices are in this connection's currency."] = 'Az árak ennek a kapcsolatnak a pénznemében értendők.'
-MESSAGES['%(model)s (no longer available)'] = '%(model)s (már nem érhető el)'
-MESSAGES['The default source chosen here is no longer available, so nothing is served by default. Choose another, or the endpoint.'] = 'Az itt választott alapértelmezett forrás már nem érhető el, ezért alapértelmezésben semmi sem szolgál ki. Válasszon másikat, vagy a végpontot.'
-MESSAGES['The default serves chats in every data group, whichever group its connection is in.'] = 'Az alapértelmezés minden adatcsoport csevegéseit kiszolgálja, bármelyik csoportban van is a kapcsolata.'
-MESSAGES['%(name)s was the default source under Audio or Image generation. Choose another there: until then nothing is served by default.'] = '%(name)s volt az alapértelmezett forrás a Hang vagy a Képgenerálás oldalon. Válasszon ott másikat: addig alapértelmezésben semmi sem szolgál ki.'
 MESSAGES["The endpoint's answer is larger than this server reads."] = 'A végpont válasza nagyobb, mint amit ez a kiszolgáló beolvas.'
 MESSAGES['The image endpoint returned something that is not a picture.'] = 'A képvégpont olyasmit adott vissza, ami nem kép.'
 MESSAGES['The picture is larger than this instance stores.'] = 'A kép nagyobb, mint amit ez a példány tárol.'
@@ -2967,3 +2861,176 @@ MESSAGES['This model keeps its data in other files, which cannot be read here. I
 MESSAGES['This browser cannot draw 3D here.'] = 'Ez a böngésző itt nem tud 3D-t rajzolni.'
 MESSAGES['Drag to turn it, scroll to zoom.'] = 'Húzással forgatható, görgetéssel nagyítható.'
 MESSAGES['Only part of this model is drawn.'] = 'Ennek a modellnek csak egy része van kirajzolva.'
+
+# --- The unified Connections, Models and Media pages (2.x): 171 strings ---
+MESSAGES['Test'] = 'Tesztelés'
+MESSAGES['Media'] = 'Média'
+MESSAGES['%(name)s is on. Switch it off — applies at once.'] = 'A(z) %(name)s be van kapcsolva. Kikapcsolás – azonnal érvénybe lép.'
+MESSAGES['%(name)s is off. Switch it on — applies at once.'] = 'A(z) %(name)s ki van kapcsolva. Bekapcsolás – azonnal érvénybe lép.'
+MESSAGES['Applies at once'] = 'Azonnal érvénybe lép'
+MESSAGES['Off'] = 'Ki'
+MESSAGES['Sections'] = 'Szakaszok'
+MESSAGES['Where it is'] = 'Hol található'
+MESSAGES['Enabled — its models are offered'] = 'Engedélyezve – modelljei elérhetők'
+MESSAGES['Options'] = 'Opciók'
+MESSAGES['Longest generation, in seconds'] = 'Leghosszabb generálás, másodpercben'
+MESSAGES['A generation is tens of seconds, and a queue in front of it can be minutes. After this long the reply stops waiting.'] = 'Egy generálás több tíz másodpercig tart, az előtte álló sor pedig percekig is. Ennyi idő után a válasz nem vár tovább.'
+MESSAGES["Preserve VRAM: unload the chat's model while this ComfyUI draws"] = 'VRAM kímélése: a csevegés modelljének kiürítése, amíg ez a ComfyUI rajzol'
+MESSAGES["For a machine that cannot hold a chat model and a checkpoint at once. The chat's connection is asked to unload (its Unload URL), and the ComfyUI is freed afterwards. It makes every picture slower; leave it off where there is memory for both."] = 'Olyan géphez, amely nem tud egyszerre csevegőmodellt és checkpointot betöltve tartani. A csevegés kapcsolatát megkérjük a kiürítésre (a kiürítési URL-jén), utána pedig a ComfyUI-t szabadítjuk fel. Minden képet lassabbá tesz; hagyja kikapcsolva, ahol mindkettőre van memória.'
+MESSAGES['What it was found to have'] = 'Amit találtunk rajta'
+MESSAGES['%(samplers)s samplers and %(schedulers)s schedulers. Its checkpoints are under Models. Test asks again.'] = '%(samplers)s mintavételező és %(schedulers)s ütemező. A checkpointjai a Modellek alatt vannak. A Tesztelés újra lekérdezi.'
+MESSAGES["Everything this connection offers: the chat models it lists, and the speech and picture models added to it. A line opens the model's own page."] = 'Minden, amit ez a kapcsolat kínál: az általa listázott csevegőmodellek, valamint a hozzáadott beszéd- és képmodellek. Egy sor a modell saját oldalát nyitja meg.'
+MESSAGES["A ComfyUI's models are its checkpoints. Refresh asks it which it has; a new one arrives switched off, so a list you narrowed stays narrow."] = 'Egy ComfyUI modelljei a checkpointjai. A Frissítés megkérdezi tőle, melyek vannak meg neki; az új kikapcsolva érkezik, így a leszűkített lista szűk marad.'
+MESSAGES["A speech server's models are the ids it is asked with: one that transcribes, one that reads aloud. They are typed, not found."] = 'Egy beszédszerver modelljei azok az azonosítók, amelyekkel megszólítjuk: egy, amely átír, és egy, amely felolvas. Ezeket be kell írni, nem a rendszer találja meg őket.'
+MESSAGES['Refresh from the provider'] = 'Frissítés a szolgáltatótól'
+MESSAGES['No models here yet.'] = 'Itt még nincsenek modellek.'
+MESSAGES['Add a model'] = 'Modell hozzáadása'
+MESSAGES['Capability'] = 'Képesség'
+MESSAGES['Model id'] = 'Modellazonosító'
+MESSAGES['As the provider spells it: the name sent with every request.'] = 'Ahogy a szolgáltató írja: a minden kéréssel elküldött név.'
+MESSAGES['This provider documents: %(models)s.'] = 'A szolgáltató dokumentációja szerint: %(models)s.'
+MESSAGES['Add model'] = 'Modell hozzáadása'
+MESSAGES['Speech and pictures for its own chats'] = 'Beszéd és képek a saját csevegéseihez'
+MESSAGES["A chat whose model is on this connection uses these when the switch is on and a model of that kind is ticked — the first ticked one. Otherwise, and once when this connection's own does not answer, the instance's default under Media is used; the result says which answered. A chat on another connection is never sent here unless you make one of these the default there."] = 'Az a csevegés, amelynek modellje ezen a kapcsolaton van, ezeket használja, ha a kapcsoló be van kapcsolva, és be van jelölve egy ilyen típusú modell – az első bejelölt. Egyébként, illetve egyszer akkor, ha a kapcsolat sajátja nem válaszol, a példány Média alatti alapértelmezettje lép életbe; az eredmény megmondja, melyik válaszolt. Másik kapcsolaton lévő csevegés soha nem kerül ide, hacsak Ön ott alapértelmezetté nem teszi ezek egyikét.'
+MESSAGES['Its media models'] = 'Médiamodelljei'
+MESSAGES["Ticked is on. A model's voice, options and price are on its own page; new ones are added under Models."] = 'A bejelölt be van kapcsolva. Egy modell hangja, opciói és ára a saját oldalán található; újakat a Modellek alatt lehet hozzáadni.'
+MESSAGES['None yet. Add a speech or picture model under Models.'] = 'Még nincs. Adjon hozzá beszéd- vagy képmodellt a Modellek alatt.'
+MESSAGES['A workflow is a ComfyUI graph with holes where the prompt, the checkpoint and the numbers go. A model picks one by the name and description you give it.'] = 'A munkafolyamat egy ComfyUI-gráf, amelyben üres helyek várják a promptot, a checkpointot és a számokat. A modell az Ön által megadott név és leírás alapján választ egyet.'
+MESSAGES['every ComfyUI'] = 'minden ComfyUI'
+MESSAGES['The first in the list'] = 'A lista első eleme'
+MESSAGES['Used when neither the model nor the chat names one.'] = 'Akkor használjuk, ha sem a modell, sem a csevegés nem nevez meg egyet.'
+MESSAGES['No workflow yet. Without one this ComfyUI has nothing to draw with.'] = 'Még nincs munkafolyamat. Enélkül ennek a ComfyUI-nak nincs mivel rajzolnia.'
+MESSAGES['Remove this connection'] = 'Kapcsolat eltávolítása'
+MESSAGES['Its models go with it: %(chat)s listed and %(media)s added. Existing chats keep their history, and a chat on one of its models has to be moved to another model to go on.'] = 'A modelljei vele együtt eltűnnek: %(chat)s listázott és %(media)s hozzáadott. A meglévő csevegések megőrzik előzményeiket, de az egyik modelljét használó csevegést a folytatáshoz másik modellre kell áthelyezni.'
+MESSAGES['Its workflows stay, for every ComfyUI.'] = 'A munkafolyamatai megmaradnak, minden ComfyUI számára.'
+MESSAGES['One of its models is a default under Media. Removing it leaves that default pointing at nothing until you choose another there: nothing is quietly served in its place.'] = 'Az egyik modellje alapértelmezett a Média alatt. Az eltávolítása után ez az alapértelmezés semmire sem mutat, amíg ott másikat nem választ: helyette csendben semmi sem lép életbe.'
+MESSAGES['Add connection'] = 'Kapcsolat hozzáadása'
+MESSAGES['What kind of connection'] = 'Milyen típusú kapcsolat'
+MESSAGES['What is at the address? The kind decides which questions the form asks, and what the connection can offer.'] = 'Mi található a címen? A típus dönti el, mit kérdez az űrlap, és mit kínálhat a kapcsolat.'
+MESSAGES['http://workstation:8188'] = 'http://workstation:8188'
+MESSAGES['http://workstation:8000/v1'] = 'http://workstation:8000/v1'
+MESSAGES['Where the ComfyUI answers, without a path. Its checkpoints, samplers and schedulers are asked for as soon as it is added.'] = 'Ahol a ComfyUI válaszol, útvonal nélkül. A checkpointjait, mintavételezőit és ütemezőit a hozzáadás után azonnal lekérdezzük.'
+MESSAGES['The address whose <code>/audio/transcriptions</code> and <code>/audio/speech</code> are asked, usually ending in <code>/v1</code>. One server may do both, or only one.'] = 'Az a cím, amelynek <code>/audio/transcriptions</code> és <code>/audio/speech</code> végpontját megszólítjuk; általában <code>/v1</code>-re végződik. Egy szerver tudhatja mindkettőt, vagy csak az egyiket.'
+MESSAGES['Speech'] = 'Beszéd'
+MESSAGES["A connection is anything this instance reaches at an address: a provider of chat models, a ComfyUI that draws, a server that transcribes and reads aloud. What each one offers are models, listed under Models; a line here opens the connection's own page."] = 'Kapcsolat minden, amit ez a példány egy címen elér: csevegőmodellek szolgáltatója, egy rajzoló ComfyUI, egy átíró és felolvasó szerver. Amit mindegyik kínál, azok modellek, a Modellek alatt felsorolva; itt egy sor a kapcsolat saját oldalát nyitja meg.'
+MESSAGES['No roads lead anywhere yet. Add a connection and its models appear under Models.'] = 'Még egyetlen út sem vezet sehová. Adjon hozzá egy kapcsolatot, és a modelljei megjelennek a Modellek alatt.'
+MESSAGES['no models'] = 'nincs modell'
+MESSAGES['Speech and pictures, for the whole instance: whether each is on, which model is the default, and what is not any one model\'s. Where it comes from is a <a href="/admin/connections">connection</a>, and how a model is asked is on the <a href="/admin/models">model\'s</a> own page.'] = 'Beszéd és képek az egész példányra: be van-e kapcsolva az egyes funkció, melyik modell az alapértelmezett, és mi az, ami nem egyetlen modellé. Hogy honnan származik, azt egy <a href="/admin/connections">kapcsolat</a> adja meg, az pedig, hogy egy modellt hogyan szólítunk meg, a <a href="/admin/models">modell</a> saját oldalán található.'
+MESSAGES['Dictation is on'] = 'A diktálás be van kapcsolva'
+MESSAGES['Read-aloud is on'] = 'A felolvasás be van kapcsolva'
+MESSAGES['Image generation is on'] = 'A képgenerálás be van kapcsolva'
+MESSAGES["Off is off for every source, a connection's own included."] = 'A kikapcsolás minden forrásra érvényes, a kapcsolat sajátjára is.'
+MESSAGES['An address from an older release (it becomes a connection at the next start)'] = 'Egy korábbi kiadásból származó cím (a következő indításkor kapcsolattá válik)'
+MESSAGES['Not chosen yet'] = 'Még nincs kiválasztva'
+MESSAGES['(no longer available)'] = '(már nem érhető el)'
+MESSAGES['Chosen from the models that are added and switched on. It serves every chat whose own connection has none of its own.'] = 'A hozzáadott és bekapcsolt modellek közül választható. Minden olyan csevegést kiszolgál, amelynek saját kapcsolatán nincs saját modell.'
+MESSAGES["Open the default model's page"] = 'Az alapértelmezett modell oldalának megnyitása'
+MESSAGES['The model chosen as the default can no longer serve: it was removed, switched off, or its connection was. Until you choose again nothing is served by default.'] = 'Az alapértelmezettnek választott modell már nem tud kiszolgálni: eltávolították, kikapcsolták, vagy ez történt a kapcsolatával. Amíg újra nem választ, alapértelmezésként semmi sem szolgál ki.'
+MESSAGES['No model of this kind is added yet. Add one on a <a href="/admin/connections">connection</a>\'s Models tab.'] = 'Ilyen típusú modell még nincs hozzáadva. Adjon hozzá egyet egy <a href="/admin/connections">kapcsolat</a> Modellek lapján.'
+MESSAGES['The order sources are tried in'] = 'A források kipróbálásának sorrendje'
+MESSAGES["The chat's own connection, where that connection is set to use its own:"] = 'A csevegés saját kapcsolata, ha az a kapcsolat a sajátjai használatára van állítva:'
+MESSAGES['none is, at present.'] = 'jelenleg egyik sem.'
+MESSAGES['The default above:'] = 'A fenti alapértelmezett:'
+MESSAGES['nothing.'] = 'semmi.'
+MESSAGES["One step, in this direction only, and the answer says which source gave it. A chat on a local model is never sent to a provider unless that provider's model is the default here."] = 'Egyetlen lépés, csak ebben az irányban, és a válasz megmondja, melyik forrás adta. Helyi modellen futó csevegés soha nem kerül szolgáltatóhoz, hacsak nem annak a szolgáltatónak a modellje itt az alapértelmezett.'
+MESSAGES['Read replies aloud by default'] = 'Válaszok felolvasása alapértelmezésként'
+MESSAGES["Where each person's own setting starts. It forces nothing on anyone."] = 'Innen indul mindenki saját beállítása. Senkire sem kényszerít rá semmit.'
+MESSAGES['Review of generated pictures'] = 'A generált képek ellenőrzése'
+MESSAGES["A vision model looks at what a ComfyUI drew and says whether to keep it. A provider's model is never reviewed: every retry would be a picture somebody pays for."] = 'Egy képfelismerő modell megnézi, mit rajzolt a ComfyUI, és megmondja, megtartandó-e. Szolgáltató modelljét soha nem ellenőrizzük: minden újrapróbálkozás egy kép lenne, amelyért valaki fizet.'
+MESSAGES['Review each picture before it is kept'] = 'Minden kép ellenőrzése, mielőtt megtartjuk'
+MESSAGES["The chat's own, when it has vision"] = 'A csevegés sajátja, ha képfelismerő'
+MESSAGES['Only models marked as having vision can review.'] = 'Csak a képfelismerőként jelölt modellek ellenőrizhetnek.'
+MESSAGES['Tries'] = 'Próbálkozások'
+MESSAGES['How many pictures may be drawn for one request before the last is kept.'] = 'Hány kép rajzolható egy kérésre, mielőtt az utolsót megtartjuk.'
+MESSAGES['Limits and price'] = 'Korlátok és ár'
+MESSAGES['Pictures per API request'] = 'Képek API-kérésenként'
+MESSAGES['The most one <code>/v1/images/generations</code> may ask for.'] = 'A legtöbb, amit egy <code>/v1/images/generations</code> kérés kérhet.'
+MESSAGES['Price per picture'] = 'Ár képenként'
+MESSAGES['For a picture a ComfyUI draws, unless its checkpoint has a price of its own.'] = 'ComfyUI által rajzolt képre, hacsak a checkpointjának nincs saját ára.'
+MESSAGES['Instructions to the model'] = 'Utasítások a modellnek'
+MESSAGES["Given to every model that can draw, beside the tool's own guidance. Where “always add these words to the negative prompt” lives."] = 'Minden rajzolni tudó modell megkapja, az eszköz saját útmutatása mellett. Ide való az, hogy „ezeket a szavakat mindig add hozzá a negatív prompthoz”.'
+MESSAGES['Drawing defaults for a ComfyUI'] = 'Rajzolási alapértékek ComfyUI-hoz'
+MESSAGES["What a generation uses when neither the request nor the checkpoint's own page says. Empty is no opinion: the built-in floor applies."] = 'Amit egy generálás használ, ha sem a kérés, sem a checkpoint saját oldala nem mond mást. Az üres mező azt jelenti, nincs megkötés: a beépített alsó határ érvényes.'
+MESSAGES['CFG'] = 'CFG'
+MESSAGES['Pictures per run'] = 'Kép futtatásonként'
+MESSAGES['What to keep out of every picture, unless the request says its own.'] = 'Aminek minden képről ki kell maradnia, hacsak a kérés nem ad meg sajátot.'
+MESSAGES['Kept and listed. Nothing on this instance asks a model of this capability for anything yet.'] = 'Megőrizve és listázva. Ezen a példányon még semmi sem kér semmit ilyen képességű modelltől.'
+MESSAGES["There is no Test for a provider's picture model: the only test would be a picture somebody pays for."] = 'Szolgáltató képmodelljéhez nincs Tesztelés: az egyetlen teszt egy kép lenne, amelyért valaki fizet.'
+MESSAGES['For whoever administers this instance next: what it is, and why it is here.'] = 'Annak, aki legközelebb felügyeli ezt a példányt: mi ez, és miért van itt.'
+MESSAGES['On — may be used'] = 'Be – használható'
+MESSAGES['Off, it cannot be the default and is not offered to a chat.'] = 'Kikapcsolva nem lehet alapértelmezett, és csevegésnek sem kínáljuk fel.'
+MESSAGES["Off, it serves neither its connection's own chats nor as the default."] = 'Kikapcsolva sem a kapcsolata saját csevegéseit nem szolgálja ki, sem alapértelmezettként nem szolgál.'
+MESSAGES["This model's connection is a subscription. What it does is counted and never priced: a figure would be made up."] = 'Ennek a modellnek a kapcsolata előfizetés. Amit végez, azt számoljuk, de soha nem árazzuk: az összeg kitalált volna.'
+MESSAGES["What one picture from this checkpoint costs. Empty takes the instance's price per picture, under Media."] = 'Mennyibe kerül egy kép ebből a checkpointból. Üresen a példány képenkénti árát veszi át a Média alól.'
+MESSAGES["In the connection's currency, in the unit the provider bills in. Empty is free, which is what a server of your own is."] = 'A kapcsolat pénznemében, abban az egységben, amelyben a szolgáltató számláz. Az üres ingyenest jelent, ami egy saját szerverre igaz is.'
+MESSAGES['How this model is asked'] = 'Hogyan szólítjuk meg ezt a modellt'
+MESSAGES["Each of these is this model's own. An empty box is no opinion: the instance's setting, or the provider's own default, applies."] = 'Ezek mindegyike ennek a modellnek a sajátja. Az üres mező azt jelenti, nincs megkötés: a példány beállítása vagy a szolgáltató saját alapértelmezése érvényes.'
+MESSAGES["The server's own"] = 'A szerver sajátja'
+MESSAGES['Read in when a person has chosen none of their own.'] = 'Ezzel olvasunk fel, ha valaki nem választott sajátot.'
+MESSAGES["0.25 to 4. A person's own speed wins."] = '0,25 és 4 között. A személy saját sebessége az erősebb.'
+MESSAGES['Audio format'] = 'Hangformátum'
+MESSAGES['What the model is asked to answer in.'] = 'Amilyen formátumban a modelltől a választ kérjük.'
+MESSAGES['Language hint'] = 'Nyelvi tipp'
+MESSAGES['A code such as en or sk. Empty lets the model detect it, which it usually does best.'] = 'Egy kód, például en vagy sk. Üresen a modell ismeri fel, és ez általában a legjobb.'
+MESSAGES['More is slower, not always better.'] = 'A több lassabb, de nem mindig jobb.'
+MESSAGES['How closely to follow the prompt.'] = 'Mennyire szorosan kövesse a promptot.'
+MESSAGES['Voices'] = 'Hangok'
+MESSAGES['one voice per line'] = 'soronként egy hang'
+MESSAGES['The voices this model has, one per line: what a person chooses from where this model is the default. Empty asks the server each time.'] = 'A modell hangjai, soronként egy: ezek közül választhat valaki ott, ahol ez a modell az alapértelmezett. Üresen minden alkalommal a szervert kérdezzük meg.'
+MESSAGES['Ask the server for its voices'] = 'A szerver hangjainak lekérdezése'
+MESSAGES['Sizes'] = 'Méretek'
+MESSAGES['Width x height, one per line; the first is what a picture is drawn at when nothing asks for a size.'] = 'Szélesség x magasság, soronként egy; az első az a méret, amelyben a kép készül, ha semmi sem kér méretet.'
+MESSAGES['Remove this model'] = 'Modell eltávolítása'
+MESSAGES['It is taken off its connection, with its options and its price. Nothing is deleted at the provider.'] = 'Lekerül a kapcsolatáról, az opcióival és az árával együtt. A szolgáltatónál semmi sem törlődik.'
+MESSAGES['A checkpoint the ComfyUI still has comes back, switched off, at the next refresh.'] = 'Az a checkpoint, amely még megvan a ComfyUI-nak, a következő frissítéskor kikapcsolva visszatér.'
+MESSAGES['This is a default under Media. Removing it leaves that default pointing at nothing until you choose another there: nothing is quietly served in its place.'] = 'Ez alapértelmezett a Média alatt. Az eltávolítása után ez az alapértelmezés semmire sem mutat, amíg ott másikat nem választ: helyette csendben semmi sem lép életbe.'
+MESSAGES['Remove the model “%(name)s” from %(connection)s?'] = 'Eltávolítja a(z) „%(name)s” modellt innen: %(connection)s?'
+MESSAGES['Icon'] = 'Ikon'
+MESSAGES['Limits'] = 'Korlátok'
+MESSAGES['Longest reply'] = 'Leghosszabb válasz'
+MESSAGES['The endpoint says this model writes at most %(n)s tokens in one reply. A ceiling only: no request asks for all of it by default.'] = 'A végpont szerint ez a modell egy válaszban legfeljebb %(n)s tokent ír. Ez csak felső határ: alapértelmezésként egyetlen kérés sem kéri az egészet.'
+MESSAGES['The endpoint does not say how much this model can write in one reply.'] = 'A végpont nem közli, mennyit tud ez a modell egy válaszban írni.'
+MESSAGES['Pages and plans'] = 'Oldalak és csomagok'
+MESSAGES['Interactive use only'] = 'Csak interaktív használat'
+MESSAGES['Yes — from its connection, <a href="/admin/connections/%(id)s">%(name)s</a>, a provider\'s plan: a person\'s own turns only, never scheduled or background work.'] = 'Igen – a kapcsolata, a(z) <a href="/admin/connections/%(id)s">%(name)s</a> miatt, amely egy szolgáltató csomagja: csak egy személy saját lépései, ütemezett vagy háttérmunka soha.'
+MESSAGES['No. Its connection allows scheduled and background work.'] = 'Nem. A kapcsolata engedélyezi az ütemezett és a háttérmunkát.'
+MESSAGES["Every model of every connection, whatever it is for: chat, embedding, speech, pictures. A line opens the model's own page; the switch at its end turns it on or off at once."] = 'Minden kapcsolat minden modellje, bármire való is: csevegés, beágyazás, beszéd, képek. Egy sor a modell saját oldalát nyitja meg; a sor végén lévő kapcsoló azonnal be- vagy kikapcsolja.'
+MESSAGES['The order of the chat models here is the order people see in the picker, and the <strong>default</strong> is what a new chat starts with.'] = 'A csevegőmodellek itteni sorrendje az, amelyet a felhasználók a modellválasztóban látnak, az <strong>alapértelmezett</strong> pedig az, amellyel egy új csevegés indul.'
+MESSAGES['Every capability'] = 'Minden képesség'
+MESSAGES['On or off'] = 'Be vagy ki'
+MESSAGES['On and off'] = 'Be és ki'
+MESSAGES['Select every chat model on this page'] = 'Az oldal összes csevegőmodelljének kijelölése'
+MESSAGES["Drag a chat model's handle to put the picker in order."] = 'A modellválasztó sorrendjéhez húzza a csevegőmodell fogantyúját.'
+MESSAGES['Every ComfyUI'] = 'Minden ComfyUI'
+MESSAGES["The ComfyUI this graph was written for: it needs that one's nodes and models. Offered only where that ComfyUI draws."] = 'Az a ComfyUI, amelyhez ez a gráf készült: annak a csomópontjaira és modelljeire van szüksége. Csak ott kínáljuk fel, ahol az a ComfyUI rajzol.'
+MESSAGES['%(name)s was a default under Media. Choose another there: until then nothing is served by default.'] = 'A(z) %(name)s alapértelmezett volt a Média alatt. Válasszon ott másikat: addig alapértelmezésként semmi sem szolgál ki.'
+MESSAGES['Overview'] = 'Áttekintés'
+MESSAGES['That page does not exist.'] = 'Ez az oldal nem létezik.'
+MESSAGES["A server of your own, or any cloud that speaks OpenAI's API. Chat and embedding models; speech and pictures too where it has them."] = 'Saját szerver vagy bármely felhő, amely az OpenAI API-ját beszéli. Csevegő- és beágyazómodellek; beszéd és képek is, ahol vannak.'
+MESSAGES['Chat models, and its speech and picture models.'] = 'Csevegőmodellek, valamint a beszéd- és képmodelljei.'
+MESSAGES['Chat models.'] = 'Csevegőmodellek.'
+MESSAGES['Chat models, with a balance to read.'] = 'Csevegőmodellek, lekérdezhető egyenleggel.'
+MESSAGES["Many providers' chat models behind one key."] = 'Sok szolgáltató csevegőmodelljei egyetlen kulcs mögött.'
+MESSAGES['Qwen and more, paid as used: chat, speech and picture models.'] = 'Qwen és mások, használat alapján fizetve: csevegő-, beszéd- és képmodellek.'
+MESSAGES["A subscription, for a person's own turns only."] = 'Előfizetés, csak egy személy saját lépéseihez.'
+MESSAGES['A server that transcribes and reads aloud, such as whisper.cpp or Kokoro. No chat models.'] = 'Átíró és felolvasó szerver, például whisper.cpp vagy Kokoro. Csevegőmodellek nélkül.'
+MESSAGES['Pictures drawn with your own workflows and checkpoints. No chat models.'] = 'A saját munkafolyamataival és checkpointjaival rajzolt képek. Csevegőmodellek nélkül.'
+MESSAGES['This connection cannot have a model of that kind.'] = 'Ennek a kapcsolatnak nem lehet ilyen típusú modellje.'
+MESSAGES["Type the model's id."] = 'Írja be a modell azonosítóját.'
+MESSAGES['That model is already here.'] = 'Ez a modell már itt van.'
+MESSAGES['This connection has as many models as it can keep.'] = 'Ennek a kapcsolatnak már annyi modellje van, amennyit tárolni tud.'
+MESSAGES["%(name)s · the chat's checkpoint, or its first"] = '%(name)s · a csevegés checkpointja, vagy az első'
+MESSAGES['The server listed no voices. Type them below.'] = 'A szerver nem sorolt fel hangokat. Írja be őket alább.'
+MESSAGES['Found %(count)s voices.'] = '%(count)s hang található.'
+MESSAGES['Only a model that is switched on, on a connection that is on, can be the default.'] = 'Csak bekapcsolt kapcsolaton lévő, bekapcsolt modell lehet alapértelmezett.'
+MESSAGES['Removed.'] = 'Eltávolítva.'
+MESSAGES['Limits and reasoning'] = 'Korlátok és gondolkodás'
+MESSAGES['Speech server (OpenAI-compatible transcriptions and speech)'] = 'Beszédszerver (OpenAI-kompatibilis átírás és beszéd)'
+MESSAGES['Picture editing'] = 'Képszerkesztés'
+MESSAGES['Video'] = 'Videó'
+MESSAGES['Music'] = 'Zene'
+MESSAGES['3D models'] = '3D-modellek'
+MESSAGES['The ComfyUI has this checkpoint.'] = 'A ComfyUI-nak megvan ez a checkpoint.'
+MESSAGES['The ComfyUI answered, and does not list this checkpoint.'] = 'A ComfyUI válaszolt, de nem sorolja fel ezt a checkpointot.'
+MESSAGES['There is nothing to try for this model without generating something.'] = 'Ennél a modellnél nincs mit kipróbálni anélkül, hogy valami generálódna.'
+MESSAGES['%(name)s has no model switched on yet. Add one under Models, then test again.'] = 'A(z) %(name)s kapcsolaton még nincs bekapcsolt modell. Adjon hozzá egyet a Modellek alatt, majd tesztelje újra.'

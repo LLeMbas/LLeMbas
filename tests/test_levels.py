@@ -281,7 +281,7 @@ def test_the_model_page_saves_the_switch_and_requests_at_once(client, db, regist
     assert model.thinking_switch is True and model.parallel == 2
     assert model.single_session is False
     assert model.params_json.get("reasoning_effort") == "off"
-    page = client.get(f"/admin/models/{model.id}/edit").text
+    page = client.get(f"/admin/models/{model.id}/limits").text
     assert 'name="thinking_switch"' in page and 'name="parallel"' in page
 
 

@@ -29,6 +29,8 @@ def test_the_types_and_what_a_host_names():
         "openai_compatible", "openai", "anthropic", "deepseek", "openrouter",
         # Alibaba Cloud Model Studio's two: tests/test_interactive_only.py.
         "alibaba", "alibaba_plan",
+        # The two that serve no chat: tests/test_unified_connections.py.
+        "comfyui", "speech",
     )
     assert providers.by_host("https://api.deepseek.com/v1").id == "deepseek"
     assert providers.by_host("https://openrouter.ai/api/v1").id == "openrouter"
@@ -264,7 +266,7 @@ def test_an_override_always_wins_and_auto_follows_detection(client, db, register
     db.commit()
     assert model.capabilities_json["vision"] is False and model.capabilities_json["tools"] is False
     assert model.context_length == 4096
-    page = client.get(f"/admin/models/{model.id}/edit").text
+    page = client.get(f"/admin/models/{model.id}/capabilities").text
     assert 'data-testid="model-capabilities"' in page and "Detected: yes" in page
     # Emptied, the length follows the endpoint again.
     client.post(f"/admin/models/{model.id}", data={**form, "context_length": ""})
@@ -316,7 +318,11 @@ def test_the_connections_page_shows_the_dot_and_never_a_key(client, db, register
                             health_json={"status": "loading", "loading": "big", "latency_ms": 5})
     db.add(connection)
     db.commit()
-    page = client.get("/admin/connections").text
+    # The list has the dot; the connection's own page has it and the form.
+    listed = client.get("/admin/connections").text
+    assert "sk-or-secret" not in listed and "sk-admin-secret" not in listed
+    assert 'data-status="loading"' in listed and "is-wait" in listed
+    page = client.get(f"/admin/connections/{connection.id}").text
     assert "sk-or-secret" not in page and "sk-admin-secret" not in page
     assert 'data-status="loading"' in page and "is-wait" in page
     assert 'name="billing_key"' in page and 'value="openai" selected' in page
@@ -547,7 +553,7 @@ def test_the_model_page_keeps_the_fallback_order(client, db, registered):
     third = Model(connection_id=backup.connection_id, model_id="third")
     db.add(third)
     db.commit()
-    page = client.get(f"/admin/models/{main.id}/edit").text
+    page = client.get(f"/admin/models/{main.id}/limits").text
     assert 'data-testid="fallback-list"' in page and "Backup" in page
     base = {"enabled": "true", "public": "true", "fallback_submitted": "1"}
     client.post(f"/admin/models/{main.id}",
@@ -561,7 +567,7 @@ def test_the_model_page_keeps_the_fallback_order(client, db, registered):
 
 def test_the_fallback_rows_are_drawn_by_the_server_in_order_and_sortable(client, db, registered):
     main, backup = _two_models(db, fallback=True)
-    page = client.get(f"/admin/models/{main.id}/edit").text
+    page = client.get(f"/admin/models/{main.id}/limits").text
     card = page[page.index('data-testid="fallback-list"'):]
     card = card[: card.index("</section>")]
     listed = card[card.index('data-testid="fallback-order"'): card.index("</ol>")]

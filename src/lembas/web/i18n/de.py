@@ -62,7 +62,6 @@ MESSAGES: dict[str, str] = {
     "API key": "API-Schlüssel",
     "Base URL": "Basis-URL",
     "Data group": "Datengruppe",
-    "Enabled — its models are offered in chats": "Aktiviert — seine Modelle werden in Chats angeboten",
     "Extra headers": "Zusätzliche Header",
     "GET": "GET",
     "HTTP-Referer: https://example.org": "HTTP-Referer: https://example.org",
@@ -145,28 +144,15 @@ MESSAGES: dict[str, str] = {
     "When a model asks a question it can offer answers to pick from, and by default a box to write something else. Turn this off if you would rather nobody typed free text into a prompt a model composed.": "Wenn ein Modell eine Frage stellt, kann es Antworten zur Auswahl anbieten und standardmäßig ein Feld, um etwas anderes zu schreiben. Schalten Sie dies aus, wenn niemand freien Text in eine Eingabeaufforderung tippen soll, die ein Modell verfasst hat.",
     "and": "und",
     "stopped": "angehalten",
-    "Adds a microphone to the composer. Recordings are sent to this endpoint and never written to disk.": "Fügt dem Eingabefeld ein Mikrofon hinzu. Aufnahmen werden an diesen Endpunkt gesendet und nie auf die Festplatte geschrieben.",
-    "Adds a speaker button to every reply. Each reader can pick their own voice in their settings; what is chosen here is the default.": "Fügt jeder Antwort eine Vorlese-Schaltfläche hinzu. Jeder kann in den eigenen Einstellungen eine Stimme wählen; die hier gewählte ist der Standard.",
-    "Allow messages to be dictated": "Diktieren von Nachrichten erlauben",
-    "Allow replies to be read out": "Vorlesen von Antworten erlauben",
-    "Audio settings saved.": "Audio-Einstellungen gespeichert.",
     "Default voice": "Standardstimme",
     "Encrypted at rest. Clear the field to remove it.": "Verschlüsselt gespeichert. Leeren Sie das Feld, um ihn zu entfernen.",
-    "Format": "Format",
     "Language": "Sprache",
     "Model": "Modell",
-    "Only the starting value for each account — anyone can turn it off in their own settings, and nobody is made to listen.": "Nur der Anfangswert für jedes Konto — jeder kann es in den eigenen Einstellungen ausschalten, und niemand wird zum Zuhören gezwungen.",
-    "Read new replies aloud as they finish, by default": "Neue Antworten standardmäßig vorlesen, sobald sie fertig sind",
     "Save settings": "Einstellungen speichern",
     "Speed": "Geschwindigkeit",
-    "Two endpoints speaking the OpenAI audio API: one that turns speech into text so a message can be dictated, one that reads a reply out. They are configured separately because they usually are separate servers — whisper.cpp and Kokoro, say, or Speaches for both.": "Zwei Endpunkte, die die Audio-API von OpenAI sprechen: einer wandelt Sprache in Text um, damit sich eine Nachricht diktieren lässt, der andere liest eine Antwort vor. Sie werden getrennt konfiguriert, weil es meist getrennte Server sind — etwa whisper.cpp und Kokoro, oder Speaches für beides.",
     "detect": "erkennen",
-    "http://127.0.0.1:8081": "http://127.0.0.1:8081",
-    "http://127.0.0.1:8880": "http://127.0.0.1:8880",
     "off": "aus",
     "on": "an",
-    "tts-1": "tts-1",
-    "whisper-1": "whisper-1",
     "%(total)s events · page %(page)s of %(pages)s": "%(total)s Ereignisse · Seite %(page)s von %(pages)s",
     "A prefix: auth finds every sign-in.": "Ein Präfix: auth findet jede Anmeldung.",
     "Action": "Aktion",
@@ -188,10 +174,8 @@ MESSAGES: dict[str, str] = {
     "Who": "Wer",
     "Who did what, when and from where: sign-ins and failed ones, tokens and devices, every change an administrator makes, people starting over, updates. It names things and never quotes them — no chat, note or password is ever in it.": "Wer hat was getan, wann und von wo aus: Anmeldungen und fehlgeschlagene Versuche, Tokens und Geräte, jede Änderung eines Administrators, Neuanfänge, Updates. Es benennt Dinge und zitiert sie nie — kein Chat, keine Notiz und kein Passwort steht je darin.",
     "token": "Token",
-    "Add a connection": "Verbindung hinzufügen",
     "Encrypted before it is stored, and never sent back to the browser. Leave empty for endpoints that need no key.": "Wird vor dem Speichern verschlüsselt und nie an den Browser zurückgesendet. Leer lassen für Endpunkte, die keinen Schlüssel brauchen.",
     "Local LM Studio": "Lokales LM Studio",
-    "Nothing configured yet. Add a connection above and its models appear here.": "Noch nichts eingerichtet. Fügen Sie oben eine Verbindung hinzu, dann erscheinen ihre Modelle hier.",
     "http://localhost:1234/v1": "http://localhost:1234/v1",
     "sk-…": "sk-…",
     "Account": "Konto",
@@ -292,54 +276,19 @@ MESSAGES: dict[str, str] = {
     "Save baseline": "Grundausstattung speichern",
     "What every signed-in user can do before any group is considered. Turn something off here and grant it through a group to make it opt-in.": "Was jeder angemeldete Benutzer darf, bevor irgendeine Gruppe berücksichtigt wird. Schalten Sie hier etwas aus und gewähren Sie es über eine Gruppe, damit es nur auf Wunsch gilt.",
     "quotas": "Kontingente",
-    "A vision model is shown the picture and the request it came from, and says keep or retry. Only clearly wrong images are retried — a missing subject, a mangled picture — because taste is not a fault and the next attempt is not promised to be better. The reader sees only the image that was kept.": "Einem Modell mit Bildverständnis werden das Bild und die Anfrage gezeigt, aus der es entstand, und es sagt behalten oder erneut versuchen. Nur eindeutig misslungene Bilder werden wiederholt — ein fehlendes Motiv, ein verzerrtes Bild —, denn Geschmack ist kein Fehler, und der nächste Versuch ist nicht garantiert besser. Der Leser sieht nur das Bild, das behalten wurde.",
-    "Attempts per image": "Versuche pro Bild",
-    "Available checkpoints": "Verfügbare Checkpoints",
-    "Checking the result": "Prüfung des Ergebnisses",
-    "Checkpoint": "Checkpoint",
-    "Checkpoints": "Checkpoints",
     "ComfyUI": "ComfyUI",
     "Default workflow": "Standard-Workflow",
     "Denoise": "Entrauschen",
-    "Export (API)": "Export (API)",
-    "Extra instructions": "Zusätzliche Anweisungen",
-    "For a machine that cannot hold both at once. Before generating, the chat's own connection is asked to unload — set an unload URL on it under Connections, or nothing happens. Afterwards ComfyUI is asked to free its own models, and the language model loads again by itself on the next request.": "Für einen Rechner, der nicht beide zugleich halten kann. Vor dem Generieren wird die eigene Verbindung des Chats aufgefordert zu entladen — legen Sie dafür unter Verbindungen eine Entlade-URL fest, sonst passiert nichts. Danach wird ComfyUI aufgefordert, seine eigenen Modelle freizugeben, und das Sprachmodell lädt sich bei der nächsten Anfrage von selbst neu.",
-    "Guidance (cfg)": "Guidance (cfg)",
     "Height": "Höhe",
-    "How long to wait for one image, queue included. Far longer than any other timeout here, because the thing being waited for genuinely takes that long.": "Wie lange auf ein Bild gewartet wird, Warteschlange inbegriffen. Weit länger als jedes andere Zeitlimit hier, weil das, worauf gewartet wird, tatsächlich so lange dauert.",
-    "Images per run": "Bilder pro Lauf",
-    "Including the first. The last attempt is kept whatever the review says, so a request always produces a picture.": "Den ersten eingeschlossen. Der letzte Versuch wird unabhängig von der Prüfung behalten, sodass eine Anfrage immer ein Bild liefert.",
-    "Lets a model draw a picture and show it in the conversation, on a ComfyUI you are running. It is offered as a tool the model chooses to call, so nothing changes for a conversation that never asks for one — and it is only offered once there is a ComfyUI, a workflow and at least one checkpoint, because a tool that fails on its first call is worse than a tool nobody was given.": "Lässt ein Modell ein Bild zeichnen und im Gespräch zeigen, auf einem ComfyUI, das Sie betreiben. Es wird als Werkzeug angeboten, das das Modell selbst aufruft, sodass sich für ein Gespräch, das nie danach fragt, nichts ändert — und es wird erst angeboten, wenn es ein ComfyUI, einen Workflow und mindestens einen Checkpoint gibt, denn ein Werkzeug, das beim ersten Aufruf scheitert, ist schlimmer als eines, das niemand bekommen hat.",
-    "Look at each image before showing it, and try again if it is wrong": "Jedes Bild vor dem Anzeigen ansehen und es erneut versuchen, wenn es misslungen ist",
     "Memory": "Gedächtnis",
     "Model that reviews": "Prüfendes Modell",
     "Negative prompt": "Negativer Prompt",
-    "No workflows yet. One is needed before anything can be drawn; the default one is filled in for you when you add the first.": "Noch keine Workflows. Einer wird gebraucht, bevor irgendetwas gezeichnet werden kann; der Standard wird für Sie gesetzt, wenn Sie den ersten hinzufügen.",
-    "Offer image generation to models that support tools": "Bildgenerierung Modellen anbieten, die Werkzeuge unterstützen",
-    "One filename per line, exactly as ComfyUI spells it. This is the list the model chooses from, so leaving out a checkpoint is how you stop it being used. Press Test below to read them off ComfyUI — that fills this in the first time and never overwrites it afterwards.": "Ein Dateiname pro Zeile, genau so geschrieben wie in ComfyUI. Aus dieser Liste wählt das Modell, also verhindern Sie die Nutzung eines Checkpoints, indem Sie ihn weglassen. Klicken Sie unten auf Testen, um sie aus ComfyUI auszulesen — das füllt dieses Feld beim ersten Mal und überschreibt es danach nie.",
-    "Only models marked as having vision are listed. If there is nothing to ask, the first image is kept and nothing fails.": "Nur Modelle, die als bildfähig markiert sind, werden aufgeführt. Gibt es niemanden zu fragen, wird das erste Bild behalten, und nichts schlägt fehl.",
-    "Prefer the SDXL template for anything photographic.": "Bevorzuge für alles Fotografische die SDXL-Vorlage.",
-    "Preserve VRAM: unload the language model while ComfyUI works": "VRAM schonen: das Sprachmodell entladen, während ComfyUI arbeitet",
     "Sampler": "Sampler",
     "Scheduler": "Scheduler",
-    "Set default": "Als Standard festlegen",
     "Steps": "Schritte",
-    "The chat's own model, when it has vision": "Das eigene Modell des Chats, wenn es Bilder sehen kann",
-    "The first in the list above": "Das erste in der Liste oben",
-    "The first one": "Der erste",
     "Timeout (seconds)": "Zeitlimit (Sekunden)",
-    "Used when the model does not write one of its own. It writes one often, so this is a floor rather than something always applied — “always add these words” belongs in the instructions below, where the model is told to include them.": "Wird verwendet, wenn das Modell keinen eigenen schreibt. Es schreibt oft einen, daher ist dies eher eine Untergrenze als etwas, das immer angewendet wird — „füge immer diese Wörter hinzu“ gehört in die Anweisungen unten, wo das Modell angewiesen wird, sie aufzunehmen.",
-    "Used when the model names no template and the chat has no preference.": "Wird verwendet, wenn das Modell keine Vorlage nennt und der Chat keine Vorliebe hat.",
-    "What a generation uses by default": "Was eine Generierung standardmäßig verwendet",
-    "What every picture is drawn with unless the model names otherwise. Leave a box empty to use the built-in value shown beside it — the built-ins are SD1.5-era, and 512×512 on an SDXL checkpoint is what produces the duplicated limbs.": "Womit jedes Bild gezeichnet wird, sofern das Modell nichts anderes nennt. Lassen Sie ein Feld leer, um den daneben angezeigten eingebauten Wert zu verwenden — die eingebauten stammen aus der SD1.5-Ära, und 512×512 auf einem SDXL-Checkpoint ist genau das, was verdoppelte Gliedmaßen erzeugt.",
-    "Where ComfyUI is listening. An address on this machine or this network is fine here and is not checked against the request-forgery rules — you typed it, unlike an address a model asks for.": "Wo ComfyUI lauscht. Eine Adresse auf diesem Rechner oder in diesem Netzwerk ist hier in Ordnung und wird nicht gegen die Regeln gegen Anfragefälschung geprüft — Sie haben sie eingegeben, anders als eine Adresse, die ein Modell anfordert.",
     "Width": "Breite",
     "Workflows": "Workflows",
-    "euler (built-in)": "euler (eingebaut)",
-    "http://127.0.0.1:8188": "http://127.0.0.1:8188",
-    "normal (built-in)": "normal (eingebaut)",
-    "sd_xl_base_1.0.safetensors": "sd_xl_base_1.0.safetensors",
-    "text, watermark": "text, watermark",
     "A server's tool names and descriptions are sent to the model as instructions, and what it returns is read back as fact. Add servers you trust, the way you would a dependency.": "Die Werkzeugnamen und -beschreibungen eines Servers werden dem Modell als Anweisungen gesendet, und was er zurückgibt, wird als Tatsache gelesen. Fügen Sie Server hinzu, denen Sie vertrauen, so wie Sie eine Abhängigkeit hinzufügen würden.",
     "No servers yet. You will need the URL of an MCP endpoint that speaks streamable HTTP — local ones launched as a subprocess are not supported.": "Noch keine Server. Sie benötigen die URL eines MCP-Endpunkts, der Streamable HTTP spricht — lokale, als Unterprozess gestartete Server werden nicht unterstützt.",
     "- Use the GitHub tools for anything about our repositories.": "- Verwende für alles rund um unsere Repositories die GitHub-Werkzeuge.",
@@ -403,7 +352,6 @@ MESSAGES: dict[str, str] = {
     "Search models": "Modelle suchen",
     "Search models…": "Modelle suchen…",
     "Select all": "Alle auswählen",
-    "Select every model on this page": "Jedes Modell auf dieser Seite auswählen",
     "With selected:": "Mit Auswahl:",
     "pinned": "angeheftet",
     "Agent mode": "Agent-Modus",
@@ -960,8 +908,6 @@ MESSAGES.update(
         "Last checked %(when)s UTC": "Zuletzt geprüft %(when)s UTC",
         "Never checked": "Nie geprüft",
         "Delete the connection “%(name)s”? Existing chats keep their history.": "Die Verbindung „%(name)s“ löschen? Bestehende Chats behalten ihren Verlauf.",
-        "Your list above was left alone. What ComfyUI has:": "Ihre Liste oben wurde nicht angetastet. Was ComfyUI hat:",
-        "Filled in above:": "Oben eingetragen:",
         "Groups & permissions": "Gruppen & Berechtigungen",
         "1 tool": "1 Werkzeug",
         "%(n)s tools": "%(n)s Werkzeuge",
@@ -979,18 +925,7 @@ MESSAGES.update(
         "<strong>Asking another model a question uses the same switch and the same allowance below</strong>, because it costs the same thing: one reply setting another reply going. Which people may do it is a separate permission — <strong>%(permission)s</strong> — and which models may is a switch on each model's own page.": "<strong>Einem anderen Modell eine Frage zu stellen nutzt denselben Schalter und dasselbe Kontingent unten</strong>, weil es dasselbe kostet: Eine Antwort setzt eine andere Antwort in Gang. Welche Personen das dürfen, ist eine eigene Berechtigung — <strong>%(permission)s</strong> —, und welche Modelle, ein Schalter auf der Seite jedes Modells.",
         'People also need the <strong>%(permission)s</strong> permission, and the model needs the <strong>%(capability)s</strong> capability. Off by default: a reply that spawns subagents spends model time multiplicatively, and on one local endpoint four at once is four times the queue rather than four times the speed.': 'Außerdem brauchen Personen die Berechtigung <strong>%(permission)s</strong>, und das Modell braucht die Fähigkeit <strong>%(capability)s</strong>. Standardmäßig aus: Eine Antwort, die Subagenten startet, verbraucht Modellzeit vielfach, und auf einem einzigen lokalen Endpunkt bedeuten vier zugleich die vierfache Warteschlange, nicht die vierfache Geschwindigkeit.',
         'Seconds. Past it the subagent is <em>stopped</em>, not abandoned: what it had written is kept and handed back with a note saying it is partial.': 'Sekunden. Danach wird der Subagent <em>angehalten</em>, nicht aufgegeben: Was er geschrieben hatte, bleibt erhalten und wird mit dem Hinweis zurückgegeben, dass es unvollständig ist.',
-        "Where <code>/v1/audio/transcriptions</code> lives — whisper.cpp's <code>whisper-server</code>, Speaches, or anything else speaking it. With or without <code>/v1</code>; either is understood.": "Wo <code>/v1/audio/transcriptions</code> erreichbar ist — <code>whisper-server</code> von whisper.cpp, Speaches oder alles andere, das diese API spricht. Mit oder ohne <code>/v1</code>; beides wird verstanden.",
-        "None needed for a local server": "Für einen lokalen Server nicht nötig",
-        "A server hosting one model <strong>ignores this</strong> and uses whatever it was started with — <code>whisper-1</code> is then just a label. It only selects anything on a server that hosts several.": "Ein Server mit nur einem Modell <strong>ignoriert dies</strong> und verwendet das, womit er gestartet wurde — <code>whisper-1</code> ist dann nur eine Bezeichnung. Eine Auswahl trifft es nur auf einem Server, der mehrere bereitstellt.",
-        "An ISO code such as <code>en</code> or <code>sk</code>. Leave empty to let the server detect it, which is what whisper does best.": "Ein ISO-Code wie <code>en</code> oder <code>sk</code>. Leer lassen, damit der Server sie erkennt — das kann whisper am besten.",
-        "Test dictation": "Diktieren testen",
-        "Read aloud": "Vorlesen",
-        "Where <code>/v1/audio/speech</code> lives — Kokoro-FastAPI, OpenAI, or anything else speaking it.": "Wo <code>/v1/audio/speech</code> erreichbar ist — Kokoro-FastAPI, OpenAI oder alles andere, das diese API spricht.",
-        "Could not read the voice list: %(error)s": "Die Stimmenliste konnte nicht gelesen werden: %(error)s",
-        "Read from the endpoint. Save and test to refresh it.": "Vom Endpunkt gelesen. Speichern und testen, um sie zu aktualisieren.",
-        "Test speech": "Sprachausgabe testen",
         "Add and load models": "Modelle hinzufügen und laden",
-        "Configured connections": "Eingerichtete Verbindungen",
         "Extraction and search": "Extraktion und Suche",
         "One extension per line, <code>.env</code> or <code>env</code>. Only needed to pick a media type — whether the bytes decode as text is what actually decides, so an unlisted extension already works.": "Eine Endung pro Zeile, <code>.env</code> oder <code>env</code>. Nur nötig, um einen Medientyp zu wählen — ob sich die Bytes als Text dekodieren lassen, entscheidet tatsächlich, also funktioniert eine nicht aufgeführte Endung bereits.",
         "Keyword search finds a document that uses your words. This finds one that means the same thing — <em>\"how do I get in\"</em> reaching a note about passwords. Both run and the two rankings are fused, so nothing that keyword search found is lost.": "Die Stichwortsuche findet ein Dokument, das Ihre Wörter verwendet. Diese findet eines, das dasselbe meint — <em>„wie komme ich rein“</em> trifft eine Notiz über Passwörter. Beide laufen, und die zwei Rangfolgen werden zusammengeführt, sodass nichts verloren geht, was die Stichwortsuche gefunden hat.",
@@ -1015,16 +950,7 @@ MESSAGES.update(
         "+1 permission": "+1 Berechtigung",
         "+%(n)s permissions": "+%(n)s Berechtigungen",
         "Create group": "Gruppe erstellen",
-        "Who may use it is a permission — <code>tools.image</code> under Groups &amp; permissions. Which models may is a checkbox on each model.": "Wer es verwenden darf, ist eine Berechtigung — <code>tools.image</code> unter Gruppen &amp; Berechtigungen. Welche Modelle es dürfen, ist ein Kontrollkästchen bei jedem Modell.",
         "Currently <code>%(masked)s</code>. Leave the dots alone to keep it, or clear the field to remove it.": "Derzeit <code>%(masked)s</code>. Lassen Sie die Punkte stehen, um ihn zu behalten, oder leeren Sie das Feld, um ihn zu entfernen.",
-        "Only needed if something sits in front of ComfyUI. Encrypted at rest.": "Nur nötig, wenn etwas vor ComfyUI sitzt. Verschlüsselt gespeichert.",
-        "Test & read what it has": "Testen & auslesen",
-        "%(name)s (not in this ComfyUI's list)": "%(name)s (nicht in der Liste dieses ComfyUI)",
-        "Press <strong>%(button)s</strong> above to fill the sampler and scheduler lists from your ComfyUI.": "Klicken Sie oben auf <strong>%(button)s</strong>, um die Listen für Sampler und Scheduler aus Ihrem ComfyUI zu füllen.",
-        "Both are on, so every retry costs two model loads — one to review, one to generate again. That is the slow combination; consider two attempts rather than %(n)s.": "Beides ist an, also kostet jeder neue Versuch zwei Modell-Ladevorgänge — einen zum Prüfen, einen zum erneuten Generieren. Das ist die langsame Kombination; erwägen Sie zwei Versuche statt %(n)s.",
-        "Added to what every model is told about image generation, on this instance. Where “always put <em>%(example)s</em> in the negative prompt” lives. Leave it empty and nothing is added at all.": "Wird auf dieser Instanz dem hinzugefügt, was jedem Modell über Bildgenerierung gesagt wird. Hier gehört „setze immer <em>%(example)s</em> in den negativen Prompt“ hin. Leer lassen, und es wird gar nichts hinzugefügt.",
-        "A workflow is a ComfyUI graph exported with <strong>%(menu)s</strong>, with <code>&lbrace;&lbrace;prompt&rbrace;&rbrace;</code> and the other placeholders where the values go. The model picks between them by their descriptions, so write the description for a reader who cannot see the graph.": "Ein Workflow ist ein ComfyUI-Graph, exportiert mit <strong>%(menu)s</strong>, mit <code>&lbrace;&lbrace;prompt&rbrace;&rbrace;</code> und den anderen Platzhaltern dort, wo die Werte hingehören. Das Modell wählt anhand der Beschreibungen zwischen ihnen, also schreiben Sie die Beschreibung für einen Leser, der den Graphen nicht sehen kann.",
-        "Add a workflow": "Workflow hinzufügen",
         "Remote servers speaking the Model Context Protocol over HTTP. Their tools are offered beside the built-in ones to models marked <strong>%(mcp)s</strong>. The list of tools is discovered and cached — press <strong>%(button)s</strong> after adding one, and again whenever the server changes.": "Entfernte Server, die das Model Context Protocol über HTTP sprechen. Ihre Werkzeuge werden neben den eingebauten den Modellen angeboten, die als <strong>%(mcp)s</strong> markiert sind. Die Werkzeugliste wird ermittelt und zwischengespeichert — klicken Sie nach dem Hinzufügen eines Servers auf <strong>%(button)s</strong>, und erneut, wann immer sich der Server ändert.",
         "Add a server": "Server hinzufügen",
         "New server": "Neuer Server",
@@ -1059,7 +985,6 @@ MESSAGES.update(
         "Built-in tools": "Eingebaute Werkzeuge",
         "What this model is given, as opposed to what it is capable of. None of it applies unless <strong>tools</strong> is ticked above. Each one is also subject to the instance being configured for it and to the reader's own permissions — this only decides whether it is offered to <em>this</em> model.": "Was dieses Modell bekommt, im Unterschied zu dem, was es kann. Nichts davon gilt, solange oben <strong>tools</strong> nicht angehakt ist. Jedes hängt außerdem davon ab, dass die Instanz dafür eingerichtet ist, und von den Berechtigungen des Lesers — hier wird nur entschieden, ob es <em>diesem</em> Modell angeboten wird.",
         "Back to all models": "Zurück zu allen Modellen",
-        "Every model discovered across your connections. The order here is the order users see in the picker. <strong>Pinning</strong> does not reorder anything — it puts a shortcut in the chat sidebar. The <strong>default</strong> is what a new chat starts with.": "Jedes Modell, das über Ihre Verbindungen gefunden wurde. Die Reihenfolge hier ist die, die Benutzer in der Auswahl sehen. <strong>Anheften</strong> ändert keine Reihenfolge — es legt eine Verknüpfung in der Chat-Seitenleiste an. Mit dem <strong>Standard</strong> beginnt ein neuer Chat.",
         "No models yet. <a href=\"/admin/connections\">Add a connection</a> and run “%(button)s”.": "Noch keine Modelle. <a href=\"/admin/connections\">Fügen Sie eine Verbindung hinzu</a> und führen Sie „%(button)s“ aus.",
         "Clear": "Leeren",
         "Select %(name)s": "%(name)s auswählen",
@@ -1340,13 +1265,11 @@ MESSAGES.update(
         "Heard \"%(text)s\".": "Gehört: „%(text)s“.",
         "Heard nothing, as expected.": "Nichts gehört, wie erwartet.",
         "The endpoint answered. %(heard)s": "Der Endpunkt hat geantwortet. %(heard)s",
-        "Unknown endpoint.": "Unbekannter Endpunkt.",
         "No such data group.": "Diese Datengruppe gibt es nicht.",
         "A data group needs a name.": "Eine Datengruppe braucht einen Namen.",
         "Extraction saved.": "Extraktion gespeichert.",
         "Search saved.": "Suche gespeichert.",
         "Search saved. Rebuild the index to use the new model.": "Suche gespeichert. Bauen Sie den Index neu auf, um das neue Modell zu verwenden.",
-        "Set a base URL first.": "Legen Sie zuerst eine Basis-URL fest.",
         "Found 1 checkpoint, %(samplers)s samplers and %(schedulers)s schedulers.": "1 Checkpoint, %(samplers)s Sampler und %(schedulers)s Scheduler gefunden.",
         "Found %(checkpoints)s checkpoints, %(samplers)s samplers and %(schedulers)s schedulers.": "%(checkpoints)s Checkpoints, %(samplers)s Sampler und %(schedulers)s Scheduler gefunden.",
         "That workflow no longer exists.": "Diesen Workflow gibt es nicht mehr.",
@@ -1367,7 +1290,6 @@ MESSAGES.update(
         "All": "Alle",
         "Enabled": "Aktiviert",
         "Disabled": "Deaktiviert",
-        "Pinned": "Angeheftet",
         "Restricted": "Beschränkt",
         "%(n)s model(s) updated.": "%(n)s Modell(e) aktualisiert.",
         "This model's template accepts: %(efforts)s.": "Die Vorlage dieses Modells akzeptiert: %(efforts)s.",
@@ -1824,14 +1746,6 @@ MESSAGES.update(
     {
         "More for the folder %(name)s": "Mehr zum Ordner %(name)s",
         "Price": "Preis",
-        "Speech to text, per minute": "Sprache zu Text, pro Minute",
-        "Per minute of recording, by the length the server reports, or the recording's own.": "Pro Minute Aufnahme, nach der Länge, die der Server meldet, sonst nach der Aufnahme selbst.",
-        "Text to speech, per million characters": "Text zu Sprache, pro Million Zeichen",
-        "Per character read aloud.": "Pro vorgelesenem Zeichen.",
-        "Price and the API": "Preis und API",
-        "Per picture": "Pro Bild",
-        "Most pictures per API request": "Höchstzahl Bilder pro API-Anfrage",
-        "The largest n a program may ask /v1/images/generations for. Each is a full generation.": "Das größte n, das ein Programm von /v1/images/generations verlangen darf. Jedes ist eine vollständige Generierung.",
         "Chat models answer through the API's chat completions; embedding models only through its embeddings. A model saved before this existed answers both until it is set.": "Chat-Modelle antworten über die Chat-Completions der API, Embedding-Modelle nur über ihre Embeddings. Ein Modell, das vor dieser Einstellung gespeichert wurde, beantwortet beides, bis sie gesetzt ist.",
         "Cost": "Kosten",
     }
@@ -2022,7 +1936,6 @@ MESSAGES['The preset is what a new chat in this group may reach until its person
 MESSAGES['%(failed)s did not answer (%(reason)s), so %(answered)s answered instead.'] = '%(failed)s hat nicht geantwortet (%(reason)s), deshalb hat %(answered)s geantwortet.'
 MESSAGES['%(ms)s ms'] = '%(ms)s ms'
 MESSAGES['%(name)s: balance read.'] = '%(name)s: Guthaben abgefragt.'
-MESSAGES['A connection is one provider: a server of your own that speaks the OpenAI API (llama.cpp, llama-swap, vLLM, Ollama, LM Studio), or OpenAI, Anthropic, DeepSeek or OpenRouter. %(brand)s asks each one for its model list and offers those models in the chat picker.'] = 'Eine Verbindung ist ein Anbieter: ein eigener Server, der die OpenAI-API spricht (llama.cpp, llama-swap, vLLM, Ollama, LM Studio), oder OpenAI, Anthropic, DeepSeek bzw. OpenRouter. %(brand)s fragt jeden nach seiner Modellliste und bietet diese Modelle in der Modellauswahl des Chats an.'
 MESSAGES['Add a fallback model'] = 'Ausweichmodell hinzufügen'
 MESSAGES['Add a fallback model…'] = 'Ausweichmodell hinzufügen…'
 MESSAGES['An admin key from the provider, used only to read what the account has spent. Never used for a reply; a reply never fails on it.'] = 'Ein Admin-Schlüssel des Anbieters, nur um abzufragen, was das Konto ausgegeben hat. Nie für eine Antwort verwendet; eine Antwort scheitert nie daran.'
@@ -2048,14 +1961,12 @@ MESSAGES['Nothing at that address answered like a model server.'] = 'Unter diese
 MESSAGES['Nothing reported.'] = 'Nichts gemeldet.'
 MESSAGES['OpenAI-compatible (llama.cpp, llama-swap, vLLM, Ollama, LM Studio)'] = 'OpenAI-kompatibel (llama.cpp, llama-swap, vLLM, Ollama, LM Studio)'
 MESSAGES["OpenRouter's answer had no credits in it."] = 'Die Antwort von OpenRouter enthielt kein Guthaben.'
-MESSAGES['Paste an address and press Detect: the type is found for you, and what it says about its models is filled in.'] = 'Adresse einfügen und Erkennen drücken: Der Typ wird ermittelt, und was der Server über seine Modelle sagt, wird eingetragen.'
 MESSAGES['Spent at the provider, last 30 days'] = 'Beim Anbieter ausgegeben, letzte 30 Tage'
 MESSAGES['The address could not be asked.'] = 'Die Adresse konnte nicht abgefragt werden.'
 MESSAGES['The endpoint says %(n)s tokens (%(source)s). A number typed here wins over it; empty follows the endpoint.'] = 'Der Endpunkt meldet %(n)s Tokens (%(source)s). Eine hier eingetragene Zahl hat Vorrang; leer folgt dem Endpunkt.'
 MESSAGES['The key was refused for this.'] = 'Der Schlüssel wurde dafür abgelehnt.'
 MESSAGES['The provider did not answer with a balance.'] = 'Der Anbieter hat kein Guthaben zurückgegeben.'
 MESSAGES["The provider's own figure. A reply's cost here is this instance's estimate from the model's prices, or the provider's when it reports one."] = 'Die eigene Angabe des Anbieters. Die Kosten einer Antwort sind hier die Schätzung dieser Instanz aus den Modellpreisen oder die des Anbieters, wenn er sie meldet.'
-MESSAGES['The type carries what differs between providers — how usage, cached tokens and reasoning are sent and read, and where a balance is found — so none of it has to be set by hand.'] = 'Der Typ trägt, worin sich Anbieter unterscheiden — wie Verbrauch, gecachte Tokens und Reasoning gesendet und gelesen werden und wo ein Guthaben zu finden ist —, sodass nichts davon von Hand eingestellt werden muss.'
 MESSAGES['This needs an admin key from the provider (the billing key).'] = 'Dafür ist ein Admin-Schlüssel des Anbieters nötig (der Abrechnungsschlüssel).'
 MESSAGES['This provider has no balance to read.'] = 'Dieser Anbieter hat kein abfragbares Guthaben.'
 MESSAGES['Time to answer the last check'] = 'Antwortzeit der letzten Prüfung'
@@ -2297,13 +2208,11 @@ MESSAGES['with %(count)s earlier versions'] = 'mit %(count)s früheren Versionen
 # --- 2.0: files, memory and money in place of the library and credits ---------
 MESSAGES["Its models read only this group's memories, and a chat started on one of them stays in it. Moving a connection does not move any data: it starts reading the other group."] = 'Ihre Modelle lesen nur die Erinnerungen dieser Gruppe, und ein Chat, der mit einem davon begonnen wurde, bleibt darin. Das Verschieben einer Verbindung verschiebt keine Daten: Sie liest dann die andere Gruppe.'
 MESSAGES["A subagent cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads and searches files and the web, and the general kind writes what the chat may write. It cannot send subagents of its own; it can message the main agent, and be messaged, while it works. <strong>%(mode)s</strong> is not inherited: a subagent's task text can have come from a page it read."] = 'Ein Subagent kann niemanden etwas fragen, also kann in seinem Chat nichts auf eine Freigabe warten. Er bekommt deshalb nur, was dieser Chat schon <em>ohne</em> Nachfrage darf: er liest und durchsucht Dateien und das Web, und die Art general schreibt, was der Chat schreiben darf. Eigene Subagenten kann er nicht schicken; dem Hauptagenten kann er während der Arbeit schreiben und von ihm Nachrichten erhalten. <strong>%(mode)s</strong> wird nicht vererbt: der Auftragstext eines Subagenten kann von einer Seite stammen, die er gelesen hat.'
-MESSAGES['What speech costs, in %(currency)s — in the browser and through the API alike. 0 is free, which is what a server of your own usually is.'] = 'Was Sprache kostet, in %(currency)s — im Browser wie über die API. 0 ist kostenlos, was ein eigener Server meist ist.'
 MESSAGES["A data group keeps one provider's models away from the data another provider's models have been given. Every connection is in one group. Its models read only that group's memories and personalities, and a chat stays in the group it was started in."] = 'Eine Datengruppe hält die Modelle eines Anbieters von den Daten fern, die den Modellen eines anderen Anbieters gegeben wurden. Jede Verbindung gehört zu genau einer Gruppe. Ihre Modelle lesen nur die Erinnerungen und Persönlichkeiten dieser Gruppe, und ein Chat bleibt in der Gruppe, in der er begonnen wurde.'
 MESSAGES['Prices'] = 'Preise'
 MESSAGES['API only switches off chats, agent chats, scheduled tasks and the MCP server; the API, device sign-in, Settings and Admin keep working.'] = '„Nur API“ schaltet Chats, Agent-Chats, geplante Aufgaben und den MCP-Server ab; die API, die Geräteanmeldung, die Einstellungen und die Administration funktionieren weiter.'
 MESSAGES['Several tools can be called in one round, so this is not a count of tools. Leave room for at least two: <code>search</code> finds a passage and <code>read</code> reads the file around it, so a ceiling of one leaves files searchable and not readable. <code>0</code> means no ceiling, which is how an agent chat already works — those are bounded under <a href="/admin/agents">Agents</a> by time and tokens instead.'] = 'In einer Runde können mehrere Werkzeuge aufgerufen werden, das ist also keine Anzahl von Werkzeugen. Lassen Sie Platz für mindestens zwei: <code>search</code> findet eine Stelle und <code>read</code> liest die Datei um sie herum — bei einer Obergrenze von eins bleiben Dateien durchsuchbar, aber nicht lesbar. <code>0</code> bedeutet keine Obergrenze, so wie ein Agent-Chat ohnehin arbeitet — diese werden unter <a href="/admin/agents">Agenten</a> stattdessen durch Zeit und Tokens begrenzt.'
 MESSAGES['A temporary chat is not listed in the sidebar, may read files and memories but cannot change anything — no files, memories, skills or schedules — and is deleted when its time is up. Keep this chat turns one into an ordinary chat.'] = 'Ein temporärer Chat wird nicht in der Seitenleiste aufgeführt, darf Dateien und Erinnerungen lesen, aber nichts ändern — keine Dateien, Erinnerungen, Fertigkeiten oder Zeitpläne — und wird gelöscht, wenn seine Zeit abgelaufen ist. „Chat behalten“ macht daraus einen gewöhnlichen Chat.'
-MESSAGES['What one picture costs, in a chat or through the API. 0 is free.'] = 'Was ein Bild kostet, im Chat oder über die API. 0 ist kostenlos.'
 MESSAGES['%d %B %Y'] = '%d. %B %Y'
 MESSAGES["What a reply on this model costs, in %(currency)s. Per million tokens, except per reply. Each reply's cost is worked out when it is written and kept with it, so a new price does not change old replies. Leave everything empty to make it free — a local model, say."] = 'Was eine Antwort dieses Modells kostet, in %(currency)s. Pro Million Tokens, außer pro Antwort. Die Kosten jeder Antwort werden beim Schreiben berechnet und mit ihr gespeichert, ein neuer Preis ändert also keine alten Antworten. Alles leer lassen macht es kostenlos — etwa ein lokales Modell.'
 MESSAGES['Delete %(email)s? Their chats and folders go with them.'] = '%(email)s löschen? Chats und Ordner verschwinden mit.'
@@ -2819,7 +2728,6 @@ MESSAGES.update(
 # Media from connections: speech and pictures a connection carries itself.
 MESSAGES.update(
     {
-        'Speech and pictures': 'Sprache und Bilder',
         "Use this connection's own speech models for its chats": 'Für Chats auf dieser Verbindung ihre eigenen Sprachmodelle verwenden',
         "Use this connection's own image model for its chats": 'Für Chats auf dieser Verbindung ihr eigenes Bildmodell verwenden',
         'On': 'An',
@@ -2830,16 +2738,7 @@ MESSAGES.update(
         'per minute': 'pro Minute',
         'per 1M characters': 'pro 1 Mio. Zeichen',
         'per picture': 'pro Bild',
-        "A chat whose model is on this connection uses these when the switch above is on and a model of that kind is ticked — the first ticked one. Otherwise, and once when this connection's own does not answer, the instance's default under Audio and Image generation is used; the result says which answered. A chat on another connection is never sent here unless you make one of these the default there. To remove a model, clear its id.": 'Ein Chat, dessen Modell auf dieser Verbindung liegt, verwendet diese, wenn der Schalter oben an ist und ein Modell dieser Art angehakt ist — das erste angehakte. Andernfalls, und einmal dann, wenn das eigene Modell dieser Verbindung nicht antwortet, wird der Standard der Instanz unter Audio und Bilderzeugung verwendet; das Ergebnis sagt, wer geantwortet hat. Ein Chat auf einer anderen Verbindung wird nie hierher geschickt, es sei denn, Sie machen eines dieser Modelle dort selbst zum Standard. Um ein Modell zu entfernen, leeren Sie seine ID.',
         "On a plan this is for a person's own turns only — dictation, a reply they asked to hear, a picture inside their own reply — never for scheduled work or a personal API key, and it is counted, not priced.": 'Bei einem Plan ist dies nur für die eigenen Züge einer Person — Diktat, eine Antwort, die sie sich vorlesen lässt, ein Bild in ihrer eigenen Antwort — nie für geplante Arbeit oder einen persönlichen API-Schlüssel, und es wird gezählt, nicht bepreist.',
-        'These are the <strong>defaults</strong>, for connections without speech models of their own. A connection can carry its own under <a href="/admin/connections">Connections</a>; a chat on it then uses those, and comes back here once if they do not answer.': 'Dies sind die <strong>Standards</strong> für Verbindungen ohne eigene Sprachmodelle. Eine Verbindung kann unter <a href="/admin/connections">Verbindungen</a> eigene führen; ein Chat darauf verwendet dann diese und kommt einmal hierher zurück, wenn sie nicht antworten.',
-        'Default source': 'Standardquelle',
-        'The endpoint below': 'Der Endpunkt unten',
-        "A connection's own model can be the default instead of the endpoint below. Chats on every connection without its own are then sent there, so choose a cloud one only on purpose.": 'Statt des Endpunkts unten kann das eigene Modell einer Verbindung der Standard sein. Chats auf jeder Verbindung ohne eigenes werden dann dorthin geschickt; wählen Sie ein Cloud-Modell also nur mit Absicht.',
-        "These are the endpoints' prices; a connection's own model has its price beside it.": 'Dies sind die Preise der Endpunkte; das eigene Modell einer Verbindung hat seinen Preis neben sich.',
-        'What is set on this page is the <strong>default</strong>, for connections without an image model of their own. A connection can carry its own under <a href="/admin/connections">Connections</a>; a chat on it then draws with that, and comes back here once if it does not answer.': 'Was auf dieser Seite eingestellt ist, ist der <strong>Standard</strong> für Verbindungen ohne eigenes Bildmodell. Eine Verbindung kann unter <a href="/admin/connections">Verbindungen</a> ein eigenes führen; ein Chat darauf zeichnet dann damit und kommt einmal hierher zurück, wenn es nicht antwortet.',
-        'The ComfyUI below': 'Das ComfyUI unten',
-        "A connection's own model can be the default instead of the ComfyUI. Chats on every connection without its own are then sent there, so choose a cloud one only on purpose. Workflows, checkpoints, review and the price below belong to the ComfyUI.": 'Statt des ComfyUI kann das eigene Modell einer Verbindung der Standard sein. Chats auf jeder Verbindung ohne eigenes werden dann dorthin geschickt; wählen Sie ein Cloud-Modell also nur mit Absicht. Workflows, Checkpoints, Prüfung und der Preis unten gehören zum ComfyUI.',
         'QwenCloud, Singapore': 'QwenCloud, Singapur',
         'QwenCloud, US (Virginia)': 'QwenCloud, USA (Virginia)',
         'QwenCloud, Germany (Frankfurt)': 'QwenCloud, Deutschland (Frankfurt)',
@@ -2862,11 +2761,6 @@ MESSAGES.update(
         "Read by %(source)s: this chat's own speech model did not answer.": 'Vorgelesen von %(source)s: Das eigene Sprachmodell dieses Chats hat nicht geantwortet.',
     }
 )
-MESSAGES["Prices are in this connection's currency."] = 'Preise sind in der Währung dieser Verbindung.'
-MESSAGES['%(model)s (no longer available)'] = '%(model)s (nicht mehr verfügbar)'
-MESSAGES['The default source chosen here is no longer available, so nothing is served by default. Choose another, or the endpoint.'] = 'Die hier gewählte Standardquelle ist nicht mehr verfügbar, deshalb wird standardmäßig nichts bedient. Wählen Sie eine andere oder den Endpunkt.'
-MESSAGES['The default serves chats in every data group, whichever group its connection is in.'] = 'Der Standard bedient Chats in jeder Datengruppe, gleich in welcher Gruppe seine Verbindung liegt.'
-MESSAGES['%(name)s was the default source under Audio or Image generation. Choose another there: until then nothing is served by default.'] = '%(name)s war die Standardquelle unter Audio oder Bilderzeugung. Wählen Sie dort eine andere: Bis dahin wird standardmäßig nichts bedient.'
 MESSAGES["The endpoint's answer is larger than this server reads."] = 'Die Antwort des Endpunkts ist größer, als dieser Server liest.'
 MESSAGES['The image endpoint returned something that is not a picture.'] = 'Der Bild-Endpunkt lieferte etwas, das kein Bild ist.'
 MESSAGES['The picture is larger than this instance stores.'] = 'Das Bild ist größer, als diese Instanz speichert.'
@@ -2967,3 +2861,176 @@ MESSAGES['This model keeps its data in other files, which cannot be read here. I
 MESSAGES['This browser cannot draw 3D here.'] = 'Dieser Browser kann hier kein 3D zeichnen.'
 MESSAGES['Drag to turn it, scroll to zoom.'] = 'Ziehen dreht es, Scrollen zoomt.'
 MESSAGES['Only part of this model is drawn.'] = 'Nur ein Teil dieses Modells ist gezeichnet.'
+
+# --- The unified Connections, Models and Media pages (2.x): 171 strings ---
+MESSAGES['Test'] = 'Testen'
+MESSAGES['Media'] = 'Medien'
+MESSAGES['%(name)s is on. Switch it off — applies at once.'] = '%(name)s ist an. Ausschalten — gilt sofort.'
+MESSAGES['%(name)s is off. Switch it on — applies at once.'] = '%(name)s ist aus. Einschalten — gilt sofort.'
+MESSAGES['Applies at once'] = 'Gilt sofort'
+MESSAGES['Off'] = 'Aus'
+MESSAGES['Sections'] = 'Bereiche'
+MESSAGES['Where it is'] = 'Wo sie ist'
+MESSAGES['Enabled — its models are offered'] = 'Aktiviert — ihre Modelle werden angeboten'
+MESSAGES['Options'] = 'Optionen'
+MESSAGES['Longest generation, in seconds'] = 'Längste Generierung, in Sekunden'
+MESSAGES['A generation is tens of seconds, and a queue in front of it can be minutes. After this long the reply stops waiting.'] = 'Eine Generierung dauert Dutzende Sekunden, und eine Warteschlange davor kann Minuten dauern. Nach dieser Zeit wartet die Antwort nicht länger.'
+MESSAGES["Preserve VRAM: unload the chat's model while this ComfyUI draws"] = 'VRAM schonen: das Modell des Chats entladen, während dieses ComfyUI zeichnet'
+MESSAGES["For a machine that cannot hold a chat model and a checkpoint at once. The chat's connection is asked to unload (its Unload URL), and the ComfyUI is freed afterwards. It makes every picture slower; leave it off where there is memory for both."] = 'Für einen Rechner, der ein Chat-Modell und einen Checkpoint nicht zugleich halten kann. Die Verbindung des Chats wird aufgefordert zu entladen (ihre Entlade-URL), und das ComfyUI wird danach freigegeben. Das macht jedes Bild langsamer; lassen Sie es aus, wo der Speicher für beides reicht.'
+MESSAGES['What it was found to have'] = 'Was dort gefunden wurde'
+MESSAGES['%(samplers)s samplers and %(schedulers)s schedulers. Its checkpoints are under Models. Test asks again.'] = '%(samplers)s Sampler und %(schedulers)s Scheduler. Seine Checkpoints stehen unter Modelle. Testen fragt erneut nach.'
+MESSAGES["Everything this connection offers: the chat models it lists, and the speech and picture models added to it. A line opens the model's own page."] = 'Alles, was diese Verbindung bietet: die Chat-Modelle, die sie auflistet, und die Sprach- und Bildmodelle, die ihr hinzugefügt wurden. Eine Zeile öffnet die eigene Seite des Modells.'
+MESSAGES["A ComfyUI's models are its checkpoints. Refresh asks it which it has; a new one arrives switched off, so a list you narrowed stays narrow."] = 'Die Modelle eines ComfyUI sind seine Checkpoints. Aktualisieren fragt es, welche es hat; ein neuer kommt ausgeschaltet an, sodass eine Liste, die Sie eingegrenzt haben, eingegrenzt bleibt.'
+MESSAGES["A speech server's models are the ids it is asked with: one that transcribes, one that reads aloud. They are typed, not found."] = 'Die Modelle eines Sprachservers sind die IDs, mit denen er angefragt wird: eine, die transkribiert, eine, die vorliest. Sie werden eingetippt, nicht gefunden.'
+MESSAGES['Refresh from the provider'] = 'Vom Anbieter aktualisieren'
+MESSAGES['No models here yet.'] = 'Hier gibt es noch keine Modelle.'
+MESSAGES['Add a model'] = 'Ein Modell hinzufügen'
+MESSAGES['Capability'] = 'Fähigkeit'
+MESSAGES['Model id'] = 'Modell-ID'
+MESSAGES['As the provider spells it: the name sent with every request.'] = 'So, wie der Anbieter sie schreibt: der Name, der mit jeder Anfrage gesendet wird.'
+MESSAGES['This provider documents: %(models)s.'] = 'Dieser Anbieter dokumentiert: %(models)s.'
+MESSAGES['Add model'] = 'Modell hinzufügen'
+MESSAGES['Speech and pictures for its own chats'] = 'Sprache und Bilder für ihre eigenen Chats'
+MESSAGES["A chat whose model is on this connection uses these when the switch is on and a model of that kind is ticked — the first ticked one. Otherwise, and once when this connection's own does not answer, the instance's default under Media is used; the result says which answered. A chat on another connection is never sent here unless you make one of these the default there."] = 'Ein Chat, dessen Modell an dieser Verbindung hängt, verwendet diese, wenn der Schalter an ist und ein Modell dieser Art angehakt ist — das erste angehakte. Andernfalls, und einmal dann, wenn das eigene dieser Verbindung nicht antwortet, wird der Standard der Instanz unter Medien verwendet; das Ergebnis sagt, welches geantwortet hat. Ein Chat an einer anderen Verbindung wird nie hierher geschickt, es sei denn, Sie machen eines davon dort zum Standard.'
+MESSAGES['Its media models'] = 'Ihre Medienmodelle'
+MESSAGES["Ticked is on. A model's voice, options and price are on its own page; new ones are added under Models."] = 'Angehakt heißt an. Stimme, Optionen und Preis eines Modells stehen auf seiner eigenen Seite; neue werden unter Modelle hinzugefügt.'
+MESSAGES['None yet. Add a speech or picture model under Models.'] = 'Noch keine. Fügen Sie unter Modelle ein Sprach- oder Bildmodell hinzu.'
+MESSAGES['A workflow is a ComfyUI graph with holes where the prompt, the checkpoint and the numbers go. A model picks one by the name and description you give it.'] = 'Ein Workflow ist ein ComfyUI-Graph mit Lücken, wo der Prompt, der Checkpoint und die Zahlen hingehören. Ein Modell wählt einen anhand des Namens und der Beschreibung, die Sie ihm geben.'
+MESSAGES['every ComfyUI'] = 'jedes ComfyUI'
+MESSAGES['The first in the list'] = 'Der erste in der Liste'
+MESSAGES['Used when neither the model nor the chat names one.'] = 'Wird verwendet, wenn weder das Modell noch der Chat einen nennt.'
+MESSAGES['No workflow yet. Without one this ComfyUI has nothing to draw with.'] = 'Noch kein Workflow. Ohne einen hat dieses ComfyUI nichts, womit es zeichnen könnte.'
+MESSAGES['Remove this connection'] = 'Diese Verbindung entfernen'
+MESSAGES['Its models go with it: %(chat)s listed and %(media)s added. Existing chats keep their history, and a chat on one of its models has to be moved to another model to go on.'] = 'Ihre Modelle gehen mit ihr: %(chat)s aufgelistet und %(media)s hinzugefügt. Bestehende Chats behalten ihren Verlauf, und ein Chat mit einem ihrer Modelle muss auf ein anderes Modell umgestellt werden, um weiterzugehen.'
+MESSAGES['Its workflows stay, for every ComfyUI.'] = 'Ihre Workflows bleiben, für jedes ComfyUI.'
+MESSAGES['One of its models is a default under Media. Removing it leaves that default pointing at nothing until you choose another there: nothing is quietly served in its place.'] = 'Eines ihrer Modelle ist ein Standard unter Medien. Wird sie entfernt, zeigt dieser Standard auf nichts, bis Sie dort einen anderen wählen: Nichts wird stillschweigend an seiner Stelle verwendet.'
+MESSAGES['Add connection'] = 'Verbindung hinzufügen'
+MESSAGES['What kind of connection'] = 'Welche Art von Verbindung'
+MESSAGES['What is at the address? The kind decides which questions the form asks, and what the connection can offer.'] = 'Was befindet sich unter der Adresse? Die Art entscheidet, welche Fragen das Formular stellt und was die Verbindung bieten kann.'
+MESSAGES['http://workstation:8188'] = 'http://workstation:8188'
+MESSAGES['http://workstation:8000/v1'] = 'http://workstation:8000/v1'
+MESSAGES['Where the ComfyUI answers, without a path. Its checkpoints, samplers and schedulers are asked for as soon as it is added.'] = 'Wo das ComfyUI antwortet, ohne Pfad. Seine Checkpoints, Sampler und Scheduler werden abgefragt, sobald es hinzugefügt ist.'
+MESSAGES['The address whose <code>/audio/transcriptions</code> and <code>/audio/speech</code> are asked, usually ending in <code>/v1</code>. One server may do both, or only one.'] = 'Die Adresse, deren <code>/audio/transcriptions</code> und <code>/audio/speech</code> angefragt werden, meist auf <code>/v1</code> endend. Ein Server kann beides oder nur eines davon.'
+MESSAGES['Speech'] = 'Sprache'
+MESSAGES["A connection is anything this instance reaches at an address: a provider of chat models, a ComfyUI that draws, a server that transcribes and reads aloud. What each one offers are models, listed under Models; a line here opens the connection's own page."] = 'Eine Verbindung ist alles, was diese Instanz unter einer Adresse erreicht: ein Anbieter von Chat-Modellen, ein ComfyUI, das zeichnet, ein Server, der transkribiert und vorliest. Was jede bietet, sind Modelle, aufgelistet unter Modelle; eine Zeile hier öffnet die eigene Seite der Verbindung.'
+MESSAGES['No roads lead anywhere yet. Add a connection and its models appear under Models.'] = 'Noch führen keine Wege irgendwohin. Fügen Sie eine Verbindung hinzu, dann erscheinen ihre Modelle unter Modelle.'
+MESSAGES['no models'] = 'keine Modelle'
+MESSAGES['Speech and pictures, for the whole instance: whether each is on, which model is the default, and what is not any one model\'s. Where it comes from is a <a href="/admin/connections">connection</a>, and how a model is asked is on the <a href="/admin/models">model\'s</a> own page.'] = 'Sprache und Bilder für die ganze Instanz: ob jedes an ist, welches Modell der Standard ist und was zu keinem einzelnen Modell gehört. Woher es kommt, ist eine <a href="/admin/connections">Verbindung</a>, und wie ein Modell angefragt wird, steht auf der eigenen Seite des <a href="/admin/models">Modells</a>.'
+MESSAGES['Dictation is on'] = 'Diktieren ist an'
+MESSAGES['Read-aloud is on'] = 'Vorlesen ist an'
+MESSAGES['Image generation is on'] = 'Bildgenerierung ist an'
+MESSAGES["Off is off for every source, a connection's own included."] = 'Aus heißt aus für jede Quelle, auch für die eigene einer Verbindung.'
+MESSAGES['An address from an older release (it becomes a connection at the next start)'] = 'Eine Adresse aus einer älteren Version (sie wird beim nächsten Start zu einer Verbindung)'
+MESSAGES['Not chosen yet'] = 'Noch nicht gewählt'
+MESSAGES['(no longer available)'] = '(nicht mehr verfügbar)'
+MESSAGES['Chosen from the models that are added and switched on. It serves every chat whose own connection has none of its own.'] = 'Gewählt aus den Modellen, die hinzugefügt und eingeschaltet sind. Es bedient jeden Chat, dessen eigene Verbindung kein eigenes hat.'
+MESSAGES["Open the default model's page"] = 'Seite des Standardmodells öffnen'
+MESSAGES['The model chosen as the default can no longer serve: it was removed, switched off, or its connection was. Until you choose again nothing is served by default.'] = 'Das als Standard gewählte Modell kann nicht mehr dienen: Es wurde entfernt oder ausgeschaltet, oder seine Verbindung wurde es. Bis Sie neu wählen, wird standardmäßig nichts verwendet.'
+MESSAGES['No model of this kind is added yet. Add one on a <a href="/admin/connections">connection</a>\'s Models tab.'] = 'Es ist noch kein Modell dieser Art hinzugefügt. Fügen Sie eines im Tab Modelle einer <a href="/admin/connections">Verbindung</a> hinzu.'
+MESSAGES['The order sources are tried in'] = 'Die Reihenfolge, in der Quellen versucht werden'
+MESSAGES["The chat's own connection, where that connection is set to use its own:"] = 'Die eigene Verbindung des Chats, wenn diese Verbindung ihre eigenen verwenden soll:'
+MESSAGES['none is, at present.'] = 'derzeit keine.'
+MESSAGES['The default above:'] = 'Der Standard oben:'
+MESSAGES['nothing.'] = 'nichts.'
+MESSAGES["One step, in this direction only, and the answer says which source gave it. A chat on a local model is never sent to a provider unless that provider's model is the default here."] = 'Ein Schritt, nur in dieser Richtung, und die Antwort sagt, welche Quelle sie geliefert hat. Ein Chat mit einem lokalen Modell wird nie an einen Anbieter geschickt, es sei denn, das Modell dieses Anbieters ist hier der Standard.'
+MESSAGES['Read replies aloud by default'] = 'Antworten standardmäßig vorlesen'
+MESSAGES["Where each person's own setting starts. It forces nothing on anyone."] = 'Womit die eigene Einstellung jeder Person beginnt. Es zwingt niemandem etwas auf.'
+MESSAGES['Review of generated pictures'] = 'Prüfung generierter Bilder'
+MESSAGES["A vision model looks at what a ComfyUI drew and says whether to keep it. A provider's model is never reviewed: every retry would be a picture somebody pays for."] = 'Ein Modell mit Bildverständnis sieht sich an, was ein ComfyUI gezeichnet hat, und sagt, ob es behalten wird. Das Modell eines Anbieters wird nie geprüft: Jeder neue Versuch wäre ein Bild, für das jemand bezahlt.'
+MESSAGES['Review each picture before it is kept'] = 'Jedes Bild prüfen, bevor es behalten wird'
+MESSAGES["The chat's own, when it has vision"] = 'Das eigene des Chats, wenn es Bilder sehen kann'
+MESSAGES['Only models marked as having vision can review.'] = 'Nur Modelle, die als bildfähig markiert sind, können prüfen.'
+MESSAGES['Tries'] = 'Versuche'
+MESSAGES['How many pictures may be drawn for one request before the last is kept.'] = 'Wie viele Bilder für eine Anfrage gezeichnet werden dürfen, bevor das letzte behalten wird.'
+MESSAGES['Limits and price'] = 'Limits und Preis'
+MESSAGES['Pictures per API request'] = 'Bilder pro API-Anfrage'
+MESSAGES['The most one <code>/v1/images/generations</code> may ask for.'] = 'Das Höchste, was ein <code>/v1/images/generations</code> anfordern darf.'
+MESSAGES['Price per picture'] = 'Preis pro Bild'
+MESSAGES['For a picture a ComfyUI draws, unless its checkpoint has a price of its own.'] = 'Für ein Bild, das ein ComfyUI zeichnet, sofern sein Checkpoint keinen eigenen Preis hat.'
+MESSAGES['Instructions to the model'] = 'Anweisungen an das Modell'
+MESSAGES["Given to every model that can draw, beside the tool's own guidance. Where “always add these words to the negative prompt” lives."] = 'Erhält jedes Modell, das zeichnen kann, neben den eigenen Hinweisen des Werkzeugs. Hierhin gehört „füge dem negativen Prompt immer diese Wörter hinzu“.'
+MESSAGES['Drawing defaults for a ComfyUI'] = 'Zeichen-Standards für ein ComfyUI'
+MESSAGES["What a generation uses when neither the request nor the checkpoint's own page says. Empty is no opinion: the built-in floor applies."] = 'Was eine Generierung verwendet, wenn weder die Anfrage noch die eigene Seite des Checkpoints etwas sagt. Leer heißt keine Vorgabe: Es gilt die eingebaute Untergrenze.'
+MESSAGES['CFG'] = 'CFG'
+MESSAGES['Pictures per run'] = 'Bilder pro Lauf'
+MESSAGES['What to keep out of every picture, unless the request says its own.'] = 'Was aus jedem Bild herausgehalten werden soll, sofern die Anfrage nichts Eigenes nennt.'
+MESSAGES['Kept and listed. Nothing on this instance asks a model of this capability for anything yet.'] = 'Behalten und aufgelistet. Noch fragt nichts in dieser Instanz ein Modell mit dieser Fähigkeit nach irgendetwas.'
+MESSAGES["There is no Test for a provider's picture model: the only test would be a picture somebody pays for."] = 'Für das Bildmodell eines Anbieters gibt es kein Testen: Der einzige Test wäre ein Bild, für das jemand bezahlt.'
+MESSAGES['For whoever administers this instance next: what it is, and why it is here.'] = 'Für alle, die diese Instanz als Nächste verwalten: was es ist und warum es hier ist.'
+MESSAGES['On — may be used'] = 'An — darf verwendet werden'
+MESSAGES['Off, it cannot be the default and is not offered to a chat.'] = 'Ausgeschaltet kann es nicht der Standard sein und wird keinem Chat angeboten.'
+MESSAGES["Off, it serves neither its connection's own chats nor as the default."] = 'Ausgeschaltet bedient es weder die eigenen Chats seiner Verbindung noch dient es als Standard.'
+MESSAGES["This model's connection is a subscription. What it does is counted and never priced: a figure would be made up."] = 'Die Verbindung dieses Modells ist ein Abonnement. Was es tut, wird gezählt und nie bepreist: Ein Betrag wäre erfunden.'
+MESSAGES["What one picture from this checkpoint costs. Empty takes the instance's price per picture, under Media."] = 'Was ein Bild von diesem Checkpoint kostet. Leer übernimmt den Preis pro Bild der Instanz, unter Medien.'
+MESSAGES["In the connection's currency, in the unit the provider bills in. Empty is free, which is what a server of your own is."] = 'In der Währung der Verbindung, in der Einheit, in der der Anbieter abrechnet. Leer heißt kostenlos, und das ist ein eigener Server.'
+MESSAGES['How this model is asked'] = 'Wie dieses Modell angefragt wird'
+MESSAGES["Each of these is this model's own. An empty box is no opinion: the instance's setting, or the provider's own default, applies."] = 'Jede dieser Angaben gehört nur diesem Modell. Ein leeres Feld heißt keine Vorgabe: Es gilt die Einstellung der Instanz oder der eigene Standard des Anbieters.'
+MESSAGES["The server's own"] = 'Die eigene des Servers'
+MESSAGES['Read in when a person has chosen none of their own.'] = 'Damit wird vorgelesen, wenn eine Person keine eigene gewählt hat.'
+MESSAGES["0.25 to 4. A person's own speed wins."] = '0,25 bis 4. Die eigene Geschwindigkeit einer Person hat Vorrang.'
+MESSAGES['Audio format'] = 'Audioformat'
+MESSAGES['What the model is asked to answer in.'] = 'Worin das Modell antworten soll.'
+MESSAGES['Language hint'] = 'Sprachhinweis'
+MESSAGES['A code such as en or sk. Empty lets the model detect it, which it usually does best.'] = 'Ein Code wie en oder sk. Leer lässt das Modell die Sprache erkennen, was es meist am besten kann.'
+MESSAGES['More is slower, not always better.'] = 'Mehr ist langsamer, nicht immer besser.'
+MESSAGES['How closely to follow the prompt.'] = 'Wie genau dem Prompt gefolgt wird.'
+MESSAGES['Voices'] = 'Stimmen'
+MESSAGES['one voice per line'] = 'eine Stimme pro Zeile'
+MESSAGES['The voices this model has, one per line: what a person chooses from where this model is the default. Empty asks the server each time.'] = 'Die Stimmen, die dieses Modell hat, eine pro Zeile: woraus eine Person wählt, wo dieses Modell der Standard ist. Leer fragt jedes Mal den Server.'
+MESSAGES['Ask the server for its voices'] = 'Den Server nach seinen Stimmen fragen'
+MESSAGES['Sizes'] = 'Größen'
+MESSAGES['Width x height, one per line; the first is what a picture is drawn at when nothing asks for a size.'] = 'Breite x Höhe, eine pro Zeile; in der ersten wird ein Bild gezeichnet, wenn nichts eine Größe verlangt.'
+MESSAGES['Remove this model'] = 'Dieses Modell entfernen'
+MESSAGES['It is taken off its connection, with its options and its price. Nothing is deleted at the provider.'] = 'Es wird von seiner Verbindung genommen, samt seinen Optionen und seinem Preis. Beim Anbieter wird nichts gelöscht.'
+MESSAGES['A checkpoint the ComfyUI still has comes back, switched off, at the next refresh.'] = 'Ein Checkpoint, den das ComfyUI noch hat, kommt bei der nächsten Aktualisierung ausgeschaltet zurück.'
+MESSAGES['This is a default under Media. Removing it leaves that default pointing at nothing until you choose another there: nothing is quietly served in its place.'] = 'Dies ist ein Standard unter Medien. Wird es entfernt, zeigt dieser Standard auf nichts, bis Sie dort einen anderen wählen: Nichts wird stillschweigend an seiner Stelle verwendet.'
+MESSAGES['Remove the model “%(name)s” from %(connection)s?'] = 'Das Modell „%(name)s“ von %(connection)s entfernen?'
+MESSAGES['Icon'] = 'Symbol'
+MESSAGES['Limits'] = 'Limits'
+MESSAGES['Longest reply'] = 'Längste Antwort'
+MESSAGES['The endpoint says this model writes at most %(n)s tokens in one reply. A ceiling only: no request asks for all of it by default.'] = 'Der Endpunkt gibt an, dass dieses Modell höchstens %(n)s Tokens in einer Antwort schreibt. Nur eine Obergrenze: Standardmäßig fordert keine Anfrage alles davon an.'
+MESSAGES['The endpoint does not say how much this model can write in one reply.'] = 'Der Endpunkt gibt nicht an, wie viel dieses Modell in einer Antwort schreiben kann.'
+MESSAGES['Pages and plans'] = 'Seiten und Pläne'
+MESSAGES['Interactive use only'] = 'Nur interaktive Nutzung'
+MESSAGES['Yes — from its connection, <a href="/admin/connections/%(id)s">%(name)s</a>, a provider\'s plan: a person\'s own turns only, never scheduled or background work.'] = 'Ja — durch seine Verbindung, <a href="/admin/connections/%(id)s">%(name)s</a>, den Plan eines Anbieters: nur die eigenen Züge einer Person, nie geplante Arbeit oder Hintergrundarbeit.'
+MESSAGES['No. Its connection allows scheduled and background work.'] = 'Nein. Seine Verbindung erlaubt geplante Arbeit und Hintergrundarbeit.'
+MESSAGES["Every model of every connection, whatever it is for: chat, embedding, speech, pictures. A line opens the model's own page; the switch at its end turns it on or off at once."] = 'Jedes Modell jeder Verbindung, wofür es auch ist: Chat, Embeddings, Sprache, Bilder. Eine Zeile öffnet die eigene Seite des Modells; der Schalter an ihrem Ende schaltet es sofort an oder aus.'
+MESSAGES['The order of the chat models here is the order people see in the picker, and the <strong>default</strong> is what a new chat starts with.'] = 'Die Reihenfolge der Chat-Modelle hier ist die Reihenfolge, die man in der Auswahl sieht, und der <strong>Standard</strong> ist das, womit ein neuer Chat beginnt.'
+MESSAGES['Every capability'] = 'Jede Fähigkeit'
+MESSAGES['On or off'] = 'An oder aus'
+MESSAGES['On and off'] = 'An und aus'
+MESSAGES['Select every chat model on this page'] = 'Jedes Chat-Modell auf dieser Seite auswählen'
+MESSAGES["Drag a chat model's handle to put the picker in order."] = 'Ziehen Sie am Griff eines Chat-Modells, um die Auswahl zu ordnen.'
+MESSAGES['Every ComfyUI'] = 'Jedes ComfyUI'
+MESSAGES["The ComfyUI this graph was written for: it needs that one's nodes and models. Offered only where that ComfyUI draws."] = 'Das ComfyUI, für das dieser Graph geschrieben wurde: Er braucht dessen Nodes und Modelle. Wird nur angeboten, wo dieses ComfyUI zeichnet.'
+MESSAGES['%(name)s was a default under Media. Choose another there: until then nothing is served by default.'] = '%(name)s war ein Standard unter Medien. Wählen Sie dort einen anderen: Bis dahin wird standardmäßig nichts verwendet.'
+MESSAGES['Overview'] = 'Übersicht'
+MESSAGES['That page does not exist.'] = 'Diese Seite gibt es nicht.'
+MESSAGES["A server of your own, or any cloud that speaks OpenAI's API. Chat and embedding models; speech and pictures too where it has them."] = 'Ein eigener Server oder jede Cloud, die die API von OpenAI spricht. Chat- und Embedding-Modelle; auch Sprache und Bilder, wo sie vorhanden sind.'
+MESSAGES['Chat models, and its speech and picture models.'] = 'Chat-Modelle sowie seine Sprach- und Bildmodelle.'
+MESSAGES['Chat models.'] = 'Chat-Modelle.'
+MESSAGES['Chat models, with a balance to read.'] = 'Chat-Modelle, mit einem abfragbaren Guthaben.'
+MESSAGES["Many providers' chat models behind one key."] = 'Chat-Modelle vieler Anbieter hinter einem Schlüssel.'
+MESSAGES['Qwen and more, paid as used: chat, speech and picture models.'] = 'Qwen und mehr, nach Verbrauch bezahlt: Chat-, Sprach- und Bildmodelle.'
+MESSAGES["A subscription, for a person's own turns only."] = 'Ein Abonnement, nur für die eigenen Züge einer Person.'
+MESSAGES['A server that transcribes and reads aloud, such as whisper.cpp or Kokoro. No chat models.'] = 'Ein Server, der transkribiert und vorliest, etwa whisper.cpp oder Kokoro. Keine Chat-Modelle.'
+MESSAGES['Pictures drawn with your own workflows and checkpoints. No chat models.'] = 'Bilder, gezeichnet mit Ihren eigenen Workflows und Checkpoints. Keine Chat-Modelle.'
+MESSAGES['This connection cannot have a model of that kind.'] = 'Diese Verbindung kann kein Modell dieser Art haben.'
+MESSAGES["Type the model's id."] = 'Geben Sie die ID des Modells ein.'
+MESSAGES['That model is already here.'] = 'Dieses Modell ist schon hier.'
+MESSAGES['This connection has as many models as it can keep.'] = 'Diese Verbindung hat so viele Modelle, wie sie halten kann.'
+MESSAGES["%(name)s · the chat's checkpoint, or its first"] = '%(name)s · der Checkpoint des Chats, sonst sein erster'
+MESSAGES['The server listed no voices. Type them below.'] = 'Der Server hat keine Stimmen aufgelistet. Geben Sie sie unten ein.'
+MESSAGES['Found %(count)s voices.'] = '%(count)s Stimmen gefunden.'
+MESSAGES['Only a model that is switched on, on a connection that is on, can be the default.'] = 'Nur ein eingeschaltetes Modell an einer eingeschalteten Verbindung kann der Standard sein.'
+MESSAGES['Removed.'] = 'Entfernt.'
+MESSAGES['Limits and reasoning'] = 'Limits und Denken'
+MESSAGES['Speech server (OpenAI-compatible transcriptions and speech)'] = 'Sprachserver (OpenAI-kompatible Transkription und Sprachausgabe)'
+MESSAGES['Picture editing'] = 'Bildbearbeitung'
+MESSAGES['Video'] = 'Video'
+MESSAGES['Music'] = 'Musik'
+MESSAGES['3D models'] = '3D-Modelle'
+MESSAGES['The ComfyUI has this checkpoint.'] = 'Das ComfyUI hat diesen Checkpoint.'
+MESSAGES['The ComfyUI answered, and does not list this checkpoint.'] = 'Das ComfyUI hat geantwortet und führt diesen Checkpoint nicht auf.'
+MESSAGES['There is nothing to try for this model without generating something.'] = 'Für dieses Modell gibt es nichts zu testen, ohne etwas zu generieren.'
+MESSAGES['%(name)s has no model switched on yet. Add one under Models, then test again.'] = '%(name)s hat noch kein eingeschaltetes Modell. Fügen Sie eines unter Modelle hinzu und testen Sie dann erneut.'

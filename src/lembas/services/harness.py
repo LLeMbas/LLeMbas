@@ -181,16 +181,9 @@ def _image_templates(db: DBSession) -> str:
     a choice. Capped, because a list of thirty costs the window on every
     request forever.
     """
-    from lembas.db.models import ImageWorkflow
+    from lembas.services.media import instance
 
-    rows = list(
-        db.scalars(
-            select(ImageWorkflow)
-            .where(ImageWorkflow.enabled.is_(True))
-            .order_by(ImageWorkflow.position, ImageWorkflow.slug)
-            .limit(12)
-        )
-    )
+    rows = instance.workflows(db, settings_store.images(db), limit=12)
     return "\n".join(f"- {row.slug}: {row.description or row.name}" for row in rows)
 
 

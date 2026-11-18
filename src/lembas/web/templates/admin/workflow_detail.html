@@ -1,14 +1,14 @@
 {% extends "admin/_layout.html" %}
 {% from "_macros.html" import icon %}
-{% set section = "images" %}
+{% set section = "connections" %}
 
 {% block title %}{{ workflow.name or t("New workflow") }} - {{ brand.name }}{% endblock %}
 {% block heading %}{{ workflow.name or t("New workflow") }}{% endblock %}
 
 {% block admin_content %}
 <nav class="crumbs">
-  <a href="/admin/images">
-    {{ icon("chevron-right", "icon--sm crumbs__icon crumbs__back") }} {{ t("Image generation") }}
+  <a href="{{ back }}">
+    {{ icon("chevron-right", "icon--sm crumbs__icon crumbs__back") }} {{ t("Workflows") }}
   </a>
 </nav>
 
@@ -44,6 +44,17 @@
         {{ tm("The only thing the model has to choose with, so say what this is
         <em>for</em> rather than what it contains. It never sees the graph.") }}
       </p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="connection-id">{{ t("ComfyUI") }}</label>
+      <select class="select" id="connection-id" name="connection_id">
+        <option value="">{{ t("Every ComfyUI") }}</option>
+        {% for connection in comfyuis %}
+        <option value="{{ connection.id }}" {{ 'selected' if workflow.connection_id == connection.id }}>{{ connection.name }}</option>
+        {% endfor %}
+      </select>
+      <p class="field__hint">{{ t("The ComfyUI this graph was written for: it needs that one's nodes and models. Offered only where that ComfyUI draws.") }}</p>
     </div>
 
     <div class="field">
@@ -116,7 +127,7 @@
     <button class="btn btn--primary" type="submit">
       {{ t("Add workflow") if is_new else t("Save changes") }}
     </button>
-    <a class="btn btn--ghost" href="/admin/images">{{ t("Back") }}</a>
+    <a class="btn btn--ghost" href="{{ back }}">{{ t("Back") }}</a>
     {% if not is_new %}
     <button class="btn btn--danger" type="submit" formnovalidate
             formaction="/admin/images/workflows/{{ workflow.id }}/delete"

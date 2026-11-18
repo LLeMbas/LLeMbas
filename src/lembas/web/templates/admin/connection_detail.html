@@ -1,0 +1,443 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "connections" %}
+{% set info = connection.provider_info %}
+
+{% block title %}{{ connection.name }} - {{ t("Connections") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ connection.name }}{% endblock %}
+
+{% block admin_content %}
+<nav class="crumbs">
+  <a href="/admin/connections">{{ icon("chevron-right", "icon--sm crumbs__icon crumbs__back") }} {{ t("All connections") }}</a>
+</nav>
+
+{% if saved %}
+<div data-flash="success" class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>
+{% endif %}
+{% if error %}
+<div data-flash="error" class="alert alert--error">{{ icon("warning", "alert__icon") }} <span>{{ error }}</span></div>
+{% endif %}
+
+{% include "admin/_connection_status.html" %}
+{% include "admin/_tabs.html" %}
+
+{% if tab == "overview" %}
+{# ---------------------------------------------------------------- Overview #}
+<form method="post" action="/admin/connections/{{ connection.id }}" class="form-grid"
+      data-testid="connection-overview"
+      x-data="{
+        type: '{{ info.id }}',
+        key: '{{ row.unchanged if connection.api_key_encrypted else '' }}',
+        keyRules: {{ row.key_rules | tojson | forceescape }},
+        wrongKey() {
+          const rule = this.keyRules[this.type];
+          if (!rule || !this.key || this.key === '{{ row.unchanged }}') return false;
+          return (rule.prefix && !this.key.startsWith(rule.prefix))
+            || (rule.not && this.key.startsWith(rule.not));
+        }
+      }">
+  <section class="card">
+    <h2 class="card__title">{{ t("Where it is") }}</h2>
+
+    <div class="field">
+      <label class="field__label" for="name">{{ t("Name") }}</label>
+      <input class="input" id="name" name="name" value="{{ connection.name }}" required>
+    </div>
+
+    {% if row.chat %}
+    <div class="field">
+      <label class="field__label" for="type">{{ t("Type") }}</label>
+      <select class="select" id="type" name="provider_type" x-model="type">
+        {% for type in row.provider_types.values() if type.chat %}
+        <option value="{{ type.id }}" {{ 'selected' if info.id == type.id }}>{{ t(type.label) }}</option>
+        {% endfor %}
+      </select>
+      <p class="field__hint">
+        {% if row.interactive_only %}
+        <span data-testid="interactive-only-note">{{ t("Interactive use only: the provider's terms forbid automated services, batch scripts and scheduled background jobs on a plan, and a key used for them can be suspended. So this server sends no scheduled or background work of its own to this connection — it goes to a pay-as-you-go one, or is not done — and refuses its models to personal API keys. A linked LLeMbas CLI may use them and is trusted to keep its own scheduled and background calls off them. A plan is sold for its subscriber's own use in coding and agent tools; whether this instance's use fits is yours to judge.") }}</span>
+        {% elif info.regions %}
+        {{ t("The provider has no balance to read with a model key and does not say what a reply cost: a cost here is this instance's estimate from the model's prices.") }}
+        {% endif %}
+      </p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="provider">{{ t("Provider name") }}</label>
+      <input class="input input--mono" id="provider" name="provider"
+             value="{{ connection.provider_name }}" required
+             pattern="[a-z0-9][a-z0-9\-]{0,31}" maxlength="32" autocomplete="off">
+      <p class="field__hint">{{ tm("How clients such as the LLeMbas CLI name this connection's models: <code>provider/model</code>, for example <code>llama/bonsai</code>. Lowercase letters, digits and hyphens, unique among connections.") }}</p>
+    </div>
+    {% else %}
+    {#- A ComfyUI or a speech server stays what it is: the type is not a choice. -#}
+    <input type="hidden" name="provider_type" value="{{ info.id }}">
+    {% endif %}
+
+    <div class="field">
+      <label class="field__label" for="url">{{ t("Base URL") }}</label>
+      <input class="input input--mono" id="url" name="base_url"
+             value="{{ connection.base_url }}" required x-ref="url">
+    </div>
+
+    {% for type_id, choices in row.regions.items() %}
+    <div class="field" x-show="type === '{{ type_id }}'" x-cloak data-testid="region-{{ type_id }}">
+      <label class="field__label" for="region-{{ type_id }}">{{ t("Region") }}</label>
+      <select class="select" id="region-{{ type_id }}"
+              @change="if ($event.target.value) { $refs.url.value = $event.target.value }">
+        {#- The stored address may be a workspace's own host: none of the
+            choices, and choosing nothing leaves it as it is. -#}
+        <option value="">{{ t("As typed above") }}</option>
+        {% for choice in choices %}
+        <option value="{{ choice.url }}" {{ 'selected' if connection.base_url == choice.url and info.id == type_id }}>{{ choice.label }}</option>
+        {% endfor %}
+      </select>
+      <p class="field__hint">{{ t("Fills the base URL, which stays editable. A key works only with the address of its own product and region; for a workspace's own host, change the host and keep the path.") }}</p>
+    </div>
+    {% endfor %}
+
+    <div class="field">
+      <label class="field__label" for="key">{{ t("API key") }}</label>
+      <input class="input input--mono" id="key" name="api_key"
+             type="password" autocomplete="off" x-model="key"
+             value="{{ row.unchanged if connection.api_key_encrypted else '' }}"
+             placeholder="{{ t('No key set') }}">
+      <p class="field__hint">
+        {% if connection.api_key_encrypted %}
+          {{ tm("Currently <code>%(masked)s</code>. Leave the dots alone to keep it, or clear the field to remove the key entirely.", masked=row.masked) }}
+        {% else %}
+          {{ t("No key is stored for this endpoint.") }}
+        {% endif %}
+      </p>
+      {#- The stored key judged on the server (`row.key_mismatch`), a typed
+          one in the page: neither sends a key anywhere. -#}
+      <div class="alert alert--error" role="status" data-testid="key-mismatch"
+           {% if row.key_mismatch %}x-show="wrongKey() || (key === '{{ row.unchanged }}' && type === '{{ info.id }}')"{% else %}x-show="wrongKey()" x-cloak{% endif %}>
+        {{ icon("warning", "alert__icon") }}<span>{{ t("This key does not look like one for this type: a plan's key starts with sk-sp-, a pay-as-you-go key does not. A key works only with its own product's address.") }}</span>
+      </div>
+    </div>
+
+    {# Only for the types whose spend is read with a separate admin key. #}
+    {% if info.balance_needs_billing_key %}
+    <div class="field">
+      <label class="field__label" for="billing">{{ t("Billing key (optional)") }}</label>
+      <input class="input input--mono" id="billing" name="billing_key"
+             type="password" autocomplete="off"
+             value="{{ row.unchanged if connection.billing_key_encrypted else '' }}"
+             placeholder="{{ t('No key set') }}">
+      <p class="field__hint">
+        {% if connection.billing_key_encrypted %}
+          {{ tm("Currently <code>%(masked)s</code>. Leave the dots alone to keep it, or clear the field to remove the key entirely.", masked=row.masked_billing) }}
+        {% endif %}
+        {{ t("An admin key from the provider, used only to read what the account has spent. Never used for a reply; a reply never fails on it.") }}
+      </p>
+    </div>
+    {% else %}
+    <input type="hidden" name="billing_key" value="{{ row.unchanged if connection.billing_key_encrypted else '' }}">
+    {% endif %}
+
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="enabled" value="true" {{ 'checked' if connection.enabled }}>
+        <span>{{ t("Enabled — its models are offered") }}</span>
+      </label>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Options") }}</h2>
+
+    <div class="field">
+      <label class="field__label" for="currency">{{ t("Currency") }}</label>
+      <select class="select" id="currency" name="currency">
+        {% for code in row.currencies %}<option value="{{ code }}" {{ 'selected' if connection.currency == code }}>{{ code }}</option>{% endfor %}
+      </select>
+      <p class="field__hint">{{ t("What this connection's model prices are typed in, and what a reply on one of them costs in.") }}</p>
+    </div>
+
+    {% if info.id == "comfyui" %}
+    {#- What a ComfyUI keeps of its own (services/media/store.py
+        `type_options`). -#}
+    <input type="hidden" name="options_form" value="1">
+    <div class="field">
+      <label class="field__label" for="option-timeout">{{ t("Longest generation, in seconds") }}</label>
+      <input class="input" id="option-timeout" name="option_timeout" type="number" min="10"
+             max="3600" step="1" value="{{ row.options.timeout | int }}">
+      <p class="field__hint">{{ t("A generation is tens of seconds, and a queue in front of it can be minutes. After this long the reply stops waiting.") }}</p>
+    </div>
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="option_preserve_vram" value="true" {{ 'checked' if row.options.preserve_vram }}>
+        <span>{{ t("Preserve VRAM: unload the chat's model while this ComfyUI draws") }}</span>
+      </label>
+      <p class="field__hint">{{ t("For a machine that cannot hold a chat model and a checkpoint at once. The chat's connection is asked to unload (its Unload URL), and the ComfyUI is freed afterwards. It makes every picture slower; leave it off where there is memory for both.") }}</p>
+    </div>
+    <div class="field">
+      <span class="field__label">{{ t("What it was found to have") }}</span>
+      <p class="field__hint" data-testid="comfyui-found">
+        {{ t("%(samplers)s samplers and %(schedulers)s schedulers. Its checkpoints are under Models. Test asks again.", samplers=row.options.samplers|length, schedulers=row.options.schedulers|length) }}
+      </p>
+    </div>
+    {% endif %}
+
+    {# Which data group this provider reads. Only worth a control once there is a
+       second group to choose. #}
+    {% if row.chat and row.data_group_choices and row.data_group_choices|length > 1 %}
+    <div class="field">
+      <label class="field__label" for="group">{{ t("Data group") }}</label>
+      <select class="select" id="group" name="data_group_id">
+        {% for group in row.data_group_choices %}
+        <option value="{{ group.id }}"
+                {{ 'selected' if (connection.data_group_id or 'default') == group.id }}>{{ group.name }}</option>
+        {% endfor %}
+      </select>
+      <p class="field__hint">{{ t("Its models read only this group's memories, and a chat started on one of them stays in it. Moving a connection does not move any data: it starts reading the other group.") }}</p>
+    </div>
+    {% endif %}
+
+    {% if row.chat %}
+    <div class="field">
+      <label class="field__label" for="unload">{{ t("Unload URL") }}</label>
+      <div class="btn-row">
+        <input class="input input--mono u-grow u-shrink" id="unload" name="unload_url"
+               value="{{ connection.unload_url }}" placeholder="{{ t('No unload call') }}">
+        <select class="select u-none" name="unload_method" aria-label="{{ t('How to ask it to unload') }}">
+          <option value="POST" {{ 'selected' if connection.unload_method != 'GET' }}>{{ t("POST") }}</option>
+          <option value="GET" {{ 'selected' if connection.unload_method == 'GET' }}>{{ t("GET") }}</option>
+        </select>
+      </div>
+      <p class="field__hint">
+        {{ tm("Only used by image generation's Preserve VRAM, to free this endpoint's memory while ComfyUI works. llama-swap answers <code>GET /unload</code>. Leave it empty for anything on another machine — its memory is not the memory being freed, and it would be an unexplained request.") }}
+      </p>
+    </div>
+    {% endif %}
+
+    <div class="field">
+      <label class="field__label" for="headers">{{ t("Extra headers") }}</label>
+      <textarea class="textarea input--mono" id="headers" name="extra_headers" rows="2"
+                placeholder="{{ t('HTTP-Referer: https://example.org') }}">{% for name, value in (connection.extra_headers_json or {}).items() %}{{ name }}: {{ value }}
+{% endfor %}</textarea>
+      <p class="field__hint">
+        {{ tm("One <code>Name: value</code> per line, sent with every request to this endpoint. OpenRouter reads <code>HTTP-Referer</code> and <code>X-Title</code> and attributes your usage with them. Leave it empty unless an endpoint has asked for something.") }}
+      </p>
+    </div>
+
+    {% if row.chat %}
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="one_model_at_a_time" value="true"
+               {{ 'checked' if connection.one_model_at_a_time }}>
+        <span>{{ t("Holds one model at a time") }}</span>
+      </label>
+      <p class="field__hint">{{ t("Tick this for llama-swap in front of one GPU, or anything else that unloads one model to serve another. A model here may then be its own subagent, but never send a subagent to another model on this connection: loading it would unload the model whose reply is waiting.") }}</p>
+    </div>
+    {% endif %}
+  </section>
+
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">{{ t("Save") }}</button>
+  </div>
+</form>
+
+{% elif tab == "models" %}
+{# ------------------------------------------------------------------ Models #}
+<p class="admin-lede">
+  {% if row.chat %}
+  {{ t("Everything this connection offers: the chat models it lists, and the speech and picture models added to it. A line opens the model's own page.") }}
+  {% elif info.id == "comfyui" %}
+  {{ t("A ComfyUI's models are its checkpoints. Refresh asks it which it has; a new one arrives switched off, so a list you narrowed stays narrow.") }}
+  {% else %}
+  {{ t("A speech server's models are the ids it is asked with: one that transcribes, one that reads aloud. They are typed, not found.") }}
+  {% endif %}
+</p>
+
+<div class="btn-row">
+  {% if row.chat or info.id == "comfyui" %}
+  <form method="post" action="/admin/connections/{{ connection.id }}/models/refresh">
+    <button class="btn" type="submit" data-testid="models-refresh">
+      {{ icon("refresh", "icon--sm") }} {{ t("Refresh from the provider") }}
+    </button>
+  </form>
+  {% endif %}
+</div>
+
+{% if items %}
+<div class="u-mt-5">
+  {% set back = "/admin/connections/" ~ connection.id ~ "/models" %}
+  {% include "admin/_model_list.html" %}
+</div>
+<div class="list-footer">
+  <span class="text-xs faint">{{ t("1 model") if matched == 1 else t("%(n)s models", n=matched) }}</span>
+  {% if pages > 1 %}
+  <div class="btn-row">
+    {% if page > 1 %}<a class="btn btn--sm" href="?page={{ page - 1 }}">{{ t("Previous") }}</a>{% endif %}
+    <span class="text-xs faint">{{ t("Page %(page)s of %(pages)s", page=page, pages=pages) }}</span>
+    {% if page < pages %}<a class="btn btn--sm" href="?page={{ page + 1 }}">{{ t("Next") }}</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% else %}
+<div class="empty u-pad-y-8">
+  <p class="empty__text">{{ t("No models here yet.") }}</p>
+</div>
+{% endif %}
+
+{% if addable %}
+<section class="card u-mt-5">
+  <h2 class="card__title">{{ t("Add a model") }}</h2>
+  <form method="post" action="/admin/connections/{{ connection.id }}/models/add"
+        data-testid="model-add">
+    <div class="field-grid">
+      <div class="field">
+        <label class="field__label" for="add-capability">{{ t("Capability") }}</label>
+        <select class="select" id="add-capability" name="capability">
+          {% for capability in addable %}
+          <option value="{{ capability }}">{{ t(capability_labels[capability]) }}</option>
+          {% endfor %}
+        </select>
+        <p class="field__hint"></p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="add-model">{{ t("Model id") }}</label>
+        <input class="input input--mono" id="add-model" name="model" required maxlength="200"
+               autocomplete="off" spellcheck="false" list="add-model-offers"
+               placeholder="{{ t('model id') }}">
+        <p class="field__hint">{{ t("As the provider spells it: the name sent with every request.") }}</p>
+      </div>
+    </div>
+    {% if offered %}
+    <datalist id="add-model-offers">
+      {% for entry in offered %}<option value="{{ entry.model }}">{{ t(capability_labels[entry.capability]) }}</option>{% endfor %}
+    </datalist>
+    <p class="field__hint">{{ t("This provider documents: %(models)s.", models=offered | map(attribute="model") | join(", ")) }}</p>
+    {% endif %}
+    <div class="btn-row">
+      <button class="btn" type="submit">{{ icon("plus", "icon--sm") }} {{ t("Add model") }}</button>
+    </div>
+  </form>
+</section>
+{% endif %}
+
+{% elif tab == "media" %}
+{# ------------------------------------------------------------------- Media #}
+<form method="post" action="/admin/connections/{{ connection.id }}/media" data-testid="connection-media">
+  <section class="card">
+    <h2 class="card__title">{{ t("Speech and pictures for its own chats") }}</h2>
+    <p class="card__lede">
+      {{ t("A chat whose model is on this connection uses these when the switch is on and a model of that kind is ticked — the first ticked one. Otherwise, and once when this connection's own does not answer, the instance's default under Media is used; the result says which answered. A chat on another connection is never sent here unless you make one of these the default there.") }}
+      {% if row.interactive_only %}{{ t("On a plan this is for a person's own turns only — dictation, a reply they asked to hear, a picture inside their own reply — never for scheduled work or a personal API key, and it is counted, not priced.") }}{% endif %}
+    </p>
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="prefer_audio" value="true" {{ 'checked' if media.prefer_audio }}>
+        <span>{{ t("Use this connection's own speech models for its chats") }}</span>
+      </label>
+    </div>
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="prefer_image" value="true" {{ 'checked' if media.prefer_image }}>
+        <span>{{ t("Use this connection's own image model for its chats") }}</span>
+      </label>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">{{ t("Its media models") }}</h2>
+    {% if media_items %}
+    <div class="catalog" data-testid="media-ticks">
+      {% for item in media_items %}
+      <div class="catalog__row {{ 'is-off' if not item.enabled }}" data-testid="media-row">
+        <span class="catalog__lead">
+          <input class="model-row__check" type="checkbox" name="enabled" value="{{ item.key }}"
+                 id="tick-{{ item.key }}" {{ 'checked' if item.enabled }}>
+        </span>
+        <span class="catalog__mark">{{ icon(capability_icons[item.capability]) }}</span>
+        <span class="catalog__main">
+          <label class="catalog__name" for="tick-{{ item.key }}">{{ item.label }}</label>
+          <code class="catalog__id">{{ item.model_id }}</code>
+        </span>
+        <span class="catalog__cell">{{ t(capability_labels[item.capability]) }}</span>
+        <span class="catalog__cell">{% if item.entry.price %}{{ item.entry.price }} {{ connection.currency }} {{ t(capability_units[item.capability]) if item.capability in capability_units }}{% endif %}</span>
+        <span class="catalog__state"><a class="btn btn--sm" href="{{ item.href }}">{{ t("Open") }}</a></span>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="field__hint">{{ t("Ticked is on. A model's voice, options and price are on its own page; new ones are added under Models.") }}</p>
+    {% else %}
+    <p class="card__lede">{{ t("None yet. Add a speech or picture model under Models.") }}</p>
+    {% endif %}
+  </section>
+
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">{{ t("Save") }}</button>
+  </div>
+</form>
+
+{% elif tab == "workflows" %}
+{# --------------------------------------------------------------- Workflows #}
+<p class="admin-lede">{{ t("A workflow is a ComfyUI graph with holes where the prompt, the checkpoint and the numbers go. A model picks one by the name and description you give it.") }}</p>
+<div class="btn-row">
+  <a class="btn btn--primary" href="/admin/images/workflows/new?connection={{ connection.id }}">
+    {{ icon("plus", "icon--sm") }} {{ t("New workflow") }}
+  </a>
+</div>
+{% if workflows %}
+<div class="model-rows u-mt-5" data-testid="workflow-list">
+  {% for workflow in workflows %}
+  <a class="model-row {{ 'is-off' if not workflow.enabled }}" href="/admin/images/workflows/{{ workflow.id }}/edit">
+    <div class="model-row__main">
+      <span class="model-row__name">
+        {{ workflow.name }}
+        {% if workflow.id == row.options.default_workflow_id %}<span class="badge badge--leaf">{{ t("default") }}</span>{% endif %}
+        {% if not workflow.enabled %}<span class="badge">{{ t("disabled") }}</span>{% endif %}
+        {% if not workflow.connection_id %}<span class="badge">{{ t("every ComfyUI") }}</span>{% endif %}
+      </span>
+      <span class="model-row__id">{{ workflow.slug }}{% if workflow.description %} · {{ workflow.description }}{% endif %}</span>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+<form method="post" action="/admin/connections/{{ connection.id }}/workflows" class="u-mt-5">
+  <section class="card">
+    <div class="field">
+      <label class="field__label" for="default-workflow">{{ t("Default workflow") }}</label>
+      <select class="select" id="default-workflow" name="default_workflow_id">
+        <option value="">{{ t("The first in the list") }}</option>
+        {% for workflow in workflows if workflow.enabled %}
+        <option value="{{ workflow.id }}" {{ 'selected' if workflow.id == row.options.default_workflow_id }}>{{ workflow.name }}</option>
+        {% endfor %}
+      </select>
+      <p class="field__hint">{{ t("Used when neither the model nor the chat names one.") }}</p>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn--primary" type="submit">{{ t("Save") }}</button>
+    </div>
+  </section>
+</form>
+{% else %}
+<div class="empty u-pad-y-8">
+  <p class="empty__text">{{ t("No workflow yet. Without one this ComfyUI has nothing to draw with.") }}</p>
+</div>
+{% endif %}
+
+{% elif tab == "remove" %}
+{# ------------------------------------------------------------------ Remove #}
+<section class="card" data-testid="connection-remove">
+  <h2 class="card__title">{{ t("Remove this connection") }}</h2>
+  <p class="card__lede">
+    {{ t("Its models go with it: %(chat)s listed and %(media)s added. Existing chats keep their history, and a chat on one of its models has to be moved to another model to go on.", chat=chat_models, media=media_models) }}
+    {% if info.id == "comfyui" %}{{ t("Its workflows stay, for every ComfyUI.") }}{% endif %}
+  </p>
+  {% if defaults_naming %}
+  <div class="alert alert--warning">{{ icon("warning", "alert__icon") }}
+    <span>{{ t("One of its models is a default under Media. Removing it leaves that default pointing at nothing until you choose another there: nothing is quietly served in its place.") }}</span>
+  </div>
+  {% endif %}
+  <form method="post" action="/admin/connections/{{ connection.id }}/delete">
+    <button class="btn btn--danger" type="submit"
+            data-confirm-button="{{ t('Delete the connection “%(name)s”? Existing chats keep their history.', name=connection.name) }}">
+      {{ icon("trash", "icon--sm") }} {{ t("Delete") }}
+    </button>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

@@ -196,42 +196,52 @@ def test_audio_and_general_settings_do_not_collide(db):
     assert "instance_name" not in settings_store.audio(db)
 
 
-def test_a_resubmitted_mask_keeps_the_stored_key(client: TestClient, db, registered):
-    client.post(
-        "/admin/audio",
-        data={"tts_enabled": "true", "tts_base_url": "http://tts", "tts_api_key": "secret"},
+def _speech(db):
+    """A speech server: a connection, where its address and key now live."""
+    from lembas.db.models import Connection
+
+    row = Connection(name="Speech", provider_type="speech", base_url="http://tts")
+    db.add(row)
+    db.commit()
+    return row
+
+
+def _overview(client, connection, api_key):
+    """The connection's Overview form, as its page posts it."""
+    return client.post(
+        f"/admin/connections/{connection.id}",
+        data={"name": "Speech", "provider_type": "speech", "base_url": "http://tts",
+              "enabled": "true", "api_key": api_key},
         follow_redirects=False,
     )
-    stored = settings_store.audio(db)["tts_api_key_encrypted"]
+
+
+def _stored_key(db, connection) -> str:
+    from lembas.db.models import Connection
+
+    db.expire_all()
+    return db.get(Connection, connection.id).api_key_encrypted
+
+
+def test_a_resubmitted_mask_keeps_the_stored_key(client: TestClient, db, registered):
+    speech = _speech(db)
+    assert _overview(client, speech, "secret").status_code == 303
+    stored = _stored_key(db, speech)
     assert stored
 
     # Saving again with the mask in the field must not wipe the credential.
     from lembas.services.crypto import UNCHANGED_SENTINEL
 
-    client.post(
-        "/admin/audio",
-        data={
-            "tts_enabled": "true",
-            "tts_base_url": "http://tts",
-            "tts_api_key": UNCHANGED_SENTINEL,
-        },
-        follow_redirects=False,
-    )
-    assert settings_store.audio(db)["tts_api_key_encrypted"] == stored
+    _overview(client, speech, UNCHANGED_SENTINEL)
+    assert _stored_key(db, speech) == stored
 
 
 def test_an_emptied_key_field_clears_it(client: TestClient, db, registered):
-    client.post(
-        "/admin/audio",
-        data={"tts_base_url": "http://tts", "tts_api_key": "secret"},
-        follow_redirects=False,
-    )
-    client.post(
-        "/admin/audio",
-        data={"tts_base_url": "http://tts", "tts_api_key": ""},
-        follow_redirects=False,
-    )
-    assert settings_store.audio(db)["tts_api_key_encrypted"] == ""
+    speech = _speech(db)
+    _overview(client, speech, "secret")
+    assert _stored_key(db, speech)
+    _overview(client, speech, "")
+    assert _stored_key(db, speech) == ""
 
 
 # --- The API -----------------------------------------------------------------
@@ -243,10 +253,8 @@ def test_transcribe_is_absent_until_it_is_enabled(client: TestClient, registered
 
 
 def test_transcribe_rejects_an_empty_recording(client: TestClient, db, registered):
-    client.post(
-        "/admin/audio",
-        data={"stt_enabled": "true", "stt_base_url": "http://stt"},
-        follow_redirects=False,
+    settings_store.update(
+        db, {"stt_enabled": True, "stt_base_url": "http://stt"}, key=settings_store.AUDIO
     )
     response = client.post(
         "/api/audio/transcribe", files={"file": ("a.wav", b"", "audio/wav")}
@@ -257,10 +265,8 @@ def test_transcribe_rejects_an_empty_recording(client: TestClient, db, registere
 def test_transcribe_rejects_an_oversized_recording(client: TestClient, db, registered):
     from lembas.api.audio import MAX_AUDIO_BYTES
 
-    client.post(
-        "/admin/audio",
-        data={"stt_enabled": "true", "stt_base_url": "http://stt"},
-        follow_redirects=False,
+    settings_store.update(
+        db, {"stt_enabled": True, "stt_base_url": "http://stt"}, key=settings_store.AUDIO
     )
     response = client.post(
         "/api/audio/transcribe",
@@ -271,10 +277,8 @@ def test_transcribe_rejects_an_oversized_recording(client: TestClient, db, regis
 
 
 def test_speech_404s_on_someone_elses_chat(client: TestClient, db, registered, make_chat):
-    client.post(
-        "/admin/audio",
-        data={"tts_enabled": "true", "tts_base_url": "http://tts"},
-        follow_redirects=False,
+    settings_store.update(
+        db, {"tts_enabled": True, "tts_base_url": "http://tts"}, key=settings_store.AUDIO
     )
     join(client,
         data={"name": "Sam", "email": "sam@shire.test", "password": "potatoes-and-more"},
@@ -290,10 +294,8 @@ def test_the_audio_tab_appears_only_once_audio_is_configured(
     client: TestClient, db, registered
 ):
     assert "tab-audio" not in client.get("/settings").text
-    client.post(
-        "/admin/audio",
-        data={"tts_enabled": "true", "tts_base_url": "http://tts"},
-        follow_redirects=False,
+    settings_store.update(
+        db, {"tts_enabled": True, "tts_base_url": "http://tts"}, key=settings_store.AUDIO
     )
     assert "tab-audio" in client.get("/settings").text
 

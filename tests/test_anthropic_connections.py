@@ -645,6 +645,7 @@ def test_an_anthropic_connection_is_added_with_its_type_and_provider(
         follow_redirects=False)
     assert response.status_code == 303
     connection = db.scalar(select(Connection))
+    assert response.headers["location"].startswith(f"/admin/connections/{connection.id}")
     assert (connection.kind, connection.provider) == ("anthropic", "anthropic")
     assert asked["headers"]["x-api-key"] == "sk-ant-secret"
     model = db.scalar(select(Model))
@@ -653,7 +654,8 @@ def test_an_anthropic_connection_is_added_with_its_type_and_provider(
     assert "max_tokens" not in (model.params_json or {})
     assert model.display_name == "Claude Opus 5.5"
 
-    page = client.get("/admin/connections").text
+    assert "sk-ant-secret" not in client.get("/admin/connections").text
+    page = client.get(f"/admin/connections/{connection.id}").text
     assert "sk-ant-secret" not in page
     assert "<code>anthropic</code>" in page and "API key" in page
     assert 'value="anthropic" selected' in page

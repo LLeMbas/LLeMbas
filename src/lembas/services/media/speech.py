@@ -353,9 +353,12 @@ async def transcribe_for(
     if not chain:
         raise LLMError(t("No audio endpoint has been configured."))
 
+    usual = str(_audio(db).get("stt_language") or "")
+
     async def call(source: Source):
         return await transcribe(
-            source, data=data, filename=filename, content_type=content_type, language=language
+            source, data=data, filename=filename, content_type=content_type,
+            language=_own(source, "language", language, usual),
         )
 
     used = await sources.first_that_works(chain, call)
@@ -383,6 +386,7 @@ async def speak_for(
     if not chain:
         raise LLMError(t("No audio endpoint has been configured."))
     user_id = user.id
+    usual_speed = _audio(db).get("tts_speed")
 
     async def call(source: Source):
         # Counted as the source accepts it, by the character: the whole text
@@ -401,9 +405,30 @@ async def speak_for(
             except Exception:  # bookkeeping must never break the reading
                 log.warning("could not record speech usage", exc_info=True)
 
-        return await speak(source, text, voice=voice, fmt=fmt, speed=speed, on_piece=count)
+        return await speak(
+            source, text, voice=voice,
+            # A format is what a model can produce, never a person's choice.
+            fmt=str(source.options.get("format") or fmt) if source.own else fmt,
+            speed=float(_own(source, "speed", speed, usual_speed)), on_piece=count,
+        )
 
     return await sources.first_that_works(chain, call)
+
+
+def _audio(db) -> dict:
+    from lembas.services import settings_store
+
+    return settings_store.audio(db)
+
+
+def _own(source: Source, name: str, asked, usual):
+    """What a chat's connection's own model is asked with for one option:
+    what was asked, unless that is only the instance's usual value (the
+    default model's, not a person's choice) and this model has its own."""
+    own = source.options.get(name) if source.own else None
+    if own in (None, "") or asked != usual:
+        return asked
+    return own
 
 
 def _commit(db) -> None:

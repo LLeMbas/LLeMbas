@@ -1,0 +1,179 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "connections" %}
+
+{% block title %}{{ t("Add connection") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Add connection") }}{% endblock %}
+
+{% block admin_content %}
+<nav class="crumbs">
+  <a href="{{ '/admin/connections/new' if chosen else '/admin/connections' }}">
+    {{ icon("chevron-right", "icon--sm crumbs__icon crumbs__back") }}
+    {{ t("What kind of connection") if chosen else t("All connections") }}
+  </a>
+</nav>
+
+{% if not chosen %}
+<p class="admin-lede">{{ t("What is at the address? The kind decides which questions the form asks, and what the connection can offer.") }}</p>
+<div class="type-grid" data-testid="connection-types">
+  {% for type in type_order %}
+  <a class="type-card" href="/admin/connections/new?type={{ type.id }}" data-testid="connection-type-{{ type.id }}">
+    <span class="type-card__icon">{{ icon("image" if type.id == "comfyui" else "mic" if type.id == "speech" else "server") }}</span>
+    <span class="type-card__name">{{ t(type.label) }}</span>
+    <span class="type-card__note">{{ type_notes[type.id] }}</span>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+{% set chat = chosen.chat %}
+<section class="card">
+  <h2 class="card__title">{{ t(chosen.label) }}</h2>
+  {# `detect()` asks /admin/connections/detect, which asks only the address
+     typed here (services/llm/detect.py), and fills the form from the answer.
+     Every field still posts as typed: detection is a suggestion. #}
+  <form method="post" action="/admin/connections" data-testid="connection-add-form"
+        x-data="{
+          type: '{{ chosen.id }}', detecting: false, found: '', error: '', key: '',
+          keyRules: {{ key_rules | tojson | forceescape }},
+          wrongKey() {
+            const rule = this.keyRules[this.type];
+            if (!rule || !this.key) return false;
+            return (rule.prefix && !this.key.startsWith(rule.prefix))
+              || (rule.not && this.key.startsWith(rule.not));
+          },
+          async detect() {
+            this.detecting = true; this.found = ''; this.error = '';
+            const body = new URLSearchParams({ base_url: $refs.url.value, api_key: $refs.key.value });
+            try {
+              const r = await fetch('/admin/connections/detect', { method: 'POST', body: body,
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+              const d = await r.json();
+              if (!d.ok) { this.error = d.error || ''; return; }
+              this.type = d.provider_type;
+              if (d.base_url) $refs.url.value = d.base_url;
+              $refs.server.value = d.server || '';
+              $refs.single.checked = !!(d.suggest && d.suggest.one_model_at_a_time);
+              $refs.unload.value = (d.suggest && d.suggest.unload_url) || '';
+              $refs.unloadMethod.value = $refs.unload.value ? 'GET' : 'POST';
+              this.found = d.label + (d.server && d.server !== d.provider_type ? ' · ' + d.server : '')
+                + (d.models != null ? ' · ' + d.models : '');
+            } catch (e) { this.error = {{ t("The address could not be asked.") | tojson | forceescape }}; }
+            finally { this.detecting = false; }
+          }
+        }">
+    {#- Posted as the type; for a provider of chat models Detect may find the
+        address is another of them, and says so beside it. -#}
+    <input type="hidden" name="provider_type" :value="type" value="{{ chosen.id }}">
+
+    <div class="field">
+      <label class="field__label" for="new-url">{{ t("Base URL") }}</label>
+      <div class="btn-row">
+        <input class="input input--mono u-grow u-shrink" id="new-url" name="base_url" x-ref="url"
+               value="{{ chosen.default_base_url }}" {{ 'required' if not chosen.default_base_url }}
+               placeholder="{{ t('http://workstation:8188') if chosen.id == 'comfyui' else t('http://workstation:8000/v1') if chosen.id == 'speech' else t('http://localhost:1234/v1') }}">
+        {% if chat %}
+        <button class="btn" type="button" @click="detect()" :disabled="detecting"
+                data-testid="connection-detect">
+          {{ icon("search", "icon--sm") }} {{ t("Detect") }}
+        </button>
+        {% endif %}
+      </div>
+      <p class="field__hint">
+        {% if chosen.id == "comfyui" %}
+        {{ t("Where the ComfyUI answers, without a path. Its checkpoints, samplers and schedulers are asked for as soon as it is added.") }}
+        {% elif chosen.id == "speech" %}
+        {{ tm("The address whose <code>/audio/transcriptions</code> and <code>/audio/speech</code> are asked, usually ending in <code>/v1</code>. One server may do both, or only one.") }}
+        {% else %}
+        {{ tm("With or without the trailing <code>/v1</code> — both are accepted. Empty takes the type's own address.") }}
+        <span x-show="found" x-cloak>{{ t("Found:") }} <strong x-text="found"></strong></span>
+        {% endif %}
+      </p>
+      <div class="alert alert--error" x-show="error" x-cloak role="status">
+        {{ icon("warning", "alert__icon") }}<span x-text="error"></span>
+      </div>
+      <input type="hidden" name="server" x-ref="server" value="">
+      <input type="hidden" name="unload_url" x-ref="unload" value="">
+      <input type="hidden" name="unload_method" x-ref="unloadMethod" value="POST">
+    </div>
+
+    {% if chosen.interactive_only %}
+    <p class="field__hint" data-testid="interactive-only-note">{{ t("Interactive use only: the provider's terms forbid automated services, batch scripts and scheduled background jobs on a plan, and a key used for them can be suspended. So this server sends no scheduled or background work of its own to this connection — it goes to a pay-as-you-go one, or is not done — and refuses its models to personal API keys. A linked LLeMbas CLI may use them and is trusted to keep its own scheduled and background calls off them. A plan is sold for its subscriber's own use in coding and agent tools; whether this instance's use fits is yours to judge.") }}</p>
+    {% endif %}
+
+    {#- The addresses a type with regions offers: choosing fills the address
+        above, which stays a field anybody can edit. -#}
+    {% if regions.get(chosen.id) %}
+    <div class="field" data-testid="region-{{ chosen.id }}">
+      <label class="field__label" for="new-region">{{ t("Region") }}</label>
+      <select class="select" id="new-region" @change="$refs.url.value = $event.target.value">
+        {% for choice in regions[chosen.id] %}
+        <option value="{{ choice.url }}">{{ choice.label }}</option>
+        {% endfor %}
+      </select>
+      <p class="field__hint">{{ t("Fills the base URL, which stays editable. A key works only with the address of its own product and region; for a workspace's own host, change the host and keep the path.") }}</p>
+    </div>
+    {% endif %}
+
+    <div class="field">
+      <label class="field__label" for="new-name">{{ t("Name") }}</label>
+      <input class="input" id="new-name" name="name" required
+             placeholder="{{ t('ComfyUI') if chosen.id == 'comfyui' else t('Speech') if chosen.id == 'speech' else t('Local LM Studio') }}">
+    </div>
+
+    {% if chat %}
+    <div class="field">
+      <label class="field__label" for="new-provider">{{ t("Provider name") }}</label>
+      <input class="input input--mono" id="new-provider" name="provider" required
+             pattern="[a-z0-9][a-z0-9\-]{0,31}" maxlength="32" autocomplete="off"
+             placeholder="{{ t('llama') }}">
+      <p class="field__hint">{{ tm("How clients such as the LLeMbas CLI name this connection's models: <code>provider/model</code>, for example <code>llama/bonsai</code>. Lowercase letters, digits and hyphens, unique among connections.") }}</p>
+    </div>
+    {% endif %}
+
+    <div class="field">
+      <label class="field__label" for="new-key">{{ t("API key") }}</label>
+      <input class="input input--mono" id="new-key" name="api_key" type="password" x-ref="key"
+             x-model="key" autocomplete="off" placeholder="{{ t('sk-…') }}">
+      <p class="field__hint">{{ t("Encrypted before it is stored, and never sent back to the browser. Leave empty for endpoints that need no key.") }}</p>
+      <div class="alert alert--error" x-show="wrongKey()" x-cloak role="status" data-testid="key-mismatch">
+        {{ icon("warning", "alert__icon") }}<span>{{ t("This key does not look like one for this type: a plan's key starts with sk-sp-, a pay-as-you-go key does not. A key works only with its own product's address.") }}</span>
+      </div>
+    </div>
+
+    {% if chosen.balance_needs_billing_key %}
+    <div class="field">
+      <label class="field__label" for="new-billing">{{ t("Billing key (optional)") }}</label>
+      <input class="input input--mono" id="new-billing" name="billing_key" type="password"
+             autocomplete="off">
+      <p class="field__hint">{{ t("An admin key from the provider, used only to read what the account has spent. Never used for a reply; a reply never fails on it.") }}</p>
+    </div>
+    {% endif %}
+
+    <div class="field">
+      <label class="field__label" for="new-currency">{{ t("Currency") }}</label>
+      <select class="select" id="new-currency" name="currency">
+        {% for code in currencies %}<option value="{{ code }}" {{ 'selected' if code == default_currency }}>{{ code }}</option>{% endfor %}
+      </select>
+      <p class="field__hint">{{ t("What this connection's model prices are typed in, and what a reply on one of them costs in.") }}</p>
+    </div>
+
+    {% if chat %}
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="one_model_at_a_time" value="true" x-ref="single">
+        <span>{{ t("Holds one model at a time") }}</span>
+      </label>
+    </div>
+    {% else %}
+    <input type="checkbox" name="one_model_at_a_time" value="true" x-ref="single" hidden>
+    {% endif %}
+
+    <div class="btn-row u-mt-5">
+      <button class="btn btn--primary" type="submit">
+        {{ icon("plus", "icon--sm") }} {{ t("Add and load models") if chat else t("Add connection") }}
+      </button>
+    </div>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

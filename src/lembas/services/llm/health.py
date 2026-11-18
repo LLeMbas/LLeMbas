@@ -159,6 +159,9 @@ async def tick(*, force: bool = False) -> int:
                 # automated use its terms forbid. Its health is read when an
                 # administrator presses Test (`check`), and by its replies.
                 if not providers.interactive_only(c.provider_type, c.base_url)
+                # Nor on a ComfyUI or a speech server: there is no `/models`
+                # to ask, and Test on its page asks it its own question.
+                and providers.serves_chat(c.provider_type)
             ]
         for connection_id, endpoint, server in targets:
             found = await probe(endpoint, server)

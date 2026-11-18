@@ -39,6 +39,7 @@ from lembas.api.v1._common import error_response
 from lembas.security import permissions
 from lembas.security.api_tokens import ModelsCaller
 from lembas.services import settings_store
+from lembas.services.media import instance as media_instance
 from lembas.services.media import sources as media_sources
 from lembas.services.media.store import CAP_IMAGE
 
@@ -192,7 +193,10 @@ async def generations(request: Request, db: Db, caller: ModelsCaller):
             return pictures_made
         try:
             while len(pictures_made) < count:
-                params = workflow.resolve(plan["given"], settings=values)
+                params = workflow.resolve(
+                    plan["given"],
+                    settings=media_instance.checkpoint_settings(values, plan["checkpoint"]),
+                )
                 refs = await comfy.await_images(
                     plan["config"],
                     await comfy.submit(plan["config"], workflow.fill(plan["template"], params)),
@@ -244,7 +248,9 @@ async def generations(request: Request, db: Db, caller: ModelsCaller):
         # Against the source that drew them, at its own price.
         media_sources.record(
             session, user_id,
-            source if not comfyui else _priced(source, float(values["per_image"])),
+            source if not comfyui else _priced(
+                source, media_instance.price_per_image(values, plan["checkpoint"])
+            ),
             images=kept,
             usage_id=service_id(plan["checkpoint"]) if comfyui else "",
         )

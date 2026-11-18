@@ -186,16 +186,12 @@ def config_of(context: ToolContext) -> comfy.Config:
 
 
 def _choices(db, values: dict[str, Any]) -> tuple[list[Any], list[str]]:
-    """The templates and checkpoints on offer, for the schema and the harness."""
-    from lembas.db.models import ImageWorkflow
+    """The templates and checkpoints on offer, for the schema and the harness:
+    the workflows of the ComfyUI these settings are for
+    (`media.instance.workflows`), and its checkpoints."""
+    from lembas.services.media import instance
 
-    rows = list(
-        db.scalars(
-            select(ImageWorkflow)
-            .where(ImageWorkflow.enabled.is_(True))
-            .order_by(ImageWorkflow.position, ImageWorkflow.slug)
-        )
-    )
+    rows = instance.workflows(db, values)
     return rows, [str(name) for name in (values.get("checkpoints") or [])]
 
 
@@ -731,6 +727,11 @@ async def _run_comfy(
     given = {name: args.get(name) for name in workflow.MODEL_SETTABLE if name in args}
     given["model"] = checkpoint
     given["prompt"] = prompt
+    # The checkpoint's own steps, cfg, sampler, scheduler, negative and size
+    # (its page under Admin › Models), over the instance's defaults.
+    from lembas.services.media import instance as media_instance
+
+    values = media_instance.checkpoint_settings(values, checkpoint)
 
     reviewer = _reviewer(context)
     tries = int(values.get("max_tries") or 1) if reviewer else 1
@@ -817,7 +818,9 @@ async def _run_comfy(
                 db,
                 context.owner_id,
                 model_id=f"comfyui/{checkpoint}",
-                cost_micro=pricing.service_cost_micro(float(values.get("per_image") or 0), 1),
+                cost_micro=pricing.service_cost_micro(
+                    media_instance.price_per_image(values, checkpoint), 1
+                ),
                 images=1,
             )
     except Exception as exc:

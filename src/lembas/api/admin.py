@@ -6,6 +6,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import UTC, datetime
+from urllib.parse import quote
 
 from fastapi import APIRouter, Form, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
@@ -184,6 +185,9 @@ def _row_context(db: DBSession, connection: Connection) -> dict:
         "media": media_store.of(connection),
         "media_rows": media_store.form_rows(connection),
         "subscription": providers.subscription(connection.provider_type, connection.base_url),
+        # A ComfyUI or a speech server: no chat models, and its own options.
+        "chat": providers.serves_chat(connection.provider_type),
+        "options": media_store.type_options(connection),
     }
 
 
@@ -224,30 +228,18 @@ def _checked_url(base_url: str) -> str:
     return base_url
 
 
-@router.get("/connections")
-async def connections_page(request: Request, db: Db, user: AdminUser, message: str = ""):
-    connections = _connections(db)
-    return render(
-        request,
-        "admin/connections.html",
-        {
-            "connections": connections,
-            "rows": {c.id: _row_context(db, c) for c in connections},
-            "message": message,
-            "provider_types": providers.TYPES,
-            "provider_defaults": {t.id: t.default_base_url for t in providers.TYPES.values()},
-            "billing_types": [
-                t.id for t in providers.TYPES.values() if t.balance_needs_billing_key
-            ],
-            "regions": _regions(),
-            "key_rules": _key_rules(),
-            "interactive_types": [
-                t.id for t in providers.TYPES.values() if t.interactive_only
-            ],
-            "currencies": tuple(settings_store.CURRENCIES),
-            "default_currency": settings_store.currency(db) or DEFAULT_CURRENCY,
-        },
-    )
+def form_context(db: DBSession) -> dict:
+    """What the Add form reads: the types and what each one's form knows."""
+    return {
+        "provider_types": providers.TYPES,
+        "provider_defaults": {t.id: t.default_base_url for t in providers.TYPES.values()},
+        "billing_types": [t.id for t in providers.TYPES.values() if t.balance_needs_billing_key],
+        "regions": _regions(),
+        "key_rules": _key_rules(),
+        "interactive_types": [t.id for t in providers.TYPES.values() if t.interactive_only],
+        "currencies": tuple(settings_store.CURRENCIES),
+        "default_currency": settings_store.currency(db) or DEFAULT_CURRENCY,
+    }
 
 
 # Header names are a narrow set on purpose: a newline would let one field write
@@ -364,8 +356,10 @@ async def create_connection(
 
     # Discover models immediately: a connection that lists nothing is
     # indistinguishable from a broken one, and finding out now is the point.
-    await _refresh_models(db, connection)
-    return RedirectResponse("/admin/connections", status_code=status.HTTP_303_SEE_OTHER)
+    await refresh(db, connection)
+    return RedirectResponse(
+        f"/admin/connections/{connection.id}", status_code=status.HTTP_303_SEE_OTHER
+    )
 
 
 @router.post("/connections/detect")
@@ -487,28 +481,33 @@ async def update_connection(
             }
         )
 
+    # What the type keeps of its own (a ComfyUI's timeout and Preserve VRAM),
+    # only when the form carried that part.
+    if form.get("options_form") and not providers.serves_chat(connection.provider_type):
+        connection.options_json = {
+            **(connection.options_json or {}),
+            "timeout": str(form.get("option_timeout") or ""),
+            "preserve_vram": bool(form.get("option_preserve_vram")),
+        }
+
     db.commit()
-    return RedirectResponse("/admin/connections", status_code=status.HTTP_303_SEE_OTHER)
+    saved = quote(i18n.t("Saved."))
+    return RedirectResponse(
+        f"/admin/connections/{connection.id}?saved={saved}", status_code=status.HTTP_303_SEE_OTHER
+    )
 
 
 @router.post("/connections/{connection_id}/test")
 async def test_connection(
     request: Request, db: Db, user: AdminUser, connection_id: str
 ) -> Response:
-    """Contact the endpoint, refresh its model list, and record its health."""
+    """Contact the endpoint, refresh what it offers, and record its health.
+    Answers the connection's status card, which the page swaps in place."""
     connection = _connection(db, connection_id)
-    count, error = await _refresh_models(db, connection)
-    await health_service.check(db, connection)
-
-    if error:
-        message = f"{connection.name}: {error}"
-    elif count == 1:
-        message = i18n.t("%(name)s: found 1 model.", name=connection.name)
-    else:
-        message = i18n.t("%(name)s: found %(count)s models.", name=connection.name, count=count)
+    message, error = await refresh(db, connection)
     return render(
         request,
-        "admin/_connection_row.html",
+        "admin/_connection_status.html",
         {
             "connection": connection,
             "row": _row_context(db, connection),
@@ -532,7 +531,7 @@ async def connection_balance(
     db.commit()
     return render(
         request,
-        "admin/_connection_row.html",
+        "admin/_connection_status.html",
         {
             "connection": connection,
             "row": _row_context(db, connection),
@@ -544,6 +543,86 @@ async def connection_balance(
             "message_kind": "success" if found.get("ok") else "error",
         },
     )
+
+
+async def refresh(db: DBSession, connection: Connection) -> tuple[str, bool]:
+    """Ask a connection what it has, as its type is asked, and keep the
+    answer. Returns what to say and whether that is an error.
+
+    A provider of chat models lists them (`_refresh_models`) and has its
+    health checked. A ComfyUI is asked for its checkpoints, samplers and
+    schedulers (`_refresh_comfyui`). A speech server has no list to give: its
+    models are typed, and each is tried on its own page."""
+    type_id = providers.get(connection.provider_type).id
+    if type_id == providers.COMFYUI:
+        return await _refresh_comfyui(db, connection)
+    if type_id == providers.SPEECH:
+        from lembas.services.media import probe
+
+        return await probe.speech_server(db, connection)
+    count, error = await _refresh_models(db, connection)
+    await health_service.check(db, connection)
+    if error:
+        return f"{connection.name}: {error}", True
+    if count == 1:
+        return i18n.t("%(name)s: found 1 model.", name=connection.name), False
+    return i18n.t("%(name)s: found %(count)s models.", name=connection.name, count=count), False
+
+
+async def _refresh_comfyui(db: DBSession, connection: Connection) -> tuple[str, bool]:
+    """What this ComfyUI has: its samplers and schedulers are kept as found;
+    a checkpoint not listed yet is added -- switched on when the connection
+    had none (a new one draws at once), off otherwise, so a list somebody
+    narrowed on purpose stays narrow. Nothing typed is ever removed."""
+    from lembas.services.images import comfy
+
+    config = comfy.Config(
+        base_url=connection.base_url, api_key=decrypt(connection.api_key_encrypted), timeout=30.0
+    )
+    now = datetime.now(UTC)
+    try:
+        checkpoints, samplers, schedulers = await comfy.discover(config)
+    except LLMError as exc:
+        connection.last_error = exc.message
+        connection.last_checked_at = now
+        connection.health_json = {
+            **(connection.health_json or {}), "status": "down", "error": exc.message,
+            "checked_at": now.isoformat(),
+        }
+        db.commit()
+        return f"{connection.name}: {exc.message}", True
+    connection.options_json = {
+        **(connection.options_json or {}), "samplers": samplers, "schedulers": schedulers
+    }
+    have = {entry.model for entry in media_store.entries(connection, media_store.CAP_IMAGE)}
+    media = media_store.of(connection)
+    first = not have
+    media["models"] = media["models"] + [
+        {"capability": media_store.CAP_IMAGE, "model": name, "enabled": first}
+        for name in checkpoints
+        if name not in have
+    ]
+    connection.media_json = media_store.normalise(media)
+    connection.last_error = ""
+    connection.last_checked_at = now
+    connection.health_json = {
+        **(connection.health_json or {}), "status": "ok", "error": "",
+        "checked_at": now.isoformat(), "server": "comfyui",
+    }
+    db.commit()
+    counts = {"checkpoints": len(checkpoints), "samplers": len(samplers),
+              "schedulers": len(schedulers)}
+    found = (
+        i18n.t("Found 1 checkpoint, %(samplers)s samplers and %(schedulers)s schedulers.",
+               **counts)
+        if len(checkpoints) == 1
+        else i18n.t(
+            "Found %(checkpoints)s checkpoints, %(samplers)s samplers and "
+            "%(schedulers)s schedulers.",
+            **counts,
+        )
+    )
+    return f"{connection.name}: {found}", False
 
 
 async def _refresh_models(db: DBSession, connection: Connection) -> tuple[int, str]:
@@ -632,19 +711,27 @@ async def delete_connection(db: Db, user: AdminUser, connection_id: str) -> Resp
     # (`services/media/sources.py`). The choice is kept, not cleared -- the
     # endpoint is never quietly used in its place -- and the administrator
     # is told where to choose again.
-    from urllib.parse import quote
-
     from lembas.services.media import sources as media_sources
 
     was_default = media_sources.defaults_naming(db, connection.id)
     name = connection.name
+    # A ComfyUI's workflows are somebody's work: they stay, for every ComfyUI.
+    from sqlalchemy import update
+
+    from lembas.db.models import ImageWorkflow
+
+    db.execute(
+        update(ImageWorkflow)
+        .where(ImageWorkflow.connection_id == connection.id)
+        .values(connection_id=None)
+    )
     db.delete(connection)
     db.commit()
     target = "/admin/connections"
     if was_default:
         target += "?message=" + quote(
             i18n.t(
-                "%(name)s was the default source under Audio or Image generation. "
+                "%(name)s was a default under Media. "
                 "Choose another there: until then nothing is served by default.",
                 name=name,
             )

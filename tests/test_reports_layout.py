@@ -66,6 +66,7 @@ window.addEventListener('load', function () {
                       .slice(0, 60),
               text: (el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 50),
               left: Math.round(r.left), right: Math.round(r.right), h: Math.round(r.height),
+              top: Math.round(r.top), bottom: Math.round(r.bottom),
               /* A field whose value is longer than itself scrolls: that is a field. */
               cut: el.tagName !== 'INPUT' && el.scrollWidth > el.clientWidth + 1 &&
                    getComputedStyle(el).textOverflow !== 'ellipsis' &&

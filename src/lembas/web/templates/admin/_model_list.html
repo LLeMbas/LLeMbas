@@ -1,0 +1,55 @@
+{% from "_macros.html" import icon, model_avatar %}
+{#
+  The one list of models (services/media/catalog.py): a line per model,
+  whatever its capability. Reads `items`, `back` (where a switch returns to)
+  and, on Admin › Models, `selectable` and `sortable`.
+
+  Each line: mark, name and id, connection, capability, on/off. The on/off is
+  a button, in a form of its own, that changes it at once -- and says so. A chat model's line can be
+  selected and (where the whole list is shown) dragged into the pickers'
+  order; a media model's cannot, and keeps the empty first track.
+#}
+<div class="catalog" id="model-rows" data-testid="model-list"
+     {% if sortable %}data-sortable data-sortable-url="/admin/order/models"{% endif %}>
+  {% for item in items %}
+  <div class="catalog__row {{ 'is-off' if not item.enabled }}" data-testid="model-line"
+       data-capability="{{ item.capability }}"
+       {% if sortable and item.model %}data-sortable-item data-id="{{ item.model.id }}" draggable="true"{% endif %}>
+    <span class="catalog__lead">
+      {% if selectable and item.model %}
+      <input class="model-row__check" type="checkbox" name="model_ids" value="{{ item.model.id }}"
+             form="bulk-models" aria-label="{{ t('Select %(name)s', name=item.label) }}">
+      {% endif %}
+      {% if sortable and item.model %}
+      <button class="model-row__pos sort-handle" type="button" data-sortable-handle
+              id="sort-{{ item.model.id }}" data-testid="sort-handle"
+              aria-label="{{ t('Move %(name)s: drag, or use the arrow keys', name=item.label) }}"
+              title="{{ t('Drag to put in order') }}">{{ icon("grip", "icon--sm") }}</button>
+      {% endif %}
+    </span>
+    <span class="catalog__mark">
+      {% if item.model %}{{ model_avatar(item.model, cls="model-avatar") }}
+      {% else %}{{ icon(capability_icons[item.capability]) }}{% endif %}
+    </span>
+    <span class="catalog__main">
+      <a class="catalog__name" href="{{ item.href }}">{{ item.label }}</a>
+      <code class="catalog__id">{{ item.model_id }}</code>
+    </span>
+    <span class="catalog__cell" data-testid="model-connection">{{ item.connection.name }}</span>
+    <span class="catalog__cell" data-testid="model-capability">
+      {{ t(capability_labels[item.capability]) }}{% if item.default %} · {{ t("default") }}{% endif %}
+    </span>
+    {#- Its own small form: the switch works with no script, and the list is
+        inside no other form (a select box reaches the bulk form by id). -#}
+    <form class="catalog__state" method="post" action="{{ item.href }}/toggle?back={{ back | urlencode }}">
+      <button class="onoff {{ 'is-on' if item.enabled }}" type="submit"
+              aria-pressed="{{ 'true' if item.enabled else 'false' }}"
+              aria-label="{{ t('%(name)s is on. Switch it off — applies at once.', name=item.label) if item.enabled else t('%(name)s is off. Switch it on — applies at once.', name=item.label) }}"
+              title="{{ t('Applies at once') }}" data-testid="model-onoff">
+        <span {% if not item.enabled %}aria-hidden="true"{% endif %}>{{ t("On") }}</span>
+        <span {% if item.enabled %}aria-hidden="true"{% endif %}>{{ t("Off") }}</span>
+      </button>
+    </form>
+  </div>
+  {% endfor %}
+</div>

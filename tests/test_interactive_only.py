@@ -261,7 +261,7 @@ def test_a_plans_replies_are_counted_and_never_priced(db, plan):
 def test_the_model_page_says_subscription_and_keeps_stored_prices(client, db, plan):
     plan.pricing_json = {"input": 2.0}
     db.commit()
-    page = client.get(f"/admin/models/{plan.id}/edit")
+    page = client.get(f"/admin/models/{plan.id}/prices")
     assert page.status_code == 200
     assert 'data-testid="price-subscription"' in page.text
     assert 'name="price_input"' not in page.text
@@ -542,7 +542,22 @@ def test_the_index_is_not_built_on_an_interactive_only_connection(db, plan, monk
 
 # --- The administrator's form -----------------------------------------------------------------
 def test_the_form_offers_regions_warns_and_says_why(client, db, plan):
-    page = client.get("/admin/connections")
+    # The add form of each type has its own regions; the plan's says why.
+    payg = client.get("/admin/connections/new?type=alibaba")
+    assert payg.status_code == 200
+    for expected in ('data-testid="connection-add-form"', 'data-testid="region-alibaba"',
+                     PAYG_URL, 'data-testid="key-mismatch"'):
+        assert expected in payg.text, expected
+    added = client.get("/admin/connections/new?type=alibaba_plan")
+    assert added.status_code == 200
+    for expected in (
+        'data-testid="connection-add-form"', 'data-testid="region-alibaba_plan"',
+        PLAN_URL, 'data-testid="key-mismatch"', 'data-testid="interactive-only-note"',
+        "forbid automated services, batch scripts and scheduled background jobs",
+    ):
+        assert expected in added.text, expected
+    # The connection's own form offers both, as the type can still be changed.
+    page = client.get(f"/admin/connections/{plan.connection_id}")
     assert page.status_code == 200
     for expected in (
         'data-testid="region-alibaba"', 'data-testid="region-alibaba_plan"',
@@ -567,7 +582,7 @@ def test_a_region_pattern_is_not_saved_as_it_stands(client, db, registered):
 def test_a_stored_key_of_the_other_product_is_flagged_without_being_sent(client, db, plan):
     plan.connection.api_key_encrypted = encrypt("sk-not-a-plan-key")
     db.commit()
-    page = client.get("/admin/connections")
+    page = client.get(f"/admin/connections/{plan.connection_id}")
     assert "sk-not-a-plan-key" not in page.text
     # Shown from the first paint for the stored key, not only once typed.
     # Only while the saved type is still the one selected: the server judged

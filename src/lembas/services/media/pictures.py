@@ -50,6 +50,12 @@ async def generate(
     keep. Raises `LLMError` in the provider's words, without its key."""
     if source.endpoint is None:
         raise LLMError(t("Nothing is configured to do that on this instance."))
+    # The model's own options where the request has no opinion: its first
+    # size, its negative prompt.
+    if not (width and height):
+        preset = store.size_of((source.options.get("sizes") or [""])[0])
+        width, height = preset if preset is not None else (None, None)
+    negative = negative or str(source.options.get("negative") or "")
     try:
         if source.dialect == store.DASHSCOPE_IMAGE:
             payload = await _dashscope(source, prompt, negative, width, height, seed)

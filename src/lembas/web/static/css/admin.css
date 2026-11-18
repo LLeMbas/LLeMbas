@@ -1203,3 +1203,236 @@ form:has(input[name="type"][value="agentic"]:checked) [data-type="chat"] {
   .media-cell--price { grid-area: auto / 2; }
   .media-cell--price > .input { flex: 1 1 0; }
 }
+
+/* --- Connections, models and media: a list, and one page per item -------------
+   (admin/connections.html, models.html, connection_detail.html,
+   model_detail.html, media_model.html, media.html)
+
+   The link tabs of an item's page are `.tabs__bar` -- the same bar, each tab
+   a link with its own address -- set into the page's column: no side padding
+   of its own, and room under it. One line that scrolls sideways and never
+   wraps (the bar's own `overflow-x`), each tab `--control-h-lg` tall. */
+.tabs__bar--page {
+  padding-inline: 0;
+  margin-bottom: var(--sp-5);
+}
+.tabs__bar--page > .tabs__tab { flex: none; }
+.tabs__tab.is-danger { color: var(--danger); }
+
+/* The head of an item's page: what it is, and its state. The name gives; the
+   actions never shrink and wrap under it when there is no room. */
+.item-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-4);
+}
+.item-head__mark {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-h-lg);
+  height: var(--control-h-lg);
+  border-radius: var(--radius-md);
+  background: var(--bg-sunken);
+  color: var(--ink-muted);
+}
+.item-head__main { flex: 1 1 var(--w-field); min-width: 0; }
+.item-head__name {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  font-weight: 600;
+}
+.item-head__sub {
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+  overflow-wrap: anywhere;
+}
+.item-head__actions { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+
+/* The list. One grid whose tracks every row shares (each row a subgrid), so a
+   column starts at the same x on every line whatever the names are:
+   mark | name and id (the one that gives) | connection | capability | state.
+   The name and the connection share what is left, three parts to two, and
+   truncate; the capability and the state are as wide as their widest line
+   -- few, short, known words -- and never truncate. */
+.catalog {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 3fr) minmax(0, 2fr) auto auto;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--surface);
+}
+.bulk-bar + .catalog { border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+form.bulk-bar { margin-bottom: 0; }
+.catalog__row {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  align-items: center;
+  column-gap: var(--sp-3);
+  min-height: var(--control-h-lg);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: var(--border-w) solid var(--border);
+  min-width: 0;
+}
+.catalog__row:last-child { border-bottom: 0; }
+.catalog__row:hover { background: var(--surface-hover); }
+.catalog__row.is-off .catalog__mark,
+.catalog__row.is-off .catalog__main,
+.catalog__row.is-off .catalog__cell { opacity: var(--opacity-dim); }
+/* The first track: the select box and the drag handle of a row that has them,
+   nothing for one that has not -- the track is still there. */
+.catalog__lead { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+.catalog__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  flex: none;
+  color: var(--ink-muted);
+}
+.catalog__mark > .model-avatar,
+.catalog__mark > img { width: var(--control-h-sm); height: var(--control-h-sm); }
+.catalog__main { min-width: 0; }
+.catalog__name {
+  display: block;
+  color: var(--ink);
+  font-weight: 500;
+  font-size: var(--text-sm);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+a.catalog__name:hover { color: var(--accent); text-decoration: underline; }
+.catalog__id {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.catalog__cell {
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.catalog__marks { display: flex; align-items: center; gap: var(--sp-1); min-width: 0; overflow: hidden; }
+.catalog__state { display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-2); }
+/* A capability, small: its icon and (where there is room) its name. */
+.cap-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  flex: none;
+  height: var(--control-h-sm);
+  padding: 0 var(--sp-2);
+  border-radius: var(--radius-full);
+  background: var(--bg-sunken);
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+.cap-mark--icon { padding: 0; width: var(--control-h-sm); justify-content: center; }
+/* On or off, as a button that changes it at once. Its two words are both in
+   it, stacked in one cell, so it is as wide as the wider whichever shows. */
+.onoff {
+  display: inline-grid;
+  align-items: center;
+  justify-items: center;
+  min-width: var(--w-num);
+  height: var(--control-h);
+  padding: 0 var(--sp-3);
+  border: var(--border-w) solid var(--border-strong);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+.onoff > span { grid-area: 1 / 1; }
+.onoff > span[aria-hidden="true"] { visibility: hidden; }
+.onoff.is-on { background: var(--success-soft); border-color: transparent; color: var(--success); }
+.onoff:hover { border-color: var(--accent); }
+
+@media (max-width: 48rem) {
+  /* A phone: mark | name, id and the rest under it | state. The connection
+     and the capability are lines of the middle column, in source order. */
+  .catalog { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .catalog__row { row-gap: var(--sp-1); }
+  .catalog__lead { display: none; }
+  .catalog__mark { grid-area: 1 / 1 / span 3 / 2; align-self: start; }
+  .catalog__main,
+  .catalog__cell { grid-column: 2; }
+  .catalog__state { grid-area: 1 / 3 / span 3 / 4; }
+  .onoff { min-height: var(--tap-min); }
+  .item-head__actions { flex: 1 1 100%; }
+}
+
+/* Choosing what a new connection is: cards on a grid that gives up its
+   minimum on a narrow screen. Each card is a link, whole. */
+.type-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--w-chip)), 1fr));
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
+  min-width: 0;
+}
+.type-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto 1fr auto;
+  column-gap: var(--sp-3);
+  row-gap: var(--sp-1);
+  padding: var(--sp-4);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  min-height: var(--tap-min);
+}
+.type-card:hover { border-color: var(--accent); background: var(--surface-hover); }
+.type-card__icon { grid-area: 1 / 1 / span 3 / 2; color: var(--ink-muted); }
+.type-card__name { grid-column: 2; font-weight: 600; font-size: var(--text-sm); }
+.type-card__note { grid-column: 2; font-size: var(--text-xs); color: var(--ink-muted); }
+.type-card__marks { grid-column: 2; display: flex; gap: var(--sp-1); flex-wrap: wrap; margin-top: var(--sp-2); }
+
+/* A form's fields on shared tracks: every field is label, control, hint --
+   three rows of a subgrid -- so in a row of fields the labels, the controls
+   and the hints each start at one y, whatever the text does. Every field
+   emits all three slots. */
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--w-field)), 1fr));
+  column-gap: var(--sp-4);
+  min-width: 0;
+}
+.field-grid > .field {
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: span 3;
+  row-gap: var(--sp-1);
+  min-width: 0;
+}
+.field-grid > .field > .field__label { align-self: end; }
+.field-grid > .field > .input,
+.field-grid > .field > .select { width: 100%; min-width: 0; }
+
+/* The order sources are tried in (admin/media.html): a numbered list. */
+.order-list { margin: 0 0 var(--sp-4); padding-left: var(--sp-6); }
+.order-list > li { margin-bottom: var(--sp-2); font-size: var(--text-sm); }

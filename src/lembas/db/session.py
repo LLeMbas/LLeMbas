@@ -184,6 +184,17 @@ def init_db() -> None:
             connection.exec_driver_sql(f"PRAGMA main.user_version = {SCHEMA_VERSION}")
     if changes:
         log.info("database schema updated: %s", ", ".join(changes))
+    # The ComfyUI and the speech servers an older release kept as addresses in
+    # the settings become connections (`services/media/instance.carry`): with
+    # the ORM, so after the schema is whole. Additive, and a second start
+    # finds nothing to do; a failure must not stop a start.
+    try:
+        from lembas.services.media import instance as media_instance
+
+        with session_scope() as db:
+            media_instance.carry(db)
+    except Exception:
+        log.exception("could not make connections of the media addresses in the settings")
     log.debug("schema ensured at %s", settings.db_path)
 
 

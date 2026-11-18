@@ -58,17 +58,15 @@
           {{ icon("shield", "icon--sm") }}
           <span class="nav-item__label">{{ t("Data groups") }}</span>
         </a>
-        <a class="nav-item {{ 'is-active' if section == 'audio' }}" href="/admin/audio">
-          {{ icon("speaker", "icon--sm") }}
-          <span class="nav-item__label">{{ t("Audio") }}</span>
+        {# Speech and pictures for the whole instance: the defaults and what is
+           no single model's. Where they come from is Connections and Models. #}
+        <a class="nav-item {{ 'is-active' if section == 'media' }}" href="/admin/media">
+          {{ icon("image", "icon--sm") }}
+          <span class="nav-item__label">{{ t("Media") }}</span>
         </a>
         <a class="nav-item {{ 'is-active' if section == 'search' }}" href="/admin/search">
           {{ icon("globe", "icon--sm") }}
           <span class="nav-item__label">{{ t("Web search") }}</span>
-        </a>
-        <a class="nav-item {{ 'is-active' if section == 'images' }}" href="/admin/images">
-          {{ icon("image", "icon--sm") }}
-          <span class="nav-item__label">{{ t("Image generation") }}</span>
         </a>
         <a class="nav-item {{ 'is-active' if section == 'extraction' }}"
            href="/admin/extraction">

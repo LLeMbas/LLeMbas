@@ -1,5 +1,5 @@
 {% extends "admin/_layout.html" %}
-{% from "_macros.html" import icon, model_avatar %}
+{% from "_macros.html" import icon %}
 {% set section = "models" %}
 
 {% block title %}{{ t("Models") }} - {{ brand.name }}{% endblock %}
@@ -7,10 +7,8 @@
 
 {% block admin_content %}
 <p class="admin-lede">
-  {{ tm("Every model discovered across your connections. The order here is the order
-  users see in the picker. <strong>Pinning</strong> does not reorder anything —
-  it puts a shortcut in the chat sidebar. The <strong>default</strong> is what a
-  new chat starts with.") }}
+  {{ t("Every model of every connection, whatever it is for: chat, embedding, speech, pictures. A line opens the model's own page; the switch at its end turns it on or off at once.") }}
+  {{ tm("The order of the chat models here is the order people see in the picker, and the <strong>default</strong> is what a new chat starts with.") }}
 </p>
 
 {% if saved %}
@@ -27,117 +25,74 @@
 </div>
 {% else %}
 
-{# Filters are links, so a filtered view is a real URL you can keep or share. #}
-<div class="filter-bar">
-  <div class="filter-tabs">
-    {% for key, label in filters.items() %}
-    <a class="filter-tab {{ 'is-active' if key == active_filter }}"
-       href="/admin/models?filter={{ key }}{% if q %}&q={{ q|urlencode }}{% endif %}{% if connection_id %}&connection={{ connection_id }}{% endif %}">
-      {{ label }} <span class="filter-tab__count">{{ counts[key] }}</span>
-    </a>
+{# The filters are a GET form, so a filtered view is a real address. #}
+<form class="filter-form" method="get" action="/admin/models" data-testid="model-filters">
+  <input class="input" type="search" name="q" value="{{ q }}"
+         placeholder="{{ t('Search models…') }}" aria-label="{{ t('Search models') }}">
+  <select class="select" name="capability" aria-label="{{ t('Capability') }}">
+    <option value="">{{ t("Every capability") }}</option>
+    {% for key in capabilities %}
+    <option value="{{ key }}" {{ 'selected' if key == capability }}>{{ t(capability_labels[key]) }} ({{ counts.get(key, 0) }})</option>
     {% endfor %}
-  </div>
+  </select>
+  <select class="select" name="connection" aria-label="{{ t('Connection') }}">
+    <option value="">{{ t("All connections") }}</option>
+    {% for conn in connections %}
+    <option value="{{ conn.id }}" {{ 'selected' if conn.id == connection_id }}>{{ conn.name }}</option>
+    {% endfor %}
+  </select>
+  <select class="select" name="state" aria-label="{{ t('On or off') }}">
+    <option value="">{{ t("On and off") }}</option>
+    <option value="on" {{ 'selected' if state == 'on' }}>{{ t("On") }}</option>
+    <option value="off" {{ 'selected' if state == 'off' }}>{{ t("Off") }}</option>
+  </select>
+  <button class="btn" type="submit">{{ icon("search", "icon--sm") }} {{ t("Filter") }}</button>
+  {% if filtered %}<a class="btn btn--ghost" href="/admin/models">{{ t("Clear") }}</a>{% endif %}
+</form>
 
-  <form class="filter-form" method="get" action="/admin/models">
-    <input type="hidden" name="filter" value="{{ active_filter }}">
-    <input class="input" type="search" name="q" value="{{ q }}"
-           placeholder="{{ t('Search models…') }}" aria-label="{{ t('Search models') }}">
-    <select class="select" name="connection" aria-label="{{ t('Connection') }}">
-      <option value="">{{ t("All connections") }}</option>
-      {% for conn in connections %}
-      <option value="{{ conn.id }}" {{ 'selected' if conn.id == connection_id }}>
-        {{ conn.name }}
-      </option>
-      {% endfor %}
-    </select>
-    <button class="btn" type="submit">{{ icon("search", "icon--sm") }} {{ t("Filter") }}</button>
-    {% if q or connection_id or active_filter != "all" %}
-    <a class="btn btn--ghost" href="/admin/models">{{ t("Clear") }}</a>
-    {% endif %}
-  </form>
-</div>
-
-{% if not models %}
+{% if not items %}
 <div class="empty u-pad-y-8">
   <p class="empty__text">{{ t("Nothing matches that filter.") }}</p>
 </div>
 {% else %}
 
-<form method="post" action="/admin/models/bulk">
-  <div class="bulk-bar">
-    <label class="checkbox">
-      <input type="checkbox" data-select-all="#model-rows"
-             aria-label="{{ t('Select every model on this page') }}">
-      <span class="bulk-bar__label">{{ t("Select all") }}</span>
-    </label>
-    <span class="spacer"></span>
-    <span class="bulk-bar__label">{{ t("With selected:") }}</span>
-    <button class="btn btn--sm" name="action" value="enable" type="submit">{{ t("Enable") }}</button>
-    <button class="btn btn--sm" name="action" value="disable" type="submit">{{ t("Disable") }}</button>
-    <button class="btn btn--sm" name="action" value="public" type="submit">{{ t("Make public") }}</button>
-    <button class="btn btn--sm" name="action" value="private" type="submit">{{ t("Restrict") }}</button>
-  </div>
-
-  {#- In order by dragging the number, or by focusing it and pressing the arrow
-      keys (js/dnd.js, api/ordering.py), as the tools are. The order posts by
-      itself; the bulk form around it is not sent. -#}
-  <div class="model-rows" id="model-rows" data-sortable data-sortable-url="/admin/order/models"
-       data-testid="model-order">
-    {% for model in models %}
-    <div class="model-row {{ 'is-off' if not model.enabled }}" data-sortable-item data-id="{{ model.id }}" draggable="true">
-      <input class="model-row__check" type="checkbox" name="model_ids" value="{{ model.id }}"
-             aria-label="{{ t('Select %(name)s', name=model.label) }}">
-
-      <button class="model-row__pos sort-handle" type="button" data-sortable-handle
-              id="sort-{{ model.id }}" data-testid="sort-handle"
-              aria-label="{{ t('Move %(name)s: drag, or use the arrow keys', name=model.label) }}"
-              title="{{ t('Drag to put in order') }}">
-        {{ icon("grip", "icon--sm") }}{{ page_start + loop.index }}
-      </button>
-
-      {{ model_avatar(model, cls="model-row__avatar") }}
-
-      <div class="model-row__main">
-        <div class="model-row__title">
-          <a class="model-row__name" href="/admin/models/{{ model.id }}/edit">{{ model.label }}</a>
-          {% if model.model_id == default_model %}
-          <span class="badge badge--leaf">{{ t("default") }}</span>
-          {% endif %}
-          {% if model.pinned %}<span class="badge">{{ t("pinned") }}</span>{% endif %}
-          {% if not model.enabled %}<span class="badge badge--danger">{{ t("disabled") }}</span>{% endif %}
-          {% if not model.public %}<span class="badge">{{ t("restricted") }}</span>{% endif %}
-          {% for name, on in (model.capabilities_json or {}).items() %}
-            {% if on %}<span class="badge badge--leaf">{{ name }}</span>{% endif %}
-          {% endfor %}
-        </div>
-        <code class="model-row__id">{{ model.model_id }} · {{ model.connection.name }}</code>
-      </div>
-
-      <div class="model-row__actions">
-        <a class="btn btn--sm" href="/admin/models/{{ model.id }}/edit">{{ t("Edit") }}</a>
-      </div>
-    </div>
-    {% endfor %}
-  </div>
+{% set back = base ~ ("&" if "=" in base else "") ~ "page=" ~ page %}
+{#- The bulk form is the bar alone: each line's select box names it
+    (`form="bulk-models"`), because a line holds a form of its own. -#}
+<form id="bulk-models" method="post" action="/admin/models/bulk" class="bulk-bar u-mt-5">
+  <label class="checkbox">
+    <input type="checkbox" data-select-all="#model-rows"
+           aria-label="{{ t('Select every chat model on this page') }}">
+    <span class="bulk-bar__label">{{ t("Select all") }}</span>
+  </label>
+  <span class="spacer"></span>
+  <span class="bulk-bar__label">{{ t("With selected:") }}</span>
+  <button class="btn btn--sm" name="action" value="enable" type="submit">{{ t("Enable") }}</button>
+  <button class="btn btn--sm" name="action" value="disable" type="submit">{{ t("Disable") }}</button>
+  <button class="btn btn--sm" name="action" value="public" type="submit">{{ t("Make public") }}</button>
+  <button class="btn btn--sm" name="action" value="private" type="submit">{{ t("Restrict") }}</button>
 </form>
+{% set selectable = true %}
+{% include "admin/_model_list.html" %}
 
 <div class="list-footer">
   <span class="text-xs faint">
-    {{ t("Showing %(first)s–%(last)s of %(matched)s", first=page_start + 1, last=page_start + models|length, matched=matched) }}
+    {{ t("Showing %(first)s–%(last)s of %(matched)s", first=page_start + 1, last=page_start + items|length, matched=matched) }}
     {%- if matched != total %} {{ t("(filtered from %(total)s)", total=total) }}{% endif %}
+    {%- if sortable %} · {{ t("Drag a chat model's handle to put the picker in order.") }}{% endif %}
   </span>
 
   {% if pages > 1 %}
-  {% set base = "/admin/models?filter=" ~ active_filter ~ ("&q=" ~ q|urlencode if q else "") ~ ("&connection=" ~ connection_id if connection_id else "") %}
+  {% set link = base ~ ("&" if "=" in base else "") %}
   <div class="btn-row">
     {% if page > 1 %}
-    <a class="btn btn--sm" href="{{ base }}&page={{ page - 1 }}">{{ t("Previous") }}</a>
+    <a class="btn btn--sm" href="{{ link }}page={{ page - 1 }}">{{ t("Previous") }}</a>
     {% else %}
     <span class="btn btn--sm u-dim" aria-disabled="true">{{ t("Previous") }}</span>
     {% endif %}
     <span class="text-xs faint">{{ t("Page %(page)s of %(pages)s", page=page, pages=pages) }}</span>
     {% if page < pages %}
-    <a class="btn btn--sm" href="{{ base }}&page={{ page + 1 }}">{{ t("Next") }}</a>
+    <a class="btn btn--sm" href="{{ link }}page={{ page + 1 }}">{{ t("Next") }}</a>
     {% else %}
     <span class="btn btn--sm u-dim" aria-disabled="true">{{ t("Next") }}</span>
     {% endif %}

@@ -154,7 +154,9 @@ def test_the_models_list_is_sortable_and_has_no_arrows(client, db, registered):
     db.commit()
     page = client.get("/admin/models").text
     rows = page[page.index('id="model-rows"'):]
-    assert rows.startswith('id="model-rows" data-sortable data-sortable-url="/admin/order/models"')
+    opening = rows[: rows.index(">")]
+    assert opening.startswith('id="model-rows"')
+    assert 'data-sortable data-sortable-url="/admin/order/models"' in opening
     assert rows.count("data-sortable-item") == 2 and rows.count('draggable="true"') == 2
     assert rows.count("data-sortable-handle") == 2
     assert "/move" not in page and 'aria-label="Move up"' not in page

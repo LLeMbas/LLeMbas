@@ -16,6 +16,8 @@ Cloud Model Studio's two came next.
 | `openrouter` | OpenAI chat | `reasoning: {effort}` | `GET /api/v1/credits` | `usage.cost` |
 | `alibaba` | OpenAI chat | `enable_thinking` and `reasoning_effort` | -- | -- |
 | `alibaba_plan` | OpenAI chat | the same | -- | -- (a subscription) |
+| `comfyui` | -- (no chat: pictures) | -- | -- | -- |
+| `speech` | -- (no chat: OpenAI audio routes) | -- | -- | -- |
 
 `openai_compatible` is everything local or self-hosted -- llama.cpp,
 llama-swap, vLLM, Ollama, LM Studio -- and any cloud that copies OpenAI's API
@@ -65,6 +67,12 @@ DEEPSEEK = "deepseek"
 OPENROUTER = "openrouter"
 ALIBABA = "alibaba"
 ALIBABA_PLAN = "alibaba_plan"
+# Two types that serve no chat model at all: a ComfyUI (pictures, by workflow
+# and checkpoint) and an OpenAI-compatible speech server (transcriptions and
+# speech). They are connections like the rest -- an address, a key, health --
+# and what they offer are models with a capability (`services/media/`).
+COMFYUI = "comfyui"
+SPEECH = "speech"
 
 # How a reasoning effort reaches the provider.
 EFFORT_BOTH = "both"  # `reasoning_effort` and `chat_template_kwargs.reasoning_effort`
@@ -124,6 +132,10 @@ class ProviderType:
     # form warns on a key that looks like another product's.
     key_prefix: str = ""
     key_not_prefix: str = ""
+    # Whether the type serves chat models. False for the ComfyUI and the
+    # speech server: nothing lists `/models` on them, no chat can start on
+    # them, and the health round asks them their own question.
+    chat: bool = True
 
 
 # Alibaba Cloud Model Studio. The addresses are the provider's own (its "Base
@@ -220,6 +232,15 @@ TYPES: dict[str, ProviderType] = {
             interactive_only=True, subscription=True,
             regions=ALIBABA_PLAN_REGIONS, key_prefix=PLAN_KEY_PREFIX,
         ),
+        ProviderType(
+            COMFYUI, "ComfyUI", PROTOCOL_OPENAI, "", (), EFFORT_NONE, BALANCE_NONE,
+            False, False, True, chat=False,
+        ),
+        ProviderType(
+            SPEECH, N_("Speech server (OpenAI-compatible transcriptions and speech)"),
+            PROTOCOL_OPENAI, "", (), EFFORT_NONE, BALANCE_NONE, False, False, True,
+            chat=False,
+        ),
     )
 }
 DEFAULT = OPENAI_COMPATIBLE
@@ -237,6 +258,11 @@ def known(type_id: str | None) -> str:
 
 def protocol_of(type_id: str | None) -> str:
     return get(type_id).protocol
+
+
+def serves_chat(type_id: str | None) -> bool:
+    """Whether a connection of this type has chat models at all."""
+    return get(type_id).chat
 
 
 def _host(url: str | None) -> str:

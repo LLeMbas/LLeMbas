@@ -531,7 +531,9 @@ def test_the_list_does_not_render_edit_forms(client: TestClient, db, registered)
     page = client.get("/admin/models").text
     assert 'name="system_prompt"' not in page
     assert 'name="display_name"' not in page
-    assert page.count("/edit") >= 3
+    for model in db.scalars(select(Model)).all():
+        assert f'href="/admin/models/{model.id}"' in page
+    assert page.count('data-testid="model-line"') == 3
 
 
 def test_search_narrows_the_list(client: TestClient, db, registered):
@@ -596,10 +598,14 @@ def test_the_detail_page_carries_the_full_form(client: TestClient, db, registere
     db.commit()
     model = db.scalar(select(Model).where(Model.model_id == "model-001"))
 
+    # One page, in tabs with addresses of their own: each field on its tab.
     page = client.get(f"/admin/models/{model.id}/edit").text
-    for field in ('name="display_name"', 'name="system_prompt"', 'name="capability"',
+    assert page == client.get(f"/admin/models/{model.id}").text
+    for field in ('name="display_name"', 'name="system_prompt"',
                   'name="group_ids"', 'name="position"'):
         assert field in page, field
+    page = client.get(f"/admin/models/{model.id}/capabilities").text
+    assert 'name="capability"' in page
 
 
 def test_the_detail_page_links_to_its_neighbours(client: TestClient, db, registered):
@@ -607,8 +613,8 @@ def test_the_detail_page_links_to_its_neighbours(client: TestClient, db, registe
     first, middle, last = db.scalars(select(Model).order_by(Model.position)).all()
 
     page = client.get(f"/admin/models/{middle.id}/edit").text
-    assert f"/admin/models/{first.id}/edit" in page
-    assert f"/admin/models/{last.id}/edit" in page
+    assert f'href="/admin/models/{first.id}"' in page
+    assert f'href="/admin/models/{last.id}"' in page
     assert "2 of 3" in page
 
 

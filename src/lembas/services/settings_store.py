@@ -201,6 +201,10 @@ def _audio_defaults() -> dict[str, Any]:
         # is only the default: a chat whose connection has its own uses that.
         "stt_connection": "",
         "tts_connection": "",
+        # Which address and model `services/media/instance.carry` has already
+        # made a connection of, so that it does so once.
+        "stt_carried": "",
+        "tts_carried": "",
     }
 
 
@@ -315,6 +319,12 @@ def _images_defaults() -> dict[str, Any]:
         # names one, as `<connection id>/<model id>` -- a connection's own
         # image model (`services/media/sources.py`).
         "connection": "",
+        # ...or a ComfyUI connection and one of its checkpoints, as
+        # `<connection id>/<checkpoint>` (the checkpoint may be empty). Its
+        # own key, so that `connection` stays what it was: a provider's model.
+        "comfyui": "",
+        # The address `services/media/instance.carry` made a connection of.
+        "carried": "",
     }
 
 
@@ -615,7 +625,11 @@ def audio(db: DBSession) -> dict[str, Any]:
     # The two prices, never negative and never junk.
     for name in ("stt_per_minute", "tts_per_1m_chars"):
         values[name] = money_amount(values.get(name))
-    return values
+    # The speech server the default names, where a default names one: its
+    # address, key, model and options, in the keys they were always read from.
+    from lembas.services.media import instance
+
+    return instance.audio_view(db, values)
 
 
 def search(db: DBSession) -> dict[str, Any]:
@@ -663,7 +677,11 @@ def images(db: DBSession) -> dict[str, Any]:
     for name in ("checkpoints", "samplers", "schedulers"):
         stored = values.get(name)
         values[name] = [str(item) for item in stored] if isinstance(stored, list) else []
-    return values
+    # The ComfyUI the default names, where it names one: its address, key,
+    # options and checkpoints, in the keys the ComfyUI code reads.
+    from lembas.services.media import instance
+
+    return instance.images_view(db, values)
 
 
 def schedules(db: DBSession) -> dict[str, Any]:

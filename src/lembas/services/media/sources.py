@@ -37,7 +37,7 @@ from sqlalchemy.orm import Session as DBSession
 from lembas.db.models import Chat, Connection, User
 from lembas.services import settings_store
 from lembas.services.llm.openai_client import Endpoint, LLMError
-from lembas.services.media import store
+from lembas.services.media import instance, store
 from lembas.services.media.store import CAP_IMAGE, CAP_STT, CAP_TTS
 from lembas.web.i18n import t
 
@@ -47,7 +47,7 @@ ORIGIN_CONNECTION = "connection"
 ORIGIN_INSTANCE = "instance"
 # The instance's own ComfyUI: a picture source that `services/images/` draws
 # with, workflow and checkpoints and all.
-COMFYUI = "comfyui"
+COMFYUI = store.COMFYUI
 
 # The settings key that names a connection's model as the instance's default
 # for a capability (`<connection id>/<model id>`; empty: the endpoint).
@@ -80,6 +80,16 @@ class Source:
     provider: str = ""
     # The instance's settings group, for a default served by its endpoint.
     config: dict[str, Any] = field(default_factory=dict, hash=False, compare=False)
+    # How the model is asked (`store.clean_options`): a language hint, a
+    # speed, a format, a default size.
+    options: dict[str, Any] = field(default_factory=dict, hash=False, compare=False)
+
+    @property
+    def reader_voice(self) -> bool:
+        """Whether the person's own voice is asked for: on the instance's
+        speech server, whose voices their settings list. A provider's model
+        reads in the voice set beside it."""
+        return self.origin == ORIGIN_INSTANCE
 
     @property
     def usage_id(self) -> str:
@@ -137,23 +147,64 @@ def _from_connection(
         voice=entry.voice,
         connection_id=connection.id,
         provider=connection.provider_name,
+        options=dict(entry.options),
     )
 
 
 def split_default(value: Any) -> tuple[str, str]:
     """`<connection id>/<model id>` as its two halves, or two empty strings."""
-    connection_id, _, model = str(value or "").partition("/")
+    connection_id, model = instance.split(value)
     return (connection_id, model) if connection_id and model else ("", "")
+
+
+def _equipment(
+    db: DBSession, capability: str, values: dict[str, Any], connection: Connection, model: str
+) -> Source | None:
+    """The default served by the instance's own equipment -- a speech server,
+    a ComfyUI -- that is a connection. It answers as the instance (`origin`),
+    under the names it had when it was an address in the settings: the usage
+    page, `/v1/models` and the `X-Lembas-Source` header say what they said."""
+    if not connection.enabled:
+        return None
+    if capability == CAP_IMAGE:
+        # `values` is the view (`instance.images_view`): this ComfyUI's
+        # address and its ticked checkpoints.
+        if not (values.get("base_url") and values.get("checkpoints")):
+            return None
+        return Source(
+            capability=capability, origin=ORIGIN_INSTANCE, own=False, label=connection.name,
+            model="", dialect=COMFYUI, config=values, connection_id=connection.id,
+        )
+    entry = store.find(connection, capability, model)
+    if entry is None:
+        return None
+    from lembas.services import audio as audio_service
+
+    return Source(
+        capability=capability, origin=ORIGIN_INSTANCE, own=False,
+        label=entry.model, model=entry.model, dialect=store.OPENAI,
+        endpoint=Endpoint.from_connection(connection),
+        price=audio_service.price_of(values, capability),
+        voice=entry.voice, config=values, connection_id=connection.id,
+        options=dict(entry.options),
+    )
 
 
 def default(db: DBSession, capability: str) -> Source | None:
     """The instance's default source for a capability, or None when nothing
-    is configured: a connection's model the administrator chose, else the
-    endpoint in the settings."""
+    is configured: the model an administrator chose (Admin › Media) -- a
+    provider's, or one of the instance's own speech server or ComfyUI -- else,
+    where nobody chose and an older release left an address in the settings,
+    that address."""
     values = _settings(db, capability)
-    connection_id, model = split_default(values.get(DEFAULT_KEYS[capability]))
+    chosen = instance.default_value(values, capability)
+    if chosen == instance.NONE:
+        return None
+    connection_id, model = instance.split(chosen)
     if connection_id:
         connection = db.get(Connection, connection_id)
+        if connection is not None and store.equipment(connection.provider_type):
+            return _equipment(db, capability, values, connection, model)
         entry = store.find(connection, capability, model) if connection is not None else None
         if (
             connection is not None
@@ -211,6 +262,7 @@ def chain(
         connection is not None
         and connection.enabled
         and store.supported(connection.provider_type, connection.base_url)
+        and not store.equipment(connection.provider_type)
         and _allowed(connection, interactive)
     ):
         entry = store.own(connection, capability)
@@ -222,6 +274,8 @@ def chain(
         same = bool(out) and (out[0].connection_id, out[0].model) == (
             fallback.connection_id, fallback.model
         ) and fallback.origin == ORIGIN_CONNECTION
+        if fallback.origin == ORIGIN_INSTANCE:
+            behind = None  # the instance's own equipment is nobody's plan
         if not same and (behind is None or _allowed(behind, interactive)):
             out.append(fallback)
     return out
@@ -238,26 +292,41 @@ def anywhere(db: DBSession, capability: str) -> bool:
         store.own(connection, capability) is not None
         for connection in db.scalars(select(Connection).where(Connection.enabled.is_(True)))
         if store.supported(connection.provider_type, connection.base_url)
+        and not store.equipment(connection.provider_type)
     )
 
 
 def choices(db: DBSession, capability: str) -> list[dict[str, str]]:
-    """The connections' enabled models for a capability, for the settings'
-    "use a connection's model" choice: `value` is what `DEFAULT_KEYS` stores."""
+    """The added, enabled models for a capability, for the default's choice
+    (Admin › Media): `value` is what the settings store, `<connection
+    id>/<model id>`. The instance's own equipment first, then the providers,
+    each in the connections' order."""
     out: list[dict[str, str]] = []
-    for connection in db.scalars(
-        select(Connection).where(Connection.enabled.is_(True)).order_by(Connection.position)
-    ):
-        if not store.supported(connection.provider_type, connection.base_url):
+    rows = list(
+        db.scalars(
+            select(Connection).where(Connection.enabled.is_(True)).order_by(Connection.position)
+        )
+    )
+    rows.sort(key=lambda row: not store.equipment(row.provider_type))
+    for connection in rows:
+        if capability not in store.capabilities_of(connection.provider_type, connection.base_url):
             continue
         for entry in store.entries(connection, capability, enabled=True):
             out.append(
                 {
                     "value": f"{connection.id}/{entry.model}",
-                    "label": f"{connection.name} · {entry.model}",
+                    "label": f"{connection.name} · {entry.label}",
+                    "connection_id": connection.id,
+                    "model": entry.model,
                 }
             )
     return out
+
+
+def chosen(db: DBSession, capability: str) -> str:
+    """The stored default as the choice's `value`: `<connection id>/<model
+    id>`, `none`, or "" when nobody chose."""
+    return instance.default_value(_settings(db, capability), capability)
 
 
 def stale(db: DBSession, capability: str) -> str:
@@ -265,8 +334,8 @@ def stale(db: DBSession, capability: str) -> str:
     connection's model that can no longer serve -- deleted, disabled,
     unticked -- else "". While it is set nothing is served by default: the
     endpoint is not quietly used in place of a choice somebody made."""
-    value = str(_settings(db, capability).get(DEFAULT_KEYS[capability]) or "")
-    return value if split_default(value)[0] and default(db, capability) is None else ""
+    value = chosen(db, capability)
+    return value if instance.split(value)[0] and default(db, capability) is None else ""
 
 
 def defaults_naming(db: DBSession, connection_id: str) -> list[str]:
@@ -274,8 +343,7 @@ def defaults_naming(db: DBSession, connection_id: str) -> list[str]:
     return [
         capability
         for capability in DEFAULT_KEYS
-        if split_default(_settings(db, capability).get(DEFAULT_KEYS[capability]))[0]
-        == connection_id
+        if instance.split(chosen(db, capability))[0] == connection_id
     ]
 
 
@@ -458,6 +526,7 @@ __all__ = [
     "anywhere",
     "chain",
     "choices",
+    "chosen",
     "connection_of",
     "connection_of_chat",
     "default",

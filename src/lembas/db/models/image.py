@@ -50,6 +50,13 @@ class ImageWorkflow(UUIDPrimaryKey, Timestamps, Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
+    # The ComfyUI connection this workflow is for. NULL or empty: every
+    # ComfyUI (a row from before workflows had a connection, until the upgrade
+    # attaches it). A plain id and no foreign key (the schema rule: a
+    # `REFERENCES` clause would exist on a fresh database only); a workflow
+    # whose connection has gone is shown as such and drawn nowhere.
+    connection_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
     # The result of the last time somebody pressed Test, in the shape
     # `CustomTool` and `McpServer` already use, so the row reads the same way in
     # the list as theirs do.

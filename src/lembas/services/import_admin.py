@@ -562,6 +562,14 @@ def run(db: DBSession, document: dict[str, Any], *, passphrase: str = "") -> Rep
                                   field=str(entry.get("field") or ""),
                                   why=str(entry.get("reason") or ""))
     db.commit()
+    # A ComfyUI or a speech server the export kept as an address in its
+    # settings becomes a connection here, as at a start (`instance.carry`).
+    try:
+        from lembas.services.media import instance as media_instance
+
+        media_instance.carry(db)
+    except Exception:  # the import itself is done; the next start carries
+        log.exception("could not make connections of the imported media addresses")
     log.info("admin import from %s: %s taken, %s skipped", document.get("app_version"),
              len(job.report.taken), len(job.report.skipped))
     return job.report

@@ -38,6 +38,10 @@ OLD_TABLES = (
 # These are the interesting half: a new *table* is empty by definition, but a
 # new *column* has to arrive beside data somebody cares about.
 OLD_COLUMNS = (
+    # What a connection type keeps of its own (a ComfyUI's timeout), and
+    # which ComfyUI a workflow is for: tests/test_unified_connections.py.
+    ("connections", "options_json"),
+    ("image_workflows", "connection_id"),
     ("chats", "parent_chat_id"),
     ("chats", "unattended"),
     ("chats", "start_dir"),

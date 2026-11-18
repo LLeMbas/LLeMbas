@@ -431,7 +431,6 @@ MESSAGES.update(
         "All tools": "Všetky nástroje",
         "All servers": "Všetky servery",
         "All models": "Všetky modely",
-        "Add a connection": "Pridať spojenie",
         "Models": "Modely",
         "Model": "Model",
         "Context window": "Kontextové okno",
@@ -459,7 +458,6 @@ MESSAGES.update(
         "Name": "Názov",
         "Identifier": "Identifikátor",
         "Length": "Dĺžka",
-        "Format": "Formát",
         "Method": "Metóda",
         "Headers": "Hlavičky",
         "Body": "Telo",
@@ -585,9 +583,6 @@ MESSAGES.update(
             "Zašifruje sa pred uložením a nikdy sa neposiela späť do prehliadača. Pre "
             "endpointy, ktoré kľúč nepotrebujú, nechajte prázdne."
         ),
-        "Enabled — its models are offered in chats": (
-            "Zapnuté — jeho modely sa ponúkajú v konverzáciách"
-        ),
         "Enabled — offered in chats": "Zapnuté — ponúka sa v konverzáciách",
         "Context length": "Dĺžka kontextu",
         "How many tokens this model can hold, filled in from the endpoint where it says. Leave it empty if you do not know: the context percentage and automatic compaction both stay off rather than working from a guess.": (
@@ -609,7 +604,6 @@ MESSAGES.update(
         "Model that reviews": "Model, ktorý posudzuje",
         "Name the model uses": "Názov, ktorý model používa",
         "Embedding model": "Model pre vnorenia",
-        "Export (API)": "Export (API)",
         "GET": "GET",
         "GitHub": "GitHub",
         "Firecrawl": "Firecrawl",
@@ -632,7 +626,6 @@ MESSAGES.update(
         ),
         "Look up the current weather for a city.": "Zisti aktuálne počasie pre mesto.",
         "Arguments": "Argumenty",
-        "Extra instructions": "Ďalšie pokyny",
         "Dotted; a number indexes a list. Leave empty for the whole document. A path that leads nowhere gives the whole document rather than nothing.": (
             "S bodkami; číslo indexuje zoznam. Prázdne znamená celý dokument. Cesta, "
             "ktorá nikam nevedie, vráti celý dokument, nie nič."
@@ -680,8 +673,6 @@ MESSAGES.update(
     {
         "Allow agent chats": "Povoliť agentské konverzácie",
         "Allow the terminal panel": "Povoliť panel terminálu",
-        "Allow messages to be dictated": "Povoliť diktovanie správ",
-        "Allow replies to be read out": "Povoliť čítanie odpovedí nahlas",
         "Let a model delegate": "Nechať model delegovať",
         "Let people write their own answer": "Nechať ľudí napísať vlastnú odpoveď",
         "Let scheduled work run": "Nechať bežať naplánovanú prácu",
@@ -769,7 +760,6 @@ MESSAGES.update(
         "Saved.": "Uložené.",
         "Settings saved.": "Nastavenia uložené.",
         "Prompts saved.": "Pokyny uložené.",
-        "Audio settings saved.": "Nastavenia zvuku uložené.",
         "Search settings saved.": "Nastavenia hľadania uložené.",
         "Restore": "Obnoviť",
         "Restore defaults": "Obnoviť predvolené",
@@ -779,8 +769,6 @@ MESSAGES.update(
         "Remove image": "Odstrániť obrázok",
         "Restrict": "Obmedziť",
         "Select all": "Vybrať všetko",
-        "Select every model on this page": "Vybrať každý model na tejto stránke",
-        "Set default": "Nastaviť ako predvolené",
         "Show this one": "Zobraziť tento",
         "Switch": "Zapnutie",
         "Switch theme": "Prepnúť vzhľad",
@@ -844,8 +832,6 @@ MESSAGES.update(
         "The terminal": "Terminál",
         "The workflow": "Pracovný postup",
         "The placeholders": "Zástupné hodnoty",
-        "The first one": "Prvý",
-        "The first in the list above": "Prvý v zozname vyššie",
         "This chat is": "Táto konverzácia je",
         "This is what the model would read back:": "Toto by si model prečítal:",
         "Text kept per file": "Text uchovaný na súbor",
@@ -925,25 +911,10 @@ MESSAGES.update(
             "Spotrebuje sa z kontextového okna pri každom volaní. Zvyšok sa odreže a "
             "modelu sa to oznámi."
         ),
-        "Read new replies aloud as they finish, by default": (
-            "Predvolene čítať nové odpovede nahlas, keď dopíšu"
-        ),
         "Read the response as": "Prečítať odpoveď ako",
-        "Only the starting value for each account — anyone can turn it off in their own settings, and nobody is made to listen.": (
-            "Len počiatočná hodnota pre každý účet — každý si to môže vo vlastných "
-            "nastaveniach vypnúť a nikoho nikto počúvať nenúti."
-        ),
         "Only used when SearXNG is the chosen provider. Your own instance, so no third party sees the queries.": (
             "Používa sa len vtedy, keď je zvoleným poskytovateľom SearXNG. Vaša vlastná "
             "instancia, takže dotazy nevidí tretia strana."
-        ),
-        "Adds a microphone to the composer. Recordings are sent to this endpoint and never written to disk.": (
-            "Pridá do písania mikrofón. Nahrávky sa posielajú na tento endpoint a nikdy "
-            "sa nezapisujú na disk."
-        ),
-        "Adds a speaker button to every reply. Each reader can pick their own voice in their settings; what is chosen here is the default.": (
-            "Pridá ku každej odpovedi tlačidlo prehrávania. Každý si vo svojich "
-            "nastaveniach môže vybrať vlastný hlas; čo je vybrané tu, je predvolené."
         ),
         "Default voice": "Predvolený hlas",
         "Summarise a document": "Zhrnúť dokument",
@@ -985,15 +956,9 @@ MESSAGES.update(
         "Height": "Výška",
         "Pieces per request": "Častí na požiadavku",
         "Denoise": "Odšumenie",
-        "Guidance (cfg)": "Vedenie (cfg)",
         "Negative prompt": "Negatívny pokyn",
-        "Checkpoint": "Checkpoint",
-        "Checkpoints": "Checkpointy",
-        "Available checkpoints": "Dostupné checkpointy",
         "Default workflow": "Predvolený pracovný postup",
         "Offer this workflow": "Ponúkať tento postup",
-        "Images per run": "Obrázkov na beh",
-        "Attempts per image": "Pokusov na obrázok",
         "JPEG quality": "Kvalita JPEG",
         "Longest image edge": "Najdlhšia hrana obrázka",
         "Largest upload": "Najväčší súbor",
@@ -1001,7 +966,6 @@ MESSAGES.update(
         "Pages read from a PDF": "Strán prečítaných z PDF",
         "Path into the JSON": "Cesta do JSON",
         "Also treat as text": "Považovať za text aj",
-        "Checking the result": "Kontrola výsledku",
         "Use default": "Použiť predvolené",
         "With selected:": "S vybranými:",
         "Withdraw the request": "Zrušiť požiadavku",
@@ -1012,7 +976,6 @@ MESSAGES.update(
         "What it may spend": "Čo smie spotrebovať",
         "What this account can do": "Čo tento účet smie",
         "What a file may cost": "Čo smie stáť jeden súbor",
-        "What a generation uses by default": "Čo generovanie predvolene používa",
         "What is this model good at?": "V čom je tento model dobrý?",
         "Parameters, quantisation, a benchmark figure, what it is bad at": (
             "Parametre, kvantizácia, číslo z benchmarku, v čom je slabý"
@@ -1020,86 +983,14 @@ MESSAGES.update(
         "Offer web search to models that support tools": (
             "Ponúkať vyhľadávanie modelom, ktoré podporujú nástroje"
         ),
-        "Offer image generation to models that support tools": (
-            "Ponúkať generovanie obrázkov modelom, ktoré podporujú nástroje"
-        ),
-        "Look at each image before showing it, and try again if it is wrong": (
-            "Pozrieť sa na každý obrázok pred zobrazením a pri chybe to skúsiť znova"
-        ),
         "Refuse a PDF whose text cannot be read": "Odmietnuť PDF, ktorého text sa nedá prečítať",
-        "Preserve VRAM: unload the language model while ComfyUI works": (
-            "Šetriť VRAM: uvoľniť jazykový model, kým pracuje ComfyUI"
-        ),
-        "The chat's own model, when it has vision": (
-            "Vlastný model konverzácie, ak vidí obrázky"
-        ),
-        "Only models marked as having vision are listed. If there is nothing to ask, the first image is kept and nothing fails.": (
-            "Vypisujú sa len modely označené, že vidia obrázky. Ak nie je koho sa "
-            "spýtať, zachová sa prvý obrázok a nič nezlyhá."
-        ),
-        "A vision model is shown the picture and the request it came from, and says keep or retry. Only clearly wrong images are retried — a missing subject, a mangled picture — because taste is not a fault and the next attempt is not promised to be better. The reader sees only the image that was kept.": (
-            "Modelu, ktorý vidí obrázky, sa ukáže obrázok aj požiadavka, z ktorej "
-            "vznikol, a on povie zachovať alebo skúsiť znova. Znova sa skúšajú len "
-            "jasne pokazené obrázky — chýbajúci motív, zdeformovaná kresba — pretože "
-            "vkus nie je chyba a ďalší pokus nemá zaručené, že bude lepší. Čitateľ "
-            "vidí len ten obrázok, ktorý sa zachoval."
-        ),
-        "Including the first. The last attempt is kept whatever the review says, so a request always produces a picture.": (
-            "Vrátane prvého. Posledný pokus sa zachová bez ohľadu na posudok, takže "
-            "požiadavka vždy vytvorí obrázok."
-        ),
-        "Lets a model draw a picture and show it in the conversation, on a ComfyUI you are running. It is offered as a tool the model chooses to call, so nothing changes for a conversation that never asks for one — and it is only offered once there is a ComfyUI, a workflow and at least one checkpoint, because a tool that fails on its first call is worse than a tool nobody was given.": (
-            "Umožní modelu nakresliť obrázok a zobraziť ho v konverzácii, na ComfyUI, "
-            "ktoré prevádzkujete. Ponúka sa ako nástroj, ktorý si model sám zvolí, "
-            "takže pri konverzácii, ktorá o obrázok nikdy nepožiada, sa nič nemení — "
-            "a ponúka sa až vtedy, keď existuje ComfyUI, pracovný postup a aspoň jeden "
-            "checkpoint, pretože nástroj, ktorý zlyhá pri prvom volaní, je horší než "
-            "nástroj, ktorý nikto nedostal."
-        ),
-        "For a machine that cannot hold both at once. Before generating, the chat's own connection is asked to unload — set an unload URL on it under Connections, or nothing happens. Afterwards ComfyUI is asked to free its own models, and the language model loads again by itself on the next request.": (
-            "Pre stroj, ktorý neudrží oba naraz. Pred generovaním sa vlastné spojenie "
-            "konverzácie požiada o uvoľnenie — nastavte mu URL na uvoľnenie v "
-            "Spojeniach, inak sa nestane nič. Potom sa ComfyUI požiada, aby uvoľnilo "
-            "svoje modely, a jazykový model sa pri ďalšej požiadavke nahrá sám."
-        ),
-        "How long to wait for one image, queue included. Far longer than any other timeout here, because the thing being waited for genuinely takes that long.": (
-            "Ako dlho čakať na jeden obrázok, vrátane radu. Oveľa dlhšie než "
-            "akýkoľvek iný limit tu, pretože to, na čo sa čaká, naozaj tak dlho trvá."
-        ),
-        "What every picture is drawn with unless the model names otherwise. Leave a box empty to use the built-in value shown beside it — the built-ins are SD1.5-era, and 512×512 on an SDXL checkpoint is what produces the duplicated limbs.": (
-            "S čím sa kreslí každý obrázok, ak model neuvedie inak. Prázdne pole "
-            "použije zabudovanú hodnotu uvedenú vedľa — zabudované sú z éry SD1.5 a "
-            "512×512 na SDXL checkpointe je presne to, čo vytvára zdvojené končatiny."
-        ),
-        "One filename per line, exactly as ComfyUI spells it. This is the list the model chooses from, so leaving out a checkpoint is how you stop it being used. Press Test below to read them off ComfyUI — that fills this in the first time and never overwrites it afterwards.": (
-            "Jeden názov súboru na riadok, presne ako ho píše ComfyUI. Toto je zoznam, "
-            "z ktorého model vyberá, takže vynechanie checkpointu je spôsob, ako "
-            "zabrániť jeho použitiu. Stlačením Overiť nižšie sa prečítajú z ComfyUI — "
-            "prvý raz to toto pole vyplní a potom ho už nikdy neprepíše."
-        ),
-        "Where ComfyUI is listening. An address on this machine or this network is fine here and is not checked against the request-forgery rules — you typed it, unlike an address a model asks for.": (
-            "Kde ComfyUI počúva. Adresa na tomto stroji alebo v tejto sieti je tu v "
-            "poriadku a neporovnáva sa s pravidlami proti falšovaniu požiadaviek — "
-            "napísali ste ju vy, na rozdiel od adresy, ktorú si vyžiada model."
-        ),
         "Lowercase letters, digits, hyphens and underscores. This is what the model writes when it picks this workflow.": (
             "Malé písmená, číslice, spojovníky a podčiarkovníky. Toto model napíše, keď "
             "si tento postup vyberie."
         ),
-        "Used when the model names no template and the chat has no preference.": (
-            "Použije sa, keď model neuvedie šablónu a konverzácia nemá preferenciu."
-        ),
-        "Used when the model does not write one of its own. It writes one often, so this is a floor rather than something always applied — “always add these words” belongs in the instructions below, where the model is told to include them.": (
-            "Použije sa, keď si model nenapíše vlastný. Píše si ho často, takže je to "
-            "skôr spodná hranica než niečo, čo sa použije vždy — „vždy pridaj tieto "
-            "slová“ patrí do pokynov nižšie, kde sa modelu povie, aby ich zahrnul."
-        ),
         "Used by chats on this model that have no prompt of their own. A chat's own prompt overrides this; this overrides the instance prompt.": (
             "Použijú ho konverzácie na tomto modeli, ktoré nemajú vlastný pokyn. Vlastný "
             "pokyn konverzácie toto prebíja; toto prebíja pokyn instancie."
-        ),
-        "Prefer the SDXL template for anything photographic.": (
-            "Na čokoľvek fotografické použi šablónu SDXL."
         ),
         "Photographic and slow. Best for people, interiors and product shots at 1024px.": (
             "Fotografický a pomalý. Najlepší na ľudí, interiéry a produktové zábery "
@@ -1152,13 +1043,6 @@ MESSAGES.update(
             "Zatiaľ žiadne servery. Budete potrebovať URL endpointu MCP, ktorý hovorí "
             "streamable HTTP — lokálne, spúšťané ako podproces, nie sú podporované."
         ),
-        "No workflows yet. One is needed before anything can be drawn; the default one is filled in for you when you add the first.": (
-            "Zatiaľ žiadne postupy. Jeden je potrebný, aby sa dalo niečo nakresliť; "
-            "predvolený sa vyplní sám, keď pridáte prvý."
-        ),
-        "Nothing configured yet. Add a connection above and its models appear here.": (
-            "Zatiaľ nič nastavené. Pridajte spojenie vyššie a jeho modely sa tu zobrazia."
-        ),
         "Nothing known about the remote yet. Check it above.": (
             "O vzdialenej strane sa zatiaľ nič nevie. Overte ju vyššie."
         ),
@@ -1184,12 +1068,6 @@ MESSAGES.update(
         "What the interface is in for anybody who has not chosen for themselves. Everyone can pick their own under Appearance in their settings, and that choice wins here.": (
             "V akom jazyku je rozhranie pre každého, kto si nevybral sám. Každý si môže "
             "vybrať vlastný v nastaveniach pod Vzhľad a tá voľba tu vyhráva."
-        ),
-        "Two endpoints speaking the OpenAI audio API: one that turns speech into text so a message can be dictated, one that reads a reply out. They are configured separately because they usually are separate servers — whisper.cpp and Kokoro, say, or Speaches for both.": (
-            "Dva endpointy hovoriace zvukovým API OpenAI: jeden premieňa reč na text, "
-            "aby sa dala správa nadiktovať, druhý odpoveď prečíta. Nastavujú sa "
-            "oddelene, pretože to obyčajne sú oddelené servery — napríklad whisper.cpp "
-            "a Kokoro, alebo Speaches na oboje."
         ),
         "Uncheck to restrict this model to chosen groups. Administrators always have access.": (
             "Odškrtnutím obmedzíte tento model na vybrané skupiny. Správcovia majú "
@@ -1245,21 +1123,12 @@ MESSAGES.update(
         "with tools": "s nástrojmi",
         # Sent to an endpoint or typed verbatim: not prose.
         "embeddings": "embeddings",
-        "euler (built-in)": "euler (zabudovaný)",
-        "normal (built-in)": "normal (zabudovaný)",
-        "text, watermark": "text, watermark",
-        "sd_xl_base_1.0.safetensors": "sd_xl_base_1.0.safetensors",
         "sdxl-photo": "sdxl-photo",
         "data.items.0.title": "data.items.0.title",
         "github": "github",
         "weather": "weather",
         "wt-wt": "wt-wt",
         "sk-…": "sk-…",
-        "tts-1": "tts-1",
-        "whisper-1": "whisper-1",
-        "http://127.0.0.1:8081": "http://127.0.0.1:8081",
-        "http://127.0.0.1:8188": "http://127.0.0.1:8188",
-        "http://127.0.0.1:8880": "http://127.0.0.1:8880",
         "http://127.0.0.1:8888": "http://127.0.0.1:8888",
         "http://localhost:1234/v1": "http://localhost:1234/v1",
         "https://api.firecrawl.dev": "https://api.firecrawl.dev",
@@ -1775,8 +1644,6 @@ MESSAGES.update(
         "Last checked %(when)s UTC": "Naposledy overené %(when)s UTC",
         "Never checked": "Ešte neoverené",
         "Delete the connection “%(name)s”? Existing chats keep their history.": "Zmazať spojenie „%(name)s“? Existujúce konverzácie si históriu ponechajú.",
-        "Your list above was left alone. What ComfyUI has:": "Váš zoznam vyššie zostal nezmenený. Čo má ComfyUI:",
-        "Filled in above:": "Doplnené vyššie:",
         "Groups & permissions": "Skupiny a oprávnenia",
         "1 tool": "1 nástroj",
         "%(n)s tools": "nástroje: %(n)s",
@@ -1793,18 +1660,7 @@ MESSAGES.update(
         "<strong>Asking another model a question uses the same switch and the same allowance below</strong>, because it costs the same thing: one reply setting another reply going. Which people may do it is a separate permission — <strong>%(permission)s</strong> — and which models may is a switch on each model's own page.": "<strong>Otázka pre iný model používa ten istý prepínač a ten istý limit nižšie</strong>, pretože stojí to isté: jedna odpoveď spúšťa ďalšiu. Ktorí ľudia to smú, určuje samostatné oprávnenie — <strong>%(permission)s</strong> — a ktoré modely, prepínač na stránke každého modelu.",
         'People also need the <strong>%(permission)s</strong> permission, and the model needs the <strong>%(capability)s</strong> capability. Off by default: a reply that spawns subagents spends model time multiplicatively, and on one local endpoint four at once is four times the queue rather than four times the speed.': 'Ľudia potrebujú aj oprávnenie <strong>%(permission)s</strong> a model schopnosť <strong>%(capability)s</strong>. Predvolene vypnuté: odpoveď, ktorá spúšťa podagentov, míňa čas modelu násobne a na jednom lokálnom endpointe sú štyria naraz štvornásobný rad, nie štvornásobná rýchlosť.',
         'Seconds. Past it the subagent is <em>stopped</em>, not abandoned: what it had written is kept and handed back with a note saying it is partial.': 'Sekundy. Potom sa podagent <em>zastaví</em>, no neopustí: čo stihol napísať, sa ponechá a odovzdá s poznámkou, že je to neúplné.',
-        "Where <code>/v1/audio/transcriptions</code> lives — whisper.cpp's <code>whisper-server</code>, Speaches, or anything else speaking it. With or without <code>/v1</code>; either is understood.": "Kde sa nachádza <code>/v1/audio/transcriptions</code> — <code>whisper-server</code> z whisper.cpp, Speaches alebo čokoľvek iné, čo ho podporuje. S <code>/v1</code> aj bez; rozumie sa obom.",
-        "None needed for a local server": "Pre lokálny server netreba",
-        "A server hosting one model <strong>ignores this</strong> and uses whatever it was started with — <code>whisper-1</code> is then just a label. It only selects anything on a server that hosts several.": "Server s jedným modelom <strong>toto ignoruje</strong> a použije to, s čím bol spustený — <code>whisper-1</code> je potom len označenie. Niečo vyberá len na serveri, ktorý ich má niekoľko.",
-        "An ISO code such as <code>en</code> or <code>sk</code>. Leave empty to let the server detect it, which is what whisper does best.": "Kód ISO, napríklad <code>en</code> alebo <code>sk</code>. Nechajte prázdne a server jazyk rozpozná sám, čo whisper vie najlepšie.",
-        "Test dictation": "Otestovať diktovanie",
-        "Read aloud": "Čítanie nahlas",
-        "Where <code>/v1/audio/speech</code> lives — Kokoro-FastAPI, OpenAI, or anything else speaking it.": "Kde sa nachádza <code>/v1/audio/speech</code> — Kokoro-FastAPI, OpenAI alebo čokoľvek iné, čo ho podporuje.",
-        "Could not read the voice list: %(error)s": "Zoznam hlasov sa nepodarilo načítať: %(error)s",
-        "Read from the endpoint. Save and test to refresh it.": "Načítané z endpointu. Obnovíte ho uložením a otestovaním.",
-        "Test speech": "Otestovať reč",
         "Add and load models": "Pridať a načítať modely",
-        "Configured connections": "Nastavené spojenia",
         "Extraction and search": "Extrakcia a vyhľadávanie",
         "One extension per line, <code>.env</code> or <code>env</code>. Only needed to pick a media type — whether the bytes decode as text is what actually decides, so an unlisted extension already works.": "Jedna prípona na riadok, <code>.env</code> alebo <code>env</code>. Treba ju len na výber typu média — v skutočnosti rozhoduje, či sa bajty dajú dekódovať ako text, takže aj neuvedená prípona už funguje.",
         "Keyword search finds a document that uses your words. This finds one that means the same thing — <em>\"how do I get in\"</em> reaching a note about passwords. Both run and the two rankings are fused, so nothing that keyword search found is lost.": "Vyhľadávanie podľa kľúčových slov nájde dokument, ktorý používa vaše slová. Toto nájde taký, ktorý znamená to isté — <em>„ako sa dostanem dnu“</em> nájde poznámku o heslách. Bežia obe a ich poradia sa zlúčia, takže nič, čo našlo vyhľadávanie podľa kľúčových slov, sa nestratí.",
@@ -1825,16 +1681,7 @@ MESSAGES.update(
         "+1 permission": "+1 oprávnenie",
         "+%(n)s permissions": "oprávnenia: +%(n)s",
         "Create group": "Vytvoriť skupinu",
-        "Who may use it is a permission — <code>tools.image</code> under Groups &amp; permissions. Which models may is a checkbox on each model.": "Kto ho smie používať, určuje oprávnenie — <code>tools.image</code> v časti Skupiny a oprávnenia. Ktoré modely, určuje začiarkavacie políčko pri každom modeli.",
         "Currently <code>%(masked)s</code>. Leave the dots alone to keep it, or clear the field to remove it.": "Teraz <code>%(masked)s</code>. Bodky nechajte tak, ak ho chcete ponechať, alebo pole vymažte a odstráni sa.",
-        "Only needed if something sits in front of ComfyUI. Encrypted at rest.": "Treba ho len vtedy, ak je niečo pred ComfyUI. Uložený zašifrovaný.",
-        "Test & read what it has": "Otestovať a načítať, čo má",
-        "%(name)s (not in this ComfyUI's list)": "%(name)s (nie je v zozname tohto ComfyUI)",
-        "Press <strong>%(button)s</strong> above to fill the sampler and scheduler lists from your ComfyUI.": "Stlačte <strong>%(button)s</strong> vyššie a zoznamy vzorkovačov a plánovačov sa naplnia z vášho ComfyUI.",
-        "Both are on, so every retry costs two model loads — one to review, one to generate again. That is the slow combination; consider two attempts rather than %(n)s.": "Obe sú zapnuté, takže každý ďalší pokus stojí dve načítania modelu — jedno na kontrolu, jedno na nové generovanie. To je pomalá kombinácia; zvážte dva pokusy namiesto %(n)s.",
-        "Added to what every model is told about image generation, on this instance. Where “always put <em>%(example)s</em> in the negative prompt” lives. Leave it empty and nothing is added at all.": "Pridá sa k tomu, čo sa každý model v tejto inštancii dozvie o generovaní obrázkov. Sem patrí „do negatívneho pokynu vždy dajte <em>%(example)s</em>“. Ak to necháte prázdne, nepridá sa nič.",
-        "A workflow is a ComfyUI graph exported with <strong>%(menu)s</strong>, with <code>&lbrace;&lbrace;prompt&rbrace;&rbrace;</code> and the other placeholders where the values go. The model picks between them by their descriptions, so write the description for a reader who cannot see the graph.": "Pracovný postup je graf ComfyUI exportovaný cez <strong>%(menu)s</strong>, s <code>&lbrace;&lbrace;prompt&rbrace;&rbrace;</code> a ďalšími zástupnými symbolmi tam, kam patria hodnoty. Model si medzi nimi vyberá podľa popisov, takže popis píšte pre čitateľa, ktorý graf nevidí.",
-        "Add a workflow": "Pridať pracovný postup",
         "Remote servers speaking the Model Context Protocol over HTTP. Their tools are offered beside the built-in ones to models marked <strong>%(mcp)s</strong>. The list of tools is discovered and cached — press <strong>%(button)s</strong> after adding one, and again whenever the server changes.": "Vzdialené servery, ktoré hovoria protokolom Model Context Protocol cez HTTP. Ich nástroje sa ponúkajú popri vstavaných modelom označeným <strong>%(mcp)s</strong>. Zoznam nástrojov sa zisťuje a ukladá do vyrovnávacej pamäte — po pridaní servera stlačte <strong>%(button)s</strong> a znova vždy, keď sa server zmení.",
         "Add a server": "Pridať server",
         "New server": "Nový server",
@@ -1869,7 +1716,6 @@ MESSAGES.update(
         "Built-in tools": "Vstavané nástroje",
         "What this model is given, as opposed to what it is capable of. None of it applies unless <strong>tools</strong> is ticked above. Each one is also subject to the instance being configured for it and to the reader's own permissions — this only decides whether it is offered to <em>this</em> model.": "Čo tento model dostane, na rozdiel od toho, čoho je schopný. Nič z toho neplatí, kým vyššie nie je zaškrtnuté <strong>tools</strong>. Každý nástroj navyše závisí od toho, či je preň instancia nastavená, a od oprávnení samotného používateľa — toto rozhoduje len o tom, či sa ponúkne <em>tomuto</em> modelu.",
         "Back to all models": "Späť na všetky modely",
-        "Every model discovered across your connections. The order here is the order users see in the picker. <strong>Pinning</strong> does not reorder anything — it puts a shortcut in the chat sidebar. The <strong>default</strong> is what a new chat starts with.": "Všetky modely nájdené vo vašich spojeniach. Poradie tu je poradie, v akom ich používatelia vidia vo výbere. <strong>Pripnutie</strong> poradie nemení — pridá skratku do bočného panela konverzácií. <strong>Predvolený</strong> model je ten, s ktorým začína nová konverzácia.",
         "No models yet. <a href=\"/admin/connections\">Add a connection</a> and run “%(button)s”.": "Zatiaľ žiadne modely. <a href=\"/admin/connections\">Pridajte spojenie</a> a spustite „%(button)s“.",
         "Clear": "Vymazať",
         "Select %(name)s": "Vybrať %(name)s",
@@ -2049,13 +1895,11 @@ MESSAGES.update(
         "Heard \"%(text)s\".": "Počuté: „%(text)s“.",
         "Heard nothing, as expected.": "Nebolo nič počuť, ako sa očakávalo.",
         "The endpoint answered. %(heard)s": "Endpoint odpovedal. %(heard)s",
-        "Unknown endpoint.": "Neznámy endpoint.",
         "No such data group.": "Taká dátová oblasť neexistuje.",
         "A data group needs a name.": "Dátová oblasť potrebuje názov.",
         "Extraction saved.": "Extrakcia uložená.",
         "Search saved.": "Hľadanie uložené.",
         "Search saved. Rebuild the index to use the new model.": "Hľadanie uložené. Aby sa použil nový model, znova zostavte index.",
-        "Set a base URL first.": "Najprv nastavte základnú URL.",
         "Found 1 checkpoint, %(samplers)s samplers and %(schedulers)s schedulers.": "Nájdený 1 checkpoint; vzorkovače: %(samplers)s, plánovače: %(schedulers)s.",
         "Found %(checkpoints)s checkpoints, %(samplers)s samplers and %(schedulers)s schedulers.": "Nájdené checkpointy: %(checkpoints)s, vzorkovače: %(samplers)s, plánovače: %(schedulers)s.",
         "That workflow no longer exists.": "Ten pracovný postup už neexistuje.",
@@ -2076,7 +1920,6 @@ MESSAGES.update(
         "All": "Všetky",
         "Enabled": "Zapnuté",
         "Disabled": "Vypnuté",
-        "Pinned": "Pripnuté",
         "Restricted": "Obmedzené",
         "%(n)s model(s) updated.": "Aktualizované modely: %(n)s.",
         "This model's template accepts: %(efforts)s.": "Šablóna tohto modelu prijíma: %(efforts)s.",
@@ -2481,14 +2324,6 @@ MESSAGES.update(
     {
         "More for the folder %(name)s": "Ďalšie pre zložku %(name)s",
         "Price": "Cena",
-        "Speech to text, per minute": "Prevod reči na text, za minútu",
-        "Per minute of recording, by the length the server reports, or the recording's own.": "Za minútu nahrávky podľa dĺžky, ktorú hlási server, inak podľa samotnej nahrávky.",
-        "Text to speech, per million characters": "Prevod textu na reč, za milión znakov",
-        "Per character read aloud.": "Za každý prečítaný znak.",
-        "Price and the API": "Cena a API",
-        "Per picture": "Za obrázok",
-        "Most pictures per API request": "Najviac obrázkov na jednu požiadavku API",
-        "The largest n a program may ask /v1/images/generations for. Each is a full generation.": "Najväčšie n, o ktoré môže program požiadať /v1/images/generations. Každý obrázok je samostatné generovanie.",
         "Chat models answer through the API's chat completions; embedding models only through its embeddings. A model saved before this existed answers both until it is set.": "Konverzačné modely odpovedajú cez chat completions v API, modely vnorení iba cez jeho embeddings. Model uložený pred zavedením tohto nastavenia odpovedá na oboje, kým sa nenastaví.",
         "Cost": "Náklady",
     }
@@ -2679,7 +2514,6 @@ MESSAGES['The preset is what a new chat in this group may reach until its person
 MESSAGES['%(failed)s did not answer (%(reason)s), so %(answered)s answered instead.'] = '%(failed)s neodpovedal (%(reason)s), a tak namiesto neho odpovedal %(answered)s.'
 MESSAGES['%(ms)s ms'] = '%(ms)s ms'
 MESSAGES['%(name)s: balance read.'] = '%(name)s: zostatok načítaný.'
-MESSAGES['A connection is one provider: a server of your own that speaks the OpenAI API (llama.cpp, llama-swap, vLLM, Ollama, LM Studio), or OpenAI, Anthropic, DeepSeek or OpenRouter. %(brand)s asks each one for its model list and offers those models in the chat picker.'] = 'Pripojenie je jeden poskytovateľ: vlastný server, ktorý hovorí API OpenAI (llama.cpp, llama-swap, vLLM, Ollama, LM Studio), alebo OpenAI, Anthropic, DeepSeek či OpenRouter. %(brand)s sa každého opýta na zoznam modelov a ponúkne ich vo výbere modelu v chate.'
 MESSAGES['Add a fallback model'] = 'Pridať záložný model'
 MESSAGES['Add a fallback model…'] = 'Pridať záložný model…'
 MESSAGES['An admin key from the provider, used only to read what the account has spent. Never used for a reply; a reply never fails on it.'] = 'Administrátorský kľúč od poskytovateľa, použitý len na čítanie toho, koľko účet minul. Nikdy sa nepoužije na odpoveď a odpoveď kvôli nemu nikdy nezlyhá.'
@@ -2705,14 +2539,12 @@ MESSAGES['Nothing at that address answered like a model server.'] = 'Na tej adre
 MESSAGES['Nothing reported.'] = 'Nič neuvedené.'
 MESSAGES['OpenAI-compatible (llama.cpp, llama-swap, vLLM, Ollama, LM Studio)'] = 'Kompatibilné s OpenAI (llama.cpp, llama-swap, vLLM, Ollama, LM Studio)'
 MESSAGES["OpenRouter's answer had no credits in it."] = 'Odpoveď OpenRoutera neobsahovala žiadny kredit.'
-MESSAGES['Paste an address and press Detect: the type is found for you, and what it says about its models is filled in.'] = 'Vložte adresu a stlačte Zistiť: typ sa nájde sám a doplní sa, čo server o svojich modeloch hovorí.'
 MESSAGES['Spent at the provider, last 30 days'] = 'Minuté u poskytovateľa za posledných 30 dní'
 MESSAGES['The address could not be asked.'] = 'Na adresu sa nepodarilo opýtať.'
 MESSAGES['The endpoint says %(n)s tokens (%(source)s). A number typed here wins over it; empty follows the endpoint.'] = 'Endpoint uvádza %(n)s tokenov (%(source)s). Číslo zadané tu má prednosť; prázdne sa riadi endpointom.'
 MESSAGES['The key was refused for this.'] = 'Kľúč bol na toto odmietnutý.'
 MESSAGES['The provider did not answer with a balance.'] = 'Poskytovateľ neodpovedal zostatkom.'
 MESSAGES["The provider's own figure. A reply's cost here is this instance's estimate from the model's prices, or the provider's when it reports one."] = 'Vlastné číslo poskytovateľa. Cena odpovede je tu odhad tejto inštancie podľa cien modelu, alebo cena poskytovateľa, ak ju uvádza.'
-MESSAGES['The type carries what differs between providers — how usage, cached tokens and reasoning are sent and read, and where a balance is found — so none of it has to be set by hand.'] = 'Typ nesie to, čím sa poskytovatelia líšia — ako sa posiela a číta využitie, tokeny z vyrovnávacej pamäte a uvažovanie a kde sa nájde zostatok —, takže nič z toho netreba nastavovať ručne.'
 MESSAGES['This needs an admin key from the provider (the billing key).'] = 'Na toto treba administrátorský kľúč od poskytovateľa (kľúč na vyúčtovanie).'
 MESSAGES['This provider has no balance to read.'] = 'Tento poskytovateľ nemá zostatok, ktorý by sa dal načítať.'
 MESSAGES['Time to answer the last check'] = 'Čas odpovede pri poslednej kontrole'
@@ -2954,13 +2786,11 @@ MESSAGES['with %(count)s earlier versions'] = 's %(count)s staršími verziami'
 # --- 2.0: files, memory and money in place of the library and credits ---------
 MESSAGES["Its models read only this group's memories, and a chat started on one of them stays in it. Moving a connection does not move any data: it starts reading the other group."] = 'Jeho modely čítajú len pamäť tejto oblasti a konverzácia začatá na niektorom z nich v nej zostáva. Presunutie spojenia nepresúva žiadne dáta: začne čítať druhú oblasť.'
 MESSAGES["A subagent cannot ask anybody anything, so nothing in its chat can stop for approval. It therefore gets only what this chat could already do <em>without</em> asking: it reads and searches files and the web, and the general kind writes what the chat may write. It cannot send subagents of its own; it can message the main agent, and be messaged, while it works. <strong>%(mode)s</strong> is not inherited: a subagent's task text can have come from a page it read."] = 'Podagent sa nemôže nikoho na nič spýtať, takže nič v jeho konverzácii sa nemôže zastaviť kvôli schváleniu. Dostane preto len to, čo táto konverzácia už smie <em>bez</em> pýtania: číta a vyhľadáva v súboroch a na webe a druh general píše to, čo smie písať konverzácia. Vlastných podagentov posielať nemôže; počas práce môže písať hlavnému agentovi a ten jemu. Režim <strong>%(mode)s</strong> sa nededí: text úlohy podagenta mohol prísť zo stránky, ktorú si prečítal.'
-MESSAGES['What speech costs, in %(currency)s — in the browser and through the API alike. 0 is free, which is what a server of your own usually is.'] = 'Koľko stojí reč v mene %(currency)s — v prehliadači aj cez API rovnako. 0 je zadarmo, čo je zvyčajne prípad vlastného servera.'
 MESSAGES["A data group keeps one provider's models away from the data another provider's models have been given. Every connection is in one group. Its models read only that group's memories and personalities, and a chat stays in the group it was started in."] = 'Dátová oblasť drží modely jedného poskytovateľa ďalej od dát, ktoré dostali modely iného poskytovateľa. Každé spojenie patrí do jednej oblasti. Jeho modely čítajú len pamäť a osobnosti tejto oblasti a konverzácia zostáva v oblasti, v ktorej začala.'
 MESSAGES['Prices'] = 'Ceny'
 MESSAGES['API only switches off chats, agent chats, scheduled tasks and the MCP server; the API, device sign-in, Settings and Admin keep working.'] = 'Režim Len API vypne konverzácie, agentové konverzácie, naplánované úlohy a server MCP; API, prihlasovanie zariadení, Nastavenia a Administrácia fungujú ďalej.'
 MESSAGES['Several tools can be called in one round, so this is not a count of tools. Leave room for at least two: <code>search</code> finds a passage and <code>read</code> reads the file around it, so a ceiling of one leaves files searchable and not readable. <code>0</code> means no ceiling, which is how an agent chat already works — those are bounded under <a href="/admin/agents">Agents</a> by time and tokens instead.'] = 'V jednom kole sa dá zavolať niekoľko nástrojov, takže to nie je počet nástrojov. Nechajte priestor aspoň na dve: <code>search</code> nájde pasáž a <code>read</code> prečíta súbor okolo nej, takže strop jedna nechá súbory prehľadávateľné, ale nečitateľné. <code>0</code> znamená bez stropu, tak už funguje konverzácia s agentom — tie sú namiesto toho obmedzené časom a tokenmi v časti <a href="/admin/agents">Agenti</a>.'
 MESSAGES['A temporary chat is not listed in the sidebar, may read files and memories but cannot change anything — no files, memories, skills or schedules — and is deleted when its time is up. Keep this chat turns one into an ordinary chat.'] = 'Dočasná konverzácia nie je v bočnom paneli, smie čítať súbory a pamäť, ale nič nezmení — žiadne súbory, pamäť, schopnosti ani plány — a keď jej čas uplynie, zmaže sa. „Ponechať konverzáciu“ z nej urobí obyčajnú.'
-MESSAGES['What one picture costs, in a chat or through the API. 0 is free.'] = 'Koľko stojí jeden obrázok, v konverzácii aj cez API. 0 je zadarmo.'
 MESSAGES['%d %B %Y'] = '%d. %B %Y'
 MESSAGES["What a reply on this model costs, in %(currency)s. Per million tokens, except per reply. Each reply's cost is worked out when it is written and kept with it, so a new price does not change old replies. Leave everything empty to make it free — a local model, say."] = 'Koľko stojí odpoveď tohto modelu v mene %(currency)s. Za milión tokenov, okrem ceny za odpoveď. Cena každej odpovede sa vypočíta, keď sa zapíše, a zostane uložená pri nej, takže nová cena staré odpovede nezmení. Ak necháte všetko prázdne, model je zadarmo — napríklad lokálny model.'
 MESSAGES['Delete %(email)s? Their chats and folders go with them.'] = 'Zmazať %(email)s? Spolu s účtom zmiznú aj jeho konverzácie a priečinky.'
@@ -3476,7 +3306,6 @@ MESSAGES.update(
 # Media from connections: speech and pictures a connection carries itself.
 MESSAGES.update(
     {
-        'Speech and pictures': 'Reč a obrázky',
         "Use this connection's own speech models for its chats": 'Pre chaty na tomto spojení používať jeho vlastné modely reči',
         "Use this connection's own image model for its chats": 'Pre chaty na tomto spojení používať jeho vlastný obrázkový model',
         'On': 'Zap.',
@@ -3487,16 +3316,7 @@ MESSAGES.update(
         'per minute': 'za minútu',
         'per 1M characters': 'za 1 mil. znakov',
         'per picture': 'za obrázok',
-        "A chat whose model is on this connection uses these when the switch above is on and a model of that kind is ticked — the first ticked one. Otherwise, and once when this connection's own does not answer, the instance's default under Audio and Image generation is used; the result says which answered. A chat on another connection is never sent here unless you make one of these the default there. To remove a model, clear its id.": 'Chat, ktorého model je na tomto spojení, ich používa, keď je prepínač vyššie zapnutý a model daného druhu zaškrtnutý — prvý zaškrtnutý. Inak, a raz aj vtedy, keď vlastný model tohto spojenia neodpovie, sa použije predvolený zdroj inštancie zo stránok Zvuk a Generovanie obrázkov; výsledok povie, ktorý odpovedal. Chat na inom spojení sa sem nikdy neposiela, pokiaľ niektorý z týchto modelov sami nenastavíte tam ako predvolený. Model odstránite vymazaním jeho id.',
         "On a plan this is for a person's own turns only — dictation, a reply they asked to hear, a picture inside their own reply — never for scheduled work or a personal API key, and it is counted, not priced.": 'Na predplatenom pláne je to len pre vlastné ťahy človeka — diktovanie, odpoveď, ktorú si dal prečítať, obrázok vo vlastnej odpovedi — nikdy pre naplánovanú prácu ani osobný API kľúč, a počíta sa, neoceňuje.',
-        'These are the <strong>defaults</strong>, for connections without speech models of their own. A connection can carry its own under <a href="/admin/connections">Connections</a>; a chat on it then uses those, and comes back here once if they do not answer.': 'Toto sú <strong>predvolené</strong> zdroje pre spojenia bez vlastných modelov reči. Spojenie môže mať vlastné na stránke <a href="/admin/connections">Spojenia</a>; chat na ňom potom používa tie a sem sa vráti raz, ak neodpovedia.',
-        'Default source': 'Predvolený zdroj',
-        'The endpoint below': 'Koncový bod nižšie',
-        "A connection's own model can be the default instead of the endpoint below. Chats on every connection without its own are then sent there, so choose a cloud one only on purpose.": 'Predvoleným zdrojom môže byť namiesto koncového bodu nižšie vlastný model niektorého spojenia. Chaty na každom spojení bez vlastného sa potom posielajú tam, takže cloudový vyberte len zámerne.',
-        "These are the endpoints' prices; a connection's own model has its price beside it.": 'Toto sú ceny koncových bodov; vlastný model spojenia má cenu pri sebe.',
-        'What is set on this page is the <strong>default</strong>, for connections without an image model of their own. A connection can carry its own under <a href="/admin/connections">Connections</a>; a chat on it then draws with that, and comes back here once if it does not answer.': 'Čo je nastavené na tejto stránke, je <strong>predvolený</strong> zdroj pre spojenia bez vlastného obrázkového modelu. Spojenie môže mať vlastný na stránke <a href="/admin/connections">Spojenia</a>; chat na ňom potom kreslí ním a sem sa vráti raz, ak neodpovie.',
-        'The ComfyUI below': 'ComfyUI nižšie',
-        "A connection's own model can be the default instead of the ComfyUI. Chats on every connection without its own are then sent there, so choose a cloud one only on purpose. Workflows, checkpoints, review and the price below belong to the ComfyUI.": 'Predvoleným zdrojom môže byť namiesto ComfyUI vlastný model niektorého spojenia. Chaty na každom spojení bez vlastného sa potom posielajú tam, takže cloudový vyberte len zámerne. Workflowy, checkpointy, kontrola a cena nižšie patria ku ComfyUI.',
         'QwenCloud, Singapore': 'QwenCloud, Singapur',
         'QwenCloud, US (Virginia)': 'QwenCloud, USA (Virgínia)',
         'QwenCloud, Germany (Frankfurt)': 'QwenCloud, Nemecko (Frankfurt)',
@@ -3519,11 +3339,6 @@ MESSAGES.update(
         "Read by %(source)s: this chat's own speech model did not answer.": 'Prečítal %(source)s: vlastný model reči tohto chatu neodpovedal.',
     }
 )
-MESSAGES["Prices are in this connection's currency."] = 'Ceny sú v mene tohto spojenia.'
-MESSAGES['%(model)s (no longer available)'] = '%(model)s (už nie je k dispozícii)'
-MESSAGES['The default source chosen here is no longer available, so nothing is served by default. Choose another, or the endpoint.'] = 'Predvolený zdroj vybraný tu už nie je k dispozícii, takže predvolene neslúži nič. Vyberte iný alebo koncový bod.'
-MESSAGES['The default serves chats in every data group, whichever group its connection is in.'] = 'Predvolený zdroj slúži chatom v každej dátovej oblasti, nech je jeho spojenie v ktorejkoľvek.'
-MESSAGES['%(name)s was the default source under Audio or Image generation. Choose another there: until then nothing is served by default.'] = '%(name)s bolo predvoleným zdrojom na stránke Zvuk alebo Generovanie obrázkov. Vyberte tam iný: dovtedy predvolene neslúži nič.'
 MESSAGES["The endpoint's answer is larger than this server reads."] = 'Odpoveď koncového bodu je väčšia, než tento server číta.'
 MESSAGES['The image endpoint returned something that is not a picture.'] = 'Koncový bod pre obrázky vrátil niečo, čo nie je obrázok.'
 MESSAGES['The picture is larger than this instance stores.'] = 'Obrázok je väčší, než táto inštancia ukladá.'
@@ -3624,3 +3439,176 @@ MESSAGES['This model keeps its data in other files, which cannot be read here. I
 MESSAGES['This browser cannot draw 3D here.'] = 'Tento prehliadač tu nevie kresliť 3D.'
 MESSAGES['Drag to turn it, scroll to zoom.'] = 'Ťahaním ho otočíte, kolieskom priblížite.'
 MESSAGES['Only part of this model is drawn.'] = 'Vykreslená je len časť tohto modelu.'
+
+# --- The unified Connections, Models and Media pages (2.x): 171 strings ---
+MESSAGES['Test'] = 'Otestovať'
+MESSAGES['Media'] = 'Médiá'
+MESSAGES['%(name)s is on. Switch it off — applies at once.'] = 'Model %(name)s je zapnutý. Vypnúť — prejaví sa ihneď.'
+MESSAGES['%(name)s is off. Switch it on — applies at once.'] = 'Model %(name)s je vypnutý. Zapnúť — prejaví sa ihneď.'
+MESSAGES['Applies at once'] = 'Prejaví sa ihneď'
+MESSAGES['Off'] = 'Vyp.'
+MESSAGES['Sections'] = 'Časti'
+MESSAGES['Where it is'] = 'Kde je'
+MESSAGES['Enabled — its models are offered'] = 'Zapnuté — jeho modely sa ponúkajú'
+MESSAGES['Options'] = 'Možnosti'
+MESSAGES['Longest generation, in seconds'] = 'Najdlhšie generovanie, v sekundách'
+MESSAGES['A generation is tens of seconds, and a queue in front of it can be minutes. After this long the reply stops waiting.'] = 'Generovanie trvá desiatky sekúnd a rad pred ním môže trvať minúty. Po tomto čase odpoveď prestane čakať.'
+MESSAGES["Preserve VRAM: unload the chat's model while this ComfyUI draws"] = 'Šetriť VRAM: uvoľniť model konverzácie, kým toto ComfyUI kreslí'
+MESSAGES["For a machine that cannot hold a chat model and a checkpoint at once. The chat's connection is asked to unload (its Unload URL), and the ComfyUI is freed afterwards. It makes every picture slower; leave it off where there is memory for both."] = 'Pre stroj, ktorý neudrží model konverzácie a checkpoint naraz. Spojenie konverzácie sa požiada o uvoľnenie (jeho URL na uvoľnenie) a ComfyUI sa potom uvoľní. Každý obrázok to spomalí; nechajte vypnuté tam, kde je pamäť na oboje.'
+MESSAGES['What it was found to have'] = 'Čo sa uňho zistilo'
+MESSAGES['%(samplers)s samplers and %(schedulers)s schedulers. Its checkpoints are under Models. Test asks again.'] = 'Vzorkovače: %(samplers)s, plánovače: %(schedulers)s. Jeho checkpointy sú v časti Modely. Otestovať sa spýta znova.'
+MESSAGES["Everything this connection offers: the chat models it lists, and the speech and picture models added to it. A line opens the model's own page."] = 'Všetko, čo toto spojenie ponúka: modely na konverzáciu, ktoré vypisuje, a modely na reč a obrázky, ktoré k nemu boli pridané. Riadok otvorí vlastnú stránku modelu.'
+MESSAGES["A ComfyUI's models are its checkpoints. Refresh asks it which it has; a new one arrives switched off, so a list you narrowed stays narrow."] = 'Modely ComfyUI sú jeho checkpointy. Obnoviť sa ho spýta, ktoré má; nový pribudne vypnutý, takže zoznam, ktorý ste zúžili, zostane úzky.'
+MESSAGES["A speech server's models are the ids it is asked with: one that transcribes, one that reads aloud. They are typed, not found."] = 'Modely rečového servera sú id, pod ktorými sa volá: jedno prepisuje, jedno číta nahlas. Zadávajú sa ručne, nehľadajú sa.'
+MESSAGES['Refresh from the provider'] = 'Obnoviť od poskytovateľa'
+MESSAGES['No models here yet.'] = 'Zatiaľ tu nie sú žiadne modely.'
+MESSAGES['Add a model'] = 'Pridať model'
+MESSAGES['Capability'] = 'Schopnosť'
+MESSAGES['Model id'] = 'Id modelu'
+MESSAGES['As the provider spells it: the name sent with every request.'] = 'Ako ho píše poskytovateľ: názov posielaný s každou požiadavkou.'
+MESSAGES['This provider documents: %(models)s.'] = 'Tento poskytovateľ uvádza: %(models)s.'
+MESSAGES['Add model'] = 'Pridať model'
+MESSAGES['Speech and pictures for its own chats'] = 'Reč a obrázky pre jeho vlastné konverzácie'
+MESSAGES["A chat whose model is on this connection uses these when the switch is on and a model of that kind is ticked — the first ticked one. Otherwise, and once when this connection's own does not answer, the instance's default under Media is used; the result says which answered. A chat on another connection is never sent here unless you make one of these the default there."] = 'Konverzácia, ktorej model je na tomto spojení, ich používa, keď je prepínač zapnutý a je zaškrtnutý model toho druhu — prvý zaškrtnutý. Inak, a raz aj vtedy, keď vlastný model tohto spojenia neodpovie, sa použije predvolený model inštancie z časti Médiá; výsledok hovorí, ktorý odpovedal. Konverzácia na inom spojení sa sem nikdy nepošle, ak tam niektorý z týchto modelov nenastavíte ako predvolený.'
+MESSAGES['Its media models'] = 'Jeho modely pre médiá'
+MESSAGES["Ticked is on. A model's voice, options and price are on its own page; new ones are added under Models."] = 'Zaškrtnutý je zapnutý. Hlas, možnosti a cena modelu sú na jeho vlastnej stránke; nové sa pridávajú v časti Modely.'
+MESSAGES['None yet. Add a speech or picture model under Models.'] = 'Zatiaľ žiadne. Pridajte model na reč alebo obrázky v časti Modely.'
+MESSAGES['A workflow is a ComfyUI graph with holes where the prompt, the checkpoint and the numbers go. A model picks one by the name and description you give it.'] = 'Pracovný postup je graf ComfyUI s medzerami tam, kam patrí pokyn, checkpoint a čísla. Model si jeden vyberie podľa názvu a opisu, ktoré mu dáte.'
+MESSAGES['every ComfyUI'] = 'každé ComfyUI'
+MESSAGES['The first in the list'] = 'Prvý v zozname'
+MESSAGES['Used when neither the model nor the chat names one.'] = 'Použije sa, keď žiadny neurčí model ani konverzácia.'
+MESSAGES['No workflow yet. Without one this ComfyUI has nothing to draw with.'] = 'Zatiaľ žiadny pracovný postup. Bez neho toto ComfyUI nemá čím kresliť.'
+MESSAGES['Remove this connection'] = 'Odstrániť toto spojenie'
+MESSAGES['Its models go with it: %(chat)s listed and %(media)s added. Existing chats keep their history, and a chat on one of its models has to be moved to another model to go on.'] = 'Jeho modely zmiznú s ním: vypísané: %(chat)s, pridané: %(media)s. Existujúce konverzácie si ponechajú históriu; konverzáciu na niektorom z jeho modelov treba presunúť na iný model, aby mohla pokračovať.'
+MESSAGES['Its workflows stay, for every ComfyUI.'] = 'Jeho pracovné postupy zostanú, pre každé ComfyUI.'
+MESSAGES['One of its models is a default under Media. Removing it leaves that default pointing at nothing until you choose another there: nothing is quietly served in its place.'] = 'Jeden z jeho modelov je predvolený v časti Médiá. Po odstránení nebude táto predvolená voľba ukazovať na nič, kým tam nevyberiete inú: nič sa namiesto nej potichu nepoužije.'
+MESSAGES['Add connection'] = 'Pridať spojenie'
+MESSAGES['What kind of connection'] = 'Aký druh spojenia'
+MESSAGES['What is at the address? The kind decides which questions the form asks, and what the connection can offer.'] = 'Čo je na tej adrese? Druh určuje, na čo sa formulár pýta a čo spojenie môže ponúknuť.'
+MESSAGES['http://workstation:8188'] = 'http://workstation:8188'
+MESSAGES['http://workstation:8000/v1'] = 'http://workstation:8000/v1'
+MESSAGES['Where the ComfyUI answers, without a path. Its checkpoints, samplers and schedulers are asked for as soon as it is added.'] = 'Kde ComfyUI odpovedá, bez cesty. Na jeho checkpointy, vzorkovače a plánovače sa spýtame hneď po pridaní.'
+MESSAGES['The address whose <code>/audio/transcriptions</code> and <code>/audio/speech</code> are asked, usually ending in <code>/v1</code>. One server may do both, or only one.'] = 'Adresa, ktorej <code>/audio/transcriptions</code> a <code>/audio/speech</code> sa volajú, obyčajne končiaca na <code>/v1</code>. Jeden server môže vedieť oboje, alebo len jedno.'
+MESSAGES['Speech'] = 'Reč'
+MESSAGES["A connection is anything this instance reaches at an address: a provider of chat models, a ComfyUI that draws, a server that transcribes and reads aloud. What each one offers are models, listed under Models; a line here opens the connection's own page."] = 'Spojenie je čokoľvek, čo táto inštancia oslovuje na nejakej adrese: poskytovateľ modelov na konverzáciu, ComfyUI, ktoré kreslí, server, ktorý prepisuje a číta nahlas. To, čo každé ponúka, sú modely, vypísané v časti Modely; riadok tu otvorí vlastnú stránku spojenia.'
+MESSAGES['No roads lead anywhere yet. Add a connection and its models appear under Models.'] = 'Zatiaľ odtiaľto nevedú žiadne cesty. Pridajte spojenie a jeho modely sa objavia v časti Modely.'
+MESSAGES['no models'] = 'žiadne modely'
+MESSAGES['Speech and pictures, for the whole instance: whether each is on, which model is the default, and what is not any one model\'s. Where it comes from is a <a href="/admin/connections">connection</a>, and how a model is asked is on the <a href="/admin/models">model\'s</a> own page.'] = 'Reč a obrázky pre celú inštanciu: či je každé zapnuté, ktorý model je predvolený a čo nepatrí žiadnemu jednotlivému modelu. Odkiaľ to pochádza, určuje <a href="/admin/connections">spojenie</a>, a ako sa model volá, je na vlastnej stránke <a href="/admin/models">modelu</a>.'
+MESSAGES['Dictation is on'] = 'Diktovanie je zapnuté'
+MESSAGES['Read-aloud is on'] = 'Čítanie nahlas je zapnuté'
+MESSAGES['Image generation is on'] = 'Generovanie obrázkov je zapnuté'
+MESSAGES["Off is off for every source, a connection's own included."] = 'Vypnuté znamená vypnuté pre každý zdroj, vrátane vlastného zdroja spojenia.'
+MESSAGES['An address from an older release (it becomes a connection at the next start)'] = 'Adresa zo staršej verzie (pri ďalšom štarte sa z nej stane spojenie)'
+MESSAGES['Not chosen yet'] = 'Zatiaľ nevybrané'
+MESSAGES['(no longer available)'] = '(už nie je k dispozícii)'
+MESSAGES['Chosen from the models that are added and switched on. It serves every chat whose own connection has none of its own.'] = 'Vyberá sa z modelov, ktoré sú pridané a zapnuté. Slúži každej konverzácii, ktorej vlastné spojenie žiadny vlastný nemá.'
+MESSAGES["Open the default model's page"] = 'Otvoriť stránku predvoleného modelu'
+MESSAGES['The model chosen as the default can no longer serve: it was removed, switched off, or its connection was. Until you choose again nothing is served by default.'] = 'Model vybraný ako predvolený už slúžiť nemôže: bol odstránený alebo vypnutý, alebo sa to stalo jeho spojeniu. Kým nevyberiete znova, predvolene sa nepoužije nič.'
+MESSAGES['No model of this kind is added yet. Add one on a <a href="/admin/connections">connection</a>\'s Models tab.'] = 'Zatiaľ nie je pridaný žiadny model tohto druhu. Pridajte ho na karte Modely niektorého <a href="/admin/connections">spojenia</a>.'
+MESSAGES['The order sources are tried in'] = 'Poradie, v ktorom sa zdroje skúšajú'
+MESSAGES["The chat's own connection, where that connection is set to use its own:"] = 'Vlastné spojenie konverzácie, ak je nastavené, aby používalo svoje vlastné:'
+MESSAGES['none is, at present.'] = 'momentálne žiadne.'
+MESSAGES['The default above:'] = 'Predvolený model vyššie:'
+MESSAGES['nothing.'] = 'nič.'
+MESSAGES["One step, in this direction only, and the answer says which source gave it. A chat on a local model is never sent to a provider unless that provider's model is the default here."] = 'Jeden krok, len týmto smerom, a odpoveď hovorí, ktorý zdroj ju dal. Konverzácia na lokálnom modeli sa nikdy nepošle poskytovateľovi, ak model toho poskytovateľa nie je tu predvolený.'
+MESSAGES['Read replies aloud by default'] = 'Predvolene čítať odpovede nahlas'
+MESSAGES["Where each person's own setting starts. It forces nothing on anyone."] = 'Odkiaľ vychádza vlastné nastavenie každého človeka. Nikomu nič nevnucuje.'
+MESSAGES['Review of generated pictures'] = 'Posudzovanie vygenerovaných obrázkov'
+MESSAGES["A vision model looks at what a ComfyUI drew and says whether to keep it. A provider's model is never reviewed: every retry would be a picture somebody pays for."] = 'Model, ktorý vidí obrázky, sa pozrie na to, čo ComfyUI nakreslilo, a povie, či si to ponechať. Model poskytovateľa sa neposudzuje nikdy: každý ďalší pokus by bol obrázok, za ktorý niekto platí.'
+MESSAGES['Review each picture before it is kept'] = 'Posúdiť každý obrázok, kým sa zachová'
+MESSAGES["The chat's own, when it has vision"] = 'Vlastný model konverzácie, ak vidí obrázky'
+MESSAGES['Only models marked as having vision can review.'] = 'Posudzovať môžu len modely označené, že vidia obrázky.'
+MESSAGES['Tries'] = 'Pokusy'
+MESSAGES['How many pictures may be drawn for one request before the last is kept.'] = 'Koľko obrázkov sa smie pre jednu požiadavku nakresliť, kým sa zachová posledný.'
+MESSAGES['Limits and price'] = 'Obmedzenia a cena'
+MESSAGES['Pictures per API request'] = 'Obrázkov na jednu požiadavku API'
+MESSAGES['The most one <code>/v1/images/generations</code> may ask for.'] = 'Najviac, o koľko smie požiadať jedno volanie <code>/v1/images/generations</code>.'
+MESSAGES['Price per picture'] = 'Cena za obrázok'
+MESSAGES['For a picture a ComfyUI draws, unless its checkpoint has a price of its own.'] = 'Za obrázok, ktorý nakreslí ComfyUI, ak jeho checkpoint nemá vlastnú cenu.'
+MESSAGES['Instructions to the model'] = 'Pokyny pre model'
+MESSAGES["Given to every model that can draw, beside the tool's own guidance. Where “always add these words to the negative prompt” lives."] = 'Dostane ich každý model, ktorý vie kresliť, popri vlastných pokynoch nástroja. Sem patrí „do negatívneho pokynu vždy pridaj tieto slová“.'
+MESSAGES['Drawing defaults for a ComfyUI'] = 'Predvolené hodnoty kreslenia pre ComfyUI'
+MESSAGES["What a generation uses when neither the request nor the checkpoint's own page says. Empty is no opinion: the built-in floor applies."] = 'Čo generovanie použije, keď nič neurčí požiadavka ani vlastná stránka checkpointu. Prázdne znamená bez názoru: platí zabudované minimum.'
+MESSAGES['CFG'] = 'CFG'
+MESSAGES['Pictures per run'] = 'Obrázkov na beh'
+MESSAGES['What to keep out of every picture, unless the request says its own.'] = 'Čo nemá byť na žiadnom obrázku, ak požiadavka neuvedie vlastné.'
+MESSAGES['Kept and listed. Nothing on this instance asks a model of this capability for anything yet.'] = 'Uložený a vypísaný. Nič v tejto inštancii zatiaľ model s touto schopnosťou o nič nežiada.'
+MESSAGES["There is no Test for a provider's picture model: the only test would be a picture somebody pays for."] = 'Pre obrázkový model poskytovateľa žiadne Otestovať nie je: jediným testom by bol obrázok, za ktorý niekto platí.'
+MESSAGES['For whoever administers this instance next: what it is, and why it is here.'] = 'Pre toho, kto bude túto inštanciu spravovať nabudúce: čo to je a prečo to tu je.'
+MESSAGES['On — may be used'] = 'Zapnuté — smie sa používať'
+MESSAGES['Off, it cannot be the default and is not offered to a chat.'] = 'Vypnutý nemôže byť predvolený a konverzácii sa neponúka.'
+MESSAGES["Off, it serves neither its connection's own chats nor as the default."] = 'Vypnutý neslúži vlastným konverzáciám svojho spojenia ani ako predvolený.'
+MESSAGES["This model's connection is a subscription. What it does is counted and never priced: a figure would be made up."] = 'Spojenie tohto modelu je predplatné. Čo robí, sa počíta a nikdy neoceňuje: suma by bola vymyslená.'
+MESSAGES["What one picture from this checkpoint costs. Empty takes the instance's price per picture, under Media."] = 'Koľko stojí jeden obrázok z tohto checkpointu. Prázdne prevezme cenu inštancie za obrázok z časti Médiá.'
+MESSAGES["In the connection's currency, in the unit the provider bills in. Empty is free, which is what a server of your own is."] = 'V mene spojenia, v jednotke, v ktorej poskytovateľ účtuje. Prázdne znamená zadarmo, čo vlastný server je.'
+MESSAGES['How this model is asked'] = 'Ako sa tento model volá'
+MESSAGES["Each of these is this model's own. An empty box is no opinion: the instance's setting, or the provider's own default, applies."] = 'Každé z týchto nastavení patrí len tomuto modelu. Prázdne pole znamená bez názoru: platí nastavenie inštancie alebo vlastná predvolená hodnota poskytovateľa.'
+MESSAGES["The server's own"] = 'Vlastný hlas servera'
+MESSAGES['Read in when a person has chosen none of their own.'] = 'Číta sa ním, keď si človek nevybral vlastný.'
+MESSAGES["0.25 to 4. A person's own speed wins."] = '0,25 až 4. Vlastná rýchlosť človeka má prednosť.'
+MESSAGES['Audio format'] = 'Formát zvuku'
+MESSAGES['What the model is asked to answer in.'] = 'V čom má model odpovedať.'
+MESSAGES['Language hint'] = 'Nápoveď jazyka'
+MESSAGES['A code such as en or sk. Empty lets the model detect it, which it usually does best.'] = 'Kód ako en alebo sk. Pri prázdnom ho model rozpozná sám, čo mu obyčajne ide najlepšie.'
+MESSAGES['More is slower, not always better.'] = 'Viac je pomalšie, nie vždy lepšie.'
+MESSAGES['How closely to follow the prompt.'] = 'Ako presne sa držať pokynu.'
+MESSAGES['Voices'] = 'Hlasy'
+MESSAGES['one voice per line'] = 'jeden hlas na riadok'
+MESSAGES['The voices this model has, one per line: what a person chooses from where this model is the default. Empty asks the server each time.'] = 'Hlasy, ktoré tento model má, jeden na riadok: z nich si človek vyberá tam, kde je tento model predvolený. Pri prázdnom sa zakaždým spýtame servera.'
+MESSAGES['Ask the server for its voices'] = 'Spýtať sa servera na jeho hlasy'
+MESSAGES['Sizes'] = 'Veľkosti'
+MESSAGES['Width x height, one per line; the first is what a picture is drawn at when nothing asks for a size.'] = 'Šírka x výška, jedna na riadok; v prvej sa obrázok kreslí, keď o veľkosť nič nežiada.'
+MESSAGES['Remove this model'] = 'Odstrániť tento model'
+MESSAGES['It is taken off its connection, with its options and its price. Nothing is deleted at the provider.'] = 'Odstráni sa zo svojho spojenia aj s možnosťami a cenou. U poskytovateľa sa nič nezmaže.'
+MESSAGES['A checkpoint the ComfyUI still has comes back, switched off, at the next refresh.'] = 'Checkpoint, ktorý ComfyUI stále má, sa pri ďalšom obnovení vráti, vypnutý.'
+MESSAGES['This is a default under Media. Removing it leaves that default pointing at nothing until you choose another there: nothing is quietly served in its place.'] = 'Tento model je predvolený v časti Médiá. Po odstránení nebude táto predvolená voľba ukazovať na nič, kým tam nevyberiete inú: nič sa namiesto nej potichu nepoužije.'
+MESSAGES['Remove the model “%(name)s” from %(connection)s?'] = 'Odstrániť model „%(name)s“ zo spojenia %(connection)s?'
+MESSAGES['Icon'] = 'Ikona'
+MESSAGES['Limits'] = 'Obmedzenia'
+MESSAGES['Longest reply'] = 'Najdlhšia odpoveď'
+MESSAGES['The endpoint says this model writes at most %(n)s tokens in one reply. A ceiling only: no request asks for all of it by default.'] = 'Endpoint uvádza, že tento model napíše v jednej odpovedi najviac %(n)s tokenov. Len strop: žiadna požiadavka si ho predvolene nežiada celý.'
+MESSAGES['The endpoint does not say how much this model can write in one reply.'] = 'Endpoint neuvádza, koľko tento model dokáže napísať v jednej odpovedi.'
+MESSAGES['Pages and plans'] = 'Stránky a plány'
+MESSAGES['Interactive use only'] = 'Len interaktívne použitie'
+MESSAGES['Yes — from its connection, <a href="/admin/connections/%(id)s">%(name)s</a>, a provider\'s plan: a person\'s own turns only, never scheduled or background work.'] = 'Áno — podľa jeho spojenia, <a href="/admin/connections/%(id)s">%(name)s</a>, ktoré je plánom poskytovateľa: len vlastné ťahy človeka, nikdy naplánovaná práca ani práca na pozadí.'
+MESSAGES['No. Its connection allows scheduled and background work.'] = 'Nie. Jeho spojenie dovoľuje naplánovanú prácu aj prácu na pozadí.'
+MESSAGES["Every model of every connection, whatever it is for: chat, embedding, speech, pictures. A line opens the model's own page; the switch at its end turns it on or off at once."] = 'Každý model každého spojenia, nech je na čokoľvek: konverzácia, vnorenia, reč, obrázky. Riadok otvorí vlastnú stránku modelu; prepínač na jeho konci ho ihneď zapne alebo vypne.'
+MESSAGES['The order of the chat models here is the order people see in the picker, and the <strong>default</strong> is what a new chat starts with.'] = 'Poradie modelov na konverzáciu je tu poradím, ktoré ľudia vidia vo výbere, a <strong>predvolený</strong> je ten, s ktorým sa začína nová konverzácia.'
+MESSAGES['Every capability'] = 'Každá schopnosť'
+MESSAGES['On or off'] = 'Zapnuté alebo vypnuté'
+MESSAGES['On and off'] = 'Zapnuté aj vypnuté'
+MESSAGES['Select every chat model on this page'] = 'Vybrať každý model na konverzáciu na tejto stránke'
+MESSAGES["Drag a chat model's handle to put the picker in order."] = 'Ťahaním za úchyt modelu na konverzáciu zoradíte výber.'
+MESSAGES['Every ComfyUI'] = 'Každé ComfyUI'
+MESSAGES["The ComfyUI this graph was written for: it needs that one's nodes and models. Offered only where that ComfyUI draws."] = 'ComfyUI, pre ktoré bol tento graf napísaný: potrebuje jeho uzly a modely. Ponúka sa len tam, kde kreslí toto ComfyUI.'
+MESSAGES['%(name)s was a default under Media. Choose another there: until then nothing is served by default.'] = '%(name)s: išlo o predvolenú voľbu v časti Médiá. Vyberte tam inú: dovtedy sa predvolene nepoužije nič.'
+MESSAGES['Overview'] = 'Prehľad'
+MESSAGES['That page does not exist.'] = 'Táto stránka neexistuje.'
+MESSAGES["A server of your own, or any cloud that speaks OpenAI's API. Chat and embedding models; speech and pictures too where it has them."] = 'Vlastný server alebo akýkoľvek cloud, ktorý hovorí API OpenAI. Modely na konverzáciu a vnorenia; aj reč a obrázky, ak ich má.'
+MESSAGES['Chat models, and its speech and picture models.'] = 'Modely na konverzáciu a jeho modely na reč a obrázky.'
+MESSAGES['Chat models.'] = 'Modely na konverzáciu.'
+MESSAGES['Chat models, with a balance to read.'] = 'Modely na konverzáciu, so zostatkom, ktorý sa dá zistiť.'
+MESSAGES["Many providers' chat models behind one key."] = 'Modely na konverzáciu od mnohých poskytovateľov za jedným kľúčom.'
+MESSAGES['Qwen and more, paid as used: chat, speech and picture models.'] = 'Qwen a ďalšie, platené podľa využitia: modely na konverzáciu, reč a obrázky.'
+MESSAGES["A subscription, for a person's own turns only."] = 'Predplatné, len pre vlastné ťahy človeka.'
+MESSAGES['A server that transcribes and reads aloud, such as whisper.cpp or Kokoro. No chat models.'] = 'Server, ktorý prepisuje a číta nahlas, napríklad whisper.cpp alebo Kokoro. Žiadne modely na konverzáciu.'
+MESSAGES['Pictures drawn with your own workflows and checkpoints. No chat models.'] = 'Obrázky kreslené vašimi vlastnými pracovnými postupmi a checkpointmi. Žiadne modely na konverzáciu.'
+MESSAGES['This connection cannot have a model of that kind.'] = 'Toto spojenie nemôže mať model tohto druhu.'
+MESSAGES["Type the model's id."] = 'Napíšte id modelu.'
+MESSAGES['That model is already here.'] = 'Tento model tu už je.'
+MESSAGES['This connection has as many models as it can keep.'] = 'Toto spojenie má toľko modelov, koľko ich môže mať.'
+MESSAGES["%(name)s · the chat's checkpoint, or its first"] = '%(name)s · checkpoint konverzácie, inak jeho prvý'
+MESSAGES['The server listed no voices. Type them below.'] = 'Server nevypísal žiadne hlasy. Napíšte ich nižšie.'
+MESSAGES['Found %(count)s voices.'] = 'Nájdené hlasy: %(count)s.'
+MESSAGES['Only a model that is switched on, on a connection that is on, can be the default.'] = 'Predvolený môže byť len zapnutý model na zapnutom spojení.'
+MESSAGES['Removed.'] = 'Odstránené.'
+MESSAGES['Limits and reasoning'] = 'Obmedzenia a uvažovanie'
+MESSAGES['Speech server (OpenAI-compatible transcriptions and speech)'] = 'Rečový server (prepis a reč kompatibilné s OpenAI)'
+MESSAGES['Picture editing'] = 'Úprava obrázkov'
+MESSAGES['Video'] = 'Video'
+MESSAGES['Music'] = 'Hudba'
+MESSAGES['3D models'] = '3D modely'
+MESSAGES['The ComfyUI has this checkpoint.'] = 'ComfyUI tento checkpoint má.'
+MESSAGES['The ComfyUI answered, and does not list this checkpoint.'] = 'ComfyUI odpovedalo a tento checkpoint neuvádza.'
+MESSAGES['There is nothing to try for this model without generating something.'] = 'Pri tomto modeli nie je čo vyskúšať bez toho, aby sa niečo generovalo.'
+MESSAGES['%(name)s has no model switched on yet. Add one under Models, then test again.'] = '%(name)s zatiaľ nemá zapnutý žiadny model. Pridajte ho v časti Modely a otestujte znova.'

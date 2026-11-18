@@ -55,11 +55,21 @@ def test_the_encrypted_file_maps_onto_2_0(db):
 
 
 def test_a_second_run_takes_nothing_twice(db):
+    from lembas.services.llm import providers
+
     import_admin.run(db, _doc("admin-encrypted.json"), passphrase=PASSPHRASE)
+    first = sorted((c.name, c.provider_type) for c in db.scalars(select(Connection)))
     report = import_admin.run(db, _doc("admin-encrypted.json"), passphrase=PASSPHRASE)
     assert not [e for e in report.taken if e.kind in ("connection", "model", "custom_tool",
                                                       "mcp_server", "image_workflow")]
-    assert len(db.scalars(select(Connection)).all()) == 2
+    rows = db.scalars(select(Connection)).all()
+    assert len([c for c in rows if providers.serves_chat(c.provider_type)]) == 2
+    # The export's ComfyUI and speech addresses became connections at the
+    # first run (`media.instance.carry`), and not again at the second.
+    assert sorted((c.name, c.provider_type) for c in rows) == first
+    assert sorted(c.name for c in rows if not providers.serves_chat(c.provider_type)) == [
+        "ComfyUI", "Speech to text", "Text to speech"
+    ]
 
 
 def test_the_passphrase_is_checked_before_anything_is_written(db):

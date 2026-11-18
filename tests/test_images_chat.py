@@ -399,7 +399,7 @@ def test_the_admin_page_offers_the_models_own_id_as_the_value(client, db, vision
     )
     db.commit()
 
-    page = client.get("/admin/images").text
+    page = client.get("/admin/media/image").text
     row = db.scalar(select(Model).where(Model.model_id == "reviewer"))
     assert 'value="reviewer"' in page
     assert f'value="{row.id}"' not in page

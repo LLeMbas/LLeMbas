@@ -1,0 +1,12 @@
+{#
+  The link tabs of an item's page: `tabs` is a list of (key, address, label),
+  `tab` the one being shown. Links with addresses of their own, so a tab can
+  be opened, kept and gone back to; the last one is the danger tab when it is
+  called `remove`.
+#}
+<nav class="tabs__bar tabs__bar--page" aria-label="{{ t('Sections') }}" data-testid="link-tabs">
+  {% for key, href, label in tabs %}
+  <a class="tabs__tab {{ 'is-active' if key == tab }} {{ 'is-danger' if key == 'remove' }}"
+     href="{{ href }}" {% if key == tab %}aria-current="page"{% endif %}>{{ label }}</a>
+  {% endfor %}
+</nav>

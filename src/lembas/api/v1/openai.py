@@ -183,6 +183,10 @@ def metadata(served: Served) -> dict[str, Any]:
         "provider": connection.provider_name,
         # What the model is for: `chat` or `embedding`.
         "kind": kind_of(model),
+        # The same answer under the name every list of models uses: a model
+        # has a capability -- chat, embedding, stt, tts, image, and more as
+        # they come. `kind` stays for the clients that read it.
+        "capability": kind_of(model),
         # Which API it is reached through behind this one (once called
         # `kind`, before `kind` came to mean the line above).
         "api": connection.kind or "openai",
@@ -284,6 +288,7 @@ def service_entries(db: DBSession, user: User, taken: set[str]) -> list[dict[str
                 "name": name,
                 "provider": provider,
                 "kind": kind,
+                "capability": kind,
             }
         )
 
