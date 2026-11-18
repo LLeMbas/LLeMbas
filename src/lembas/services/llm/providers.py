@@ -222,7 +222,8 @@ def protocol_of(type_id: str | None) -> str:
 
 def _host(url: str | None) -> str:
     try:
-        return (urlsplit((url or "").strip()).hostname or "").lower()
+        # A trailing dot is the same host, spelled out to its root.
+        return (urlsplit((url or "").strip()).hostname or "").lower().rstrip(".")
     except ValueError:
         return ""
 
@@ -364,12 +365,17 @@ def cache_write_tokens(raw_usage: dict[str, Any]) -> int | None:
     details = raw_usage.get("prompt_tokens_details")
     sources = [details] if isinstance(details, dict) else []
     sources.append(raw_usage)
+    said = None
     for source in sources:
         for key in ("cache_write_tokens", "cache_creation_input_tokens"):
             value = source.get(key)
             if isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0:
-                return int(value)
-    return None
+                # The first that says a number above nothing: a zero in one
+                # place must not hide the figure in another.
+                if value > 0:
+                    return int(value)
+                said = 0
+    return said
 
 
 def quota_exhausted(

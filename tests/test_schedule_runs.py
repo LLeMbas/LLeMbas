@@ -50,6 +50,8 @@ class FakeGeneration:
     error_status: int | None = None
     error_retry_after: float | None = None
     error_unreachable: bool = False
+    # A device's own reason for refusing the turn (`data.reason`), or "".
+    device_reason: str = ""
 
 
 class Script:
@@ -83,6 +85,7 @@ def script(db, registered, monkeypatch):
             error_status=reply.get("status"),
             error_retry_after=reply.get("retry_after"),
             error_unreachable=bool(reply.get("unreachable")),
+            device_reason=getattr(s, "device_reason", ""),
         )
 
     async def wake(chat_id, content, *, model_id="", connection_id=None):

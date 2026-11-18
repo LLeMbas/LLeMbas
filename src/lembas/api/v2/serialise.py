@@ -116,8 +116,17 @@ def model(row, *, default: bool = False, subagents: dict | None = None) -> dict[
 
     caps = row.capabilities_json or {}
     levels = chat_service.levels_for(row)
+    connection = getattr(row, "connection", None)
     return {
         "id": row.model_id,
+        # Added within APP_API 2 (server 2.0.0-beta.14): `ref` is the model's
+        # one unambiguous name, `provider/id` -- two connections may serve
+        # one `id` (a plan and its pay-as-you-go twin), and `id` alone then
+        # names the first. Everything that takes a model takes a `ref`.
+        # `provider` and `connection` are for telling such twins apart.
+        "ref": chat_service.model_ref(row),
+        "provider": connection.provider_name if connection is not None else "",
+        "connection": connection.name if connection is not None else "",
         "name": row.display_name or row.model_id,
         "vision": bool(caps.get("vision")),
         "tools": bool(caps.get("tools")),

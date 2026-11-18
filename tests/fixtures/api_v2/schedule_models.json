@@ -2,6 +2,9 @@
   "models": [
     {
       "id": "gpt-oss",
+      "ref": "local/gpt-oss",
+      "provider": "local",
+      "connection": "Local",
       "name": "gpt-oss",
       "vision": false,
       "tools": true,
@@ -33,6 +36,9 @@
     },
     {
       "id": "qwen",
+      "ref": "local/qwen",
+      "provider": "local",
+      "connection": "Local",
       "name": "Qwen",
       "vision": false,
       "tools": true,

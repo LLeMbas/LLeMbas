@@ -185,11 +185,17 @@ class Link:
         message_id = next(self._ids)
         future = asyncio.get_running_loop().create_future()
         self._waiting[message_id] = future
-        await self.send_text(
-            json.dumps({"jsonrpc": "2.0", "id": message_id, "method": method, "params": params})
-        )
+        text = json.dumps({"jsonrpc": "2.0", "id": message_id, "method": method, "params": params})
+
+        async def ask() -> Any:
+            await self.send_text(text)
+            return await future
+
+        # One limit over the sending and the waiting: a socket that has
+        # stopped taking bytes would otherwise hold the caller past its
+        # timeout -- a chat's first message behind a two-second ask.
         try:
-            return await asyncio.wait_for(future, timeout) if timeout else await future
+            return await asyncio.wait_for(ask(), timeout) if timeout else await ask()
         finally:
             self._waiting.pop(message_id, None)
 
@@ -242,7 +248,13 @@ class Link:
             if future is not None and not future.done():
                 if message.get("error"):
                     error = message["error"]
-                    future.set_exception(DeviceError(str(error.get("message") or "error")))
+                    refused = DeviceError(str(error.get("message") or "error"))
+                    # Why, as data (`acp.md`: `data.reason` of a -32602):
+                    # `scheduled_off`, `folder`, `terminal`, `interactive_only`…
+                    data = error.get("data") if isinstance(error, dict) else None
+                    if isinstance(data, dict):
+                        refused.reason = str(data.get("reason") or "")[:40]
+                    future.set_exception(refused)
                 else:
                     future.set_result(message.get("result"))
             return
@@ -787,7 +799,10 @@ def token_hosts(db, user_id: str, token_ids: list[str]) -> dict[str, str]:
 
 
 class DeviceError(Exception):
-    """The device refused, in its own words."""
+    """The device refused, in its own words. `reason` is its `data.reason`
+    where it gave one."""
+
+    reason = ""
 
 
 LINKS: dict[str, Link] = {}
@@ -1632,6 +1647,7 @@ async def run(
         await _prompt(link, generation, chat_id, session_id, content, device_name)
     except DeviceError as exc:
         generation.error = f"{device_name} refused: {exc}"
+        generation.device_reason = exc.reason
     except LinkClosed as exc:
         link.sessions.pop(chat_id, None)
         link.writing.pop(session_id, None)
@@ -1943,6 +1959,7 @@ async def _follow(link: Link, generation, chat_id: str, session_id: str) -> None
             stopping.cancel()
         if done.done() and not done.cancelled() and done.exception() is not None:
             generation.error = str(done.exception())
+            generation.device_reason = getattr(done.exception(), "reason", "")
     finally:
         link.mirrors.pop(session_id, None)
         if link.writing.get(session_id) is generation:

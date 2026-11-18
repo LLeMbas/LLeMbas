@@ -440,7 +440,9 @@ def _interactive(c):
     if c["kind"] == "twin":
         return interactive.twin_id(c["model"], c["models"])
     if c["kind"] == "background":
-        return interactive.background_call(c["call"], c["model"], c["models"], c["defaults"])
+        return interactive.background_call(
+            c["call"], c["model"], c["models"], c["defaults"], c.get("unfit") or []
+        )
     return interactive.scheduled_run(c["model"], c["models"])
 
 

@@ -2,6 +2,9 @@
   "models": [
     {
       "id": "qwen",
+      "ref": "local/qwen",
+      "provider": "local",
+      "connection": "Local",
       "name": "Qwen",
       "vision": false,
       "tools": true,
@@ -27,6 +30,9 @@
     },
     {
       "id": "gpt-oss",
+      "ref": "local/gpt-oss",
+      "provider": "local",
+      "connection": "Local",
       "name": "gpt-oss",
       "vision": false,
       "tools": true,
@@ -55,6 +61,9 @@
     },
     {
       "id": "vision-small",
+      "ref": "local/vision-small",
+      "provider": "local",
+      "connection": "Local",
       "name": "Vision",
       "vision": true,
       "tools": false,

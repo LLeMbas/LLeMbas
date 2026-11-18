@@ -149,9 +149,16 @@ async def tick(*, force: bool = False) -> int:
     checked = 0
     try:
         with session_scope() as db:
+            from lembas.services.llm import providers
+
             targets = [
                 (c.id, Endpoint.from_connection(c), str((c.health_json or {}).get("server", "")))
                 for c in db.scalars(select(Connection).where(Connection.enabled.is_(True)))
+                # Never by itself on a connection sold for interactive use
+                # only: a request every few minutes with nobody there is the
+                # automated use its terms forbid. Its health is read when an
+                # administrator presses Test (`check`), and by its replies.
+                if not providers.interactive_only(c.provider_type, c.base_url)
             ]
         for connection_id, endpoint, server in targets:
             found = await probe(endpoint, server)

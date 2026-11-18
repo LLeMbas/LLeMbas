@@ -41,12 +41,18 @@ than it (`deny` over `ask` over `allow`) — the strictest of them decides:
 
    **A narrower rule that a later one narrows again does not count** (spec 3.9.0): among those
    rules, one is set aside when a rule read after it also matches the call and is narrower than
-   it — that later rule is what was written for the case. The defaults say `read *.env.*: ask`
+   it, **or has the same permission and pattern** (the same rule, written again) — that later
+   rule is what was written for the case. The defaults say `read *.env.*: ask`
    and then `read *.env.example: allow`; under a candidate `read *` only the second counts for
    `.env.example`, so an example file is read without asking after a broad allow exactly as
    before it. (Before 3.9.0 both counted and the strictest won: making `read: allow` *started*
    asking about `.env.example`.) Order still matters as it does in a file: a narrower rule read
-   *before* the rule it narrows sets nothing aside.
+   *before* the rule it narrows sets nothing aside. So `read *.env: ask` in the defaults,
+   written again as `read *.env: allow` by a project, is allowed under a later broad allow
+   exactly as it is without one; and a project's `bash "rm *": deny` followed by its own
+   `bash "rm -i *": allow` leaves `rm -i` allowed. The person's own answer (rule 3) is untouched
+   by any of this: what the `user` layer says of the call still stands against a project's or a
+   made rule, of any breadth.
 3. **The person's own answer.** What the `user` layer alone says of the call — its last matching
    rule, of any breadth. A project, an "always" answer and a menu cannot loosen what the person's
    own configuration says.

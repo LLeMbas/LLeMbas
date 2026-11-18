@@ -430,6 +430,123 @@
       "expect": "deny"
     },
     {
+      "about": "Spec 3.9.0: the same rule written again. A project allows *.env, which the defaults ask about; a broad allow made later changes nothing for it — the later of the two identical rules is the one that counts.",
+      "defaults": true,
+      "project": {
+        "read": {
+          "*.env": "allow"
+        }
+      },
+      "made": [
+        {
+          "permission": "read",
+          "pattern": "*",
+          "action": "allow",
+          "by": "menu"
+        }
+      ],
+      "request": {
+        "permission": "read",
+        "pattern": ".env"
+      },
+      "expect": "allow"
+    },
+    {
+      "about": "…and written again stricter — the person allows *.key, the project denies it — the later one counts under the broad allow, as it decides without it.",
+      "user": {
+        "read": {
+          "*.key": "allow"
+        }
+      },
+      "project": {
+        "read": {
+          "*.key": "deny"
+        }
+      },
+      "made": [
+        {
+          "permission": "read",
+          "pattern": "*",
+          "action": "allow",
+          "by": "menu"
+        }
+      ],
+      "request": {
+        "permission": "read",
+        "pattern": "id.key"
+      },
+      "expect": "deny"
+    },
+    {
+      "about": "A project's deny narrowed by its own later allow: the exception it wrote holds under a broad allow as without one.",
+      "project": {
+        "bash": {
+          "rm *": "deny",
+          "rm -i *": "allow"
+        }
+      },
+      "made": [
+        {
+          "permission": "bash",
+          "pattern": "*",
+          "action": "allow",
+          "by": "menu"
+        }
+      ],
+      "request": {
+        "permission": "bash",
+        "pattern": "rm -i notes.txt"
+      },
+      "expect": "allow"
+    },
+    {
+      "about": "…and what the exception does not take in is still denied.",
+      "project": {
+        "bash": {
+          "rm *": "deny",
+          "rm -i *": "allow"
+        }
+      },
+      "made": [
+        {
+          "permission": "bash",
+          "pattern": "*",
+          "action": "allow",
+          "by": "menu"
+        }
+      ],
+      "request": {
+        "permission": "bash",
+        "pattern": "rm notes.txt"
+      },
+      "expect": "deny"
+    },
+    {
+      "about": "The person's own ask against a project's narrower allow and a broad allow made later: the set-aside never touches rule 3 — it still asks.",
+      "defaults": true,
+      "user": {
+        "bash": "ask"
+      },
+      "project": {
+        "bash": {
+          "make *": "allow"
+        }
+      },
+      "made": [
+        {
+          "permission": "bash",
+          "pattern": "*",
+          "action": "allow",
+          "by": "menu"
+        }
+      ],
+      "request": {
+        "permission": "bash",
+        "pattern": "make all"
+      },
+      "expect": "ask"
+    },
+    {
       "about": "Choosing the action already in force changes nothing.",
       "defaults": true,
       "set": {

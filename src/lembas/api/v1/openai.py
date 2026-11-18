@@ -307,12 +307,37 @@ async def list_models(db: Db, caller: ModelsCaller) -> dict[str, Any]:
     start = chat_service.default_model(db, caller.user)
     data = []
     for served in served_models(db, caller.user):
+        if _key_refusal(caller, served):
+            continue  # not this token's to call, so not listed for it
         entry = metadata(served)
         if start and (served.model.model_id, served.connection.id) == start:
             entry["default"] = True
         data.append(entry)
     data.extend(service_entries(db, caller.user, {entry["id"] for entry in data}))
     return {"object": "list", "data": data}
+
+
+def _key_refusal(caller, served: Served) -> str:
+    """Why this token may not be served this model, or "".
+
+    An interactive-only model (`services/interactive.py`, harness spec 3.9.0
+    `interactive.md`) is for a person's own turns. A request here does not
+    say what it is for, so the token decides: **a linked device's** (the
+    LLeMbas CLI, a person at a terminal) is served, and trusted to keep its
+    scheduled and background calls off such a model as the spec has it do;
+    **any other token** -- a personal API key -- is a script or a backend by
+    nature, which is exactly what the provider's terms name, and is refused
+    with the spec's sentence."""
+    from lembas.db.models import TOKEN_DEVICE
+    from lembas.services import interactive
+
+    if getattr(caller.token, "kind", "") == TOKEN_DEVICE:
+        return ""
+    if not interactive.connection_only(served.connection):
+        return ""
+    return interactive.scheduled_run(
+        served.id, [{"id": served.id, "interactive_only": True}]
+    )["refused"]
 
 
 def _refusal(db: DBSession, user: User, model: Model | None = None) -> str:
@@ -425,6 +450,8 @@ async def chat_completions(request: Request, db: Db, caller: ModelsCaller):
         return error_response(
             400, f"{served.id} is an embedding model: send it to /v1/embeddings."
         )
+    if refused := _key_refusal(caller, served):
+        return error_response(403, refused, "permission_error")
     if reason := _refusal(db, caller.user, served.model):
         return error_response(429, reason, "rate_limit_error")
     model_row_id, token_id = served.model.id, caller.token.id
@@ -691,6 +718,8 @@ async def embeddings(request: Request, db: Db, caller: ModelsCaller):
             f"{served.id} is a chat model: send it to /v1/chat/completions, or an "
             "embedding model here.",
         )
+    if refused := _key_refusal(caller, served):
+        return error_response(403, refused, "permission_error")
     if reason := _refusal(db, caller.user, served.model):
         return error_response(429, reason, "rate_limit_error")
     upstream = {**body, "model": served.model.model_id}

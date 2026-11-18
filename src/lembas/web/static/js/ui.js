@@ -1199,15 +1199,19 @@ document.addEventListener("lembas:notify", function (event) {
       var holder = document.querySelector("[data-picker]");
       if (!holder) return;
       var shown = holder.querySelector(".picker__button .picker__label");
-      if (shown) shown.textContent = label || id;
       var was = holder.querySelector(".picker__button .picker__avatar");
+      /* `id` is a ref (`provider/model`) when the computer said which, or
+         the value the page opened with: an option answers to either. */
       holder.querySelectorAll("[data-picker-value]").forEach(function (option) {
-        var mine = option.dataset.pickerValue === id;
+        var mine = option.dataset.modelRef === id || option.dataset.pickerValue === id;
+        var name = mine && option.querySelector(".picker__option-name");
+        if (name) label = name.textContent.trim();
         option.classList.toggle("is-selected", mine);
         option.setAttribute("aria-selected", mine ? "true" : "false");
         var avatar = mine && option.querySelector(".picker__avatar");
         if (avatar && was) was.replaceWith(avatar.cloneNode(true));
       });
+      if (shown) shown.textContent = label || id;
     }
     function followModel() {
       if (!startModel || root.querySelector('input[name="model_chosen"]')) return;
@@ -1223,7 +1227,9 @@ document.addEventListener("lembas:notify", function (event) {
         .then(function (response) { return response.ok ? response.json() : null; })
         .then(function (found) {
           if (ask !== modelAsk) return;
-          if (found && found.model && found.model.id) showStartModel(found.model.id, found.model.name);
+          if (found && found.model && found.model.id) {
+            showStartModel(found.model.ref || found.model.id, found.model.name);
+          }
           else asBefore();
         })
         .catch(asBefore);

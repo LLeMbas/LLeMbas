@@ -416,7 +416,7 @@ def _browse_error(found: dict[str, Any]) -> str:
 @router.get("/api/devices/{token_id}/directory-model")
 async def directory_model(db: Db, user: RequiredUser, token_id: str, path: str = ""):
     """The model a new agent chat in this directory of this device starts on
-    when the person chooses none (harness spec 3.9.0): `{"model": {id, name}}`
+    when the person chooses none (harness spec 3.9.0): `{"model": {id, ref, name}}`
     or `{"model": null}` -- nothing remembered, a model the person no longer
     has, an older or absent device. The composer shows it as the choice the
     chat starts from; `POST /api/chats/start` asks again and decides."""
@@ -425,9 +425,14 @@ async def directory_model(db: Db, user: RequiredUser, token_id: str, path: str =
     token = directories.owned_device(db, user, token_id)
     if token is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, i18n.t("No such device."))
+    from lembas.services import chat as chat_service
+
     row = await directories.model_for(db, user, token.id, path.strip())
     return {
-        "model": {"id": row.model_id, "name": row.display_name or row.model_id}
+        # `ref` names the one row (`provider/model`): two connections may
+        # serve the id, and the device remembers which.
+        "model": {"id": row.model_id, "ref": chat_service.model_ref(row),
+                  "name": row.display_name or row.model_id}
         if row is not None
         else None
     }

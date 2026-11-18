@@ -239,9 +239,9 @@ def endpoint_for(db, user: User, model_id: str = "") -> tuple[Endpoint, str] | N
     from lembas.services import interactive
 
     models = chat_service.available_models(db, user, group)
-    # A schedule is being written, so by a model a schedule may use where
-    # there is one; the person pressing the button is still a person.
-    models = interactive.usable(models) or models
+    # A schedule is being written, so by a model a schedule may use -- and
+    # by none where there is none: the form says so and is filled in by hand.
+    models = interactive.usable(models)
     if not models:
         return None
     chosen = next((m for m in models if m.pinned), models[0])

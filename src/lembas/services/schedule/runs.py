@@ -379,7 +379,16 @@ def run_dict(row: ScheduleRun) -> dict[str, Any]:
         "report": row.report_id or None,
         "note": row.note or "",
         "preview": row.preview or "",
-        "error": {"class": row.error_class, "text": row.error} if row.error_class else None,
+        # `reason`: the device's own reason where it refused the run and
+        # gave one (`terminal`, `scheduled_off`, `folder`, `interactive_only`,
+        # …), else null.
+        "error": {
+            "class": row.error_class,
+            "text": row.error,
+            "reason": str((getattr(row, "ran_on_json", None) or {}).get("refused") or "") or None,
+        }
+        if row.error_class
+        else None,
         "notified": bool(row.notified),
         # What the notify decision told (`notify.notification`), or null:
         # an app following the `schedules` event shows it as it would a push.

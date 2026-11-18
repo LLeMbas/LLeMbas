@@ -290,7 +290,14 @@ def _apply_settings(db, chat: Chat, schedule: Schedule, model) -> None:
     from lembas.services import chat as chat_service
     from lembas.services.tools import FAMILIES
 
-    if model is not None:
+    if model is not None and chat.device_token_id:
+        # On a linked computer the model is the run's and the effort is the
+        # device's to judge (`_device_effort`): nothing is dropped here for
+        # not being among the levels this server knows of the model.
+        chat.model_id = model.model_id
+        chat.connection_id = model.connection_id
+        _device_effort(chat, schedule)
+    elif model is not None:
         chat.model_id = model.model_id
         chat.connection_id = model.connection_id
         params = dict(chat.params_json or {})
@@ -419,7 +426,17 @@ async def attempt(run_id: str) -> None:
             # Only now, with the computer linked (spec 3.9.0, *The run's
             # model*): what the schedule names, else the model last used in
             # its directory there, else as before.
-            found, why, refused = await _device_model(db, schedule, owner)
+            from lembas.services import directories
+
+            try:
+                found, why, refused = await _device_model(db, schedule, owner)
+            except directories.NoAnswer:
+                # Linked, and silent when asked which model its folder
+                # uses: waited for like a computer that is away, on the
+                # run's own steps -- not run on the default instead, which
+                # may be a model the run cannot use at all.
+                _wait_for_device(db, schedule, run, now=now)
+                return
             if refused:
                 _fail_on_device(db, schedule, run, refused)
                 return
@@ -745,11 +762,18 @@ async def _device_model(db, schedule, owner) -> tuple[Model | None, str, str]:
     from lembas.services import chat as chat_service
     from lembas.services import directories, interactive
 
-    everything = chat_service.available_models(db, owner)
+    # In the schedule's own data group, as `models.candidates` has it: a run
+    # must not carry its group's memories to a model of another.
+    everything = chat_service.available_models(db, owner, schedule.data_group_id or None)
     usable = interactive.usable(everything)
 
-    def row_of(model_id: str) -> Model | None:
-        return next((m for m in usable if m.model_id == model_id), None)
+    def row_of(model_id: str, connection_id: str | None = None) -> Model | None:
+        """The row scheduled work may use: on the named connection where
+        that is one, else the first with the id."""
+        rows = [m for m in usable if m.model_id == model_id]
+        return next((m for m in rows if m.connection_id == connection_id), None) or (
+            rows[0] if rows else None
+        )
 
     def only_interactive(model_id: str) -> bool:
         return row_of(model_id) is None and any(m.model_id == model_id for m in everything)
@@ -757,15 +781,14 @@ async def _device_model(db, schedule, owner) -> tuple[Model | None, str, str]:
     if schedule.model_id:
         if only_interactive(schedule.model_id):
             return None, "", interactive.scheduled_refusal(schedule.model_id)
-        return row_of(schedule.model_id), models_service.REASON_PINNED, ""
+        named = row_of(schedule.model_id, schedule.connection_id)
+        return named, models_service.REASON_PINNED, ""
     if _continues_there(db, schedule, owner):
         return None, "", ""
     where = device.runs_on_of(schedule)
-    # In the schedule's own data group: a run must not carry its group's
-    # memories to a model of another (`models.candidates`' rule).
-    grouped = {
-        m.id for m in chat_service.available_models(db, owner, schedule.data_group_id or None)
-    }
+    grouped = {m.id for m in everything}
+    # `directories.NoAnswer` is the caller's: a device that did not answer is
+    # waited for, not answered for with the default.
     remembered = await directories.model_for(
         db, owner, where.device, where.cwd,
         usable=lambda m: m.id in grouped, scheduled=True,
@@ -777,7 +800,7 @@ async def _device_model(db, schedule, owner) -> tuple[Model | None, str, str]:
         return None, "", ""
     if only_interactive(start[0]):
         return None, "", interactive.scheduled_refusal(start[0])
-    return row_of(start[0]), REASON_DEFAULT, ""
+    return row_of(start[0], start[1]), REASON_DEFAULT, ""
 
 
 def _continues_there(db, schedule, owner) -> bool:
@@ -942,6 +965,15 @@ async def settle(run_id: str, generation, *, timed_out: bool = False, chat_id: s
             # Refused by the device (-32602: not accepting, a folder it does
             # not allow, a permission): not retried.
             failure = (device.ERROR_DEVICE, message.error)
+            # Which of the device's reasons it was (`acp.md` *When the
+            # device is away, or refuses*: `scheduled_off`, `folder`,
+            # `terminal`, `interactive_only`…), for whoever shows the run.
+            # None of them is retried: each is somebody's to change, and the
+            # next run goes ahead once it is -- for `terminal`, once the
+            # session is closed there.
+            reason = str(getattr(generation, "device_reason", "") or "")
+            if reason:
+                run.ran_on_json = {**(run.ran_on_json or {}), "refused": reason}
         elif message.error or not message.complete:
             reached = bool(
                 (message.content or "").strip()

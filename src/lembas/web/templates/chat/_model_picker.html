@@ -22,7 +22,7 @@
           aria-haspopup="listbox" aria-expanded="false">
     {% if current_model %}
       {{ model_avatar(current_model, cls="picker__avatar") }}
-      <span class="picker__label">{{ current_model.label }}</span>
+      <span class="picker__label">{{ current_model.label }}{% if current_model.model_id in twin_ids|default([]) %} · {{ current_model.connection.name }}{% endif %}</span>
     {% else %}
       <span class="picker__label">{{ t("Choose a model") }}</span>
     {% endif %}
@@ -41,11 +41,18 @@
     <div class="picker__list picker__list--models"
          data-label-loaded="{{ t('Loaded') }}" data-label-loading="{{ t('Loading') }}">
       {% for model in models %}
-      <button class="picker__option {{ 'is-selected' if current_model and model.model_id == current_model.model_id }}"
+      {#- Two connections serving one model id (a plan and its pay-as-you-go
+          twin) are two options: each says its connection, and is chosen by
+          its ref (`provider/model`), which names one row. Everything else is
+          chosen by its id, as it always was. -#}
+      {% set twin = model.model_id in twin_ids|default([]) %}
+      {% set ref = model.connection.provider_name ~ "/" ~ model.model_id %}
+      <button class="picker__option {{ 'is-selected' if current_model and model.id == current_model.id }}"
               type="button" role="option"
-              aria-selected="{{ 'true' if current_model and model.model_id == current_model.model_id else 'false' }}"
-              data-picker-value="{{ model.model_id }}"
-              data-picker-search="{{ model.label|lower }} {{ model.model_id|lower }}"
+              aria-selected="{{ 'true' if current_model and model.id == current_model.id else 'false' }}"
+              data-picker-value="{{ ref if twin else model.model_id }}"
+              data-picker-search="{{ model.label|lower }} {{ model.model_id|lower }}{% if twin %} {{ model.connection.name|lower }}{% endif %}"
+              data-model-ref="{{ ref }}"
               data-model-id="{{ model.model_id }}">
         {#
           The avatar in a slot of its own size, carrying the load-state dot on
@@ -61,7 +68,7 @@
           <span class="visually-hidden" data-model-state-label></span>
         </span>
         <span class="picker__option-name">
-          <span class="truncate">{{ model.label }}</span>
+          <span class="truncate">{{ model.label }}{% if twin %} · {{ model.connection.name }}{% endif %}</span>
           {% if model.pinned %}{{ icon("pin", "icon--sm picker__pin") }}{% endif %}
         </span>
         <span class="model-ctx mono"

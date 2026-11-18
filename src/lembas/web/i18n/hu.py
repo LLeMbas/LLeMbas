@@ -2771,7 +2771,6 @@ MESSAGES.update(
 
 MESSAGES.update(
     {
-        "Interactive use only: the provider's terms forbid automated services, batch scripts and scheduled background jobs on a plan, and a key used for them can be suspended. So scheduled and background work never goes to this connection — it goes to a pay-as-you-go one, or is not done. A plan is sold for its subscriber's own use in coding and agent tools; whether this instance's use fits is yours to judge.": 'Csak interaktív használatra: a szolgáltató feltételei előfizetéses csomagnál tiltják az automatizált szolgáltatásokat, a kötegelt szkripteket és az ütemezett háttérfeladatokat, és az ilyenre használt kulcsot felfüggeszthetik. Ezért ütemezett és háttérmunka soha nem megy erre a kapcsolatra — használat alapján fizetett kapcsolatra megy, vagy elmarad. A csomagot az előfizető saját használatára adják el programozó- és ügynökeszközökben; hogy ennek a példánynak a használata megfelel-e ennek, azt Önnek kell megítélnie.',
         "The provider has no balance to read with a model key and does not say what a reply cost: a cost here is this instance's estimate from the model's prices.": 'A szolgáltatónál nincs modellkulccsal lekérdezhető egyenleg, és azt sem mondja meg, mennyibe került egy válasz: az itt látható költség ennek a példánynak a becslése a modell áraiból.',
         'Region': 'Régió',
         'As typed above': 'Ahogy fent be van írva',
@@ -2809,5 +2808,12 @@ MESSAGES.update(
         "The folder's usual model": 'A mappa szokásos modellje',
         "The folder's usual model is the one you last used in that folder on that computer — the computer remembers it, and each run asks it — or your default model where there is none. A model chosen here is the run's, whatever the folder's is. A run never changes the folder's model.": 'A mappa szokásos modellje az, amelyet abban a mappában azon a számítógépen legutóbb használt — a számítógép megjegyzi, és minden futás megkérdezi tőle —, vagy az alapértelmezett modellje, ha nincs ilyen. Az itt választott modell a futásé, bármi is a mappáé. Egy futás soha nem változtatja meg a mappa modelljét.',
         "the folder's usual model": 'a mappa szokásos modellje',
+    }
+)
+
+MESSAGES.update(
+    {
+        "Interactive use only: the provider's terms forbid automated services, batch scripts and scheduled background jobs on a plan, and a key used for them can be suspended. So this server sends no scheduled or background work of its own to this connection — it goes to a pay-as-you-go one, or is not done — and refuses its models to personal API keys. A linked LLeMbas CLI may use them and is trusted to keep its own scheduled and background calls off them. A plan is sold for its subscriber's own use in coding and agent tools; whether this instance's use fits is yours to judge.": 'Csak interaktív használatra: a szolgáltató feltételei előfizetéses csomagnál tiltják az automatizált szolgáltatásokat, a kötegelt szkripteket és az ütemezett háttérfeladatokat, és az ilyenre használt kulcsot felfüggeszthetik. Ezért ez a szerver semmilyen saját ütemezett vagy háttérmunkát nem küld erre a kapcsolatra — az használat alapján fizetett kapcsolatra megy, vagy elmarad —, és a modelljeit megtagadja a személyes API-kulcsoktól. Egy összekapcsolt LLeMbas CLI használhatja őket, és megbízunk benne, hogy a saját ütemezett és háttérhívásait távol tartja tőlük. A csomagot az előfizető saját használatára adják el programozó- és ügynökeszközökben; hogy ennek a példánynak a használata megfelel-e ennek, azt Önnek kell megítélnie.',
+        'The earlier turns of this chat were not summarised: its model is on a connection for interactive use only, and there is no other model to ask for the summary. Switch model or start a new chat before the conversation outgrows this one.': 'Ennek a csevegésnek a korábbi fordulói nem lettek összefoglalva: a modellje csak interaktív használatra szóló kapcsolaton van, és nincs másik modell, amelytől az összefoglalót kérni lehetne. Váltson modellt, vagy kezdjen új csevegést, mielőtt a beszélgetés kinövi ezt a modellt.',
     }
 )

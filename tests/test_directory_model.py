@@ -84,14 +84,15 @@ def test_the_apps_listing_says_where_a_session_may_open_and_the_model(client, db
     places = client.get(f"/api/v2/devices/{token.id}/directories", headers=auth).json()
     assert (places["path"], places["code"], places["roots"]) == ("", "", ["/home/dev"])
     assert [e["path"] for e in places["entries"]] == ["/home/dev", FOLDER]
-    assert places["entries"][1]["model"] == {"id": "hosted", "name": "Hosted"}
+    hosted = {"id": "hosted", "ref": "hosted/hosted", "name": "Hosted"}
+    assert places["entries"][1]["model"] == hosted
     assert places["remembers"] is True
 
     here = client.get(
         f"/api/v2/devices/{token.id}/directories", params={"path": FOLDER}, headers=auth
     ).json()
     assert (here["path"], here["name"], here["parent"]) == (FOLDER, "waybread", "/home/dev")
-    assert here["accepted"] is True and here["model"] == {"id": "hosted", "name": "Hosted"}
+    assert here["accepted"] is True and here["model"] == hosted
     docs, vendor = here["entries"]
     # A model the person no longer has is not offered as a start.
     assert docs["model"] is None and docs["accepted"] is True
@@ -161,7 +162,7 @@ def test_the_pages_dialog_says_the_model_too(client, db, three):
     plain = client.get(f"/api/devices/{token.id}/browse", params={"path": "/home/dev"}).text
     assert "data-dir-model" not in plain
     one = client.get(f"/api/devices/{token.id}/directory-model", params={"path": FOLDER})
-    assert one.json() == {"model": {"id": "hosted", "name": "Hosted"}}
+    assert one.json() == {"model": {"id": "hosted", "ref": "hosted/hosted", "name": "Hosted"}}
     none = client.get(f"/api/devices/{token.id}/directory-model", params={"path": "/home/dev"})
     assert none.json() == {"model": None}
 
@@ -265,11 +266,12 @@ def test_the_app_starts_the_same_chat_and_reads_the_same_start(client, db, start
     # What the draft shows before anything is sent: the same answer.
     query = {"kind": "agent", "device": token.id, "directory": FOLDER}
     draft = client.get("/api/v2/models", params=query, headers=auth).json()
-    assert draft["start"] == {"model": "hosted", "from": "directory"}
+    assert draft["start"] == {"model": "hosted", "ref": "hosted/hosted", "from": "directory"}
     other = client.get(
         "/api/v2/models", params={**query, "directory": "/home/dev"}, headers=auth
     ).json()
-    assert other["start"] == {"model": "local-big", "from": "default"}
+    assert other["start"] == {"model": "local-big", "ref": "local/local-big",
+                              "from": "default"}
     # No directory named: nothing to say, and the device is not asked.
     before = len(asked)
     bare = client.get(
@@ -350,9 +352,9 @@ async def test_a_run_never_takes_a_directorys_interactive_only_model(db, three, 
     _agents_on(db)
     settings_store.update(db, {"default_model": "local-big"})
     plan = _typed_connection(db, "Plan", "alibaba_plan", PLAN_URL, "sk-sp-x")
-    base._model(db, plan, "qwen-max", 5)
+    base._model(db, plan, "mallorn-large", 5)
     token, _ = _token(db)
-    _remembering(db, token, {FOLDER: "plan/qwen-max"})
+    _remembering(db, token, {FOLDER: "plan/mallorn-large"})
     schedule = _on_device(db, token)
     await _sweep(script, T0)
     (run,) = _runs(db, schedule)
@@ -360,7 +362,7 @@ async def test_a_run_never_takes_a_directorys_interactive_only_model(db, three, 
     assert (run.model_id, run.model_reason) == ("local-big", "default")
 
     # And a default that is itself on a plan fails the run, saying why.
-    settings_store.update(db, {"default_model": "qwen-max"})
+    settings_store.update(db, {"default_model": "mallorn-large"})
     schedule.next_fire_at = T0
     db.commit()
     await _sweep(script, T0)
@@ -476,3 +478,174 @@ def test_the_task_page_says_where_and_on_what_each_run_ran(client, db, three):
     assert "Agentic · workstation · <code>/home/user/project</code>" in shown
     assert "the folder&#39;s usual model" in shown
     assert shown.count("· Chat") == 1
+
+
+# --- After the review of 2.0.0-beta.13..HEAD ---------------------------------------------------
+@pytest.mark.anyio
+async def test_one_timeout_covers_the_sending_too(db, three):
+    """A socket that has stopped taking bytes must not hold a chat's first
+    message past the two seconds it was given."""
+    token, _ = _token(db)
+
+    async def stalled(_text):
+        await asyncio.sleep(30)
+
+    async def nothing(*_a, **_k):
+        return None
+
+    link = device_link.Link(token_id=token.id, user_id=token.user_id, name=token.name,
+                            send_text=stalled, close=nothing, hello={})
+    link.initialized = {"_meta": {"lembas": {"capabilities": ["directory_model"]}}}
+    device_link.LINKS[token.id] = link
+    started = asyncio.get_running_loop().time()
+    assert await directories.remembered(token.id, FOLDER, timeout=0.1) == ""
+    assert asyncio.get_running_loop().time() - started < 2
+    with pytest.raises(directories.NoAnswer):
+        await directories.asked(token.id, FOLDER, timeout=0.1)
+    assert link._waiting == {}
+
+
+@pytest.mark.anyio
+async def test_a_device_that_does_not_answer_is_waited_for_not_answered_for(db, three, script):
+    """"Nothing is remembered there" is an answer; silence is not. A run does
+    not fall to the default -- which may be a model it cannot use, failing it
+    for good -- because the device was slow."""
+    _agents_on(db)
+    settings_store.update(db, {"default_model": "local-big"})
+    token, _ = _token(db)
+    state = {"silent": True}
+
+    def answer(method, params):
+        if state["silent"]:
+            raise TimeoutError
+        return {"path": FOLDER, "name": "waybread", "accepted": True, "parent": "/home/dev",
+                "model": "hosted/hosted"}
+
+    _link(db, token, capabilities=("scheduled", "turns", "directory_model"), answer=answer)
+    schedule = _on_device(db, token)
+    await _sweep(script, T0)
+    (run,) = _runs(db, schedule)
+    assert (run.status, run.waiting_for) == ("waiting", "device")
+    assert script.turns == [] and not run.model_id
+
+    state["silent"] = False
+    from datetime import timedelta
+
+    await _sweep(script, T0 + timedelta(minutes=3))
+    (run,) = _runs(db, schedule)
+    assert run.status == "ok", run.error
+    assert (run.model_id, run.model_reason) == ("hosted", "directory")
+
+
+@pytest.mark.anyio
+async def test_a_named_model_runs_on_the_schedules_own_connection_and_keeps_its_effort(
+    db, three, script
+):
+    _agents_on(db)
+    token, _ = _token(db)
+    _remembering(db, token, {})
+    # The same id on two connections; the schedule names the second.
+    second = base._connection(db, "elsewhere")
+    twin = base._model(db, second, "hosted", 9, display_name="Hosted elsewhere")
+    schedule = _on_device(db, token)
+    schedule.model_id, schedule.connection_id, schedule.effort = "hosted", second.id, "max"
+    db.commit()
+    await _sweep(script, T0)
+    (run,) = _runs(db, schedule)
+    assert run.status == "ok", run.error
+    chat = db.get(Chat, run.chat_id)
+    assert (chat.model_id, chat.connection_id, run.connection_id) == ("hosted", second.id,
+                                                                    twin.connection_id)
+    # The effort is the device's to judge: not dropped for being a level
+    # this server does not know of the model.
+    assert chat.params_json.get("reasoning_effort") == "max"
+
+
+def test_twins_are_told_apart_from_the_folder_to_the_chat(client, db, started):
+    """Two connections serving one model id: the device remembers
+    `provider/model`, and the chat starts on that connection."""
+    token, _ = started
+    second = base._connection(db, "elsewhere")
+    twin = base._model(db, second, "hosted", 9, display_name="Hosted")
+    link = device_link.link_for(token.id)
+    inner = link.request
+
+    async def request(method, params=None, *, timeout=60):
+        got = await inner(method, params, timeout=timeout)
+        if isinstance(got, dict) and got.get("model"):
+            got = {**got, "model": "elsewhere/hosted"}
+        return got
+
+    link.request = request
+    auth = _app(db)
+    query = {"kind": "agent", "device": token.id, "directory": FOLDER}
+    draft = client.get("/api/v2/models", params=query, headers=auth).json()
+    assert draft["start"] == {"model": "hosted", "ref": "elsewhere/hosted", "from": "directory"}
+    refs = [(m["ref"], m["connection"]) for m in draft["models"] if m["id"] == "hosted"]
+    assert refs == [("hosted/hosted", "hosted"), ("elsewhere/hosted", "elsewhere")]
+
+    body = {"text": "Run the tests.", "kind": "agent", "device": token.id, "directory": FOLDER}
+    client.post("/api/v2/chats", json=body, headers=auth)
+    assert _newest(db).connection_id == twin.connection_id
+    # A ref sent as `model` names the row; a bare id is the first, as before.
+    client.post("/api/v2/chats", json={**body, "model": "hosted/hosted"}, headers=auth)
+    assert _newest(db).connection_id != twin.connection_id
+    # The page: the form's own start, and a picker that says which is which.
+    form = {"content": "Run the tests.", "kind": "agent", "model_id": "local-big",
+            "ssh_profile_id": f"device:{token.id}", "project_dir": FOLDER}
+    client.post("/api/chats/start", data=form)
+    assert _newest(db).connection_id == twin.connection_id
+    page = client.get("/chat?kind=agent").text
+    assert 'data-picker-value="elsewhere/hosted"' in page
+    assert 'data-picker-value="hosted/hosted"' in page
+    assert "Hosted · elsewhere" in page and 'data-picker-value="local-big"' in page
+    chosen = client.get("/chat?kind=agent&model=elsewhere/hosted").text
+    assert 'name="model_id" value="elsewhere/hosted"' in chosen
+    one = client.get(f"/api/devices/{token.id}/directory-model", params={"path": FOLDER})
+    assert one.json()["model"]["ref"] == "elsewhere/hosted"
+
+
+def test_a_listing_is_cut_to_size(client, db, three):
+    _agents_on(db)
+    token, _ = _token(db)
+
+    def answer(method, params):
+        return {"path": "/home/dev", "name": "dev", "accepted": True, "parent": "",
+                "entries": [{"path": f"/home/dev/{n}", "name": "x" * 5000, "accepted": False,
+                             "reason": "r" * 5000} for n in range(2000)]}
+
+    _link(db, token, answer=answer)
+    got = client.get(f"/api/v2/devices/{token.id}/directories", params={"path": "/home/dev"},
+                     headers=_app(db)).json()
+    assert len(got["entries"]) == directories.MAX_ENTRIES
+    assert len(got["entries"][0]["name"]) == directories.MAX_NAME
+    assert len(got["entries"][0]["reason"]) == directories.MAX_REASON
+
+
+@pytest.mark.anyio
+async def test_a_runs_failure_carries_the_devices_reason(db, three, script):
+    """`acp.md` *When the device is away, or refuses*: a scheduled prompt for
+    a session open in a terminal is refused with `data.reason: "terminal"`."""
+    from lembas.services import harness_spec
+    from lembas.services.schedule import runs
+
+    _agents_on(db)
+    token, _ = _token(db)
+    _remembering(db, token, {})
+    schedule = _on_device(db, token)
+    sentence = harness_spec.loop()["scheduled"]["texts"]["terminal"]
+    script.replies.append({"content": "", "error": f"device-1 refused: {sentence}"})
+    script.device_reason = "terminal"
+    await _sweep(script, T0)
+    (run,) = _runs(db, schedule)
+    assert run.status == "failed" and sentence in run.error
+    assert runs.run_dict(run)["error"] == {
+        "class": "device", "text": f"device-1 refused: {sentence}", "reason": "terminal"
+    }
+    # A link's error keeps what the device said it was.
+    link = device_link.link_for(token.id)
+    future = asyncio.get_running_loop().create_future()
+    link._waiting[7] = future
+    await link.receive('{"jsonrpc":"2.0","id":7,"error":{"code":-32602,"message":"no",'
+                       '"data":{"reason":"terminal"}}}')
+    assert future.exception().reason == "terminal"

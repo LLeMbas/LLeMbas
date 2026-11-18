@@ -369,6 +369,29 @@ def _reviewer(context: ToolContext) -> tuple[Endpoint, str] | None:
                         Model.connection_id == context.connection_id,
                     )
                 )
+            if model is not None:
+                # A scheduled run asks nothing of a connection its provider
+                # sells for interactive use only (`services/interactive.py`):
+                # the same model elsewhere reviews, or nobody does.
+                from lembas.db.models import Chat
+                from lembas.services import interactive
+
+                chat = db.get(Chat, context.chat_id) if context.chat_id else None
+                if interactive.model_only(model) and interactive.scheduled_work(db, chat):
+                    model = next(
+                        (
+                            row
+                            for row in db.scalars(
+                                select(Model)
+                                .where(Model.model_id == model.model_id, Model.enabled.is_(True))
+                                .order_by(Model.position)
+                            )
+                            if not interactive.model_only(row)
+                            and row.connection is not None
+                            and row.connection.enabled
+                        ),
+                        None,
+                    )
             if model is None or not (model.capabilities_json or {}).get("vision"):
                 return None
             connection = db.get(Connection, model.connection_id)

@@ -3428,7 +3428,6 @@ MESSAGES.update(
 
 MESSAGES.update(
     {
-        "Interactive use only: the provider's terms forbid automated services, batch scripts and scheduled background jobs on a plan, and a key used for them can be suspended. So scheduled and background work never goes to this connection — it goes to a pay-as-you-go one, or is not done. A plan is sold for its subscriber's own use in coding and agent tools; whether this instance's use fits is yours to judge.": 'Len na interaktívne použitie: podmienky poskytovateľa zakazujú na predplatenom pláne automatizované služby, dávkové skripty a naplánované úlohy na pozadí a kľúč použitý na ne môže byť pozastavený. Naplánovaná práca a práca na pozadí preto na toto spojenie nikdy nejde — ide na spojenie platené podľa spotreby, alebo sa nevykoná. Plán sa predáva na vlastné použitie predplatiteľa v nástrojoch na programovanie a v agentoch; či mu použitie v tejto inštancii zodpovedá, musíte posúdiť vy.',
         "The provider has no balance to read with a model key and does not say what a reply cost: a cost here is this instance's estimate from the model's prices.": 'Poskytovateľ nemá zostatok, ktorý by sa dal prečítať kľúčom k modelom, a nehovorí, koľko odpoveď stála: cena tu je odhad tejto inštancie z cien modelu.',
         'Region': 'Región',
         'As typed above': 'Ako je napísané vyššie',
@@ -3466,5 +3465,12 @@ MESSAGES.update(
         "The folder's usual model": 'Zvyčajný model priečinka',
         "The folder's usual model is the one you last used in that folder on that computer — the computer remembers it, and each run asks it — or your default model where there is none. A model chosen here is the run's, whatever the folder's is. A run never changes the folder's model.": 'Zvyčajný model priečinka je ten, ktorý ste v tom priečinku na tom počítači použili naposledy — počítač si ho pamätá a každé spustenie sa ho naň opýta — alebo váš predvolený model, ak žiadny nie je. Model vybraný tu je modelom spustenia, nech je model priečinka akýkoľvek. Spustenie nikdy nemení model priečinka.',
         "the folder's usual model": 'zvyčajný model priečinka',
+    }
+)
+
+MESSAGES.update(
+    {
+        "Interactive use only: the provider's terms forbid automated services, batch scripts and scheduled background jobs on a plan, and a key used for them can be suspended. So this server sends no scheduled or background work of its own to this connection — it goes to a pay-as-you-go one, or is not done — and refuses its models to personal API keys. A linked LLeMbas CLI may use them and is trusted to keep its own scheduled and background calls off them. A plan is sold for its subscriber's own use in coding and agent tools; whether this instance's use fits is yours to judge.": 'Len na interaktívne použitie: podmienky poskytovateľa zakazujú na predplatenom pláne automatizované služby, dávkové skripty a naplánované úlohy na pozadí a kľúč použitý na ne môže byť pozastavený. Tento server preto na toto spojenie neposiela žiadnu vlastnú naplánovanú prácu ani prácu na pozadí — ide na spojenie platené podľa spotreby, alebo sa nevykoná — a jeho modely odmieta osobným API kľúčom. Prepojené LLeMbas CLI ich používať môže a dôveruje sa mu, že na ne neposiela vlastné naplánované volania ani volania na pozadí. Plán sa predáva na vlastné použitie predplatiteľa v nástrojoch na programovanie a v agentoch; či mu použitie v tejto inštancii zodpovedá, musíte posúdiť vy.',
+        'The earlier turns of this chat were not summarised: its model is on a connection for interactive use only, and there is no other model to ask for the summary. Switch model or start a new chat before the conversation outgrows this one.': 'Skoršie časti tohto chatu neboli zhrnuté: jeho model je na spojení určenom len na interaktívne použitie a nie je iný model, ktorého by sa dalo o zhrnutie požiadať. Zmeňte model alebo začnite nový chat skôr, než konverzácia tento model prerastie.',
     }
 )

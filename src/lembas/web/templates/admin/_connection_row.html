@@ -103,7 +103,7 @@
           for most): the row below does not move when the type changes. -#}
       <p class="field__hint">
         {% if row.interactive_only %}
-        <span data-testid="interactive-only-note">{{ t("Interactive use only: the provider's terms forbid automated services, batch scripts and scheduled background jobs on a plan, and a key used for them can be suspended. So scheduled and background work never goes to this connection — it goes to a pay-as-you-go one, or is not done. A plan is sold for its subscriber's own use in coding and agent tools; whether this instance's use fits is yours to judge.") }}</span>
+        <span data-testid="interactive-only-note">{{ t("Interactive use only: the provider's terms forbid automated services, batch scripts and scheduled background jobs on a plan, and a key used for them can be suspended. So this server sends no scheduled or background work of its own to this connection — it goes to a pay-as-you-go one, or is not done — and refuses its models to personal API keys. A linked LLeMbas CLI may use them and is trusted to keep its own scheduled and background calls off them. A plan is sold for its subscriber's own use in coding and agent tools; whether this instance's use fits is yours to judge.") }}</span>
         {% elif connection.provider_info.regions %}
         {{ t("The provider has no balance to read with a model key and does not say what a reply cost: a cost here is this instance's estimate from the model's prices.") }}
         {% endif %}
@@ -160,9 +160,12 @@
         {% endif %}
       </p>
       {#- The stored key judged on the server (`row.key_mismatch`), a typed
-          one in the page: neither sends a key anywhere. -#}
+          one in the page: neither sends a key anywhere. The server judged
+          the stored key against the saved type, so its word holds only while
+          that type is still the one selected; after a change it is judged
+          again at Save. -#}
       <div class="alert alert--error" role="status" data-testid="key-mismatch"
-           {% if row.key_mismatch %}x-show="wrongKey() || key === '{{ row.unchanged }}'"{% else %}x-show="wrongKey()" x-cloak{% endif %}>
+           {% if row.key_mismatch %}x-show="wrongKey() || (key === '{{ row.unchanged }}' && type === '{{ connection.provider_info.id }}')"{% else %}x-show="wrongKey()" x-cloak{% endif %}>
         {{ icon("warning", "alert__icon") }}<span>{{ t("This key does not look like one for this type: a plan's key starts with sk-sp-, a pay-as-you-go key does not. A key works only with its own product's address.") }}</span>
       </div>
     </div>

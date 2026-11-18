@@ -1090,6 +1090,41 @@ def default_model(db: DBSession, user=None) -> tuple[str, str] | None:
     return chosen.model_id, chosen.connection_id
 
 
+def model_ref(model) -> str:
+    """A model named so that nothing else has the name: `<provider>/<model
+    id>`, the id it is served under on `/v1` and the one a device remembers.
+    A model id alone does not say which connection -- a plan and its
+    pay-as-you-go twin serve the same ids."""
+    connection = getattr(model, "connection", None)
+    provider = connection.provider_name if connection is not None else ""
+    return f"{provider}/{model.model_id}"
+
+
+def pick_model(rows: list[Model], value: str | None, connection_id: str | None = None):
+    """The row a chosen model names, among `rows` in their order: by its ref
+    (`provider/model`, exact) first, else by its model id -- on
+    `connection_id` where that is given and has it, else the first."""
+    value = (value or "").strip()
+    if not value:
+        return None
+    exact = next((m for m in rows if model_ref(m) == value), None)
+    if exact is not None:
+        return exact
+    named = [m for m in rows if m.model_id == value]
+    return next((m for m in named if m.connection_id == connection_id), None) or (
+        named[0] if named else None
+    )
+
+
+def twin_ids(rows: list[Model]) -> set[str]:
+    """The model ids more than one of `rows` has: where a picker must say the
+    connection too, and name the row by its ref."""
+    seen: dict[str, int] = {}
+    for row in rows:
+        seen[row.model_id] = seen.get(row.model_id, 0) + 1
+    return {model_id for model_id, count in seen.items() if count > 1}
+
+
 def chat_models(models: list[Model]) -> list[Model]:
     """Only the models one can talk to: an embedding model is reached through
     `/v1/embeddings` and the index, never offered to start or join a chat.
@@ -1509,5 +1544,8 @@ __all__ = [
     "default_model",
     "fallback_title",
     "generate_title",
+    "model_ref",
+    "pick_model",
     "resolve_endpoint",
+    "twin_ids",
 ]

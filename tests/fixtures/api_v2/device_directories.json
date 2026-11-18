@@ -6,6 +6,7 @@
   "reason": "",
   "model": {
     "id": "qwen",
+    "ref": "local/qwen",
     "name": "Qwen"
   },
   "parent": "/home/user",
@@ -27,6 +28,7 @@
       "reason": "",
       "model": {
         "id": "gpt-oss",
+        "ref": "local/gpt-oss",
         "name": "gpt-oss"
       }
     },

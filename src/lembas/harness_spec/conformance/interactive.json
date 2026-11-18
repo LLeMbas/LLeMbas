@@ -1,35 +1,35 @@
 {
-  "about": "Spec 3.9.0 (interactive.md): interactive-only models. `models`: the served models in the list's order, each `{id, interactive_only?}` (absent: false). `kind: twin` — `model` → the id of the same model on a connection that is not interactive-only (another id with the same part after its first `/`, the first in order), or null. `kind: background` — where a background call that would use `model` goes. `call`: `title`, `compaction` (the person asked) or `auto_compaction`; `defaults`: the defaults to try after the twin, in order (a device: its global `model` setting, then the instance's default; the server: the instance's default) — one that is not listed or is interactive-only is passed over. → `{model}` (the model asked: itself, the twin or a default), `{skip: true}`, or `{refused}` with loop.json interactive.texts.compact. `kind: scheduled` — scheduled work on `model` (a run's session, its subagent, a one-shot run with nobody at it): → `{run: true}`, or `{refused}` with interactive.texts.scheduled, `{{model}}` the id. The server's twin also has to be one the person may use in the chat's data group, which no case here turns on. CLI: src/provider/interactive.ts; LLeMbas: services/interactive.py.",
+  "about": "Spec 3.9.0 (interactive.md): interactive-only models. `models`: the served models in the list's order, each `{id, interactive_only?}` (absent: false). `kind: twin` — `model` → the id of the same model on a connection that is not interactive-only (another id with the same part after its first `/`, the first in order), or null. `kind: background` — where a background call that would use `model` goes. `call`: `title`, `compaction` (the person asked) or `auto_compaction`; `defaults`: the defaults to try after the twin, in order (a device: its global `model` setting, then the instance's default; the server: the instance's default) — one that is not listed or is interactive-only is passed over. `unfit`: models that cannot take the call (for a summary: a context window below what must be sent, or no tools for a conversation with tool calls) — passed over like models that are not listed. → `{model}` (the model asked: itself, the twin or a default), `{skip: true}`, or `{refused}` with loop.json interactive.texts.compact. `kind: scheduled` — scheduled work on `model` (a run's session, its subagent, a one-shot run with nobody at it): → `{run: true}`, or `{refused}` with interactive.texts.scheduled, `{{model}}` the id. The server's twin also has to be one the person may use in the chat's data group, which no case here turns on. CLI: src/provider/interactive.ts; LLeMbas: services/interactive.py.",
   "cases": [
     {
       "about": "The plan's pay-as-you-go twin: the same model under another provider.",
       "kind": "twin",
-      "model": "plan/qwen3-coder",
+      "model": "plan/coder",
       "models": [
         {
-          "id": "plan/qwen3-coder",
+          "id": "plan/coder",
           "interactive_only": true
         },
         {
-          "id": "payg/qwen3-coder"
+          "id": "payg/coder"
         },
         {
-          "id": "deepseek/deepseek-flash"
+          "id": "open/flash"
         }
       ],
-      "expect": "payg/qwen3-coder"
+      "expect": "payg/coder"
     },
     {
       "about": "No other provider serves it.",
       "kind": "twin",
-      "model": "plan/qwen3-coder",
+      "model": "plan/coder",
       "models": [
         {
-          "id": "plan/qwen3-coder",
+          "id": "plan/coder",
           "interactive_only": true
         },
         {
-          "id": "deepseek/deepseek-flash"
+          "id": "open/flash"
         }
       ],
       "expect": null
@@ -37,14 +37,14 @@
     {
       "about": "A twin that is itself interactive-only is none.",
       "kind": "twin",
-      "model": "plan/qwen3-coder",
+      "model": "plan/coder",
       "models": [
         {
-          "id": "plan/qwen3-coder",
+          "id": "plan/coder",
           "interactive_only": true
         },
         {
-          "id": "other-plan/qwen3-coder",
+          "id": "other-plan/coder",
           "interactive_only": true
         }
       ],
@@ -53,17 +53,17 @@
     {
       "about": "The part after the first slash is compared whole: a longer name is another model.",
       "kind": "twin",
-      "model": "plan/qwen3-coder",
+      "model": "plan/coder",
       "models": [
         {
-          "id": "plan/qwen3-coder",
+          "id": "plan/coder",
           "interactive_only": true
         },
         {
-          "id": "payg/qwen3-coder-plus"
+          "id": "payg/coder-plus"
         },
         {
-          "id": "payg/org/qwen3-coder"
+          "id": "payg/org/coder"
         }
       ],
       "expect": null
@@ -71,128 +71,128 @@
     {
       "about": "The first in the list's order.",
       "kind": "twin",
-      "model": "plan/qwen3-coder",
+      "model": "plan/coder",
       "models": [
         {
-          "id": "plan/qwen3-coder",
+          "id": "plan/coder",
           "interactive_only": true
         },
         {
-          "id": "b/qwen3-coder"
+          "id": "b/coder"
         },
         {
-          "id": "a/qwen3-coder"
+          "id": "a/coder"
         }
       ],
-      "expect": "b/qwen3-coder"
+      "expect": "b/coder"
     },
     {
       "about": "A model that is not interactive-only is asked itself, as before.",
       "kind": "background",
       "call": "title",
-      "model": "deepseek/deepseek-flash",
+      "model": "open/flash",
       "models": [
         {
-          "id": "plan/qwen3-coder",
+          "id": "plan/coder",
           "interactive_only": true
         },
         {
-          "id": "payg/qwen3-coder"
+          "id": "payg/coder"
         },
         {
-          "id": "deepseek/deepseek-flash"
+          "id": "open/flash"
         }
       ],
       "defaults": [
-        "payg/qwen3-coder"
+        "payg/coder"
       ],
       "expect": {
-        "model": "deepseek/deepseek-flash"
+        "model": "open/flash"
       }
     },
     {
       "about": "A title for a session on a plan's model goes to the twin.",
       "kind": "background",
       "call": "title",
-      "model": "plan/qwen3-coder",
+      "model": "plan/coder",
       "models": [
         {
-          "id": "plan/qwen3-coder",
+          "id": "plan/coder",
           "interactive_only": true
         },
         {
-          "id": "payg/qwen3-coder"
+          "id": "payg/coder"
         },
         {
-          "id": "deepseek/deepseek-flash"
+          "id": "open/flash"
         }
       ],
       "defaults": [
-        "deepseek/deepseek-flash"
+        "open/flash"
       ],
       "expect": {
-        "model": "payg/qwen3-coder"
+        "model": "payg/coder"
       }
     },
     {
       "about": "No twin: the default that is not interactive-only.",
       "kind": "background",
       "call": "compaction",
-      "model": "plan/qwen3-coder",
+      "model": "plan/coder",
       "models": [
         {
-          "id": "plan/qwen3-coder",
+          "id": "plan/coder",
           "interactive_only": true
         },
         {
-          "id": "deepseek/deepseek-flash"
+          "id": "open/flash"
         }
       ],
       "defaults": [
-        "deepseek/deepseek-flash"
+        "open/flash"
       ],
       "expect": {
-        "model": "deepseek/deepseek-flash"
+        "model": "open/flash"
       }
     },
     {
       "about": "The first default is interactive-only too, the second is not.",
       "kind": "background",
       "call": "auto_compaction",
-      "model": "plan/qwen3-coder",
+      "model": "plan/coder",
       "models": [
         {
-          "id": "plan/qwen3-coder",
+          "id": "plan/coder",
           "interactive_only": true
         },
         {
-          "id": "plan/qwen3-max",
+          "id": "plan/max",
           "interactive_only": true
         },
         {
-          "id": "deepseek/deepseek-flash"
+          "id": "open/flash"
         }
       ],
       "defaults": [
-        "plan/qwen3-max",
-        "deepseek/deepseek-flash"
+        "plan/max",
+        "open/flash"
       ],
       "expect": {
-        "model": "deepseek/deepseek-flash"
+        "model": "open/flash"
       }
     },
     {
       "about": "A default the list does not have is passed over.",
       "kind": "background",
       "call": "title",
-      "model": "plan/qwen3-coder",
+      "model": "plan/coder",
       "models": [
         {
-          "id": "plan/qwen3-coder",
+          "id": "plan/coder",
           "interactive_only": true
         },
         {
-          "id": "plan/qwen3-max",
+          "id": "plan/max",
           "interactive_only": true
         }
       ],
@@ -207,19 +207,19 @@
       "about": "Nowhere to go: a title is skipped.",
       "kind": "background",
       "call": "title",
-      "model": "plan/qwen3-coder",
+      "model": "plan/coder",
       "models": [
         {
-          "id": "plan/qwen3-coder",
+          "id": "plan/coder",
           "interactive_only": true
         },
         {
-          "id": "plan/qwen3-max",
+          "id": "plan/max",
           "interactive_only": true
         }
       ],
       "defaults": [
-        "plan/qwen3-max"
+        "plan/max"
       ],
       "expect": {
         "skip": true
@@ -229,19 +229,19 @@
       "about": "Nowhere to go: compaction the person asked for is refused in words.",
       "kind": "background",
       "call": "compaction",
-      "model": "plan/qwen3-coder",
+      "model": "plan/coder",
       "models": [
         {
-          "id": "plan/qwen3-coder",
+          "id": "plan/coder",
           "interactive_only": true
         },
         {
-          "id": "plan/qwen3-max",
+          "id": "plan/max",
           "interactive_only": true
         }
       ],
       "defaults": [
-        "plan/qwen3-coder"
+        "plan/coder"
       ],
       "expect": {
         "refused": "This chat's model is on a connection for interactive use only, and compacting is background work its provider's terms do not allow. It needs the same model on a pay-as-you-go connection, or a default model that is not interactive-only."
@@ -251,14 +251,14 @@
       "about": "Nowhere to go: automatic compaction is skipped and the turn goes on.",
       "kind": "background",
       "call": "auto_compaction",
-      "model": "plan/qwen3-coder",
+      "model": "plan/coder",
       "models": [
         {
-          "id": "plan/qwen3-coder",
+          "id": "plan/coder",
           "interactive_only": true
         },
         {
-          "id": "plan/qwen3-max",
+          "id": "plan/max",
           "interactive_only": true
         }
       ],
@@ -268,19 +268,102 @@
       }
     },
     {
-      "about": "A scheduled run on a pay-as-you-go model.",
-      "kind": "scheduled",
-      "model": "payg/qwen3-coder",
+      "about": "The twin's window is below what must be sent: the default that fits.",
+      "kind": "background",
+      "call": "compaction",
+      "model": "plan/coder",
       "models": [
         {
-          "id": "plan/qwen3-coder",
+          "id": "plan/coder",
           "interactive_only": true
         },
         {
-          "id": "payg/qwen3-coder"
+          "id": "payg/coder"
         },
         {
-          "id": "deepseek/deepseek-flash"
+          "id": "open/flash"
+        }
+      ],
+      "defaults": [
+        "open/flash"
+      ],
+      "unfit": [
+        "payg/coder"
+      ],
+      "expect": {
+        "model": "open/flash"
+      }
+    },
+    {
+      "about": "Nothing fits: a compaction the person asked for is refused, as with nowhere to go.",
+      "kind": "background",
+      "call": "compaction",
+      "model": "plan/coder",
+      "models": [
+        {
+          "id": "plan/coder",
+          "interactive_only": true
+        },
+        {
+          "id": "payg/coder"
+        },
+        {
+          "id": "open/flash"
+        }
+      ],
+      "defaults": [
+        "open/flash"
+      ],
+      "unfit": [
+        "payg/coder",
+        "open/flash"
+      ],
+      "expect": {
+        "refused": "This chat's model is on a connection for interactive use only, and compacting is background work its provider's terms do not allow. It needs the same model on a pay-as-you-go connection, or a default model that is not interactive-only."
+      }
+    },
+    {
+      "about": "Nothing fits: automatic compaction is skipped.",
+      "kind": "background",
+      "call": "auto_compaction",
+      "model": "plan/coder",
+      "models": [
+        {
+          "id": "plan/coder",
+          "interactive_only": true
+        },
+        {
+          "id": "payg/coder"
+        },
+        {
+          "id": "open/flash"
+        }
+      ],
+      "defaults": [
+        "open/flash"
+      ],
+      "unfit": [
+        "payg/coder",
+        "open/flash"
+      ],
+      "expect": {
+        "skip": true
+      }
+    },
+    {
+      "about": "A scheduled run on a pay-as-you-go model.",
+      "kind": "scheduled",
+      "model": "payg/coder",
+      "models": [
+        {
+          "id": "plan/coder",
+          "interactive_only": true
+        },
+        {
+          "id": "payg/coder"
+        },
+        {
+          "id": "open/flash"
         }
       ],
       "expect": {
@@ -290,21 +373,21 @@
     {
       "about": "A scheduled run whose model is interactive-only fails with the sentence — never quietly on its twin.",
       "kind": "scheduled",
-      "model": "plan/qwen3-coder",
+      "model": "plan/coder",
       "models": [
         {
-          "id": "plan/qwen3-coder",
+          "id": "plan/coder",
           "interactive_only": true
         },
         {
-          "id": "payg/qwen3-coder"
+          "id": "payg/coder"
         },
         {
-          "id": "deepseek/deepseek-flash"
+          "id": "open/flash"
         }
       ],
       "expect": {
-        "refused": "plan/qwen3-coder is on a connection for interactive use only: its provider's terms do not allow scheduled or background work. Choose a model on a pay-as-you-go connection."
+        "refused": "plan/coder is on a connection for interactive use only: its provider's terms do not allow scheduled or background work. Choose a model on a pay-as-you-go connection."
       }
     },
     {
@@ -313,14 +396,14 @@
       "model": "new/model",
       "models": [
         {
-          "id": "plan/qwen3-coder",
+          "id": "plan/coder",
           "interactive_only": true
         },
         {
-          "id": "payg/qwen3-coder"
+          "id": "payg/coder"
         },
         {
-          "id": "deepseek/deepseek-flash"
+          "id": "open/flash"
         }
       ],
       "expect": {

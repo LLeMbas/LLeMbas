@@ -124,7 +124,8 @@ async def models(
     the person's devices): whether it lists `agents` and `tree`, null while
     it is not linked or none is named.
 
-    With `directory` as well (spec 3.9.0): `start` -- `{model, from}`, the
+    With `directory` as well (spec 3.9.0): `start` -- `{model, ref, from}`
+    (`ref` names the one row: send it as `model` to be exact), the
     model a new agent chat on that device and directory starts on when the
     app names none, and where it comes from: `directory` (the model last used
     there, which the device remembers and the person still has) or `default`.
@@ -173,8 +174,14 @@ async def _agent_start(db, user, token_id: str, path: str, default) -> dict[str,
     token = directories.owned_device(db, user, token_id)
     row = await directories.model_for(db, user, token.id, path) if token is not None else None
     if row is not None:
-        return {"model": row.model_id, "from": directories.FROM_DIRECTORY}
-    return {"model": default[0] if default else None, "from": directories.FROM_DEFAULT}
+        return {"model": row.model_id, "ref": chat_service.model_ref(row),
+                "from": directories.FROM_DIRECTORY}
+    usual = chat_service.model_row(
+        db, chat_service.Speaker(model_id=default[0], connection_id=default[1])
+    ) if default else None
+    return {"model": default[0] if default else None,
+            "ref": chat_service.model_ref(usual) if usual is not None else None,
+            "from": directories.FROM_DEFAULT}
 
 
 def _device_runs(db, user, token_id: str) -> bool | None:

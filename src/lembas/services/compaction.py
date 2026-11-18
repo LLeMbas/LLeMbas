@@ -203,17 +203,6 @@ async def summarise(chat_id: str, *, upto_id: str, speaker=None) -> str:
         owner = db.get(User, chat.user_id)
         speaker = speaker or chat_service.speaker_for(db, chat)
         endpoint, model_id = chat_service.resolve_endpoint(db, chat, speaker)
-        # A summary is background work: off an interactive-only connection
-        # it goes to the same model elsewhere or the default model, or it is
-        # refused here, before anything is sent (`services/interactive.py`).
-        from lembas.services import interactive
-        from lembas.services.llm.openai_client import LLMError
-        from lembas.web.i18n import t
-
-        routed = interactive.background(db, chat, endpoint, model_id)
-        if routed is None:
-            raise LLMError(t(interactive.COMPACT_REFUSED))
-        endpoint, model_id = routed
         offered = tools_service.resolve_tools(db, chat, owner, speaker).schemas
         body = chat_service.build_request(
             db,
@@ -227,8 +216,41 @@ async def summarise(chat_id: str, *, upto_id: str, speaker=None) -> str:
         # Both empty in this form (spec 3.1.0 §7): the conversation is in
         # front of the model, the earlier summary as its lead turn.
         ask = prompts.substitute(template, {"transcript": "", "previous_summary": ""}).strip()
-        body["model"] = model_id
         body["messages"] = [*body["messages"], {"role": "user", "content": ask}]
+        # A summary is background work: off an interactive-only connection
+        # it goes to the same model elsewhere or the default model -- one
+        # whose window holds what is sent -- or it is refused here, before
+        # anything is sent (`services/interactive.py`).
+        from lembas.services import interactive, tokens
+        from lembas.services.llm.openai_client import LLMError
+        from lembas.web.i18n import t
+
+        holds_calls = any(
+            m.get("tool_calls") or m.get("role") == "tool" for m in body["messages"]
+        )
+        routed = interactive.route(
+            db, chat, endpoint, model_id, needs=tokens.estimate_request(body),
+            tools=holds_calls,
+        )
+        if routed is None:
+            refused = LLMError(t(interactive.COMPACT_REFUSED))
+            # Told apart from the endpoint's own errors: nothing was sent.
+            refused.interactive_only = True
+            raise refused
+        endpoint, model_id, elsewhere = routed
+        if elsewhere is not None:
+            # The model actually asked: the effort and the thinking switch
+            # as *it* takes them, and the tokens counted and priced on it --
+            # not on the plan's model, which is never priced.
+            for key in ("reasoning_effort", "chat_template_kwargs"):
+                body.pop(key, None)
+            chat_service.apply_level(
+                body, elsewhere, (chat.params_json or {}).get("reasoning_effort")
+            )
+            speaker = chat_service.Speaker(
+                model_id=elsewhere.model_id, connection_id=elsewhere.connection_id
+            )
+        body["model"] = model_id
         user_id = chat.user_id
 
     text, counts = await _ask(endpoint, body)

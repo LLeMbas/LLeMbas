@@ -65,7 +65,10 @@ def _chat_context(db: DBSession, user: User, chat: Chat | None) -> dict:
     picker's optgroups stay a plain loop.
     """
     models = chat_service.available_models(db, user)
-    current = next((m for m in models if m.model_id == chat.model_id), None) if chat else None
+    # The chat's own row: its id on its connection, where two serve the id.
+    current = (
+        chat_service.pick_model(models, chat.model_id, chat.connection_id) if chat else None
+    )
     # A chat that exists may only be switched to a model in its own data group:
     # the new model would be sent the whole history. The rest are named below
     # the picker rather than silently missing from it, so somebody looking for
@@ -79,6 +82,10 @@ def _chat_context(db: DBSession, user: User, chat: Chat | None) -> dict:
         "chat_group_name": data_groups.name_of(db, group) if group is not None else "",
         "several_groups": data_groups.several(db, user),
         "current_model": current,
+        # Model ids two connections serve (a plan and its pay-as-you-go
+        # twin): the picker names those rows with their connection, and by
+        # their ref.
+        "twin_ids": chat_service.twin_ids(models),
         # Assistant bubbles show the avatar of the model that wrote them, which
         # may not be the model the chat is set to now. Keyed by model_id, the
         # denormalised value stored on each message.
@@ -930,7 +937,7 @@ async def chat_index(
     # then the instance default, then first in order. Using models[0] here
     # instead would show a model the chat is not going to use, which matters:
     # the composer decides from it whether to warn that images will be dropped.
-    preselected = next((m for m in context["models"] if m.model_id == model), None)
+    preselected = chat_service.pick_model(context["models"], model)
     # The folder's own model, ahead of the reader's default and behind an
     # explicit `?model=`. Same order `_new_chat` applies, so the picker shows
     # the model the chat is actually going to be created with -- which matters,
@@ -955,7 +962,10 @@ async def chat_index(
     # default model. The model goes last in the picker's URL because ui.js
     # appends the chosen id to it.
     carried = {
-        "model": model if model and preselected and preselected.model_id == model else "",
+        "model": model
+        if model and preselected and model in (preselected.model_id,
+                                               chat_service.model_ref(preselected))
+        else "",
         "temporary": "1" if temporary else "",
         "kind": kind if kind in KINDS and kind != KIND_CHAT else "",
         "folder": starting_folder.id if starting_folder is not None else "",

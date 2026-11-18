@@ -92,9 +92,21 @@ class StreamError(LLMError):
     """
 
 
-def _stream_error(error_object: dict[str, Any]) -> StreamError:
-    """The LLMError for an error object found inside a stream."""
+def _stream_error(error_object: dict[str, Any], endpoint: Endpoint | None = None) -> StreamError:
+    """The LLMError for an error object found inside a stream. A
+    subscription's used-up quota is the same sentence here as when it comes
+    as a 429 (`http_error`): which way a provider frames it is its own affair."""
     error = error_object.get("error")
+    if endpoint is not None:
+        from lembas.services.llm import providers
+        from lembas.web import i18n
+
+        if providers.quota_exhausted(
+            endpoint.provider_type, endpoint.base_url, 429, error_object
+        ):
+            used_up = StreamError(i18n.t(providers.QUOTA_EXHAUSTED), status_code=429)
+            used_up.quota_exhausted = True
+            return used_up
     message = sse.error_message(error)
     return StreamError(
         message or "The endpoint reported an error inside the reply.",
@@ -526,7 +538,7 @@ async def _stream_once(
                 if event == sse.ERROR:
                     # llama.cpp's mid-stream failure: a bare error line inside a
                     # 200, often the stream's unterminated last line.
-                    raise _stream_error(sse.error_object(data))
+                    raise _stream_error(sse.error_object(data), endpoint)
                 data = data.strip()
                 if not data:
                     continue
@@ -541,7 +553,7 @@ async def _stream_once(
                 if isinstance(chunk, dict) and chunk.get("error"):
                     # An error framed as data (quirks.json `error-in-200-stream`):
                     # the error it is, not a chunk with nothing in it.
-                    raise _stream_error(chunk)
+                    raise _stream_error(chunk, endpoint)
                 yield chunk
 
     except httpx.HTTPStatusError as exc:

@@ -1,110 +1,110 @@
 {
-  "about": "Spec 3.9.0 (acp.md *The model last used in a directory*; *Scheduled work*, *The run's model*). Three kinds. `kind: start` — the device: which model a session of its own starts on. `asked`: the model asked for at the start (--model; model / lembas_model in session/new); `project`: `model` in a trusted project's configuration; `directory`: the model remembered for exactly this directory; `global`: `model` in the device's global configuration; `served`: the ids the login serves now; `default`: the instance's default. → `{model, from}`, `from` one of `asked`, `project`, `directory`, `global`, `default`. Only the directory's model is checked against `served` and skipped when it is not there; the others are taken as written (a model nobody serves is that source's own error, as before). `kind: record` — the device: whether something makes the session's model the directory's. `session`: `terminal`, `link` (a session the client opened, or a terminal's shared one), `stdio`, `run` (one-shot lembas run) or `scheduled` (a session a schedule opened for its run); `agent`: `main` or `subagent`; `what`: `turn` (a turn begins; `machine: true` when the harness started it), `change` (the person changes the session's model: /model, a setting, _lembas/configure) or `command` (a command's own model, for its prompt). → true or false. `kind: client` — the client (LLeMbas): the model a new agent chat on a device and directory, or a schedule's run there, starts on. `named`: the model the person chose for the chat, or the schedule names (absent: none); `directory`: `model` of the directory in the device's _lembas/directories answer (absent: none, an older device, or a device not asked); `has`: the models the person has now; `default`: what a chat or schedule without a model started on before 3.9.0. `scheduled: true`: it is a schedule's run, for which the directory's model counts only when it is not one of `interactive_only` (interactive.md §2; a person's chat may start on such a model). → `{model, from}`, `from` one of `named`, `directory`, `default`. CLI: src/session/lastmodel.ts.",
+  "about": "Spec 3.9.0 (acp.md *The model last used in a directory*; *Scheduled work*, *The run's model*). Three kinds. `kind: start` — the device: which model a session of its own starts on. `asked`: the model asked for at the start (--model; model / lembas_model in session/new); `project`: `model` in a trusted project's configuration; `directory`: the model remembered for exactly this directory; `global`: `model` in the device's global configuration; `served`: the ids the login serves now; `default`: the instance's default. → `{model, from}`, `from` one of `asked`, `project`, `directory`, `global`, `default`. Only the directory's model is checked against `served` and skipped when it is not there; the others are taken as written (a model nobody serves is that source's own error, as before). `kind: record` — the device: whether something makes the session's model the directory's. `session`: `terminal`, `link` (a session the client opened, or a terminal's shared one), `stdio`, `run` (one-shot lembas run) or `scheduled` (a session a schedule opened for its run); `agent`: `main` or `subagent`; `what`: `turn` (a turn begins; `machine: true` when the harness started it), `change` (the session's model is changed: /model, a setting, _lembas/configure; `machine: true` when it happens inside a turn the harness started) or `command` (a command's own model, for its prompt). → true or false. `kind: client` — the client (LLeMbas): the model a new agent chat on a device and directory, or a schedule's run there, starts on. `named`: the model the person chose for the chat, or the schedule names (absent: none); `directory`: `model` of the directory in the device's _lembas/directories answer (absent: none, an older device, or a device not asked); `has`: the models the person has now; `default`: what a chat or schedule without a model started on before 3.9.0. `scheduled: true`: it is a schedule's run, for which the directory's model counts only when it is not one of `interactive_only` (interactive.md §2; a person's chat may start on such a model). → `{model, from}`, `from` one of `named`, `directory`, `default`. CLI: src/session/lastmodel.ts.",
   "cases": [
     {
       "about": "Nothing but the instance's default.",
       "kind": "start",
       "served": [
-        "deepseek/deepseek-flash",
-        "qwen/qwen3"
+        "open/flash",
+        "open/large"
       ],
-      "default": "deepseek/deepseek-flash",
+      "default": "open/flash",
       "expect": {
-        "model": "deepseek/deepseek-flash",
+        "model": "open/flash",
         "from": "default"
       }
     },
     {
       "about": "The global setting — what a login writes — over the instance's default.",
       "kind": "start",
-      "global": "qwen/qwen3",
+      "global": "open/large",
       "served": [
-        "deepseek/deepseek-flash",
-        "qwen/qwen3"
+        "open/flash",
+        "open/large"
       ],
-      "default": "deepseek/deepseek-flash",
+      "default": "open/flash",
       "expect": {
-        "model": "qwen/qwen3",
+        "model": "open/large",
         "from": "global"
       }
     },
     {
       "about": "The model last used in this directory over the global setting.",
       "kind": "start",
-      "directory": "mistral/devstral",
-      "global": "qwen/qwen3",
+      "directory": "other/coder",
+      "global": "open/large",
       "served": [
-        "deepseek/deepseek-flash",
-        "qwen/qwen3",
-        "mistral/devstral"
+        "open/flash",
+        "open/large",
+        "other/coder"
       ],
-      "default": "deepseek/deepseek-flash",
+      "default": "open/flash",
       "expect": {
-        "model": "mistral/devstral",
+        "model": "other/coder",
         "from": "directory"
       }
     },
     {
       "about": "The project's setting over the directory's memory: it is written down on purpose.",
       "kind": "start",
-      "project": "qwen/qwen3",
-      "directory": "mistral/devstral",
-      "global": "deepseek/deepseek-flash",
+      "project": "open/large",
+      "directory": "other/coder",
+      "global": "open/flash",
       "served": [
-        "deepseek/deepseek-flash",
-        "qwen/qwen3",
-        "mistral/devstral"
+        "open/flash",
+        "open/large",
+        "other/coder"
       ],
-      "default": "deepseek/deepseek-flash",
+      "default": "open/flash",
       "expect": {
-        "model": "qwen/qwen3",
+        "model": "open/large",
         "from": "project"
       }
     },
     {
       "about": "The model asked for over everything.",
       "kind": "start",
-      "asked": "deepseek/deepseek-flash",
-      "project": "qwen/qwen3",
-      "directory": "mistral/devstral",
-      "global": "qwen/qwen3",
+      "asked": "open/flash",
+      "project": "open/large",
+      "directory": "other/coder",
+      "global": "open/large",
       "served": [
-        "deepseek/deepseek-flash",
-        "qwen/qwen3",
-        "mistral/devstral"
+        "open/flash",
+        "open/large",
+        "other/coder"
       ],
-      "default": "qwen/qwen3",
+      "default": "open/large",
       "expect": {
-        "model": "deepseek/deepseek-flash",
+        "model": "open/flash",
         "from": "asked"
       }
     },
     {
       "about": "The remembered model is no longer served: skipped, the global setting decides.",
       "kind": "start",
-      "directory": "mistral/devstral",
-      "global": "qwen/qwen3",
+      "directory": "other/coder",
+      "global": "open/large",
       "served": [
-        "deepseek/deepseek-flash",
-        "qwen/qwen3"
+        "open/flash",
+        "open/large"
       ],
-      "default": "deepseek/deepseek-flash",
+      "default": "open/flash",
       "expect": {
-        "model": "qwen/qwen3",
+        "model": "open/large",
         "from": "global"
       }
     },
     {
       "about": "…and with no global setting, the instance's default.",
       "kind": "start",
-      "directory": "mistral/devstral",
+      "directory": "other/coder",
       "served": [
-        "deepseek/deepseek-flash",
-        "qwen/qwen3"
+        "open/flash",
+        "open/large"
       ],
-      "default": "deepseek/deepseek-flash",
+      "default": "open/flash",
       "expect": {
-        "model": "deepseek/deepseek-flash",
+        "model": "open/flash",
         "from": "default"
       }
     },
@@ -113,9 +113,9 @@
       "kind": "start",
       "global": "old/model",
       "served": [
-        "deepseek/deepseek-flash"
+        "open/flash"
       ],
-      "default": "deepseek/deepseek-flash",
+      "default": "open/flash",
       "expect": {
         "model": "old/model",
         "from": "global"
@@ -211,44 +211,61 @@
       "expect": false
     },
     {
+      "about": "A change of model made inside a turn the harness started — a model's own settings call there — is nobody's choice.",
+      "kind": "record",
+      "session": "terminal",
+      "agent": "main",
+      "what": "change",
+      "machine": true,
+      "expect": false
+    },
+    {
+      "about": "A person's turn in a session a schedule opened, wherever it is open: still the schedule's session.",
+      "kind": "record",
+      "session": "scheduled",
+      "agent": "main",
+      "what": "turn",
+      "expect": false
+    },
+    {
       "about": "A new agent chat, no model chosen, the directory remembers one the person has.",
       "kind": "client",
-      "directory": "mistral/devstral",
+      "directory": "other/coder",
       "has": [
-        "deepseek/deepseek-flash",
-        "mistral/devstral"
+        "open/flash",
+        "other/coder"
       ],
-      "default": "deepseek/deepseek-flash",
+      "default": "open/flash",
       "expect": {
-        "model": "mistral/devstral",
+        "model": "other/coder",
         "from": "directory"
       }
     },
     {
       "about": "The person chose a model: theirs, whatever the directory remembers.",
       "kind": "client",
-      "named": "deepseek/deepseek-flash",
-      "directory": "mistral/devstral",
+      "named": "open/flash",
+      "directory": "other/coder",
       "has": [
-        "deepseek/deepseek-flash",
-        "mistral/devstral"
+        "open/flash",
+        "other/coder"
       ],
-      "default": "deepseek/deepseek-flash",
+      "default": "open/flash",
       "expect": {
-        "model": "deepseek/deepseek-flash",
+        "model": "open/flash",
         "from": "named"
       }
     },
     {
       "about": "The person no longer has the remembered model: as before.",
       "kind": "client",
-      "directory": "mistral/devstral",
+      "directory": "other/coder",
       "has": [
-        "deepseek/deepseek-flash"
+        "open/flash"
       ],
-      "default": "deepseek/deepseek-flash",
+      "default": "open/flash",
       "expect": {
-        "model": "deepseek/deepseek-flash",
+        "model": "open/flash",
         "from": "default"
       }
     },
@@ -256,55 +273,55 @@
       "about": "An older device, or one that remembers nothing there: as before.",
       "kind": "client",
       "has": [
-        "deepseek/deepseek-flash",
-        "mistral/devstral"
+        "open/flash",
+        "other/coder"
       ],
-      "default": "deepseek/deepseek-flash",
+      "default": "open/flash",
       "expect": {
-        "model": "deepseek/deepseek-flash",
+        "model": "open/flash",
         "from": "default"
       }
     },
     {
       "about": "An Agentic schedule that names no model follows the directory.",
       "kind": "client",
-      "directory": "qwen/qwen3",
+      "directory": "open/large",
       "has": [
-        "deepseek/deepseek-flash",
-        "qwen/qwen3"
+        "open/flash",
+        "open/large"
       ],
-      "default": "deepseek/deepseek-flash",
+      "default": "open/flash",
       "expect": {
-        "model": "qwen/qwen3",
+        "model": "open/large",
         "from": "directory"
       }
     },
     {
       "about": "A schedule that names one runs on it.",
       "kind": "client",
-      "named": "deepseek/deepseek-flash",
-      "directory": "qwen/qwen3",
+      "named": "open/flash",
+      "directory": "open/large",
       "has": [
-        "deepseek/deepseek-flash",
-        "qwen/qwen3"
+        "open/flash",
+        "open/large"
       ],
-      "default": "qwen/qwen3",
+      "default": "open/large",
       "expect": {
-        "model": "deepseek/deepseek-flash",
+        "model": "open/flash",
         "from": "named"
       }
     },
     {
       "about": "The directory's model is compared exactly: another spelling is not the model.",
       "kind": "client",
-      "directory": "Mistral/Devstral",
+      "directory": "Other/Coder",
       "has": [
-        "deepseek/deepseek-flash",
-        "mistral/devstral"
+        "open/flash",
+        "other/coder"
       ],
-      "default": "deepseek/deepseek-flash",
+      "default": "open/flash",
       "expect": {
-        "model": "deepseek/deepseek-flash",
+        "model": "open/flash",
         "from": "default"
       }
     },
@@ -312,48 +329,48 @@
       "about": "A schedule's run: an interactive-only model remembered for the directory does not count.",
       "kind": "client",
       "scheduled": true,
-      "directory": "plan/qwen3-coder",
+      "directory": "plan/coder",
       "has": [
-        "plan/qwen3-coder",
-        "deepseek/deepseek-flash"
+        "plan/coder",
+        "open/flash"
       ],
       "interactive_only": [
-        "plan/qwen3-coder"
+        "plan/coder"
       ],
-      "default": "deepseek/deepseek-flash",
+      "default": "open/flash",
       "expect": {
-        "model": "deepseek/deepseek-flash",
+        "model": "open/flash",
         "from": "default"
       }
     },
     {
       "about": "…while a person's new chat there starts on it: that is interactive.",
       "kind": "client",
-      "directory": "plan/qwen3-coder",
+      "directory": "plan/coder",
       "has": [
-        "plan/qwen3-coder",
-        "deepseek/deepseek-flash"
+        "plan/coder",
+        "open/flash"
       ],
       "interactive_only": [
-        "plan/qwen3-coder"
+        "plan/coder"
       ],
-      "default": "deepseek/deepseek-flash",
+      "default": "open/flash",
       "expect": {
-        "model": "plan/qwen3-coder",
+        "model": "plan/coder",
         "from": "directory"
       }
     },
     {
       "about": "The device, for a scheduled session opened with no model: the same skip (`served` here is what the login serves that scheduled work may use).",
       "kind": "start",
-      "directory": "plan/qwen3-coder",
-      "global": "deepseek/deepseek-flash",
+      "directory": "plan/coder",
+      "global": "open/flash",
       "served": [
-        "deepseek/deepseek-flash"
+        "open/flash"
       ],
-      "default": "deepseek/deepseek-flash",
+      "default": "open/flash",
       "expect": {
-        "model": "deepseek/deepseek-flash",
+        "model": "open/flash",
         "from": "global"
       }
     }

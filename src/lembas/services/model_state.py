@@ -67,6 +67,14 @@ def state_of(entry: dict[str, Any]) -> str:
     return UNLOADED
 
 
+def _interactive_only(connection) -> bool:
+    from lembas.services.llm import providers
+
+    return providers.interactive_only(
+        getattr(connection, "provider_type", ""), getattr(connection, "base_url", "")
+    )
+
+
 async def _read(connection) -> dict[str, str]:
     now = time.monotonic()
     cached = _CACHE.get(connection.id)
@@ -95,7 +103,9 @@ async def states_for(models) -> dict[str, str]:
     connections = {}
     for model in models:
         connection = getattr(model, "connection", None)
-        if connection is not None and connection.enabled:
+        # Not an interactive-only connection: a hosted plan has no load
+        # state to show, and asking for one is a call nobody made.
+        if connection is not None and connection.enabled and not _interactive_only(connection):
             connections[connection.id] = connection
     if not connections:
         return {}

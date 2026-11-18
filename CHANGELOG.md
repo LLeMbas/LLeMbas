@@ -6,8 +6,8 @@ at <https://llembas.eu/changelog.html>.
 ## Unreleased
 
 This release carries harness spec **3.9.0** (the model last used in a directory; Chat and
-Agentic schedules; one permission rule set right), vendored from the LLeMbas CLI's `dev` and
-pinned to its tag at release.
+Agentic schedules; interactive-only models; permission rules set right), pinned from the
+LLeMbas CLI's `v2.0.0-beta.12`.
 
 ### Added
 
@@ -79,9 +79,19 @@ pinned to its tag at release.
   and does not fall back to pay-as-you-go; the reply now ends with "The plan's quota is used
   up…" in the reader's language instead of a rate-limit line. Pay-as-you-go uses the same code
   for an ordinary rate limit, which stays one.
-- **Scheduled and background work never goes to a plan.** A plan's terms allow interactive
-  use only -- no automated service, batch script or scheduled background job -- and a key used
-  for those can be suspended. This is a property of the connection's type (and of a plan's
+- **This server sends no scheduled or background work to a plan, and a personal API key is
+  not served one.** A plan's terms allow interactive use only -- no automated service, batch
+  script or scheduled background job -- and a key used for those can be suspended. What that
+  covers, exactly: everything the server runs itself (below); and on `/v1`, where a request
+  does not say what it is for, **any token that is not a linked device's is refused a plan's
+  models** (403, with the same sentence; `/v1/models` does not list them for it) -- an API key
+  is a script or a backend by nature, which is what the terms name. **A linked LLeMbas CLI is
+  served**, as a person at a terminal, and is trusted to keep its own scheduled and background
+  calls off such a model, which harness spec 3.9.0 has it do. Nothing polls a plan by itself
+  either: the five-minute health round and the picker's load-state check skip such a
+  connection, whose health is read when an administrator presses *Test & refresh*; and a
+  reply cut off by a restart is not carried on by itself on a plan -- it stays marked
+  interrupted for its person to continue. This is a property of the connection's type (and of a plan's
   host under any type, so the plan's Anthropic-shaped address is held to it too), and the
   form says so in one sentence. **Schedules:** the schedule form, Settings › Scheduled and
   Admin › Scheduling do not offer such a model; the web form, `/api/v2/schedules` and a
@@ -93,7 +103,13 @@ pinned to its tag at release.
   model on a connection that is not interactive-only (in the chat's data group), else to the
   instance's default model when that is not interactive-only, else: the chat is named from its
   first words, and compacting is refused with the reason (the Compact button says it before
-  it is pressed; automatic compaction is skipped and the reply goes on). The search index is
+  it is pressed; automatic compaction is skipped, the reply goes on, and the chat is told
+  once). A model that cannot take the summary -- a context window smaller than what must be
+  sent, or no tools for a conversation with tool calls -- is passed over like one that is not
+  there. A summary asked of another model is shaped for that model (its own thinking switch
+  and effort) and counted and priced on it, not on the plan's. A picture a scheduled run
+  makes is reviewed by the same model on another connection, or not reviewed. A person
+  writing into a run's chat afterwards is a person: that turn is interactive. The search index is
   not built with an embedding model on such a connection. What a person starts in a chat --
   its replies, their tool calls, the subagents and teams it starts -- stays on the chat's
   model. `/v1/models` and `/api/v2/models` say `interactive_only: true` for such a model
@@ -102,13 +118,35 @@ pinned to its tag at release.
   spec's, word for word, and a subagent's own automatic compaction is judged by the
   subagent's model.
 
+- **Two connections that serve the same model id can be told apart.** A plan and its
+  pay-as-you-go twin offer the same ids, and a model was chosen by id alone -- the first in
+  the administrator's order. The model picker now names such a model with its connection
+  ("Name · Connection") and chooses it by its ref, `provider/model`, which names one row; a
+  new chat, the in-chat switch and `?model=` take a ref as well as an id. A folder's remembered
+  model is `provider/model` on the device, and a new agent chat there now starts on that
+  connection rather than on another that serves the id. `/api/v2`: a model object carries
+  `ref`, `provider` and `connection`; `start` carries `ref`; anything that takes a `model`
+  takes a ref.
+
 ### Fixed
 
+- **A scheduled run on a computer no longer runs on the default because the computer was slow
+  to say which model its folder uses.** "Nothing is remembered there" is an answer; no answer
+  is not, and the run now waits for the computer on its usual steps instead. A named model
+  runs on the schedule's own connection, inside its data group; and a run's effort is again
+  left to the computer to judge rather than dropped. A run the computer refuses carries the
+  computer's reason (`error.reason` on `/api/v2`): for one, a schedule whose conversation is
+  open in a terminal there fails saying so, and the next run goes ahead once it is closed.
+- **Asking a computer something can no longer outlast its timeout.** The limit covered the
+  wait for the answer but not the sending; a stalled link could hold a new chat's first
+  message, the apps' model list and a scheduled run behind a two-second question.
 - **A broad "allow" no longer makes an example file start asking** (harness spec 3.9.0,
   permission rules §2). After allowing `read` for everything, reading `.env.example` asked
   for approval although it never had before: the rule that asks about `*.env.*` counted as a
   floor even where the later rule for `*.env.example` narrows it again. A narrower rule that
-  a later one narrows again is now set aside, as on the CLI.
+  a later one narrows again is now set aside, as on the CLI -- and so is one that a later rule
+  writes again (the same permission and pattern): a project's `read *.env: allow` after the
+  defaults' `read *.env: ask` holds under a later broad allow as it does without one.
 - **The viewer called a shown file's newest version "an older version".** A card of `show`
   names the version it showed; opened from the card, the viewer said "an older version" (and
   the file page offered "Back to the current one") even while that version was the file as it

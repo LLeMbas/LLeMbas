@@ -409,12 +409,16 @@ which the device says too, should such a turn reach it (`data.reason: "interacti
 So an Agentic schedule that names no model follows the directory: change the model you work with
 there, and the next run uses it. A schedule that continues one conversation keeps its session's
 model from run to run; the client changes it (`_lembas/configure`) only when the schedule names a
-model and the session is on another. The device is linked whenever this is asked — a run whose
+model and the session is on another. **The device keeps that model with the session**: a
+schedule's session opened from its store again — the service restarted, the session opened in a
+terminal — is on the model it had, not on what a new session in the directory would start on
+(the one exception to *How a session of the device's own starts*). The device is linked whenever this is asked — a run whose
 device is away is `waiting` before anything is resolved (*When the device is away*).
 
 **A scheduled run never becomes the directory's model.** The device records nothing for a session
 a schedule opened — not the run's turn, not a `_lembas/configure` on it, not a turn the person
-writes into the run's chat afterwards (`kind: record`). Otherwise a schedule that names a small
+writes into the run's chat afterwards, in the web or in a terminal that opened the session
+(`kind: record`). Otherwise a schedule that names a small
 model for a nightly check would decide what the person's next chat in that folder starts on.
 
 **The mode** (`scheduled.mode`; `_meta.mode` is ignored for a scheduled session): `manual`, `edit`
@@ -493,8 +497,14 @@ client's to decide from this answer (`reports.md` §4). A device without the cap
 - **Refused** (`-32602` from a scheduled `session/new`, `session/prompt` or `_lembas/monitor`): the
   run **fails** with the device's message, said in the run's history and in the failure
   notification; `data.reason` (`scheduled_off`, `folder`, `plan`, `permission`, and from spec 3.9.0
-  `interactive_only` — the session's model is one, `interactive.md` §2) lets the client say
-  what to change. Not retried.
+  `interactive_only` — the session's model is one, `interactive.md` §2 — and `terminal`) lets the
+  client say what to change. Not retried.
+- **Open in a terminal** (spec 3.9.0): a scheduled `session/prompt` for a session that is open
+  and shared in a terminal on the device is refused — `-32602`, `scheduled.texts.terminal`,
+  `data: { reason: "terminal" }` — after it is judged as any scheduled request (so `scheduled_off`
+  comes first). A terminal runs what a person types, on the terminal's model and rules; a
+  schedule's run is never passed to it as a person's turn. The run fails saying so, and the next
+  one goes ahead once the session is closed there.
 
 ### Monitor mode: a command watched on the device
 
@@ -538,15 +548,17 @@ server. Capability `directory_model`; conformance area `last_model`.
   atomically, mode 0600; local mode keeps it in the local root). Never in the project, never in
   a session, never on the server. `lembas uninstall --purge` removes it with the rest of the
   state; a plain uninstall keeps it with the settings and sessions, as it keeps those. The file
-  holds at most 500 directories — the ones used longest ago go first — and a directory that no
-  longer exists is dropped when the file is next written.
+  holds at most 500 directories — the ones used longest ago go first (a directory's time is
+  refreshed as it is used, to within an hour) — and directories that no longer exist are dropped
+  now and then, away from any turn: one that cannot be looked at (an unreachable mount) is kept.
 - **When it is written** (`conformance/last_model.json`, `kind: record`) — for the main agent of a
   session, in a terminal, on the link (`lembas service`) and on `serve --stdio` alike:
   1. **a turn a person started begins**: the model the turn runs on is the directory's;
   2. **the person changes the session's model** between turns or during one (`/model`, a setting,
      `_lembas/configure` with a `model`): the new model is the directory's at once.
 
-  And **not**: a turn the harness started (`machine`: a job's note, a subagent's message); a
+  And **not**: a turn the harness started (`machine`: a job's note, a subagent's message), nor a
+  change of model made inside one (a model's own settings call there is nobody's choice); a
   subagent's model; a command's own `model`, which holds for that prompt only; a one-shot
   `lembas run`; and **anything in a session a schedule opened for its run** — a scheduled run
   uses the directory's model (below) and never changes it, whichever model the schedule names.
@@ -566,7 +578,8 @@ The first of these that names a model (`kind: start`):
 A project's setting comes first because it is written down on purpose and travels with the
 project; the directory's memory comes before the global setting because the global setting is the
 default for every directory that has none. A session opened from the store again starts by the
-same order; so does a one-shot `lembas run`, which records nothing.
+same order — except a schedule's, which keeps the model it had (*The run's model*); so does a
+one-shot `lembas run`, which records nothing.
 
 ### What the device tells the client
 
@@ -681,11 +694,11 @@ directory is not accepted (*The model last used in a directory*).
 ← { "path": "/home/user", "name": "user", "accepted": false, "reason": "…", "parent": "",
     "entries": [
       { "path": "/home/user/notes", "name": "notes", "accepted": true },
-      { "path": "/home/user/project", "name": "project", "accepted": true, "model": "deepseek/deepseek-flash" } ] }
+      { "path": "/home/user/project", "name": "project", "accepted": true, "model": "open/flash" } ] }
 
 → { "path": "/home/user/project", "list": false }
 ← { "path": "/home/user/project", "name": "project", "accepted": true,
-    "model": "deepseek/deepseek-flash", "parent": "/home/user" }
+    "model": "open/flash", "parent": "/home/user" }
 
 → { "path": "/home/user/notes", "list": false }
 ← { "path": "/home/user/notes", "name": "notes", "accepted": true, "parent": "/home/user" }

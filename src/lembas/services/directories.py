@@ -112,19 +112,30 @@ def _ref(value: Any) -> str:
     return value.strip()[:300] if isinstance(value, str) else ""
 
 
+# What a listing is cut to: a device's answer is somebody else's data, and
+# an app is sent all of it. The spec's own ceiling is 300 subdirectories.
+MAX_ENTRIES = 500
+MAX_PATH = 4096
+MAX_NAME = 255
+MAX_REASON = 500
+
+
 def _entry(raw: dict[str, Any], mine: dict[str, Model]) -> dict[str, Any]:
     """One `Dir` as both doors say it. `model` is the remembered model **as
     one the person still has** (its id and name), else None: a ref nobody
     serves them any more is not offered as a start."""
     row = mine.get(_ref(raw.get("model")))
-    path = str(raw.get("path") or "")
+    path = str(raw.get("path") or "")[:MAX_PATH]
+    name = str(raw.get("name") or "") or path.rstrip("/").rsplit("/", 1)[-1] or path
     return {
         "path": path,
-        "name": str(raw.get("name") or "") or path.rstrip("/").rsplit("/", 1)[-1] or path,
+        "name": name[:MAX_NAME],
         # Whether a session may be opened there, by the device's own rule.
         "accepted": bool(raw.get("accepted", True)),
-        "reason": str(raw.get("reason") or ""),
-        "model": {"id": row.model_id, "name": row.display_name or row.model_id}
+        "reason": str(raw.get("reason") or "")[:MAX_REASON],
+        # `ref` names the one row: two connections may serve the id.
+        "model": {"id": row.model_id, "ref": ref_of(row),
+                  "name": row.display_name or row.model_id}
         if row is not None
         else None,
     }
@@ -160,7 +171,7 @@ async def browse(db: DBSession, user: User, token: ApiToken, path: str = "") -> 
     if link is None:
         out["code"] = NOT_LINKED
         return out
-    out["roots"] = list(link.roots)
+    out["roots"] = [str(r)[:MAX_PATH] for r in link.roots[:MAX_ENTRIES]]
     out["remembers"] = link.can(CAPABILITY)
     try:
         got = await link.request("_lembas/directories", {"path": path}, timeout=LIST_TIMEOUT)
@@ -169,7 +180,7 @@ async def browse(db: DBSession, user: User, token: ApiToken, path: str = "") -> 
         if "not found" in message.lower():
             out["code"] = CLI_TOO_OLD
         else:
-            out["code"], out["error"] = REFUSED, message
+            out["code"], out["error"] = REFUSED, message[:MAX_REASON]
         return out
     except (device_link.LinkClosed, TimeoutError):
         out["code"] = NO_ANSWER
@@ -178,43 +189,66 @@ async def browse(db: DBSession, user: User, token: ApiToken, path: str = "") -> 
     mine = _mine(db, user)
     here = str(answer.get("path") or "")
     listed = answer.get("entries") if here else answer.get("places")
+    listed = listed if isinstance(listed, list) else []
     out["entries"] = [
-        _entry(e, mine) for e in (listed or []) if isinstance(e, dict) and e.get("path")
+        _entry(e, mine) for e in listed[:MAX_ENTRIES] if isinstance(e, dict) and e.get("path")
     ]
     if here:
         out.update(_entry(answer, mine))
-        out["parent"] = str(answer.get("parent") or "")
+        out["parent"] = str(answer.get("parent") or "")[:MAX_PATH]
     if answer.get("error"):
         # The device listed what it could and says what it could not.
-        out["error"] = str(answer.get("error"))
+        out["error"] = str(answer.get("error"))[:MAX_REASON]
     return out
 
 
 # --- One directory's model --------------------------------------------------------------------
-async def remembered(token_id: str | None, path: str, *, timeout: float = ASK_TIMEOUT) -> str:
-    """The ref of the model last used in exactly `path` on the device, or "".
+class NoAnswer(Exception):
+    """The device was asked for a directory's model and did not answer: it
+    is away, its link dropped, or it took too long. Not "nothing is
+    remembered there", which is an answer."""
 
-    The cheap ask (`list: false`: nothing is listed). "" for everything that
-    is not an answer with a model -- a device that is away, one without the
-    capability (it is not asked at all), a refusal, a slow answer: the caller
-    then starts as it did before 3.9.0. Never raises."""
+
+async def asked(token_id: str | None, path: str, *, timeout: float = ASK_TIMEOUT) -> str:
+    """The ref of the model last used in exactly `path` on the device, or ""
+    where the device says none is -- an answer without `model`, a directory
+    it does not accept, a refusal in its own words, a device without the
+    capability (which is not asked at all: it would list the whole folder).
+
+    The cheap ask (`list: false`: nothing is listed). Raises `NoAnswer` when
+    the device did not answer at all, for a caller that can wait and ask
+    again (a schedule's run); `remembered` is this for one that cannot."""
     from lembas.services import device_link
 
     link = device_link.link_for(token_id)
-    if link is None or not path or not link.can(CAPABILITY):
+    if link is None:
+        raise NoAnswer
+    if not path or not link.can(CAPABILITY):
         return ""
     try:
         got = await link.request(
             "_lembas/directories", {"path": path, "list": False}, timeout=timeout
         )
-    except (device_link.DeviceError, device_link.LinkClosed, TimeoutError):
+    except device_link.DeviceError:
         return ""
-    except Exception:  # a start must never fail on a nicety
+    except (device_link.LinkClosed, TimeoutError) as exc:
+        raise NoAnswer from exc
+    except Exception as exc:  # a start must never fail on a nicety
         log.debug("asking %s for a directory's model failed", token_id, exc_info=True)
-        return ""
+        raise NoAnswer from exc
     if not isinstance(got, dict) or not got.get("accepted", True):
         return ""
     return _ref(got.get("model"))
+
+
+async def remembered(token_id: str | None, path: str, *, timeout: float = ASK_TIMEOUT) -> str:
+    """`asked`, for a caller with somebody waiting (a chat's first message):
+    "" also when the device did not answer -- it then starts as it did before
+    3.9.0. Never raises."""
+    try:
+        return await asked(token_id, path, timeout=timeout)
+    except NoAnswer:
+        return ""
 
 
 async def model_for(
@@ -223,11 +257,14 @@ async def model_for(
 ) -> Model | None:
     """The directory's model as a row this person has now, or None (start as
     before). `scheduled`: for a schedule's run, which an interactive-only
-    model does not count for. `usable` narrows what counts as having it (a
-    run stays inside its schedule's data group)."""
+    model does not count for -- and which, having nobody waiting, hears
+    `NoAnswer` rather than starting on the default because a device was slow.
+    `usable` narrows what counts as having it (a run stays inside its
+    schedule's data group)."""
     from lembas.services import interactive
 
-    ref = await remembered(token_id, path, timeout=timeout)
+    ask = asked if scheduled else remembered
+    ref = await ask(token_id, path, timeout=timeout)
     if not ref:
         return None
     mine = _mine(db, user)
@@ -248,7 +285,9 @@ __all__ = [
     "ERRORS",
     "NOT_LINKED",
     "NO_ANSWER",
+    "NoAnswer",
     "REFUSED",
+    "asked",
     "browse",
     "model_for",
     "owned_device",

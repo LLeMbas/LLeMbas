@@ -72,11 +72,11 @@ def _model(db, connection, model_id: str, position: int = 0, **fields) -> Model:
 def plan(db, registered):
     """One model on a Token Plan connection, and nothing else."""
     connection = _connection(db, "Plan", "alibaba_plan", PLAN_URL, "sk-sp-abc")
-    return _model(db, connection, "qwen-max", context_length=1000)
+    return _model(db, connection, "mallorn-large", context_length=1000)
 
 
 def _twin(db) -> Model:
-    return _model(db, _connection(db, "Payg", "alibaba", PAYG_URL, "sk-abc"), "qwen-max", 1)
+    return _model(db, _connection(db, "Payg", "alibaba", PAYG_URL, "sk-abc"), "mallorn-large", 1)
 
 
 def _other(db) -> Model:
@@ -156,10 +156,10 @@ def test_thinking_goes_to_the_top_level_and_an_effort_asks_for_it():
 
 def test_a_model_with_the_switch_is_told_on_as_well_as_off(db, registered):
     payg = _connection(db, "Payg", "alibaba", PAYG_URL)
-    switched = _model(db, payg, "qwen-plus", thinking_switch=True)
-    plain = _model(db, payg, "qwen-coder", 1)
+    switched = _model(db, payg, "mallorn-switch", thinking_switch=True)
+    plain = _model(db, payg, "mallorn-plain", 1)
     local = _model(db, _connection(db, "Local", "openai_compatible", "http://x.test/v1"),
-                   "qwen-local", 2, thinking_switch=True)
+                   "mallorn-local", 2, thinking_switch=True)
 
     def sent(model, level):
         body: dict = {}
@@ -272,11 +272,11 @@ def test_a_schedule_cannot_be_given_an_interactive_only_model(db, plan):
     owner = _owner(db)
     assert models_service.offered_models(db, owner) == []
     with pytest.raises(schedules_service.ScheduleError) as refused:
-        schedules_service.model_choice(db, owner, "qwen-max")
+        schedules_service.model_choice(db, owner, "mallorn-large")
     assert str(refused.value) == schedules_service.INTERACTIVE_ONLY
     # With the same id on a pay-as-you-go connection, the schedule gets that one.
     twin = _twin(db)
-    assert schedules_service.model_choice(db, owner, "qwen-max") == ("qwen-max",
+    assert schedules_service.model_choice(db, owner, "mallorn-large") == ("mallorn-large",
                                                                     twin.connection_id)
     assert [m.id for m in models_service.offered_models(db, owner)] == [twin.id]
 
@@ -287,20 +287,21 @@ def test_the_api_refuses_it_in_words_and_never_lists_it(client, db, plan):
     _, raw = api_tokens.create(db, user, name="App", scopes=["app"])
     auth = {"Authorization": f"Bearer {raw}"}
     body = {"title": "News", "instruction": "Summarise the news.",
-            "rule": {"at": {"times": ["07:30"]}}, "model": "qwen-max"}
+            "rule": {"at": {"times": ["07:30"]}}, "model": "mallorn-large"}
     refused = client.post("/api/v2/schedules", json=body, headers=auth)
     assert refused.status_code == 400
     assert "interactive use only" in refused.json()["detail"]
     listed = client.get("/api/v2/schedules/models", headers=auth).json()
-    assert "qwen-max" not in json.dumps(listed) and "local-small" in json.dumps(listed)
+    assert "mallorn-large" not in json.dumps(listed) and "local-small" in json.dumps(listed)
     # What the apps and the CLI read about the model itself.
     models = {m["id"]: m for m in client.get("/api/v2/models", headers=auth).json()["models"]}
-    assert models["qwen-max"]["interactive_only"] is True
+    assert models["mallorn-large"]["interactive_only"] is True
     assert "interactive_only" not in models["local-small"], "sent only when true"
-    _, key = api_tokens.create(db, user, name="CLI", scopes=["models"])
+    _, key = api_tokens.create(db, user, name="CLI", scopes=["models"], kind="device",
+                               device_host="workstation")
     served = client.get("/v1/models", headers={"Authorization": f"Bearer {key}"}).json()
     flags = {m["id"].split("/")[-1]: m.get("interactive_only") for m in served["data"]}
-    assert flags["qwen-max"] is True and flags["local-small"] is None
+    assert flags["mallorn-large"] is True and flags["local-small"] is None
 
 
 def test_the_schedule_form_does_not_offer_it(client, db, plan):
@@ -308,17 +309,17 @@ def test_the_schedule_form_does_not_offer_it(client, db, plan):
     settings_store.update(db, {"enabled": True}, key=settings_store.SCHEDULES)
     page = client.get("/scheduled/new")
     assert page.status_code == 200
-    assert "local-small" in page.text and "qwen-max" not in page.text
+    assert "local-small" in page.text and "mallorn-large" not in page.text
 
 
 @pytest.mark.anyio
 async def test_a_run_whose_model_became_interactive_only_fails_and_says_so(db, script):
     payg = _connection(db, "Payg", "alibaba", PAYG_URL)
-    _model(db, payg, "qwen-max")
+    _model(db, payg, "mallorn-large")
     _other(db)
     schedule = schedules_service.create(
         db, owner=_owner(db), title="Build check", instruction="Check the build.",
-        rule={"start": T0.isoformat(), "every": {"hours": 1}}, model_id="qwen-max",
+        rule={"start": T0.isoformat(), "every": {"hours": 1}}, model_id="mallorn-large",
     )
     schedule.next_fire_at = T0
     # The administrator moves the connection onto a plan.
@@ -341,8 +342,10 @@ async def test_a_scheduled_reply_is_refused_before_anything_is_sent(db, plan, mo
 
     monkeypatch.setattr(generation_service, "stream_chat", stream)
 
-    async def run_reply(chat: Chat) -> Message:
-        db.add(Message(chat_id=chat.id, role="user", content="Check the build.", complete=True))
+    async def run_reply(chat: Chat, machine: bool = False) -> Message:
+        # A run's turn is the one the runner writes: a `machine` turn.
+        db.add(Message(chat_id=chat.id, role="user", content="Check the build.", complete=True,
+                       machine=machine))
         reply = Message(chat_id=chat.id, role=ROLE_ASSISTANT, content="", complete=False)
         db.add(reply)
         db.commit()
@@ -353,11 +356,13 @@ async def test_a_scheduled_reply_is_refused_before_anything_is_sent(db, plan, mo
         return db.get(Message, reply.id)
 
     # A run's own chat.
-    task = await run_reply(_chat(db, plan, kind=KIND_TASK, unattended=True))
+    task = await run_reply(_chat(db, plan, kind=KIND_TASK, unattended=True), machine=True)
     assert "interactive use only" in task.error and asked == []
     # A subagent under a run: the same run.
     parent = _chat(db, plan, kind=KIND_TASK, unattended=True)
-    child = await run_reply(_chat(db, plan, parent_chat_id=parent.id, unattended=True))
+    child = await run_reply(
+        _chat(db, plan, parent_chat_id=parent.id, unattended=True), machine=True
+    )
     assert "interactive use only" in child.error and asked == []
     # A person's chat, and a subagent they started in it: interactive.
     mine = _chat(db, plan, title="Named", title_generated=True)
@@ -391,7 +396,7 @@ def test_a_scheduled_run_does_not_fall_back_onto_a_plan(db, plan):
     owner = _owner(db)
     endpoint = Endpoint.from_connection(local.connection)
     person = fallback_service.plan(db, _chat(db, local), owner, local, endpoint, "local-small")
-    assert [c.model_id for c in person.fallbacks] == ["qwen-max"]
+    assert [c.model_id for c in person.fallbacks] == ["mallorn-large"]
     run = fallback_service.plan(
         db, _chat(db, local, kind=KIND_TASK), owner, local, endpoint, "local-small"
     )
@@ -413,7 +418,7 @@ def test_where_a_background_call_goes(db, plan):
     # The same model on a pay-as-you-go connection comes first.
     _twin(db)
     routed = interactive.background(db, chat, endpoint, model_id)
-    assert (routed[0].base_url, routed[1]) == (PAYG_URL, "qwen-max")
+    assert (routed[0].base_url, routed[1]) == (PAYG_URL, "mallorn-large")
     # A chat that is not on such a connection is left exactly as it is.
     plain = _chat(db, other)
     there = chat_service.resolve_endpoint(db, plain)
@@ -421,7 +426,7 @@ def test_where_a_background_call_goes(db, plan):
 
 
 def test_a_default_model_that_is_interactive_only_is_not_where_it_goes(db, plan):
-    second = _model(db, plan.connection, "qwen-flash", 1)
+    second = _model(db, plan.connection, "mallorn-small", 1)
     settings_store.update(db, {"default_model": second.model_id})
     chat = _chat(db, plan)
     assert interactive.background(db, chat, *chat_service.resolve_endpoint(db, chat)) is None
@@ -448,7 +453,7 @@ async def test_the_title_is_asked_of_the_twin_or_not_asked_at_all(db, plan, monk
     _twin(db)
     assert await name(_chat(db, plan)) == "From the model"
     # Not asked to stop thinking: that mark was read from another row.
-    assert asked == [(PAYG_URL, "qwen-max", False)]
+    assert asked == [(PAYG_URL, "mallorn-large", False)]
 
 
 def _exchange(db, chat: Chat) -> Message:
@@ -524,13 +529,13 @@ async def test_a_subagents_own_compaction_is_judged_by_the_subagents_model(
 
 def test_the_index_is_not_built_on_an_interactive_only_connection(db, plan, monkeypatch):
     monkeypatch.setattr(pipeline.vec, "available", lambda: True)
-    _model(db, plan.connection, "text-embedding-v4", 1, kind="embedding")
+    _model(db, plan.connection, "mallorn-embed", 1, kind="embedding")
     settings_store.update(
-        db, {"embedding_model_id": "text-embedding-v4"}, key=settings_store.EXTRACTION
+        db, {"embedding_model_id": "mallorn-embed"}, key=settings_store.EXTRACTION
     )
     assert pipeline.embedder(db) is None
     payg = _connection(db, "Payg", "alibaba", PAYG_URL)
-    _model(db, payg, "text-embedding-v4", 2, kind="embedding")
+    _model(db, payg, "mallorn-embed", 2, kind="embedding")
     found = pipeline.embedder(db)
     assert found is None or found.endpoint.base_url == PAYG_URL
 
@@ -565,4 +570,231 @@ def test_a_stored_key_of_the_other_product_is_flagged_without_being_sent(client,
     page = client.get("/admin/connections")
     assert "sk-not-a-plan-key" not in page.text
     # Shown from the first paint for the stored key, not only once typed.
-    assert "x-show=\"wrongKey() || key ===" in page.text
+    # Only while the saved type is still the one selected: the server judged
+    # the stored key against that one.
+    assert "x-show=\"wrongKey() || (key ===" in page.text and "&& type ===" in page.text
+
+
+# --- After the review of 2.0.0-beta.13..HEAD ---------------------------------------------------
+def test_a_personal_api_key_is_not_served_an_interactive_only_model(client, db, plan, mock_http):
+    """A request to `/v1` does not say what it is for, so the token decides:
+    a linked device's is a person at a terminal, any other is a script."""
+    _other(db)
+    user = _owner(db)
+    sent: list[str] = []
+
+    def upstream(request: httpx.Request) -> httpx.Response:
+        sent.append(request.url.host)
+        return httpx.Response(200, json={"choices": [{"message": {"content": "ok"}}],
+                                         "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
+
+    mock_http(upstream)
+    _, personal = api_tokens.create(db, user, name="A script", scopes=["models"])
+    _, device = api_tokens.create(db, user, name="CLI", scopes=["models"], kind="device",
+                                  device_host="workstation")
+    body = {"model": "plan/mallorn-large", "messages": [{"role": "user", "content": "hi"}]}
+
+    def call(key: str, **extra):
+        return client.post("/v1/chat/completions", json={**body, **extra},
+                           headers={"Authorization": f"Bearer {key}"})
+
+    refused = call(personal)
+    assert refused.status_code == 403 and sent == []
+    assert refused.json()["error"]["message"] == (
+        "plan/mallorn-large is on a connection for interactive use only: its provider's "
+        "terms do not allow scheduled or background work. Choose a model on a pay-as-you-go "
+        "connection."
+    )
+    listed = client.get("/v1/models", headers={"Authorization": f"Bearer {personal}"}).json()
+    assert [m["id"] for m in listed["data"] if m.get("kind") == "chat"] == ["local/local-small"]
+    # Its other models are its own as before.
+    assert call(personal, model="local/local-small").status_code == 200
+    # The linked CLI is served, and trusted to follow the spec for the rest.
+    assert call(device).status_code == 200
+    assert sent == ["127.0.0.1", "token-plan.ap-southeast-1.maas.aliyuncs.com"]
+    emb = client.post("/v1/embeddings", json={"model": "plan/mallorn-large", "input": "x"},
+                      headers={"Authorization": f"Bearer {personal}"})
+    assert emb.status_code in (400, 403)
+
+
+def test_a_scheduled_runs_picture_is_not_reviewed_on_a_plan(db, plan):
+    from types import SimpleNamespace
+
+    from lembas.services.images import tool as image_tool
+
+    plan.capabilities_json = {"vision": True, "tools": True}
+    db.commit()
+    run_chat = _chat(db, plan, kind=KIND_TASK, unattended=True)
+    mine = _chat(db, plan)
+
+    def reviewer(chat: Chat):
+        return image_tool._reviewer(SimpleNamespace(
+            image_config={"review_enabled": True, "review_model_id": "mallorn-large"},
+            data_group="default", model_id=chat.model_id, connection_id=chat.connection_id,
+            chat_id=chat.id,
+        ))
+
+    # A person's own reply: reviewed where the administrator said.
+    assert reviewer(mine)[0].base_url == PLAN_URL
+    # A run: nobody, rather than the plan --
+    assert reviewer(run_chat) is None
+    # -- or the same model on a connection a run may use.
+    twin = _twin(db)
+    twin.capabilities_json = {"vision": True}
+    db.commit()
+    assert reviewer(run_chat)[0].base_url == PAYG_URL
+    assert reviewer(mine)[0].base_url == PLAN_URL
+
+
+def test_a_person_writing_into_a_runs_chat_is_a_person(db, plan):
+    """`interactive.md` §2. The run's own turn is the one the runner wrote
+    (`machine`); what the person writes there afterwards is theirs."""
+    chat = _chat(db, plan, kind=KIND_TASK, unattended=True)
+    child = _chat(db, plan, parent_chat_id=chat.id, unattended=True)
+    assert interactive.scheduled_work(db, chat), "a run's chat before anything is in it"
+    when = datetime.now(UTC)
+    db.add(Message(chat_id=chat.id, role="user", content="Check.", machine=True,
+                   created_at=when))
+    db.commit()
+    assert interactive.scheduled_work(db, chat) and interactive.scheduled_work(db, child)
+    db.add(Message(chat_id=chat.id, role="user", content="And what failed?",
+                   created_at=when + timedelta(minutes=5)))
+    db.commit()
+    assert not interactive.scheduled_work(db, chat)
+    assert not interactive.scheduled_work(db, child), "what their turn starts is theirs too"
+    # A job's note arriving after that is the harness's again.
+    db.add(Message(chat_id=chat.id, role="user", content="[job 1 ended]", machine=True,
+                   created_at=when + timedelta(minutes=9)))
+    db.commit()
+    assert interactive.scheduled_work(db, chat)
+
+
+async def test_a_routed_summary_is_shaped_counted_and_priced_on_the_model_asked(
+    db, plan, mock_http
+):
+    from lembas.services import usage as usage_service
+
+    bodies: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content))
+        usage = json.dumps({"choices": [], "usage": {"prompt_tokens": 1000,
+                                                     "completion_tokens": 100}})
+        frame = json.dumps({"choices": [{"delta": {"content": "Summary."}}]})
+        return httpx.Response(200, text=f"data: {frame}\n\ndata: {usage}\n\ndata: [DONE]\n\n")
+
+    mock_http(handler)
+    plan.thinking_switch = True
+    twin = _twin(db)
+    twin.pricing_json = {"input": 2.0, "output": 8.0}
+    db.commit()
+    chat = _chat(db, plan, params_json={"reasoning_effort": "off"})
+    reply = _exchange(db, chat)
+    recorded: list[dict] = []
+    real = usage_service.record
+
+    def record(db_, user_id, **fields):
+        recorded.append(fields)
+        return real(db_, user_id, **fields)
+
+    usage_service.record = record
+    try:
+        assert await compaction_service.summarise(chat.id, upto_id=reply.id)
+    finally:
+        usage_service.record = real
+    # The twin has no thinking switch: it is not sent the plan model's "off".
+    assert "enable_thinking" not in bodies[0] and "chat_template_kwargs" not in bodies[0]
+    assert recorded[0]["model_id"] == "mallorn-large"
+    assert recorded[0]["cost_micro"] == 1000 * 2 + 100 * 8, "priced by the twin's list"
+
+    # A model whose window is below what must be sent is nowhere to go.
+    twin.context_length = 5
+    db.commit()
+    with pytest.raises(LLMError) as refused:
+        await compaction_service.summarise(chat.id, upto_id=reply.id)
+    assert refused.value.interactive_only and len(bodies) == 1
+
+
+async def test_a_skipped_automatic_compaction_is_said_once(db, plan, monkeypatch):
+    monkeypatch.setattr(compaction_service, "should_compact", lambda *a, **k: True)
+    generation_service._SAID_NO_COMPACT.clear()
+    chat = _chat(db, plan)
+    _exchange(db, chat)
+    pending = Message(chat_id=chat.id, role=ROLE_ASSISTANT, content="", complete=False)
+    db.add(pending)
+    db.commit()
+    first = generation_service.Generation(chat_id=chat.id, message_id=pending.id)
+    await generation_service._maybe_compact(first)
+    assert "were not summarised" in "".join(first.content)
+    again = generation_service.Generation(chat_id=chat.id, message_id=pending.id)
+    await generation_service._maybe_compact(again)
+    assert again.content == []
+
+
+async def test_an_interrupted_reply_on_a_plan_is_not_carried_on_by_itself(db, plan):
+    chat = _chat(db, plan)
+    local_chat = _chat(db, _other(db))
+    rows = []
+    for one in (chat, local_chat):
+        db.add(Message(chat_id=one.id, role="user", content="Go on.", complete=True))
+        row = Message(chat_id=one.id, role=ROLE_ASSISTANT, content="Half of", complete=True,
+                      interrupted=True, model_id=one.model_id,
+                      connection_id=one.connection_id)
+        db.add(row)
+        rows.append(row)
+    db.commit()
+    started = []
+    real = generation_service.ensure
+    generation_service.ensure = lambda *a, **k: started.append(a)
+    try:
+        assert await generation_service.resume_interrupted(delay=0) == 1
+    finally:
+        generation_service.ensure = real
+    db.expire_all()
+    assert [a[0] for a in started] == [local_chat.id]
+    assert db.get(Message, rows[0].id).interrupted is True
+
+
+def test_the_notes(db, plan, mock_http):
+    import asyncio
+
+    from lembas.services import model_state
+    from lembas.services.llm import health
+    from lembas.services.schedule import compile as compile_service
+
+    # A host spelled to its root is the same host.
+    assert providers.plan_host("https://token-plan.ap-southeast-1.maas.aliyuncs.com./v1")
+    assert providers.by_host("https://dashscope-intl.aliyuncs.com./x").id == "alibaba"
+    # A zero in one place does not hide the figure in another.
+    assert providers.cache_write_tokens({
+        "prompt_tokens_details": {"cache_write_tokens": 0, "cache_creation_input_tokens": 300}
+    }) == 300
+    assert providers.cache_write_tokens({"prompt_tokens_details": {"cache_write_tokens": 0}}) == 0
+    # Words → a schedule is not asked of a plan when it is all there is.
+    assert compile_service.endpoint_for(db, _owner(db)) is None
+    # Nothing polls a plan by itself; an administrator's Test still does.
+    asked: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        asked.append(request.url.host)
+        return httpx.Response(200, json={"data": [{"id": "mallorn-large"}]})
+
+    mock_http(handler)
+    health.reset()
+    assert asyncio.run(health.tick(force=True)) == 0
+    assert asyncio.run(model_state.states_for([plan])) == {}
+    assert asked == []
+    assert asyncio.run(health.check(db, plan.connection))["status"] == "ok"
+    assert asked == ["token-plan.ap-southeast-1.maas.aliyuncs.com"]
+
+
+async def test_a_quota_error_inside_a_stream_is_the_same_sentence(mock_http):
+    frame = json.dumps({"error": {"message": "Your token-plan quota has been exhausted.",
+                                  "code": "insufficient_quota"}})
+    mock_http(lambda request: httpx.Response(200, text=f"data: {frame}\n\n"))
+    endpoint = Endpoint(base_url=PLAN_URL, api_key="k", extra_headers={},
+                        provider_type="alibaba_plan")
+    with pytest.raises(LLMError) as caught:
+        async for _ in stream_chat(endpoint, {"model": "m", "messages": []}):
+            pass
+    assert caught.value.quota_exhausted and "quota is used up" in caught.value.message

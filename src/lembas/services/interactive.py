@@ -83,16 +83,20 @@ def twin_id(model: str, models: list[dict[str, Any]]) -> str | None:
 
 
 def background_call(
-    call: str, model: str, models: list[dict[str, Any]], defaults: list[str]
+    call: str, model: str, models: list[dict[str, Any]], defaults: list[str],
+    unfit: tuple[str, ...] | list[str] = (),
 ) -> dict[str, Any]:
     """Where a background call that would use `model` goes: `{model}` (itself,
     its twin, or the first default that is listed and not interactive-only),
-    `{skip: True}`, or `{refused}` with the spec's sentence."""
+    `{skip: True}`, or `{refused}` with the spec's sentence. `unfit`: models
+    that cannot take the call (a summary too large for their window) --
+    passed over like ones that are not listed, twin and default alike."""
     from lembas.services import harness_spec
 
     only = _only_ids(models)
     if model not in only:
         return {"model": model}
+    models = [m for m in models if str(m.get("id")) == model or str(m.get("id")) not in unfit]
     found = twin_id(model, models)
     if found is None:
         listed = {str(m.get("id")) for m in models}
@@ -146,12 +150,19 @@ def usable(models: list[Model]) -> list[Model]:
 
 
 def scheduled_work(db: DBSession, chat: Chat | None) -> bool:
-    """Whether a chat is scheduled work: a run's own chat (a task chat, or an
-    agent chat marked `scheduled`), or a subagent or team member under one."""
+    """Whether what a chat is doing now is scheduled work: a run's own turn
+    in its chat (a task chat, or an agent chat marked `scheduled`), or a
+    subagent or team member working under one.
+
+    **A person writing into a run's chat afterwards is a person**
+    (`interactive.md` §2): that turn is interactive, and so is what it
+    starts. A run's turn is the one the runner wrote -- a `machine` turn --
+    so a run's chat is scheduled work while the turn it last took is one,
+    and not while it is the person's own."""
     seen = 0
     while chat is not None and seen < _DEPTH:
         if chat.kind == KIND_TASK or bool(getattr(chat, "scheduled", False)):
-            return True
+            return not _persons_turn(db, chat)
         if seen and _run_in(db, chat):
             # A subagent under a person's chat that a schedule is continuing
             # right now: the run's, not the person's. (The chat itself is
@@ -162,6 +173,22 @@ def scheduled_work(db: DBSession, chat: Chat | None) -> bool:
         chat = db.get(Chat, parent) if parent else None
         seen += 1
     return False
+
+
+def _persons_turn(db: DBSession, chat: Chat) -> bool:
+    """Whether the turn a run's chat took last is a person's own: its newest
+    user message is one they wrote, not one the runner did."""
+    from sqlalchemy import select
+
+    from lembas.db.models import ROLE_USER, Message
+
+    last = db.scalars(
+        select(Message)
+        .where(Message.chat_id == chat.id, Message.role == ROLE_USER)
+        .order_by(Message.created_at.desc(), Message.id.desc())
+        .limit(1)
+    ).first()
+    return last is not None and not bool(last.machine)
 
 
 def _run_in(db: DBSession, chat: Chat) -> bool:
@@ -180,32 +207,18 @@ def scheduled_refusal(label: str) -> str:
     return t(SCHEDULED_REFUSED, model=label)
 
 
-def refuse_scheduled(db: DBSession, chat: Chat, endpoint: Endpoint, model_id: str) -> None:
-    """Raise when a reply of scheduled work is about to be asked of an
-    interactive-only connection. Nothing has been sent."""
-    if endpoint_only(endpoint) and scheduled_work(db, chat):
-        raise LLMError(scheduled_refusal(model_id))
-
-
-def _candidates(db: DBSession, chat: Chat, owner: User | None) -> list[Model]:
-    from lembas.services import chat as chat_service
-    from lembas.services import data_groups
-
-    group = data_groups.for_chat(db, chat)
-    return usable(chat_service.available_models(db, owner, group))
-
-
-def twin(db: DBSession, chat: Chat, owner: User | None, model_id: str) -> Model | None:
-    """The same model id on a connection that is not interactive-only, which
-    the chat's owner may use, in the chat's data group -- or None."""
-    return next((m for m in _candidates(db, chat, owner) if m.model_id == model_id), None)
-
-
 def background_model(
-    db: DBSession, chat: Chat, owner: User | None, model_id: str
+    db: DBSession, chat: Chat, owner: User | None, model_id: str, *, needs: int = 0,
+    tools: bool = False,
 ) -> Model | None:
     """Where a background call for an interactive-only chat goes: the twin,
-    else the instance's default model, else None."""
+    else the instance's default model, else None.
+
+    `needs`: about how many tokens the call sends; `tools`: whether what is
+    sent holds tool calls. A model whose stated context window is smaller, or
+    that takes no tools for such a conversation, is no place to send it -- it
+    would fail on every turn -- and is passed over like one that is not
+    there (the spec's `unfit`)."""
     from lembas.services import chat as chat_service
     from lembas.services import data_groups, settings_store
 
@@ -214,10 +227,15 @@ def background_model(
     # serving one model id are two entries with one tail.
     rows = chat_service.available_models(db, owner, data_groups.for_chat(db, chat))
     by_id = {f"{m.id}/{m.model_id}": m for m in rows}
-    listed = [{"id": key, "interactive_only": model_only(m)} for key, m in by_id.items()]
     asked = next(
         (key for key, m in by_id.items() if m.model_id == model_id and model_only(m)), None
     )
+    listed = [{"id": key, "interactive_only": model_only(m)} for key, m in by_id.items()]
+    unfit = [
+        key for key, m in by_id.items()
+        if (needs and m.context_length and needs > m.context_length)
+        or (tools and not (m.capabilities_json or {}).get("tools"))
+    ]
     if asked is None:
         # The chat's own row is not among them (taken from the person
         # since): still an interactive-only model looking for its twin.
@@ -225,25 +243,36 @@ def background_model(
         listed.append({"id": asked, "interactive_only": True})
     default = settings_store.get(db, "default_model")
     defaults = [key for key, m in by_id.items() if default and m.model_id == default]
-    went = background_call(CALL_TITLE, asked, listed, defaults)
+    went = background_call(CALL_TITLE, asked, listed, defaults, unfit)
     return by_id.get(went.get("model", ""))
+
+
+def route(
+    db: DBSession, chat: Chat, endpoint: Endpoint, model_id: str, *, needs: int = 0,
+    tools: bool = False,
+) -> tuple[Endpoint, str, Model | None] | None:
+    """Where a background call on `chat`'s behalf goes: the endpoint, the
+    model id, and -- when it goes elsewhere -- the row it goes to, which is
+    then the model the call is shaped for, counted on and priced by.
+
+    Unchanged (the row None) when the chat's connection is not
+    interactive-only. None when there is nowhere: the caller skips the call
+    or refuses it."""
+    if not endpoint_only(endpoint):
+        return endpoint, model_id, None
+    owner = db.get(User, chat.user_id) if chat.user_id else None
+    row = background_model(db, chat, owner, model_id, needs=needs, tools=tools)
+    if row is None or row.connection is None:
+        return None
+    return Endpoint.from_connection(row.connection), row.model_id, row
 
 
 def background(
     db: DBSession, chat: Chat, endpoint: Endpoint, model_id: str
 ) -> tuple[Endpoint, str] | None:
-    """The endpoint and model id a background call on `chat`'s behalf uses.
-
-    Unchanged when the chat's connection is not interactive-only. Otherwise
-    the twin's or the default model's -- or None, for the caller to skip the
-    call or refuse it."""
-    if not endpoint_only(endpoint):
-        return endpoint, model_id
-    owner = db.get(User, chat.user_id) if chat.user_id else None
-    row = background_model(db, chat, owner, model_id)
-    if row is None or row.connection is None:
-        return None
-    return Endpoint.from_connection(row.connection), row.model_id
+    """`route`, for a caller that needs only where to send."""
+    went = route(db, chat, endpoint, model_id)
+    return None if went is None else (went[0], went[1])
 
 
 def compact_refusal(db: DBSession, chat: Chat) -> str:
@@ -270,11 +299,10 @@ __all__ = [
     "connection_only",
     "endpoint_only",
     "model_only",
-    "refuse_scheduled",
+    "route",
     "scheduled_refusal",
     "scheduled_run",
     "scheduled_work",
-    "twin",
     "twin_id",
     "usable",
 ]

@@ -189,9 +189,13 @@
       <div class="composer__attachments" id="attachments"></div>
 
       {% if not chat and current_model %}
-      <input type="hidden" name="model_id" value="{{ current_model.model_id }}"
-             data-start-model data-default-model="{{ current_model.model_id }}"
-             data-default-label="{{ current_model.label }}">
+      {#- By its ref where two connections serve the id: the chat starts on
+          the row the picker shows, not on the first that has the id. -#}
+      {% set start_twin = current_model.model_id in twin_ids|default([]) %}
+      {% set start_value = (current_model.connection.provider_name ~ "/" ~ current_model.model_id) if start_twin else current_model.model_id %}
+      <input type="hidden" name="model_id" value="{{ start_value }}"
+             data-start-model data-default-model="{{ start_value }}"
+             data-default-label="{{ current_model.label }}{% if start_twin %} · {{ current_model.connection.name }}{% endif %}">
       {#- Only when the picker was used on this screen (`?model=`): then the
           model is the person's, whatever the directory remembers. Without it
           a new agent chat starts on the model last used in its directory

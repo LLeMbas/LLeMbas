@@ -2771,7 +2771,6 @@ MESSAGES.update(
 
 MESSAGES.update(
     {
-        "Interactive use only: the provider's terms forbid automated services, batch scripts and scheduled background jobs on a plan, and a key used for them can be suspended. So scheduled and background work never goes to this connection — it goes to a pay-as-you-go one, or is not done. A plan is sold for its subscriber's own use in coding and agent tools; whether this instance's use fits is yours to judge.": "Usage interactif uniquement : les conditions du fournisseur interdisent, avec un forfait, les services automatisés, les scripts par lots et les tâches planifiées en arrière-plan, et une clé utilisée pour cela peut être suspendue. Le travail planifié et en arrière-plan ne va donc jamais à cette connexion — il va à une connexion payée à l'usage, ou n'est pas fait. Un forfait est vendu pour l'usage propre de son abonné dans des outils de programmation et d'agents ; c'est à vous de juger si l'usage de cette instance y correspond.",
         "The provider has no balance to read with a model key and does not say what a reply cost: a cost here is this instance's estimate from the model's prices.": "Le fournisseur n'a pas de solde lisible avec une clé de modèles et ne dit pas ce qu'une réponse a coûté : un coût ici est l'estimation de cette instance d'après les prix du modèle.",
         'Region': 'Région',
         'As typed above': 'Comme saisi ci-dessus',
@@ -2809,5 +2808,12 @@ MESSAGES.update(
         "The folder's usual model": 'Le modèle habituel du dossier',
         "The folder's usual model is the one you last used in that folder on that computer — the computer remembers it, and each run asks it — or your default model where there is none. A model chosen here is the run's, whatever the folder's is. A run never changes the folder's model.": "Le modèle habituel du dossier est celui que vous avez utilisé en dernier dans ce dossier sur cet ordinateur — l'ordinateur s'en souvient et chaque exécution le lui demande — ou votre modèle par défaut s'il n'y en a pas. Un modèle choisi ici est celui de l'exécution, quel que soit celui du dossier. Une exécution ne change jamais le modèle du dossier.",
         "the folder's usual model": 'le modèle habituel du dossier',
+    }
+)
+
+MESSAGES.update(
+    {
+        "Interactive use only: the provider's terms forbid automated services, batch scripts and scheduled background jobs on a plan, and a key used for them can be suspended. So this server sends no scheduled or background work of its own to this connection — it goes to a pay-as-you-go one, or is not done — and refuses its models to personal API keys. A linked LLeMbas CLI may use them and is trusted to keep its own scheduled and background calls off them. A plan is sold for its subscriber's own use in coding and agent tools; whether this instance's use fits is yours to judge.": "Usage interactif uniquement : les conditions du fournisseur interdisent, avec un forfait, les services automatisés, les scripts par lots et les tâches planifiées en arrière-plan, et une clé utilisée pour cela peut être suspendue. Ce serveur n'envoie donc à cette connexion aucun travail planifié ou en arrière-plan qui lui soit propre — il va à une connexion payée à l'usage, ou n'est pas fait — et refuse ses modèles aux clés d'API personnelles. Un LLeMbas CLI relié peut les utiliser ; on lui fait confiance pour en tenir à l'écart ses propres appels planifiés et en arrière-plan. Un forfait est vendu pour l'usage propre de son abonné dans des outils de programmation et d'agents ; c'est à vous de juger si l'usage de cette instance y correspond.",
+        'The earlier turns of this chat were not summarised: its model is on a connection for interactive use only, and there is no other model to ask for the summary. Switch model or start a new chat before the conversation outgrows this one.': "Les échanges précédents de cette conversation n'ont pas été résumés : son modèle est sur une connexion réservée à l'usage interactif, et il n'y a pas d'autre modèle à qui demander le résumé. Changez de modèle ou commencez une nouvelle conversation avant que celle-ci ne dépasse ce modèle.",
     }
 )

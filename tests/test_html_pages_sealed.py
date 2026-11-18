@@ -256,21 +256,29 @@ class Canary:
             # Counted the moment it is made, before anything is read: a
             # connection is a connection whether or not it goes on to speak.
             seen.append(SILENT)
-            mine = len(seen) - 1
-            with connection:
-                connection.settimeout(2)
-                try:
-                    first = connection.recv(2048).split(b"\r\n", 1)[0].decode("latin-1")
-                except OSError:
-                    first = ""
-                if first:
-                    seen[mine] = first
-                with contextlib.suppress(OSError):
-                    connection.sendall(
-                        b"HTTP/1.1 200 OK\r\nAccess-Control-Allow-Origin: *\r\n"
-                        b"Content-Type: text/plain\r\nContent-Length: 2\r\n"
-                        b"Connection: close\r\n\r\nok"
-                    )
+            # Read on a thread of its own: a connection that says nothing
+            # holds its reader for two seconds, and a real request waiting
+            # behind a few of those must not go unread past the end of the run.
+            threading.Thread(
+                target=self._read, args=(connection, seen, len(seen) - 1), daemon=True
+            ).start()
+
+    @staticmethod
+    def _read(connection: socket.socket, seen: list[str], mine: int) -> None:
+        with connection:
+            connection.settimeout(2)
+            try:
+                first = connection.recv(2048).split(b"\r\n", 1)[0].decode("latin-1")
+            except OSError:
+                first = ""
+            if first:
+                seen[mine] = first
+            with contextlib.suppress(OSError):
+                connection.sendall(
+                    b"HTTP/1.1 200 OK\r\nAccess-Control-Allow-Origin: *\r\n"
+                    b"Content-Type: text/plain\r\nContent-Length: 2\r\n"
+                    b"Connection: close\r\n\r\nok"
+                )
 
     def _udp(self, listener: socket.socket, count: str) -> None:
         while self.open:

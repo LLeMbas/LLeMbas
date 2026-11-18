@@ -2771,7 +2771,6 @@ MESSAGES.update(
 
 MESSAGES.update(
     {
-        "Interactive use only: the provider's terms forbid automated services, batch scripts and scheduled background jobs on a plan, and a key used for them can be suspended. So scheduled and background work never goes to this connection — it goes to a pay-as-you-go one, or is not done. A plan is sold for its subscriber's own use in coding and agent tools; whether this instance's use fits is yours to judge.": 'Solo para uso interactivo: las condiciones del proveedor prohíben en un plan los servicios automatizados, los scripts por lotes y las tareas programadas en segundo plano, y una clave usada para ellos puede ser suspendida. Por eso el trabajo programado y en segundo plano nunca va a esta conexión: va a una de pago por uso, o no se hace. Un plan se vende para el uso propio de su suscriptor en herramientas de programación y agentes; si el uso de esta instancia encaja, le corresponde a usted juzgarlo.',
         "The provider has no balance to read with a model key and does not say what a reply cost: a cost here is this instance's estimate from the model's prices.": 'El proveedor no tiene un saldo que se pueda leer con una clave de modelos y no dice cuánto costó una respuesta: un coste aquí es la estimación de esta instancia a partir de los precios del modelo.',
         'Region': 'Región',
         'As typed above': 'Como está escrito arriba',
@@ -2809,5 +2808,12 @@ MESSAGES.update(
         "The folder's usual model": 'El modelo habitual de la carpeta',
         "The folder's usual model is the one you last used in that folder on that computer — the computer remembers it, and each run asks it — or your default model where there is none. A model chosen here is the run's, whatever the folder's is. A run never changes the folder's model.": 'El modelo habitual de la carpeta es el último que usó en esa carpeta de ese ordenador — el ordenador lo recuerda y cada ejecución se lo pregunta — o su modelo predeterminado donde no hay ninguno. Un modelo elegido aquí es el de la ejecución, sea cual sea el de la carpeta. Una ejecución nunca cambia el modelo de la carpeta.',
         "the folder's usual model": 'el modelo habitual de la carpeta',
+    }
+)
+
+MESSAGES.update(
+    {
+        "Interactive use only: the provider's terms forbid automated services, batch scripts and scheduled background jobs on a plan, and a key used for them can be suspended. So this server sends no scheduled or background work of its own to this connection — it goes to a pay-as-you-go one, or is not done — and refuses its models to personal API keys. A linked LLeMbas CLI may use them and is trusted to keep its own scheduled and background calls off them. A plan is sold for its subscriber's own use in coding and agent tools; whether this instance's use fits is yours to judge.": 'Solo para uso interactivo: las condiciones del proveedor prohíben en un plan los servicios automatizados, los scripts por lotes y las tareas programadas en segundo plano, y una clave usada para ellos puede ser suspendida. Por eso este servidor no envía a esta conexión ningún trabajo programado ni en segundo plano propio — va a una de pago por uso, o no se hace — y niega sus modelos a las claves de API personales. Un LLeMbas CLI vinculado puede usarlos, y se confía en que mantenga fuera de ellos sus propias llamadas programadas y en segundo plano. Un plan se vende para el uso propio de su suscriptor en herramientas de programación y agentes; si el uso de esta instancia encaja, le corresponde a usted juzgarlo.',
+        'The earlier turns of this chat were not summarised: its model is on a connection for interactive use only, and there is no other model to ask for the summary. Switch model or start a new chat before the conversation outgrows this one.': 'Los turnos anteriores de este chat no se resumieron: su modelo está en una conexión solo para uso interactivo y no hay otro modelo al que pedir el resumen. Cambie de modelo o empiece un chat nuevo antes de que la conversación supere a este.',
     }
 )

@@ -85,6 +85,12 @@ def _models() -> list[Model]:
         capabilities_json={"reasoning": False, "vision": True, "tools": False},
         reasoning_efforts=[], thinking_switch=False, image_path="", params_json={},
     )
+    # Each on a connection, which is what makes its `ref` (`provider/id`).
+    from lembas.db.models import Connection
+
+    local = Connection(name="Local", provider="local", base_url="http://127.0.0.1:1/v1")
+    for row in (switch, slider, plain):
+        row.connection = local
     return [switch, slider, plain]
 
 
@@ -497,13 +503,14 @@ def _directories() -> dict[str, object]:
         return {"path": path, "name": path.rsplit("/", 1)[-1], "accepted": True,
                 "reason": "", "model": None, **fields}
 
-    qwen = {"id": "qwen", "name": "Qwen"}
+    qwen = {"id": "qwen", "ref": "local/qwen", "name": "Qwen"}
     return {
         "device_directories": found(
             **entry("/home/user/project", model=qwen), parent="/home/user",
             entries=[
                 entry("/home/user/project/docs"),
-                entry("/home/user/project/server", model={"id": "gpt-oss", "name": "gpt-oss"}),
+                entry("/home/user/project/server",
+                      model={"id": "gpt-oss", "ref": "local/gpt-oss", "name": "gpt-oss"}),
                 entry("/home/user/project/vendor", accepted=False,
                       reason="This directory is not trusted on the device."),
             ],
@@ -1034,7 +1041,7 @@ def _shapes() -> dict[str, object]:
             ],
             "subagents_cap": 32,
             "agent_subagents": {"offered": True, "device_runs": True},
-            "start": {"model": "gpt-oss", "from": "directory"},
+            "start": {"model": "gpt-oss", "ref": "local/gpt-oss", "from": "directory"},
         },
         # An agent chat's subagents are its device's (spec 3.4.0, subagents.md
         # §14): offered where the instance and the person allow them; the

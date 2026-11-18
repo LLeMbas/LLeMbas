@@ -109,7 +109,10 @@ a field, a rule amended, no tool and no text for a model.
   again is set aside. The defaults ask about `*.env.*` and then allow `*.env.example`; after a
   broad `read: allow` both counted and the strictest won, so making the allow *started* asking
   about `.env.example`. Now the example file is read without asking after it as before it.
-  LLeMbas: the same change in its rule lookup, if it has the same floor.
+  LLeMbas: the same change in its rule lookup, if it has the same floor. The same holds for a
+  rule **written again** — the same permission and pattern, later: the later one counts (five
+  more cases pin it, a project's deny narrowed by its own allow, and the person's own answer
+  standing through all of it).
 - **Interactive-only models** (`interactive.md`, `models/schema.json` `interactive_only`,
   `loop.json` `interactive`, `conformance/interactive.json`; three more cases in
   `last_model.json`). A model served through a connection its provider sells for a person's own
@@ -121,7 +124,15 @@ a field, a rule amended, no tool and no text for a model.
   such a model is asked of its twin (the same model under another provider), else of a default
   that is not interactive-only, else the title and automatic compaction are skipped and a
   compaction the person asked for is refused in words. What a person starts — their turns, the
-  subagents and teams of their session — stays on the model.
+  subagents and teams of their session — stays on the model. A model that cannot take a summary
+  (its window too small, no tools) is nowhere to go; a rerouted call is counted under the model
+  asked, and the client names it. In a schedule's session, what runs with no person's turn — a
+  turn a job wakes, a subagent started after the run — is still scheduled work.
+- **A schedule's session keeps its model, and is not run in a terminal** (`acp.md` *The run's
+  model*, *When the device is away, or refuses*): the device keeps the model with the session,
+  so one opened from its store again is on the model it had; and a scheduled prompt for a
+  session open in a terminal is refused (`data.reason: "terminal"`, `scheduled.texts.terminal`)
+  rather than run there as a person's turn.
 
 ## 3.8.1
 

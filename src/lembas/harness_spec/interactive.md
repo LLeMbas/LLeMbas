@@ -51,7 +51,10 @@ once (the CLI's commit-message draft).
   run goes on without it.
 - A one-shot run with nobody at it ends at once with the sentence, having sent nothing.
 
-A person writing into a run's chat afterwards is a person: that turn is interactive.
+A person writing into a run's chat afterwards is a person: that turn is interactive. What the
+run left working is still the run: in a session a schedule opened, a turn woken by one of its
+jobs, and a subagent started when no person's turn is running, are scheduled work and are held
+to this section.
 
 ## 3. Background calls go elsewhere
 
@@ -71,6 +74,16 @@ When the model a background call would use is interactive-only, the call goes to
 | a title | skipped: the session keeps the name made from its first prompt |
 | compaction the person asked for | refused in words: `interactive.texts.compact` |
 | automatic compaction | skipped, and the turn goes on — a client may say so once; the person can switch model, or start anew |
+
+**A model that cannot take the call is not somewhere to go**: for a summary, one whose context
+window is below what must be sent, or that takes no tools while the conversation holds tool
+calls, is passed over like one that is not listed (`unfit` in the cases). A title fits anywhere.
+A skipped automatic compaction is not an attempt: it does not count toward a client's limit on
+compacting within one turn.
+
+**The call is the other model's.** Its tokens are counted under the model that was asked, never
+under the session's, and the client says which model that was — for a title once, for a
+compaction each time.
 
 A call that goes elsewhere is otherwise the same call: the summary is asked for with the same
 conversation and comes back into the same session, whose model does not change. A model that is

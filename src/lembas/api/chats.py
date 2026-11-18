@@ -232,9 +232,9 @@ def _new_chat(
 
     chosen = None
     if model_id:
-        match = next(
-            (m for m in chat_service.available_models(db, user) if m.model_id == model_id), None
-        )
+        # An id, or a ref (`provider/model`) where the id alone does not say
+        # which connection.
+        match = chat_service.pick_model(chat_service.available_models(db, user), model_id)
         if match is not None:
             chosen = (match.model_id, match.connection_id)
     if chosen is None:
@@ -478,7 +478,7 @@ async def directory_start_model(
     db: DBSession, user: User, *, kind: str, device: str, project_dir: str,
     model_id: str, chosen: bool,
 ) -> str:
-    """The model id a new chat is made with (harness spec 3.9.0, `acp.md` *The
+    """The model (an id or a ref) a new chat is made with (harness spec 3.9.0, `acp.md` *The
     client's rule*; `directories.start`): the person's choice; else, for an
     agent chat on a device and directory, the model last used in that
     directory there when the person still has it; else `model_id` as it came
@@ -496,7 +496,9 @@ async def directory_start_model(
     if target is None:
         return model_id
     row = await directories.model_for(db, user, target[0], project_dir.strip())
-    return row.model_id if row is not None else model_id
+    # By its ref: the device remembers `provider/model`, and the chat starts
+    # on that connection -- not on another that serves the same id.
+    return chat_service.model_ref(row) if row is not None else model_id
 
 
 def _device_target(db: DBSession, user: User, kind: str, value: str) -> tuple[str, str] | None:
@@ -3184,17 +3186,13 @@ def apply_chat_update(db: DBSession, user: User, chat: Chat, form) -> tuple[bool
         # And within the chat's own data group: the new model would be sent the
         # whole history, which is exactly what a group keeps from its provider.
         group = data_groups.for_chat(db, chat)
-        match = next(
-            (
-                m
-                for m in chat_service.available_models(db, user, group)
-                if m.model_id == model_id
-            ),
-            None,
+        match = chat_service.pick_model(
+            chat_service.available_models(db, user, group), model_id, chat.connection_id
         )
         if match is None:
-            elsewhere = any(
-                m.model_id == model_id for m in chat_service.available_models(db, user)
+            elsewhere = (
+                chat_service.pick_model(chat_service.available_models(db, user), model_id)
+                is not None
             )
             if elsewhere:
                 raise HTTPException(
@@ -3207,7 +3205,7 @@ def apply_chat_update(db: DBSession, user: User, chat: Chat, form) -> tuple[bool
                     ),
                 )
             raise HTTPException(status.HTTP_403_FORBIDDEN, t("That model is not available to you."))
-        chat.model_id = model_id
+        chat.model_id = match.model_id
         chat.connection_id = match.connection_id
         # Chosen here: the device's own model it had switched to stops being
         # what the chat shows, and this one is sent with the next prompt.

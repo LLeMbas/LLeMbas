@@ -92,7 +92,8 @@
       "preview": "",
       "error": {
         "class": "device_away",
-        "text": "Waiting for bag-end to be linked."
+        "text": "Waiting for bag-end to be linked.",
+        "reason": null
       },
       "notified": false,
       "notification": null,

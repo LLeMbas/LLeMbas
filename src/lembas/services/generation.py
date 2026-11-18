@@ -256,6 +256,8 @@ class Generation:
     # was not linked when the turn was sent, so the run waits for it; and the
     # outcome the device gave in `session/prompt`'s answer, when it gave one.
     device_away: bool = False
+    # Why the device refused the turn (`data.reason` of its -32602), or "".
+    device_reason: str = ""
     scheduled_outcome: dict | None = None
     # Seconds this reply spent waiting for a person (an approval, a question,
     # the plan card). Not counted against the wall-clock budget.
@@ -671,8 +673,19 @@ async def resume_interrupted(delay: float = 20.0) -> int:
                     row.origin = ORIGIN_ATTACH
                     started.append((chat.id, row.id))
                     continue
-                from lembas.services import harness_spec
+                from lembas.services import harness_spec, interactive
 
+                # Carrying on by itself is this server's turn, not the
+                # person's: not on a connection sold for interactive use
+                # only. The reply stays as it was cut off, marked
+                # interrupted, for its person to continue.
+                asked = chat_service.Speaker(
+                    model_id=row.model_id or chat.model_id,
+                    connection_id=row.connection_id or chat.connection_id,
+                )
+                if interactive.model_only(chat_service.model_row(db, asked)):
+                    row.interrupted = True
+                    continue
                 carry_on = harness_spec.prompt("tasks/continue.md")
                 chat_service.create_message(db, chat, ROLE_USER, carry_on, origin=ORIGIN_RESUME)
                 reply = chat_service.create_message(
@@ -1909,6 +1922,16 @@ def _device_attachments(message: Message) -> list[dict]:
     return out
 
 
+# Chats that have been told their earlier turns are not being summarised
+# (in this process: a restart may say it once more).
+_SAID_NO_COMPACT: set[str] = set()
+NO_COMPACT_NOTE = i18n.N_(
+    "The earlier turns of this chat were not summarised: its model is on a connection for "
+    "interactive use only, and there is no other model to ask for the summary. Switch model "
+    "or start a new chat before the conversation outgrows this one."
+)
+
+
 async def _maybe_compact(generation: Generation) -> None:
     """Summarise the earlier turns if the window is about to be full.
 
@@ -1962,6 +1985,11 @@ async def _maybe_compact(generation: Generation) -> None:
         # chat on an interactive-only connection with nowhere else to ask:
         # skipped, and the turn goes on -- `interactive.md` §3). Not a fault.
         log.info("automatic compaction skipped for chat %s: %s", generation.chat_id, exc.message)
+        if getattr(exc, "interactive_only", False) and generation.chat_id not in _SAID_NO_COMPACT:
+            # Said once (`interactive.md` §3 allows it): otherwise the first
+            # the person hears of it is the model's window running out.
+            _SAID_NO_COMPACT.add(generation.chat_id)
+            generation.content.append("*(" + i18n.t(NO_COMPACT_NOTE) + ")*\n\n")
     except Exception:  # the reply matters more than the tidy-up
         log.exception("automatic compaction failed for chat %s", generation.chat_id)
     finally:

@@ -483,7 +483,8 @@
       "denied": "Nobody answered this approval within {{minutes}} minutes, so it counts as denied.",
       "monitor_asks": "The watch command would need approval in {{mode}} mode ({{reason}}), and a watch has nobody to ask. Allow the command in the project's permission rules, or choose a wider mode for the schedule.",
       "monitor_denied": "The watch command is refused here: {{reason}}.",
-      "no_reply": "The run ended without a reply."
+      "no_reply": "The run ended without a reply.",
+      "terminal": "This schedule's conversation is open in a terminal on the computer, and a scheduled run does not run as a person's turn there. Close the session in that terminal, or start a new one in it, and the next run goes ahead."
     },
     "notify": {
       "values": [

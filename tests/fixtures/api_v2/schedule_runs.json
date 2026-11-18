@@ -38,7 +38,8 @@
       "preview": "",
       "error": {
         "class": "no_model",
-        "text": "Waiting for a free model: Qwen: it is answering someone."
+        "text": "Waiting for a free model: Qwen: it is answering someone.",
+        "reason": null
       },
       "notified": false,
       "notification": null,

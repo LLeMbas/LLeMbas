@@ -117,12 +117,18 @@ def deciding(permission: str, pattern: str, rules: list[Rule]) -> Rule | None:
         r for r in hits
         if r is not candidate and r.layer in WRITTEN and narrower(r, candidate)
     ]
-    # A narrower rule that a later one narrows again is set aside (spec 3.9.0):
-    # `read *.env.*: ask` gives way to `read *.env.example: allow` read after
-    # it, as it does with no candidate above them.
+    # A narrower rule that a later one narrows again, or writes again (the
+    # same permission and pattern), is set aside (spec 3.9.0): `read *.env.*:
+    # ask` gives way to `read *.env.example: allow` read after it, and to a
+    # later `read *.env.*: allow`, as it does with no candidate above them.
+    def again(later: Rule, r: Rule) -> bool:
+        return narrower(later, r) or (later.permission, later.pattern) == (
+            r.permission, r.pattern
+        )
+
     floors = [
         r for index, r in enumerate(under)
-        if not any(narrower(later, r) for later in under[index + 1:])
+        if not any(again(later, r) for later in under[index + 1:])
     ]
     own = _last(hits, lambda r: r.layer == LAYER_USER)
     if own is not None:

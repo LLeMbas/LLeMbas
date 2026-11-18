@@ -84,7 +84,7 @@
         {% endfor %}
       </select>
       <p class="field__hint">{{ t("The type carries what differs between providers — how usage, cached tokens and reasoning are sent and read, and where a balance is found — so none of it has to be set by hand.") }}</p>
-      <p class="field__hint" x-show="interactive.includes(type)" x-cloak data-testid="interactive-only-note">{{ t("Interactive use only: the provider's terms forbid automated services, batch scripts and scheduled background jobs on a plan, and a key used for them can be suspended. So scheduled and background work never goes to this connection — it goes to a pay-as-you-go one, or is not done. A plan is sold for its subscriber's own use in coding and agent tools; whether this instance's use fits is yours to judge.") }}</p>
+      <p class="field__hint" x-show="interactive.includes(type)" x-cloak data-testid="interactive-only-note">{{ t("Interactive use only: the provider's terms forbid automated services, batch scripts and scheduled background jobs on a plan, and a key used for them can be suspended. So this server sends no scheduled or background work of its own to this connection — it goes to a pay-as-you-go one, or is not done — and refuses its models to personal API keys. A linked LLeMbas CLI may use them and is trusted to keep its own scheduled and background calls off them. A plan is sold for its subscriber's own use in coding and agent tools; whether this instance's use fits is yours to judge.") }}</p>
     </div>
 
     {#- One select per type that has regions, shown for that type: choosing
