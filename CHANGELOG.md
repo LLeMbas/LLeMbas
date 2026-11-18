@@ -7,6 +7,55 @@ at <https://llembas.eu/changelog.html>.
 
 ### Added
 
+- **More than pictures: edited pictures, video, music and 3D models.** A model in a chat
+  can now be asked to change a picture you gave it, and to make a short video, a piece of
+  music or a 3D model of an object in a picture. Each is its own tool (`image_edit`,
+  `video_generate`, `music_generate`, `model_generate`), offered only where something is
+  set up to make that kind of thing, and each is switched on by itself under Admin › Media,
+  which has a tab per kind: the default source, the price, and the limits.
+  - **From your own ComfyUI**: a workflow now has a *kind*. A workflow of kind video, music,
+    3D model or picture edit is what a ComfyUI makes that kind with. Input pictures are
+    uploaded to the ComfyUI, and the file a run saves is found whichever node saved it.
+  - **From a provider**: picture editing on OpenAI-compatible connections (`/images/edits`)
+    and on Alibaba Cloud Model Studio; video on Alibaba Cloud Model Studio, the Token Plan's
+    `wan3.0-video` included. A provider's plan serves these to a person in a chat only, never
+    to a scheduled run, as it does chat.
+  - Nothing here was tried against a real ComfyUI or a real provider before this release:
+    see *Starter workflows* below, and expect the first run to need a look.
+- **Long generations run in the background.** A video, a track and a 3D model take minutes.
+  The reply no longer waits: it says the work has started and ends; a card in the
+  conversation shows the state and the time, with **Cancel**; and when the thing is ready
+  the chat is told and the card becomes the player. A job survives a restart of the server
+  (nothing is started twice), has a deadline, and can be cancelled -- on a ComfyUI it is
+  taken out of the queue or interrupted; a provider is asked, and where it will not stop a
+  task that already runs you are told that it may still be charged. How many one person
+  may have going at once is a setting (2).
+- **Everything a model generates is in your Files**, under `Generated/` in your home, with
+  a dated name, never written over, and with the chat that made it in its history. In the
+  conversation it has a player (video, sound), a 3D view, or is a picture as before, each
+  with *Open in Files* and *Download*. A file you rename or move still plays in the chat.
+- **Import a ComfyUI workflow.** Paste or upload a workflow exported with *Export (API)*:
+  the server reads it and proposes where the placeholders go -- the prompt and the negative
+  prompt by which input of the sampler each feeds, the seed and the sampling values, the
+  size, the input picture -- and what kind of thing it makes. You tick what you agree with;
+  nothing is changed that you did not agree to, and nothing is saved until you add it. A
+  file saved from ComfyUI's interface (not the API export) is refused with how to export
+  the right one.
+- **Starter workflows** for picture editing (Qwen-Image-Edit), text to video and picture to
+  video (Wan 2.1), music (ACE-Step) and picture to 3D (Hunyuan3D 2.0), on a ComfyUI
+  connection's Workflows tab. Each names the model files your ComfyUI must have and where
+  they go. **They have not been run against any ComfyUI**: a starter is added switched off,
+  its page has **Test this workflow**, which runs it once and says what came back or what
+  failed, and it should be switched on once that passes.
+- **New placeholders for workflows**: `{{image}}`, `{{image2}}`, `{{mask}}`, `{{seconds}}`,
+  `{{fps}}`, `{{frames}}`, `{{lyrics}}`, `{{tags}}`, `{{mesh_quality}}`. A workflow's page
+  lists which it uses, which its kind requires, and which model files it names.
+- **Sound and video can be attached to a message.** They are played in the conversation
+  and can be named to a tool; they are not sent to the model.
+- **For apps (`/api/v2`)**: generated files and jobs on tool calls (`media`, `media_job`),
+  `GET /media/jobs`, `GET /media/jobs/{id}`, `DELETE /media/jobs/{id}`, and a file's bytes
+  by its id (`/files/raw?node=`).
+
 - **Every endpoint is a connection.** A ComfyUI and a speech server (anything that
   speaks OpenAI's `/audio/transcriptions` and `/audio/speech`, such as whisper.cpp or
   Kokoro) are connection types now, beside the providers of chat models -- several of
@@ -144,6 +193,13 @@ at <https://llembas.eu/changelog.html>.
 
 ### Fixed
 
+- **A model no longer orders a failed paid picture again by itself.** When a provider's
+  image model failed, the model was told only that it failed, and on one instance it then
+  asked for the same picture three more times. A failure now tells it to stop and say what
+  happened, and to try again only if you ask. The same holds for every new generation tool.
+- **"Could not reach …" is no longer said about an answer that arrived.** When a provider
+  answered and the answer could not be read, the message blamed the network. It now says
+  that the endpoint answered and its answer could not be read.
 - **Admin › Media showed no tab as the open one.** Speech to text, Text to speech and
   Pictures are link tabs; the one you were on was not marked. It is now.
 - **"New file" can no longer write over a file of the same name.** Making a file checked

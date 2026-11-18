@@ -195,10 +195,13 @@ async def content(db: Db, user: RequiredUser, attachment_id: str) -> Response:
 
     # inline for images so they render in the thread; attachment for everything
     # else so a text/html upload can never be executed in this origin.
-    disposition = "inline" if attachment.is_image else "attachment"
+    # Sound and video too: formats a browser decodes and never runs, and the
+    # stored type is the one their own bytes gave (`files.prepare`).
+    shown = attachment.is_image or attachment.is_playable
+    disposition = "inline" if shown else "attachment"
     return FileResponse(
         path,
-        media_type=attachment.media_type if attachment.is_image else "application/octet-stream",
+        media_type=attachment.media_type if shown else "application/octet-stream",
         headers={
             "Content-Disposition": files_service.content_disposition(
                 disposition, attachment.filename

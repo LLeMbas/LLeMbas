@@ -293,18 +293,30 @@ async def save_content(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> 
 
 @router.get("/files/raw")
 async def raw_file(
-    request: Request, caller: Me, db: Db, path: str, version: str = "", inline: bool = False
+    request: Request, caller: Me, db: Db, path: str = "", version: str = "",
+    inline: bool = False, node: str = "",
 ) -> Response:
     """A file's bytes (or one version's). An attachment of no type, unless
     `inline` is asked and the file is, by its own bytes, a raster picture,
     sound or video -- then its own type. `Range` is answered, so a player
-    can seek."""
+    can seek.
+
+    `node=<id>` in place of `path`: the file by its id, wherever it is now --
+    what a generated file's result carries (`node_id`), so its player still
+    works after the file was renamed or moved. Read as the person may read
+    that path, like any other."""
     from lembas.api import _download
 
+    if node:
+        path = fs.path_of(db, caller.user.org_id, node) or ""
+        if not path:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, fs.no_such(node).message)
     try:
         found = file_ui.download(fs.view(db, caller.user), _path(path), version)
     except fs.FsError as refused:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, refused.message) from refused
+        # Asked for by id: the refusal names the id, never the path it has.
+        said = fs.no_such(node).message if node else refused.message
+        raise HTTPException(status.HTTP_404_NOT_FOUND, said) from refused
     return _download.respond(
         found.name, found.digest, found.size, found.kind, inline=inline,
         range_header=request.headers.get("range"), if_range=request.headers.get("if-range"),

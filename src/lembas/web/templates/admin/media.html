@@ -22,12 +22,12 @@
 
     <div class="field">
       <label class="checkbox">
-        <input type="checkbox" name="enabled" value="true"
-               {{ 'checked' if (values.enabled if capability == 'image' else values[capability ~ '_enabled']) }}>
+        <input type="checkbox" name="enabled" value="true" {{ 'checked' if enabled }}>
         <span>
           {%- if capability == "stt" %}{{ t("Dictation is on") }}
           {%- elif capability == "tts" %}{{ t("Read-aloud is on") }}
-          {%- else %}{{ t("Image generation is on") }}{% endif -%}
+          {%- elif capability == "image" %}{{ t("Image generation is on") }}
+          {%- else %}{{ t("This is on") }}{% endif -%}
         </span>
       </label>
       <p class="field__hint">{{ t("Off is off for every source, a connection's own included.") }}</p>
@@ -60,6 +60,7 @@
       {% elif not choices %}
       <p class="field__hint" data-testid="media-nothing-added">
         {{ tm('No model of this kind is added yet. Add one on a <a href="/admin/connections">connection</a>\'s Models tab.') }}
+        {% if generation %}{{ t("On a ComfyUI, add a workflow of this kind on its Workflows tab: a starter is offered there.") }}{% endif %}
       </p>
       {% endif %}
     </div>
@@ -89,6 +90,52 @@
     </div>
     {% endif %}
   </section>
+
+  {% if generation %}
+  <section class="card" data-testid="media-limits">
+    <h2 class="card__title">{{ t("Limits and price") }}</h2>
+    <p class="card__lede">
+      {% if long %}{{ t("This takes minutes, so it runs as a job: the chat is answered at once and told when it is ready.") }}{% endif %}
+      {{ t("A ComfyUI makes these with a workflow of this kind; a provider with a model of this kind. A provider's model has its own price on its page.") }}
+    </p>
+    <div class="field-grid">
+      <div class="field">
+        <label class="field__label" for="price">{{ t("Price on a ComfyUI") }} ({{ currency_sign }}, {{ t(capability_units[capability]) }})</label>
+        <input class="input" id="price" name="price" type="number" min="0" step="any"
+               value="{{ values[capability ~ '_price'] or '' }}" placeholder="0">
+        <p class="field__hint"></p>
+      </div>
+      {% if capability in ("video", "music") %}
+      <div class="field">
+        <label class="field__label" for="max-seconds">{{ t("Longest, in seconds") }}</label>
+        <input class="input" id="max-seconds" name="{{ capability }}_max_seconds" type="number" min="1"
+               value="{{ values[capability ~ '_max_seconds'] }}">
+        <p class="field__hint"></p>
+      </div>
+      {% endif %}
+      {% if long %}
+      <div class="field">
+        <label class="field__label" for="max-mb">{{ t("Largest file kept, in MB") }}</label>
+        <input class="input" id="max-mb" name="{{ capability }}_max_mb" type="number" min="1"
+               value="{{ values[capability ~ '_max_mb'] }}">
+        <p class="field__hint"></p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="jobs-per-person">{{ t("Jobs one person may have at once") }}</label>
+        <input class="input" id="jobs-per-person" name="jobs_per_person" type="number" min="1" max="20"
+               value="{{ values.jobs_per_person }}">
+        <p class="field__hint">{{ t("For video, music and 3D models together.") }}</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="job-minutes">{{ t("Give up after, in minutes") }}</label>
+        <input class="input" id="job-minutes" name="job_minutes" type="number" min="2" max="720"
+               value="{{ values.job_minutes }}">
+        <p class="field__hint">{{ t("For video, music and 3D models together.") }}</p>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
 
   {% if capability == "image" %}
   <section class="card">

@@ -379,7 +379,24 @@
   <a class="btn btn--primary" href="/admin/images/workflows/new?connection={{ connection.id }}">
     {{ icon("plus", "icon--sm") }} {{ t("New workflow") }}
   </a>
+  <a class="btn" href="/admin/images/workflows/import?connection={{ connection.id }}" data-testid="workflow-import">
+    {{ t("Import a workflow") }}
+  </a>
 </div>
+<details class="card u-mt-5" data-testid="workflow-starters">
+  <summary class="card__title">{{ t("Starters for the other kinds") }}</summary>
+  <p class="card__lede">{{ t("One way to make each kind of thing, built on ComfyUI's own nodes. Each names model files you must have, and none has been run against your ComfyUI: add one, press Test on its page, and switch it on once Test passes.") }}</p>
+  <div class="model-rows">
+    {% for starter in starters %}
+    <a class="model-row" href="/admin/images/workflows/new?connection={{ connection.id }}&starter={{ starter.key }}">
+      <div class="model-row__main">
+        <span class="model-row__name">{{ starter.name }} <span class="badge">{{ t(capability_labels[starter.kind]) }}</span></span>
+        <span class="model-row__id">{{ starter.files | join(", ") }}</span>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</details>
 {% if workflows %}
 <div class="model-rows u-mt-5" data-testid="workflow-list">
   {% for workflow in workflows %}
@@ -387,6 +404,7 @@
     <div class="model-row__main">
       <span class="model-row__name">
         {{ workflow.name }}
+        {% if workflow.makes != "image" %}<span class="badge">{{ t(capability_labels[workflow.makes]) }}</span>{% endif %}
         {% if workflow.id == row.options.default_workflow_id %}<span class="badge badge--leaf">{{ t("default") }}</span>{% endif %}
         {% if not workflow.enabled %}<span class="badge">{{ t("disabled") }}</span>{% endif %}
         {% if not workflow.connection_id %}<span class="badge">{{ t("every ComfyUI") }}</span>{% endif %}
@@ -402,11 +420,11 @@
       <label class="field__label" for="default-workflow">{{ t("Default workflow") }}</label>
       <select class="select" id="default-workflow" name="default_workflow_id">
         <option value="">{{ t("The first in the list") }}</option>
-        {% for workflow in workflows if workflow.enabled %}
+        {% for workflow in workflows if workflow.enabled and workflow.makes == "image" %}
         <option value="{{ workflow.id }}" {{ 'selected' if workflow.id == row.options.default_workflow_id }}>{{ workflow.name }}</option>
         {% endfor %}
       </select>
-      <p class="field__hint">{{ t("Used when neither the model nor the chat names one.") }}</p>
+      <p class="field__hint">{{ t("Used when neither the model nor the chat names one.") }} {{ t("For pictures. Which workflow makes an edit, a video, music or a 3D model is chosen under Media.") }}</p>
     </div>
     <div class="btn-row">
       <button class="btn btn--primary" type="submit">{{ t("Save") }}</button>

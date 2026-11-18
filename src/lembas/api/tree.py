@@ -540,14 +540,21 @@ def _send(request: Request, found: file_ui.Download, *, inline: bool) -> Respons
 
 @router.get("/files/raw")
 async def raw(
-    request: Request, db: Db, user: RequiredUser, path: str, version: str = "",
-    inline: bool = False,
+    request: Request, db: Db, user: RequiredUser, path: str = "", version: str = "",
+    inline: bool = False, node: str = "",
 ):
     v = fs.view(db, user)
+    if node:
+        # By the file's id: where it is now, read as this person may read it.
+        path = fs.path_of(db, v.org_id, node) or ""
+    if not path:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, fs.no_such(node or "/").message)
     try:
         found = file_ui.download(v, _norm(path), version)
     except fs.FsError as refused:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, refused.message) from refused
+        # Asked for by id: the refusal names the id, never the path it has.
+        said = fs.no_such(node).message if node else refused.message
+        raise HTTPException(status.HTTP_404_NOT_FOUND, said) from refused
     return _send(request, found, inline=inline)
 
 

@@ -323,6 +323,23 @@ def _images_defaults() -> dict[str, Any]:
         # `<connection id>/<checkpoint>` (the checkpoint may be empty). Its
         # own key, so that `connection` stays what it was: a provider's model.
         "comfyui": "",
+        # The generations beyond a picture (`services/media/store.NAMED`), each
+        # with its own switch, its default (`<connection id>/<model id>`, or
+        # `<connection id>/<workflow slug>` for a ComfyUI) and the price of
+        # one made by a ComfyUI: an edited picture, a second of video, a
+        # track, a 3D model. A provider's model carries its own price.
+        "image_edit_enabled": False, "image_edit_default": "", "image_edit_price": 0.0,
+        "video_enabled": False, "video_default": "", "video_price": 0.0,
+        "music_enabled": False, "music_default": "", "music_price": 0.0,
+        "model3d_enabled": False, "model3d_default": "", "model3d_price": 0.0,
+        # The largest file of each kind that is fetched and kept, in MB, and
+        # the longest clip or track a request may ask for, in seconds.
+        "video_max_mb": 256, "music_max_mb": 128, "model3d_max_mb": 256,
+        "video_max_seconds": 15, "music_max_seconds": 240,
+        # Long generations run as jobs (`services/media/jobs.py`): how many
+        # one person may have going at once, and after how many minutes one
+        # that has not finished is given up on.
+        "jobs_per_person": 2, "job_minutes": 30,
         # The address `services/media/instance.carry` made a connection of.
         "carried": "",
     }
@@ -657,6 +674,19 @@ def agents(db: DBSession) -> dict[str, Any]:
     return values
 
 
+# The whole-number image settings of the generations beyond a picture:
+# (key, least, most, what an unreadable value becomes).
+MEDIA_LIMITS = (
+    ("video_max_mb", 1, 4096, 256),
+    ("music_max_mb", 1, 2048, 128),
+    ("model3d_max_mb", 1, 4096, 256),
+    ("video_max_seconds", 1, 60, 15),
+    ("music_max_seconds", 5, 1000, 240),
+    ("jobs_per_person", 1, 20, 2),
+    ("job_minutes", 2, 720, 30),
+)
+
+
 def images(db: DBSession) -> dict[str, Any]:
     """Image generation settings, with the numbers clamped.
 
@@ -674,6 +704,13 @@ def images(db: DBSession) -> dict[str, Any]:
         values["api_max_images"] = min(max(int(values.get("api_max_images") or 1), 1), 10)
     except (TypeError, ValueError):
         values["api_max_images"] = 4
+    for name, low, high, fallback in MEDIA_LIMITS:
+        try:
+            values[name] = min(max(int(values.get(name) or fallback), low), high)
+        except (TypeError, ValueError):
+            values[name] = fallback
+    for name in ("image_edit_price", "video_price", "music_price", "model3d_price"):
+        values[name] = money_amount(values.get(name))
     for name in ("checkpoints", "samplers", "schedulers"):
         stored = values.get(name)
         values[name] = [str(item) for item in stored] if isinstance(stored, list) else []

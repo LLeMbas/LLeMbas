@@ -24,6 +24,11 @@ The parts:
   Never the other way: a chat on a local model is sent to a cloud
   connection's media only when the administrator made that the instance's
   default themselves.
+- `generate.py`, `video.py`, `library.py`, `jobs.py`, `tools.py` -- what is
+  made beyond a picture (an edited picture, a video, a track, a 3D model):
+  running a ComfyUI workflow of any kind, a provider's video tasks, the
+  person's `Generated/` folder every result is written into, the jobs long
+  generations run as, and the tools a chat's model is given.
 - `speech.py` and `pictures.py` -- one function per capability
   (`transcribe`, `speak`, `generate`) over interchangeable sources: an
   OpenAI-shaped endpoint, Alibaba Cloud Model Studio's native API

@@ -1229,12 +1229,81 @@ def _built() -> dict[str, object]:
         "event_close": {},
         "tool_show": {"calls": [serialise.tool_call(SHOW_TREE), serialise.tool_call(SHOW_DEVICE)]},
         "team": {"team": serialise.team(_team())},
+        **_media(),
         **_apps(),
         **_files(),
         **_parity(),
         **_menus(),
         **_activity(),
         **_schedules(),
+    }
+
+
+MEDIA_VIDEO = {
+    "kind": "video", "path": "/home/frodo/Generated/video-20260102-030405.mp4",
+    "node_id": "node7", "version_id": "ver7", "name": "video-20260102-030405.mp4",
+    "mime": "video/mp4", "size": 2400000, "width": 832, "height": 480, "seconds": 5,
+}
+MEDIA_PICTURE = {
+    "kind": "image", "path": "/home/frodo/Generated/image-20260102-030405.png",
+    "node_id": "node8", "version_id": "ver8", "name": "image-20260102-030405.png",
+    "mime": "image/png", "size": 180000, "width": 1024, "height": 1024,
+}
+
+
+def _media() -> dict[str, object]:
+    """Generated media: the tool calls that carry a typed result (`media`) or
+    a job (`media_job`), and a job as `/media/jobs` answers it -- running,
+    done, failed."""
+    from datetime import timedelta
+
+    from lembas.db.models import MediaJob
+    from lembas.services.media import jobs as media_jobs
+
+    def job(job_id: str, state: str, **extra) -> dict:
+        row = MediaJob(
+            id=job_id, user_id="user1", chat_id="chat1", message_id="msg2", kind="video",
+            state=state, connection_id="conn1", dialect="comfyui", model="video_t2v",
+            label="Studio · Text to video", provider_ref="ref", cancel_requested=False,
+            params_json={"prompt": "a kite over dunes", "seconds": 5}, result_json={},
+            error="", price_micro=20000, cost_micro=0, currency=None, usage_id="comfyui/x",
+            started_at=WHEN, deadline_at=WHEN + timedelta(minutes=30), ended_at=None,
+            notified_at=None,
+        )
+        for key, value in extra.items():
+            setattr(row, key, value)
+        if row.ended_at is None:
+            row.ended_at = WHEN + timedelta(seconds=42)
+            shown = media_jobs.view(row)
+            shown["ended"] = None  # still running: `seconds` is how long so far
+            return shown
+        return media_jobs.view(row)
+
+    ended = WHEN + timedelta(seconds=95)
+    running = job("mjob1", "running")
+    done = job("mjob2", "done", result_json=MEDIA_VIDEO, cost_micro=100000, ended_at=ended,
+               notified_at=ended)
+    failed = job("mjob3", "failed", ended_at=ended, notified_at=ended,
+                 error="ComfyUI ran out of video memory in KSampler.")
+    return {
+        "tool_media": {"calls": [
+            serialise.tool_call({
+                "id": "call4", "name": "image_generate", "kind": "image", "status": "ok",
+                "query": "a kite", "detail": "Cloud · qwen-image-3.0", "text": "1024x1024",
+                "results": [], "image": {"id": "att1", "width": 1024, "height": 1024},
+                "media": MEDIA_PICTURE,
+            }),
+            serialise.tool_call({
+                "id": "call5", "name": "video_generate", "kind": "image", "status": "ok",
+                "query": "a kite over dunes", "detail": "Studio · Text to video",
+                "text": "video · job mjob1", "results": [],
+                "media_job": {"id": "mjob1", "kind": "video", "state": "running"},
+            }),
+        ]},
+        "media_job": running,
+        "media_job_done": done,
+        "media_job_failed": failed,
+        "media_jobs": {"jobs": [running, done, failed]},
     }
 
 

@@ -51,6 +51,28 @@ templates.env.globals["js_strings"] = i18n.js_strings
 templates.env.globals["progress_strings"] = _progress_strings
 
 
+def media_job_for(message, job_id):
+    """A long generation's job as its card draws it (`chat/_media_job.html`),
+    for the message whose tool call started it -- or None for a job that is
+    not that chat's. Read when the bubble is drawn: the card on a page that
+    was open all along keeps itself current afterwards."""
+    from lembas.db.models import MediaJob
+    from lembas.db.session import session_scope
+    from lembas.services.media import jobs
+
+    try:
+        with session_scope() as db:
+            job = db.get(MediaJob, str(job_id))
+            if job is None or job.chat_id != getattr(message, "chat_id", None):
+                return None
+            return jobs.view(job)
+    except Exception:  # a card that cannot be read must not break the page
+        return None
+
+
+templates.env.globals["media_job_for"] = media_job_for
+
+
 def permissions_for_people(granted):
     """Settings → Account's "What you can do": see `permissions.FOR_PEOPLE`."""
     from lembas.security import permissions

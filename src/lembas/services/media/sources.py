@@ -51,7 +51,10 @@ COMFYUI = store.COMFYUI
 
 # The settings key that names a connection's model as the instance's default
 # for a capability (`<connection id>/<model id>`; empty: the endpoint).
-DEFAULT_KEYS = {CAP_STT: "stt_connection", CAP_TTS: "tts_connection", CAP_IMAGE: "connection"}
+DEFAULT_KEYS = {
+    CAP_STT: "stt_connection", CAP_TTS: "tts_connection", CAP_IMAGE: "connection",
+    **{capability: instance.default_key(capability) for capability in store.NAMED},
+}
 
 T = TypeVar("T")
 
@@ -96,7 +99,7 @@ class Source:
         """What the usage page and the ledger call this source."""
         if self.origin == ORIGIN_CONNECTION:
             return f"{self.provider}/{self.model}"
-        if self.capability == CAP_IMAGE:
+        if self.capability in store.GENERATIONS:
             return f"{COMFYUI}/{self.model}" if self.model else COMFYUI
         from lembas.services import audio as audio_service
 
@@ -115,14 +118,17 @@ class Used:
 
 
 def _settings(db: DBSession, capability: str) -> dict[str, Any]:
-    return settings_store.images(db) if capability == CAP_IMAGE else settings_store.audio(db)
+    return (
+        settings_store.images(db) if capability in store.GENERATIONS
+        else settings_store.audio(db)
+    )
 
 
 def enabled(db: DBSession, capability: str) -> bool:
     """The instance's switch for the capability: dictation, read-aloud,
     image generation. Off is off for every source."""
     values = _settings(db, capability)
-    return bool(values.get("enabled" if capability == CAP_IMAGE else f"{capability}_enabled"))
+    return bool(values.get(instance.enabled_key(capability)))
 
 
 def _from_connection(
@@ -201,6 +207,8 @@ def default(db: DBSession, capability: str) -> Source | None:
     if chosen == instance.NONE:
         return None
     connection_id, model = instance.split(chosen)
+    if capability in store.NAMED:
+        return _generation_default(db, capability, connection_id, model)
     if connection_id:
         connection = db.get(Connection, connection_id)
         if connection is not None and store.equipment(connection.provider_type):
@@ -239,6 +247,43 @@ def default(db: DBSession, capability: str) -> Source | None:
     )
 
 
+def _generation_default(
+    db: DBSession, capability: str, connection_id: str, model: str
+) -> Source | None:
+    """The default for a generation beyond a picture: a ComfyUI's workflow of
+    that kind (`model` is its slug), or a provider's model. Nothing else: no
+    address in the settings ever served these."""
+    from lembas.db.models import ImageWorkflow
+
+    connection = db.get(Connection, connection_id) if connection_id else None
+    if connection is None or not connection.enabled or not model:
+        return None
+    if store.dialect(connection.provider_type, connection.base_url, capability, model) == COMFYUI:
+        row = db.scalar(
+            select(ImageWorkflow).where(
+                ImageWorkflow.slug == model,
+                ImageWorkflow.kind == capability,
+                ImageWorkflow.enabled.is_(True),
+            )
+        )
+        if row is None or (row.connection_id or connection.id) != connection.id:
+            return None
+        return Source(
+            capability=capability, origin=ORIGIN_INSTANCE, own=False,
+            label=f"{connection.name} · {row.name}", model=row.slug, dialect=COMFYUI,
+            config=instance.comfy_values(connection), connection_id=connection.id,
+            price=settings_store.money_amount(
+                settings_store.images(db).get(f"{capability}_price")
+            ),
+        )
+    entry = store.find(connection, capability, model)
+    if entry is None or capability not in store.capabilities_of(
+        connection.provider_type, connection.base_url
+    ):
+        return None
+    return _from_connection(connection, entry, own=False)
+
+
 def _allowed(connection: Connection | None, interactive: bool) -> bool:
     from lembas.services import interactive as interactive_rules
 
@@ -266,7 +311,9 @@ def chain(
         and _allowed(connection, interactive)
     ):
         entry = store.own(connection, capability)
-        if entry is not None:
+        if entry is not None and capability in store.capabilities_of(
+            connection.provider_type, connection.base_url
+        ):
             out.append(_from_connection(connection, entry, own=True))
     fallback = default(db, capability)
     if fallback is not None:
@@ -308,6 +355,30 @@ def choices(db: DBSession, capability: str) -> list[dict[str, str]]:
         )
     )
     rows.sort(key=lambda row: not store.equipment(row.provider_type))
+    if capability in store.NAMED:
+        from lembas.db.models import ImageWorkflow
+        from lembas.services.llm import providers
+
+        flows = list(
+            db.scalars(
+                select(ImageWorkflow)
+                .where(ImageWorkflow.kind == capability, ImageWorkflow.enabled.is_(True))
+                .order_by(ImageWorkflow.position, ImageWorkflow.slug)
+            )
+        )
+        for connection in rows:
+            if providers.get(connection.provider_type).id != providers.COMFYUI:
+                continue
+            for flow in flows:
+                if (flow.connection_id or connection.id) == connection.id:
+                    out.append(
+                        {
+                            "value": f"{connection.id}/{flow.slug}",
+                            "label": f"{connection.name} · {flow.name}",
+                            "connection_id": connection.id,
+                            "model": flow.slug,
+                        }
+                    )
     for connection in rows:
         if capability not in store.capabilities_of(connection.provider_type, connection.base_url):
             continue
@@ -493,6 +564,7 @@ def record(
     images: int = 0,
     usage_id: str = "",
     requests: int = 1,
+    units: float = 0,
 ) -> int:
     """Count one use against the source that served it, priced at that
     source's own price in its own currency. Returns the cost in micro-units.
@@ -500,7 +572,12 @@ def record(
     from lembas.services import pricing
     from lembas.services import usage as usage_service
 
-    quantity = seconds / 60 if seconds else characters / 1_000_000 if characters else images
+    # `units`: a quantity already in the price's own unit -- seconds of video,
+    # one track, one 3D model, one edited picture.
+    quantity = (
+        units if units
+        else seconds / 60 if seconds else characters / 1_000_000 if characters else images
+    )
     cost = pricing.service_cost_micro(source.price, quantity)
     usage_service.record(
         db,

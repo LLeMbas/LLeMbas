@@ -15,6 +15,21 @@
 {% if error %}
 <div data-flash="error" class="alert alert--error">{{ icon("warning", "icon--sm") }} <span>{{ error }}</span></div>
 {% endif %}
+{% if tested %}
+<div class="alert {{ 'alert--warning' if workflow.last_error else 'alert--success' }}" role="status" data-testid="workflow-tested">
+  {{ icon("warning" if workflow.last_error else "check", "icon--sm") }} <span>{{ tested }}</span>
+</div>
+{% endif %}
+{% if starter or imported %}
+<div class="alert alert--warning" role="status" data-testid="workflow-unverified">
+  {{ icon("warning", "alert__icon") }}
+  <span>
+    {% if starter %}{{ t("A starter: it was written from ComfyUI's stock nodes and has not been run against your ComfyUI. It is added switched off.") }}
+    {% else %}{{ t("Imported and not saved yet: look the placeholders over, give it a name, and add it. It is added switched off.") }}{% endif %}
+    {{ t("After adding it, press Test on its page; switch it on once Test passes.") }}
+  </span>
+</div>
+{% endif %}
 
 <form method="post"
       action="{{ '/admin/images/workflows' if is_new else '/admin/images/workflows/' ~ workflow.id }}"
@@ -44,6 +59,16 @@
         {{ tm("The only thing the model has to choose with, so say what this is
         <em>for</em> rather than what it contains. It never sees the graph.") }}
       </p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="kind">{{ t("What it makes") }}</label>
+      <select class="select" id="kind" name="kind" data-testid="workflow-kind">
+        {% for each in kinds %}
+        <option value="{{ each }}" {{ 'selected' if kind == each }}>{{ t(capability_labels[each]) }}</option>
+        {% endfor %}
+      </select>
+      <p class="field__hint">{{ t("A picture, an edited picture, a video, music or a 3D model. It decides which tool uses it and which file is taken from what the run saves.") }}</p>
     </div>
 
     <div class="field">
@@ -84,6 +109,46 @@
         takes its default.") }}
       </p>
     </div>
+  </section>
+
+  <section class="card" data-testid="workflow-about">
+    <h2 class="card__title">{{ t("What this workflow uses") }}</h2>
+    <div class="ref-list">
+      <div class="ref-row">
+        <span>{{ t("Placeholders it uses") }}</span>
+        <span>{% for name in about.used %}<code>{{ '{{' ~ name ~ '}}' }}</code> {% else %}{{ t("None.") }}{% endfor %}</span>
+        <span></span>
+      </div>
+      <div class="ref-row">
+        <span>{{ t("Its kind requires") }}</span>
+        <span>
+          {% for name in about.required %}<code>{{ '{{' ~ name ~ '}}' }}</code>{% if name in about.missing %} <strong>{{ t("(missing)") }}</strong>{% endif %} {% endfor %}
+        </span>
+        <span></span>
+      </div>
+      <div class="ref-row">
+        <span>{{ t("Model files it expects") }}</span>
+        <span>
+          {% for file in about.files %}<code>{{ file }}</code>{% if starter %}{% for name, folder in starter.folders if name == file %} <span class="faint">{{ "models/" ~ folder ~ "/" }}</span>{% endfor %}{% endif %}{{ ", " if not loop.last }}{% else %}{{ t("None named outright.") }}{% endfor %}
+        </span>
+        <span></span>
+      </div>
+    </div>
+    <p class="field__hint">
+      {{ t("The files must be in the ComfyUI's model folders under exactly these names. Nothing here checks that: Test does.") }}
+      {% if not is_new %}
+        {% if workflow.last_error %}<strong>{{ t("Last test failed: %(why)s", why=workflow.last_error) }}</strong>
+        {% elif workflow.last_checked_at %}{{ t("Last test passed.") }}
+        {% else %}<strong>{{ t("Not tested against a ComfyUI yet.") }}</strong>{% endif %}
+      {% endif %}
+    </p>
+    {% if about.extra %}
+    <div class="ref-list">
+      {% for name, what in about.extra %}
+      <div class="ref-row"><code>{{ '{{' ~ name ~ '}}' }}</code><span>{{ what }}</span><span></span></div>
+      {% endfor %}
+    </div>
+    {% endif %}
   </section>
 
   <section class="card">
@@ -129,6 +194,9 @@
     </button>
     <a class="btn btn--ghost" href="{{ back }}">{{ t("Back") }}</a>
     {% if not is_new %}
+    <button class="btn" type="submit" formnovalidate data-testid="workflow-test"
+            formaction="/admin/images/workflows/{{ workflow.id }}/test"
+            title="{{ t('Runs the saved workflow once against its ComfyUI. It can take minutes.') }}">{{ t("Test this workflow") }}</button>
     <button class="btn btn--danger" type="submit" formnovalidate
             formaction="/admin/images/workflows/{{ workflow.id }}/delete"
             data-confirm-button="{{ t('Delete the workflow “%(name)s”? Chats that used it fall back to the default.', name=workflow.name) }}">{{ t("Delete") }}</button>

@@ -41,7 +41,9 @@ log = logging.getLogger(__name__)
 
 router = APIRouter(tags=["admin-media"])
 
-CAPABILITIES = store.CAPABILITIES
+# Every capability has a tab: the first three, and the generations beyond a
+# picture.
+CAPABILITIES = store.ALL
 
 
 def _see(target: str, word: str = "", *, error: bool = False) -> Response:
@@ -68,7 +70,8 @@ async def media_home(user: AdminUser) -> Response:
 
 def _values(db, capability: str) -> dict[str, Any]:
     return (
-        settings_store.images(db) if capability == store.CAP_IMAGE else settings_store.audio(db)
+        settings_store.images(db) if capability in store.GENERATIONS
+        else settings_store.audio(db)
     )
 
 
@@ -144,6 +147,9 @@ async def media_page(
             else ""
         ),
         "own_sources": _own_sources(db, capability),
+        "enabled": media_sources.enabled(db, capability),
+        "long": capability in store.LONG,
+        "generation": capability in store.NAMED,
         "saved": saved,
         "currency_sign": settings_store.CURRENCIES.get(settings_store.currency(db), ""),
         **catalog.context(),
@@ -213,6 +219,16 @@ async def save_media(request: Request, db: Db, user: AdminUser, capability: str)
         changes["tts_enabled"] = bool(form.get("enabled"))
         changes["tts_autoplay"] = bool(form.get("tts_autoplay"))
         key = settings_store.AUDIO
+    elif capability in store.NAMED:
+        current = settings_store.images(db)
+        key = settings_store.IMAGES
+        changes[instance.enabled_key(capability)] = bool(form.get("enabled"))
+        changes[f"{capability}_price"] = settings_store.money_amount(form.get("price"))
+        for name, low, high, fallback in settings_store.MEDIA_LIMITS:
+            # The limits this tab shows: its own, and for what runs as a job
+            # the two every job shares.
+            if name in form:
+                changes[name] = _whole(form.get(name), current.get(name) or fallback, low, high)
     else:
         current = settings_store.get_group(db, settings_store.IMAGES)
         key = settings_store.IMAGES
@@ -455,7 +471,9 @@ async def make_default(db: Db, user: AdminUser, connection_id: str, key: str) ->
             ),
             error=True,
         )
-    group = settings_store.IMAGES if entry.capability == store.CAP_IMAGE else settings_store.AUDIO
+    group = (
+        settings_store.IMAGES if entry.capability in store.GENERATIONS else settings_store.AUDIO
+    )
     settings_store.update(
         db,
         instance.default_changes(entry.capability, f"{connection.id}/{entry.model}", connection),

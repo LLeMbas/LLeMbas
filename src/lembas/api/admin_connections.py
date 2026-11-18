@@ -290,7 +290,12 @@ async def connection_workflows(
             .order_by(ImageWorkflow.position, ImageWorkflow.slug)
         )
     )
-    return _page(request, db, connection, "workflows", saved=saved, workflows=workflows)
+    from lembas.services.images import starters
+
+    return _page(
+        request, db, connection, "workflows", saved=saved, workflows=workflows,
+        starters=starters.STARTERS,
+    )
 
 
 @router.post("/{connection_id}/workflows")

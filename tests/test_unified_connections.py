@@ -738,11 +738,15 @@ def test_media_holds_the_defaults_and_no_address(client, db, carried):
     for capability in store.CAPABILITIES:
         page = client.get(f"/admin/media/{capability}")
         assert page.status_code == 200
-        assert page.text.count('class="tabs__tab') == 3
+        # One tab per capability: the first three, and the four generations
+        # beyond a picture.
+        assert page.text.count('class="tabs__tab') == len(store.ALL)
         for gone in ('name="base_url"', 'name="api_key"', 'name="stt_base_url"', "/test"):
             assert gone not in page.text, (capability, gone)
         assert "comfy-secret" not in page.text and "stt-secret" not in page.text
-    assert client.get("/admin/media/video").status_code == 404
+    # The generations beyond a picture have a tab each; nothing else has one.
+    assert client.get("/admin/media/video").status_code == 200
+    assert client.get("/admin/media/chat").status_code == 404
 
     # The default is chosen from what is added; anything else changes nothing.
     hosted = f"{carried['Cloud']}/qwen-image-3.0"

@@ -55,6 +55,10 @@ UNITS: dict[str, str] = {
     store.CAP_STT: N_("per minute"),
     store.CAP_TTS: N_("per 1M characters"),
     store.CAP_IMAGE: N_("per picture"),
+    store.CAP_IMAGE_EDIT: N_("per picture"),
+    store.CAP_VIDEO: N_("per second"),
+    store.CAP_MUSIC: N_("per track"),
+    store.CAP_MODEL3D: N_("per model"),
 }
 
 
@@ -115,10 +119,10 @@ def _defaults(db: DBSession) -> set[tuple[str, str, str]]:
     from lembas.services import settings_store
 
     out: set[tuple[str, str, str]] = set()
-    for capability in store.CAPABILITIES:
+    for capability in store.ALL:
         values = (
             settings_store.images(db)
-            if capability == store.CAP_IMAGE
+            if capability in store.GENERATIONS
             else settings_store.audio(db)
         )
         connection_id, model = instance.split(instance.default_value(values, capability))

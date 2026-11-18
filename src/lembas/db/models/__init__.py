@@ -19,9 +19,11 @@ from lembas.db.models.api import (
     DeviceSessionDelete,
 )
 from lembas.db.models.attachment import (
+    KIND_AUDIO,
     KIND_DOCUMENT,
     KIND_IMAGE,
     KIND_TEXT,
+    KIND_VIDEO,
     Attachment,
 )
 from lembas.db.models.blob import BLOB_SCHEMA, blob_parts, blobs
@@ -79,6 +81,18 @@ from lembas.db.models.index import (
     IndexChunk,
     IndexText,
     PathHash,
+)
+from lembas.db.models.media import (
+    MEDIA_ACTIVE,
+    MEDIA_CANCELLED,
+    MEDIA_DONE,
+    MEDIA_EXPIRED,
+    MEDIA_FAILED,
+    MEDIA_FINAL,
+    MEDIA_QUEUED,
+    MEDIA_RUNNING,
+    MEDIA_STATES,
+    MediaJob,
 )
 from lembas.db.models.memory import AUTHOR_MODEL, AUTHOR_USER, Memory
 from lembas.db.models.node import (
@@ -198,6 +212,8 @@ from lembas.db.models.user import (
 )
 
 __all__ = [
+    "KIND_AUDIO",
+    "KIND_VIDEO",
     "BLOB_SCHEMA",
     "DEFAULT_ORG",
     "DEFAULT_ORG_NAME",
@@ -349,6 +365,16 @@ __all__ = [
     "Folder",
     "Group",
     "ImageWorkflow",
+    "MEDIA_ACTIVE",
+    "MEDIA_CANCELLED",
+    "MEDIA_DONE",
+    "MEDIA_EXPIRED",
+    "MEDIA_FAILED",
+    "MEDIA_FINAL",
+    "MEDIA_QUEUED",
+    "MEDIA_RUNNING",
+    "MEDIA_STATES",
+    "MediaJob",
     "McpOauthState",
     "McpServer",
     "McpSignin",

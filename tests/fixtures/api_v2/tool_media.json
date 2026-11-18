@@ -1,0 +1,65 @@
+{
+  "calls": [
+    {
+      "id": "call4",
+      "name": "image_generate",
+      "kind": "image",
+      "status": "ok",
+      "query": "a kite",
+      "text": "1024x1024",
+      "detail": "Cloud · qwen-image-3.0",
+      "results": [],
+      "image": {
+        "id": "att1",
+        "width": 1024,
+        "height": 1024
+      },
+      "media": {
+        "kind": "image",
+        "path": "/home/frodo/Generated/image-20260102-030405.png",
+        "node_id": "node8",
+        "version_id": "ver8",
+        "name": "image-20260102-030405.png",
+        "mime": "image/png",
+        "size": 180000,
+        "width": 1024,
+        "height": 1024
+      },
+      "block": {
+        "kind": "tool",
+        "title": "a kite",
+        "chips": [],
+        "added": 0,
+        "removed": 0,
+        "state": "done",
+        "duration": "",
+        "label": "Image"
+      }
+    },
+    {
+      "id": "call5",
+      "name": "video_generate",
+      "kind": "image",
+      "status": "ok",
+      "query": "a kite over dunes",
+      "text": "video · job mjob1",
+      "detail": "Studio · Text to video",
+      "results": [],
+      "media_job": {
+        "id": "mjob1",
+        "kind": "video",
+        "state": "running"
+      },
+      "block": {
+        "kind": "tool",
+        "title": "a kite over dunes",
+        "chips": [],
+        "added": 0,
+        "removed": 0,
+        "state": "done",
+        "duration": "",
+        "label": "Video"
+      }
+    }
+  ]
+}

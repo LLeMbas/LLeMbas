@@ -58,6 +58,9 @@ from lembas.api import (
     tree,
 )
 from lembas.api import html_pages as html_pages_api
+from lembas.api import (
+    media_jobs as media_jobs_api,
+)
 from lembas.api import reports as reports_pages
 from lembas.api.deps import RedirectToLogin, is_htmx, login_redirect
 from lembas.api.v1 import admin as api_admin
@@ -176,6 +179,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except Exception:  # search must not block startup
         log.exception("could not start the search indexer")
 
+    # Long generations (services/media/jobs.py): the jobs a shutdown left
+    # running are asked about again -- by the far side's own id, nothing is
+    # started twice -- and the chats of ones that ended meanwhile are told.
+    try:
+        from lembas.services.media import jobs as media_jobs
+
+        media_jobs.start()
+    except Exception:  # a video must not block startup
+        log.exception("could not start the media job worker")
+
     log.info("LLeMbas %s starting on http://%s:%s", __version__, settings.host, settings.port)
     log.info("data directory: %s", settings.data_dir.resolve())
     yield
@@ -189,6 +202,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Before the generations, so nothing new is fired into a chat whose reply is
     # about to be cancelled and persisted.
     await stop_ticker()
+    from lembas.services.media import jobs as media_jobs
+
+    await media_jobs.shutdown()
     resuming.cancel()
     await stop_generations()
     # Open shells have nothing to persist: whatever was running on the far side
@@ -262,6 +278,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_search.router)
     app.include_router(admin_schedules.router)
     app.include_router(admin_images.router)
+    app.include_router(media_jobs_api.router)
     app.include_router(admin_prompts.router)
     app.include_router(admin_suggestions.router)
     app.include_router(admin_tools.router)

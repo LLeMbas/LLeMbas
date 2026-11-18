@@ -226,6 +226,22 @@
       {% endif %}
     </div>
     {% endif %}
+    {% if "resolutions" in option_fields %}
+    <div class="field-grid">
+      <div class="field">
+        <label class="field__label" for="resolutions">{{ t("Resolutions") }}</label>
+        <input class="input input--mono" id="resolutions" name="resolutions" maxlength="40"
+               value="{{ (entry.options.resolutions or []) | join(', ') }}" placeholder="720P, 1080P">
+        <p class="field__hint">{{ t("Of 480P, 720P and 1080P, the ones this model takes, separated by commas. The first is the one asked for.") }}</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="max-seconds">{{ t("Longest, in seconds") }}</label>
+        <input class="input" id="max-seconds" name="max_seconds" type="number" min="1" max="60"
+               value="{{ entry.options.max_seconds or '' }}">
+        <p class="field__hint"></p>
+      </div>
+    </div>
+    {% endif %}
     {% if "sizes" in option_fields %}
     <div class="field">
       <label class="field__label" for="sizes">{{ t("Sizes") }}</label>

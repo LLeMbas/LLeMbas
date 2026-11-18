@@ -117,11 +117,22 @@ _OOM_TYPES = ("outofmemory", "out_of_memory", "cuda error: out of memory")
 
 
 def _transport_error(exc: httpx.RequestError, config: Config) -> ComfyError:
+    error = _transport_words(exc, config)
+    # Not an answer about a run: whoever follows one asks again.
+    error.transport = True
+    return error
+
+
+def _transport_words(exc: httpx.RequestError, config: Config) -> ComfyError:
     """The `wrap_transport_error` shape, said about ComfyUI rather than an LLM.
 
     Not reused directly: that one names the request timeout from the deployment
     settings, which is not the timeout in force here.
     """
+    if isinstance(exc, httpx.DecodingError):
+        return ComfyError(
+            f"ComfyUI at {config.base_url} answered, but its answer could not be read: {exc}"
+        )
     if isinstance(exc, httpx.ConnectError):
         return ComfyError(
             f"Could not reach ComfyUI at {config.base_url}. Is it running and the URL correct?"
@@ -145,15 +156,23 @@ async def _get_json(config: Config, path: str, *, timeout: float = 30.0) -> Any:
         raise ComfyError(f"ComfyUI sent something that is not JSON: {exc}") from exc
 
 
-async def submit(config: Config, workflow: dict[str, Any]) -> str:
+async def submit(config: Config, workflow: dict[str, Any], *, prompt_id: str = "") -> str:
     """Queue a workflow, and answer with the id it was given.
+
+    `prompt_id`: the id this server chose for it (a canonical UUID, which is
+    what ComfyUI accepts in the body since it takes one at all). A job writes
+    that id down *before* it asks, so a restart between the two can still find
+    the run. A ComfyUI that predates the field ignores it and answers with its
+    own -- which is why the id in the answer is the one returned, always.
 
     A `node_errors` block is a refusal rather than a failure: the workflow was
     accepted as JSON and rejected as a graph, usually because a checkpoint name
     does not exist on that machine. It is reported with the node named, because
     "invalid prompt" against a twelve-node document says nothing.
     """
-    body = {"prompt": workflow, "client_id": uuid.uuid4().hex}
+    body: dict[str, Any] = {"prompt": workflow, "client_id": uuid.uuid4().hex}
+    if prompt_id:
+        body["prompt_id"] = prompt_id
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(config.url("prompt"), headers=config.headers(), json=body)
@@ -167,12 +186,14 @@ async def submit(config: Config, workflow: dict[str, Any]) -> str:
     except (ValueError, json.JSONDecodeError) as exc:
         raise ComfyError(f"ComfyUI sent something that is not JSON: {exc}") from exc
 
+    if not isinstance(data, dict):
+        raise ComfyError("ComfyUI sent something that is not JSON: not an object")
     if errors := (data.get("node_errors") or {}):
         raise ComfyError(_describe_nodes(errors))
-    prompt_id = str(data.get("prompt_id") or "")
-    if not prompt_id:
+    answered = str(data.get("prompt_id") or "")
+    if not answered:
         raise ComfyError("ComfyUI accepted the workflow but did not say what to call it.")
-    return prompt_id
+    return answered
 
 
 def _refusal(response: httpx.Response) -> str:
@@ -372,3 +393,204 @@ def _options(payload: Any, node: str, field: str) -> list[str]:
     except (KeyError, IndexError, TypeError):
         return []
     return [str(value) for value in spec] if isinstance(spec, list) else []
+
+
+# --- More than pictures ----------------------------------------------------------
+# What a run saved is reported per node under a key that depends on the node:
+# `images` (SaveImage -- and SaveVideo, which adds `animated`), `audio`
+# (SaveAudio*), `3d` (SaveGLB), and whatever a custom node pack chose (`gifs`
+# and `videos` are common). Each entry is `{filename, subfolder, type}`. So
+# every key is read, and a file is chosen by **what it is called** for the kind
+# that was asked for -- and believed only once its own bytes agree
+# (`file_kinds.detect`, by the caller).
+EXTENSIONS: dict[str, tuple[str, ...]] = {
+    "image": ("png", "jpg", "jpeg", "webp"),
+    "image_edit": ("png", "jpg", "jpeg", "webp"),
+    "video": ("mp4", "webm", "mkv", "mov"),
+    "music": ("mp3", "flac", "wav", "ogg", "opus", "m4a"),
+    "model3d": ("glb", "gltf", "obj", "stl"),
+}
+
+
+@dataclass(frozen=True)
+class Out:
+    """One file a run saved, and the key its node reported it under."""
+
+    filename: str
+    subfolder: str = ""
+    kind: str = "output"
+    key: str = "images"
+
+    @property
+    def ref(self) -> Ref:
+        return Ref(self.filename, self.subfolder, self.kind)
+
+    @property
+    def extension(self) -> str:
+        return self.filename.rsplit(".", 1)[-1].lower() if "." in self.filename else ""
+
+
+def outputs_in(outputs: Any) -> list[Out]:
+    """Every file any node saved, under any key, in node order."""
+    found: list[Out] = []
+    for node in (outputs if isinstance(outputs, dict) else {}).values():
+        for key, entries in (node if isinstance(node, dict) else {}).items():
+            for entry in entries if isinstance(entries, list) else []:
+                if not isinstance(entry, dict):
+                    continue  # `animated: [true]`, a preview's path, a text
+                filename = entry.get("filename")
+                if isinstance(filename, str) and filename:
+                    found.append(
+                        Out(
+                            filename=filename,
+                            subfolder=str(entry.get("subfolder") or ""),
+                            kind=str(entry.get("type") or "output"),
+                            key=str(key),
+                        )
+                    )
+    return found
+
+
+def pick(found: list[Out], kind: str) -> Out | None:
+    """The file of a run that is the thing asked for: the last one with an
+    extension of that kind, a saved one (`output`) before a preview (`temp`)."""
+    wanted = EXTENSIONS.get(kind, ())
+    fitting = [out for out in found if out.extension in wanted]
+    saved = [out for out in fitting if out.kind == "output"]
+    return (saved or fitting or [None])[-1]
+
+
+async def history_once(config: Config, prompt_id: str) -> list[Out] | None:
+    """One look at a run: None while it has no record yet, what it saved once
+    it has one and succeeded; a failure, an interruption or running out of
+    memory is raised in words (`_failure`)."""
+    record = (await _get_json(config, f"history/{prompt_id}"))
+    record = record.get(prompt_id) if isinstance(record, dict) else None
+    if not isinstance(record, dict) or record.get("status") is None:
+        return None
+    status = record.get("status") or {}
+    if not isinstance(status, dict) or status.get("status_str") != "success":
+        raise _failure(status if isinstance(status, dict) else {})
+    return outputs_in(record.get("outputs") or {})
+
+
+async def await_outputs(config: Config, prompt_id: str) -> list[Out]:
+    """`await_images` for any kind: wait, within the timeout, for what a run
+    saved."""
+    deadline = time.monotonic() + config.timeout
+    while True:
+        found = await history_once(config, prompt_id)
+        if found is not None:
+            return found
+        if time.monotonic() > deadline:
+            raise ComfyError(f"ComfyUI did not finish within {config.timeout:.0f}s.")
+        await asyncio.sleep(POLL_INTERVAL)
+
+
+async def fetch_file(config: Config, out: Out | Ref, *, limit: int) -> bytes:
+    """The bytes of one saved file, read as they arrive and never past
+    `limit`: a video is hundreds of megabytes on a bad day, and the size is
+    whatever a workflow somebody imported decided."""
+    ref = out.ref if isinstance(out, Out) else out
+    params = {"filename": ref.filename, "subfolder": ref.subfolder, "type": ref.kind}
+    data = bytearray()
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client, client.stream(
+            "GET", config.url("view"), headers=config.headers(), params=params
+        ) as response:
+            if response.status_code >= 400:
+                raise ComfyError(
+                    f"ComfyUI would not hand over {ref.filename} (HTTP {response.status_code}).",
+                    status_code=response.status_code,
+                )
+            async for chunk in response.aiter_bytes():
+                data.extend(chunk)
+                if len(data) > limit:
+                    raise ComfyError(
+                        f"{ref.filename} is over the {limit // (1024 * 1024)}MB this "
+                        "instance keeps for a file of its kind."
+                    )
+    except httpx.RequestError as exc:
+        raise _transport_error(exc, config) from exc
+    if not data:
+        raise ComfyError(f"ComfyUI returned an empty file for {ref.filename}.")
+    return bytes(data)
+
+
+async def upload_image(config: Config, payload: bytes, filename: str) -> str:
+    """Put an input picture into the ComfyUI's input folder (`POST
+    /upload/image`, multipart field `image`) and answer the name a `LoadImage`
+    node finds it by: `name`, or `subfolder/name`. ComfyUI renames on a clash
+    unless the bytes are the same, so the name in the answer is the one used."""
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                config.url("upload/image"),
+                headers=config.headers(),
+                files={"image": (filename, payload, "application/octet-stream")},
+                data={"type": "input", "subfolder": "lembas"},
+            )
+            if response.status_code >= 400:
+                raise ComfyError(
+                    f"ComfyUI would not take the input picture (HTTP {response.status_code}).",
+                    status_code=response.status_code,
+                )
+            data = response.json()
+    except httpx.RequestError as exc:
+        raise _transport_error(exc, config) from exc
+    except (ValueError, json.JSONDecodeError) as exc:
+        raise ComfyError(f"ComfyUI sent something that is not JSON: {exc}") from exc
+    name = str(data.get("name") or "") if isinstance(data, dict) else ""
+    if not name:
+        raise ComfyError("ComfyUI took the input picture but did not say what it called it.")
+    subfolder = str(data.get("subfolder") or "").strip("/")
+    return f"{subfolder}/{name}" if subfolder else name
+
+
+QUEUE_RUNNING = "running"
+QUEUE_PENDING = "pending"
+
+
+async def queue_state(config: Config, prompt_id: str) -> str:
+    """Where a run is in the ComfyUI's queue: `running`, `pending`, or ""
+    (not in it: finished, removed, or never there). An entry of `GET /queue`
+    is a list whose second element is the prompt id."""
+    data = await _get_json(config, "queue")
+
+    def has(key: str) -> bool:
+        for item in (data.get(key) if isinstance(data, dict) else None) or []:
+            if isinstance(item, list | tuple) and len(item) > 1 and item[1] == prompt_id:
+                return True
+        return False
+
+    if has("queue_running"):
+        return QUEUE_RUNNING
+    return QUEUE_PENDING if has("queue_pending") else ""
+
+
+async def cancel(config: Config, prompt_id: str) -> str:
+    """Stop one run: taken out of the queue while it waits (`POST /queue`
+    `{"delete": [id]}`), interrupted while it is the one running (`POST
+    /interrupt` `{"prompt_id": id}` -- a ComfyUI that knows the field stops
+    only that run; an older one stops whatever is running, which the check
+    just made says is this). Answers what was done: `pending`, `running`, or
+    "" when it was in neither place."""
+    where = await queue_state(config, prompt_id)
+    if not where:
+        return ""
+    path, body = (
+        ("interrupt", {"prompt_id": prompt_id})
+        if where == QUEUE_RUNNING
+        else ("queue", {"delete": [prompt_id]})
+    )
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(config.url(path), headers=config.headers(), json=body)
+            if response.status_code >= 400:
+                raise ComfyError(
+                    f"ComfyUI would not stop it (HTTP {response.status_code}).",
+                    status_code=response.status_code,
+                )
+    except httpx.RequestError as exc:
+        raise _transport_error(exc, config) from exc
+    return where

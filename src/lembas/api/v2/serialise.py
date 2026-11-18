@@ -55,6 +55,10 @@ TOOL_FIELDS = (
     "edited",
     "truncated",
     "image",
+    # A generated file's typed result, and the job of one that takes long
+    # (`services/media/library.py`, `services/media/jobs.py`).
+    "media",
+    "media_job",
     "job",
     "children",
     "show",

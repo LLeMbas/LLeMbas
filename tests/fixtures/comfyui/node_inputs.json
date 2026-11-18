@@ -1,0 +1,259 @@
+{
+ "_source": "ComfyUI 0.46.0, commit a277b5bf213e8a44fa34817b7770b54f86ef4cea: nodes.py, comfy_extras/",
+ "UNETLoader": [
+  [
+   "unet_name",
+   "weight_dtype"
+  ],
+  []
+ ],
+ "CLIPLoader": [
+  [
+   "clip_name",
+   "type"
+  ],
+  [
+   "device"
+  ]
+ ],
+ "VAELoader": [
+  [
+   "vae_name"
+  ],
+  []
+ ],
+ "CLIPVisionLoader": [
+  [
+   "clip_name"
+  ],
+  []
+ ],
+ "CheckpointLoaderSimple": [
+  [
+   "ckpt_name"
+  ],
+  []
+ ],
+ "ImageOnlyCheckpointLoader": [
+  [
+   "ckpt_name"
+  ],
+  []
+ ],
+ "LoadImage": [
+  [
+   "image"
+  ],
+  []
+ ],
+ "ImageScaleToTotalPixels": [
+  [
+   "image",
+   "upscale_method",
+   "megapixels",
+   "resolution_steps"
+  ],
+  []
+ ],
+ "VAEEncode": [
+  [
+   "pixels",
+   "vae"
+  ],
+  []
+ ],
+ "VAEDecode": [
+  [
+   "samples",
+   "vae"
+  ],
+  []
+ ],
+ "TextEncodeQwenImageEdit": [
+  [
+   "clip",
+   "prompt"
+  ],
+  [
+   "vae",
+   "image"
+  ]
+ ],
+ "CLIPTextEncode": [
+  [
+   "text",
+   "clip"
+  ],
+  []
+ ],
+ "ModelSamplingAuraFlow": [
+  [
+   "model",
+   "shift"
+  ],
+  []
+ ],
+ "ModelSamplingSD3": [
+  [
+   "model",
+   "shift"
+  ],
+  []
+ ],
+ "CFGNorm": [
+  [
+   "model",
+   "strength"
+  ],
+  []
+ ],
+ "KSampler": [
+  [
+   "model",
+   "seed",
+   "steps",
+   "cfg",
+   "sampler_name",
+   "scheduler",
+   "positive",
+   "negative",
+   "latent_image",
+   "denoise"
+  ],
+  []
+ ],
+ "SaveImage": [
+  [
+   "images",
+   "filename_prefix"
+  ],
+  []
+ ],
+ "EmptyHunyuanLatentVideo": [
+  [
+   "width",
+   "height",
+   "length",
+   "batch_size"
+  ],
+  []
+ ],
+ "CreateVideo": [
+  [
+   "images",
+   "fps"
+  ],
+  [
+   "audio"
+  ]
+ ],
+ "SaveVideo": [
+  [
+   "video",
+   "filename_prefix",
+   "format"
+  ],
+  [
+   "codec",
+   "format.codec"
+  ]
+ ],
+ "CLIPVisionEncode": [
+  [
+   "clip_vision",
+   "image",
+   "crop"
+  ],
+  []
+ ],
+ "WanImageToVideo": [
+  [
+   "positive",
+   "negative",
+   "vae",
+   "width",
+   "height",
+   "length",
+   "batch_size"
+  ],
+  [
+   "clip_vision_output",
+   "start_image",
+   "ref_pad_image"
+  ]
+ ],
+ "TextEncodeAceStepAudio": [
+  [
+   "clip",
+   "tags",
+   "lyrics",
+   "lyrics_strength"
+  ],
+  []
+ ],
+ "ConditioningZeroOut": [
+  [
+   "conditioning"
+  ],
+  []
+ ],
+ "EmptyAceStepLatentAudio": [
+  [
+   "seconds"
+  ],
+  [
+   "batch_size"
+  ]
+ ],
+ "VAEDecodeAudio": [
+  [
+   "samples",
+   "vae"
+  ],
+  []
+ ],
+ "SaveAudioMP3": [
+  [
+   "audio",
+   "filename_prefix",
+   "quality"
+  ],
+  []
+ ],
+ "Hunyuan3Dv2Conditioning": [
+  [
+   "clip_vision_output"
+  ],
+  []
+ ],
+ "EmptyLatentHunyuan3Dv2": [
+  [
+   "resolution",
+   "batch_size"
+  ],
+  []
+ ],
+ "VAEDecodeHunyuan3D": [
+  [
+   "samples",
+   "vae",
+   "num_chunks",
+   "octree_resolution"
+  ],
+  []
+ ],
+ "VoxelToMeshBasic": [
+  [
+   "voxel",
+   "threshold"
+  ],
+  []
+ ],
+ "SaveGLB": [
+  [
+   "mesh",
+   "filename_prefix"
+  ],
+  []
+ ]
+}

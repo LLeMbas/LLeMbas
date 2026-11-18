@@ -1,0 +1,82 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "connections" %}
+
+{% block title %}{{ t("Import a workflow") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Import a workflow") }}{% endblock %}
+
+{% block admin_content %}
+<nav class="crumbs">
+  <a href="{{ back }}">
+    {{ icon("chevron-right", "icon--sm crumbs__icon crumbs__back") }} {{ t("Workflows") }}
+  </a>
+</nav>
+
+{% if error %}
+<div data-flash="error" class="alert alert--error" data-testid="import-error">{{ icon("warning", "icon--sm") }} <span>{{ error }}</span></div>
+{% endif %}
+
+{% if not proposal %}
+<p class="admin-lede">{{ tm("Paste or choose a workflow exported from ComfyUI with <strong>Export (API)</strong>. You are shown where placeholders would go before anything is changed, and nothing is saved until you add it.") }}</p>
+<form method="post" action="/admin/images/workflows/import" enctype="multipart/form-data" class="form-grid">
+  <input type="hidden" name="connection_id" value="{{ connection }}">
+  <section class="card">
+    <div class="field">
+      <label class="field__label" for="file">{{ t("A file") }}</label>
+      <input class="input" id="file" name="file" type="file" accept=".json,application/json">
+      <p class="field__hint"></p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="workflow">{{ t("Or pasted") }}</label>
+      <textarea class="textarea input--mono" id="workflow" name="workflow" rows="14" spellcheck="false">{{ text }}</textarea>
+      <p class="field__hint"></p>
+    </div>
+  </section>
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">{{ t("Read it") }}</button>
+    <a class="btn btn--ghost" href="{{ back }}">{{ t("Back") }}</a>
+  </div>
+</form>
+{% else %}
+<p class="admin-lede">{{ t("%(n)s nodes were read. Below is each place a placeholder is proposed, from what kind of node it is. Untick what you do not want; nothing else in the workflow is touched.", n=proposal.nodes) }}</p>
+<form method="post" action="/admin/images/workflows/import/apply" class="form-grid" data-testid="import-proposal">
+  <input type="hidden" name="connection_id" value="{{ connection }}">
+  <textarea name="workflow" hidden>{{ text }}</textarea>
+  <section class="card">
+    <div class="field">
+      <label class="field__label" for="kind">{{ t("What it makes") }}</label>
+      <select class="select" id="kind" name="kind">
+        {% for each in ("image", "image_edit", "video", "music", "model3d") %}
+        <option value="{{ each }}" {{ 'selected' if proposal.kind == each }}>{{ t(capability_labels[each]) }}</option>
+        {% endfor %}
+      </select>
+      <p class="field__hint">{{ t("Read from its save nodes. Change it if that is wrong.") }}</p>
+    </div>
+    {% for note in proposal.notes %}
+    <div class="alert alert--warning" role="status">{{ icon("warning", "alert__icon") }} <span>{{ note }}</span></div>
+    {% endfor %}
+    <div class="import-changes">
+      {% for change in proposal.changes %}
+      <label class="checkbox import-change">
+        <input type="checkbox" name="accept" value="{{ change.key }}" checked>
+        <span>
+          <code>{{ '{{' ~ change.placeholder ~ '}}' }}</code>
+          {{ t("in node %(node)s (%(cls)s), input %(input)s", node=change.node, cls=change.class_type, input=change.input) }}
+          <span class="faint">{{ t("now: %(value)s", value=(change.was | string)[:80]) }}</span>
+        </span>
+      </label>
+      {% else %}
+      <p class="field__hint">{{ t("Nothing was proposed.") }}</p>
+      {% endfor %}
+    </div>
+    {% if proposal.files %}
+    <p class="field__hint">{{ t("Model files it expects") }}: {% for file in proposal.files %}<code>{{ file }}</code>{{ ", " if not loop.last }}{% endfor %}</p>
+    {% endif %}
+  </section>
+  <div class="btn-row">
+    <button class="btn btn--primary" type="submit">{{ t("Use these and continue") }}</button>
+    <a class="btn btn--ghost" href="/admin/images/workflows/import?connection={{ connection }}">{{ t("Back") }}</a>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

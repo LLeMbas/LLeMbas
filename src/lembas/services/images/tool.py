@@ -163,6 +163,31 @@ SCHEMA: dict[str, Any] = {
 }
 
 
+# What a failure on a provider's model ends with.
+PAID_NO_RETRY = (
+    " Do not call image_generate again for this request unless the person asks you to: "
+    "every attempt on a provider's model can cost them money. Tell them what went wrong."
+)
+
+
+def _into_files(db, context: ToolContext, payload: bytes, width: int, height: int):
+    """The picture, also in the person's Files under `Generated/`
+    (`services/media/library.py`): the typed result for the tool event, or
+    None when the tree would not take it -- the picture is still shown."""
+    from lembas.db.models import User
+    from lembas.services.media import library
+
+    try:
+        return library.keep(
+            db, db.get(User, context.owner_id), kind=CAP_IMAGE, payload=payload,
+            chat_id=context.chat_id, message_id=context.message_id, width=width, height=height,
+        )
+    except Exception:
+        db.rollback()
+        log.exception("a generated picture could not be put into Files")
+        return None
+
+
 @dataclass(frozen=True)
 class Attempt:
     """One generated image and what was decided about it."""
@@ -566,9 +591,12 @@ async def run(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
             return await _run_hosted(context, source, args, event, prompt, note)
         except LLMError as exc:
             log.info("image generation on %s failed: %s", source.label, exc.message)
-            if source is chain[-1]:
+            if source is chain[:2][-1]:
+                # A provider's picture is paid for per attempt, and a model
+                # that reads "could not" tends to order it again: on a live
+                # instance one did, three times. So the refusal says not to.
                 return ToolOutcome(
-                    f"The image could not be generated: {exc.message}",
+                    f"The image could not be generated: {exc.message}{PAID_NO_RETRY}",
                     {**event, "status": "error", "error": exc.message},
                 )
             note = (
@@ -640,6 +668,8 @@ async def _run_hosted(
             attachment_id = attachment.id
             made_width, made_height = attachment.width, attachment.height
             media_sources.record(db, context.owner_id, source, images=1)
+            db.commit()
+            media = _into_files(db, context, payload, made_width, made_height)
     except Exception as exc:
         log.exception("could not store a generated image")
         return ToolOutcome(
@@ -665,6 +695,7 @@ async def _run_hosted(
             "fallback": bool(note),
             "attachment_id": attachment_id,
             "image": {"id": attachment_id, "width": made_width, "height": made_height},
+            **({"media": media} if media else {}),
         },
     )
 
@@ -823,6 +854,8 @@ async def _run_comfy(
                 ),
                 images=1,
             )
+            db.commit()
+            media = _into_files(db, context, payload, width, height)
     except Exception as exc:
         log.exception("could not store a generated image")
         return ToolOutcome(
@@ -845,6 +878,7 @@ async def _run_comfy(
             # it.
             "attachment_id": attachment_id,
             "image": {"id": attachment_id, "width": width, "height": height},
+            **({"media": media} if media else {}),
         },
     )
 

@@ -411,7 +411,36 @@ def prepare(payload: bytes, filename: str, *, keep_original: bool = False) -> Pr
         return _keep_image(payload) if keep_original else _process_image(payload)
     if _looks_like_pdf(payload):
         return _process_pdf(payload)
+    if (played := _playable(payload, filename)) is not None:
+        return played
     return _process_text(payload, filename)
+
+
+# The extension a stored sound or video is given, by the type its bytes are.
+_PLAYABLE_EXTENSIONS = {
+    "audio/mpeg": ".mp3", "audio/wav": ".wav", "audio/flac": ".flac", "audio/ogg": ".ogg",
+    "audio/mp4": ".m4a", "audio/aac": ".aac", "audio/webm": ".weba", "video/mp4": ".mp4",
+    "video/webm": ".webm", "video/quicktime": ".mov", "video/x-matroska": ".mkv",
+    "video/ogg": ".ogv", "video/x-msvideo": ".avi",
+}
+
+
+def _playable(payload: bytes, filename: str) -> Prepared | None:
+    """Sound or video, by its own bytes (`file_kinds.detect`): kept as it is,
+    for the chat to play. Nothing is extracted, and nothing of it is sent to
+    a model."""
+    from lembas.db.models import KIND_AUDIO, KIND_VIDEO
+    from lembas.services import file_kinds
+
+    found = file_kinds.detect(filename, payload[: file_kinds.HEAD_BYTES])
+    if found.kind not in (file_kinds.AUDIO, file_kinds.VIDEO):
+        return None
+    return Prepared(
+        payload=payload,
+        kind=KIND_AUDIO if found.kind == file_kinds.AUDIO else KIND_VIDEO,
+        media_type=found.mime,
+        extension=_PLAYABLE_EXTENSIONS.get(found.mime, ".bin"),
+    )
 
 
 # --- Public API --------------------------------------------------------------

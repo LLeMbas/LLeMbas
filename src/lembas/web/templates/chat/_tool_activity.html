@@ -321,7 +321,7 @@
     {% endif %}
     {% if event.error %}
     <p class="tool-activity__error">{{ event.error }}</p>
-    {% elif not event.results and not event.text and not event.image %}
+    {% elif not event.results and not event.text and not event.image and not event.media and not event.media_job %}
     <p class="tool-activity__error">{{ t("Nothing was found.") }}</p>
     {% endif %}
 
@@ -345,6 +345,18 @@
            {% if event.image.width %}width="{{ event.image.width }}"{% endif %}
            {% if event.image.height %}height="{{ event.image.height }}"{% endif %}>
     </a>
+    {% endif %}
+
+    {#- A generated picture is also a file in the person's Files (`media`):
+        the way to it, beside the picture drawn above. The card of a long
+        generation (`media_job`) is on the bubble, not in this block, which is
+        closed until somebody opens it (chat/_message.html). -#}
+    {% if event.media and event.media.node_id and event.image and event.image.id %}
+    <p class="media-card__bar media-card__bar--alone">
+      <span class="media-card__name" title="{{ event.media.path }}">{{ event.media.name }}</span>
+      <a class="btn btn--sm" href="/media/open?node={{ event.media.node_id | urlencode }}" data-testid="media-open">{{ t("Open in Files") }}</a>
+      <a class="btn btn--sm" href="/files/raw?node={{ event.media.node_id | urlencode }}" download="{{ event.media.name }}" data-testid="media-download">{{ t("Download") }}</a>
+    </p>
     {% endif %}
 
     {% if event.text %}

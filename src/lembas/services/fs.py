@@ -116,6 +116,10 @@ class View:
     user: User
     chat: Chat | None = None
     message_id: str | None = None
+    # A write made *for* a chat but with the person's own access and not the
+    # chat's (a generated file put into their home, whatever the chat is
+    # bounded to): the chat its version records. Read only when `chat` is None.
+    stamp_chat_id: str | None = None
     resolver: access.Resolver = field(init=False)
 
     def __post_init__(self) -> None:
@@ -172,6 +176,17 @@ def lookup(db: DBSession, org_id: str, path: str) -> Node | None:
     return db.scalar(
         select(Node).where(Node.org_id == org_id, Node.path == path, Node.trashed_at.is_(None))
     )
+
+
+def path_of(db: DBSession, org_id: str, node_id: str) -> str | None:
+    """Where a live node of this organisation is now, by its id: what lets a
+    link made when a file was written (a generated video's player) follow the
+    file through a rename or a move. Says nothing about who may read it --
+    the path is then asked for like any other."""
+    node = db.get(Node, node_id) if node_id else None
+    if node is None or node.org_id != org_id or node.trashed_at is not None:
+        return None
+    return node.path
 
 
 def children(db: DBSession, org_id: str, parent: Node | None) -> list[Node]:
@@ -483,7 +498,7 @@ def write(
         digest,
         size,
         by=v.user.id,
-        chat_id=v.chat.id if v.chat else None,
+        chat_id=v.chat.id if v.chat else v.stamp_chat_id,
         message_id=v.message_id,
     )
     return node

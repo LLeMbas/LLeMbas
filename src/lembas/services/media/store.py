@@ -8,10 +8,13 @@
              "options": {<what this model is asked with, per capability>}}]}
 ```
 
-**A capability is a value, not a column.** `stt`, `tts` and `image` are served
-today (`CAPABILITIES`); `image_edit`, `video`, `music` and `model3d` are named
-(`NAMED`) so a model can be kept under them, and nothing serves them yet. A new
-one is a string here and a function in `services/media/`, never a schema change.
+**A capability is a value, not a column.** `stt`, `tts` and `image` were the
+first (`CAPABILITIES`); `image_edit`, `video`, `music` and `model3d` (`NAMED`)
+are the generations beyond a picture, served by `services/media/generate.py`
+and, where they take long, as jobs (`services/media/jobs.py`). What serves
+each is said by `dialect`: a provider's API where this server speaks it, a
+ComfyUI's workflow of that kind for all four. A new one is a string here and a
+function in `services/media/`, never a schema change.
 
 **Every connection type keeps its media here**, the two that serve nothing
 else included: a ComfyUI's models are its checkpoints (capability `image`), a
@@ -43,7 +46,7 @@ CAP_STT = "stt"
 CAP_TTS = "tts"
 CAP_IMAGE = "image"
 CAPABILITIES = (CAP_STT, CAP_TTS, CAP_IMAGE)
-# Named, kept and listed; served by nothing yet.
+# The generations beyond a picture.
 CAP_IMAGE_EDIT = "image_edit"
 CAP_VIDEO = "video"
 CAP_MUSIC = "music"
@@ -55,6 +58,11 @@ ALL = CAPABILITIES + NAMED
 CAP_CHAT = "chat"
 CAP_EMBEDDING = "embedding"
 EVERY = (CAP_CHAT, CAP_EMBEDDING, *ALL)
+# Everything that makes a thing rather than hears or reads: one switch on a
+# connection ("use its own generation") covers them all.
+GENERATIONS = (CAP_IMAGE, *NAMED)
+# What takes minutes and is therefore a job, not an answer held open.
+LONG = (CAP_VIDEO, CAP_MUSIC, CAP_MODEL3D)
 
 # The audio formats a speech model may be asked for (`services/audio.FORMATS`).
 AUDIO_FORMATS = ("mp3", "wav", "flac", "aac")
@@ -165,7 +173,13 @@ OPTION_KEYS: dict[str, tuple[str, ...]] = {
     CAP_STT: ("language",),
     CAP_TTS: ("voices", "speed", "format", "language"),
     CAP_IMAGE: ("sizes", "negative", "steps", "cfg", "sampler", "scheduler"),
+    CAP_IMAGE_EDIT: ("sizes", "negative"),
+    # A video model: the resolutions it takes (`720P`, or `1280x720` for the
+    # ones asked by size), the longest clip, and whether a first picture is
+    # passed the older way (`img_url`).
+    CAP_VIDEO: ("resolutions", "max_seconds"),
 }
+RESOLUTIONS = ("480P", "720P", "1080P")
 
 
 def clean_options(capability: str, raw: Any) -> dict[str, Any]:
@@ -195,6 +209,12 @@ def clean_options(capability: str, raw: Any) -> dict[str, Any]:
             ][:MAX_SIZES]
         elif key == "negative":
             cleaned = str(value).strip()[:500]
+        elif key == "resolutions":
+            cleaned = [
+                name for name in (n.upper() for n in _names(value, 8, 6)) if name in RESOLUTIONS
+            ]
+        elif key == "max_seconds":
+            cleaned = _number(value, 1, 60, whole=True)
         elif key == "steps":
             cleaned = _number(value, 1, 150, whole=True)
         elif key == "cfg":
@@ -273,9 +293,10 @@ def find(connection: Any, capability: str, model: str = "") -> Entry | None:
 
 def prefers(connection: Any, capability: str) -> bool:
     """Whether the connection's switch for this capability is on: one for
-    both directions of speech, one for pictures."""
+    both directions of speech, one for everything it generates -- pictures,
+    edited pictures, video, music, 3D models."""
     media = of(connection)
-    return bool(media["prefer_image"] if capability == CAP_IMAGE else media["prefer_audio"])
+    return bool(media["prefer_image"] if capability in GENERATIONS else media["prefer_audio"])
 
 
 def own(connection: Any, capability: str) -> Entry | None:
@@ -295,6 +316,9 @@ DASHSCOPE_ASR = "dashscope_asr"  # native multimodal-generation, `parameters.for
 DASHSCOPE_TTS_CHAT = "dashscope_tts_chat"  # native multimodal-generation, `input.text`
 DASHSCOPE_TTS = "dashscope_tts"  # native `audio/tts/SpeechSynthesizer`
 DASHSCOPE_IMAGE = "dashscope_image"  # native multimodal-generation, synchronous
+DASHSCOPE_EDIT = "dashscope_edit"  # the same route, with the pictures to edit
+DASHSCOPE_VIDEO = "dashscope_video"  # native video-synthesis, a task that is polled
+OPENAI_EDIT = "openai_edit"  # `POST /images/edits`, multipart
 
 
 # The ComfyUI: drawn by `services/images/`, with a workflow and a checkpoint.
@@ -314,10 +338,18 @@ def capabilities_of(provider_type: str | None, base_url: str | None = "") -> tup
     """The capabilities a connection of this type can keep models for."""
     type_id = providers.get(provider_type).id
     if type_id == providers.COMFYUI:
+        # Its checkpoints. What else a ComfyUI makes -- edits, video, music,
+        # 3D -- is a workflow of that kind (`ImageWorkflow.kind`), not a model.
         return (CAP_IMAGE,)
     if type_id == providers.SPEECH:
         return (CAP_STT, CAP_TTS)
-    return CAPABILITIES if supported(provider_type, base_url) else ()
+    if not supported(provider_type, base_url):
+        return ()
+    # Only what this server can ask a provider for: a capability with no
+    # dialect would be a model that is listed and never answers.
+    return tuple(
+        capability for capability in ALL if dialect(provider_type, base_url, capability, "")
+    )
 
 
 # --- What a type keeps besides the columns every connection has -----------------
@@ -392,11 +424,22 @@ def supported(provider_type: str | None, base_url: str | None = "") -> bool:
 
 
 def dialect(provider_type: str | None, base_url: str | None, capability: str, model: str) -> str:
-    """Which API a media model on a connection is reached through."""
+    """Which API a media model on a connection is reached through; "" when
+    this server speaks none for that capability there (music and 3D models
+    from a provider; video from anything but Alibaba's API -- OpenAI's own
+    video API was withdrawn, and no other is a documented, stable shape)."""
     if providers.get(provider_type).id == providers.COMFYUI:
         return COMFYUI
+    if capability in (CAP_MUSIC, CAP_MODEL3D):
+        return ""
     if not is_alibaba(provider_type, base_url):
-        return OPENAI
+        if capability == CAP_VIDEO:
+            return ""
+        return OPENAI_EDIT if capability == CAP_IMAGE_EDIT else OPENAI
+    if capability == CAP_VIDEO:
+        return DASHSCOPE_VIDEO
+    if capability == CAP_IMAGE_EDIT:
+        return DASHSCOPE_EDIT
     name = model.lower()
     if capability == CAP_STT:
         # Qwen3-ASR is documented on the OpenAI-compatible chat route; the
@@ -426,6 +469,9 @@ _OFFERS: dict[str, tuple[Entry, ...]] = {
         Entry(CAP_IMAGE, "qwen-image-3.0", False),
         Entry(CAP_IMAGE, "wan2.6-t2i", False),
         Entry(CAP_IMAGE, "z-image-turbo", False),
+        Entry(CAP_IMAGE_EDIT, "qwen-image-2.0", False),
+        Entry(CAP_VIDEO, "wan2.7-t2v", False),
+        Entry(CAP_VIDEO, "wan2.7-i2v", False),
     ),
     # What the Token Plan's list of models names for each capability.
     providers.ALIBABA_PLAN: (
@@ -433,6 +479,8 @@ _OFFERS: dict[str, tuple[Entry, ...]] = {
         Entry(CAP_TTS, "qwen-audio-3.0-tts-plus", False),
         Entry(CAP_IMAGE, "qwen-image-3.0-pro", False),
         Entry(CAP_IMAGE, "wan2.7-image", False),
+        # The plan's own video model; a person's own turns only, like its chat.
+        Entry(CAP_VIDEO, "wan3.0-video", False),
     ),
 }
 # A plan that serves chat models only (Alibaba's Coding Plan).
@@ -487,6 +535,15 @@ __all__ = [
     "with_entry",
     "without_entry",
     "CAP_IMAGE",
+    "CAP_IMAGE_EDIT",
+    "CAP_MODEL3D",
+    "CAP_MUSIC",
+    "CAP_VIDEO",
+    "DASHSCOPE_EDIT",
+    "DASHSCOPE_VIDEO",
+    "GENERATIONS",
+    "LONG",
+    "OPENAI_EDIT",
     "CAP_STT",
     "CAP_TTS",
     "DASHSCOPE_ASR",

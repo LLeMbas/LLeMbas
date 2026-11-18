@@ -341,7 +341,9 @@ async def content(caller: Me, db: Db, attachment_id: str) -> FileResponse:
         raise HTTPException(status.HTTP_404_NOT_FOUND, t("That file is no longer on disk."))
     return FileResponse(
         path,
-        media_type=row.media_type if row.is_image else "application/octet-stream",
+        media_type=(
+            row.media_type if row.is_image or row.is_playable else "application/octet-stream"
+        ),
         headers={
             "Content-Disposition": files_service.content_disposition("attachment", row.filename),
             "Cache-Control": "private, max-age=604800",

@@ -47,6 +47,11 @@ class ImageWorkflow(UUIDPrimaryKey, Timestamps, Base):
     # somebody who was not editing it.
     workflow_json: Mapped[dict[str, Any]] = mapped_column(JSONDict, default=dict)
 
+    # What it makes: `image`, `image_edit`, `video`, `music`, `model3d` (the
+    # capability names of `services/media/store.py`). NULL on a row from
+    # before there was more than one kind: a picture.
+    kind: Mapped[str | None] = mapped_column(String(16), nullable=True)
+
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
@@ -62,6 +67,10 @@ class ImageWorkflow(UUIDPrimaryKey, Timestamps, Base):
     # the list as theirs do.
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error: Mapped[str] = mapped_column(Text, default="")
+
+    @property
+    def makes(self) -> str:
+        return self.kind or "image"
 
     def __repr__(self) -> str:
         return f"<ImageWorkflow {self.slug}>"

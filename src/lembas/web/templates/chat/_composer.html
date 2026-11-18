@@ -43,7 +43,7 @@
      and two hidden inputs cost nothing. #}
   <input class="visually-hidden" type="file" id="file-input" multiple
          data-upload-url="/api/files{% if chat %}?chat_id={{ chat.id }}{% endif %}"
-         accept=".pdf,.txt,.md,.csv,.json,.py,.js,.ts,.rs,.go,.sh,.sql,.yaml,.yml,.toml,.log"
+         accept=".pdf,.txt,.md,.csv,.json,.py,.js,.ts,.rs,.go,.sh,.sql,.yaml,.yml,.toml,.log,.mp3,.wav,.flac,.ogg,.m4a,.mp4,.webm,.mov"
          onchange="window.lembas.uploadFiles(this.files); this.value = ''">
   <input class="visually-hidden" type="file" id="image-input" multiple accept="image/*"
          onchange="window.lembas.uploadFiles(this.files); this.value = ''">

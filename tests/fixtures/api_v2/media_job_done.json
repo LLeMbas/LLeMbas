@@ -1,0 +1,32 @@
+{
+  "id": "mjob2",
+  "kind": "video",
+  "state": "done",
+  "active": false,
+  "chat_id": "chat1",
+  "message_id": "msg2",
+  "source": "Studio · Text to video",
+  "prompt": "a kite over dunes",
+  "started": "2026-01-02T03:04:05+00:00",
+  "ended": "2026-01-02T03:05:40+00:00",
+  "deadline": "2026-01-02T03:34:05+00:00",
+  "seconds": 95,
+  "error": "",
+  "result": {
+    "kind": "video",
+    "path": "/home/frodo/Generated/video-20260102-030405.mp4",
+    "node_id": "node7",
+    "version_id": "ver7",
+    "name": "video-20260102-030405.mp4",
+    "mime": "video/mp4",
+    "size": 2400000,
+    "width": 832,
+    "height": 480,
+    "seconds": 5
+  },
+  "cost": {
+    "amount": 0.1,
+    "currency": ""
+  },
+  "told": true
+}

@@ -1,0 +1,41 @@
+{#-
+  The card of a long generation (`services/media/jobs.py`): its state and how
+  long it has run while it runs, with Cancel; the player once it is done; the
+  reason in words when it ended any other way.
+
+  While the job is active the card asks for itself again every few seconds
+  (a chat has no stream when no reply is being written); a finished card
+  carries no trigger and so stops. One element, swapped whole, so its place
+  in the conversation and its size class do not change under the reader.
+-#}
+{% from "chat/_media.html" import media_card %}
+{% from "_macros.html" import icon %}
+<div class="media-job media-job--{{ job.state }}" id="media-job-{{ job.id }}"
+     data-testid="media-job" data-state="{{ job.state }}"
+     {% if job.active %}hx-get="/media/jobs/{{ job.id }}/card" hx-trigger="every 3s" hx-swap="outerHTML"{% endif %}>
+  {% if job.state == "done" and job.result %}
+  {{ media_card(job.result) }}
+  {% else %}
+  <div class="media-job__row">
+    <span class="media-job__state" role="status">
+      {% if job.active %}<span class="media-job__dot" aria-hidden="true"></span>{% endif %}
+      {%- if job.state == "queued" %}{{ t("Waiting to start") }}
+      {%- elif job.state == "running" %}{{ t("Being made") }}
+      {%- elif job.state == "cancelled" %}{{ t("Cancelled") }}
+      {%- elif job.state == "expired" %}{{ t("Given up on") }}
+      {%- elif job.state == "done" %}{{ t("Done") }}
+      {%- else %}{{ t("Failed") }}{% endif -%}
+    </span>
+    <span class="media-job__time" data-testid="media-job-time">
+      {{- "%d:%02d" | format(job.seconds // 60, job.seconds % 60) -}}
+    </span>
+    {% if job.active %}
+    <button class="btn btn--sm media-job__cancel" type="button" data-testid="media-job-cancel"
+            hx-post="/media/jobs/{{ job.id }}/cancel" hx-target="#media-job-{{ job.id }}"
+            hx-swap="outerHTML">{{ t("Cancel") }}</button>
+    {% endif %}
+  </div>
+  <p class="media-job__what">{{ job.source }}{% if job.prompt %} · {{ job.prompt }}{% endif %}</p>
+  {% if job.error %}<p class="media-job__error">{{ job.error }}</p>{% endif %}
+  {% endif %}
+</div>

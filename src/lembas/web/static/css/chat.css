@@ -582,6 +582,70 @@
   background: var(--bg-sunken);
 }
 
+/* A generated file in the conversation, and the job of one that takes long
+   (chat/_media.html, chat/_media_job.html).
+
+   One column, sized by the block it sits in: the player (or the picture, or
+   the sealed 3D frame) on top and one bar under it. The bar is a row whose
+   only flexible part is the name -- it shrinks and is cut with an ellipsis,
+   and the two buttons keep their size -- so the buttons end on the same line
+   at every width and never wrap under a long name. The 3D frame has a height
+   of its own, because a frame has no intrinsic one. */
+.media-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-2); margin: var(--sp-2) 0; }
+.media-card__view { display: block; }
+.media-card__image {
+  display: block; max-width: 100%; max-height: var(--h-media); width: auto; height: auto;
+  border-radius: var(--radius-sm); background: var(--bg-sunken);
+}
+.media-card__video {
+  display: block; width: 100%; max-height: var(--h-page-max);
+  border-radius: var(--radius-sm); background: var(--bg-sunken);
+}
+.media-card__audio { display: block; width: 100%; max-width: var(--w-prose); }
+.media-card__model {
+  display: block; width: 100%; height: var(--h-media); border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-sm); background: var(--surface);
+}
+.media-card__bar { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; margin: 0; }
+.media-card__bar--alone { margin: var(--sp-2) 0; }
+.media-card__name {
+  flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--text-xs); color: var(--ink-faint);
+}
+.media-card__bar > .btn { flex: none; }
+
+/* Sound and video somebody attached: the browser's own players. */
+.attachments__video {
+  display: block; max-width: 100%; max-height: var(--h-media);
+  border-radius: var(--radius-sm); background: var(--bg-sunken);
+}
+.attachments__audio { display: block; width: 100%; max-width: var(--w-prose-sm); }
+
+.message-media { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-2); }
+.media-job { margin: var(--sp-2) 0; }
+.media-job__row { display: flex; align-items: center; gap: var(--sp-3); min-height: var(--control-h-sm); }
+.media-job__state { display: inline-flex; align-items: center; gap: var(--sp-2); font-size: var(--text-sm); }
+.media-job__time { font-size: var(--text-xs); color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.media-job__cancel { margin-left: auto; flex: none; }
+.media-job__dot {
+  width: var(--sp-2); height: var(--sp-2); border-radius: 50%; background: var(--accent);
+  animation: media-job-pulse 1.4s ease-in-out infinite;
+}
+@keyframes media-job-pulse { 50% { opacity: 0.25; } }
+/* The dot of a running job holds still for somebody who asked for less motion. */
+@media (prefers-reduced-motion: reduce) { .media-job__dot { animation: none; } }
+.media-job__what {
+  margin: var(--sp-1) 0 0; font-size: var(--text-xs); color: var(--ink-faint);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.media-job__error { margin: var(--sp-1) 0 0; font-size: var(--text-sm); color: var(--danger); }
+/* On a phone the bar's buttons and Cancel are pressed with a thumb: the small
+   control's height is a pointer's, so they take the tap minimum there. Nothing
+   is restacked -- the row is the same row. */
+@media (max-width: 48rem) {
+  .media-card__bar > .btn, .media-job__cancel { min-height: var(--tap-min); }
+}
+
 /* A diff, from a write or an update.
 
    The same visual language as .tool-result__text above -- both answer "what did

@@ -1436,3 +1436,8 @@ a.catalog__name:hover { color: var(--accent); text-decoration: underline; }
 /* The order sources are tried in (admin/media.html): a numbered list. */
 .order-list { margin: 0 0 var(--sp-4); padding-left: var(--sp-6); }
 .order-list > li { margin-bottom: var(--sp-2); font-size: var(--text-sm); }
+
+/* Importing a workflow: one line per proposed placeholder (admin/workflow_import.html).
+   Stacked, each a checkbox whose text wraps inside its own line. */
+.import-changes { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-2); margin: var(--sp-3) 0; }
+.import-change > span { min-width: 0; overflow-wrap: anywhere; }

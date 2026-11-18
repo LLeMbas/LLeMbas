@@ -105,6 +105,130 @@ LIMITS: dict[str, tuple[float, float]] = {
     "batch": (1, 8),
 }
 
+# --- More than pictures ----------------------------------------------------------
+# A workflow has a kind (`ImageWorkflow.kind`): what it makes. The holes above
+# are a picture's; these are what the other kinds add. One vocabulary still:
+# the tools' parameter names (`services/media/tools.py`).
+KINDS = ("image", "image_edit", "video", "music", "model3d")
+MEDIA_PLACEHOLDERS = (
+    "image", "image2", "mask", "seconds", "fps", "frames", "lyrics", "tags", "mesh_quality",
+)
+ALL_PLACEHOLDERS = PLACEHOLDERS + MEDIA_PLACEHOLDERS
+DESCRIPTIONS.update(
+    {
+        "image": ("text", "The input picture, as the name ComfyUI gave it at upload. "
+                          "Fills a `LoadImage` node's `image`."),
+        "image2": ("text", "A second input picture, where a workflow takes two."),
+        "mask": ("text", "A mask picture: white is what to change."),
+        "seconds": ("number", "How long the video or the track is."),
+        "fps": ("number", "Frames per second of a video."),
+        "frames": ("number", "How many frames: seconds times fps, plus one, rounded to "
+                             "what video models take (a multiple of four, plus one)."),
+        "lyrics": ("text", "The words of a song. Empty for an instrumental."),
+        "tags": ("text", "Genre, instruments, mood: what a music model is steered by."),
+        "mesh_quality": ("number", "How finely a 3D model is meshed (octree resolution)."),
+    }
+)
+LIMITS.update(
+    {"seconds": (1, 1000), "fps": (1, 120), "frames": (1, 2001), "mesh_quality": (16, 512)}
+)
+MEDIA_DEFAULTS: dict[str, Any] = {
+    "seconds": 5, "fps": 16, "lyrics": "", "tags": "", "mesh_quality": 256,
+}
+# What a workflow of each kind cannot do without: with none of these holes in
+# it, it would make the same thing whatever anybody asked for.
+REQUIRED: dict[str, tuple[str, ...]] = {
+    "image": ("prompt",),
+    "image_edit": ("prompt", "image"),
+    "video": ("prompt",),
+    "music": ("tags",),
+    "model3d": ("image",),
+}
+# What a kind may use besides (every kind may use the sampling ones).
+USABLE: dict[str, tuple[str, ...]] = {
+    "image": PLACEHOLDERS,
+    "image_edit": (*PLACEHOLDERS, "image", "image2", "mask"),
+    "video": (*PLACEHOLDERS, "image", "seconds", "fps", "frames"),
+    "music": ("prompt", "tags", "lyrics", "seconds", "seed", "steps", "cfg", "sampler",
+              "scheduler", "denoise"),
+    "model3d": ("image", "prompt", "seed", "steps", "cfg", "sampler", "scheduler",
+                "denoise", "mesh_quality"),
+}
+
+
+def frames_for(seconds: float, fps: float) -> int:
+    """Frames of a clip, as video models count them: `4n + 1`."""
+    wanted = max(1, round(float(seconds) * float(fps)))
+    return int(_clamp((wanted // 4) * 4 + 1, "frames"))
+
+
+def resolve_kind(
+    kind: str,
+    given: dict[str, Any],
+    *,
+    settings: dict[str, Any] | None = None,
+    max_seconds: int | None = None,
+) -> dict[str, Any]:
+    """`resolve` for any kind: the sampling values as a picture has them, and
+    the kind's own -- typed and clamped the same way. `max_seconds` is the
+    instance's ceiling for a clip or a track."""
+    given = given or {}
+    values = resolve(given, settings=settings)
+    ceiling = min(int(max_seconds or LIMITS["seconds"][1]), int(LIMITS["seconds"][1]))
+    seconds = _decimal(given.get("seconds"), MEDIA_DEFAULTS["seconds"])
+    values["seconds"] = min(max(seconds, 1.0), float(ceiling))
+    if float(values["seconds"]).is_integer():
+        values["seconds"] = int(values["seconds"])
+    values["fps"] = _clamp(_whole(given.get("fps"), MEDIA_DEFAULTS["fps"]), "fps")
+    frames = given.get("frames")
+    values["frames"] = (
+        _clamp(_whole(frames, 0), "frames")
+        if frames not in (None, "")
+        else frames_for(values["seconds"], values["fps"])
+    )
+    values["mesh_quality"] = _clamp(
+        _whole(given.get("mesh_quality"), MEDIA_DEFAULTS["mesh_quality"]), "mesh_quality"
+    )
+    for name in ("image", "image2", "mask", "lyrics", "tags"):
+        values[name] = str(given.get(name) or "")
+    if kind == "music" and not values["tags"]:
+        # A music model is steered by its tags; a request that only described
+        # the track has described them.
+        values["tags"] = values["prompt"]
+    return values
+
+
+def missing_for(kind: str, template: Any) -> list[str]:
+    """The holes a workflow of this kind needs and does not have."""
+    used = placeholders_in(template)
+    return [name for name in REQUIRED.get(kind, ()) if name not in used]
+
+
+# The inputs that name a file in one of the ComfyUI's model folders.
+_FILE_INPUTS = (
+    "ckpt_name", "unet_name", "vae_name", "clip_name", "clip_name1", "clip_name2",
+    "clip_name3", "lora_name", "control_net_name", "model_name", "style_model_name",
+)
+
+
+def model_files(template: Any) -> list[str]:
+    """The model files a workflow names outright (a loader's literal file
+    name): what the ComfyUI it runs on must have. In order, once each."""
+    found: list[str] = []
+    for node in (template if isinstance(template, dict) else {}).values():
+        inputs = node.get("inputs") if isinstance(node, dict) else None
+        for name, value in (inputs if isinstance(inputs, dict) else {}).items():
+            if (
+                name in _FILE_INPUTS
+                and isinstance(value, str)
+                and value
+                and not _PLACEHOLDER.search(value)
+                and value not in found
+            ):
+                found.append(value)
+    return found
+
+
 # ComfyUI's seed is a uint64. Generated here rather than left to the far side
 # so the value can be reported back -- "it looked like this and here is how to
 # get it again" is most of what a seed is for.

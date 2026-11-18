@@ -105,6 +105,10 @@ LABELS: dict[str, str] = {
     # Reports.
     "report_write": "Report filed",
     "image_generate": "Image",
+    "image_edit": "Picture edited",
+    "video_generate": "Video",
+    "music_generate": "Music",
+    "model_generate": "3D model",
     # Work set up to happen later.
     "schedule_create": "Scheduled",
     "schedule_list": "Schedules read",
@@ -191,6 +195,10 @@ ICONS: dict[str, str] = {
     "scratch_write": "file-text",
     "report_write": "pencil",
     "image_generate": "image",
+    "image_edit": "image",
+    "video_generate": "image",
+    "music_generate": "image",
+    "model_generate": "image",
     "schedule_create": "clock",
     "schedule_list": "clock",
     "schedule_update": "clock",
@@ -263,6 +271,10 @@ ACTIONS: dict[str, str] = {
     "scratch_write": "Write in the canvas",
     "report_write": "File a report",
     "image_generate": "Generate an image",
+    "image_edit": "Edit a picture",
+    "video_generate": "Generate a video",
+    "music_generate": "Generate music",
+    "model_generate": "Generate a 3D model",
     "schedule_create": "Set up a schedule",
     "schedule_update": "Change a schedule",
     "schedule_cancel": "Stop a schedule",
@@ -316,6 +328,10 @@ DETAIL_KEYS: dict[str, str] = {
     # it. Also what makes the box on the card editable: a prompt corrected
     # before it runs is the commonest useful edit this feature will see.
     "image_generate": "prompt",
+    "image_edit": "prompt",
+    "video_generate": "prompt",
+    "music_generate": "prompt",
+    "model_generate": "image",
     # The instruction, not the timing. An approval card has room for one line,
     # and the instruction is the part a person can read and correct -- the
     # timing is an object, and the tool answers with it in words afterwards,

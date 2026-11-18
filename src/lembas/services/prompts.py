@@ -1111,7 +1111,43 @@ BUILTIN: tuple[Fragment, ...] = (
             "to open it. Say what you made and what you would change.\n"
             "- If it fails because the machine ran out of video memory, try once more at "
             "a smaller size or with a lighter checkpoint. Do not repeat the same request "
-            "unchanged."
+            "unchanged.\n"
+            "- If it fails for any other reason, say what went wrong and stop. Do not "
+            "call it again for the same request unless the person asks: a picture from a "
+            "provider is paid for per attempt."
+        ),
+    ),
+    Fragment(
+        key="tool.media",
+        label="Editing pictures, and generating video, music and 3D models",
+        group=GROUP_TOOLS,
+        order=246,
+        families=("image:media",),
+        hint="Appears when one of image_edit, video_generate, music_generate or "
+        "model_generate is offered. Two things a model gets wrong without it: "
+        "waiting for a generation that answers later (it holds the reply open, "
+        "or calls the tool again), and answering a failure by ordering the same "
+        "paid generation once more.",
+        default=(
+            "- Some of your tools make media: image_edit changes an existing picture; "
+            "video_generate, music_generate and model_generate make a video, a piece of "
+            "music and a 3D model. Use the ones you were given, and only when the person "
+            "asks for such a thing.\n"
+            "- image_edit answers with the edited picture on screen. To change a picture, "
+            "use it rather than drawing a new one; name the picture, or leave `image` out "
+            "for the most recent one in the conversation.\n"
+            "- video_generate, music_generate and model_generate take minutes. They answer "
+            "at once with a job id and the result arrives later by itself: the person "
+            "watches it on a card and can cancel it there. After starting one, tell the "
+            "person it has been started and end your reply. Do not wait, do not ask about "
+            "the job, and do not start it a second time.\n"
+            "- When a job finishes you are told in the conversation. The result is then "
+            "already on screen and in the person's Files: say so briefly; do not offer "
+            "to show it or link to it.\n"
+            "- These cost the person time on their own hardware or money at a provider. "
+            "One request is one generation. If one fails, say what went wrong and stop: "
+            "never start it again, and never try another tool instead, unless the person "
+            "asks you to."
         ),
     ),
     Fragment(

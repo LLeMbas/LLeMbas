@@ -1,0 +1,43 @@
+{#-
+  A generated thing in the conversation: a picture, a video, a track, a 3D
+  model, drawn from its typed result (`services/media/library.py`).
+
+  The address is built here from the file's **id** and is never taken from
+  the event: `/files/raw?node=` finds the file where it is now and reads it
+  as the person looking may read it, so a renamed or moved file still plays
+  and somebody else's never does. Sound and video are the browser's own
+  elements over that route (it answers `Range`, so they seek); a 3D model is
+  drawn in the sealed frame the file page uses -- an opaque origin with no
+  network, handed the bytes by js/files.js -- and a picture is an image.
+-#}
+{% macro media_card(m) %}
+{% set raw = "/files/raw?node=" ~ (m.node_id | urlencode) %}
+<figure class="media-card media-card--{{ m.kind }}" data-testid="media-card" data-media-kind="{{ m.kind }}">
+  {% if m.kind in ("image", "image_edit") %}
+  <a class="media-card__view" href="{{ raw }}&amp;inline=1" target="_blank" rel="noopener">
+    <img class="media-card__image" src="{{ raw }}&amp;inline=1" alt="{{ m.name }}" loading="lazy"
+         {% if m.width %}width="{{ m.width }}"{% endif %} {% if m.height %}height="{{ m.height }}"{% endif %}>
+  </a>
+  {% elif m.kind == "video" %}
+  <video class="media-card__video" controls preload="metadata" playsinline
+         src="{{ raw }}&amp;inline=1" data-testid="media-video"></video>
+  {% elif m.kind == "music" %}
+  <audio class="media-card__audio" controls preload="metadata"
+         src="{{ raw }}&amp;inline=1" data-testid="media-audio"></audio>
+  {% elif m.kind == "model3d" %}
+  {% set ext = (m.name or "").rsplit(".", 1)[-1] | lower %}
+  <iframe class="media-card__model" src="/files/viewer/model3d" sandbox="allow-scripts"
+          referrerpolicy="no-referrer" data-sealed-view="model3d" data-raw="{{ raw }}"
+          data-format="{{ ext if ext in ('glb', 'gltf', 'stl', 'obj') else 'glb' }}"
+          data-testid="media-model" loading="lazy"
+          title="{{ t('%(name)s, drawn sealed off from this application', name=m.name) }}"></iframe>
+  {% endif %}
+  <figcaption class="media-card__bar">
+    <span class="media-card__name" title="{{ m.path }}">{{ m.name }}</span>
+    <a class="btn btn--sm" href="/media/open?node={{ m.node_id | urlencode }}"
+       data-testid="media-open">{{ t("Open in Files") }}</a>
+    <a class="btn btn--sm" href="{{ raw }}" download="{{ m.name }}"
+       data-testid="media-download">{{ t("Download") }}</a>
+  </figcaption>
+</figure>
+{% endmacro %}

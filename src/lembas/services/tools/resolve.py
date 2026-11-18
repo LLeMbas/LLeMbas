@@ -220,6 +220,24 @@ def _image_defs(
     ]
 
 
+def _media_defs(db: DBSession, chains: dict[str, list] | None = None) -> list[ToolDef]:
+    """The tools for what is made beyond a picture (`services/media/tools.py`):
+    an edited picture, a video, a track, a 3D model. With `chains` -- the
+    sources this chat resolved per capability -- only the ones that have a
+    source, each with its first source's price in its description; without,
+    every one, for the registry."""
+    from lembas.services.media import tools as media_tools
+
+    if chains is None:
+        return media_tools.all_defs()
+    currency = settings_store.currency(db)
+    return [
+        media_tools.tool_def(capability, chain[0], currency)
+        for capability, chain in chains.items()
+        if chain
+    ]
+
+
 def _book(defs: list[ToolDef]) -> dict[str, ToolDef]:
     """Keyed by name, first claim winning.
 
@@ -246,6 +264,7 @@ def registry(db: DBSession) -> dict[str, ToolDef]:
         [
             *_row_defs(db, None, everything=True),
             *_image_defs(db),
+            *_media_defs(db),
             # Listed here, ungated, or `harness._families` cannot map
             # `schedule_create` back to a family and the guidance never
             # reaches the model. That omission has cost two features their
@@ -264,7 +283,9 @@ def families(db: DBSession) -> tuple[str, ...]:
     # The helper's own family after the built-ins: not in FAMILIES, which is
     # the list of gates a chat can switch, and this one is switched with
     # `subagent`.
-    return (*FAMILIES, FAMILY_REPORT_BACK, *rows)
+    from lembas.services.media import tools as media_tools
+
+    return (*FAMILIES, media_tools.FAMILY, FAMILY_REPORT_BACK, *rows)
 
 
 def resolve_tools(
@@ -314,6 +335,20 @@ def resolve_tools(
     image_chain = media_sources.for_chat(db, "image", chat, speaker)
     images_ready = bool(image_chain)
     images_hosted = images_ready and image_chain[0].dialect != media_sources.COMFYUI
+    # The same for what is made beyond a picture, capability by capability:
+    # no source for this chat, no tool. One gate with the picture tool (the
+    # `image` permission, the model's switch, the chat's own).
+    from lembas.services.media import store as media_store
+
+    # A helper's hidden chat gets none of the long ones: a job tells the chat
+    # that started it when it ends, and nobody reads a helper's chat by then.
+    helper = bool(getattr(chat, "parent_chat_id", None))
+    media_chains = {
+        capability: media_sources.for_chat(db, capability, chat, speaker)
+        for capability in media_store.NAMED
+        if not (helper and capability in media_store.LONG)
+    }
+    media_ready = any(media_chains.values())
     schedules_on = bool(settings_store.schedules(db).get("enabled"))
     subagents_on = bool(settings_store.subagents(db).get("enabled"))
 
@@ -326,6 +361,7 @@ def resolve_tools(
         [
             *_row_defs(db, user),
             *(_image_defs(db, image_values, hosted=images_hosted) if images_ready else []),
+            *(_media_defs(db, media_chains) if media_ready else []),
             *(_schedule_defs() if schedules_on else []),
             *(_subagent_defs(db, chat, user) if subagents_on else []),
         ]
@@ -419,7 +455,7 @@ def resolve_tools(
                         config=config,
                         capabilities=capabilities,
                         allowed=allowed,
-                        images=images_ready,
+                        images=images_ready or media_ready,
                         schedules=schedules_on,
                         subagents=subagents_on,
                     )

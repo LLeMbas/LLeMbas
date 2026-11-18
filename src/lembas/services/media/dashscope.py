@@ -107,16 +107,25 @@ def error_of(endpoint: Endpoint, response: httpx.Response) -> LLMError:
 
 
 async def post(
-    endpoint: Endpoint, url: str, body: dict[str, Any], *, timeout: float | None = None
+    endpoint: Endpoint,
+    url: str,
+    body: dict[str, Any] | None,
+    *,
+    timeout: float | None = None,
+    headers: dict[str, str] | None = None,
+    method: str = "POST",
 ) -> dict[str, Any]:
     """One JSON request with the connection's key; the parsed answer. No more
-    than `MAX_ANSWER_BYTES` of it is read."""
+    than `MAX_ANSWER_BYTES` of it is read. `headers` are added to the
+    connection's own (the task routes' `X-DashScope-Async`); `method` `GET`
+    with no body asks about a task."""
     data = bytearray()
     try:
         async with httpx.AsyncClient(
             timeout=timeout or env_settings.request_timeout
         ) as client, client.stream(
-            "POST", url, headers=_headers(endpoint), json=body
+            method, url, headers={**_headers(endpoint), **(headers or {})},
+            **({"json": body} if body is not None else {}),
         ) as response:
             async for chunk in response.aiter_bytes():
                 data.extend(chunk)
@@ -141,7 +150,10 @@ async def post(
     if not isinstance(payload, dict):
         raise LLMError(t("The endpoint returned a response that was not JSON."))
     # The native API can answer 200 with a refusal inside.
-    if payload.get("code") and "output" not in payload and "choices" not in payload:
+    if (
+        payload.get("code") and "output" not in payload and "choices" not in payload
+        and "data" not in payload
+    ):
         raise error_of(endpoint, httpx.Response(400, json=payload))
     return payload
 

@@ -1,4 +1,5 @@
 {% from "_macros.html" import icon %}
+{% from "chat/_media.html" import media_card %}
 {% set speaking_model = (models_by_id | default({})).get(message.model_id) %}
 {#
   One message bubble, in either of two states.
@@ -72,6 +73,12 @@
           <img src="/api/files/{{ attachment.id }}/content" alt="{{ attachment.filename }}"
                loading="lazy" width="{{ attachment.width }}" height="{{ attachment.height }}">
         </a>
+        {% elif attachment.kind == "video" %}
+        <video class="attachments__video" controls preload="metadata" playsinline
+               src="/api/files/{{ attachment.id }}/content" title="{{ attachment.filename }}"></video>
+        {% elif attachment.kind == "audio" %}
+        <audio class="attachments__audio" controls preload="metadata"
+               src="/api/files/{{ attachment.id }}/content" title="{{ attachment.filename }}"></audio>
         {% else %}
         <div class="attachments__doc">
           {{ icon("attach", "icon--sm") }}
@@ -113,6 +120,25 @@
       </div>
       {% endfor %}
     </div>
+    {% endif %}
+
+    {#- What this reply's tools made, or are still making: the card of each
+        long generation as it stands now (while it is active it asks for
+        itself again, chat/_media_job.html), and a generated file that is not
+        already this bubble's picture. On the bubble and not inside the tool
+        block, which is closed until somebody opens it. Drawn once the reply
+        is whole: while it streams, the block says the job was started. -#}
+    {% if not streaming %}
+    {% for event in (message.tool_calls_json or []) if event is mapping and ((event.media_job and event.media_job.id) or (event.media and event.media.node_id and not event.image)) %}
+      {% if loop.first %}<div class="message-media" data-testid="message-media">{% endif %}
+      {% if event.media_job and event.media_job.id %}
+      {% set job = media_job_for(message, event.media_job.id) %}
+      {% if job %}{% include "chat/_media_job.html" %}{% endif %}
+      {% else %}
+      {{ media_card(event.media) }}
+      {% endif %}
+      {% if loop.last %}</div>{% endif %}
+    {% endfor %}
     {% endif %}
 
     {% if streaming %}

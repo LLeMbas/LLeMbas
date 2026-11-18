@@ -308,6 +308,15 @@ def require_openai(endpoint: Endpoint, what: str) -> None:
 
 
 def wrap_transport_error(exc: httpx.RequestError, endpoint: Endpoint) -> LLMError:
+    if isinstance(exc, httpx.DecodingError):
+        # The endpoint was reached and answered; what it sent could not be
+        # read (a compressed body that does not decompress, say). Saying
+        # "could not reach" sends somebody to check a network that is fine --
+        # and the request may well have been carried out, so this is not
+        # marked as safe to repeat.
+        return LLMError(
+            f"{endpoint.base_url} answered, but its answer could not be read: {exc}"
+        )
     if isinstance(exc, httpx.ConnectError):
         error = LLMError(
             f"Could not reach {endpoint.base_url}. Is the endpoint running and "

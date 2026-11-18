@@ -57,6 +57,32 @@ NAME_STT = "Speech to text"
 NAME_TTS = "Text to speech"
 
 
+def default_key(capability: str) -> str:
+    """Where the default of a generation beyond a picture is kept, in the
+    image settings: `<connection id>/<model id>` for a provider's model,
+    `<connection id>/<workflow slug>` for a ComfyUI's workflow of that kind."""
+    return f"{capability}_default"
+
+
+def enabled_key(capability: str) -> str:
+    return "enabled" if capability == CAP_IMAGE else f"{capability}_enabled"
+
+
+def comfy_values(connection: Connection) -> dict[str, Any]:
+    """What the ComfyUI client needs of a ComfyUI connection, in the keys
+    `images.tool.config_of` reads: for a workflow run on a ComfyUI that is
+    not (or not only) the default for pictures."""
+    options = store.type_options(connection)
+    return {
+        "comfyui_connection_id": connection.id,
+        "comfyui_name": connection.name,
+        "base_url": connection.base_url,
+        "api_key_encrypted": connection.api_key_encrypted,
+        "timeout": options["timeout"],
+        "preserve_vram": options["preserve_vram"],
+    }
+
+
 def split(value: Any) -> tuple[str, str]:
     """`<connection id>/<model id>` as its halves. The model may be empty (a
     ComfyUI with no fixed checkpoint); no connection is two empty strings."""
@@ -69,6 +95,8 @@ def default_value(values: dict[str, Any], capability: str) -> str:
     """The stored default for a capability: `<connection id>/<model id>`,
     `none`, or "" -- nobody chose, and an address in the settings (if any) is
     what an older release meant."""
+    if capability in store.NAMED:
+        return str(values.get(default_key(capability)) or "").strip()
     if capability != CAP_IMAGE:
         return str(values.get(AUDIO_KEYS[capability]) or "").strip()
     chosen = str(values.get(IMAGE_KEY) or "").strip()
@@ -79,6 +107,8 @@ def default_changes(capability: str, value: str, connection: Connection | None) 
     """The settings to write for a chosen default: `value` is `<connection
     id>/<model id>`, `none` or "". Pictures keep a ComfyUI under its own key,
     so that the other key reads as it always has."""
+    if capability in store.NAMED:
+        return {default_key(capability): value}
     if capability != CAP_IMAGE:
         return {AUDIO_KEYS[capability]: value}
     if connection is not None and _is(connection, providers.COMFYUI):
@@ -208,11 +238,20 @@ def price_per_image(values: dict[str, Any], checkpoint: str) -> float:
     return float(own if own else values.get("per_image") or 0)
 
 
-def workflows(db: DBSession, values: dict[str, Any], *, limit: int | None = None) -> list[Any]:
-    """The enabled workflows the ComfyUI in `values` may run: its own and the
-    ones that belong to no connection in particular. Before a ComfyUI was a
-    connection (`comfyui_connection_id` absent), all of them."""
+def workflows(
+    db: DBSession, values: dict[str, Any], *, limit: int | None = None, kind: str = CAP_IMAGE
+) -> list[Any]:
+    """The enabled workflows **of one kind** the ComfyUI in `values` may run:
+    its own and the ones that belong to no connection in particular. Before a
+    ComfyUI was a connection (`comfyui_connection_id` absent), all of them. A
+    row from before workflows had a kind is a picture's."""
     query = select(ImageWorkflow).where(ImageWorkflow.enabled.is_(True))
+    if kind == CAP_IMAGE:
+        query = query.where(
+            ImageWorkflow.kind.is_(None) | (ImageWorkflow.kind == "") | (ImageWorkflow.kind == kind)
+        )
+    else:
+        query = query.where(ImageWorkflow.kind == kind)
     connection_id = str(values.get("comfyui_connection_id") or "")
     if connection_id:
         query = query.where(

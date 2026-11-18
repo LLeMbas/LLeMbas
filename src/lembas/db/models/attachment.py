@@ -13,6 +13,11 @@ from lembas.db.base import Base, Timestamps, UUIDPrimaryKey
 KIND_IMAGE = "image"
 KIND_DOCUMENT = "document"  # PDF: text is extracted
 KIND_TEXT = "text"  # plain text, markdown, csv, source code
+# Sound and video: kept and played back, never read. No text is extracted and
+# no model is sent one as content -- they are in a chat to be heard and seen
+# by its person, and to be named to a tool.
+KIND_AUDIO = "audio"
+KIND_VIDEO = "video"
 
 
 class Attachment(UUIDPrimaryKey, Timestamps, Base):
@@ -73,6 +78,11 @@ class Attachment(UUIDPrimaryKey, Timestamps, Base):
     @property
     def is_image(self) -> bool:
         return self.kind == KIND_IMAGE
+
+    @property
+    def is_playable(self) -> bool:
+        """Sound or video: a browser's own player draws it."""
+        return self.kind in (KIND_AUDIO, KIND_VIDEO)
 
     @property
     def human_size(self) -> str:
