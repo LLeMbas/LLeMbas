@@ -518,6 +518,10 @@ def _files() -> dict[str, object]:
             "This file changed since you opened it. Reload it, or save anyway.",
             "ab" * 32, "ver2",
         ),
+        # `PUT /files/content` with `create` where the name is taken: 409.
+        "file_create_exists": serialise.file_exists(
+            "There is already something called lembas.md here.", "/home/frodo/lembas.md"
+        ),
         "files_trash": {"items": [serialise.trashed(gone)]},
         "files_restored": {"restored": "/home/frodo/old.md", "items": []},
         "files_trash_emptied": {"removed": 1, "items": []},

@@ -126,6 +126,8 @@ async def media_page(
     connection_id, model = instance.split(chosen)
     context: dict[str, Any] = {
         "capability": capability,
+        # What `_tabs.html` marks as the one being shown.
+        "tab": capability,
         "tabs": [(c, f"/admin/media/{c}", i18n.t(catalog.LABELS[c])) for c in CAPABILITIES],
         "values": values,
         "choices": default_choices(db, capability),

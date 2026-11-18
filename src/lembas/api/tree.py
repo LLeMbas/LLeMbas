@@ -229,15 +229,13 @@ async def new_file(db: Db, user: RequiredUser, path: str = Form("/"), name: str 
         return back(_here(where), t("A file needs a name without a slash."), ok=False)
     target = f"{where.rstrip('/')}/{name}"
     try:
-        there = fs.stat(v, target) is not None
-    except fs.FsError:
-        there = False  # not there, or not to be seen: the write below decides
-    if there:
+        # Made, never written over: the tree refuses a name that is taken.
+        fs.write(v, target, b"", create=True)
+        db.commit()
+    except fs.AlreadyExists:
+        db.rollback()
         return back(_here(where), t("There is already something called %(name)s here.",
                                     name=name), ok=False)
-    try:
-        fs.write(v, target, b"")
-        db.commit()
     except fs.FsError as refused:
         db.rollback()
         return _refused(refused, _here(where))

@@ -988,6 +988,11 @@ def file_conflict(detail: str, sha: str, version: str | None) -> dict[str, Any]:
     return {"detail": detail, "conflict": True, "sha": sha, "version": version}
 
 
+def file_exists(detail: str, path: str) -> dict[str, Any]:
+    """The 409 of `PUT /files/content` with `create`: the name is taken."""
+    return {"detail": detail, "exists": True, "path": path}
+
+
 def file_version(row: Any, names: dict[str, str], *, current: bool) -> dict[str, Any]:
     """One `NodeVersion`: `id` is what `/files/raw?version=` and a restore
     take; `current` marks the one the file holds now; `chat_id` the chat that

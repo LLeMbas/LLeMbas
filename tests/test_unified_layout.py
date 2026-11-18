@@ -123,6 +123,13 @@ def test_the_page_fits_and_lines_up(client, db, pages, tmp_path, width, name):
     assert all(b["left"] >= 0 and b["right"] <= probe["width"] + 1 for b in rest), rest
     if tabs:
         assert len({b["top"] for b in tabs}) == 1, "the tab bar wrapped"
+        # Exactly one tab is marked as the one being shown, on every page
+        # that has link tabs -- the Media pages once marked none.
+        active = [b for b in tabs if "is-active" in b["what"]]
+        assert len(active) == 1, f"{path}: {len(active)} active tabs"
+        if name.startswith("media-"):
+            wanted = {"media-image": "Pictures", "media-tts": "Text to speech"}[name]
+            assert active[0]["text"] == wanted, active
     if width < 500:
         assert all(tap["h"] >= 40 for tap in probe["taps"]), probe["taps"]
     if name in ("connections", "models", "connection-comfyui-models") and width >= 1280:

@@ -28,7 +28,7 @@ from what is there; a refusal is the explorer's, as a 400 with its reason.
 | `POST /files/move` | `{path, to}` → listing of `to` |
 | `DELETE /files?path=` | 204 (to the trash) |
 | `POST /files/copy` | `{path, to, name?}` → 201 listing of `to`, with `copied` (the new entry) |
-| `PUT /files/content` | `{path, text, base?, force?}` → the content answer; 409 when changed |
+| `PUT /files/content` | `{path, text, base?, force?, create?}` → the content answer; 409 when changed, or (`create`) when the name is taken |
 | `GET /files/raw?path=&version=&inline=` | the bytes; `Range` answered (`api/_download.py`) |
 | `GET /files/trash` | `{items}` |
 | `POST /files/restore` | `{id}` → `{restored, items}` |
@@ -241,7 +241,12 @@ async def save_content(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> 
     holds something else by now the answer is **409** `{detail, conflict:
     true, sha, version}` -- what it holds now -- and nothing is written,
     unless `force` is true. Without `base` nothing is compared. A path with
-    no file makes one."""
+    no file makes one.
+
+    `create: true` makes a **new** file and never writes over one: when
+    something is already at the path the answer is **409** `{detail, exists:
+    true, path}` and nothing is written (`fs.write(create=True)`: decided by
+    the tree, so of two creations of one name one is refused)."""
     v = fs.view(db, caller.user)
     where = _path(str(body.get("path") or ""))
     text = body.get("text")
@@ -268,9 +273,19 @@ async def save_content(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> 
                 ),
                 status_code=status.HTTP_409_CONFLICT,
             )
-        fs.write(v, where, data)
+        fs.write(v, where, data, create=bool(body.get("create")))
         db.commit()
         opened = file_ui.open_file(v, where)
+    except fs.AlreadyExists as there:
+        db.rollback()
+        return JSONResponse(
+            serialise.file_exists(
+                t("There is already something called %(name)s here.",
+                  name=where.rsplit("/", 1)[-1]),
+                where,
+            ),
+            status_code=status.HTTP_409_CONFLICT,
+        )
     except fs.FsError as refused:
         raise _refused(db, refused) from refused
     return serialise.file_content(opened, _withheld(opened))

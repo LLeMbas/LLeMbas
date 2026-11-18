@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from sqlalchemy import delete, func, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DBSession
 
 from lembas.db.models import (
@@ -98,8 +99,12 @@ def not_a_directory(path: str) -> FsError:
     return FsError(f"Not a directory: {path}", path)
 
 
+class AlreadyExists(FsError):
+    """A creation that found something at its path (`write(create=True)`)."""
+
+
 def already_exists(path: str) -> FsError:
-    return FsError(f"Already exists: {path}", path)
+    return AlreadyExists(f"Already exists: {path}", path)
 
 
 # --- The view ------------------------------------------------------------------------
@@ -421,9 +426,14 @@ def versions(v: View, raw: str) -> list[NodeVersion]:
 
 # --- Changing ------------------------------------------------------------------------
 def write(
-    v: View, raw: str, data: bytes | Iterable[bytes], *, mime: str = ""
+    v: View, raw: str, data: bytes | Iterable[bytes], *, mime: str = "", create: bool = False
 ) -> Node:
     """Write a file (made, with any missing directories, if it is not there).
+
+    `create`: make a new file and never write over one -- anything already at
+    the path is `already_exists`. Decided by the tree's own rule (one live
+    node per path, a unique index), not by looking first: of two creations of
+    one name at the same moment, one is refused.
 
     What the file is -- its kind and its type -- is read from its name and its
     first bytes (`services/file_kinds.py`) at every write. `mime` is what the
@@ -435,13 +445,24 @@ def write(
         raise is_a_directory(path)
     _writable(v, path)
     node = lookup(v.db, v.org_id, path)
+    if node is not None and create:
+        raise already_exists(path)
     if node is not None and node.kind != KIND_FILE:
         raise is_a_directory(path)
     if node is None:
         at, above = _nearest_existing(v.db, v.org_id, access.parent_of(path))
         if above is not None and above.kind == KIND_FILE:
             raise not_a_directory(at)
-        node = _make_node(v.db, v.org_id, path, KIND_FILE, owner_id=v.user.id, by=v.user.id)
+        try:
+            with v.db.begin_nested():
+                node = _make_node(
+                    v.db, v.org_id, path, KIND_FILE, owner_id=v.user.id, by=v.user.id
+                )
+        except IntegrityError as clash:
+            # Somebody made it between the look and the insert.
+            if lookup(v.db, v.org_id, path) is None:
+                raise
+            raise already_exists(path) from clash
     chunks = [data] if isinstance(data, (bytes, bytearray)) else data
     head = bytearray()
 

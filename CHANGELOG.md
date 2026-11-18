@@ -144,6 +144,13 @@ at <https://llembas.eu/changelog.html>.
 
 ### Fixed
 
+- **Admin › Media showed no tab as the open one.** Speech to text, Text to speech and
+  Pictures are link tabs; the one you were on was not marked. It is now.
+- **"New file" can no longer write over a file of the same name.** Making a file checked
+  for the name and then wrote; two creations at the same moment, or an app saving a "new"
+  file under a name that existed, replaced what was there (as a new version, so nothing was
+  lost, but nothing said so). A creation is now refused by the tree itself when the name is
+  taken; apps ask for it with `create: true` on `PUT /api/v2/files/content` and get a 409.
 - **A file with a long name that cannot wrap no longer pushes its own page off the window.**
   The bar above the file grew as wide as the name, and the download and version buttons and
   the file itself ended up beyond the edge, on a phone and on a desk alike.

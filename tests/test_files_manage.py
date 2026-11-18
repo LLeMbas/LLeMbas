@@ -182,6 +182,60 @@ def test_a_save_over_a_newer_file_is_a_409_with_what_it_holds_now(client, db, me
     ).status_code == 400
 
 
+def test_a_new_file_is_made_and_never_written_over(client, db, me):
+    user, home, headers = me
+    path = f"{home}/fresh.md"
+    made = client.put(
+        "/api/v2/files/content", headers=headers,
+        json={"path": path, "text": "one", "create": True},
+    )
+    assert made.status_code == 200 and made.json()["text"] == "one"
+    again = client.put(
+        "/api/v2/files/content", headers=headers,
+        json={"path": path, "text": "two", "create": True},
+    )
+    assert again.status_code == 409
+    assert again.json()["exists"] is True and again.json()["path"] == path
+    assert again.json()["detail"] and "conflict" not in again.json()
+    assert fs.read(fs.view(db, user), path) == b"one"
+    assert len(fs.versions(fs.view(db, user), path)) == 1
+    # A folder of that name is taken too; and the web's New file is the same rule.
+    fs.mkdir(fs.view(db, user), f"{home}/folder")
+    db.commit()
+    assert client.put(
+        "/api/v2/files/content", headers=headers,
+        json={"path": f"{home}/folder", "text": "x", "create": True},
+    ).status_code == 409
+    client.post("/files/new", data={"path": home, "name": "fresh.md"}, follow_redirects=False)
+    assert fs.read(fs.view(db, user), path) == b"one"
+    page = client.post("/files/new", data={"path": home, "name": "other.md"},
+                       follow_redirects=False)
+    assert page.status_code == 303 and "other.md" in page.headers["location"]
+
+
+def test_of_two_creations_of_one_name_the_tree_refuses_one(db, me, monkeypatch):
+    """The look says "nothing there" to both; the insert is what decides."""
+    user, home, _ = me
+    path = f"{home}/race.md"
+    v = fs.view(db, user)
+    real, calls = fs.lookup, {"n": 0}
+
+    def blind_once(session, org_id, where):
+        if where == path and calls["n"] == 0:
+            calls["n"] += 1
+            return None
+        return real(session, org_id, where)
+
+    fs.write(v, path, b"first", create=True)
+    db.commit()
+    monkeypatch.setattr(fs, "lookup", blind_once)
+    with pytest.raises(fs.AlreadyExists):
+        fs.write(v, path, b"second", create=True)
+    monkeypatch.undo()
+    db.rollback()
+    assert fs.read(fs.view(db, user), path) == b"first"
+
+
 # --- Bytes -------------------------------------------------------------------------------------
 @pytest.mark.parametrize("door", ["api", "page"])
 def test_bytes_go_out_safely_and_in_ranges(client, db, me, door, monkeypatch):
