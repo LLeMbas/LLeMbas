@@ -135,6 +135,11 @@ def listing(v: fs.View, path: str) -> list[Row]:
     out = []
     for entry in entries:
         node = nodes.get(entry.path)
+        # A file's kind and type by its own bytes -- also for one stored
+        # before kinds were kept, whose `mime` is still what was claimed.
+        found = (
+            fs.kind_of(v.db, node) if node is not None and node.kind == KIND_FILE else None
+        )
         out.append(
             Row(
                 name=entry.name,
@@ -144,9 +149,8 @@ def listing(v: fs.View, path: str) -> list[Row]:
                 level=entry.level,
                 updated_at=node.updated_at if node is not None else None,
                 node_id=node.id if node is not None else "",
-                mime=node.mime if node is not None else "",
-                file_kind=fs.kind_of(v.db, node).kind
-                if node is not None and node.kind == KIND_FILE else "",
+                mime=found.mime if found is not None else "",
+                file_kind=found.kind if found is not None else "",
             )
         )
     return out

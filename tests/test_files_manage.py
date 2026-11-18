@@ -100,6 +100,21 @@ def test_an_upload_is_typed_by_its_bytes_not_by_what_was_claimed(client, db, me)
     assert raw.headers["content-disposition"].startswith("attachment")
 
 
+def test_a_file_from_before_kinds_were_kept_is_read_from_its_bytes(client, db, me):
+    user, home, headers = me
+    node = _write(db, user, f"{home}/old.png", b"<script>alert(1)</script>")
+    node.content_kind, node.mime = None, "image/png"  # as an older upload left it
+    db.commit()
+    (entry,) = [e for e in client.get(
+        "/api/v2/files", headers=headers, params={"path": home}
+    ).json()["entries"] if e["name"] == "old.png"]
+    assert (entry["file_kind"], entry["mime"]) == ("text", "text/plain")
+    raw = client.get("/files/raw", params={"path": f"{home}/old.png", "inline": 1})
+    assert raw.headers["content-type"] == "application/octet-stream"
+    page = client.get(f"/files/view?path={quote(home + '/old.png')}").text
+    assert 'class="viewer__image"' not in page and "&lt;script&gt;" in page
+
+
 # --- Copy --------------------------------------------------------------------------------------
 def test_copy_through_the_api(client, db, me):
     user, home, headers = me
