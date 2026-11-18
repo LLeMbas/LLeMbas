@@ -136,6 +136,8 @@ ALIBABA_HOSTS = (
     "dashscope-intl.aliyuncs.com",
     "dashscope-us.aliyuncs.com",
     "maas.aliyuncs.com",
+    # The provider's newer international name for the same service.
+    "maas.qwencloudapi.com",
 )
 ALIBABA_REGIONS = (
     Region("ap-southeast-1", N_("Singapore (international)"),
@@ -233,7 +235,10 @@ def plan_host(url: str | None) -> bool:
     Coding Plan), whichever of the plan's two API shapes its path is."""
     host = _host(url)
     return host in _PLAN_HOSTS or (
-        host.startswith("token-plan.") and host.endswith(".maas.aliyuncs.com")
+        host.startswith("token-plan.")
+        # `token-plan.<region>.maas.aliyuncs.com`, and the newer name's one
+        # host with no region in it: `token-plan.maas.qwencloudapi.com`.
+        and host.endswith((".maas.aliyuncs.com", ".maas.qwencloudapi.com"))
     )
 
 

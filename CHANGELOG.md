@@ -5,6 +5,10 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
+### Fixed
+
+- Alibaba Cloud Model Studio under its newer international name: an address on `qwencloudapi.com` is known as the same service, and its Token Plan address (`token-plan.maas.qwencloudapi.com`, with no region in it) as a subscription plan whatever type the connection was saved under.
+
 ## 2.0.0-beta.14 — 2026-11-18
 
 This release carries harness spec **3.9.0** (the model last used in a directory; Chat and

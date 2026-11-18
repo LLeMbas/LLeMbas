@@ -798,3 +798,18 @@ async def test_a_quota_error_inside_a_stream_is_the_same_sentence(mock_http):
         async for _ in stream_chat(endpoint, {"model": "m", "messages": []}):
             pass
     assert caught.value.quota_exhausted and "quota is used up" in caught.value.message
+
+
+def test_the_providers_newer_name_is_the_same_plan_and_the_same_service():
+    """`qwencloudapi.com` is the same provider: its Token Plan host (which has
+    no region in it) is a plan whatever type it was saved under, and its
+    pay-as-you-go host is the pay-as-you-go type."""
+    plan = "https://token-plan.maas.qwencloudapi.com/compatible-mode/v1"
+    assert providers.plan_host(plan)
+    assert providers.plan_host("https://token-plan.maas.qwencloudapi.com/apps/anthropic")
+    assert providers.by_host(plan).id == providers.ALIBABA_PLAN
+    assert providers.interactive_only("openai_compatible", plan)
+    payg = "https://ap-southeast-1.maas.qwencloudapi.com/compatible-mode/v1"
+    assert not providers.plan_host(payg)
+    assert providers.by_host(payg).id == providers.ALIBABA
+    assert not providers.interactive_only(providers.ALIBABA, payg)
