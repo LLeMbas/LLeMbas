@@ -1,27 +1,134 @@
-{#- A file's content, drawn by its kind: the viewer dialog's body and the file
-    page's (files/_viewer.html says what is trusted, and why). -#}
+{#- A file's content, drawn by its viewer (`file_ui.Opened.view`): the viewer
+    dialog's body and the file page's. files/_viewer.html says what is
+    trusted, and why. For the kinds below it:
+
+    * A picture, sound and video are the browser's own elements over the raw
+      route, which answers them with their type only because their bytes say
+      what they are. An SVG is an <img> and nothing else: there a browser
+      runs none of it, and the raw route gives it out as a picture to an
+      <img> only.
+    * A PDF and a 3D model are drawn by a viewer of ours inside the sealed
+      frame (an opaque origin with no network), which js/files.js hands the
+      bytes to. Nothing of the file is parsed on this page.
+    * A table is its text, escaped; js/files.js lays it out with textContent.
+    * A notebook and an archive's listing are data read on the server
+      (services/notebooks.py, services/archives.py) and escaped here. A
+      notebook's HTML outputs are named, never drawn. There is no `|safe`. -#}
 {% from "_macros.html" import icon %}
+{% from "files/_macros.html" import size %}
+{% set view = opened.view %}
+{% macro download_card(words) %}
+    <div class="empty viewer__card" data-testid="viewer-card">
+      {{ icon("file-text", "empty__mark") }}
+      <p class="empty__text">{{ words }}</p>
+      <dl class="viewer__facts">
+        <div><dt>{{ t("Size") }}</dt><dd>{{ size(opened.size) }}</dd></div>
+        <div><dt>{{ t("Type") }}</dt><dd><code>{{ opened.mime or "application/octet-stream" }}</code></dd></div>
+      </dl>
+      <p class="empty__text"><a class="btn" href="{{ raw_url }}" download>{{ icon("download", "icon--sm") }} {{ t("Download") }}</a></p>
+    </div>
+{% endmacro %}
   <div class="viewer__body">
-  {% if opened.kind == "markdown" %}
+  {% if view == "markdown" %}
     <div class="msg__body viewer__md">{{ html|safe }}</div>
-  {% elif opened.kind == "code" %}
+  {% elif view == "notebook" and notebook and not notebook.problem %}
+    <div class="viewer__notebook" data-testid="viewer-notebook">
+      {% for cell in notebook.cells %}
+      <section class="nb-cell nb-cell--{{ cell.kind }}">
+        <span class="nb-cell__count">{% if cell.kind == "code" %}[{{ cell.count or " " }}]{% endif %}</span>
+        <div class="nb-cell__body">
+          {% if cell.kind == "code" %}
+          <pre class="viewer__code nb-cell__source"><code data-highlight="{{ notebook.language or 'python' }}"
+               data-hljs-src="{{ asset('vendor/highlight.min.js') }}">{{ cell.source }}</code></pre>
+          {% else %}
+          <pre class="nb-cell__text">{{ cell.source }}</pre>
+          {% endif %}
+          {% if cell.cut %}<p class="faint text-xs">{{ t("This cell is longer than is shown here.") }}</p>{% endif %}
+          {% for output in cell.outputs %}
+            {% if output.kind == "image" %}
+            <img class="nb-cell__image" src="{{ output.src }}" alt="{{ t('A picture the notebook made') }}">
+            {% elif output.kind == "skipped" %}
+            <p class="faint text-xs">{{ t("An output of the type %(type)s is not shown here.", type=output.what) }}</p>
+            {% else %}
+            <pre class="nb-cell__output{{ ' nb-cell__output--error' if output.kind == 'error' }}">{{ output.text }}</pre>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </section>
+      {% else %}
+      <p class="empty__text">{{ t("This notebook has no cells.") }}</p>
+      {% endfor %}
+      {% if notebook.more %}
+      <p class="faint text-xs">{{ t("%(n)s more cells are not shown.", n=notebook.more) }}</p>
+      {% endif %}
+    </div>
+  {% elif view == "table" %}
+    <div class="viewer__table" data-table="{{ 'tab' if opened.name.lower().endswith('.tsv') else 'comma' }}"
+         data-testid="viewer-table">
+      <div class="viewer__tablebar">
+        <span class="faint text-xs" data-table-note></span>
+        <button class="btn btn--sm" type="button" data-table-toggle hidden>{{ t("Show as text") }}</button>
+      </div>
+      <div class="viewer__tablescroll" data-table-out hidden></div>
+      <pre class="viewer__code viewer__code--plain" data-table-text><code>{{ opened.text }}</code></pre>
+    </div>
+  {% elif view in ("code", "notebook") %}
     <pre class="viewer__code"><code data-highlight="{{ opened.language }}"
          data-hljs-src="{{ asset('vendor/highlight.min.js') }}"
          {%- if line %} data-line="{{ line }}"{% endif %}>{{ opened.text }}</code></pre>
-  {% elif opened.kind == "text" %}
+  {% elif view == "text" %}
     <pre class="viewer__code viewer__code--plain"{% if line %} data-line="{{ line }}"{% endif %}><code>{{ opened.text }}</code></pre>
-  {% elif opened.kind == "html" %}
+  {% elif view == "html" %}
     <iframe class="viewer__frame" src="{{ frame_url }}" sandbox="allow-scripts"
             referrerpolicy="no-referrer" loading="lazy" data-testid="viewer-frame"
             title="{{ t('The page in %(name)s, sealed off from this application', name=opened.name) }}"></iframe>
-  {% elif opened.kind == "image" %}
-    <img class="viewer__image" src="{{ raw_url }}&amp;inline=1" alt="{{ opened.name }}">
-  {% else %}
-    <div class="empty">
-      {{ icon("file-text", "empty__mark") }}
-      <p class="empty__text">{{ t("This file is too large to show here.") if opened.kind == "large"
-                                 else t("This is not a text file, so it is not shown here.") }}</p>
-      <p class="empty__text"><a href="{{ raw_url }}" download>{{ t("Download it") }}</a></p>
+  {% elif view in ("image", "svg") %}
+    <img class="viewer__image{{ ' viewer__image--svg' if view == 'svg' }}" src="{{ raw_url }}&amp;inline=1"
+         alt="{{ opened.name }}" data-testid="viewer-image">
+  {% elif view == "audio" %}
+    <div class="viewer__media">
+      <audio class="viewer__audio" controls preload="metadata" src="{{ raw_url }}&amp;inline=1"
+             data-testid="viewer-audio"></audio>
     </div>
+  {% elif view == "video" %}
+    <div class="viewer__media">
+      <video class="viewer__video" controls preload="metadata" playsinline src="{{ raw_url }}&amp;inline=1"
+             data-testid="viewer-video"></video>
+    </div>
+  {% elif view in ("pdf", "model3d") and sealed_fits %}
+    <iframe class="viewer__frame viewer__frame--sealed" src="/files/viewer/{{ view }}" sandbox="allow-scripts"
+            referrerpolicy="no-referrer" data-sealed-view="{{ view }}" data-raw="{{ raw_url }}"
+            {%- if view == "pdf" %} data-lib-main="{{ asset('vendor/pdf.min.mjs') }}"
+            data-lib-worker="{{ asset('vendor/pdf.worker.min.mjs') }}"
+            {%- else %} data-format="{{ model_format }}"{% endif %}
+            data-testid="viewer-sealed"
+            title="{{ t('%(name)s, drawn sealed off from this application', name=opened.name) }}"></iframe>
+  {% elif view == "archive" and archive %}
+    <div class="viewer__archive" data-testid="viewer-archive">
+      {% if archive.problem == "unsupported" %}
+      {{ download_card(t("What is inside this kind of archive cannot be listed here.")) }}
+      {% elif archive.problem %}
+      {{ download_card(t("This archive could not be read.")) }}
+      {% else %}
+      <p class="viewer__archivenote faint text-xs">
+        {% if archive.cut %}{{ t("Only the first %(n)s entries are listed.", n=archive.entries|length) }}
+        {% else %}{{ t("%(n)s entries. Nothing is unpacked here.", n=archive.entries|length) }}{% endif %}
+      </p>
+      <ul class="viewer__entries">
+        {% for entry in archive.entries %}
+        <li class="viewer__entry{{ ' is-dir' if entry.is_dir }}">
+          <code class="viewer__entryname">{{ entry.name }}</code>
+          <span class="viewer__entrysize">{% if entry.size is not none %}{{ size(entry.size) }}{% endif %}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+  {% elif view == "large" %}
+    {{ download_card(t("This file is too large to show here.")) }}
+  {% elif view in ("pdf", "model3d") %}
+    {{ download_card(t("This file is too large to show here.")) }}
+  {% else %}
+    {{ download_card(t("There is no viewer for this kind of file.")) }}
   {% endif %}
   </div>

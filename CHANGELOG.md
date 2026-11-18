@@ -7,6 +7,25 @@ at <https://llembas.eu/changelog.html>.
 
 ### Added
 
+- **A viewer for every kind of file**, on a file's page and where a chat shows a file:
+  - **Pictures, and SVG as a picture.** An SVG is drawn as an image and nothing in it runs;
+    its source is still there to edit.
+  - **Sound and video** play in the page, and can be sought.
+  - **PDF**: its pages, drawn in the page, twenty at a time.
+  - **Tables** (`.csv`, `.tsv`) are laid out as a table that scrolls in its own box, with
+    *Show as text* beside it. The first 1,000 rows and 60 columns are laid out; the text
+    always has all of it.
+  - **Notebooks** (`.ipynb`), read-only: every cell, with what it printed and the pictures it
+    made. Nothing in a notebook is run, and an output written as HTML is named, not drawn.
+  - **Archives** (`.zip`, `.tar`, and a tar under gzip, bzip2 or xz): a list of what is
+    inside, with sizes. Nothing is unpacked.
+  - **3D models** (`.glb`, `.stl`, `.obj`, and a `.gltf` that carries its own data): the
+    model's shape, with each material's colour and its picture, to turn with the pointer and
+    zoom. A preview: no animation, and a model stored compressed (Draco, meshopt) is offered
+    as a download instead.
+  - **Anything else** says its size and type and offers the download.
+- **Rename from the file's own page**: the pencil in the bar above a file. The page comes back
+  on the file under its new name.
 - **MCP servers can be signed in to with OAuth.** Admin › MCP servers › a server › *Credential*
   now asks how the server is signed in to: nothing, a secret this instance sends (as before),
   or **OAuth**. With OAuth nothing else has to be typed for most servers: where to sign in is
@@ -59,6 +78,10 @@ at <https://llembas.eu/changelog.html>.
 
 ### Changed
 
+- **A PDF and a 3D model are never opened by this application's own pages.** They are drawn
+  inside a sealed frame that can reach neither your account nor the network, the way an HTML
+  file is. An SVG is given out as a picture only where a browser asks for a picture; opened
+  in a tab of its own, its address is a download.
 - **What a file is, is read from the file.** Its kind and type come from its name and its first
   bytes, never from what the browser or an app said when it was uploaded. A picture called
   `notes.txt` is shown as a picture; text called `photo.png` is shown as text and is never
@@ -68,6 +91,9 @@ at <https://llembas.eu/changelog.html>.
 
 ### Fixed
 
+- **A file with a long name that cannot wrap no longer pushes its own page off the window.**
+  The bar above the file grew as wide as the name, and the download and version buttons and
+  the file itself ended up beyond the edge, on a phone and on a desk alike.
 - **With one model id on two connections, a schedule could not be given the second one.** The
   schedule form listed both under the same value and saved whichever came first. It now names
   each with its connection, and keeps the one you chose.

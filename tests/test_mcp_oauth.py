@@ -52,7 +52,7 @@ def dns(monkeypatch):
             ipaddress.ip_address(host)
         except ValueError:
             if host == "inside.test":
-                return [(2, 1, 6, "", ("10.0.0.7", 80))]
+                return [(2, 1, 6, "", ("172.16.1.5", 80))]
             return [(2, 1, 6, "", ("93.184.216.34", 80))]
         return [(2, 1, 6, "", (host, 80))]
 

@@ -119,6 +119,21 @@
     "url": "https://esm.sh/@lezer/lr@1.4.11/X-ZUBjb2RlbWlycm9yL2F1dG9jb21wbGV0ZSxAY29kZW1pcnJvci9jb21tYW5kcyxAY29kZW1pcnJvci9sYW5nLWNzcyxAY29kZW1pcnJvci9sYW5nLWh0bWwsQGNvZGVtaXJyb3IvbGFuZy1qYXZhc2NyaXB0LEBjb2RlbWlycm9yL2xhbmd1YWdlLEBjb2RlbWlycm9yL2xpbnQsQGNvZGVtaXJyb3Ivc2VhcmNoLEBjb2RlbWlycm9yL3N0YXRlLEBjb2RlbWlycm9yL3ZpZXcsQGxlemVyL2NvbW1vbixAbGV6ZXIvaGlnaGxpZ2h0LEBsZXplci9scg/es2022/lr.bundle.mjs",
     "version": "1.4.11"
   },
+  "pdf.min.mjs": {
+    "sha256": "3a88402882cfa3e7e72c2c9b5149f52f0f88baf1c5b62aa11a41abdbc2072440",
+    "url": "https://unpkg.com/pdfjs-dist@6.5.438/build/pdf.min.mjs",
+    "version": "6.5.438"
+  },
+  "pdf.worker.min.mjs": {
+    "sha256": "1e64c8240e54735ec5913b37acd5134747799cb8c6bb3777c70adbc01232d2aa",
+    "url": "https://unpkg.com/pdfjs-dist@6.5.438/build/pdf.worker.min.mjs",
+    "version": "6.5.438"
+  },
+  "pdfjs-LICENSE.txt": {
+    "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+    "url": "https://unpkg.com/pdfjs-dist@6.5.438/LICENSE",
+    "version": "6.5.438"
+  },
   "xterm-addon-fit.js": {
     "sha256": "bdaefa370b1bfc42ee88d46fe6072400902a4d4b2d45cd93438dda9b23c97089",
     "url": "https://unpkg.com/@xterm/addon-fit@0.10.0/lib/addon-fit.js",

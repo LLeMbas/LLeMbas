@@ -496,9 +496,153 @@
     }
   });
 
+  /* --- A table: comma- or tab-separated text, laid out ---------------------
+     The text is in the page already, escaped; this reads it back with
+     textContent and builds the table with textContent. Capped: a table is
+     for looking at, and the text is always one press away. */
+  var TABLE_ROWS = 1000, TABLE_COLUMNS = 60, TABLE_CELL = 400;
+
+  function parseTable(text, separator) {
+    var rows = [], row = [], cell = "", quoted = false, more = false;
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      if (quoted) {
+        if (ch === '"') {
+          if (text[i + 1] === '"') { cell += '"'; i++; } else quoted = false;
+        } else cell += ch;
+      } else if (ch === '"' && cell === "") {
+        quoted = true;
+      } else if (ch === separator) {
+        row.push(cell); cell = "";
+      } else if (ch === "\n" || ch === "\r") {
+        if (ch === "\r" && text[i + 1] === "\n") i++;
+        row.push(cell); cell = "";
+        rows.push(row); row = [];
+        if (rows.length > TABLE_ROWS) { more = true; break; }
+      } else cell += ch;
+    }
+    if (!more && (cell !== "" || row.length)) { row.push(cell); rows.push(row); }
+    if (rows.length > TABLE_ROWS) { rows.length = TABLE_ROWS; more = true; }
+    return { rows: rows, more: more };
+  }
+
+  function tables(scope) {
+    scope.querySelectorAll("[data-table]:not([data-table-done])").forEach(function (holder) {
+      holder.setAttribute("data-table-done", "1");
+      var source = holder.querySelector("[data-table-text]");
+      var out = holder.querySelector("[data-table-out]");
+      var toggle = holder.querySelector("[data-table-toggle]");
+      var note = holder.querySelector("[data-table-note]");
+      if (!source || !out || !toggle) return;
+      var parsed = parseTable(source.textContent, holder.getAttribute("data-table") === "tab" ? "\t" : ",");
+      if (parsed.rows.length < 1) return;
+      var table = make("table", "viewer-table");
+      var wide = false;
+      parsed.rows.forEach(function (cells, index) {
+        var line = table.insertRow();
+        if (cells.length > TABLE_COLUMNS) wide = true;
+        cells.slice(0, TABLE_COLUMNS).forEach(function (value) {
+          var box = document.createElement(index === 0 ? "th" : "td");
+          box.textContent = value.length > TABLE_CELL ? value.slice(0, TABLE_CELL) + "…" : value;
+          line.appendChild(box);
+        });
+      });
+      out.appendChild(table);
+      if (note && (parsed.more || wide)) note.textContent = t("Only the first rows and columns are laid out. The text has all of it.");
+      function show(asTable) {
+        out.hidden = !asTable;
+        source.hidden = asTable;
+        toggle.textContent = asTable ? t("Show as text") : t("Show as a table");
+        toggle.setAttribute("data-showing", asTable ? "table" : "text");
+      }
+      toggle.hidden = false;
+      toggle.addEventListener("click", function () { show(out.hidden); });
+      show(true);
+    });
+  }
+
+  /* --- A PDF or a 3D model: handed to the sealed frame -----------------------
+     The frame (api/tree.py `sealed_viewer`) is an opaque origin with no
+     network, so it cannot fetch anything itself. It says when it is ready;
+     this page fetches the file's bytes -- and, for a PDF, the library --
+     with its own cookie and passes them in, once. Only a frame this page's
+     own markup put there is answered, and nothing it says is read but
+     "ready". The target is "*" because an opaque origin has no name. */
+  var THEME = { bg: "--surface", ink: "--ink", muted: "--ink-muted", accent: "--accent", line: "--border" };
+
+  function colours() {
+    var style = getComputedStyle(document.documentElement), out = {};
+    Object.keys(THEME).forEach(function (name) {
+      var value = style.getPropertyValue(THEME[name]).trim();
+      if (value) out[name] = value;
+    });
+    return out;
+  }
+
+  function sealedWords() {
+    return {
+      failed: t("This file could not be shown here. It can still be downloaded."),
+      more: t("More pages"),
+      unsupported: t("This model is stored in a way this viewer cannot read. It can still be downloaded."),
+      external: t("This model keeps its data in other files, which cannot be read here. It can still be downloaded."),
+      nowebgl: t("This browser cannot draw 3D here."),
+      hint: t("Drag to turn it, scroll to zoom."),
+      cut: t("Only part of this model is drawn.")
+    };
+  }
+
+  function bytesOf(url) {
+    return fetch(url, { credentials: "same-origin" }).then(function (response) {
+      if (!response.ok) throw new Error("not fetched");
+      return response.arrayBuffer();
+    });
+  }
+
+  function textOf(url) {
+    return fetch(url, { credentials: "same-origin" }).then(function (response) {
+      if (!response.ok) throw new Error("not fetched");
+      return response.text();
+    });
+  }
+
+  function feed(frame) {
+    var kind = frame.getAttribute("data-sealed-view");
+    var jobs = [bytesOf(frame.getAttribute("data-raw"))];
+    if (kind === "pdf") {
+      jobs.push(textOf(frame.getAttribute("data-lib-main")), textOf(frame.getAttribute("data-lib-worker")));
+    }
+    Promise.all(jobs).then(function (got) {
+      var message = {
+        lembasView: kind, bytes: got[0], format: frame.getAttribute("data-format") || "",
+        theme: colours(), words: sealedWords()
+      };
+      if (kind === "pdf") message.libs = { main: got[1], worker: got[2] };
+      frame.contentWindow.postMessage(message, "*", [got[0]]);
+    }).catch(function () {
+      frame.replaceWith(make("p", "empty__text", sealedWords().failed));
+    });
+  }
+
+  window.addEventListener("message", function (event) {
+    var data = event.data;
+    var kind = data && typeof data === "object" ? data.lembasViewerReady : null;
+    if (kind !== "pdf" && kind !== "model3d") return;
+    var frames = document.querySelectorAll("iframe[data-sealed-view]:not([data-sealed-sent])");
+    for (var i = 0; i < frames.length; i++) {
+      if (frames[i].contentWindow === event.source && frames[i].getAttribute("data-sealed-view") === kind) {
+        frames[i].setAttribute("data-sealed-sent", "1");
+        feed(frames[i]);
+        return;
+      }
+    }
+  });
+
+  /* For a page that puts a viewer in by hand (js/file-page.js's preview). */
+  window.lembasViewers = function (scope) { highlight(scope || document); tables(scope || document); };
+
   function boot() {
     highlight(document);
-    if (window.htmx) window.htmx.onLoad(function (scope) { highlight(scope); syncSelection(); });
+    if (window.htmx) window.htmx.onLoad(function (scope) { highlight(scope); tables(scope); syncSelection(); });
     watchCards();
     syncSelection();
   }

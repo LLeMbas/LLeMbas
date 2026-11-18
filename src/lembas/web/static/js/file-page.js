@@ -49,6 +49,7 @@
         var body = doc.querySelector(".viewer__body");
         var here = preview.querySelector(".viewer__body");
         if (body && here) here.replaceWith(document.importNode(body, true));
+        if (window.lembasViewers) window.lembasViewers(preview);
       })
       .catch(function () { /* the last preview stays */ });
   }

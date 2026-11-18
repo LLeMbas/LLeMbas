@@ -5,8 +5,18 @@ a policy that allows nothing and sandboxes the document. A file goes out as
 `application/octet-stream` with `attachment` -- unless it was asked for
 `inline` *and* its kind is one a browser decodes and never runs
 (`file_kinds.INLINE`: a raster picture, sound, video), decided from the
-file's own bytes, never from a type somebody claimed. SVG, HTML and PDF are
-never among them.
+file's own bytes, never from a type somebody claimed. HTML and PDF are never
+among them.
+
+**An SVG goes out as a picture only to an `<img>`.** An SVG is a document
+that can carry script, and it is inert in exactly one place: as an image,
+where a browser runs none of it and fetches nothing for it. So it is
+answered with its own type only when the browser itself says the request is
+for a picture (`Sec-Fetch-Dest: image`, which a page's script cannot set or
+forge). Asked for any other way -- opened in a tab, framed, fetched by a
+script, or by a browser that does not say -- it is a download like any
+other file. And should it ever be read as a document all the same, the
+answer's own policy sandboxes it and allows no script.
 
 **`Range` is answered** (one range; `bytes=a-b`, `a-`, `-n`), which is what
 lets sound and video seek: 206 with `Content-Range`, 416 when the range is
@@ -67,6 +77,7 @@ def respond(
     kind: file_kinds.Kind,
     *,
     inline: bool = False,
+    as_image: bool = False,
     range_header: str | None = None,
     if_range: str | None = None,
 ) -> Response:
@@ -83,6 +94,13 @@ def respond(
         headers["ETag"] = etag
     if inline and kind.inline:
         media_type = kind.mime
+    elif inline and as_image and kind.kind == file_kinds.SVG:
+        media_type = "image/svg+xml"
+        headers["Content-Security-Policy"] = (
+            "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+        )
+        # An <img> ignores this; anything that would open it does not.
+        headers["Content-Disposition"] = content_disposition("attachment", name)
     else:
         media_type = "application/octet-stream"
         headers["Content-Disposition"] = content_disposition("attachment", name)

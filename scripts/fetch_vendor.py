@@ -178,6 +178,24 @@ PACKAGES = {
         "url": "https://unpkg.com/@highlightjs/cdn-assets@11.12.0/highlight.min.js",
         "why": "Highlighted code in the file viewer and the show card.",
     },
+    # PDF.js, for the file viewer's PDFs. The two files are never loaded by a
+    # page of the application: js/files.js fetches them as text and hands them
+    # to the sealed viewer frame, which is where a PDF is parsed and drawn.
+    "pdf.min.mjs": {
+        "version": "6.5.438",
+        "url": "https://unpkg.com/pdfjs-dist@6.5.438/build/pdf.min.mjs",
+        "why": "PDF.js: drawing a PDF's pages, inside the sealed viewer frame.",
+    },
+    "pdf.worker.min.mjs": {
+        "version": "6.5.438",
+        "url": "https://unpkg.com/pdfjs-dist@6.5.438/build/pdf.worker.min.mjs",
+        "why": "PDF.js: its parser, a worker of the sealed viewer frame.",
+    },
+    "pdfjs-LICENSE.txt": {
+        "version": "6.5.438",
+        "url": "https://unpkg.com/pdfjs-dist@6.5.438/LICENSE",
+        "why": "Apache License 2.0, which asks that it travel with the files.",
+    },
 }
 
 

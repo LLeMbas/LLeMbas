@@ -248,6 +248,10 @@
    output under it when there is some. */
 .fx-file {
   display: grid;
+  /* One column that is the page's width and no more: left to itself it is as
+     wide as the longest thing in it, and a name that cannot wrap pushed the
+     bar's tools and the file off the side of the window. */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
   height: 100%;
   min-height: 0;
@@ -369,6 +373,118 @@
   background: var(--bg);
 }
 .viewer__image { display: block; max-width: 100%; height: auto; margin: var(--sp-3) auto; }
+
+/* --- Viewers by kind -------------------------------------------------------------
+   Every one is a block of the viewer's body: it takes the body's width and
+   nothing wider. What is wide by nature (a table, a line of code, a long
+   name) scrolls or truncates inside its own box; a picture, a player and a
+   frame are sized by `max-width: 100%` and a height from a token. */
+.viewer__image--svg {
+  /* An SVG may name no size of its own; then it would be 0 by 0. */
+  width: 100%;
+  max-height: var(--h-page-max);
+  object-fit: contain;
+}
+.viewer__media { display: grid; justify-items: center; padding: var(--sp-4); min-width: 0; }
+.viewer__audio { width: 100%; max-width: var(--w-prose); }
+.viewer__video { display: block; max-width: 100%; max-height: var(--h-page-max); }
+.viewer__frame--sealed { background: var(--surface); }
+
+.viewer__card { padding: var(--sp-6) var(--sp-4); }
+.viewer__facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, auto);
+  justify-content: center;
+  gap: var(--sp-1) var(--sp-3);
+  margin: var(--sp-3) 0;
+  font-size: var(--text-sm);
+}
+.viewer__facts > div { display: contents; }
+.viewer__facts dt { color: var(--ink-faint); text-align: end; }
+.viewer__facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; text-align: start; }
+
+/* A table: the bar is one row of a known height, the table scrolls both ways
+   in its own box under it. */
+.viewer__table { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; }
+.viewer__tablebar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--control-h);
+  padding: var(--sp-1) var(--sp-3);
+  border-bottom: var(--border-w) solid var(--border);
+}
+.viewer__tablescroll { overflow: auto; max-height: 75vh; min-width: 0; }
+.fx-file .viewer__tablescroll { max-height: none; }
+.viewer-table { border-collapse: collapse; font-size: var(--text-sm); }
+.viewer-table th,
+.viewer-table td {
+  padding: var(--sp-1) var(--sp-3);
+  border: var(--border-w) solid var(--border);
+  text-align: start;
+  vertical-align: top;
+  white-space: pre-wrap;
+  max-width: var(--w-menu);
+  overflow-wrap: anywhere;
+}
+.viewer-table th { position: sticky; top: 0; background: var(--surface-raised); font-weight: 600; }
+
+/* A notebook: a count column of a known width, then the cell, which gives. */
+.viewer__notebook { display: grid; gap: var(--sp-3); padding: var(--sp-3); min-width: 0; }
+.nb-cell {
+  display: grid;
+  grid-template-columns: var(--w-num) minmax(0, 1fr);
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.nb-cell__count {
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-align: end;
+  padding-top: var(--sp-3);
+  overflow: hidden;
+}
+.nb-cell__body { display: grid; gap: var(--sp-2); min-width: 0; }
+.nb-cell__source { max-height: var(--h-block-lg); border-radius: var(--radius); }
+.nb-cell__text,
+.nb-cell__output {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--text-sm);
+}
+.nb-cell__output {
+  max-height: var(--h-block);
+  overflow: auto;
+  padding: var(--sp-2) var(--sp-3);
+  border-inline-start: var(--border-w-accent) solid var(--border);
+  font-family: var(--font-mono);
+}
+.nb-cell__output--error { border-inline-start-color: var(--danger); }
+.nb-cell__image { display: block; max-width: 100%; height: auto; }
+@media (max-width: 40rem) {
+  .nb-cell { grid-template-columns: minmax(0, 1fr); }
+  .nb-cell__count { text-align: start; padding-top: 0; }
+}
+
+/* An archive's listing: the name truncates, the size is as wide as it is. */
+.viewer__archive { min-width: 0; }
+.viewer__archivenote { margin: 0; padding: var(--sp-2) var(--sp-3); border-bottom: var(--border-w) solid var(--border); }
+.viewer__entries { list-style: none; margin: 0; padding: 0; max-height: 75vh; overflow-y: auto; }
+.fx-file .viewer__entries { max-height: none; }
+.viewer__entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sp-3);
+  padding: var(--sp-1) var(--sp-3);
+  border-bottom: var(--border-w) solid var(--border);
+  font-size: var(--text-sm);
+}
+.viewer__entryname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.viewer__entry.is-dir .viewer__entryname { color: var(--ink-muted); }
+.viewer__entrysize { color: var(--ink-faint); white-space: nowrap; }
 
 @media (max-width: 40rem) {
   .viewer__head { grid-template-columns: minmax(0, 1fr) auto; }

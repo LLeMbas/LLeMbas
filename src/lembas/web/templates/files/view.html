@@ -59,7 +59,7 @@
   <p class="empty__text"><a href="/files">{{ t("Back to your files") }}</a></p>
 </div>
 {% else %}
-{% set previewable = opened.kind in ("markdown", "html") %}
+{% set previewable = opened.kind in ("markdown", "html") or opened.view in ("svg", "table", "notebook", "model3d") %}
 {% set runnable = python and opened.name.lower().endswith(".py") %}
 <div class="fx-file{{ ' is-editing' if editing }}" data-file-page data-testid="file-page"
      data-path="{{ opened.path }}"
@@ -128,6 +128,15 @@
 
       {% if opened.older %}
       <a class="btn btn--sm" href="/files/view?path={{ path|urlencode }}">{{ t("Back to the current one") }}</a>
+      {% endif %}
+      {% if opened.writable and not opened.older %}
+      {#- The explorer's Rename, here: the page comes back on the file under its new name. -#}
+      <button class="btn btn--icon btn--sm" type="button" data-testid="file-rename"
+              hx-post="/files/rename" hx-swap="none"
+              hx-vals='{"path": {{ opened.path|tojson }}, "open": "1"}'
+              data-prompt="{{ t('New name') }}" data-prompt-title="{{ t('Rename') }}"
+              data-prompt-field="name" data-prompt-value="{{ opened.name }}"
+              aria-label="{{ t('Rename') }}" title="{{ t('Rename') }}">{{ icon("pencil", "icon--sm") }}</button>
       {% endif %}
       <a class="btn btn--icon btn--sm" href="{{ raw_url }}" download
          aria-label="{{ t('Download') }}" title="{{ t('Download') }}">{{ icon("download", "icon--sm") }}</a>

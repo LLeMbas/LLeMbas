@@ -59,6 +59,16 @@ _NEVER_TEXT = (
 )
 
 
+# Kinds with a viewer of their own that reads the file's bytes itself (a
+# picture, a player, a sealed frame, a listing), whatever the size...
+_OWN_VIEWER = (
+    file_kinds.SVG, file_kinds.PDF, file_kinds.AUDIO, file_kinds.VIDEO, file_kinds.ARCHIVE,
+    file_kinds.MODEL3D,
+)
+# ...and kinds drawn from their text, so only while that is small enough to hold.
+_TEXT_VIEWER = (file_kinds.TABLE, file_kinds.NOTEBOOK)
+
+
 def show_kind(path: str) -> tuple[str, str]:
     from lembas.services.tools.files import show_kind as kind_of
 
@@ -198,6 +208,14 @@ class Opened:
     older: bool = False
     # What the file is (`services/file_kinds.py`), whatever the page makes of it.
     file_kind: str = ""
+    # The viewer that draws it, where that is not the one `kind` names: an SVG
+    # is `code` to the editor and a picture to the viewer. See `view`.
+    viewer: str = ""
+
+    @property
+    def view(self) -> str:
+        """Which viewer draws this file (`files/_viewer_body.html`)."""
+        return self.viewer or self.kind
 
     @property
     def writable(self) -> bool:
@@ -243,7 +261,14 @@ def open_file(v: fs.View, path: str, version_id: str = "") -> Opened:
                 kind = "text"
         else:
             kind = "binary"
+    viewer = ""
+    if found.kind in _OWN_VIEWER:
+        # Drawn from the file's own bytes, so its size is the viewer's matter.
+        viewer = found.kind
+    elif found.kind in _TEXT_VIEWER and text:
+        viewer = found.kind
     return Opened(
+        viewer=viewer,
         path=node.path,
         name=node.name,
         node=node,

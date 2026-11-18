@@ -480,11 +480,15 @@ def test_the_explorer_copies_selects_and_picks_a_folder(client, db, me):
     assert fs.trash(fs.view(db, user)) == []
 
 
-def test_an_svg_is_shown_as_its_source_never_as_a_picture(client, db, me):
+def test_an_svg_is_put_into_a_page_as_an_img_or_as_its_source_never_as_markup(client, db, me):
+    """As a picture it is an <img>, where a browser runs none of it
+    (`tests/test_file_viewers_browser.py` proves that); its source is text."""
     user, home, _headers = me
     _write(db, user, f"{home}/logo.svg", SVG)
     _write(db, user, f"{home}/map.png", PNG)
     page = client.get(f"/files/view?path={quote(home + '/logo.svg')}").text
-    assert "&lt;script&gt;" in page and "<img" not in page.split('data-testid="file-viewer"')[-1]
+    assert "&lt;script&gt;" in page
+    assert 'class="viewer__image viewer__image--svg"' in page
+    assert "<svg xmlns='" not in page and "<script>alert(1)" not in page
     picture = client.get(f"/files/view?path={quote(home + '/map.png')}").text
     assert 'class="viewer__image"' in picture and "inline=1" in picture

@@ -266,7 +266,8 @@ def test_a_binary_file_is_offered_as_a_download(client, db, me):
     user, home = me
     _write(db, user, f"{home}/b.bin", b"\x00\x01\x02")
     page = client.get(f"/files/view?path={quote(home + '/b.bin')}").text
-    assert "not a text file" in page
+    assert 'data-testid="viewer-card"' in page and "There is no viewer for this kind" in page
+    assert f'href="/files/raw?path={quote(home + "/b.bin")}" download' in page
 
 
 def test_versions_are_listed_and_restored(client, db, me):

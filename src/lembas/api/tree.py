@@ -19,7 +19,7 @@ from __future__ import annotations
 from urllib.parse import quote
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, status
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
 from lembas.api._redirect import back
 from lembas.api.deps import Db, RequiredUser, is_htmx
@@ -247,7 +247,16 @@ async def new_file(db: Db, user: RequiredUser, path: str = Form("/"), name: str 
 
 
 @router.post("/files/rename")
-async def rename(db: Db, user: RequiredUser, path: str = Form(...), name: str = Form("")):
+async def rename(
+    request: Request,
+    db: Db,
+    user: RequiredUser,
+    path: str = Form(...),
+    name: str = Form(""),
+    open: str = Form(""),
+):
+    """`open`: asked from the file's own page, which comes back on the file
+    under its new name rather than on its folder."""
     v = fs.view(db, user)
     source = _norm(path)
     where = _parent(source)
@@ -255,11 +264,21 @@ async def rename(db: Db, user: RequiredUser, path: str = Form(...), name: str = 
     if not name or "/" in name:
         return back(_here(where), t("A name cannot be empty or hold a slash."), ok=False)
     try:
-        fs.mv(v, source, f"{where.rstrip('/')}/{name}")
+        target = f"{where.rstrip('/')}/{name}"
+        fs.mv(v, source, target)
         db.commit()
     except fs.FsError as refused:
         db.rollback()
+        if open and is_htmx(request):
+            return Response(status_code=204, headers={
+                "HX-Redirect": f"/files/view?path={quote(source)}&error={quote(refused.message)}"
+            })
         return _refused(refused, _here(where))
+    if open:
+        there = f"/files/view?path={quote(target)}&saved={quote(t('Renamed.'))}"
+        if is_htmx(request):
+            return Response(status_code=204, headers={"HX-Redirect": there})
+        return RedirectResponse(there, status_code=status.HTTP_303_SEE_OTHER)
     return back(_here(where), t("Renamed."))
 
 
@@ -425,16 +444,46 @@ async def empty_trash(db: Db, user: RequiredUser, node_id: str = Form("")):
 
 
 # --- Looking at a file ---------------------------------------------------------------
-def _viewer_context(opened: file_ui.Opened, *, frame: str, raw: str, chat: Chat | None):
+# The viewers that run in the sealed frame, and the script each one is.
+SEALED_VIEWERS = {"pdf": "sealed-pdf.js", "model3d": "sealed-model.js"}
+# The most such a viewer is handed: the bytes are held in the browser twice.
+SEALED_MAX = 64 * 1024 * 1024
+_MODEL_FORMATS = ("glb", "gltf", "obj", "stl")
+
+
+async def _viewer_context(
+    db, opened: file_ui.Opened, *, frame: str, raw: str, chat: Chat | None
+):
+    """What the viewer's template draws a file from, by its viewer
+    (`file_ui.Opened.view`). Everything read out of the file -- a notebook's
+    cells, an archive's names -- is data the template escapes."""
+    from anyio import to_thread
+
     from lembas.services.markdown import render_markdown
 
-    return {
+    context = {
         "opened": opened,
         "html": render_markdown(opened.text) if opened.kind == "markdown" else "",
         "frame_url": frame,
         "raw_url": raw,
         "chat": chat,
+        "sealed_fits": opened.size <= SEALED_MAX,
     }
+    if opened.view == "notebook":
+        from lembas.services import notebooks
+
+        context["notebook"] = notebooks.parse(opened.text)
+    elif opened.view == "archive":
+        from lembas.services import archives
+
+        # A tar is read through, which can take a moment: not on the loop.
+        context["archive"] = await to_thread.run_sync(
+            archives.listing, db, opened.sha, opened.size, opened.mime, opened.name
+        )
+    elif opened.view == "model3d":
+        ext = opened.name.rsplit(".", 1)[-1].lower() if "." in opened.name else ""
+        context["model_format"] = ext if ext in _MODEL_FORMATS else "glb"
+    return context
 
 
 @router.get("/files/view")
@@ -468,7 +517,9 @@ async def view_page(
         and opened.kind in file_ui.EDITABLE and opened.size <= file_ui.EDIT_MAX,
         "saved": request.query_params.get("saved", ""),
         "error": request.query_params.get("error", ""),
-        **_viewer_context(opened, frame=f"/files/frame?{q}", raw=f"/files/raw?{q}", chat=None),
+        **await _viewer_context(
+            db, opened, frame=f"/files/frame?{q}", raw=f"/files/raw?{q}", chat=None
+        ),
     }
     if is_htmx(request) and request.query_params.get("fragment"):
         return render(request, "files/_viewer.html", context)
@@ -482,6 +533,9 @@ def _send(request: Request, found: file_ui.Download, *, inline: bool) -> Respons
 
     return _download.respond(
         found.name, found.digest, found.size, found.kind, inline=inline,
+        # A browser says what a request is for, and a page cannot say it for
+        # it: an SVG is a picture to an <img> and a download to anything else.
+        as_image=request.headers.get("sec-fetch-dest", "") == "image",
         range_header=request.headers.get("range"), if_range=request.headers.get("if-range"),
     )
 
@@ -548,6 +602,49 @@ HEIGHT_REPORTER = (
     "new ResizeObserver(tell).observe(document.body||document.documentElement);tell();})();"
     "</script>"
 )
+
+
+_VIEWER_SHELL = """<!doctype html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg, Canvas); color: var(--ink, CanvasText);
+       font: 0.875rem/1.5 system-ui, sans-serif; }
+#view { box-sizing: border-box; min-height: 100%; padding: 0.5rem; }
+.note, .hint { margin: 0; padding: 1rem; color: var(--muted, GrayText); text-align: center; }
+.hint { padding: 0.25rem; font-size: 0.75rem; }
+.pages { display: grid; gap: 0.5rem; justify-items: center; }
+.page { display: block; max-width: 100%; height: auto; background: white;
+        border: thin solid var(--line, GrayText); }
+.model { display: block; width: 100%; height: calc(100vh - 3rem); touch-action: none;
+         cursor: grab; }
+button { display: block; margin: 0.75rem auto; padding: 0.5rem 1rem; font: inherit;
+         color: inherit; background: transparent; border: thin solid var(--line, GrayText);
+         border-radius: 0.375rem; min-height: 2.75rem; cursor: pointer; }
+</style></head>
+<body><div id="view"></div>
+<script>/*SCRIPT*/</script>
+</body></html>
+"""
+
+
+@router.get("/files/viewer/{kind}")
+async def sealed_viewer(user: RequiredUser, kind: str):
+    """The page a PDF or a 3D model is drawn in: a viewer of ours, sealed.
+
+    It holds no file. It is the scripted sealed document (`security/sealed.py`:
+    an opaque origin, no network, no cookie), and the page that frames it
+    hands it the file's bytes -- and, for a PDF, the library -- in one
+    message (`js/files.js`). A parser of somebody else's file runs here, never
+    on this application's own origin."""
+    script = SEALED_VIEWERS.get(kind)
+    if script is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    from lembas.web.templating import STATIC_DIR
+
+    source = (STATIC_DIR / "js" / script).read_text(encoding="utf-8")
+    return _sealed(_VIEWER_SHELL.replace("/*SCRIPT*/", source.replace("</script", "<\\/script")))
 
 
 @router.get("/files/frame")
@@ -660,7 +757,9 @@ async def chat_show(
             text=text, level="ro",
         )
         url = f"/api/chats/{chat.id}/shown/{row.id}"
-        context.update(_viewer_context(opened, frame=f"{url}?page=1", raw=url, chat=chat))
+        context.update(
+            await _viewer_context(db, opened, frame=f"{url}?page=1", raw=url, chat=chat)
+        )
     else:
         found = db.get(Node, node) if node else None
         v = fs.view(db, user, chat)
@@ -672,7 +771,8 @@ async def chat_show(
             raise HTTPException(status.HTTP_404_NOT_FOUND, refused.message) from refused
         q = f"node={quote(found.id)}" + (f"&version={quote(version)}" if version else "")
         context.update(
-            _viewer_context(
+            await _viewer_context(
+                db,
                 opened,
                 frame=f"/chat/{chat.id}/show/frame?{q}",
                 raw=f"/chat/{chat.id}/show/raw?{q}",
