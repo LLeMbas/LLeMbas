@@ -28,7 +28,7 @@ from what is there; a refusal is the explorer's, as a 400 with its reason.
 | `POST /files/move` | `{path, to}` → listing of `to` |
 | `DELETE /files?path=` | 204 (to the trash) |
 | `POST /files/copy` | `{path, to, name?}` → 201 listing of `to`, with `copied` (the new entry) |
-| `PUT /files/content` | `{path, text, base?, force?, create?}` → the content answer; 409 when changed, or (`create`) when the name is taken |
+| `PUT /files/content` | `{path, text, base?, force?, create?}` → the content answer; 409 |
 | `GET /files/raw?path=&version=&inline=` | the bytes; `Range` answered (`api/_download.py`) |
 | `GET /files/trash` | `{items}` |
 | `POST /files/restore` | `{id}` → `{restored, items}` |
@@ -276,7 +276,7 @@ async def save_content(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> 
         fs.write(v, where, data, create=bool(body.get("create")))
         db.commit()
         opened = file_ui.open_file(v, where)
-    except fs.AlreadyExists as there:
+    except fs.AlreadyExists:
         db.rollback()
         return JSONResponse(
             serialise.file_exists(
