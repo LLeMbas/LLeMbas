@@ -27,20 +27,35 @@ from what is there; a refusal is the explorer's, as a 400 with its reason.
 | `POST /files/rename` | `{path, name}` → listing of its directory |
 | `POST /files/move` | `{path, to}` → listing of `to` |
 | `DELETE /files?path=` | 204 (to the trash) |
+| `POST /files/copy` | `{path, to, name?}` → 201 listing of `to`, with `copied` (the new entry) |
+| `PUT /files/content` | `{path, text, base?, force?}` → the content answer; 409 when changed |
+| `GET /files/raw?path=&version=&inline=` | the bytes; `Range` answered (`api/_download.py`) |
+| `GET /files/trash` | `{items}` |
+| `POST /files/restore` | `{id}` → `{restored, items}` |
+| `DELETE /files/trash[?id=]` | for good: one thing, or everything → `{removed, items}` |
+| `GET /files/versions?path=` | `{path, versions}` newest first |
+| `POST /files/versions/restore` | `{path, version}` → `{path, sha, versions}` |
+| `POST /files/batch` | `{op: move|copy|delete, paths, to?}` → `{op, results, done, failed}` |
+| `POST /files/zip` | `{paths}` → a zip, written as it is read |
+
+**A file's kind** (`file_kind` on an entry, `kind` on a content answer) is read
+from its name and its own bytes (`services/file_kinds.py`), never from what the
+sender called it. **A batch is not all-or-nothing**: each path is done by
+itself and answered by itself (`services/file_ops.py`).
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Body, File, HTTPException, Query, UploadFile, status
-from fastapi.responses import Response
+from fastapi import APIRouter, Body, File, HTTPException, Query, Request, UploadFile, status
+from fastapi.responses import JSONResponse, Response
 
 from lembas.api.deps import Db
 from lembas.api.v2 import serialise
 from lembas.api.v2._common import Me
 from lembas.security.access import BadPath, normalise, parent_of
-from lembas.services import file_ui, fs
+from lembas.services import file_ops, file_ui, fs
 from lembas.web.i18n import t
 
 router = APIRouter()
@@ -77,18 +92,23 @@ async def file_content(caller: Me, db: Db, path: str) -> dict[str, Any]:
         opened = file_ui.open_file(fs.view(db, caller.user), where)
     except fs.FsError as refused:
         raise HTTPException(status.HTTP_404_NOT_FOUND, refused.message) from refused
-    withheld = None
-    if opened.size > CONTENT_MAX_BYTES or opened.kind == "large":
-        withheld = {
-            "reason": serialise.WITHHELD_TOO_LARGE,
-            "message": t("This file is too large to show here."),
-        }
-    elif opened.kind in ("image", "binary"):
-        withheld = {
+    return serialise.file_content(opened, _withheld(opened))
+
+
+def _withheld(opened: file_ui.Opened) -> dict[str, str] | None:
+    """Why a file's text is not in its answer: it is not text (a picture, a
+    PDF, sound... -- fetched as bytes from `/files/raw`), or it is too long."""
+    if opened.kind in ("image", "binary"):
+        return {
             "reason": serialise.WITHHELD_NOT_TEXT,
             "message": t("This is not a text file, so it is not shown here."),
         }
-    return serialise.file_content(opened, withheld)
+    if opened.size > CONTENT_MAX_BYTES or opened.kind == "large":
+        return {
+            "reason": serialise.WITHHELD_TOO_LARGE,
+            "message": t("This file is too large to show here."),
+        }
+    return None
 
 
 # --- Writes -------------------------------------------------------------------------------------
@@ -125,24 +145,22 @@ async def upload_files(
     v = fs.view(db, caller.user)
     where = _path(path)
     try:
-        for upload_file in files:
-            if not upload_file.filename:
-                continue
-            name = upload_file.filename.replace("\\", "/").rsplit("/", 1)[-1]
-
-            def chunks(source=upload_file):
-                while True:
-                    part = source.file.read(1024 * 1024)
-                    if not part:
-                        return
-                    yield part
-
-            fs.write(v, f"{where.rstrip('/')}/{name}", chunks(),
-                     mime=upload_file.content_type or "")
+        file_ops.store_uploads(v, where, files)
         db.commit()
+    except file_ops.TooLarge as problem:
+        db.rollback()
+        raise _too_large(problem) from problem
     except fs.FsError as refused:
         raise _refused(db, refused) from refused
     return _listing(v, where)
+
+
+def _too_large(problem: file_ops.TooLarge) -> HTTPException:
+    return HTTPException(
+        413,
+        t("%(name)s is larger than %(n)s MB, the most that can be uploaded here.",
+          name=problem.name, n=problem.limit_mb),
+    )
 
 
 @router.post("/files/mkdir", status_code=status.HTTP_201_CREATED)
@@ -195,6 +213,217 @@ async def delete_file(caller: Me, db: Db, path: str = Query(...)) -> Response:
     except fs.FsError as refused:
         raise _refused(db, refused) from refused
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# --- Copy, save, bytes --------------------------------------------------------------------------
+@router.post("/files/copy", status_code=status.HTTP_201_CREATED)
+async def copy_file(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Copy `path` into the directory `to` (as `name`, when given). A name
+    already taken there is numbered, never overwritten: `copied` says what
+    the copy is called."""
+    v = fs.view(db, caller.user)
+    source = _path(str(body.get("path") or ""))
+    target = _path(str(body.get("to") or "/"))
+    name = _bare_name(body.get("name")) if body.get("name") else None
+    try:
+        made = fs.cp(v, source, target, name)
+        db.commit()
+    except fs.FsError as refused:
+        raise _refused(db, refused) from refused
+    out = _listing(v, target)
+    out["copied"] = next((e for e in out["entries"] if e["path"] == made.path), None)
+    return out
+
+
+@router.put("/files/content")
+async def save_content(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> Any:
+    """Save a text file. `base` is the `sha` the app opened; when the file
+    holds something else by now the answer is **409** `{detail, conflict:
+    true, sha, version}` -- what it holds now -- and nothing is written,
+    unless `force` is true. Without `base` nothing is compared. A path with
+    no file makes one."""
+    v = fs.view(db, caller.user)
+    where = _path(str(body.get("path") or ""))
+    text = body.get("text")
+    if not isinstance(text, str):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, t("There is no text to save."))
+    data = text.encode("utf-8")
+    if len(data) > file_ui.EDIT_MAX:
+        raise HTTPException(
+            413, t("This file is too large to show here.")
+        )
+    base = str(body.get("base") or "")
+    try:
+        try:
+            node = fs.stat(v, where)
+        except fs.FsError:
+            node = None  # a new file: the write decides whether it may be made
+        if node is not None and base and (node.blob_hash or "") != base and not body.get("force"):
+            newest = fs.versions(v, where)
+            return JSONResponse(
+                serialise.file_conflict(
+                    t("This file changed since you opened it. Reload it, or save anyway."),
+                    node.blob_hash or "",
+                    newest[0].id if newest else None,
+                ),
+                status_code=status.HTTP_409_CONFLICT,
+            )
+        fs.write(v, where, data)
+        db.commit()
+        opened = file_ui.open_file(v, where)
+    except fs.FsError as refused:
+        raise _refused(db, refused) from refused
+    return serialise.file_content(opened, _withheld(opened))
+
+
+@router.get("/files/raw")
+async def raw_file(
+    request: Request, caller: Me, db: Db, path: str, version: str = "", inline: bool = False
+) -> Response:
+    """A file's bytes (or one version's). An attachment of no type, unless
+    `inline` is asked and the file is, by its own bytes, a raster picture,
+    sound or video -- then its own type. `Range` is answered, so a player
+    can seek."""
+    from lembas.api import _download
+
+    try:
+        found = file_ui.download(fs.view(db, caller.user), _path(path), version)
+    except fs.FsError as refused:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, refused.message) from refused
+    return _download.respond(
+        found.name, found.digest, found.size, found.kind, inline=inline,
+        range_header=request.headers.get("range"), if_range=request.headers.get("if-range"),
+    )
+
+
+# --- The trash ----------------------------------------------------------------------------------
+def _trash(v: fs.View) -> list[dict[str, Any]]:
+    return [serialise.trashed(node) for node in fs.trash(v)]
+
+
+@router.get("/files/trash")
+async def list_trash(caller: Me, db: Db) -> dict[str, Any]:
+    return {"items": _trash(fs.view(db, caller.user))}
+
+
+@router.post("/files/restore")
+async def restore_file(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    v = fs.view(db, caller.user)
+    try:
+        node = fs.restore(v, str(body.get("id") or ""))
+        db.commit()
+    except fs.FsError as refused:
+        raise _refused(db, refused) from refused
+    return {"restored": node.path, "items": _trash(v)}
+
+
+@router.delete("/files/trash")
+async def empty_trash(caller: Me, db: Db, id: str = "") -> dict[str, Any]:
+    """Remove for good: the one thing named, or all the person may restore."""
+    v = fs.view(db, caller.user)
+    try:
+        removed = fs.purge(v, id or None)
+        db.commit()
+    except fs.FsError as refused:
+        raise _refused(db, refused) from refused
+    return {"removed": removed, "items": _trash(v)}
+
+
+# --- Versions -----------------------------------------------------------------------------------
+def _versions(v: fs.View, where: str) -> dict[str, Any]:
+    from sqlalchemy import select
+
+    from lembas.db.models import User
+
+    rows = file_ui.history(v, where)
+    node = fs.stat(v, where)
+    writers = {r.by_user_id for r in rows if r.by_user_id}
+    names = {
+        u.id: u.name for u in v.db.scalars(select(User).where(User.id.in_(writers)))
+    } if writers else {}
+    current = rows[0].id if rows and rows[0].blob_hash == (node.blob_hash or "") else None
+    return {
+        "path": where,
+        "sha": node.blob_hash or "",
+        "versions": [serialise.file_version(r, names, current=r.id == current) for r in rows],
+    }
+
+
+@router.get("/files/versions")
+async def list_versions(caller: Me, db: Db, path: str) -> dict[str, Any]:
+    where = _path(path)
+    try:
+        return _versions(fs.view(db, caller.user), where)
+    except fs.FsError as refused:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, refused.message) from refused
+
+
+@router.post("/files/versions/restore")
+async def restore_version(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Make an older version the file again -- as a new version, so nothing
+    is lost."""
+    v = fs.view(db, caller.user)
+    where = _path(str(body.get("path") or ""))
+    try:
+        file_ui.restore_version(v, where, str(body.get("version") or ""))
+        db.commit()
+        return _versions(v, where)
+    except fs.FsError as refused:
+        raise _refused(db, refused) from refused
+
+
+# --- Several at once ----------------------------------------------------------------------------
+def _paths(body: dict[str, Any]) -> list[str]:
+    paths = body.get("paths")
+    if not isinstance(paths, list) or not paths or not all(isinstance(p, str) for p in paths):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, t("Choose at least one file or folder."))
+    if len(paths) > file_ops.BATCH_MAX:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            t("At most %(n)s files or folders at once.", n=file_ops.BATCH_MAX),
+        )
+    return paths
+
+
+@router.post("/files/batch")
+async def batch_files(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """`{op, paths, to?}`: move or copy each path into the directory `to`, or
+    delete each (to the trash). **Not all-or-nothing**: every path is done by
+    itself, and `results` answers for each, in order -- `{path, ok, to?,
+    error?}`. The answer is 200 whenever the request itself made sense, also
+    when every path was refused: read `failed`."""
+    op = str(body.get("op") or "")
+    if op not in file_ops.OPS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, t("That is not something to do."))
+    paths = _paths(body)
+    target = _path(str(body.get("to") or "/")) if op != "delete" else ""
+    if op != "delete" and not body.get("to"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, t("Choose a folder."))
+    results = file_ops.batch(fs.view(db, caller.user), op, paths, target)
+    return file_ops.batch_answer(op, target, results)
+
+
+@router.post("/files/zip")
+async def zip_files(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> Response:
+    """The chosen files and folders as one zip, written as it is read."""
+    paths = _paths(body)
+    try:
+        entries = file_ops.zip_plan(fs.view(db, caller.user), [_path(p) for p in paths])
+    except file_ops.TooLarge as problem:
+        raise _zip_too_large(problem) from problem
+    except fs.FsError as refused:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, refused.message) from refused
+    from lembas.api import _download
+
+    return _download.zip_response(entries, file_ops.zip_name(paths))
+
+
+def _zip_too_large(problem: file_ops.TooLarge) -> HTTPException:
+    return HTTPException(
+        413,
+        t("That is more than %(n)s MB, the most a zip may hold. Choose less.",
+          n=problem.limit_mb),
+    )
 
 
 __all__ = ["router"]

@@ -37,13 +37,26 @@ from lembas.db.models import (
 )
 from lembas.security import access
 from lembas.security.access import at_least
-from lembas.services import blobs, fs
+from lembas.services import blobs, file_kinds, fs
 
 # The most a page shows or edits inline; the same megabyte `show` allows.
 VIEW_MAX = 1024 * 1024
-# Raster images a browser may show inline. Never SVG: it is a document that
-# can carry script.
-INLINE_IMAGES = ("image/png", "image/jpeg", "image/gif", "image/webp")
+# Raster images a browser may show inline, when a file's own bytes say it is
+# one (`services/file_kinds.py`). Never SVG: it is a document that can carry
+# script.
+INLINE_IMAGES = ("image/png", "image/jpeg", "image/gif", "image/webp", "image/avif")
+# How the page draws a kind it has no viewer of its own for yet: as the text
+# it is. Every other kind that is not text is offered as a download.
+_DRAWN_AS = {
+    file_kinds.MARKDOWN: "markdown",
+    file_kinds.HTML: "html",
+    file_kinds.CODE: "code",
+    file_kinds.SVG: "code",
+    file_kinds.NOTEBOOK: "code",
+}
+_NEVER_TEXT = (
+    file_kinds.PDF, file_kinds.AUDIO, file_kinds.VIDEO, file_kinds.ARCHIVE, file_kinds.BINARY,
+)
 
 
 def show_kind(path: str) -> tuple[str, str]:
@@ -75,6 +88,8 @@ class Row:
     updated_at: datetime | None
     node_id: str
     mime: str
+    # What the file is, by its bytes (`services/file_kinds.py`); "" for a directory.
+    file_kind: str = ""
 
     @property
     def is_dir(self) -> bool:
@@ -130,6 +145,8 @@ def listing(v: fs.View, path: str) -> list[Row]:
                 updated_at=node.updated_at if node is not None else None,
                 node_id=node.id if node is not None else "",
                 mime=node.mime if node is not None else "",
+                file_kind=fs.kind_of(v.db, node).kind
+                if node is not None and node.kind == KIND_FILE else "",
             )
         )
     return out
@@ -166,7 +183,8 @@ class Opened:
     size: int
     sha: str
     mime: str
-    kind: str  # markdown | code | text | html | image | binary | large
+    # How the page draws it: markdown | code | text | html | image | binary | large.
+    kind: str
     language: str
     text: str
     level: str
@@ -174,6 +192,8 @@ class Opened:
     # the file's newest -- a card of `show` names the version it showed, and
     # until the file is written again that is the file as it stands.
     older: bool = False
+    # What the file is (`services/file_kinds.py`), whatever the page makes of it.
+    file_kind: str = ""
 
     @property
     def writable(self) -> bool:
@@ -200,17 +220,23 @@ def open_file(v: fs.View, path: str, version_id: str = "") -> Opened:
         raise fs.no_such(path)
     digest = version.blob_hash if version is not None else (node.blob_hash or "")
     size = version.size if version is not None else (node.size or 0)
-    kind, language = show_kind(node.path)
+    found = fs.kind_of(v.db, node, digest)
+    language = found.language
+    mime = found.mime
     text = ""
-    mime = node.mime or "application/octet-stream"
-    if mime in INLINE_IMAGES:
+    if found.kind == file_kinds.IMAGE:
         kind = "image"
+    elif found.kind in _NEVER_TEXT:
+        kind = "binary"
     elif size > VIEW_MAX:
         kind = "large"
     else:
         data = blobs.read_bytes(v.db, digest) if digest else b""
         if is_text(data):
             text = data.decode("utf-8")
+            kind = _DRAWN_AS.get(found.kind, "text")
+            if kind == "code" and not language and found.kind == file_kinds.CODE:
+                kind = "text"
         else:
             kind = "binary"
     return Opened(
@@ -226,6 +252,7 @@ def open_file(v: fs.View, path: str, version_id: str = "") -> Opened:
         text=text,
         level=v.level(node.path),
         older=version is not None and not _newest(v.db, node, version),
+        file_kind=found.kind,
     )
 
 
@@ -252,6 +279,30 @@ def stream(v: fs.View, path: str, version_id: str = ""):
         raise fs.no_such(path)
     digest = version.blob_hash if version is not None else node.blob_hash
     return node, (blobs.iter_parts(v.db, digest) if digest else iter(()))
+
+
+@dataclass(frozen=True)
+class Download:
+    """What a download needs to go out (`api/_download.py`)."""
+
+    name: str
+    digest: str
+    size: int
+    kind: file_kinds.Kind
+
+
+def download(v: fs.View, path: str, version_id: str = "") -> Download:
+    """The file at `path` (or one of its versions) as bytes to send, through
+    the view; its kind from its own bytes."""
+    node = fs.stat(v, path)
+    if node is None or node.kind != KIND_FILE:
+        raise fs.is_a_directory(path)
+    version = version_of(v.db, node, version_id)
+    if version_id and version is None:
+        raise fs.no_such(path)
+    digest = (version.blob_hash if version is not None else node.blob_hash) or ""
+    size = (version.size if version is not None else node.size) or 0
+    return Download(node.name, digest, int(size), fs.kind_of(v.db, node, digest))
 
 
 def history(v: fs.View, path: str) -> list[NodeVersion]:
@@ -453,6 +504,7 @@ __all__ = [
     "Tick",
     "Undo",
     "crumbs",
+    "download",
     "effective",
     "history",
     "is_passage",

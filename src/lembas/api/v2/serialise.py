@@ -899,11 +899,15 @@ def folder(row: Any) -> dict[str, Any]:
 
 
 def file_entry(row: Any) -> dict[str, Any]:
-    """One `file_ui.Row`: `kind` is `file`, `dir` or `mount`."""
+    """One `file_ui.Row`: `kind` is `file`, `dir` or `mount`; `file_kind` is
+    what a file is by its own bytes (`services/file_kinds.py`: `markdown`,
+    `image`, `pdf`, ...), null for a directory. `mime` follows from the same
+    reading -- it is never what the sender claimed."""
     return {
         "name": row.name,
         "path": row.path,
         "kind": row.kind,
+        "file_kind": getattr(row, "file_kind", "") or None,
         "size": int(row.size or 0),
         "mime": row.mime or "",
         "updated_at": stamp(row.updated_at),
@@ -915,15 +919,56 @@ def file_listing(path: str, rows: list[Any]) -> dict[str, Any]:
     return {"path": path, "parent": parent, "entries": [file_entry(row) for row in rows]}
 
 
+def trashed(node: Any) -> dict[str, Any]:
+    """One thing in the trash, as `fs.trash` lists it: `id` is what restore
+    and remove-for-good take."""
+    return {
+        "id": node.id,
+        "name": node.name,
+        "path": node.path,
+        "kind": node.kind,
+        "size": int(node.size or 0),
+        "trashed_at": stamp(node.trashed_at),
+    }
+
+
+def file_conflict(detail: str, sha: str, version: str | None) -> dict[str, Any]:
+    """The 409 of `PUT /files/content`: the file holds something else than
+    the app opened. `sha` and `version` are what it holds now."""
+    return {"detail": detail, "conflict": True, "sha": sha, "version": version}
+
+
+def file_version(row: Any, names: dict[str, str], *, current: bool) -> dict[str, Any]:
+    """One `NodeVersion`: `id` is what `/files/raw?version=` and a restore
+    take; `current` marks the one the file holds now; `chat_id` the chat that
+    wrote it, when one did."""
+    return {
+        "id": row.id,
+        "sha": row.blob_hash or "",
+        "size": int(row.size or 0),
+        "at": stamp(row.at),
+        "by": names.get(row.by_user_id or "") or None,
+        "chat_id": row.chat_id or None,
+        "current": current,
+    }
+
+
 def file_content(opened: Any, withheld: dict[str, str] | None = None) -> dict[str, Any]:
     """One `file_ui.Opened`. `text` is the file as written -- an HTML file's
-    source, never rendered -- or empty, with `withheld` saying why."""
+    source, never rendered -- or empty, with `withheld` saying why. `kind` is
+    what the file is by its own bytes (`services/file_kinds.py`), the same
+    word a listing gives as `file_kind` (sent here under both names); `level`
+    is what the person may do with it (`ro`, `stage`, `commit`)."""
+    file_kind = getattr(opened, "file_kind", "") or opened.kind
     out: dict[str, Any] = {
         "path": opened.path,
         "name": opened.name,
         "size": int(opened.size or 0),
         "mime": opened.mime or "",
-        "kind": opened.kind,
+        "kind": file_kind,
+        "file_kind": file_kind,
+        "level": opened.level or "",
+        "writable": bool(opened.writable),
         "language": opened.language or "",
         "sha": opened.sha or "",
         "text": "" if withheld else opened.text,
@@ -942,8 +987,10 @@ __all__ = [
     "chat_detail",
     "file_content",
     "folder",
+    "file_conflict",
     "file_entry",
     "file_listing",
+    "file_version",
     "interruption",
     "item",
     "jobs",
@@ -955,4 +1002,5 @@ __all__ = [
     "step",
     "tail",
     "tool_call",
+    "trashed",
 ]

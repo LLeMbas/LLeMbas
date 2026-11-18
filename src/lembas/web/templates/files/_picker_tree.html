@@ -1,0 +1,25 @@
+{% from "_macros.html" import icon %}
+{#- The folder picker's branches (Move, Copy to...): the explorer's tree with
+    a name that is chosen instead of opened. A branch the picker did not open
+    is fetched when it first is (`/files/dirs?pick=1`), once. -#}
+{% macro pick_list(branches) -%}
+<ul class="ftree" role="group">
+  {% for b in branches %}
+  <li class="ftree__item">
+    <details class="ftree__branch"{% if b.open %} open{% endif %}
+             {%- if b.children is none %} hx-get="/files/dirs?path={{ b.row.path|urlencode }}&amp;pick=1"
+             hx-trigger="toggle once" hx-target="find .ftree__kids" hx-swap="innerHTML"{% endif %}>
+      <summary class="ftree__summary">
+        <span class="ftree__chevron">{{ icon("chevron-right", "icon--sm") }}</span>
+        <button class="ftree__link fpick__dir" type="button" data-pick-dir="{{ b.row.path }}"
+                aria-pressed="false">
+          {{ icon("folder", "icon--sm") }}<span class="ftree__name">{{ b.row.name }}</span>
+        </button>
+      </summary>
+      <div class="ftree__kids">{% if b.children %}{{ pick_list(b.children) }}{% endif %}</div>
+    </details>
+  </li>
+  {% endfor %}
+</ul>
+{%- endmacro %}
+{{ pick_list(branches) }}

@@ -21,6 +21,12 @@
   * The explorer: a row dragged onto a folder (a row, the tree, the path above)
     is moved there; files dropped from the computer onto the list are
     uploaded into the folder shown; choosing files sends the upload form.
+  * The folder picker: Move and Copy to... (a row's menu, the batch bar) ask
+    for a folder in a dialog that shows the tree (`GET /files/picker`, its
+    branches fetched as they are opened) instead of asking for a typed path.
+  * Selecting: the box at the start of a row. While anything is selected the
+    batch bar takes the tools' place; what it does goes to `/files/batch`
+    (each path by itself) or `/files/zip`, the paths as one JSON list.
 */
 (function () {
   "use strict";
@@ -299,14 +305,207 @@
     if (input.files && input.files.length) send(input.form);
   });
 
+  /* --- The folder picker ------------------------------------------------- */
+  function make(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text) node.textContent = text;
+    return node;
+  }
+
+  /* Resolves with the folder chosen, or null. */
+  function pickFolder(options) {
+    return new Promise(function (resolve) {
+      var box = make("dialog", "dialog dialog--wide fpick-dialog");
+      box.setAttribute("data-testid", "folder-dialog");
+      var form = make("form", "dialog__form");
+      form.method = "dialog";
+      form.appendChild(make("h2", "dialog__title", options.title));
+      var body = make("div", "fpick__body");
+      var where = make("p", "dialog__where fpick__where");
+      var chosenText = make("span", "mono", t("No folder chosen yet."));
+      where.appendChild(chosenText);
+      var actions = make("div", "dialog__actions");
+      var cancel = make("button", "btn", t("Cancel"));
+      cancel.type = "button";
+      var accept = make("button", "btn btn--primary", options.label);
+      accept.type = "submit";
+      accept.disabled = true;
+      accept.setAttribute("data-testid", "folder-accept");
+      actions.appendChild(cancel);
+      actions.appendChild(accept);
+      form.appendChild(body);
+      form.appendChild(where);
+      form.appendChild(actions);
+      box.appendChild(form);
+      document.body.appendChild(box);
+
+      var chosen = null;
+      var settled = false;
+      function finish(value) {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+        box.close();
+        setTimeout(function () { box.remove(); }, 200);
+      }
+      body.addEventListener("click", function (event) {
+        var dir = event.target.closest && event.target.closest("[data-pick-dir]");
+        if (!dir) return;
+        event.preventDefault();
+        body.querySelectorAll("[data-pick-dir].is-current").forEach(function (el) {
+          el.classList.remove("is-current");
+          el.setAttribute("aria-pressed", "false");
+        });
+        dir.classList.add("is-current");
+        dir.setAttribute("aria-pressed", "true");
+        chosen = dir.dataset.pickDir;
+        chosenText.textContent = chosen;
+        accept.disabled = false;
+      });
+      cancel.addEventListener("click", function () { finish(null); });
+      form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        if (chosen !== null) finish(chosen);
+      });
+      box.addEventListener("cancel", function (event) { event.preventDefault(); finish(null); });
+      box.addEventListener("click", function (event) { if (event.target === box) finish(null); });
+
+      box.showModal();
+      if (window.htmx) {
+        window.htmx.ajax("GET", "/files/picker?path=" + encodeURIComponent(options.here || "/"),
+                         { target: body, swap: "innerHTML" });
+      }
+    });
+  }
+
+  var PICK = {
+    move: { title: t("Move to which folder?"), label: t("Move here") },
+    copy: { title: t("Copy to which folder?"), label: t("Copy here") },
+  };
+
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest && event.target.closest("[data-pick-folder]");
+    if (!button) return;
+    event.preventDefault();
+    var what = button.dataset.pickFolder;
+    var path = button.dataset.path;
+    var here = button.dataset.here || "/";
+    if (!PICK[what] || !path) return;
+    pickFolder({ title: PICK[what].title, label: PICK[what].label, here: here }).then(function (to) {
+      if (to === null) return;
+      inPlace(what === "move" ? "/files/move" : "/files/copy", { path: path, to: to, back_to: here });
+    });
+  });
+
+  /* --- Selecting, and the batch bar --------------------------------------- */
+  function selection() {
+    return Array.prototype.map.call(
+      document.querySelectorAll("input[data-select]:checked"), function (box) { return box.value; });
+  }
+
+  function syncSelection() {
+    var bar = document.querySelector("[data-batch-bar]");
+    if (!bar) return;
+    var boxes = document.querySelectorAll("input[data-select]");
+    var count = 0;
+    boxes.forEach(function (box) {
+      if (box.checked) count += 1;
+      var row = box.closest(".file-row");
+      if (row) row.classList.toggle("is-selected", box.checked);
+    });
+    bar.hidden = !count;
+    var root = bar.closest(".fx");
+    if (root) root.classList.toggle("is-selecting", !!count);
+    var said = bar.querySelector("[data-batch-count]");
+    if (said) said.textContent = count ? t("%(n)s selected", { n: count }) : "";
+    var all = document.querySelector("input[data-select-all]");
+    if (all) {
+      all.checked = !!count && count === boxes.length;
+      all.indeterminate = !!count && count < boxes.length;
+    }
+  }
+
+  document.addEventListener("change", function (event) {
+    var box = event.target;
+    if (!box.matches) return;
+    if (box.matches("input[data-select-all]")) {
+      document.querySelectorAll("input[data-select]").forEach(function (each) {
+        each.checked = box.checked;
+      });
+      syncSelection();
+    } else if (box.matches("input[data-select]")) {
+      syncSelection();
+    }
+  });
+
+  function clearSelection() {
+    document.querySelectorAll("input[data-select]:checked").forEach(function (box) {
+      box.checked = false;
+    });
+    syncSelection();
+  }
+
+  /* A download is a navigation, not a swap: a form of its own, sent and gone. */
+  function download(url, values) {
+    var form = document.createElement("form");
+    form.method = "post";
+    form.action = url;
+    form.hidden = true;
+    form.setAttribute("data-in-place", "off");
+    Object.keys(values).forEach(function (name) {
+      var input = document.createElement("input");
+      input.type = "hidden";
+      input.name = name;
+      input.value = values[name];
+      form.appendChild(input);
+    });
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
+  }
+
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest && event.target.closest("[data-batch]");
+    var bar = button && button.closest("[data-batch-bar]");
+    if (!bar) return;
+    var what = button.dataset.batch;
+    var paths = selection();
+    var here = bar.dataset.here || "/";
+    if (what === "clear") { clearSelection(); return; }
+    if (!paths.length) return;
+    var sent = JSON.stringify(paths);
+    if (what === "zip") {
+      download("/files/zip", { paths: sent, back_to: here });
+    } else if (what === "delete") {
+      var ask = window.lembas && window.lembas.confirm;
+      var go = function () { inPlace("/files/batch", { op: "delete", paths: sent, back_to: here }); };
+      if (!ask) { go(); return; }
+      ask({
+        title: t("Move to the trash"),
+        message: t("Move the %(n)s selected to the trash? They can be restored from there.",
+                   { n: paths.length }),
+        confirmLabel: t("Move to the trash"),
+        danger: true,
+      }).then(function (yes) { if (yes) go(); });
+    } else if (PICK[what]) {
+      pickFolder({ title: PICK[what].title, label: PICK[what].label, here: here }).then(function (to) {
+        if (to === null) return;
+        inPlace("/files/batch", { op: what, paths: sent, to: to, back_to: here });
+      });
+    }
+  });
+
   function boot() {
     highlight(document);
-    if (window.htmx) window.htmx.onLoad(highlight);
+    if (window.htmx) window.htmx.onLoad(function (scope) { highlight(scope); syncSelection(); });
     watchCards();
+    syncSelection();
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
 
   window.lembas = window.lembas || {};
   window.lembas.openViewer = openViewer;
+  window.lembas.pickFolder = pickFolder;
 })();

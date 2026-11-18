@@ -14,12 +14,48 @@
   date tracks go. A whole row opens what it names.
 
   Moving: drag a row onto a folder in the list, the tree or the path above
-  (js/files.js), or use Move in the row's menu, which asks for the folder.
+  (js/files.js), or use Move in the row's menu, which opens the folder picker
+  (`GET /files/picker`); Copy to... opens the same one.
+
+  Selecting: the box at the start of a row. While anything is selected the
+  path bar's tools give way to the batch bar -- how many, move, copy, delete,
+  download as a zip, and clear -- each a control of the bar's own size, so
+  the bar is the same height either way and nothing below it moves.
 #}
 
 {% block title %}{{ t("Files") }} - {{ brand.name }}{% endblock %}
 
 {% block tools %}
+{% if not problem %}
+<div class="fx__batch" data-batch-bar data-here="{{ path }}" role="toolbar" hidden
+     aria-label="{{ t('Selected') }}" data-testid="batch-bar">
+  <span class="fx__batch-count" data-batch-count aria-live="polite"></span>
+  {% if writable %}
+  <button class="btn btn--sm" type="button" data-batch="move" data-testid="batch-move"
+          title="{{ t('Move') }}">
+    {{ icon("corner-down-right", "icon--sm") }}<span class="fx__label">{{ t("Move") }}</span>
+  </button>
+  {% endif %}
+  <button class="btn btn--sm" type="button" data-batch="copy" data-testid="batch-copy"
+          title="{{ t('Copy to…') }}">
+    {{ icon("copy", "icon--sm") }}<span class="fx__label">{{ t("Copy to…") }}</span>
+  </button>
+  {% if writable %}
+  <button class="btn btn--sm" type="button" data-batch="delete" data-testid="batch-delete"
+          title="{{ t('Delete') }}">
+    {{ icon("trash", "icon--sm") }}<span class="fx__label">{{ t("Delete") }}</span>
+  </button>
+  {% endif %}
+  <button class="btn btn--sm" type="button" data-batch="zip" data-testid="batch-zip"
+          title="{{ t('Download as a zip') }}">
+    {{ icon("download", "icon--sm") }}<span class="fx__label">{{ t("Download as a zip") }}</span>
+  </button>
+  <button class="btn btn--icon btn--sm" type="button" data-batch="clear" data-testid="batch-clear"
+          aria-label="{{ t('Clear the selection') }}" title="{{ t('Clear the selection') }}">
+    {{ icon("x", "icon--sm") }}
+  </button>
+</div>
+{% endif %}
 {% if not problem and writable %}
 <button class="btn btn--sm" type="button" data-testid="files-new-file"
         hx-post="/files/new" hx-vals='{"path": {{ path|tojson }}}' {{ in_place() }}
@@ -69,7 +105,13 @@
   {% else %}
   <div class="file-rows" role="table" aria-label="{{ t('Contents') }}">
     <div class="file-row file-row--head" role="row">
-      <span role="columnheader">{{ t("Name") }}</span>
+      <span role="columnheader" class="file-row__name">
+        <label class="file-row__pick">
+          <input type="checkbox" data-select-all data-testid="select-all"
+                 aria-label="{{ t('Select everything here') }}">
+        </label>
+        {{ t("Name") }}
+      </span>
       <span role="columnheader" class="file-row__type">{{ t("Type") }}</span>
       <span role="columnheader" class="file-row__size">{{ t("Size") }}</span>
       <span role="columnheader" class="file-row__when">{{ t("Changed") }}</span>
@@ -81,6 +123,10 @@
          {%- if row.writable %} draggable="true"{% endif %}
          {%- if row.is_dir %} data-drop-dir="{{ row.path }}"{% endif %}>
       <span role="cell" class="file-row__name">
+        <label class="file-row__pick">
+          <input type="checkbox" data-select value="{{ row.path }}" data-testid="file-select"
+                 aria-label="{{ t('Select %(name)s', name=row.name) }}">
+        </label>
         <a class="file-row__open" href="{{ href }}">
           <span class="file-row__icon file-row__icon--{{ row.shown_as }}">{{ file_icon(row) }}</span>
           <span class="file-row__label">{{ row.name }}</span>
@@ -113,6 +159,10 @@
               {{ icon("download", "icon--sm") }}<span class="picker__option-body"><span class="picker__option-name">{{ t("Download") }}</span></span>
             </a>
             {% endif %}
+            <button class="picker__option" type="button" role="menuitem" data-testid="file-copy"
+                    data-pick-folder="copy" data-path="{{ row.path }}" data-here="{{ path }}">
+              {{ icon("copy", "icon--sm") }}<span class="picker__option-body"><span class="picker__option-name">{{ t("Copy to…") }}</span></span>
+            </button>
             {% if row.writable %}
             <button class="picker__option" type="button" role="menuitem"
                     hx-post="/files/rename" hx-vals='{"path": {{ row.path|tojson }}}' {{ in_place() }}
@@ -120,11 +170,8 @@
                     data-prompt-field="name" data-prompt-value="{{ row.name }}">
               {{ icon("pencil", "icon--sm") }}<span class="picker__option-body"><span class="picker__option-name">{{ t("Rename") }}</span></span>
             </button>
-            <button class="picker__option" type="button" role="menuitem"
-                    hx-post="/files/move" hx-vals='{"path": {{ row.path|tojson }}, "back_to": {{ path|tojson }}}' {{ in_place() }}
-                    data-prompt="{{ t('Which folder should it go to? A path such as /home/you/notes.') }}"
-                    data-prompt-title="{{ t('Move') }}" data-prompt-field="to"
-                    data-prompt-value="{{ path }}" data-prompt-label="{{ t('Move') }}">
+            <button class="picker__option" type="button" role="menuitem" data-testid="file-move"
+                    data-pick-folder="move" data-path="{{ row.path }}" data-here="{{ path }}">
               {{ icon("corner-down-right", "icon--sm") }}<span class="picker__option-body"><span class="picker__option-name">{{ t("Move") }}</span></span>
             </button>
             <button class="picker__option" type="button" role="menuitem"

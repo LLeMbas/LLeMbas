@@ -85,6 +85,25 @@
     </div>
   </section>
 
+  <section class="card">
+    <h2 class="card__title">{{ t("Files") }}</h2>
+    <p class="field__hint">{{ t("The limits of the file tree itself, apart from what a chat may be handed above.") }}</p>
+    <div class="field-row">
+      <div class="field">
+        <label class="field__label" for="tree_upload_mb">{{ t("Largest file uploaded to Files") }}</label>
+        <input class="input" id="tree_upload_mb" name="tree_upload_mb"
+               type="number" min="1" max="102400" step="1" value="{{ values.tree_upload_mb }}">
+        <p class="field__hint">{{ t("Megabytes. A larger file is refused, with a message that says so.") }}</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="tree_zip_mb">{{ t("Largest download as a zip") }}</label>
+        <input class="input" id="tree_zip_mb" name="tree_zip_mb"
+               type="number" min="1" max="102400" step="1" value="{{ values.tree_zip_mb }}">
+        <p class="field__hint">{{ t("Megabytes of files, before they are packed. A larger selection is refused before anything is sent.") }}</p>
+      </div>
+    </div>
+  </section>
+
   <div class="btn-row">
     <button class="btn btn--primary" type="submit">{{ t("Save extraction") }}</button>
   </div>

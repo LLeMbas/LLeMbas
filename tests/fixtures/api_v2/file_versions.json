@@ -1,0 +1,24 @@
+{
+  "path": "/home/frodo/lembas.md",
+  "sha": "abababababababababababababababababababababababababababababababab",
+  "versions": [
+    {
+      "id": "ver2",
+      "sha": "abababababababababababababababababababababababababababababababab",
+      "size": 27,
+      "at": "2026-01-02T03:04:05+00:00",
+      "by": "Frodo",
+      "chat_id": "chat1",
+      "current": true
+    },
+    {
+      "id": "ver1",
+      "sha": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+      "size": 20,
+      "at": "2026-01-02T03:04:05+00:00",
+      "by": "Frodo",
+      "chat_id": null,
+      "current": false
+    }
+  ]
+}

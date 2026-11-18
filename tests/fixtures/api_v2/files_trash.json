@@ -1,0 +1,12 @@
+{
+  "items": [
+    {
+      "id": "node5",
+      "name": "old.md",
+      "path": "/home/frodo/old.md",
+      "kind": "file",
+      "size": 12,
+      "trashed_at": "2026-01-02T03:04:05+00:00"
+    }
+  ]
+}

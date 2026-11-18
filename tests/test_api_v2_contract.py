@@ -460,33 +460,78 @@ def _activity() -> dict[str, object]:
 
 
 def _files() -> dict[str, object]:
-    """`GET /files` and `GET /files/content`: a listing, a text file, a withheld one."""
+    """`/files`: a listing, a text file, a withheld one, and what the library's
+    management answers -- a copy, a save that lost, the trash, versions, a batch."""
+    from lembas.db.models import Node, NodeVersion
+    from lembas.services import file_ops
     from lembas.services.file_ui import Opened, Row
 
     rows = [
         Row(name="recipes", path="/home/frodo/recipes", kind="dir", size=0, level="commit",
             updated_at=WHEN, node_id="node1", mime=""),
         Row(name="lembas.md", path="/home/frodo/lembas.md", kind="file", size=27,
-            level="commit", updated_at=WHEN, node_id="node2", mime="text/markdown"),
+            level="commit", updated_at=WHEN, node_id="node2", mime="text/markdown",
+            file_kind="markdown"),
+        Row(name="map.png", path="/home/frodo/map.png", kind="file", size=2048,
+            level="ro", updated_at=WHEN, node_id="node3", mime="image/png", file_kind="image"),
     ]
 
     def opened(**kwargs) -> Opened:
         base = {"path": "/home/frodo/lembas.md", "name": "lembas.md", "node": None,
                 "version": None, "size": 27, "sha": "ab" * 32, "mime": "text/markdown",
-                "kind": "markdown", "language": "markdown",
+                "kind": "markdown", "language": "", "file_kind": "markdown",
                 "text": "# Lembas\n\nWrap it in a leaf.\n", "level": "commit"}
         return Opened(**{**base, **kwargs})
 
     picture = opened(path="/home/frodo/map.png", name="map.png", size=2048,
-                     mime="image/png", kind="image", language="", text="")
+                     mime="image/png", kind="image", file_kind="image", language="", text="",
+                     level="ro")
+    listing = serialise.file_listing("/home/frodo", rows)
+    copy = Row(name="lembas (2).md", path="/home/frodo/lembas (2).md", kind="file", size=27,
+               level="commit", updated_at=WHEN, node_id="node4", mime="text/markdown",
+               file_kind="markdown")
+    copied = serialise.file_listing("/home/frodo", [*rows, copy])
+    copied["copied"] = serialise.file_entry(copy)
+    gone = Node(id="node5", name="old.md", path="/home/frodo/old.md", kind="file", size=12,
+                trashed_at=WHEN)
+    versions = [
+        NodeVersion(id="ver2", node_id="node2", blob_hash="ab" * 32, size=27, at=WHEN,
+                    by_user_id="user1", chat_id="chat1"),
+        NodeVersion(id="ver1", node_id="node2", blob_hash="cd" * 32, size=20, at=WHEN,
+                    by_user_id="user1", chat_id=None),
+    ]
+    names = {"user1": "Frodo"}
     return {
-        "files_listing": serialise.file_listing("/home/frodo", rows),
+        "files_listing": listing,
         "file_content": serialise.file_content(opened()),
         "file_content_withheld": serialise.file_content(
             picture,
             {"reason": serialise.WITHHELD_NOT_TEXT,
              "message": "This is not a text file, so it is not shown here."},
         ),
+        # `POST /files/copy`: the listing of where it went, and the copy.
+        "files_copied": copied,
+        # `PUT /files/content` over a file that changed: 409, nothing written.
+        "file_save_conflict": serialise.file_conflict(
+            "This file changed since you opened it. Reload it, or save anyway.",
+            "ab" * 32, "ver2",
+        ),
+        "files_trash": {"items": [serialise.trashed(gone)]},
+        "files_restored": {"restored": "/home/frodo/old.md", "items": []},
+        "files_trash_emptied": {"removed": 1, "items": []},
+        "file_versions": {
+            "path": "/home/frodo/lembas.md", "sha": "ab" * 32,
+            "versions": [serialise.file_version(v, names, current=v.id == "ver2")
+                         for v in versions],
+        },
+        # `POST /files/batch`: an answer for each path, never all-or-nothing.
+        "files_batch": file_ops.batch_answer("move", "/home/frodo/recipes", [
+            {"path": "/home/frodo/lembas.md", "ok": True,
+             "to": "/home/frodo/recipes/lembas.md"},
+            {"path": "/home/frodo/map.png", "ok": False,
+             "error": "Read-only: /home/frodo/map.png can be read in this session "
+                      "but not changed."},
+        ]),
     }
 
 

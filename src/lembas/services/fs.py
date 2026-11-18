@@ -25,13 +25,12 @@ Functions flush, never commit: the caller (a route, a tool) commits once.
 
 from __future__ import annotations
 
-import mimetypes
 import re
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select, text
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session as DBSession
 
 from lembas.db.models import (
@@ -51,7 +50,7 @@ from lembas.db.models import (
 )
 from lembas.security import access
 from lembas.security.access import BadPath, at_least, normalise
-from lembas.services import blobs
+from lembas.services import blobs, file_kinds
 
 HOME = "/home"
 SKILLS = "/skills"
@@ -424,7 +423,13 @@ def versions(v: View, raw: str) -> list[NodeVersion]:
 def write(
     v: View, raw: str, data: bytes | Iterable[bytes], *, mime: str = ""
 ) -> Node:
-    """Write a file (made, with any missing directories, if it is not there)."""
+    """Write a file (made, with any missing directories, if it is not there).
+
+    What the file is -- its kind and its type -- is read from its name and its
+    first bytes (`services/file_kinds.py`) at every write. `mime` is what the
+    sender called it and is not believed: it is kept as a parameter so a
+    caller need not change, and decides nothing."""
+    del mime
     path = v.path(raw)
     if path == "/":
         raise is_a_directory(path)
@@ -437,11 +442,20 @@ def write(
         if above is not None and above.kind == KIND_FILE:
             raise not_a_directory(at)
         node = _make_node(v.db, v.org_id, path, KIND_FILE, owner_id=v.user.id, by=v.user.id)
-        node.mime = mime or mimetypes.guess_type(node.name)[0] or "application/octet-stream"
-    elif mime:
-        node.mime = mime
     chunks = [data] if isinstance(data, (bytes, bytearray)) else data
-    digest, size = blobs.put_stream(v.db, (bytes(c) for c in chunks))
+    head = bytearray()
+
+    def seen() -> Iterator[bytes]:
+        for chunk in chunks:
+            chunk = bytes(chunk)
+            if len(head) < file_kinds.HEAD_BYTES:
+                head.extend(chunk[: file_kinds.HEAD_BYTES - len(head)])
+            yield chunk
+
+    digest, size = blobs.put_stream(v.db, seen())
+    found = file_kinds.detect(node.name, bytes(head))
+    node.mime = found.mime
+    node.content_kind = found.kind
     _set_content(
         v.db,
         node,
@@ -452,6 +466,22 @@ def write(
         message_id=v.message_id,
     )
     return node
+
+
+def kind_of(db: DBSession, node: Node, digest: str | None = None) -> file_kinds.Kind:
+    """What a file is (`services/file_kinds.py`): the kind settled when it was
+    written, or -- for a file from before that was kept, and for an older
+    version, whose bytes are others -- read from the first bytes now."""
+    current = digest is None or digest == (node.blob_hash or "")
+    if current and node.content_kind:
+        by_name = file_kinds.detect(node.name, None)
+        language = by_name.language if by_name.kind == node.content_kind else ""
+        if node.content_kind == file_kinds.SVG:
+            language = "xml"
+        return file_kinds.Kind(node.content_kind, node.mime or "application/octet-stream", language)
+    digest = digest if digest is not None else (node.blob_hash or "")
+    head = blobs.head(db, digest, file_kinds.HEAD_BYTES) if digest else b""
+    return file_kinds.detect(node.name, head)
 
 
 def mkdir(v: View, raw: str) -> Node | None:
@@ -597,6 +627,121 @@ def mv(v: View, raw_from: str, raw_to: str) -> Node:
     v.db.flush()
     v.refresh()
     return node
+
+
+def _free_name(v: View, directory: str, name: str, *, is_dir: bool) -> str:
+    """`name`, or `name (2)`, `name (3)` ... -- the first that nothing in
+    `directory` is called. A file keeps its extension: `notes (2).md`."""
+    stem, dot, ext = name.rpartition(".")
+    if is_dir or not dot or not stem:
+        stem, ext = name, ""
+    candidate, n = name, 1
+    while lookup(v.db, v.org_id, _join(directory, candidate)) is not None:
+        n += 1
+        candidate = f"{stem} ({n})" + (f".{ext}" if ext else "")
+    return candidate
+
+
+def cp(v: View, raw_from: str, raw_to_dir: str, name: str | None = None) -> Node:
+    """Copy a file, or a directory and what the session can read below it,
+    into the directory `raw_to_dir`. Returns the copy.
+
+    The source needs reading and every path the copy makes needs changing --
+    the same rules as `read` and `write`. A name already taken is never
+    overwritten: the copy is called `name (2).ext`. Contents are not
+    duplicated: the copy names the same blobs, counted once more each. A
+    copy starts with one version, made now by this person (and this chat);
+    the source's history stays the source's. A directory cannot be copied
+    into itself, and a mount is not copied at all.
+    """
+    source = v.path(raw_from)
+    into = v.path(raw_to_dir)
+    node = _visible_node(v, source)
+    if node is None:
+        raise denied(source)
+    parent = _visible_node(v, into)
+    if parent is not None and parent.kind == KIND_FILE:
+        raise not_a_directory(into)
+    try:
+        wanted = access.check_name(name) if name else node.name
+    except BadPath as problem:
+        raise no_such(str(name)) from problem
+    if node.kind != KIND_FILE and access.is_within(into, source):
+        raise denied(_join(into, wanted))
+    if node.kind == KIND_FILE:
+        nodes = [node]
+    else:
+        nodes = sorted(_subtree(v.db, v.org_id, source), key=lambda n: n.path)
+        v.resolver.remember(nodes)
+        if any(n.kind == KIND_MOUNT for n in nodes):
+            raise denied(source)
+        # What the session cannot see is not there to copy.
+        nodes = [n for n in nodes if v.resolver.visible(n.path)]
+    _writable(v, _join(into, wanted))
+    target = _join(into, _free_name(v, into, wanted, is_dir=node.kind != KIND_FILE))
+    chat_id = v.chat.id if v.chat else None
+    made: Node | None = None
+    for each in nodes:
+        path = target + each.path[len(source):]
+        _writable(v, path)
+        copy = _make_node(v.db, v.org_id, path, each.kind, owner_id=v.user.id, by=v.user.id)
+        if each.kind == KIND_FILE:
+            copy.mime = each.mime
+            copy.content_kind = each.content_kind
+            if each.blob_hash:
+                _set_content(
+                    v.db, copy, each.blob_hash, each.size or 0,
+                    by=v.user.id, chat_id=chat_id, message_id=v.message_id,
+                )
+        if made is None:
+            made = copy
+    v.db.flush()
+    v.refresh()
+    return made
+
+
+def purge(v: View, node_id: str | None = None) -> int:
+    """Remove for good what is in the trash -- one thing (`node_id`, as
+    `trash` lists it) or everything this person may restore. Returns how many
+    nodes went. The contents are let go of, not deleted: a blob nothing names
+    any more is collected by the sweep (`services/blobs.py`)."""
+    if node_id is None:
+        tops = trash(v)
+    else:
+        node = v.db.get(Node, node_id)
+        if node is None or node.org_id != v.org_id or node.trashed_at is None:
+            raise no_such(node_id)
+        _writable(v, node.path)
+        tops = [node]
+    doomed: list[Node] = []
+    seen: set[str] = set()
+    queue = list(tops)
+    while queue:
+        node = queue.pop()
+        if node.id in seen or node.trashed_at is None:
+            continue
+        seen.add(node.id)
+        doomed.append(node)
+        queue.extend(v.db.scalars(select(Node).where(Node.parent_id == node.id)))
+    if not doomed:
+        return 0
+    ids = [n.id for n in doomed]
+    for start in range(0, len(ids), 500):
+        batch = ids[start:start + 500]
+        for digest in v.db.scalars(
+            select(NodeVersion.blob_hash).where(NodeVersion.node_id.in_(batch))
+        ):
+            blobs.decref(v.db, digest)
+        v.db.execute(delete(NodeVersion).where(NodeVersion.node_id.in_(batch)))
+        v.db.execute(delete(NodeShare).where(NodeShare.node_id.in_(batch)))
+    for node in doomed:
+        blobs.decref(v.db, node.blob_hash)
+    # Deepest first, so no row is ever left naming a parent that has gone.
+    for node in sorted(doomed, key=lambda n: n.path.count("/"), reverse=True):
+        v.db.delete(node)
+        v.db.flush()
+    v.refresh()
+    return len(doomed)
 
 
 def rename_subtree(db: DBSession, org_id: str, old: str, new: str) -> int:
@@ -777,14 +922,17 @@ __all__ = [
     "check_writable",
     "children",
     "count",
+    "cp",
     "ensure_dir",
     "ensure_home",
     "ensure_layout",
     "home_of",
+    "kind_of",
     "list_dir",
     "lookup",
     "mkdir",
     "mv",
+    "purge",
     "read",
     "read_stream",
     "rename_subtree",

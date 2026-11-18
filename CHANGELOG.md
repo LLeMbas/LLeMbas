@@ -5,6 +5,41 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
+### Added
+
+- **Files can be copied.** *Copy to…* in a file's or a folder's menu asks for the folder and
+  puts a copy there -- a folder with everything in it. A name that is already taken is never
+  overwritten: the copy is called `notes (2).md`. A copy costs no space (it names the same
+  contents) and starts with a history of its own.
+- **Move and Copy ask for the folder in a picker**, a tree of your folders that opens as you go,
+  instead of a path you had to type.
+- **Several files at once.** Tick the box at the start of a row (or the one in the heading, for
+  everything) and the bar above the list becomes *N selected*: move, copy, delete, or
+  **download as a zip**. Each file is done by itself -- when one cannot be moved, the others
+  still are, and the page says how many were done and why the rest was not.
+- **The trash can be emptied**, and one thing in it removed for good. Until now what went to
+  the trash stayed there for ever.
+- **An upload limit for Files**, and one for a download as a zip: Admin › Extraction › *Files*,
+  512 MB a file and 2,048 MB a zip unless you change them. A file over the limit is refused with
+  a sentence that names it and the limit; nothing of that upload is kept.
+- **Sound and video can be sought.** A file's download answers `Range`, so a player can jump
+  to the middle of a recording without fetching all of it first.
+- **For the apps (`/api/v2/files`)**: copy, save a text file (refused with what the file holds
+  now when somebody else changed it meanwhile), download any file with `Range`, the trash
+  (list, restore, remove for good), a file's versions (list, restore), move/copy/delete for a
+  list of paths with an answer for each, and a zip. Every file now says what it is
+  (`file_kind`: `markdown`, `code`, `text`, `html`, `image`, `svg`, `pdf`, `audio`, `video`,
+  `table`, `notebook`, `model3d`, `archive`, `binary`).
+
+### Changed
+
+- **What a file is, is read from the file.** Its kind and type come from its name and its first
+  bytes, never from what the browser or an app said when it was uploaded. A picture called
+  `notes.txt` is shown as a picture; text called `photo.png` is shown as text and is never
+  handed to the browser as an image. AVIF pictures are shown like PNG and JPEG. An SVG is
+  shown as its source and downloaded as a file -- it is a document that can carry script, and
+  is never served as a picture from this application.
+
 ## 2.0.0-beta.16 — 2026-11-18
 
 ### Fixed

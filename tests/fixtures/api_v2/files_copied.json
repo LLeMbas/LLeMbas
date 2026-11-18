@@ -1,0 +1,51 @@
+{
+  "path": "/home/frodo",
+  "parent": "/home",
+  "entries": [
+    {
+      "name": "recipes",
+      "path": "/home/frodo/recipes",
+      "kind": "dir",
+      "file_kind": null,
+      "size": 0,
+      "mime": "",
+      "updated_at": "2026-01-02T03:04:05+00:00"
+    },
+    {
+      "name": "lembas.md",
+      "path": "/home/frodo/lembas.md",
+      "kind": "file",
+      "file_kind": "markdown",
+      "size": 27,
+      "mime": "text/markdown",
+      "updated_at": "2026-01-02T03:04:05+00:00"
+    },
+    {
+      "name": "map.png",
+      "path": "/home/frodo/map.png",
+      "kind": "file",
+      "file_kind": "image",
+      "size": 2048,
+      "mime": "image/png",
+      "updated_at": "2026-01-02T03:04:05+00:00"
+    },
+    {
+      "name": "lembas (2).md",
+      "path": "/home/frodo/lembas (2).md",
+      "kind": "file",
+      "file_kind": "markdown",
+      "size": 27,
+      "mime": "text/markdown",
+      "updated_at": "2026-01-02T03:04:05+00:00"
+    }
+  ],
+  "copied": {
+    "name": "lembas (2).md",
+    "path": "/home/frodo/lembas (2).md",
+    "kind": "file",
+    "file_kind": "markdown",
+    "size": 27,
+    "mime": "text/markdown",
+    "updated_at": "2026-01-02T03:04:05+00:00"
+  }
+}

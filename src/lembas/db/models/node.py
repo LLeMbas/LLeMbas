@@ -67,6 +67,10 @@ class Node(UUIDPrimaryKey, Timestamps, Base):
     blob_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     size: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     mime: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+    # What the content is, by its name and its first bytes (services/file_kinds.py),
+    # settled at every write. NULL on a file written before the column was
+    # here: read again from its bytes when asked (`fs.kind_of`).
+    content_kind: Mapped[str | None] = mapped_column(String(16), nullable=True)
     # kind == mount: forge, repo, branch (later).
     mount_json: Mapped[dict[str, Any] | None] = mapped_column(JSONDict, nullable=True)
     trashed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

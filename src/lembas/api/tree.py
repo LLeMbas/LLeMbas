@@ -19,13 +19,13 @@ from __future__ import annotations
 from urllib.parse import quote
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, status
-from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 from lembas.api._redirect import back
 from lembas.api.deps import Db, RequiredUser, is_htmx
 from lembas.api.pages import sidebar_context
 from lembas.db.models import Chat, Node
-from lembas.services import file_ui, fs
+from lembas.services import file_ops, file_ui, fs
 from lembas.web.i18n import t
 from lembas.web.templating import render
 
@@ -148,8 +148,11 @@ async def explorer(request: Request, db: Db, user: RequiredUser, path: str = "/"
 
 
 @router.get("/files/dirs")
-async def tree_children(request: Request, db: Db, user: RequiredUser, path: str = "/"):
-    """One directory's subdirectories, for the tree's lazy branches."""
+async def tree_children(
+    request: Request, db: Db, user: RequiredUser, path: str = "/", pick: bool = False
+):
+    """One directory's subdirectories, for the tree's lazy branches -- and
+    (`pick`) for the folder picker's, where a name is chosen, not opened."""
     v = fs.view(db, user)
     try:
         rows = file_ui.subdirs(v, _norm(path))
@@ -157,8 +160,20 @@ async def tree_children(request: Request, db: Db, user: RequiredUser, path: str 
         rows = []
     return render(
         request,
-        "files/_tree.html",
+        "files/_picker_tree.html" if pick else "files/_tree.html",
         {"branches": [{"row": r, "open": False, "current": False, "children": None} for r in rows]},
+    )
+
+
+@router.get("/files/picker")
+async def folder_picker(request: Request, db: Db, user: RequiredUser, path: str = "/"):
+    """The folder picker's tree (Move, Copy to...): where this person's files
+    start, opened down to `path`. A fragment for `js/files.js`."""
+    v = fs.view(db, user)
+    here = _norm(path)
+    top = fs.start(v)
+    return render(
+        request, "files/_picker.html", {"tree": _tree(v, here, top), "top": top, "here": here}
     )
 
 
@@ -171,24 +186,17 @@ async def upload(
 ) -> Response:
     v = fs.view(db, user)
     where = _norm(path)
-    done = 0
     try:
-        for upload_file in files:
-            if not upload_file.filename:
-                continue
-            name = upload_file.filename.replace("\\", "/").rsplit("/", 1)[-1]
-
-            def chunks(source=upload_file):
-                while True:
-                    part = source.file.read(1024 * 1024)
-                    if not part:
-                        return
-                    yield part
-
-            target = f"{where.rstrip('/')}/{name}"
-            fs.write(v, target, chunks(), mime=upload_file.content_type or "")
-            done += 1
+        done = file_ops.store_uploads(v, where, files)
         db.commit()
+    except file_ops.TooLarge as problem:
+        db.rollback()
+        return back(
+            _here(where),
+            t("%(name)s is larger than %(n)s MB, the most that can be uploaded here.",
+              name=problem.name, n=problem.limit_mb),
+            ok=False,
+        )
     except fs.FsError as refused:
         db.rollback()
         return _refused(refused, _here(where))
@@ -273,6 +281,94 @@ async def move(
     return back(_here(where), t("Moved."))
 
 
+@router.post("/files/copy")
+async def copy(
+    db: Db, user: RequiredUser, path: str = Form(...), to: str = Form(...), back_to: str = Form("")
+):
+    """Copy `path` into the directory `to`. A name taken there is numbered."""
+    v = fs.view(db, user)
+    source = _norm(path)
+    where = _norm(back_to) if back_to else _parent(source)
+    try:
+        made = fs.cp(v, source, _norm(to))
+        db.commit()
+    except fs.FsError as refused:
+        db.rollback()
+        return _refused(refused, _here(where))
+    if made.name != source.rsplit("/", 1)[-1]:
+        return back(_here(where), t("Copied as %(name)s.", name=made.name))
+    return back(_here(where), t("Copied."))
+
+
+def _chosen(raw: str) -> list[str]:
+    """The paths a selection sent, as one JSON list (`js/files.js`)."""
+    import json
+
+    try:
+        found = json.loads(raw or "[]")
+    except ValueError:
+        found = []
+    if not isinstance(found, list):
+        return []
+    return [p for p in found if isinstance(p, str) and p][: file_ops.BATCH_MAX]
+
+
+@router.post("/files/batch")
+async def batch(
+    db: Db,
+    user: RequiredUser,
+    op: str = Form(...),
+    paths: str = Form("[]"),
+    to: str = Form(""),
+    back_to: str = Form("/"),
+):
+    """Move, copy or delete what is selected. Each path by itself: what could
+    be done is done, and the page says how many and why the rest was not."""
+    where = _norm(back_to)
+    chosen = _chosen(paths)
+    if op not in file_ops.OPS or not chosen or (op != "delete" and not to):
+        return back(_here(where), t("Choose at least one file or folder."), ok=False)
+    results = file_ops.batch(fs.view(db, user), op, chosen, _norm(to) if to else "")
+    done = sum(1 for r in results if r["ok"])
+    failed = [r for r in results if not r["ok"]]
+    if failed:
+        return back(
+            _here(where),
+            t("Done: %(done)s. Not done: %(failed)s. %(reason)s",
+              done=done, failed=len(failed), reason=failed[0].get("error", "")),
+            ok=False,
+        )
+    said = {"move": t("Moved: %(n)s.", n=done), "copy": t("Copied: %(n)s.", n=done),
+            "delete": t("Moved to the trash: %(n)s.", n=done)}
+    return back(_here(where), said[op])
+
+
+@router.post("/files/zip")
+async def zip_download(
+    db: Db, user: RequiredUser, paths: str = Form("[]"), back_to: str = Form("/")
+):
+    """What is selected, as one zip: written as it is read, and refused before
+    the first byte when it would hold more than the administrator allows."""
+    from lembas.api._download import zip_response
+
+    where = _norm(back_to)
+    chosen = _chosen(paths)
+    if not chosen:
+        return back(_here(where), t("Choose at least one file or folder."), ok=False)
+    try:
+        entries = file_ops.zip_plan(fs.view(db, user), [_norm(p) for p in chosen])
+    except file_ops.TooLarge as problem:
+        return back(
+            _here(where),
+            t("That is more than %(n)s MB, the most a zip may hold. Choose less.",
+              n=problem.limit_mb),
+            ok=False,
+        )
+    except fs.FsError as refused:
+        return _refused(refused, _here(where))
+    return zip_response(entries, file_ops.zip_name(chosen))
+
+
 @router.post("/files/delete")
 async def delete(db: Db, user: RequiredUser, path: str = Form(...)):
     v = fs.view(db, user)
@@ -313,6 +409,19 @@ async def restore(db: Db, user: RequiredUser, node_id: str = Form(...)):
         db.rollback()
         return _refused(refused, "/files/trash")
     return back("/files/trash", t("Restored."))
+
+
+@router.post("/files/trash/empty")
+async def empty_trash(db: Db, user: RequiredUser, node_id: str = Form("")):
+    """Remove for good: one thing in the trash, or everything in it."""
+    v = fs.view(db, user)
+    try:
+        fs.purge(v, node_id or None)
+        db.commit()
+    except fs.FsError as refused:
+        db.rollback()
+        return _refused(refused, "/files/trash")
+    return back("/files/trash", t("Removed for good."))
 
 
 # --- Looking at a file ---------------------------------------------------------------
@@ -368,28 +477,26 @@ async def view_page(
     })
 
 
-def _download(node: Node, chunks, *, inline: bool) -> Response:
-    headers = {
-        "X-Content-Type-Options": "nosniff",
-        "Cache-Control": "private, no-store",
-        "Content-Security-Policy": "default-src 'none'; sandbox",
-    }
-    if inline and node.mime in file_ui.INLINE_IMAGES:
-        return StreamingResponse(chunks, media_type=node.mime, headers=headers)
-    from lembas.services.files import content_disposition
+def _send(request: Request, found: file_ui.Download, *, inline: bool) -> Response:
+    from lembas.api import _download
 
-    headers["Content-Disposition"] = content_disposition("attachment", node.name)
-    return StreamingResponse(chunks, media_type="application/octet-stream", headers=headers)
+    return _download.respond(
+        found.name, found.digest, found.size, found.kind, inline=inline,
+        range_header=request.headers.get("range"), if_range=request.headers.get("if-range"),
+    )
 
 
 @router.get("/files/raw")
-async def raw(db: Db, user: RequiredUser, path: str, version: str = "", inline: bool = False):
+async def raw(
+    request: Request, db: Db, user: RequiredUser, path: str, version: str = "",
+    inline: bool = False,
+):
     v = fs.view(db, user)
     try:
-        node, chunks = file_ui.stream(v, _norm(path), version)
+        found = file_ui.download(v, _norm(path), version)
     except fs.FsError as refused:
         raise HTTPException(status.HTTP_404_NOT_FOUND, refused.message) from refused
-    return _download(node, chunks, inline=inline)
+    return _send(request, found, inline=inline)
 
 
 def _sealed(text: str) -> Response:
@@ -621,14 +728,15 @@ async def chat_show_frame(
 
 @router.get("/chat/{chat_id}/show/raw")
 async def chat_show_raw(
-    db: Db, user: RequiredUser, chat_id: str, node: str, version: str = "", inline: bool = False
+    request: Request, db: Db, user: RequiredUser, chat_id: str, node: str, version: str = "",
+    inline: bool = False,
 ):
     _chat, found, v = _chat_node(db, user, chat_id, node)
     try:
-        row, chunks = file_ui.stream(v, found.path, version)
+        sent = file_ui.download(v, found.path, version)
     except fs.FsError as refused:
         raise HTTPException(status.HTTP_404_NOT_FOUND, refused.message) from refused
-    return _download(row, chunks, inline=inline)
+    return _send(request, sent, inline=inline)
 
 
 @router.get("/chat/{chat_id}/undo")

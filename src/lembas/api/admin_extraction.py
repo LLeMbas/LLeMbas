@@ -112,6 +112,8 @@ async def save_extraction(
     db: Db,
     user: AdminUser,
     max_upload_mb: int = Form(20),
+    tree_upload_mb: int = Form(512),
+    tree_zip_mb: int = Form(2048),
     max_image_edge: int = Form(1400),
     jpeg_quality: int = Form(85),
     max_pdf_pages: int = Form(300),
@@ -127,6 +129,8 @@ async def save_extraction(
             # give: a number with no bound is a way to break the instance from
             # a form.
             "max_upload_mb": min(max(max_upload_mb, 1), 512),
+            "tree_upload_mb": min(max(tree_upload_mb, 1), 102_400),
+            "tree_zip_mb": min(max(tree_zip_mb, 1), 102_400),
             "max_image_edge": min(max(max_image_edge, 128), 8192),
             "jpeg_quality": min(max(jpeg_quality, 30), 100),
             "max_pdf_pages": min(max(max_pdf_pages, 1), 5000),

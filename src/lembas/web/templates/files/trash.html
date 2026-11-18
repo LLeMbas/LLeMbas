@@ -14,6 +14,14 @@
   <p class="empty__text">{{ t("The trash is empty.") }}</p>
 </div>
 {% else %}
+<p class="files-trash__tools">
+  <button class="btn btn--sm btn--danger" type="button" hx-post="/files/trash/empty" {{ in_place() }}
+          data-testid="trash-empty"
+          hx-confirm="{{ t('Remove everything in the trash for good? This cannot be undone.') }}"
+          data-confirm-title="{{ t('Empty the trash') }}" data-confirm-label="{{ t('Empty the trash') }}">
+    {{ icon("trash", "icon--sm") }} {{ t("Empty the trash") }}
+  </button>
+</p>
 <div class="file-rows file-rows--trash" role="table" aria-label="{{ t('Trash') }}">
   {% for node in items %}
   <div class="file-row" role="row" data-testid="trash-row">
@@ -25,6 +33,12 @@
     <span role="cell" class="file-row__actions">
       <button class="btn btn--sm" type="button" hx-post="/files/restore"
               hx-vals='{"node_id": {{ node.id|tojson }}}' {{ in_place() }}>{{ t("Restore") }}</button>
+      <button class="btn btn--icon btn--sm" type="button" hx-post="/files/trash/empty"
+              hx-vals='{"node_id": {{ node.id|tojson }}}' {{ in_place() }}
+              hx-confirm="{{ t('Remove “%(name)s” for good? This cannot be undone.', name=node.name) }}"
+              data-confirm-title="{{ t('Remove for good') }}" data-confirm-label="{{ t('Remove for good') }}"
+              aria-label="{{ t('Remove %(name)s for good', name=node.name) }}"
+              title="{{ t('Remove for good') }}">{{ icon("trash", "icon--sm") }}</button>
     </span>
   </div>
   {% endfor %}

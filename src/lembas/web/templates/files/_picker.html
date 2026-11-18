@@ -1,0 +1,10 @@
+{% from "_macros.html" import icon %}
+{#- The folder picker's tree, from where this person's files start, opened
+    down to the folder they are in (`GET /files/picker`, js/files.js). -#}
+<div class="fpick" data-pick-tree data-testid="folder-picker">
+  <button class="ftree__link fpick__dir ftree__root" type="button" data-pick-dir="{{ top }}"
+          aria-pressed="false">
+    {{ icon("folder-open", "icon--sm") }}<span class="ftree__name">{{ t("All files") if top == "/" else t("Home") }}</span>
+  </button>
+  {% if tree %}{% with branches = tree %}{% include "files/_picker_tree.html" %}{% endwith %}{% endif %}
+</div>

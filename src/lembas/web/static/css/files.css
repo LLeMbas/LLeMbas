@@ -34,6 +34,23 @@
 .fx__tools { display: flex; align-items: center; gap: var(--sp-2); }
 .fx__tools:empty { display: none; }
 
+/* The batch bar: while anything is selected it stands where the tools stood.
+   Every control in it is the tools' own small button, so the bar is as tall
+   as it was and the list below does not move. The count is the part that
+   gives; the buttons are their labels' width (their icons' on a phone). */
+.fx__batch { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+.fx__batch[hidden] { display: none !important; }
+.fx__batch .btn { flex: none; }
+.fx__batch-count {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+.fx.is-selecting .fx__tools > :not(.fx__batch) { display: none; }
+
 .fx__panes {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -152,6 +169,22 @@
   border-radius: 0;
 }
 .file-row__name { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+/* The selection box: a square of the small control's size, in the head row
+   and in every row, so "Name" stands over the names by construction. Above
+   the link that covers the row. */
+.file-row__pick {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  cursor: pointer;
+}
+.file-row__pick input { margin: 0; accent-color: var(--accent); cursor: pointer; }
+.file-row.is-selected { background: var(--surface-active); }
 .file-row__open {
   display: inline-flex;
   align-items: center;
@@ -174,6 +207,32 @@
 .file-row__actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-1); }
 .file-row__run { color: var(--leaf); }
 .file-row[draggable="true"] { cursor: grab; }
+.files-trash__tools { display: flex; justify-content: flex-end; margin: 0 0 var(--sp-3); }
+
+/* --- The folder picker (Move, Copy to...) ------------------------------------- */
+.fpick__body {
+  height: var(--h-list);
+  max-height: 50vh;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--sp-2);
+}
+.fpick__dir {
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}
+.fpick > .ftree { padding-left: 0; }
+.fpick__where { border: 0; border-radius: var(--radius-sm); }
+@media (pointer: coarse), (max-width: 40rem) {
+  .fpick__dir { min-height: var(--tap-min); }
+}
+
 .file-rows--trash { grid-template-columns: minmax(0, 1fr) auto auto; }
 .file-rows--trash .file-row { margin: 0; padding: 0; }
 

@@ -146,6 +146,41 @@ def iter_parts(db: DBSession, digest: str) -> Iterator[bytes]:
         yield bytes(part[0])
 
 
+def head(db: DBSession, digest: str, count: int) -> bytes:
+    """The first `count` bytes, without reading the part they are in."""
+    row = db.execute(
+        select(func.substr(blob_parts.c.data, 1, count)).where(
+            blob_parts.c.hash == digest, blob_parts.c.seq == 0
+        )
+    ).first()
+    return bytes(row[0]) if row is not None and row[0] is not None else b""
+
+
+def iter_range(db: DBSession, digest: str, start: int, end: int) -> Iterator[bytes]:
+    """Bytes `start` to `end` inclusive, part by part. Every part but the last
+    is `PART_SIZE` long (`put_stream` cuts them so), which is what lets a
+    range begin at the part it falls in rather than at the first."""
+    if end < start:
+        return
+    row = db.execute(select(blobs.c.parts).where(blobs.c.hash == digest)).first()
+    if row is None:
+        raise BlobMissing(digest)
+    last = min(end // PART_SIZE, int(row[0]) - 1)
+    for seq in range(start // PART_SIZE, last + 1):
+        base = seq * PART_SIZE
+        lo = max(start - base, 0)
+        hi = min(end - base, PART_SIZE - 1)
+        part = db.execute(
+            select(func.substr(blob_parts.c.data, lo + 1, hi - lo + 1)).where(
+                blob_parts.c.hash == digest, blob_parts.c.seq == seq
+            )
+        ).first()
+        if part is None:
+            raise BlobMissing(f"{digest} part {seq}")
+        if part[0]:
+            yield bytes(part[0])
+
+
 def read_bytes(db: DBSession, digest: str) -> bytes:
     """The whole content. For what is known to be small; stream the rest."""
     return b"".join(iter_parts(db, digest))
@@ -202,8 +237,10 @@ __all__ = [
     "BlobMissing",
     "decref",
     "exists",
+    "head",
     "incref",
     "iter_parts",
+    "iter_range",
     "put_bytes",
     "put_stream",
     "read_bytes",

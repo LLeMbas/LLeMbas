@@ -1,0 +1,19 @@
+{
+  "op": "move",
+  "to": "/home/frodo/recipes",
+  "atomic": false,
+  "results": [
+    {
+      "path": "/home/frodo/lembas.md",
+      "ok": true,
+      "to": "/home/frodo/recipes/lembas.md"
+    },
+    {
+      "path": "/home/frodo/map.png",
+      "ok": false,
+      "error": "Read-only: /home/frodo/map.png can be read in this session but not changed."
+    }
+  ],
+  "done": 1,
+  "failed": 1
+}

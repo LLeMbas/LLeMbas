@@ -468,6 +468,11 @@ def _extraction_defaults() -> dict[str, Any]:
     """
     return {
         "max_upload_mb": 20,
+        # The file tree's own ceilings (services/file_ops.py), apart from an
+        # attachment's above: the largest file that may be uploaded into
+        # Files, and the most a download as a zip may hold. Megabytes.
+        "tree_upload_mb": 512,
+        "tree_zip_mb": 2048,
         "max_image_edge": 1400,
         "jpeg_quality": 85,
         "max_pdf_pages": 300,
@@ -502,6 +507,8 @@ def extraction(db: DBSession) -> dict[str, Any]:
     """
     values = get_group(db, EXTRACTION)
     values["max_upload_mb"] = min(max(int(values.get("max_upload_mb") or 1), 1), 512)
+    values["tree_upload_mb"] = min(max(int(values.get("tree_upload_mb") or 1), 1), 102_400)
+    values["tree_zip_mb"] = min(max(int(values.get("tree_zip_mb") or 1), 1), 102_400)
     values["max_image_edge"] = min(max(int(values.get("max_image_edge") or 1), 128), 8192)
     values["jpeg_quality"] = min(max(int(values.get("jpeg_quality") or 1), 30), 100)
     values["max_pdf_pages"] = min(max(int(values.get("max_pdf_pages") or 1), 1), 5000)
