@@ -5,6 +5,8 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
+## 2.0.0-beta.15 — 2026-11-18
+
 ### Added
 
 - **Media from connections: a connection can carry its own speech and image models.** Until
