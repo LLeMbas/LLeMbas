@@ -1100,6 +1100,29 @@ def model_ref(model) -> str:
     return f"{provider}/{model.model_id}"
 
 
+def _connection_for(row) -> Connection | None:
+    """The connection a stored row names, read through the row's own session."""
+    from sqlalchemy.orm import object_session
+
+    connection_id = getattr(row, "connection_id", None)
+    session = object_session(row) if connection_id else None
+    return session.get(Connection, connection_id) if session is not None else None
+
+
+def ref_of(row) -> str | None:
+    """`provider/model` for a row that stores a chosen model **and its
+    connection** -- a chat, a message, a schedule, a run: the same name
+    `model_ref` gives a model, built from what the row itself kept, never
+    looked up by the model id (two connections may serve one id, and the
+    first found is not the one chosen). None when the row names no model, no
+    connection, or a connection that has gone."""
+    model_id = (getattr(row, "model_id", "") or "").strip()
+    if not model_id:
+        return None
+    connection = _connection_for(row)
+    return f"{connection.provider_name}/{model_id}" if connection is not None else None
+
+
 def pick_model(rows: list[Model], value: str | None, connection_id: str | None = None):
     """The row a chosen model names, among `rows` in their order: by its ref
     (`provider/model`, exact) first, else by its model id -- on
@@ -1547,5 +1570,6 @@ __all__ = [
     "model_ref",
     "pick_model",
     "resolve_endpoint",
+    "ref_of",
     "twin_ids",
 ]

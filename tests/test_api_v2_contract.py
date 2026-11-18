@@ -43,6 +43,7 @@ def _chat() -> Chat:
         kind="chat",
         title="Waybread",
         model_id="qwen",
+        connection_id="conn1",
         folder_id=None,
         pinned=False,
         archived=False,
@@ -160,6 +161,7 @@ def _assistant() -> Message:
         id="msg2",
         chat_id="chat1",
         role="assistant",
+        connection_id="conn1",
         content=TEXT + LATER,
         reasoning=THINKING,
         reasoning_ms=1200,
@@ -757,7 +759,7 @@ def _schedules() -> dict[str, object]:
         id="sched1", user_id="user1", title="Waybread check",
         instruction="Check the waybread is wrapped.", request="every second Monday at 7:30",
         rule_json=rule.validate({"at": {"nth": [{"n": 2, "weekday": 0}], "times": ["07:30"]}}),
-        target="chat", chat_id="chat1", model_id="qwen", enabled=True,
+        target="chat", chat_id="chat1", model_id="qwen", connection_id="conn1", enabled=True,
         next_fire_at=datetime(2026, 1, 12, 7, 30, tzinfo=UTC), fired_count=3,
         last_error="", origin="user", mode="fresh", notify="when", catch_up="one",
         grace_minutes=None, effort="high", agents=None, tools_json=[], failure_streak=0,
@@ -1035,6 +1037,24 @@ def _tree() -> dict[str, object]:
 
 
 def _shapes() -> dict[str, object]:
+    """Every shape. The rows here belong to no session, so the connection a
+    row stores (`conn1`) is answered for it: `model_ref` on a chat, a message,
+    a schedule and a run is `provider/model` from that connection."""
+    from lembas.db.models import Connection
+    from lembas.services import chat as chat_service
+
+    local = Connection(name="Local", provider="local", base_url="http://127.0.0.1:1/v1")
+    real = chat_service._connection_for
+    chat_service._connection_for = (
+        lambda row: local if getattr(row, "connection_id", None) == "conn1" else None
+    )
+    try:
+        return _built()
+    finally:
+        chat_service._connection_for = real
+
+
+def _built() -> dict[str, object]:
     generation = _generation()
     # A call running right now (harness spec 3.7.0): in the tail's `calls`,
     # serialised as a finished one, `block.state: "running"`.

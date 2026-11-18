@@ -9,6 +9,7 @@
   "machine": false,
   "origin": "",
   "model": "qwen",
+  "model_ref": null,
   "attachments": [],
   "end": {
     "phase": "failed",

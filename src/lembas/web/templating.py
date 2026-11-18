@@ -240,6 +240,18 @@ def asset(path: str) -> str:
 templates.env.globals["asset"] = asset
 
 
+def _model_ref(model) -> str:
+    """A model named with its connection (`provider/model`): what a form
+    posts, so the model chosen is that connection's and not the first of two
+    serving one id."""
+    from lembas.services import chat as chat_service
+
+    return chat_service.model_ref(model)
+
+
+templates.env.globals["model_ref"] = _model_ref
+
+
 # One source for the two colours the browser paints before any stylesheet has
 # loaded. `tokens.css` is hand-written and is the place colours live, so the
 # `theme-color` metas read their values out of it rather than repeating the hex

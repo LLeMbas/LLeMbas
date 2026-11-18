@@ -186,6 +186,14 @@ def agents(row: Chat, cap: int | None = None) -> dict[str, int]:
     return {"min": low, "max": high}
 
 
+def stored_ref(row: Any) -> str | None:
+    """`provider/model` from the connection a row itself stores
+    (`chat_service.ref_of`), or null."""
+    from lembas.services import chat as chat_service
+
+    return chat_service.ref_of(row)
+
+
 def chat(
     row: Chat,
     *,
@@ -206,6 +214,11 @@ def chat(
         "kind": row.kind,
         "title": row.title,
         "model": row.model_id,
+        # Which connection's model it is, as `provider/model` (a model's
+        # `ref` in `GET /models`): the id alone does not say when two
+        # connections serve it. Null when the chat's connection is unknown
+        # or gone.
+        "model_ref": stored_ref(row),
         "folder_id": row.folder_id,
         "pinned": bool(row.pinned),
         "archived": bool(row.archived),
@@ -738,6 +751,8 @@ def message(row: Message, *, ahead: int | None = None) -> dict[str, Any]:
         "machine": bool(row.machine),
         "origin": row.origin or "",
         "model": row.model_id or None,
+        # The connection that answered, as on a chat (`model_ref`).
+        "model_ref": stored_ref(row),
         "attachments": [attachment(a) for a in row.attachments],
     }
     if row.role == "assistant":

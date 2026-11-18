@@ -3,6 +3,7 @@
   "kind": "report",
   "title": "Two cakes are unwrapped",
   "model": "qwen",
+  "model_ref": "local/qwen",
   "folder_id": null,
   "pinned": false,
   "archived": false,

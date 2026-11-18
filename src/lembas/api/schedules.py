@@ -171,6 +171,7 @@ def _settings_defaults(schedule: Schedule | None, rule: dict) -> dict:
         }
     return {
         "model_id": schedule.model_id or "",
+        "connection_id": schedule.connection_id or "",
         "notify": notify.policy(schedule.notify, rule),
         "notify_when": schedule.notify_when or "",
         "save_file": bool(schedule.save_file or schedule.target == TARGET_REPORT),
@@ -405,6 +406,8 @@ def _context(db, user, schedule: Schedule | None, *, error: str = "") -> dict:
         "agentic_offered": any(d["accepts"] for d in devices),
         "device_modes": [(m, policy.MODE_LABELS[m]) for m in scheduled_device.modes()],
         "models": models,
+        # Ids two connections serve: the form names the connection beside each.
+        "shared_ids": chat_service.twin_ids(models),
         "levels": _levels(models),
         "team_offered": _team_offered(db, user, models),
         "timezone": clock.name_for(user) or str(clock.server_zone()),

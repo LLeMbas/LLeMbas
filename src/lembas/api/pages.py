@@ -1126,8 +1126,10 @@ async def chat_detail(
     # wrong source is worse than one naming none, because it is believed.
     inherited, inherited_from = "", ""
     folder_prompt = chat_service.folder_system_prompt(db, chat)
-    current = next(
-        (m for m in chat_service.available_models(db, user) if m.model_id == chat.model_id), None
+    # The chat's own connection's row: two connections may serve the id, and
+    # each row has a prompt of its own.
+    current = chat_service.pick_model(
+        chat_service.available_models(db, user), chat.model_id, chat.connection_id
     )
     if folder_prompt:
         inherited, inherited_from = folder_prompt, "folder"

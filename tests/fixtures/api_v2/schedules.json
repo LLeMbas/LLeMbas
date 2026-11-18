@@ -38,6 +38,7 @@
       "catch_up": "one",
       "grace_minutes": null,
       "model": "qwen",
+      "model_ref": "local/qwen",
       "effort": "high",
       "agents": null,
       "tools": [
@@ -71,6 +72,7 @@
         "attempts": 1,
         "model": {
           "id": "gpt-oss",
+          "ref": "local/gpt-oss",
           "name": "GPT-OSS",
           "reason": "switched",
           "switched_from": "Qwen"

@@ -20,6 +20,7 @@
       "attempts": 2,
       "model": {
         "id": null,
+        "ref": null,
         "name": null,
         "reason": null,
         "switched_from": null
@@ -60,6 +61,7 @@
       "attempts": 1,
       "model": {
         "id": "gpt-oss",
+        "ref": "local/gpt-oss",
         "name": "GPT-OSS",
         "reason": "switched",
         "switched_from": "Qwen"

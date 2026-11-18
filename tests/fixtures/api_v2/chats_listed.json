@@ -5,6 +5,7 @@
       "kind": "chat",
       "title": "Waybread",
       "model": "qwen",
+      "model_ref": "local/qwen",
       "folder_id": null,
       "pinned": false,
       "archived": false,

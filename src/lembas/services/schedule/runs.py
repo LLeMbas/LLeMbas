@@ -354,6 +354,9 @@ def run_dict(row: ScheduleRun) -> dict[str, Any]:
         "attempts": int(row.attempts or 0),
         "model": {
             "id": row.model_id or None,
+            # `provider/model`, from the connection the run kept: which of two
+            # connections serving one id it ran on. Null when unknown or gone.
+            "ref": _ref(row),
             "name": row.model_label or row.model_id or None,
             "reason": row.model_reason or None,
             "switched_from": row.switched_from or None,
@@ -475,6 +478,7 @@ def schedule_dict(
         "catch_up": schedule.catch_up,
         "grace_minutes": schedule.grace_minutes,
         "model": schedule.model_id or None,
+        "model_ref": _ref(schedule),
         "effort": schedule.effort or None,
         "agents": schedule.agents,
         "tools": list(tools_for(schedule)),
@@ -491,6 +495,11 @@ def schedule_dict(
         "running": bool(last is not None and last.status == RUN_RUNNING),
         "created_at": _iso(schedule.created_at),
     }
+
+def _ref(row) -> str | None:
+    from lembas.services import chat as chat_service
+
+    return chat_service.ref_of(row)
 
 
 __all__ = [

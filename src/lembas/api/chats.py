@@ -1053,9 +1053,9 @@ async def device_model_badge(
     chat = _owned_chat(db, chat_id, user.id)
     label = ""
     if not chat.device_model:
-        current = next(
-            (m for m in chat_service.available_models(db, user) if m.model_id == chat.model_id),
-            None,
+        # The chat's own connection's row: two connections may serve the id.
+        current = chat_service.pick_model(
+            chat_service.available_models(db, user), chat.model_id, chat.connection_id
         )
         label = current.label if current is not None else ""
     return templates.TemplateResponse(

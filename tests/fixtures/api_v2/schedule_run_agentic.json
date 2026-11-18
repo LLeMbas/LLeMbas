@@ -14,6 +14,7 @@
     "attempts": 1,
     "model": {
       "id": "qwen",
+      "ref": "local/qwen",
       "name": "Qwen",
       "reason": "directory",
       "switched_from": null

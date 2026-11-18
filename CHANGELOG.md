@@ -30,6 +30,9 @@ at <https://llembas.eu/changelog.html>.
   list of paths with an answer for each, and a zip. Every file now says what it is
   (`file_kind`: `markdown`, `code`, `text`, `html`, `image`, `svg`, `pdf`, `audio`, `video`,
   `table`, `notebook`, `model3d`, `archive`, `binary`).
+- **For the apps: which connection a model is on.** A chat, a message, a schedule and a
+  schedule's run carry `model_ref` (`provider/model`) beside `model`, from the connection they
+  were actually given. A schedule can be created or changed with such a ref.
 
 ### Changed
 
@@ -39,6 +42,17 @@ at <https://llembas.eu/changelog.html>.
   handed to the browser as an image. AVIF pictures are shown like PNG and JPEG. An SVG is
   shown as its source and downloaded as a file -- it is a document that can carry script, and
   is never served as a picture from this application.
+
+### Fixed
+
+- **With one model id on two connections, a schedule could not be given the second one.** The
+  schedule form listed both under the same value and saved whichever came first. It now names
+  each with its connection, and keeps the one you chose.
+- **The same mix-up in two smaller places**: a chat's settings showed the *other* connection's
+  model prompt as the inherited one, and an agent chat's model badge its name.
+- **An app showed the wrong connection for such a chat** (the reply itself always went to the
+  right one): the server sent only the model id, and the app took the first match. See
+  `model_ref` above.
 
 ## 2.0.0-beta.16 — 2026-11-18
 

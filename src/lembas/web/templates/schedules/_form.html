@@ -129,7 +129,7 @@
     <select class="select" id="schedule-device-model" name="device_model_id">
       <option value="">{{ t("The folder's usual model") }}</option>
       {% for model in models %}
-      <option value="{{ model.model_id }}" {{ 'selected' if form.model_id == model.model_id }}>{{ model.display_name or model.model_id }}</option>
+      <option value="{{ model_ref(model) }}" {{ 'selected' if form.model_id == model.model_id and (not form.connection_id or form.connection_id == model.connection_id) }}>{{ model.display_name or model.model_id }}{% if model.model_id in shared_ids|default([]) %} ({{ model.connection.name }}){% endif %}</option>
       {% endfor %}
     </select>
     <p class="field__hint">{{ t("The folder's usual model is the one you last used in that folder on that computer — the computer remembers it, and each run asks it — or your default model where there is none. A model chosen here is the run's, whatever the folder's is. A run never changes the folder's model.") }}</p>
@@ -265,7 +265,7 @@
     <select class="select" id="schedule-model" name="model_id">
       <option value="">{{ t("The first free one of your scheduling models") }}</option>
       {% for model in models %}
-      <option value="{{ model.model_id }}" {{ 'selected' if form.model_id == model.model_id }}>{{ model.display_name or model.model_id }}</option>
+      <option value="{{ model_ref(model) }}" {{ 'selected' if form.model_id == model.model_id and (not form.connection_id or form.connection_id == model.connection_id) }}>{{ model.display_name or model.model_id }}{% if model.model_id in shared_ids|default([]) %} ({{ model.connection.name }}){% endif %}</option>
       {% endfor %}
     </select>
     <p class="field__hint">{{ t("Tried first. When it is busy answering someone, the next free model runs it instead.") }}</p>

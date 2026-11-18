@@ -23,6 +23,7 @@
     "catch_up": "one",
     "grace_minutes": null,
     "model": null,
+    "model_ref": null,
     "effort": null,
     "agents": null,
     "tools": [
@@ -74,6 +75,7 @@
       "attempts": 1,
       "model": {
         "id": null,
+        "ref": null,
         "name": null,
         "reason": null,
         "switched_from": null

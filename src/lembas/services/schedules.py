@@ -246,8 +246,9 @@ def apply_watch(schedule: Schedule, value: object) -> None:
 
 
 def model_choice(db: DBSession, owner: User, model_id: str) -> tuple[str, str | None]:
-    """A first-choice model id, checked against what the person may use: the
-    id and its connection, or ("", None) for "the scheduling list decides"."""
+    """A first-choice model -- its ref (`provider/model`) or its bare id --
+    checked against what the person may use: the id and its connection, or
+    ("", None) for "the scheduling list decides"."""
     from lembas.services import chat as chat_service
 
     model_id = (model_id or "").strip()
@@ -255,7 +256,15 @@ def model_choice(db: DBSession, owner: User, model_id: str) -> tuple[str, str | 
         return "", None
     from lembas.services import interactive
 
-    rows = [m for m in chat_service.available_models(db, owner) if m.model_id == model_id]
+    offered = chat_service.available_models(db, owner)
+    # Named with its connection (`provider/model`, what a picker sends): that
+    # one, and no other that happens to serve the same id.
+    exact = next((m for m in offered if chat_service.model_ref(m) == model_id), None)
+    if exact is not None:
+        if interactive.model_only(exact):
+            raise ScheduleError(INTERACTIVE_ONLY)
+        return exact.model_id, exact.connection_id
+    rows = [m for m in offered if m.model_id == model_id]
     if not rows:
         raise ScheduleError(N_("That model is not one you can use."))
     # The same id on two connections: the one scheduled work may use.
