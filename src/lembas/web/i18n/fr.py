@@ -2817,3 +2817,51 @@ MESSAGES.update(
         'The earlier turns of this chat were not summarised: its model is on a connection for interactive use only, and there is no other model to ask for the summary. Switch model or start a new chat before the conversation outgrows this one.': "Les échanges précédents de cette conversation n'ont pas été résumés : son modèle est sur une connexion réservée à l'usage interactif, et il n'y a pas d'autre modèle à qui demander le résumé. Changez de modèle ou commencez une nouvelle conversation avant que celle-ci ne dépasse ce modèle.",
     }
 )
+
+# Media from connections: speech and pictures a connection carries itself.
+MESSAGES.update(
+    {
+        'Speech and pictures': 'Voix et images',
+        "Use this connection's own speech models for its chats": 'Utiliser les modèles vocaux propres à cette connexion pour ses discussions',
+        "Use this connection's own image model for its chats": "Utiliser le modèle d'image propre à cette connexion pour ses discussions",
+        'On': 'Actif',
+        'Speech to text': 'Voix vers texte',
+        'Text to speech': 'Texte vers voix',
+        'model id': 'id du modèle',
+        'voice': 'voix',
+        'per minute': 'par minute',
+        'per 1M characters': 'par million de caractères',
+        'per picture': 'par image',
+        "A chat whose model is on this connection uses these when the switch above is on and a model of that kind is ticked — the first ticked one. Otherwise, and once when this connection's own does not answer, the instance's default under Audio and Image generation is used; the result says which answered. A chat on another connection is never sent here unless you make one of these the default there. To remove a model, clear its id.": "Une discussion dont le modèle est sur cette connexion les utilise lorsque l'interrupteur ci-dessus est activé et qu'un modèle de ce type est coché — le premier coché. Sinon, et une fois lorsque celui de cette connexion ne répond pas, c'est la source par défaut de l'instance, dans Audio et Génération d'images, qui est utilisée ; le résultat dit laquelle a répondu. Une discussion sur une autre connexion n'est jamais envoyée ici, sauf si vous faites de l'un de ces modèles la source par défaut là-bas. Pour retirer un modèle, effacez son id.",
+        "On a plan this is for a person's own turns only — dictation, a reply they asked to hear, a picture inside their own reply — never for scheduled work or a personal API key, and it is counted, not priced.": "Sur un forfait, ceci ne sert qu'aux tours d'une personne — la dictée, une réponse qu'elle a demandé à entendre, une image dans sa propre réponse — jamais au travail planifié ni à une clé d'API personnelle, et c'est compté, non tarifé.",
+        'These are the <strong>defaults</strong>, for connections without speech models of their own. A connection can carry its own under <a href="/admin/connections">Connections</a>; a chat on it then uses those, and comes back here once if they do not answer.': 'Ce sont les sources <strong>par défaut</strong>, pour les connexions sans modèles vocaux propres. Une connexion peut avoir les siens dans <a href="/admin/connections">Connexions</a> ; une discussion sur celle-ci les utilise alors et revient ici une fois s\'ils ne répondent pas.',
+        'Default source': 'Source par défaut',
+        'The endpoint below': "Le point d'accès ci-dessous",
+        "A connection's own model can be the default instead of the endpoint below. Chats on every connection without its own are then sent there, so choose a cloud one only on purpose.": "Le modèle propre à une connexion peut être la source par défaut à la place du point d'accès ci-dessous. Les discussions de toute connexion sans le sien y sont alors envoyées : ne choisissez un modèle dans le cloud que délibérément.",
+        "These are the endpoints' prices; a connection's own model has its price beside it.": "Ce sont les prix des points d'accès ; le modèle propre à une connexion a son prix à côté de lui.",
+        'What is set on this page is the <strong>default</strong>, for connections without an image model of their own. A connection can carry its own under <a href="/admin/connections">Connections</a>; a chat on it then draws with that, and comes back here once if it does not answer.': 'Ce qui est réglé sur cette page est la source <strong>par défaut</strong>, pour les connexions sans modèle d\'image propre. Une connexion peut avoir le sien dans <a href="/admin/connections">Connexions</a> ; une discussion sur celle-ci dessine alors avec lui et revient ici une fois s\'il ne répond pas.',
+        'The ComfyUI below': 'Le ComfyUI ci-dessous',
+        "A connection's own model can be the default instead of the ComfyUI. Chats on every connection without its own are then sent there, so choose a cloud one only on purpose. Workflows, checkpoints, review and the price below belong to the ComfyUI.": 'Le modèle propre à une connexion peut être la source par défaut à la place du ComfyUI. Les discussions de toute connexion sans le sien y sont alors envoyées : ne choisissez un modèle dans le cloud que délibérément. Les workflows, les checkpoints, la vérification et le prix ci-dessous appartiennent au ComfyUI.',
+        'QwenCloud, Singapore': 'QwenCloud, Singapour',
+        'QwenCloud, US (Virginia)': 'QwenCloud, États-Unis (Virginie)',
+        'QwenCloud, Germany (Frankfurt)': 'QwenCloud, Allemagne (Francfort)',
+        'QwenCloud, Japan (Tokyo)': 'QwenCloud, Japon (Tokyo)',
+        'QwenCloud, China (Hong Kong)': 'QwenCloud, Chine (Hong Kong)',
+        'QwenCloud, China (Beijing)': 'QwenCloud, Chine (Pékin)',
+        'Token Plan, QwenCloud': 'Token Plan, QwenCloud',
+        "This connection's base URL is not an address.": "L'URL de base de cette connexion n'est pas une adresse.",
+        '%(name)s answered %(status)s: %(said)s': '%(name)s a répondu %(status)s : %(said)s',
+        "The provider's answer named no result.": "La réponse du fournisseur n'indiquait aucun résultat.",
+        "The provider's result could not be fetched: %(why)s": "Le résultat du fournisseur n'a pas pu être récupéré : %(why)s",
+        "The provider's result is larger than this server keeps.": 'Le résultat du fournisseur est plus volumineux que ce que ce serveur conserve.',
+        'Nothing is configured to do that on this instance.': "Rien n'est configuré pour faire cela sur cette instance.",
+        'The image endpoint returned a picture that could not be read.': "Le point d'accès d'images a renvoyé une image illisible.",
+        'The image endpoint returned no picture.': "Le point d'accès d'images n'a renvoyé aucune image.",
+        'That recording is longer than this provider transcribes at once.': 'Cet enregistrement est plus long que ce que ce fournisseur transcrit en une fois.',
+        'The speech endpoint returned audio that could not be read.': "Le point d'accès vocal a renvoyé un audio illisible.",
+        'The speech endpoint returned no audio.': "Le point d'accès vocal n'a renvoyé aucun audio.",
+        "Transcribed by %(source)s: this chat's own speech model did not answer.": "Transcrit par %(source)s : le modèle vocal propre à cette discussion n'a pas répondu.",
+        "Read by %(source)s: this chat's own speech model did not answer.": "Lu par %(source)s : le modèle vocal propre à cette discussion n'a pas répondu.",
+    }
+)
+MESSAGES["Prices are in this connection's currency."] = 'Les prix sont dans la devise de cette connexion.'

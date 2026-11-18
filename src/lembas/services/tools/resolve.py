@@ -200,7 +200,9 @@ def _subagent_defs(db: DBSession, chat: Chat, user: User | None) -> list[ToolDef
     return [*subagent_service.tool_defs(), *team]
 
 
-def _image_defs(db: DBSession, values: dict | None = None) -> list[ToolDef]:
+def _image_defs(
+    db: DBSession, values: dict | None = None, *, hosted: bool = False
+) -> list[ToolDef]:
     """The image tool, whose schema carries this instance's own choices.
 
     Built per request rather than at import, because the templates a model may
@@ -211,7 +213,11 @@ def _image_defs(db: DBSession, values: dict | None = None) -> list[ToolDef]:
     """
     from lembas.services.images import tool as image_tool
 
-    return [image_tool.tool_def(db, values if values is not None else settings_store.images(db))]
+    return [
+        image_tool.tool_def(
+            db, values if values is not None else settings_store.images(db), hosted=hosted
+        )
+    ]
 
 
 def _book(defs: list[ToolDef]) -> dict[str, ToolDef]:
@@ -296,7 +302,19 @@ def resolve_tools(
     allowed = permissions.resolve(db, user)
     config = settings_store.search(db)
     image_values = settings_store.images(db)
-    images_ready = settings_store.images_ready(db)
+    # Where this chat's pictures would come from (`services/media/sources.py`):
+    # its model's connection's own image model, else the instance's default.
+    # Nothing to draw with -- no ComfyUI, no connection's model -- and the tool
+    # is not offered at all.
+    from lembas.services import interactive
+    from lembas.services.media import sources as media_sources
+
+    image_chain = media_sources.chain(
+        db, "image", model.connection if model is not None else None,
+        interactive=not interactive.scheduled_work(db, chat),
+    )
+    images_ready = bool(image_chain)
+    images_hosted = images_ready and image_chain[0].dialect != media_sources.COMFYUI
     schedules_on = bool(settings_store.schedules(db).get("enabled"))
     subagents_on = bool(settings_store.subagents(db).get("enabled"))
 
@@ -308,7 +326,7 @@ def resolve_tools(
     book = _book(
         [
             *_row_defs(db, user),
-            *(_image_defs(db, image_values) if images_ready else []),
+            *(_image_defs(db, image_values, hosted=images_hosted) if images_ready else []),
             *(_schedule_defs() if schedules_on else []),
             *(_subagent_defs(db, chat, user) if subagents_on else []),
         ]

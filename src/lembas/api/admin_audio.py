@@ -12,6 +12,8 @@ from lembas.services import audio as audio_service
 from lembas.services import settings_store
 from lembas.services.crypto import UNCHANGED_SENTINEL, decrypt, keep_or_replace, mask
 from lembas.services.llm.openai_client import LLMError
+from lembas.services.media import sources as media_sources
+from lembas.services.media import speech as media_speech
 from lembas.web.i18n import t
 from lembas.web.templating import render
 
@@ -34,6 +36,11 @@ def _page_context(db: Db) -> dict:
         },
         "unchanged": UNCHANGED_SENTINEL,
         "currency_sign": settings_store.CURRENCIES.get(settings_store.currency(db), ""),
+        # The connections' own speech models, for "use a connection's model"
+        # as the default of each direction.
+        "source_choices": {
+            side: media_sources.choices(db, side) for side in ("stt", "tts")
+        },
     }
 
 
@@ -69,6 +76,8 @@ async def save_audio(
     tts_autoplay: bool = Form(False),
     stt_per_minute: str = Form(""),
     tts_per_1m_chars: str = Form(""),
+    stt_connection: str = Form(""),
+    tts_connection: str = Form(""),
 ) -> Response:
     """Save both endpoints.
 
@@ -100,6 +109,10 @@ async def save_audio(
             # Money, never negative; junk is free.
             "stt_per_minute": settings_store.money_amount(stt_per_minute),
             "tts_per_1m_chars": settings_store.money_amount(tts_per_1m_chars),
+            # A connection's model as the default, only one that is on offer:
+            # anything else is the endpoint, as before.
+            "stt_connection": _chosen(db, "stt", stt_connection),
+            "tts_connection": _chosen(db, "tts", tts_connection),
         },
         key=settings_store.AUDIO,
     )
@@ -111,9 +124,15 @@ async def save_audio(
     return RedirectResponse("/admin/audio?saved=1", status_code=status.HTTP_303_SEE_OTHER)
 
 
+def _chosen(db: Db, side: str, value: str) -> str:
+    value = value.strip()
+    return value if any(c["value"] == value for c in media_sources.choices(db, side)) else ""
+
+
 @router.post("/test/{side}")
 async def test_audio(request: Request, db: Db, user: AdminUser, side: str):
-    """Contact one of the two endpoints and report what happened.
+    """Contact the default source of one direction -- the endpoint, or the
+    connection's model chosen as the default -- and report what happened.
 
     Speech is tested by synthesising a phrase and measuring the bytes back;
     transcription by sending a short generated tone, which is *expected* to come
@@ -125,11 +144,13 @@ async def test_audio(request: Request, db: Db, user: AdminUser, side: str):
     message, kind = "", "success"
 
     try:
+        source = media_sources.default(db, side) if side in ("stt", "tts") else None
+        if source is None and side in ("stt", "tts"):
+            raise LLMError(t("No audio endpoint has been configured."))
         if side == "tts":
-            _, stream = await audio_service.speak(
-                audio_service.endpoint_for(config, "tts"),
+            _, stream = await media_speech.speak(
+                source,
                 TEST_PHRASE,
-                model=config.get("tts_model") or "tts-1",
                 voice=config.get("tts_voice") or "",
                 fmt=config.get("tts_format") or "mp3",
                 speed=float(config.get("tts_speed") or 1.0),
@@ -139,12 +160,11 @@ async def test_audio(request: Request, db: Db, user: AdminUser, side: str):
                 size += len(chunk)
             message = t("Spoke the test phrase: %(size)s bytes of audio.", size=f"{size:,}")
         elif side == "stt":
-            text = await audio_service.transcribe(
-                audio_service.endpoint_for(config, "stt"),
+            text, _ = await media_speech.transcribe(
+                source,
                 data=_silent_wav(),
                 filename="test.wav",
                 content_type="audio/wav",
-                model=config.get("stt_model") or "whisper-1",
                 language=config.get("stt_language") or "",
             )
             heard = t('Heard "%(text)s".', text=text) if text else t("Heard nothing, as expected.")

@@ -55,8 +55,9 @@ DEFAULT_CURRENCY = "USD"
 # `Llama` and `llama` cannot be two providers that a person cannot tell apart.
 # What a model row is for, as `/v1/models` names it. A row is a chat
 # model or an embedding model; speech and pictures are not rows at all -- they
-# come from the instance's audio and image settings, and `/v1/models` lists them
-# beside these as `stt`, `tts` and `image`.
+# come from the instance's audio and image settings (the defaults) or from a
+# connection's own media (`Connection.media_json`), and `/v1/models` lists the
+# instance's defaults beside these as `stt`, `tts` and `image`.
 MODEL_CHAT = "chat"
 MODEL_EMBEDDING = "embedding"
 MODEL_KINDS = (MODEL_CHAT, MODEL_EMBEDDING)
@@ -179,6 +180,16 @@ class Connection(UUIDPrimaryKey, Timestamps, InDataGroup, Base):
     # *restrictive* state on purpose: `sync_schema` backfills a NOT NULL boolean
     # with False, so False has to mean "as before" (any number of models at once).
     one_model_at_a_time: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # The media this connection offers besides chat (`services/media/store.py`):
+    # `{"prefer_audio": bool, "prefer_image": bool, "models": [{"capability":
+    # "stt" | "tts" | "image", "model": id, "enabled": bool, "price": money,
+    # "voice": str}]}`. Not model rows: a media model is not discovered by a
+    # refresh (which deletes rows the endpoint no longer lists), is never
+    # something a chat can be started on, and is priced in its own unit -- per
+    # minute, per million characters, per picture. Empty is "none", which is
+    # what every connection from before the column is.
+    media_json: Mapped[dict[str, Any]] = mapped_column(JSONDict, default=dict)
 
     # Result of the most recent "Test & refresh", surfaced in the admin list.
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

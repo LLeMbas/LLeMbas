@@ -32,6 +32,7 @@ from lembas.services.crypto import UNCHANGED_SENTINEL, decrypt, keep_or_replace,
 from lembas.services.images import comfy
 from lembas.services.images import workflow as workflow_service
 from lembas.services.llm.openai_client import LLMError
+from lembas.services.media import sources as media_sources
 from lembas.web.i18n import t
 from lembas.web.templating import render
 
@@ -113,6 +114,9 @@ def _page(request: Request, db: Db, **extra) -> Response:
             "masked": mask(decrypt(values.get("api_key_encrypted") or "")),
             "unchanged": UNCHANGED_SENTINEL,
             "currency_sign": settings_store.CURRENCIES.get(settings_store.currency(db), ""),
+            # The connections' own image models, for "use a connection's
+            # model" as the default source.
+            "source_choices": media_sources.choices(db, "image"),
             **extra,
         },
     )
@@ -163,6 +167,7 @@ async def save_images(
     default_batch: str = Form(""),
     per_image: str = Form(""),
     api_max_images: str = Form(""),
+    connection: str = Form(""),
 ) -> Response:
     """Save the settings.
 
@@ -208,6 +213,14 @@ async def save_images(
             # Money, never negative; and the API's `n`, 1-10.
             "per_image": settings_store.money_amount(per_image),
             "api_max_images": _whole(api_max_images, current.get("api_max_images") or 4),
+            # A connection's image model as the default source, only one that
+            # is on offer; anything else is the ComfyUI, as before.
+            "connection": (
+                connection.strip()
+                if any(c["value"] == connection.strip()
+                       for c in media_sources.choices(db, "image"))
+                else ""
+            ),
         },
         key=settings_store.IMAGES,
     )

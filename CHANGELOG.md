@@ -5,6 +5,55 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
+### Added
+
+- **Media from connections: a connection can carry its own speech and image models.** Until
+  now speech was the two endpoints under Admin › Audio and pictures the one ComfyUI, for every
+  chat. Those stay, as the **defaults** -- nothing an instance has configured behaves
+  differently. On top of them a connection (Admin › Connections › *Speech and pictures*) may
+  list models for speech to text, text to speech and image generation, each ticked on its own
+  and priced on its own (per minute, per million characters, per picture, in the connection's
+  currency), with two switches: *use this connection's own speech models for its chats* and
+  *use this connection's own image model for its chats*. With a switch on and a model ticked,
+  a chat whose model is on that connection uses it; every other chat stays on the defaults.
+  - **Known providers are pre-filled, any OpenAI-compatible one is typed.** OpenAI's and
+    Alibaba Cloud Model Studio's two types show the models their documentation names,
+    switched off, for you to tick; an OpenAI-compatible connection takes the model ids you
+    type and uses `/audio/transcriptions`, `/audio/speech` and `/images/generations` on its
+    own base URL and key. Alibaba's speech and pictures go through its own API on the same
+    host and key (it has no OpenAI-shaped route for most of them); what it answers with -- a
+    link that expires -- is fetched at once and stored or streamed from here, never linked.
+  - **One fallback, in one direction.** When a connection's own model does not answer
+    (unreachable, refused, a used-up quota), the instance's default answers instead, once,
+    and says so: on the image tool's result, and as a note when a dictation or a reply read
+    aloud was served by the default. A chat on a local model is never sent to a cloud
+    connection's media -- unless you make that connection's model the default yourself: Admin
+    › Audio and Admin › Image generation now say plainly that they are the defaults "for
+    connections without their own" and offer *Default source*: the endpoint (or ComfyUI) as
+    before, or a connection's model.
+  - **Which chat.** Dictation and read-aloud use the connection of the chat's current model,
+    or of the model chosen in the composer before the chat exists. `POST
+    /v1/audio/transcriptions`, `/v1/audio/speech` and `/v1/images/generations` take `chat_id`
+    (one of the caller's chats) or `chat_model` (a model id from `/v1/models`) for the same;
+    without either they are served by the default, as before. Every answer names its source
+    in `X-Lembas-Source`, with `X-Lembas-Fallback: 1` when the first one tried did not answer.
+  - **A plan's media is for a person's own turn.** On an interactive-only connection
+    (a provider's subscription plan) speech and pictures follow the rule chat does: dictation,
+    a reply you asked to hear, the image tool inside your own reply -- never a scheduled run
+    (which uses the default, or has no image tool) and never a personal API key on `/v1`.
+    A plan's media is counted and not priced.
+  - **Costs and usage are recorded against the source that answered**, at its own price and
+    in its own currency: `provider/model` for a connection's model, `stt/…`, `tts/…` and
+    `comfyui/…` for the defaults as before.
+  - `/v1/models` lists the defaults as it did (`stt`, `tts`, `image`); a connection's own
+    media is not listed there, because a request does not choose it -- the chat's model does.
+  - With a connection's image model the image tool takes `prompt`, `negative`, `width`,
+    `height` and `seed`; workflows, checkpoints, the reviewer and its retries belong to the
+    ComfyUI and apply only there.
+- Alibaba Cloud Model Studio's QwenCloud addresses are in both types' region lists: the six
+  regional hosts for pay-as-you-go, and the Token Plan's one host
+  (`token-plan.maas.qwencloudapi.com`).
+
 ### Fixed
 
 - Alibaba Cloud Model Studio under its newer international name: an address on `qwencloudapi.com` is known as the same service, and its Token Plan address (`token-plan.maas.qwencloudapi.com`, with no region in it) as a subscription plan whatever type the connection was saved under.

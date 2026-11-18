@@ -2817,3 +2817,51 @@ MESSAGES.update(
         'The earlier turns of this chat were not summarised: its model is on a connection for interactive use only, and there is no other model to ask for the summary. Switch model or start a new chat before the conversation outgrows this one.': 'Los turnos anteriores de este chat no se resumieron: su modelo está en una conexión solo para uso interactivo y no hay otro modelo al que pedir el resumen. Cambie de modelo o empiece un chat nuevo antes de que la conversación supere a este.',
     }
 )
+
+# Media from connections: speech and pictures a connection carries itself.
+MESSAGES.update(
+    {
+        'Speech and pictures': 'Voz e imágenes',
+        "Use this connection's own speech models for its chats": 'Usar los modelos de voz propios de esta conexión en sus chats',
+        "Use this connection's own image model for its chats": 'Usar el modelo de imagen propio de esta conexión en sus chats',
+        'On': 'Activo',
+        'Speech to text': 'Voz a texto',
+        'Text to speech': 'Texto a voz',
+        'model id': 'id del modelo',
+        'voice': 'voz',
+        'per minute': 'por minuto',
+        'per 1M characters': 'por 1 M de caracteres',
+        'per picture': 'por imagen',
+        "A chat whose model is on this connection uses these when the switch above is on and a model of that kind is ticked — the first ticked one. Otherwise, and once when this connection's own does not answer, the instance's default under Audio and Image generation is used; the result says which answered. A chat on another connection is never sent here unless you make one of these the default there. To remove a model, clear its id.": 'Un chat cuyo modelo está en esta conexión los usa cuando el interruptor de arriba está activado y hay marcado un modelo de ese tipo: el primero marcado. En otro caso, y una vez cuando el propio de esta conexión no responde, se usa el predeterminado de la instancia en Audio y Generación de imágenes; el resultado dice cuál respondió. Un chat de otra conexión nunca se envía aquí, salvo que usted convierta uno de estos en el predeterminado allí. Para quitar un modelo, borre su id.',
+        "On a plan this is for a person's own turns only — dictation, a reply they asked to hear, a picture inside their own reply — never for scheduled work or a personal API key, and it is counted, not priced.": 'En un plan esto es solo para los turnos propios de una persona —el dictado, una respuesta que pidió escuchar, una imagen dentro de su propia respuesta—, nunca para trabajo programado ni para una clave de API personal, y se cuenta, no se le pone precio.',
+        'These are the <strong>defaults</strong>, for connections without speech models of their own. A connection can carry its own under <a href="/admin/connections">Connections</a>; a chat on it then uses those, and comes back here once if they do not answer.': 'Estos son los <strong>predeterminados</strong>, para las conexiones sin modelos de voz propios. Una conexión puede llevar los suyos en <a href="/admin/connections">Conexiones</a>; un chat en ella usa entonces esos y vuelve aquí una vez si no responden.',
+        'Default source': 'Origen predeterminado',
+        'The endpoint below': 'El endpoint de abajo',
+        "A connection's own model can be the default instead of the endpoint below. Chats on every connection without its own are then sent there, so choose a cloud one only on purpose.": 'El modelo propio de una conexión puede ser el predeterminado en lugar del endpoint de abajo. Los chats de toda conexión sin el suyo se envían entonces allí, así que elija uno en la nube solo a propósito.',
+        "These are the endpoints' prices; a connection's own model has its price beside it.": 'Estos son los precios de los endpoints; el modelo propio de una conexión tiene su precio al lado.',
+        'What is set on this page is the <strong>default</strong>, for connections without an image model of their own. A connection can carry its own under <a href="/admin/connections">Connections</a>; a chat on it then draws with that, and comes back here once if it does not answer.': 'Lo que se configura en esta página es el <strong>predeterminado</strong>, para las conexiones sin modelo de imagen propio. Una conexión puede llevar el suyo en <a href="/admin/connections">Conexiones</a>; un chat en ella dibuja entonces con ese y vuelve aquí una vez si no responde.',
+        'The ComfyUI below': 'El ComfyUI de abajo',
+        "A connection's own model can be the default instead of the ComfyUI. Chats on every connection without its own are then sent there, so choose a cloud one only on purpose. Workflows, checkpoints, review and the price below belong to the ComfyUI.": 'El modelo propio de una conexión puede ser el predeterminado en lugar del ComfyUI. Los chats de toda conexión sin el suyo se envían entonces allí, así que elija uno en la nube solo a propósito. Los flujos, los checkpoints, la revisión y el precio de abajo pertenecen al ComfyUI.',
+        'QwenCloud, Singapore': 'QwenCloud, Singapur',
+        'QwenCloud, US (Virginia)': 'QwenCloud, EE. UU. (Virginia)',
+        'QwenCloud, Germany (Frankfurt)': 'QwenCloud, Alemania (Fráncfort)',
+        'QwenCloud, Japan (Tokyo)': 'QwenCloud, Japón (Tokio)',
+        'QwenCloud, China (Hong Kong)': 'QwenCloud, China (Hong Kong)',
+        'QwenCloud, China (Beijing)': 'QwenCloud, China (Pekín)',
+        'Token Plan, QwenCloud': 'Token Plan, QwenCloud',
+        "This connection's base URL is not an address.": 'La URL base de esta conexión no es una dirección.',
+        '%(name)s answered %(status)s: %(said)s': '%(name)s respondió %(status)s: %(said)s',
+        "The provider's answer named no result.": 'La respuesta del proveedor no indicó ningún resultado.',
+        "The provider's result could not be fetched: %(why)s": 'No se pudo obtener el resultado del proveedor: %(why)s',
+        "The provider's result is larger than this server keeps.": 'El resultado del proveedor es mayor de lo que este servidor guarda.',
+        'Nothing is configured to do that on this instance.': 'No hay nada configurado para hacer eso en esta instancia.',
+        'The image endpoint returned a picture that could not be read.': 'El endpoint de imágenes devolvió una imagen que no se pudo leer.',
+        'The image endpoint returned no picture.': 'El endpoint de imágenes no devolvió ninguna imagen.',
+        'That recording is longer than this provider transcribes at once.': 'Esa grabación es más larga de lo que este proveedor transcribe de una vez.',
+        'The speech endpoint returned audio that could not be read.': 'El endpoint de voz devolvió un audio que no se pudo leer.',
+        'The speech endpoint returned no audio.': 'El endpoint de voz no devolvió ningún audio.',
+        "Transcribed by %(source)s: this chat's own speech model did not answer.": 'Transcrito por %(source)s: el modelo de voz propio de este chat no respondió.',
+        "Read by %(source)s: this chat's own speech model did not answer.": 'Leído por %(source)s: el modelo de voz propio de este chat no respondió.',
+    }
+)
+MESSAGES["Prices are in this connection's currency."] = 'Los precios están en la moneda de esta conexión.'

@@ -2817,3 +2817,51 @@ MESSAGES.update(
         'The earlier turns of this chat were not summarised: its model is on a connection for interactive use only, and there is no other model to ask for the summary. Switch model or start a new chat before the conversation outgrows this one.': 'Ennek a csevegésnek a korábbi fordulói nem lettek összefoglalva: a modellje csak interaktív használatra szóló kapcsolaton van, és nincs másik modell, amelytől az összefoglalót kérni lehetne. Váltson modellt, vagy kezdjen új csevegést, mielőtt a beszélgetés kinövi ezt a modellt.',
     }
 )
+
+# Media from connections: speech and pictures a connection carries itself.
+MESSAGES.update(
+    {
+        'Speech and pictures': 'Beszéd és képek',
+        "Use this connection's own speech models for its chats": 'A kapcsolat saját beszédmodelljeinek használata a csevegéseihez',
+        "Use this connection's own image model for its chats": 'A kapcsolat saját képmodelljének használata a csevegéseihez',
+        'On': 'Be',
+        'Speech to text': 'Beszédből szöveg',
+        'Text to speech': 'Szövegből beszéd',
+        'model id': 'modellazonosító',
+        'voice': 'hang',
+        'per minute': 'percenként',
+        'per 1M characters': '1 millió karakterenként',
+        'per picture': 'képenként',
+        "A chat whose model is on this connection uses these when the switch above is on and a model of that kind is ticked — the first ticked one. Otherwise, and once when this connection's own does not answer, the instance's default under Audio and Image generation is used; the result says which answered. A chat on another connection is never sent here unless you make one of these the default there. To remove a model, clear its id.": 'Az a csevegés, amelynek modellje ezen a kapcsolaton van, akkor használja ezeket, ha a fenti kapcsoló be van kapcsolva, és az adott fajtából van bejelölt modell — az első bejelölt. Egyébként, és egyszer akkor is, ha a kapcsolat sajátja nem válaszol, a példány alapértelmezése szolgál ki a Hang és a Képgenerálás oldalról; az eredmény megmondja, melyik válaszolt. Más kapcsolaton lévő csevegés soha nem kerül ide, hacsak Ön nem teszi ott alapértelmezetté valamelyiket. Modell eltávolításához törölje az azonosítóját.',
+        "On a plan this is for a person's own turns only — dictation, a reply they asked to hear, a picture inside their own reply — never for scheduled work or a personal API key, and it is counted, not priced.": 'Előfizetéses csomagon ez csak egy személy saját lépéseire való — diktálás, egy válasz, amelyet meg akart hallgatni, egy kép a saját válaszában —, ütemezett munkára vagy személyes API-kulcsra soha, és számolva van, nem árazva.',
+        'These are the <strong>defaults</strong>, for connections without speech models of their own. A connection can carry its own under <a href="/admin/connections">Connections</a>; a chat on it then uses those, and comes back here once if they do not answer.': 'Ezek az <strong>alapértelmezések</strong> a saját beszédmodell nélküli kapcsolatokhoz. Egy kapcsolatnak lehetnek sajátjai a <a href="/admin/connections">Kapcsolatok</a> oldalon; a rajta lévő csevegés akkor azokat használja, és egyszer ide tér vissza, ha nem válaszolnak.',
+        'Default source': 'Alapértelmezett forrás',
+        'The endpoint below': 'Az alábbi végpont',
+        "A connection's own model can be the default instead of the endpoint below. Chats on every connection without its own are then sent there, so choose a cloud one only on purpose.": 'Az alábbi végpont helyett egy kapcsolat saját modellje is lehet az alapértelmezés. Ekkor minden saját modell nélküli kapcsolat csevegései oda kerülnek, ezért felhőbelit csak szándékosan válasszon.',
+        "These are the endpoints' prices; a connection's own model has its price beside it.": 'Ezek a végpontok árai; egy kapcsolat saját modelljének ára mellette áll.',
+        'What is set on this page is the <strong>default</strong>, for connections without an image model of their own. A connection can carry its own under <a href="/admin/connections">Connections</a>; a chat on it then draws with that, and comes back here once if it does not answer.': 'Amit ezen az oldalon beállít, az az <strong>alapértelmezés</strong> a saját képmodell nélküli kapcsolatokhoz. Egy kapcsolatnak lehet sajátja a <a href="/admin/connections">Kapcsolatok</a> oldalon; a rajta lévő csevegés akkor azzal rajzol, és egyszer ide tér vissza, ha az nem válaszol.',
+        'The ComfyUI below': 'Az alábbi ComfyUI',
+        "A connection's own model can be the default instead of the ComfyUI. Chats on every connection without its own are then sent there, so choose a cloud one only on purpose. Workflows, checkpoints, review and the price below belong to the ComfyUI.": 'A ComfyUI helyett egy kapcsolat saját modellje is lehet az alapértelmezés. Ekkor minden saját modell nélküli kapcsolat csevegései oda kerülnek, ezért felhőbelit csak szándékosan válasszon. A munkafolyamatok, a checkpointok, az ellenőrzés és az alábbi ár a ComfyUI-hoz tartoznak.',
+        'QwenCloud, Singapore': 'QwenCloud, Szingapúr',
+        'QwenCloud, US (Virginia)': 'QwenCloud, USA (Virginia)',
+        'QwenCloud, Germany (Frankfurt)': 'QwenCloud, Németország (Frankfurt)',
+        'QwenCloud, Japan (Tokyo)': 'QwenCloud, Japán (Tokió)',
+        'QwenCloud, China (Hong Kong)': 'QwenCloud, Kína (Hongkong)',
+        'QwenCloud, China (Beijing)': 'QwenCloud, Kína (Peking)',
+        'Token Plan, QwenCloud': 'Token Plan, QwenCloud',
+        "This connection's base URL is not an address.": 'A kapcsolat alap-URL-je nem cím.',
+        '%(name)s answered %(status)s: %(said)s': '%(name)s válasza %(status)s: %(said)s',
+        "The provider's answer named no result.": 'A szolgáltató válasza nem nevezett meg eredményt.',
+        "The provider's result could not be fetched: %(why)s": 'A szolgáltató eredményét nem sikerült letölteni: %(why)s',
+        "The provider's result is larger than this server keeps.": 'A szolgáltató eredménye nagyobb, mint amit ez a kiszolgáló megtart.',
+        'Nothing is configured to do that on this instance.': 'Ezen a példányon semmi sincs beállítva ehhez.',
+        'The image endpoint returned a picture that could not be read.': 'A képvégpont olyan képet adott vissza, amelyet nem lehetett beolvasni.',
+        'The image endpoint returned no picture.': 'A képvégpont nem adott vissza képet.',
+        'That recording is longer than this provider transcribes at once.': 'Ez a felvétel hosszabb, mint amit ez a szolgáltató egyszerre átír.',
+        'The speech endpoint returned audio that could not be read.': 'A beszédvégpont olyan hangot adott vissza, amelyet nem lehetett beolvasni.',
+        'The speech endpoint returned no audio.': 'A beszédvégpont nem adott vissza hangot.',
+        "Transcribed by %(source)s: this chat's own speech model did not answer.": 'Átírta: %(source)s — a csevegés saját beszédmodellje nem válaszolt.',
+        "Read by %(source)s: this chat's own speech model did not answer.": 'Felolvasta: %(source)s — a csevegés saját beszédmodellje nem válaszolt.',
+    }
+)
+MESSAGES["Prices are in this connection's currency."] = 'Az árak ennek a kapcsolatnak a pénznemében értendők.'

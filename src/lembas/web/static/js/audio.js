@@ -61,6 +61,15 @@
     // the endpoint sniffs the container itself.
     var extension = (blob.type.indexOf("mp4") !== -1) ? "mp4" : "webm";
     body.append("file", blob, "dictation." + extension);
+    /* Which chat this is for, so its model's connection's own speech model
+       transcribes where it has one: the chat being written in, or -- before
+       there is one -- the model chosen for it. Neither, and the instance's
+       default does. */
+    var composer = document.querySelector(".composer");
+    var chatId = composer && composer.dataset.chatId;
+    var chosen = document.querySelector('#composer-form [name="model_id"]');
+    if (chatId) body.append("chat_id", chatId);
+    else if (chosen && chosen.value) body.append("model_id", chosen.value);
 
     setMicState(button, "working");
     fetch("/api/audio/transcribe", {
@@ -76,6 +85,9 @@
               throw new Error(payload.detail || t("Transcription failed."));
             });
         }
+        saySource(response.headers.get("X-Lembas-Fallback"),
+                  response.headers.get("X-Lembas-Source"),
+                  t("Transcribed by %(source)s: this chat's own speech model did not answer."));
         return response.text();
       })
       .then(function (text) {
@@ -90,6 +102,17 @@
         setMicState(button, "idle");
         notify(error.message || t("Transcription failed."), "error");
       });
+  }
+
+  /* Which source answered is said only when it was not the one expected:
+     the chat's own did not answer and the instance's default did. Quietly --
+     the text is there and the reply is being read; this is a note, not an
+     error. The name arrives percent-encoded (a header is Latin-1). */
+  function saySource(fellBack, source, sentence) {
+    if (!fellBack || !source) return;
+    var name = String(source);
+    try { name = decodeURIComponent(name); } catch (error) { /* as it came */ }
+    notify(sentence.replace("%(source)s", name), "info");
   }
 
   function startRecording(button) {
@@ -179,12 +202,29 @@
     if (!player) {
       player = new Audio();
       player.addEventListener("ended", function () { markSpeaking(null); });
+      player.addEventListener("playing", function () { whoReads(speaking); });
       player.addEventListener("error", function () {
         if (speaking) notify(t("That reply could not be read out."), "error");
         markSpeaking(null);
       });
     }
     return player;
+  }
+
+  /* The element plays the stream itself and shows the page no header, so the
+     page asks which source is reading -- once it is being read, and only to
+     say so when it was not the chat's own (`saySource`). A failure to find
+     out is nothing: the reply is being read either way. */
+  function whoReads(button) {
+    if (!button || button.dataset.speakAsked === button.dataset.speak) return;
+    button.dataset.speakAsked = button.dataset.speak;
+    fetch(button.dataset.speak + "/source", { credentials: "same-origin" })
+      .then(function (response) { return response.ok ? response.json() : {}; })
+      .then(function (said) {
+        saySource(said && said.fallback, said && said.source,
+                  t("Read by %(source)s: this chat's own speech model did not answer."));
+      })
+      .catch(function () {});
   }
 
   function markSpeaking(button) {
@@ -202,6 +242,7 @@
       return;
     }
     element.pause();
+    delete button.dataset.speakAsked;
     element.src = button.dataset.speak;
     markSpeaking(button);
     element.play().catch(function () {

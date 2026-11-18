@@ -1,0 +1,115 @@
+"""One picture from a connection's image model: `generate(source, prompt, …)`.
+
+Two shapes behind the one function, chosen by the source's dialect
+(`store.dialect`): OpenAI's `POST /images/generations` on the connection's
+base URL, and Alibaba Cloud Model Studio's native synchronous route. Both
+hand back the **bytes** of one picture -- a provider's link is collected at
+once (`dashscope.collect`) and never passed on.
+
+The instance's own ComfyUI is the third source and stays where it was
+(`services/images/tool.py`): it has workflows, checkpoints and a reviewer
+that nothing here has.
+"""
+
+from __future__ import annotations
+
+import base64
+import binascii
+from typing import Any
+
+from lembas.services.llm.openai_client import LLMError
+from lembas.services.media import dashscope, store
+from lembas.services.media.sources import Source
+from lembas.web.i18n import t
+
+# A generation is tens of seconds; the provider's own advice for its
+# synchronous route is to allow minutes.
+TIMEOUT = 600.0
+SIDE_MIN, SIDE_MAX = 256, 4096
+
+
+def side(value: Any) -> int | None:
+    """A width or a height a model asked for, or None for "the model's own"."""
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    return number if SIDE_MIN <= number <= SIDE_MAX else None
+
+
+async def generate(
+    source: Source,
+    prompt: str,
+    *,
+    negative: str = "",
+    width: int | None = None,
+    height: int | None = None,
+    seed: int | None = None,
+) -> bytes:
+    """One picture's bytes. Raises `LLMError` in the provider's words."""
+    if source.endpoint is None:
+        raise LLMError(t("Nothing is configured to do that on this instance."))
+    if source.dialect == store.DASHSCOPE_IMAGE:
+        return await _dashscope(source, prompt, negative, width, height, seed)
+    return await _openai(source, prompt, width, height)
+
+
+async def _openai(source: Source, prompt: str, width: int | None, height: int | None) -> bytes:
+    body: dict[str, Any] = {"model": source.model, "prompt": prompt, "n": 1}
+    if width and height:
+        body["size"] = f"{width}x{height}"
+    # No `response_format`: some image models refuse the field, and both
+    # answers -- bytes or a link -- are read below.
+    payload = await dashscope.post(
+        source.endpoint, source.endpoint.url("images/generations"), body, timeout=TIMEOUT
+    )
+    items = payload.get("data")
+    first = items[0] if isinstance(items, list) and items and isinstance(items[0], dict) else {}
+    encoded = first.get("b64_json")
+    if isinstance(encoded, str) and encoded:
+        try:
+            return base64.b64decode(encoded, validate=False)
+        except (binascii.Error, ValueError) as exc:
+            raise LLMError(t("The image endpoint returned a picture that could not be read.")) \
+                from exc
+    if first.get("url"):
+        return await dashscope.collect(
+            first["url"], limit=dashscope.MAX_IMAGE_BYTES, endpoint=source.endpoint
+        )
+    raise LLMError(t("The image endpoint returned no picture."))
+
+
+async def _dashscope(
+    source: Source, prompt: str, negative: str, width: int | None, height: int | None,
+    seed: int | None,
+) -> bytes:
+    parameters: dict[str, Any] = {"n": 1, "watermark": False}
+    if width and height:
+        parameters["size"] = f"{width}*{height}"
+    if negative:
+        parameters["negative_prompt"] = negative[:500]
+    if seed is not None and seed >= 0:
+        parameters["seed"] = seed
+    body = {
+        "model": source.model,
+        "input": {"messages": [{"role": "user", "content": [{"text": prompt}]}]},
+        "parameters": parameters,
+    }
+    payload = await dashscope.post(
+        source.endpoint, dashscope.native_url(source.endpoint, dashscope.GENERATION), body,
+        timeout=TIMEOUT,
+    )
+    output = payload.get("output") if isinstance(payload.get("output"), dict) else {}
+    for choice in output.get("choices") or []:
+        message = choice.get("message") if isinstance(choice, dict) else None
+        for part in (message or {}).get("content") or []:
+            if isinstance(part, dict) and part.get("image"):
+                return await dashscope.collect(part["image"], limit=dashscope.MAX_IMAGE_BYTES)
+    # The older answer of the same route: `output.results[].url`.
+    for result in output.get("results") or []:
+        if isinstance(result, dict) and result.get("url"):
+            return await dashscope.collect(result["url"], limit=dashscope.MAX_IMAGE_BYTES)
+    raise LLMError(t("The image endpoint returned no picture."))
+
+
+__all__ = ["SIDE_MAX", "SIDE_MIN", "TIMEOUT", "generate", "side"]

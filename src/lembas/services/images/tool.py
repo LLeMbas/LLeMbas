@@ -36,6 +36,8 @@ from sqlalchemy import select
 
 from lembas.services.images import comfy, workflow
 from lembas.services.llm.openai_client import Endpoint, LLMError, complete
+from lembas.services.media import sources as media_sources
+from lembas.services.media.store import CAP_IMAGE
 from lembas.services.tools import RISK_WRITE, ToolContext, ToolDef, ToolOutcome
 
 log = logging.getLogger(__name__)
@@ -256,7 +258,42 @@ def schema_for(db, values: dict[str, Any]) -> dict[str, Any]:
     return schema
 
 
-def tool_def(db, values: dict[str, Any]) -> ToolDef:
+# What the tool takes when the picture comes from a connection's own image
+# model rather than the instance's ComfyUI: a hosted model has no workflow,
+# checkpoint, sampler or step count to choose, so none is offered.
+SOURCE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "prompt": SCHEMA["properties"]["prompt"],
+        "negative": {
+            "type": "string",
+            "description": (
+                "Comma-separated things to keep OUT of the picture, as plain nouns and "
+                "adjectives: 'blurry, extra fingers, text, watermark'. Not a sentence."
+            ),
+        },
+        "width": {
+            "type": "integer",
+            "description": (
+                "Pixels. Omit both width and height for the model's own size; set both "
+                "to choose the shape: taller than wide for a person, wider than tall "
+                "for a place. Around 1024 to 2048 a side."
+            ),
+        },
+        "height": {"type": "integer", "description": "Pixels. See width."},
+        "seed": {
+            "type": "integer",
+            "description": "Omit for a new random image; repeat one to get that image again.",
+        },
+    },
+    "required": ["prompt"],
+}
+
+
+def tool_def(db, values: dict[str, Any], *, hosted: bool = False) -> ToolDef:
+    """`hosted`: the chat's pictures come from a connection's own image model
+    (`services/media/sources.py`), so the parameters are that model's and not
+    the ComfyUI's."""
     return ToolDef(
         name="image_generate",
         family="image",
@@ -264,7 +301,9 @@ def tool_def(db, values: dict[str, Any]) -> ToolDef:
             "Draw a picture from a description and show it to the person you are "
             "talking to. Returns once the image has been made and is on screen."
         ),
-        parameters=schema_for(db, values),
+        parameters=(
+            json.loads(json.dumps(SOURCE_SCHEMA)) if hosted else schema_for(db, values)
+        ),
         run=run,
         # Not RISK_READ: it spends somebody's GPU for a minute and puts a new
         # artefact in the conversation. In an agent chat that means the mode
@@ -476,8 +515,6 @@ def _over_quota(context: ToolContext) -> str:
 
 async def run(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
     """Generate one image, review it if there is anybody to ask, and keep one."""
-    from lembas.db.session import session_scope
-    from lembas.services import files as files_service
 
     event: dict[str, Any] = {
         "name": "image_generate",
@@ -504,6 +541,132 @@ async def run(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
     over = _over_quota(context)
     if over:
         return ToolOutcome(over, {**event, "status": "error", "error": over})
+
+    # Where this chat's pictures come from: its connection's own image model
+    # when it has one switched on, then the instance's default
+    # (`services/media/sources.py`). A source on a connection fails over to the
+    # next one once, and the result says so.
+    note = ""
+    chain = _sources(context)
+    for source in chain:
+        if source.dialect == media_sources.COMFYUI:
+            break
+        try:
+            return await _run_hosted(context, source, args, event, prompt, note)
+        except LLMError as exc:
+            log.info("image generation on %s failed: %s", source.label, exc.message)
+            if source is chain[-1]:
+                return ToolOutcome(
+                    f"The image could not be generated: {exc.message}",
+                    {**event, "status": "error", "error": exc.message},
+                )
+            note = (
+                f"{source.label} did not answer ({exc.message[:200]}), so the "
+                "instance's default drew it instead."
+            )
+    return await _run_comfy(context, args, event, prompt, note)
+
+
+def _sources(context: ToolContext) -> list[Any]:
+    """The image sources for this call, in order. A scheduled run asks nothing
+    of a connection its provider sells for interactive use only."""
+    from lembas.db.models import Chat, Connection
+    from lembas.db.session import session_scope
+    from lembas.services import interactive
+
+    try:
+        with session_scope() as db:
+            chat = db.get(Chat, context.chat_id) if context.chat_id else None
+            connection = (
+                db.get(Connection, context.connection_id) if context.connection_id else None
+            )
+            return media_sources.chain(
+                db, CAP_IMAGE, connection,
+                interactive=not interactive.scheduled_work(db, chat),
+            )
+    except Exception:  # the instance's own ComfyUI is then what there is
+        log.warning("could not resolve the image sources", exc_info=True)
+        return []
+
+
+async def _run_hosted(
+    context: ToolContext, source: Any, args: dict[str, Any], event: dict[str, Any],
+    prompt: str, note: str,
+) -> ToolOutcome:
+    """One picture from a connection's image model: generated, fetched,
+    stored as this chat's file, counted against that source. Raises
+    `LLMError` when the source does not give one."""
+    import time
+
+    from lembas.db.session import session_scope
+    from lembas.services import files as files_service
+    from lembas.services.media import pictures
+
+    width, height = pictures.side(args.get("width")), pictures.side(args.get("height"))
+    if not (width and height):
+        width = height = None
+    try:
+        seed = int(args["seed"]) if args.get("seed") is not None else None
+    except (TypeError, ValueError):
+        seed = None
+    payload = await pictures.generate(
+        source, prompt, negative=str(args.get("negative") or ""), width=width, height=height,
+        seed=seed if seed is not None and seed >= 0 else None,
+    )
+    try:
+        with session_scope() as db:
+            attachment = files_service.store(
+                db,
+                user_id=context.owner_id,
+                chat_id=context.chat_id,
+                payload=payload,
+                # A name of this server's own making: nothing a provider or a
+                # model wrote is in it.
+                filename=f"image-{int(time.time())}.png",
+                keep_original=True,
+                source_label="Image generation",
+                source_path=source.label,
+            )
+            attachment_id = attachment.id
+            made_width, made_height = attachment.width, attachment.height
+            media_sources.record(db, context.owner_id, source, images=1)
+    except Exception as exc:
+        log.exception("could not store a generated image")
+        return ToolOutcome(
+            f"The image was generated but could not be saved: {exc}",
+            {**event, "status": "error", "error": str(exc)},
+        )
+    lines = [
+        "The image has been generated and is shown to them. It is not a link and "
+        "needs no further action.",
+        f"Prompt: {prompt}",
+        f"Drawn by {source.label}, {made_width}x{made_height}.",
+    ]
+    if note:
+        lines.append(note)
+    return ToolOutcome(
+        "\n".join(lines),
+        {
+            **event,
+            "status": "ok",
+            "detail": source.label,
+            "text": "\n".join(part for part in (f"{made_width}x{made_height}", note) if part),
+            "source": source.label,
+            "fallback": bool(note),
+            "attachment_id": attachment_id,
+            "image": {"id": attachment_id, "width": made_width, "height": made_height},
+        },
+    )
+
+
+async def _run_comfy(
+    context: ToolContext, args: dict[str, Any], event: dict[str, Any], prompt: str,
+    note: str = "",
+) -> ToolOutcome:
+    """The instance's own ComfyUI: workflow, checkpoint, review, retries.
+    `note`: why a connection's own model did not draw it, when one was tried."""
+    from lembas.db.session import session_scope
+    from lembas.services import files as files_service
 
     values = context.image_config or {}
     config = config_of(context)
@@ -651,12 +814,15 @@ async def run(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
         )
 
     return ToolOutcome(
-        _describe(prompt, template_name, checkpoint, params, attempts),
+        _describe(prompt, template_name, checkpoint, params, attempts)
+        + (f"\n{note}" if note else ""),
         {
             **event,
             "status": "ok",
             "detail": f"{template_name} · {checkpoint}",
-            "text": _transcript(params, attempts),
+            "text": _transcript(params, attempts) + (f"\n\n{note}" if note else ""),
+            "source": "ComfyUI",
+            "fallback": bool(note),
             # Bound to the reply by `generation._persist`, the single writer. A
             # runner may create the row; only the loop may say which turn owns
             # it.

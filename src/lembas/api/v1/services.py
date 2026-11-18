@@ -9,7 +9,9 @@ every device uses them. A device that has none of its own needs none.
   chats start on, and which of the services below this account may use.
 - `POST /v1/audio/transcriptions` and `POST /v1/audio/speech` -- OpenAI's shapes,
   so any client that speaks them works, over the instance's own speech servers
-  with the account's own voice, speed and language.
+  with the account's own voice, speed and language. `chat_id` or `chat_model`
+  says which chat it is for, so that chat's connection's own speech models
+  serve it where it has them; `X-Lembas-Source` on the answer names what did.
 - `POST /api/v1/search` and `POST /api/v1/fetch` -- the web search and page
   fetch a chat's model has, with the same switches and the same SSRF guard.
 
@@ -40,9 +42,11 @@ from lembas.api.deps import Db
 from lembas.api.v1._common import error_response
 from lembas.security import permissions
 from lembas.security.api_tokens import ModelsCaller
-from lembas.services import audio as audio_service
 from lembas.services import branding, settings_store
 from lembas.services.llm.openai_client import LLMError
+from lembas.services.media import sources as media_sources
+from lembas.services.media import speech as media_speech
+from lembas.services.media.store import CAP_STT, CAP_TTS
 
 log = logging.getLogger(__name__)
 
@@ -76,12 +80,13 @@ def available(db, user) -> dict[str, bool]:
     from lembas.api.v1.images import available as images_available
     from lembas.services import search as search_service
 
-    audio = settings_store.audio(db)
     search = settings_store.search(db)
     return {
-        "stt": bool(audio.get("stt_enabled") and (audio.get("stt_base_url") or "").strip())
+        # On for the instance, and served from somewhere: its default, or a
+        # connection's own (`services/media/sources.py`).
+        "stt": media_sources.anywhere(db, CAP_STT)
         and permissions.has(db, user, "audio.transcribe"),
-        "tts": bool(audio.get("tts_enabled") and (audio.get("tts_base_url") or "").strip())
+        "tts": media_sources.anywhere(db, CAP_TTS)
         and permissions.has(db, user, "audio.listen"),
         "search": bool(search.get("enabled"))
         and not search_service.availability(str(search.get("provider") or "ddgs"))
@@ -128,7 +133,13 @@ async def instance(db: Db, caller: ModelsCaller) -> JSONResponse:
 @router.post("/v1/audio/transcriptions")
 async def transcriptions(request: Request, db: Db, caller: ModelsCaller):
     """OpenAI's transcription call: a multipart `file`, and optionally
-    `language` and `prompt`. `model` is ignored -- the instance's is used."""
+    `language` and `prompt`. `model` is ignored -- the source decides it.
+
+    Two fields of this server's own say which chat the recording is for:
+    `chat_id` (one of the caller's chats) or `chat_model` (a model id from
+    `/v1/models`, for a chat that does not exist yet). That model's
+    connection's own speech model transcribes where it has one; without
+    either field, the instance's default does (`_chat_connection`)."""
     if not available(db, caller.user)["stt"]:
         return error_response(404, "Speech to text is not on for this account on this instance.")
     form = await request.form()
@@ -149,19 +160,20 @@ async def transcriptions(request: Request, db: Db, caller: ModelsCaller):
         or ""
     ).strip()
     try:
-        text, seconds = await audio_service.transcribe_measured(
-            audio_service.endpoint_for(config, "stt"),
+        used = await media_speech.transcribe_for(
+            db,
+            caller.user,
+            connection=_chat_connection(db, caller, form.get("chat_id"), form.get("chat_model")),
+            interactive=_interactive(caller),
             data=data,
             filename=upload.filename or "speech.wav",
             content_type=upload.content_type or "audio/wav",
-            model=config.get("stt_model") or "whisper-1",
             language=language,
         )
     except LLMError as exc:
         log.info("transcription through the API failed: %s", exc.message)
         return error_response(502, exc.message, "upstream_error")
-    audio_service.record_transcription(db, caller.user.id, seconds, token_id=caller.token.id)
-    return JSONResponse({"text": text})
+    return JSONResponse({"text": used.result[0]}, headers=media_speech.headers(used))
 
 
 @router.post("/v1/audio/speech")
@@ -192,10 +204,12 @@ async def speech(request: Request, db: Db, caller: ModelsCaller):
         speed = resolve_speed(config, caller.user)
     fmt = str(body.get("response_format") or config.get("tts_format") or "mp3")
     try:
-        media_type, stream = await audio_service.speak(
-            audio_service.endpoint_for(config, "tts"),
-            text,
-            model=config.get("tts_model") or "tts-1",
+        used = await media_speech.speak_for(
+            db,
+            caller.user,
+            connection=_chat_connection(db, caller, body.get("chat_id"), body.get("chat_model")),
+            interactive=_interactive(caller),
+            text=text,
             voice=voice,
             fmt=fmt,
             speed=min(max(speed, 0.25), 4.0),
@@ -203,9 +217,33 @@ async def speech(request: Request, db: Db, caller: ModelsCaller):
     except LLMError as exc:
         log.info("speech through the API failed: %s", exc.message)
         return error_response(502, exc.message, "upstream_error")
-    audio_service.record_speech(db, caller.user.id, len(text), token_id=caller.token.id)
+    media_type, stream = used.result
     return StreamingResponse(
-        stream, media_type=media_type, headers={"Cache-Control": "no-store"}
+        stream, media_type=media_type,
+        headers={"Cache-Control": "no-store", **media_speech.headers(used)},
+    )
+
+
+def _interactive(caller) -> bool:
+    """Whether a request on `/v1` may be a person's own turn. It does not say
+    what it is for, so the token decides, as it does for a chat model
+    (`openai._key_refusal`): a linked device's is a person at an app or a
+    terminal; any other token -- a personal API key -- is a script by nature
+    and gets no media from an interactive-only connection (a plan)."""
+    from lembas.db.models import TOKEN_DEVICE
+
+    return getattr(caller.token, "kind", "") == TOKEN_DEVICE
+
+
+def _chat_connection(db, caller, chat_id: Any, chat_model: Any):
+    """The connection `chat_id` or `chat_model` names for this caller, or
+    None -- the instance's default (`sources.connection_of`). A served id is
+    `provider/model`, which is how `pick_model` reads it first."""
+    return media_sources.connection_of(
+        db,
+        caller.user,
+        chat_id=chat_id.strip() if isinstance(chat_id, str) else "",
+        model=chat_model.strip() if isinstance(chat_model, str) else "",
     )
 
 

@@ -39,6 +39,8 @@ from lembas.api.v1._common import error_response
 from lembas.security import permissions
 from lembas.security.api_tokens import ModelsCaller
 from lembas.services import settings_store
+from lembas.services.media import sources as media_sources
+from lembas.services.media.store import CAP_IMAGE
 
 log = logging.getLogger(__name__)
 
@@ -53,7 +55,7 @@ _SIZE = re.compile(r"^\s*(\d{1,5})\s*[xX×]\s*(\d{1,5})\s*$")
 def available(db, user) -> bool:
     """Whether this person may draw through the API: the instance can draw, and
     they hold the permission a chat's tool asks for."""
-    return settings_store.images_ready(db) and permissions.has(db, user, "tools.image")
+    return media_sources.anywhere(db, CAP_IMAGE) and permissions.has(db, user, "tools.image")
 
 
 def service_id(checkpoint: str) -> str:
@@ -97,12 +99,13 @@ def _checkpoint(wanted: str, values: dict[str, Any]) -> tuple[str | None, bool]:
 
 @router.post("/v1/images/generations")
 async def generations(request: Request, db: Db, caller: ModelsCaller):
+    from lembas.api.v1.services import _chat_connection, _interactive
     from lembas.db.session import session_scope
     from lembas.services import files as files_service
-    from lembas.services import pricing
     from lembas.services import usage as usage_service
     from lembas.services.images import comfy, workflow
-    from lembas.services.images.tool import _choices, _pick
+    from lembas.services.llm.openai_client import LLMError
+    from lembas.services.media import pictures
 
     user = caller.user
     if not available(db, user):
@@ -127,66 +130,91 @@ async def generations(request: Request, db: Db, caller: ModelsCaller):
     response_format = str(body.get("response_format") or "url")
     if response_format not in FORMATS:
         return error_response(400, "`response_format` is url or b64_json.")
-    checkpoint, unknown = _checkpoint(str(body.get("model") or ""), values)
-    if unknown:
-        return error_response(
-            404, f"There is no model {body.get('model')!r} here. GET /v1/models lists them.",
-            "not_found_error",
-        )
-    if checkpoint is None:
-        return error_response(404, "No checkpoint is listed on this instance.")
+
+    # Where it is drawn: the connection's own image model of the chat this is
+    # for (`chat_id` or `chat_model`, as on `/v1/audio/*`), else the
+    # instance's default -- its ComfyUI, or the connection's model an
+    # administrator made the default.
+    chain = media_sources.chain(
+        db,
+        CAP_IMAGE,
+        _chat_connection(db, caller, body.get("chat_id"), body.get("chat_model")),
+        interactive=_interactive(caller),
+    )
+    plan: dict[str, Any] | None = None
+    if any(source.dialect == media_sources.COMFYUI for source in chain):
+        plan = _comfy_plan(db, body, values)
+        if "error" in plan:
+            if chain[0].dialect == media_sources.COMFYUI:
+                return plan["error"]
+            chain = [source for source in chain if source.dialect != media_sources.COMFYUI]
+    if not chain:
+        return error_response(404, "Image generation is not on for this account on this instance.")
 
     # The daily limit, before a minute of somebody's GPU is spent.
     if over := usage_service.over_image_budget(db, user):
         return error_response(429, over, "rate_limit_error")
-    price = float(values["per_image"])
     ceiling = permissions.limit(db, user, "images_per_day")
     if ceiling and usage_service.images_today(db, user.id) + count > ceiling:
         return error_response(
             429, f"That would be more than this account's {ceiling} image(s) for today.",
             "rate_limit_error",
         )
-
-    rows, _ = _choices(db, values)
-    chosen = _pick(rows, "", "", values)
-    if chosen is None:
-        return error_response(404, "No image workflow has been set up on this instance.")
-    template = json.loads(json.dumps(chosen.workflow_json or {}))
-    slug = chosen.slug
-    given: dict[str, Any] = {"prompt": prompt, "model": checkpoint}
-    if size := nearest_size(body.get("size")):
-        given["width"], given["height"] = size
+    size = nearest_size(body.get("size"))
     user_id = user.id
 
-    from lembas.services.images.tool import config_of
-
-    config = config_of(_Context(values))
     # Nothing is read from the request's session past here: a generation takes
     # a minute, and holding a transaction open across one is the trade every
     # long call in this codebase refuses. What is written after is written in
     # a session of its own.
     db.rollback()
-    pictures: list[bytes] = []
+
+    async def draw(source) -> list[bytes]:
+        pictures_made: list[bytes] = []
+        if source.dialect != media_sources.COMFYUI:
+            while len(pictures_made) < count:
+                try:
+                    pictures_made.append(
+                        await pictures.generate(
+                            source, prompt,
+                            width=size[0] if size else None, height=size[1] if size else None,
+                        )
+                    )
+                except LLMError:
+                    if not pictures_made:
+                        raise
+                    break
+            return pictures_made
+        try:
+            while len(pictures_made) < count:
+                params = workflow.resolve(plan["given"], settings=values)
+                refs = await comfy.await_images(
+                    plan["config"],
+                    await comfy.submit(plan["config"], workflow.fill(plan["template"], params)),
+                )
+                if not refs:
+                    raise comfy.ComfyError("ComfyUI finished but saved no image.")
+                for ref in refs[: count - len(pictures_made)]:
+                    pictures_made.append(await comfy.fetch_image(plan["config"], ref))
+        except comfy.ComfyError as exc:
+            log.info("an image through the API failed: %s", exc.message)
+            if not pictures_made:
+                raise LLMError(f"The image could not be generated: {exc.message}") from exc
+        return pictures_made
+
     try:
-        while len(pictures) < count:
-            params = workflow.resolve(given, settings=values)
-            refs = await comfy.await_images(
-                config, await comfy.submit(config, workflow.fill(template, params))
-            )
-            if not refs:
-                raise comfy.ComfyError("ComfyUI finished but saved no image.")
-            for ref in refs[: count - len(pictures)]:
-                pictures.append(await comfy.fetch_image(config, ref))
-    except comfy.ComfyError as exc:
-        log.info("an image through the API failed: %s", exc.message)
-        if not pictures:
-            return error_response(502, f"The image could not be generated: {exc.message}",
-                          "upstream_error")
+        used = await media_sources.first_that_works(chain, draw)
+    except LLMError as exc:
+        return error_response(502, exc.message, "upstream_error")
+    source = used.source
+    comfyui = source.dialect == media_sources.COMFYUI
+    slug = plan["slug"] if comfyui else "image"
+    made_with = plan["checkpoint"] if comfyui else source.label
 
     base = str(request.base_url).rstrip("/")
     data: list[dict[str, Any]] = []
     with session_scope() as session:
-        for number, payload in enumerate(pictures, start=1):
+        for number, payload in enumerate(used.result, start=1):
             try:
                 attachment = files_service.store(
                     session,
@@ -196,7 +224,7 @@ async def generations(request: Request, db: Db, caller: ModelsCaller):
                     filename=f"{slug}-{int(time.time())}-{number}.png",
                     keep_original=True,
                     source_label="Image generation",
-                    source_path=f"{checkpoint} · API",
+                    source_path=f"{made_with} · API",
                 )
             except files_service.FileError as exc:
                 log.warning("a generated image could not be stored: %s", exc)
@@ -208,19 +236,61 @@ async def generations(request: Request, db: Db, caller: ModelsCaller):
                 item["b64_json"] = base64.b64encode(payload).decode("ascii")
             data.append(item)
         kept = len(data)
-        usage_service.record(
-            session,
-            user_id,
-            model_id=service_id(checkpoint),
-            cost_micro=pricing.service_cost_micro(price, kept),
+        # Against the source that drew them, at its own price.
+        media_sources.record(
+            session, user_id,
+            source if not comfyui else _priced(source, float(values["per_image"])),
             images=kept,
+            usage_id=service_id(plan["checkpoint"]) if comfyui else "",
         )
         session.commit()
     if not data:
         return error_response(
             502, "The images were generated but could not be saved.", "upstream_error"
         )
-    return JSONResponse({"created": int(time.time()), "data": data})
+    from lembas.services.media import speech as media_speech
+
+    return JSONResponse(
+        {"created": int(time.time()), "data": data}, headers=media_speech.headers(used)
+    )
+
+
+def _priced(source, price: float):
+    from dataclasses import replace
+
+    return replace(source, price=price)
+
+
+def _comfy_plan(db, body: dict[str, Any], values: dict[str, Any]) -> dict[str, Any]:
+    """What the instance's ComfyUI is asked for by this request -- or
+    `{"error": response}` when it cannot be: an unknown checkpoint, none
+    listed, no workflow."""
+    from lembas.services.images.tool import _choices, _pick, config_of
+
+    checkpoint, unknown = _checkpoint(str(body.get("model") or ""), values)
+    if unknown:
+        return {"error": error_response(
+            404, f"There is no model {body.get('model')!r} here. GET /v1/models lists them.",
+            "not_found_error",
+        )}
+    if checkpoint is None:
+        return {"error": error_response(404, "No checkpoint is listed on this instance.")}
+    rows, _ = _choices(db, values)
+    chosen = _pick(rows, "", "", values)
+    if chosen is None:
+        return {"error": error_response(
+            404, "No image workflow has been set up on this instance."
+        )}
+    given: dict[str, Any] = {"prompt": str(body.get("prompt") or "").strip(), "model": checkpoint}
+    if size := nearest_size(body.get("size")):
+        given["width"], given["height"] = size
+    return {
+        "checkpoint": checkpoint,
+        "template": json.loads(json.dumps(chosen.workflow_json or {})),
+        "slug": chosen.slug,
+        "given": given,
+        "config": config_of(_Context(values)),
+    }
 
 
 class _Context:

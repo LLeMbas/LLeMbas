@@ -195,6 +195,12 @@ def _audio_defaults() -> dict[str, Any]:
         # bill in. 0 is free, which is what a local whisper.cpp or Kokoro is.
         "stt_per_minute": 0.0,
         "tts_per_1m_chars": 0.0,
+        # The default for each direction is the endpoint above, or -- when
+        # one of these names it, as `<connection id>/<model id>` -- a
+        # connection's own speech model (`services/media/sources.py`). Either
+        # is only the default: a chat whose connection has its own uses that.
+        "stt_connection": "",
+        "tts_connection": "",
     }
 
 
@@ -305,6 +311,10 @@ def _images_defaults() -> dict[str, Any]:
         # Each is a full generation on somebody's GPU, so `n` is
         # capped here rather than trusted.
         "api_max_images": 4,
+        # The default image source is the ComfyUI above, or -- when this
+        # names one, as `<connection id>/<model id>` -- a connection's own
+        # image model (`services/media/sources.py`).
+        "connection": "",
     }
 
 

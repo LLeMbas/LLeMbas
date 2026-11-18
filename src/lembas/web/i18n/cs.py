@@ -2817,3 +2817,51 @@ MESSAGES.update(
         'The earlier turns of this chat were not summarised: its model is on a connection for interactive use only, and there is no other model to ask for the summary. Switch model or start a new chat before the conversation outgrows this one.': 'Dřívější části tohoto chatu nebyly shrnuty: jeho model je na připojení určeném jen pro interaktivní použití a není jiný model, který by šlo o shrnutí požádat. Změňte model nebo začněte nový chat dřív, než konverzace tento model přeroste.',
     }
 )
+
+# Media from connections: speech and pictures a connection carries itself.
+MESSAGES.update(
+    {
+        'Speech and pictures': 'Řeč a obrázky',
+        "Use this connection's own speech models for its chats": 'Pro chaty na tomto připojení používat jeho vlastní modely řeči',
+        "Use this connection's own image model for its chats": 'Pro chaty na tomto připojení používat jeho vlastní obrázkový model',
+        'On': 'Zap.',
+        'Speech to text': 'Přepis řeči',
+        'Text to speech': 'Čtení nahlas',
+        'model id': 'id modelu',
+        'voice': 'hlas',
+        'per minute': 'za minutu',
+        'per 1M characters': 'za 1 mil. znaků',
+        'per picture': 'za obrázek',
+        "A chat whose model is on this connection uses these when the switch above is on and a model of that kind is ticked — the first ticked one. Otherwise, and once when this connection's own does not answer, the instance's default under Audio and Image generation is used; the result says which answered. A chat on another connection is never sent here unless you make one of these the default there. To remove a model, clear its id.": 'Chat, jehož model je na tomto připojení, je používá, když je přepínač výše zapnutý a model daného druhu zaškrtnutý — první zaškrtnutý. Jinak, a jednou i tehdy, když vlastní model tohoto připojení neodpoví, se použije výchozí zdroj instance ze stránek Zvuk a Generování obrázků; výsledek řekne, který odpověděl. Chat na jiném připojení se sem nikdy neposílá, pokud některý z těchto modelů sami nenastavíte tam jako výchozí. Model odstraníte vymazáním jeho id.',
+        "On a plan this is for a person's own turns only — dictation, a reply they asked to hear, a picture inside their own reply — never for scheduled work or a personal API key, and it is counted, not priced.": 'Na předplaceném plánu je to jen pro vlastní tahy člověka — diktování, odpověď, kterou si nechal přečíst, obrázek ve vlastní odpovědi — nikdy pro naplánovanou práci ani osobní API klíč, a počítá se, neoceňuje.',
+        'These are the <strong>defaults</strong>, for connections without speech models of their own. A connection can carry its own under <a href="/admin/connections">Connections</a>; a chat on it then uses those, and comes back here once if they do not answer.': 'Toto jsou <strong>výchozí</strong> zdroje pro připojení bez vlastních modelů řeči. Připojení může mít vlastní na stránce <a href="/admin/connections">Připojení</a>; chat na něm pak používá ty a sem se vrátí jednou, pokud neodpoví.',
+        'Default source': 'Výchozí zdroj',
+        'The endpoint below': 'Koncový bod níže',
+        "A connection's own model can be the default instead of the endpoint below. Chats on every connection without its own are then sent there, so choose a cloud one only on purpose.": 'Výchozím zdrojem může být místo koncového bodu níže vlastní model některého připojení. Chaty na každém připojení bez vlastního se pak posílají tam, takže cloudový vyberte jen záměrně.',
+        "These are the endpoints' prices; a connection's own model has its price beside it.": 'Toto jsou ceny koncových bodů; vlastní model připojení má cenu u sebe.',
+        'What is set on this page is the <strong>default</strong>, for connections without an image model of their own. A connection can carry its own under <a href="/admin/connections">Connections</a>; a chat on it then draws with that, and comes back here once if it does not answer.': 'Co je nastaveno na této stránce, je <strong>výchozí</strong> zdroj pro připojení bez vlastního obrázkového modelu. Připojení může mít vlastní na stránce <a href="/admin/connections">Připojení</a>; chat na něm pak kreslí jím a sem se vrátí jednou, pokud neodpoví.',
+        'The ComfyUI below': 'ComfyUI níže',
+        "A connection's own model can be the default instead of the ComfyUI. Chats on every connection without its own are then sent there, so choose a cloud one only on purpose. Workflows, checkpoints, review and the price below belong to the ComfyUI.": 'Výchozím zdrojem může být místo ComfyUI vlastní model některého připojení. Chaty na každém připojení bez vlastního se pak posílají tam, takže cloudový vyberte jen záměrně. Workflow, checkpointy, kontrola a cena níže patří ke ComfyUI.',
+        'QwenCloud, Singapore': 'QwenCloud, Singapur',
+        'QwenCloud, US (Virginia)': 'QwenCloud, USA (Virginie)',
+        'QwenCloud, Germany (Frankfurt)': 'QwenCloud, Německo (Frankfurt)',
+        'QwenCloud, Japan (Tokyo)': 'QwenCloud, Japonsko (Tokio)',
+        'QwenCloud, China (Hong Kong)': 'QwenCloud, Čína (Hongkong)',
+        'QwenCloud, China (Beijing)': 'QwenCloud, Čína (Peking)',
+        'Token Plan, QwenCloud': 'Token Plan, QwenCloud',
+        "This connection's base URL is not an address.": 'Základní URL tohoto připojení není adresa.',
+        '%(name)s answered %(status)s: %(said)s': '%(name)s odpověděl %(status)s: %(said)s',
+        "The provider's answer named no result.": 'Odpověď poskytovatele neuvedla žádný výsledek.',
+        "The provider's result could not be fetched: %(why)s": 'Výsledek od poskytovatele se nepodařilo stáhnout: %(why)s',
+        "The provider's result is larger than this server keeps.": 'Výsledek od poskytovatele je větší, než tento server uchovává.',
+        'Nothing is configured to do that on this instance.': 'Na této instanci k tomu není nic nastaveno.',
+        'The image endpoint returned a picture that could not be read.': 'Koncový bod pro obrázky vrátil obrázek, který se nepodařilo přečíst.',
+        'The image endpoint returned no picture.': 'Koncový bod pro obrázky nevrátil žádný obrázek.',
+        'That recording is longer than this provider transcribes at once.': 'Tato nahrávka je delší, než tento poskytovatel přepíše najednou.',
+        'The speech endpoint returned audio that could not be read.': 'Koncový bod pro řeč vrátil zvuk, který se nepodařilo přečíst.',
+        'The speech endpoint returned no audio.': 'Koncový bod pro řeč nevrátil žádný zvuk.',
+        "Transcribed by %(source)s: this chat's own speech model did not answer.": 'Přepsal %(source)s: vlastní model řeči tohoto chatu neodpověděl.',
+        "Read by %(source)s: this chat's own speech model did not answer.": 'Přečetl %(source)s: vlastní model řeči tohoto chatu neodpověděl.',
+    }
+)
+MESSAGES["Prices are in this connection's currency."] = 'Ceny jsou v měně tohoto připojení.'

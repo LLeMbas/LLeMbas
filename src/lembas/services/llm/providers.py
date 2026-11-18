@@ -152,12 +152,29 @@ ALIBABA_REGIONS = (
            "https://{WorkspaceId}.eu-central-1.maas.aliyuncs.com" + _COMPATIBLE),
     Region("ap-northeast-1", N_("Japan (Tokyo), your workspace's host"),
            "https://{WorkspaceId}.ap-northeast-1.maas.aliyuncs.com" + _COMPATIBLE),
+    # QwenCloud: the provider's newer console and names for the same service,
+    # one host per region. A key from one region does not work in another.
+    Region("qwencloud-ap-southeast-1", N_("QwenCloud, Singapore"),
+           f"https://ap-southeast-1.maas.qwencloudapi.com{_COMPATIBLE}"),
+    Region("qwencloud-us-east-1", N_("QwenCloud, US (Virginia)"),
+           f"https://us-east-1.maas.qwencloudapi.com{_COMPATIBLE}"),
+    Region("qwencloud-eu-central-1", N_("QwenCloud, Germany (Frankfurt)"),
+           f"https://eu-central-1.maas.qwencloudapi.com{_COMPATIBLE}"),
+    Region("qwencloud-ap-northeast-1", N_("QwenCloud, Japan (Tokyo)"),
+           f"https://ap-northeast-1.maas.qwencloudapi.com{_COMPATIBLE}"),
+    Region("qwencloud-cn-hongkong", N_("QwenCloud, China (Hong Kong)"),
+           f"https://cn-hongkong.maas.qwencloudapi.com{_COMPATIBLE}"),
+    Region("qwencloud-cn-beijing", N_("QwenCloud, China (Beijing)"),
+           f"https://cn-beijing.maas.qwencloudapi.com{_COMPATIBLE}"),
 )
 ALIBABA_PLAN_REGIONS = (
     Region("ap-southeast-1", N_("Token Plan, Singapore"),
            f"https://token-plan.ap-southeast-1.maas.aliyuncs.com{_COMPATIBLE}"),
     Region("cn-beijing", N_("Token Plan, China (Beijing)"),
            f"https://token-plan.cn-beijing.maas.aliyuncs.com{_COMPATIBLE}"),
+    # QwenCloud's Token Plan: one host, with no region in it.
+    Region("qwencloud", N_("Token Plan, QwenCloud"),
+           f"https://token-plan.maas.qwencloudapi.com{_COMPATIBLE}"),
     Region("coding-intl", N_("Coding Plan (international)"),
            "https://coding-intl.dashscope.aliyuncs.com/v1"),
 )

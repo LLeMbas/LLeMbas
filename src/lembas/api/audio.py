@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from fastapi.responses import PlainTextResponse, Response, StreamingResponse
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import JSONResponse, PlainTextResponse, Response, StreamingResponse
 from sqlalchemy.orm import Session as DBSession
 
 from lembas.api.deps import Db, RequiredUser, require_permission
@@ -20,6 +20,8 @@ from lembas.services import audio as audio_service
 from lembas.services import settings_store
 from lembas.services.llm.openai_client import LLMError
 from lembas.services.markdown import speakable_text
+from lembas.services.media import sources as media_sources
+from lembas.services.media import speech as media_speech
 from lembas.web.i18n import t
 
 log = logging.getLogger(__name__)
@@ -75,12 +77,21 @@ def resolve_speed(config: dict, user: User) -> float:
     "/transcribe", dependencies=[Depends(require_permission("audio.transcribe"))]
 )
 async def transcribe(
-    db: Db, user: RequiredUser, file: UploadFile = File(...)
+    db: Db,
+    user: RequiredUser,
+    file: UploadFile = File(...),
+    chat_id: str = Form(""),
+    model_id: str = Form(""),
 ) -> Response:
     """Turn a recording into text for the composer.
 
     Returns plain text, not HTML: the caller assigns it to a textarea's value,
     where it is never parsed as markup.
+
+    `chat_id` (the chat being written in) or `model_id` (the model chosen for
+    a chat that does not exist yet) says whose speech model transcribes: that
+    model's connection's own where it has one, else the instance's default
+    (`services/media/sources.py`). The answer's `X-Lembas-Source` names it.
     """
     config = settings_store.audio(db)
     if not config.get("stt_enabled"):
@@ -99,22 +110,23 @@ async def transcribe(
     language = (_user_audio(user).get("language") or config.get("stt_language") or "").strip()
 
     try:
-        text, seconds = await audio_service.transcribe_measured(
-            audio_service.endpoint_for(config, "stt"),
+        used = await media_speech.transcribe_for(
+            db,
+            user,
+            # Dictation is a person at a microphone: their own turn.
+            connection=media_sources.connection_of(
+                db, user, chat_id=chat_id.strip(), model=model_id.strip()
+            ),
             data=data,
             filename=file.filename or "speech.webm",
             content_type=file.content_type or "audio/webm",
-            model=config.get("stt_model") or "whisper-1",
             language=language,
         )
     except LLMError as exc:
         log.info("transcription failed: %s", exc.message)
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
 
-    # Counted and priced once it has worked: a failed transcription cost the
-    # person nothing they could use.
-    audio_service.record_transcription(db, user.id, seconds)
-    return PlainTextResponse(text)
+    return PlainTextResponse(used.result[0], headers=media_speech.headers(used))
 
 
 @router.get(
@@ -135,10 +147,13 @@ async def speech(db: Db, user: RequiredUser, chat_id: str, message_id: str) -> R
         raise HTTPException(status.HTTP_404_NOT_FOUND, t("There is nothing to read out."))
 
     try:
-        media_type, stream = await audio_service.speak(
-            audio_service.endpoint_for(config, "tts"),
-            text,
-            model=config.get("tts_model") or "tts-1",
+        used = await media_speech.speak_for(
+            db,
+            user,
+            # The chat's current model decides whose speech model reads; a
+            # reply pressed to be read is the person's own turn.
+            connection=media_sources.connection_of(db, user, chat_id=chat_id),
+            text=text,
             voice=resolve_voice(config, user),
             fmt=config.get("tts_format") or "mp3",
             speed=resolve_speed(config, user),
@@ -147,15 +162,49 @@ async def speech(db: Db, user: RequiredUser, chat_id: str, message_id: str) -> R
         log.info("speech failed: %s", exc.message)
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
 
-    # The server has accepted the text, so it is read: counted and priced by
-    # the character, before the first byte of audio goes out.
-    audio_service.record_speech(db, user.id, len(text))
+    media_type, stream = used.result
+    _remember_reading(user.id, message.id, used)
     return StreamingResponse(
         stream,
         media_type=media_type,
         # Not cached: the voice can change under the reader between plays, and
         # a message can be regenerated at the same URL.
-        headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+        headers={
+            "Cache-Control": "no-store", "X-Accel-Buffering": "no",
+            **media_speech.headers(used),
+        },
+    )
+
+
+# Which source read a message last, per reader: an `<audio>` element plays the
+# stream itself and shows no header to the page, so the page asks afterwards
+# (`/source` below). Kept in memory and small -- it is a courtesy, not a record;
+# the ledger has the record.
+_READINGS: dict[tuple[str, str], dict] = {}
+_READINGS_MAX = 512
+
+
+def _remember_reading(user_id: str, message_id: str, used) -> None:
+    if len(_READINGS) >= _READINGS_MAX:
+        for key in list(_READINGS)[: _READINGS_MAX // 2]:
+            _READINGS.pop(key, None)
+    _READINGS[(user_id, message_id)] = {
+        "source": used.source.label,
+        "fallback": bool(used.fell_back),
+    }
+
+
+@router.get(
+    "/speech/{chat_id}/{message_id}/source",
+    dependencies=[Depends(require_permission("audio.listen"))],
+)
+async def speech_source(db: Db, user: RequiredUser, chat_id: str, message_id: str) -> Response:
+    """Which source read this message to this person last, and whether it was
+    the fallback: `{"source": …, "fallback": bool}`, or `{}` when nothing is
+    remembered."""
+    _owned_message(db, chat_id, message_id, user)
+    return JSONResponse(
+        _READINGS.get((user.id, message_id), {}), headers={"Cache-Control": "no-store"}
     )
 
 
@@ -165,7 +214,13 @@ async def available_voices(config: dict, *, refresh: bool = False) -> tuple[list
     Returns rather than raises: a settings page whose voice list could not be
     fetched should still render, with the reason next to an empty list.
     """
-    if not config.get("tts_enabled") or not (config.get("tts_base_url") or "").strip():
+    if (
+        not config.get("tts_enabled")
+        or not (config.get("tts_base_url") or "").strip()
+        # The default is a connection's model: its voice is set beside it,
+        # and the endpoint below is not what reads.
+        or (config.get("tts_connection") or "").strip()
+    ):
         return [], ""
     try:
         return await audio_service.voices(

@@ -55,6 +55,9 @@ OLD_COLUMNS = (
     # The plan on the chat (1.3.0). Nullable JSON: an older row reads NULL and
     # `Chat.plan` falls back to the todo list or the message snapshot it had.
     ("chats", "plan_json"),
+    # A connection's media besides chat. A NOT NULL JSON dict: an older row
+    # must come back as an empty dict, which reads as "no media of its own".
+    ("connections", "media_json"),
 )
 
 

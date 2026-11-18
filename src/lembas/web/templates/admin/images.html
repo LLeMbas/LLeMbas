@@ -30,6 +30,21 @@
     </div>
   </section>
 
+  <section class="card" data-testid="image-defaults">
+    <h2 class="card__title">{{ t("Default source") }}</h2>
+    <p class="card__lede">{{ tm("What is set on this page is the <strong>default</strong>, for connections without an image model of their own. A connection can carry its own under <a href=\"/admin/connections\">Connections</a>; a chat on it then draws with that, and comes back here once if it does not answer.") }}</p>
+    <div class="field">
+      <label class="field__label" for="image-connection">{{ t("Default source") }}</label>
+      <select class="select" id="image-connection" name="connection">
+        <option value="">{{ t("The ComfyUI below") }}</option>
+        {% for choice in source_choices %}
+        <option value="{{ choice.value }}" {{ 'selected' if values.connection == choice.value }}>{{ choice.label }}</option>
+        {% endfor %}
+      </select>
+      <p class="field__hint">{{ t("A connection's own model can be the default instead of the ComfyUI. Chats on every connection without its own are then sent there, so choose a cloud one only on purpose. Workflows, checkpoints, review and the price below belong to the ComfyUI.") }}</p>
+    </div>
+  </section>
+
   <section class="card">
     <h2 class="card__title">{{ t("ComfyUI") }}</h2>
     <div class="field">

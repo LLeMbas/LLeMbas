@@ -287,13 +287,27 @@ def service_entries(db: DBSession, user: User, taken: set[str]) -> list[dict[str
             }
         )
 
+    # The instance's **defaults**, as before: the endpoint in the settings, or
+    # the connection's model an administrator made the default. A connection's
+    # own media is not listed -- it is not chosen by a request, it follows the
+    # chat's model (`services/media/sources.py`).
+    from lembas.services.media import sources as media_sources
+
     for side in ("stt", "tts"):
-        if allowed[side]:
+        source = media_sources.default(db, side) if allowed[side] else None
+        if source is None:
+            continue
+        if source.origin == media_sources.ORIGIN_INSTANCE:
             entry_id = audio_service.service_id(audio, side)
-            add(entry_id, side, entry_id.split("/", 1)[1], side)
-    if allowed["images"]:
+        else:
+            entry_id = f"{side}/{source.model}"
+        add(entry_id, side, entry_id.split("/", 1)[1], side)
+    picture = media_sources.default(db, "image") if allowed["images"] else None
+    if picture is not None and picture.origin == media_sources.ORIGIN_INSTANCE:
         for checkpoint in settings_store.images(db)["checkpoints"]:
             add(images_api.service_id(checkpoint), "image", checkpoint, images_api.PROVIDER)
+    elif picture is not None:
+        add(picture.usage_id, "image", picture.model, picture.provider)
     return entries
 
 

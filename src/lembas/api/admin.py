@@ -24,6 +24,7 @@ from lembas.services.llm import detect as detect_service
 from lembas.services.llm import health as health_service
 from lembas.services.llm import providers
 from lembas.services.llm.openai_client import Endpoint, LLMError, context_from, list_models
+from lembas.services.media import store as media_store
 from lembas.web import i18n
 from lembas.web.templating import render
 
@@ -177,6 +178,12 @@ def _row_context(db: DBSession, connection: Connection) -> dict:
         "interactive_only": providers.interactive_only(
             connection.provider_type, connection.base_url
         ),
+        # Its media besides chat (`services/media/store.py`): the two
+        # switches and one row per model, stored, offered or blank.
+        "media_supported": media_store.supported(connection.provider_type, connection.base_url),
+        "media": media_store.of(connection),
+        "media_rows": media_store.form_rows(connection),
+        "subscription": providers.subscription(connection.provider_type, connection.base_url),
     }
 
 
@@ -380,6 +387,7 @@ async def detect_connection(
 
 @router.post("/connections/{connection_id}")
 async def update_connection(
+    request: Request,
     db: Db,
     user: AdminUser,
     connection_id: str,
@@ -446,6 +454,38 @@ async def update_connection(
     elif not submitted:
         # An explicitly emptied field means "this endpoint needs no key".
         connection.api_key_encrypted = ""
+
+    # Its media: only when the form carried that part (a page from an older
+    # release does not, and leaves it alone). Rows are parallel lists; a row
+    # with no model id is no row, which is also how one is removed.
+    form = await request.form()
+    if form.get("media_form"):
+        models = [str(v) for v in form.getlist("media_model")]
+        kinds = [str(v) for v in form.getlist("media_capability")]
+        voices = [str(v) for v in form.getlist("media_voice")]
+        prices = [str(v) for v in form.getlist("media_price")]
+        ticked = {str(v) for v in form.getlist("media_enabled")}
+
+        def at(values: list[str], index: int) -> str:
+            return values[index] if index < len(values) else ""
+
+        connection.media_json = media_store.normalise(
+            {
+                "prefer_audio": bool(form.get("media_prefer_audio")),
+                "prefer_image": bool(form.get("media_prefer_image")),
+                "models": [
+                    {
+                        "capability": at(kinds, index),
+                        "model": model,
+                        "voice": at(voices, index),
+                        "price": at(prices, index),
+                        "enabled": str(index) in ticked,
+                    }
+                    for index, model in enumerate(models)
+                    if model.strip()
+                ],
+            }
+        )
 
     db.commit()
     return RedirectResponse("/admin/connections", status_code=status.HTTP_303_SEE_OTHER)

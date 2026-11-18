@@ -7,6 +7,7 @@
 
 {% block admin_content %}
 <p class="admin-lede">{{ t("Two endpoints speaking the OpenAI audio API: one that turns speech into text so a message can be dictated, one that reads a reply out. They are configured separately because they usually are separate servers — whisper.cpp and Kokoro, say, or Speaches for both.") }}</p>
+<p class="admin-lede" data-testid="audio-defaults-note">{{ tm("These are the <strong>defaults</strong>, for connections without speech models of their own. A connection can carry its own under <a href=\"/admin/connections\">Connections</a>; a chat on it then uses those, and comes back here once if they do not answer.") }}</p>
 
 {% if saved %}
 <div data-flash="success" class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ t("Audio settings saved.") }}</span></div>
@@ -27,6 +28,17 @@
                {{ 'checked' if values.stt_enabled }}>
         <span>{{ t("Allow messages to be dictated") }}</span>
       </label>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="stt-connection">{{ t("Default source") }}</label>
+      <select class="select" id="stt-connection" name="stt_connection">
+        <option value="">{{ t("The endpoint below") }}</option>
+        {% for choice in source_choices.stt %}
+        <option value="{{ choice.value }}" {{ 'selected' if values.stt_connection == choice.value }}>{{ choice.label }}</option>
+        {% endfor %}
+      </select>
+      <p class="field__hint">{{ t("A connection's own model can be the default instead of the endpoint below. Chats on every connection without its own are then sent there, so choose a cloud one only on purpose.") }}</p>
     </div>
 
     <div class="grid grid--2">
@@ -87,6 +99,17 @@
                {{ 'checked' if values.tts_enabled }}>
         <span>{{ t("Allow replies to be read out") }}</span>
       </label>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="tts-connection">{{ t("Default source") }}</label>
+      <select class="select" id="tts-connection" name="tts_connection">
+        <option value="">{{ t("The endpoint below") }}</option>
+        {% for choice in source_choices.tts %}
+        <option value="{{ choice.value }}" {{ 'selected' if values.tts_connection == choice.value }}>{{ choice.label }}</option>
+        {% endfor %}
+      </select>
+      <p class="field__hint">{{ t("A connection's own model can be the default instead of the endpoint below. Chats on every connection without its own are then sent there, so choose a cloud one only on purpose.") }}</p>
     </div>
 
     <div class="grid grid--2">
@@ -163,7 +186,7 @@
   {# What speech costs, in money, like a model's prices. #}
   <section class="card">
     <h2 class="card__title">{{ t("Price") }}</h2>
-    <p class="card__lede">{{ t("What speech costs, in %(currency)s — in the browser and through the API alike. 0 is free, which is what a server of your own usually is.", currency=currency_sign) }}</p>
+    <p class="card__lede">{{ t("What speech costs, in %(currency)s — in the browser and through the API alike. 0 is free, which is what a server of your own usually is.", currency=currency_sign) }} {{ t("These are the endpoints' prices; a connection's own model has its price beside it.") }}</p>
     <div class="grid grid--2">
       <div class="field">
         <label class="field__label" for="stt-price">{{ t("Speech to text, per minute") }} ({{ currency_sign }})</label>

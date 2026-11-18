@@ -268,6 +268,78 @@
       </p>
     </div>
 
+    {% if row.media_supported %}
+    {# Its media besides chat (services/media/store.py). One grid of three
+       tracks that every row shares: the switch, a column for the kind and
+       the voice, a column for the model's id and its price. A row is two
+       lines, each cell placed by name, so a row without a voice keeps its
+       shape and every row's parts start where every other row's do, whatever
+       the text. Under the breakpoint a row is one column beside its switch. #}
+    <div class="field" data-testid="connection-media">
+      <span class="field__label">{{ t("Speech and pictures") }}</span>
+      <input type="hidden" name="media_form" value="1">
+      <label class="checkbox">
+        <input type="checkbox" name="media_prefer_audio" value="true"
+               {{ 'checked' if row.media.prefer_audio }}>
+        <span>{{ t("Use this connection's own speech models for its chats") }}</span>
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" name="media_prefer_image" value="true"
+               {{ 'checked' if row.media.prefer_image }}>
+        <span>{{ t("Use this connection's own image model for its chats") }}</span>
+      </label>
+      <div class="media-rows">
+        {% for item in row.media_rows %}
+        <div class="media-row" role="group" x-data="{ kind: '{{ item.capability }}' }"
+             aria-label="{{ item.model or t('model id') }}" data-testid="media-row">
+          <span class="media-cell media-cell--on">
+            <input type="checkbox" name="media_enabled" value="{{ loop.index0 }}"
+                   aria-label="{{ t('On') }}" {{ 'checked' if item.enabled }}>
+          </span>
+          <span class="media-cell media-cell--kind">
+            <select class="select" name="media_capability" x-model="kind"
+                    aria-label="{{ t('Kind') }}">
+              <option value="stt" {{ 'selected' if item.capability == 'stt' }}>{{ t("Speech to text") }}</option>
+              <option value="tts" {{ 'selected' if item.capability == 'tts' }}>{{ t("Text to speech") }}</option>
+              <option value="image" {{ 'selected' if item.capability == 'image' }}>{{ t("Image generation") }}</option>
+            </select>
+          </span>
+          <span class="media-cell media-cell--model">
+            <input class="input input--mono" name="media_model" value="{{ item.model }}"
+                   maxlength="200" autocomplete="off" spellcheck="false"
+                   aria-label="{{ t('Model') }}" placeholder="{{ t('model id') }}">
+          </span>
+          {#- Submitted for every row (the lists are parallel), shown for the
+              one kind that has a voice. Its place is named, so hiding it
+              moves nothing. -#}
+          <span class="media-cell media-cell--voice" x-show="kind === 'tts'"
+                {% if item.capability != 'tts' %}x-cloak{% endif %}>
+            <input class="input" name="media_voice" value="{{ item.voice }}" maxlength="120"
+                   autocomplete="off" aria-label="{{ t('Voice') }}"
+                   placeholder="{{ t('voice') }}">
+          </span>
+          <span class="media-cell media-cell--price">
+            <input class="input" name="media_price" type="number" min="0" step="any"
+                   value="{{ item.price or '' }}" placeholder="0 {{ connection.currency }}"
+                   aria-label="{{ t('Price') }}">
+            <span class="media-unit" x-show="kind === 'stt'"
+                  {% if item.capability != 'stt' %}x-cloak{% endif %}>{{ t("per minute") }}</span>
+            <span class="media-unit" x-show="kind === 'tts'"
+                  {% if item.capability != 'tts' %}x-cloak{% endif %}>{{ t("per 1M characters") }}</span>
+            <span class="media-unit" x-show="kind === 'image'"
+                  {% if item.capability != 'image' %}x-cloak{% endif %}>{{ t("per picture") }}</span>
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="field__hint">
+        {{ t("A chat whose model is on this connection uses these when the switch above is on and a model of that kind is ticked — the first ticked one. Otherwise, and once when this connection's own does not answer, the instance's default under Audio and Image generation is used; the result says which answered. A chat on another connection is never sent here unless you make one of these the default there. To remove a model, clear its id.") }}
+        {{ t("Prices are in this connection's currency.") }}
+        {% if row.interactive_only %}{{ t("On a plan this is for a person's own turns only — dictation, a reply they asked to hear, a picture inside their own reply — never for scheduled work or a personal API key, and it is counted, not priced.") }}{% endif %}
+      </p>
+    </div>
+    {% endif %}
+
     <div class="field">
       <label class="checkbox">
         <input type="checkbox" name="one_model_at_a_time" value="true"
