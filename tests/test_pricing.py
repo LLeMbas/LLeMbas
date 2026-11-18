@@ -236,7 +236,6 @@ def test_an_old_unit_mark_is_ignored(db):
 
 
 def test_speech_and_pictures_are_counted_under_their_service(db, registered):
-    from lembas.services import audio
 
     settings_store.update(
         db,
@@ -244,7 +243,10 @@ def test_speech_and_pictures_are_counted_under_their_service(db, registered):
         key=settings_store.AUDIO,
     )
     me = _me(db)
-    cost = audio.record_transcription(db, me.id, 120)
+    from lembas.services.media import sources
+
+    settings_store.update(db, {"stt_base_url": "http://stt.test/v1"}, key=settings_store.AUDIO)
+    cost = sources.record(db, me.id, sources.default(db, "stt"), seconds=120)
     assert cost == 12_000  # two minutes at 0.006
     rows = {r.model_id: r for r in usage_service.by_model(db, me.id)}
     assert any(key.startswith("stt") for key in rows)

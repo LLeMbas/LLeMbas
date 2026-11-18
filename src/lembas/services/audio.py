@@ -315,11 +315,11 @@ def _headers_without_content_type(endpoint: Endpoint) -> dict[str, str]:
 
 
 # --- What speech costs ------------------------------------------------------
-# Speech is priced in the audio settings, in money like a model's prices: per
-# minute transcribed, per million characters read aloud. Both the web's own
-# dictation and read-aloud and the API's `/v1/audio/*` go through these, so a
-# minute dictated in a browser and one sent by a script cost the same and land
-# in the same ledger. An administrator is unlimited here as everywhere.
+# The instance's endpoints are priced in the audio settings, in money like a
+# model's prices: per minute transcribed, per million characters read aloud.
+# The counting itself is `services/media/sources.record`, against whichever
+# source answered -- for the web's dictation and read-aloud and for the API's
+# `/v1/audio/*` alike.
 def service_id(config: dict[str, Any], side: str) -> str:
     """What the ledger and `/v1/models` call one side: `stt/whisper-1`,
     `tts/kokoro`."""
@@ -329,54 +329,6 @@ def service_id(config: dict[str, Any], side: str) -> str:
 
 def price_of(config: dict[str, Any], side: str) -> float:
     return float(config.get("stt_per_minute" if side == "stt" else "tts_per_1m_chars") or 0)
-
-
-def record_transcription(db, user_id: str, seconds: float, *, token_id: str | None = None) -> int:
-    """Count and price one transcription of `seconds`. Returns what it cost
-    in micro-units of the currency. Never raises; commits."""
-    from lembas.services import pricing, settings_store
-    from lembas.services import usage as usage_service
-
-    config = settings_store.audio(db)
-    cost = pricing.service_cost_micro(price_of(config, "stt"), seconds / 60)
-    usage_service.record(
-        db,
-        user_id,
-        model_id=service_id(config, "stt"),
-        requests=1,
-        cost_micro=cost,
-        audio_seconds=seconds,
-    )
-    _commit(db)
-    return cost
-
-
-def record_speech(db, user_id: str, characters: int, *, token_id: str | None = None) -> int:
-    """Count and price one reading aloud of `characters`. Returns what it
-    cost in micro-units of the currency. Never raises; commits."""
-    from lembas.services import pricing, settings_store
-    from lembas.services import usage as usage_service
-
-    config = settings_store.audio(db)
-    cost = pricing.service_cost_micro(price_of(config, "tts"), characters / 1_000_000)
-    usage_service.record(
-        db,
-        user_id,
-        model_id=service_id(config, "tts"),
-        requests=1,
-        cost_micro=cost,
-        speech_chars=characters,
-    )
-    _commit(db)
-    return cost
-
-
-def _commit(db) -> None:
-    try:
-        db.commit()
-    except Exception:  # bookkeeping must never break the request
-        db.rollback()
-        log.warning("could not record speech usage", exc_info=True)
 
 
 def forget_voices() -> None:

@@ -12,6 +12,7 @@ given is the bytes -- never the link.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -30,15 +31,40 @@ MESSAGE_MAX = 300
 # Ceilings on what a result link may hand back: a reply read aloud, a picture.
 MAX_AUDIO_BYTES = 64 * 1024 * 1024
 MAX_IMAGE_BYTES = 48 * 1024 * 1024
+# The most of a JSON answer that is read (a picture may arrive inside one,
+# base64), and the longest collecting a result may take altogether.
+MAX_ANSWER_BYTES = 96 * 1024 * 1024
+COLLECT_SECONDS = 300.0
 
 
 def native_url(endpoint: Endpoint, path: str) -> str:
-    """`<scheme>://<host>/api/v1/<path>` for a connection whose base URL is
-    the provider's OpenAI-compatible one."""
+    """`<scheme>://<host><prefix>/api/v1/<path>` for a connection whose base
+    URL is the provider's OpenAI-compatible one. `prefix` is whatever stands
+    in front of `/compatible-mode` in that URL -- nothing on the provider's
+    own hosts, a path of its own behind a gateway."""
     parts = urlsplit(endpoint.base_url)
     if not parts.scheme or not parts.netloc:
         raise LLMError(t("This connection's base URL is not an address."))
-    return f"{parts.scheme}://{parts.netloc}/api/v1/{path.lstrip('/')}"
+    marker = parts.path.find("/compatible-mode")
+    prefix = parts.path[:marker].rstrip("/") if marker > 0 else ""
+    return f"{parts.scheme}://{parts.netloc}{prefix}/api/v1/{path.lstrip('/')}"
+
+
+def dig(value: Any, *path: Any) -> Any:
+    """`value[path[0]][path[1]]…`, or None the moment a step is not there or
+    is not the shape the step needs. A provider's JSON is read with this and
+    never by indexing: an answer of another shape is a refusal to report
+    (`LLMError`), not an exception nobody catches."""
+    for step in path:
+        if isinstance(step, int):
+            if not isinstance(value, list) or not -len(value) <= step < len(value):
+                return None
+            value = value[step]
+        else:
+            if not isinstance(value, dict):
+                return None
+            value = value.get(step)
+    return value
 
 
 def _headers(endpoint: Endpoint) -> dict[str, str]:
@@ -68,7 +94,11 @@ def error_of(endpoint: Endpoint, response: httpx.Response) -> LLMError:
     ):
         return LLMError(t(providers.QUOTA_EXHAUSTED), status_code=429)
     said = " ".join(part for part in (code, message) if part).strip()
-    said = "".join(ch for ch in said if ch.isprintable())[:MESSAGE_MAX]
+    said = "".join(ch for ch in said if ch.isprintable())
+    # Never the key, should a provider or a proxy echo what it was sent.
+    if endpoint.api_key and len(endpoint.api_key) >= 6:
+        said = said.replace(endpoint.api_key, "…")
+    said = said[:MESSAGE_MAX]
     return LLMError(
         t("%(name)s answered %(status)s: %(said)s", name=endpoint.name or endpoint.base_url,
           status=response.status_code, said=said or response.reason_phrase),
@@ -79,16 +109,28 @@ def error_of(endpoint: Endpoint, response: httpx.Response) -> LLMError:
 async def post(
     endpoint: Endpoint, url: str, body: dict[str, Any], *, timeout: float | None = None
 ) -> dict[str, Any]:
-    """One JSON request with the connection's key; the parsed answer."""
+    """One JSON request with the connection's key; the parsed answer. No more
+    than `MAX_ANSWER_BYTES` of it is read."""
+    data = bytearray()
     try:
-        async with httpx.AsyncClient(timeout=timeout or env_settings.request_timeout) as client:
-            response = await client.post(url, headers=_headers(endpoint), json=body)
+        async with httpx.AsyncClient(
+            timeout=timeout or env_settings.request_timeout
+        ) as client, client.stream(
+            "POST", url, headers=_headers(endpoint), json=body
+        ) as response:
+            async for chunk in response.aiter_bytes():
+                data.extend(chunk)
+                if len(data) > MAX_ANSWER_BYTES:
+                    raise LLMError(t("The endpoint's answer is larger than this server reads."))
+            answered = httpx.Response(
+                response.status_code, content=bytes(data), headers=response.headers
+            )
     except httpx.RequestError as exc:
         raise wrap_transport_error(exc, endpoint) from exc
-    if response.status_code >= 400:
-        raise error_of(endpoint, response)
+    if answered.status_code >= 400:
+        raise error_of(endpoint, answered)
     try:
-        payload = response.json()
+        payload = answered.json()
     except ValueError as exc:
         raise LLMError(t("The endpoint returned a response that was not JSON.")) from exc
     if not isinstance(payload, dict):
@@ -97,6 +139,20 @@ async def post(
     if payload.get("code") and "output" not in payload and "choices" not in payload:
         raise error_of(endpoint, httpx.Response(400, json=payload))
     return payload
+
+
+def _same_origin(url: str, endpoint: Endpoint | None) -> bool:
+    """Whether a link is on the connection's own host **and port**."""
+    if endpoint is None:
+        return False
+    try:
+        link, base = urlsplit(url), urlsplit(endpoint.base_url)
+        ports = [p.port or (443 if p.scheme == "https" else 80) for p in (link, base)]
+    except ValueError:
+        return False
+    return bool(link.hostname) and (link.hostname or "").lower() == (
+        base.hostname or ""
+    ).lower() and ports[0] == ports[1]
 
 
 async def collect(url: Any, *, limit: int, endpoint: Endpoint | None = None) -> bytes:
@@ -114,16 +170,17 @@ async def collect(url: Any, *, limit: int, endpoint: Endpoint | None = None) -> 
     if not isinstance(url, str) or not url.strip():
         raise LLMError(t("The provider's answer named no result."))
     try:
-        own_host = bool(endpoint) and (urlsplit(url.strip()).hostname or "").lower() == (
-            urlsplit(endpoint.base_url).hostname or "-"
-        ).lower()
-        checked = fetch_service.check_url(url.strip(), allow_private=own_host)
+        checked = fetch_service.check_url(
+            url.strip(), allow_private=_same_origin(url.strip(), endpoint)
+        )
     except fetch_service.FetchError as exc:
         raise LLMError(t("The provider's result could not be fetched: %(why)s",
                          why=exc.message[:MESSAGE_MAX])) from exc
     data = bytearray()
     try:
-        async with httpx.AsyncClient(
+        # A ceiling on the whole fetch, not only on each read: a host that
+        # sends a byte a minute would otherwise hold a reply open for hours.
+        async with asyncio.timeout(COLLECT_SECONDS), httpx.AsyncClient(
             timeout=env_settings.request_timeout, follow_redirects=False
         ) as client, client.stream("GET", checked) as response:
             if response.status_code != 200:
@@ -135,6 +192,10 @@ async def collect(url: Any, *, limit: int, endpoint: Endpoint | None = None) -> 
                 data.extend(chunk)
                 if len(data) > limit:
                     raise LLMError(t("The provider's result is larger than this server keeps."))
+    except TimeoutError as exc:
+        raise LLMError(
+            t("The provider's result could not be fetched: %(why)s", why="timeout")
+        ) from exc
     except httpx.RequestError as exc:
         raise LLMError(
             t("The provider's result could not be fetched: %(why)s", why=type(exc).__name__)
@@ -150,6 +211,7 @@ __all__ = [
     "MAX_IMAGE_BYTES",
     "SPEECH",
     "collect",
+    "dig",
     "error_of",
     "native_url",
     "post",

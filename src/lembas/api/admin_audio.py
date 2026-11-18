@@ -41,6 +41,9 @@ def _page_context(db: Db) -> dict:
         "source_choices": {
             side: media_sources.choices(db, side) for side in ("stt", "tts")
         },
+        # A default that names a model which can no longer serve: shown as
+        # what it is, never as "the endpoint below".
+        "stale": {side: media_sources.stale(db, side) for side in ("stt", "tts")},
     }
 
 
@@ -125,8 +128,13 @@ async def save_audio(
 
 
 def _chosen(db: Db, side: str, value: str) -> str:
+    """A submitted default source: one on offer, or the stored one left as it
+    is (a choice that has gone stays what the page says it is until somebody
+    chooses again); anything else is the endpoint."""
     value = value.strip()
-    return value if any(c["value"] == value for c in media_sources.choices(db, side)) else ""
+    kept = str(settings_store.audio(db).get(media_sources.DEFAULT_KEYS[side]) or "")
+    on_offer = any(c["value"] == value for c in media_sources.choices(db, side))
+    return value if value and (on_offer or value == kept) else ""
 
 
 @router.post("/test/{side}")

@@ -704,19 +704,6 @@ def subagents(db: DBSession) -> dict[str, Any]:
     return values
 
 
-def images_ready(db: DBSession) -> bool:
-    """Whether image generation can actually happen.
-
-    Three things, and the checkpoint list is the one worth stating: without it a
-    model has nothing to name, and ComfyUI refuses a workflow whose checkpoint
-    does not exist -- so offering the tool would be offering a round that ends
-    in a refusal. Read by the tool gate, which is why it lives here beside the
-    values rather than in `tools.py` with the other gates.
-    """
-    values = images(db)
-    return bool(values["enabled"] and values["base_url"] and values["checkpoints"])
-
-
 # The currencies prices are typed in, and their signs.
 CURRENCIES = {"EUR": "€", "USD": "$", "GBP": "£"}
 DEFAULT_CURRENCY = "USD"

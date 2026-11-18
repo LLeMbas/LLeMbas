@@ -37,11 +37,19 @@
       <label class="field__label" for="image-connection">{{ t("Default source") }}</label>
       <select class="select" id="image-connection" name="connection">
         <option value="">{{ t("The ComfyUI below") }}</option>
+        {% if stale %}
+        <option value="{{ stale }}" selected>{{ t("%(model)s (no longer available)", model=stale.split("/", 1)[1]) }}</option>
+        {% endif %}
         {% for choice in source_choices %}
         <option value="{{ choice.value }}" {{ 'selected' if values.connection == choice.value }}>{{ choice.label }}</option>
         {% endfor %}
       </select>
-      <p class="field__hint">{{ t("A connection's own model can be the default instead of the ComfyUI. Chats on every connection without its own are then sent there, so choose a cloud one only on purpose. Workflows, checkpoints, review and the price below belong to the ComfyUI.") }}</p>
+      {% if stale %}
+      <div class="alert alert--error" role="status" data-testid="stale-default">
+        {{ icon("warning", "alert__icon") }}<span>{{ t("The default source chosen here is no longer available, so nothing is served by default. Choose another, or the endpoint.") }}</span>
+      </div>
+      {% endif %}
+      <p class="field__hint">{{ t("A connection's own model can be the default instead of the ComfyUI. Chats on every connection without its own are then sent there, so choose a cloud one only on purpose. Workflows, checkpoints, review and the price below belong to the ComfyUI.") }} {{ t("The default serves chats in every data group, whichever group its connection is in.") }}</p>
     </div>
   </section>
 

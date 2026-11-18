@@ -45,6 +45,24 @@ at <https://llembas.eu/changelog.html>.
   - **Costs and usage are recorded against the source that answered**, at its own price and
     in its own currency: `provider/model` for a connection's model, `stt/…`, `tts/…` and
     `comfyui/…` for the defaults as before.
+  - **Where a chat's media goes is where its replies go, or the default.** A chat whose
+    connection was deleted or disabled is placed by the rule its replies follow -- the first
+    enabled connection that offers its model in the chat's own data group -- and by nothing
+    looser; a model id that two connections share never decides it. A chat on a model you
+    may no longer use, and a bare model id on `/v1` that two connections share, get the
+    default.
+  - **A default that has gone is shown as gone.** When the connection's model chosen as the
+    default is deleted, disabled or unticked, Admin › Audio and Admin › Image generation show
+    it as "(no longer available)" with a warning, and nothing is served by default until you
+    choose again -- the endpoint or the ComfyUI is not quietly used in its place. Deleting a
+    connection that is a default says so. The default serves chats in every data group.
+  - **What a provider sends back is checked.** An answer of an unexpected shape, bytes that
+    are not a picture, or a picture larger than an upload may be, are failures of that source:
+    the default is tried, and nothing is stored or counted. A provider's error text never
+    carries the connection's key. A long reply read aloud through Alibaba's API (600
+    characters a request) is counted as far as it was read.
+  - A reply read aloud by itself (autoplay) in a scheduled run's chat is not read by a plan's
+    model: nobody's own turn is behind it.
   - `/v1/models` lists the defaults as it did (`stt`, `tts`, `image`); a connection's own
     media is not listed there, because a request does not choose it -- the chat's model does.
   - With a connection's image model the image tool takes `prompt`, `negative`, `width`,

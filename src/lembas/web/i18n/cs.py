@@ -2865,3 +2865,10 @@ MESSAGES.update(
     }
 )
 MESSAGES["Prices are in this connection's currency."] = 'Ceny jsou v měně tohoto připojení.'
+MESSAGES['%(model)s (no longer available)'] = '%(model)s (už není k dispozici)'
+MESSAGES['The default source chosen here is no longer available, so nothing is served by default. Choose another, or the endpoint.'] = 'Výchozí zdroj vybraný zde už není k dispozici, takže ve výchozím stavu neslouží nic. Vyberte jiný nebo koncový bod.'
+MESSAGES['The default serves chats in every data group, whichever group its connection is in.'] = 'Výchozí zdroj slouží chatům v každé datové skupině, ať je jeho připojení v kterékoli.'
+MESSAGES['%(name)s was the default source under Audio or Image generation. Choose another there: until then nothing is served by default.'] = '%(name)s bylo výchozím zdrojem na stránce Zvuk nebo Generování obrázků. Vyberte tam jiný: do té doby ve výchozím stavu neslouží nic.'
+MESSAGES["The endpoint's answer is larger than this server reads."] = 'Odpověď koncového bodu je větší, než tento server čte.'
+MESSAGES['The image endpoint returned something that is not a picture.'] = 'Koncový bod pro obrázky vrátil něco, co není obrázek.'
+MESSAGES['The picture is larger than this instance stores.'] = 'Obrázek je větší, než tato instance ukládá.'

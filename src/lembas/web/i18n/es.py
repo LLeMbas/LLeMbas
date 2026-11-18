@@ -2865,3 +2865,10 @@ MESSAGES.update(
     }
 )
 MESSAGES["Prices are in this connection's currency."] = 'Los precios están en la moneda de esta conexión.'
+MESSAGES['%(model)s (no longer available)'] = '%(model)s (ya no disponible)'
+MESSAGES['The default source chosen here is no longer available, so nothing is served by default. Choose another, or the endpoint.'] = 'El origen predeterminado elegido aquí ya no está disponible, así que nada se atiende de forma predeterminada. Elija otro, o el endpoint.'
+MESSAGES['The default serves chats in every data group, whichever group its connection is in.'] = 'El predeterminado atiende los chats de todos los grupos de datos, sea cual sea el grupo de su conexión.'
+MESSAGES['%(name)s was the default source under Audio or Image generation. Choose another there: until then nothing is served by default.'] = '%(name)s era el origen predeterminado en Audio o Generación de imágenes. Elija otro allí: hasta entonces nada se atiende de forma predeterminada.'
+MESSAGES["The endpoint's answer is larger than this server reads."] = 'La respuesta del endpoint es mayor de lo que este servidor lee.'
+MESSAGES['The image endpoint returned something that is not a picture.'] = 'El endpoint de imágenes devolvió algo que no es una imagen.'
+MESSAGES['The picture is larger than this instance stores.'] = 'La imagen es mayor de lo que esta instancia almacena.'

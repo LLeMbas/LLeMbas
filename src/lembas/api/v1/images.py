@@ -142,11 +142,14 @@ async def generations(request: Request, db: Db, caller: ModelsCaller):
         interactive=_interactive(caller),
     )
     plan: dict[str, Any] | None = None
+    comfy_first = bool(chain) and chain[0].dialect == media_sources.COMFYUI
     if any(source.dialect == media_sources.COMFYUI for source in chain):
         plan = _comfy_plan(db, body, values)
-        if "error" in plan:
-            if chain[0].dialect == media_sources.COMFYUI:
-                return plan["error"]
+        # A checkpoint this instance does not have is said at once, as it
+        # always was; a missing workflow only after the daily limit (below).
+        if "error" in plan and not plan.get("late") and comfy_first:
+            return plan["error"]
+        if "error" in plan and not comfy_first:
             chain = [source for source in chain if source.dialect != media_sources.COMFYUI]
     if not chain:
         return error_response(404, "Image generation is not on for this account on this instance.")
@@ -160,6 +163,8 @@ async def generations(request: Request, db: Db, caller: ModelsCaller):
             429, f"That would be more than this account's {ceiling} image(s) for today.",
             "rate_limit_error",
         )
+    if plan is not None and "error" in plan and comfy_first:
+        return plan["error"]
     size = nearest_size(body.get("size"))
     user_id = user.id
 
@@ -278,7 +283,7 @@ def _comfy_plan(db, body: dict[str, Any], values: dict[str, Any]) -> dict[str, A
     rows, _ = _choices(db, values)
     chosen = _pick(rows, "", "", values)
     if chosen is None:
-        return {"error": error_response(
+        return {"late": True, "error": error_response(
             404, "No image workflow has been set up on this instance."
         )}
     given: dict[str, Any] = {"prompt": str(body.get("prompt") or "").strip(), "model": checkpoint}

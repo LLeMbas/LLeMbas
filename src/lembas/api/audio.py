@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session as DBSession
 from lembas.api.deps import Db, RequiredUser, require_permission
 from lembas.db.models import Chat, Message, User
 from lembas.services import audio as audio_service
+from lembas.services import interactive as interactive_rules
 from lembas.services import settings_store
 from lembas.services.llm.openai_client import LLMError
 from lembas.services.markdown import speakable_text
@@ -133,8 +134,16 @@ async def transcribe(
     "/speech/{chat_id}/{message_id}",
     dependencies=[Depends(require_permission("audio.listen"))],
 )
-async def speech(db: Db, user: RequiredUser, chat_id: str, message_id: str) -> Response:
-    """Read one message aloud."""
+async def speech(
+    db: Db, user: RequiredUser, chat_id: str, message_id: str, auto: bool = False
+) -> Response:
+    """Read one message aloud.
+
+    `auto`: the page is reading a reply that has just finished by itself
+    (the account's autoplay), not because somebody pressed it. Where that
+    reply is a scheduled run's, nobody's own turn is behind the reading, so
+    a connection sold for interactive use only does not read it: the
+    instance's default does, or nothing."""
     config = settings_store.audio(db)
     if not config.get("tts_enabled"):
         raise HTTPException(
@@ -153,6 +162,9 @@ async def speech(db: Db, user: RequiredUser, chat_id: str, message_id: str) -> R
             # The chat's current model decides whose speech model reads; a
             # reply pressed to be read is the person's own turn.
             connection=media_sources.connection_of(db, user, chat_id=chat_id),
+            interactive=not (
+                auto and interactive_rules.scheduled_work(db, db.get(Chat, chat_id))
+            ),
             text=text,
             voice=resolve_voice(config, user),
             fmt=config.get("tts_format") or "mp3",

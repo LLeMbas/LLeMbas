@@ -811,3 +811,434 @@ def test_dictation_says_which_chat_and_a_fallback_is_a_note_not_an_error():
     # Asked when the reply is being read, never from the play() a browser may refuse.
     assert "whoReads" not in js_function(source, "speak")
     assert js_says(js_code(source), 'addEventListener("playing"', "whoReads(speaking)")
+
+
+# --- After the review of 2.0.0-beta.14..HEAD ---------------------------------------
+def _twin(db, name, **fields) -> Connection:
+    """A connection listing the model id `shared-chat`, as another may too."""
+    fields.setdefault("base_url", "https://api.example.org/v1")
+    row = Connection(name=name, api_key_encrypted=encrypt("k"), **fields)
+    db.add(row)
+    db.commit()
+    db.add(Model(connection_id=row.id, model_id="shared-chat"))
+    db.commit()
+    return row
+
+
+def test_a_chat_whose_connection_is_gone_is_not_handed_to_a_twin(db, user_id):
+    """The must-fix of the review: a local chat whose connection was deleted
+    resolved to *any* row with its model id -- a cloud connection listing the
+    same name. Now: the rule replies use, or nothing."""
+    from lembas.db.models import DataGroup
+    from lembas.services import data_groups
+
+    _defaults(db)
+    db.add(DataGroup(id="hosted", name="Hosted"))
+    db.commit()
+    local = _twin(db, "Local", base_url="http://172.16.0.5:8080/v1", position=5)
+    cloud = _twin(db, "Cloud", position=0, data_group_id="hosted")
+    _media(db, cloud, {"capability": "stt", "model": "hear-one"},
+           {"capability": "tts", "model": "say-one"}, {"capability": "image", "model": "draw"})
+    user = db.get(User, user_id)
+    chat = Chat(user_id=user_id, model_id="shared-chat", connection_id=local.id,
+                data_group_id=data_groups.DEFAULT_GROUP)
+    db.add(chat)
+    db.commit()
+    assert sources.connection_of_chat(db, chat).id == local.id
+
+    # Disabled: replies would look for the model in the chat's own group, and
+    # the cloud twin is in another. So: nothing, and the default alone.
+    local.enabled = False
+    db.commit()
+    assert sources.connection_of_chat(db, chat) is None
+    assert sources.connection_of(db, user, chat_id=chat.id) is None
+    # Deleted: the chat names no connection any more.
+    db.delete(local)
+    db.commit()
+    db.refresh(chat)
+    assert not chat.connection_id
+    assert sources.connection_of_chat(db, chat) is None
+    for capability in ("stt", "tts"):
+        chain = sources.for_chat(db, capability, chat)
+        assert [s.origin for s in chain] == [sources.ORIGIN_INSTANCE], capability
+    assert all(s.connection_id != cloud.id for s in sources.for_chat(db, "image", chat))
+
+    # A twin in the chat's own group is where replies go, so it is where media
+    # goes too: the first enabled one in the connections' order, as replies.
+    later = _twin(db, "Later", position=9)
+    first = _twin(db, "First", position=1)
+    off = _twin(db, "Off", position=0, enabled=False)
+    assert sources.connection_of_chat(db, chat).id == first.id
+    db.refresh(chat)
+    assert not chat.connection_id, "resolving for media writes nothing to the chat"
+    assert {later.id, off.id}.isdisjoint({sources.connection_of_chat(db, chat).id})
+    # Another model's turn in the chat, with no live connection: not placed.
+    from lembas.services.chat import Speaker
+
+    assert sources.connection_of_chat(db, chat, Speaker("someone-else", None)) is None
+
+
+def test_a_chat_on_a_model_taken_from_its_owner_gets_the_default(db, user_id, registered):
+    """Owning the chat is not enough: its model must still be theirs to use."""
+    cloud = _connection(db)
+    member = User(name="Sam", email="sam@example.org", password_hash="x")
+    db.add(member)
+    db.commit()
+    chat = Chat(user_id=member.id, model_id="cloud-chat", connection_id=cloud.id)
+    db.add(chat)
+    db.commit()
+    assert sources.connection_of(db, member, chat_id=chat.id).id == cloud.id
+    row = db.scalar(select(Model).where(Model.model_id == "cloud-chat"))
+    row.public = False
+    db.commit()
+    assert sources.connection_of(db, member, chat_id=chat.id) is None
+
+
+def test_a_bare_id_two_connections_share_names_neither(db, user_id):
+    user = db.get(User, user_id)
+    one = _twin(db, "One")
+    two = _twin(db, "Two")
+    assert sources.connection_of(db, user, model="shared-chat") is None
+    assert sources.connection_of(db, user, model="one/shared-chat").id == one.id
+    assert sources.connection_of(db, user, model="two/shared-chat").id == two.id
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        {"choices": ["not a message"]},
+        {"choices": [{"message": "text"}]},
+        {"choices": {"0": 1}},
+        {"output": {"choices": "x"}},
+        {"output": {"choices": [{"message": ["x"]}]}},
+        {"output": {"audio": "x"}},
+        {"output": []},
+        {"data": "x"},
+        {"data": [3]},
+        {"usage": 4},
+    ],
+)
+async def test_an_answer_of_another_shape_is_a_refusal_not_a_crash(db, user_id, mock_http, answer):
+    """`first_that_works` and the image tool catch `LLMError` and nothing
+    else, so a provider's malformed JSON has to arrive as one."""
+    _on(db)
+    cloud = _connection(db, "Cloud", base_url=CLOUD_URL, provider_type=providers.ALIBABA)
+    _media(db, cloud, {"capability": "stt", "model": "qwen3-asr-flash"},
+           {"capability": "stt", "model": "qwen-audio-3.0-asr-flash"},
+           {"capability": "tts", "model": "qwen3-tts-flash"},
+           {"capability": "image", "model": "qwen-image-3.0"})
+    plain = _connection(db, "Plain")
+    _media(db, plain, {"capability": "image", "model": "draw-one"})
+    mock_http(lambda _r: httpx.Response(200, json=answer))
+    chat_asr = sources.chain(db, "stt", cloud)[0]
+    native_asr = sources._from_connection(
+        cloud, store.find(cloud, "stt", "qwen-audio-3.0-asr-flash"), own=True
+    )
+    for source in (chat_asr, native_asr):
+        with pytest.raises(LLMError):
+            await speech.transcribe(source, data=b"abc", filename="a.wav",
+                                    content_type="audio/wav")
+    with pytest.raises(LLMError):
+        await speech.speak(sources.chain(db, "tts", cloud)[0], "Hello.")
+    for connection in (cloud, plain):
+        with pytest.raises(LLMError):
+            await pictures.generate(sources.chain(db, "image", connection)[0], "a lamp")
+
+
+async def test_what_is_not_a_picture_is_not_stored_or_counted(db, user_id, mock_http, monkeypatch):
+    """Bytes that are not an image -- an error page, a text file -- and a
+    picture larger than an upload may be are failures of the source: the next
+    one is tried, and nothing is kept or charged for."""
+    from lembas.db.models import Attachment
+    from lembas.services import files as files_service
+
+    settings_store.update(db, {"enabled": True}, key=settings_store.IMAGES)
+    cloud = _connection(db)
+    _media(db, cloud, {"capability": "image", "model": "draw-one", "price": 1})
+    chat = _chat_on(db, user_id, cloud)
+    context = tools_service.context_for(db, db.get(User, user_id), chat)
+    served = {"body": b"<html>Service unavailable</html>"}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            return httpx.Response(200, json={"data": [{"url": "https://results.example.org/x"}]})
+        return httpx.Response(200, content=served["body"])
+
+    mock_http(handler)
+    outcome = await image_tool.run(context, {"prompt": "a lamp"})
+    assert outcome.event["status"] == "error" and "not a picture" in outcome.event["error"]
+
+    served["body"] = PNG
+    real = files_service.limits()
+    monkeypatch.setattr(
+        files_service, "limits", lambda: type(real)(**{**real.__dict__, "max_upload_bytes": 10})
+    )
+    outcome = await image_tool.run(context, {"prompt": "a lamp"})
+    assert outcome.event["status"] == "error" and "larger" in outcome.event["error"]
+    db.expire_all()
+    assert db.scalar(select(Attachment)) is None and db.scalar(select(Usage)) is None
+
+
+async def test_an_empty_chain_draws_nowhere_and_the_offer_and_the_run_agree(
+    db, user_id, monkeypatch
+):
+    """The administrator chose a connection's model as the default and it has
+    gone: the ComfyUI, though configured, is not what they chose."""
+    from lembas.services.images import comfy
+
+    _comfy(db)
+    cloud = _connection(db)
+    _media(db, cloud, {"capability": "image", "model": "draw-one"}, image=False)
+    settings_store.update(db, {"connection": f"{cloud.id}/draw-one"}, key=settings_store.IMAGES)
+    local = _connection(db, "Local", base_url="http://172.16.0.5:8080/v1")
+    chat = _chat_on(db, user_id, local)
+    user = db.get(User, user_id)
+    context = tools_service.context_for(db, user, chat)
+    assert image_tool._sources(context)[0].model == "draw-one"
+    cloud.enabled = False
+    db.commit()
+
+    async def never(*_args, **_kwargs):
+        raise AssertionError("the ComfyUI was asked though nobody chose it")
+
+    monkeypatch.setattr(comfy, "submit", never)
+    assert "image_generate" not in tools_service.resolve_tools(db, chat, user).by_name
+    outcome = await image_tool.run(context, {"prompt": "a lamp"})
+    assert outcome.event == {**outcome.event, "status": "error",
+                             "error": "No image source configured."}
+    # A resolution that fails is said, and draws nowhere either.
+    monkeypatch.setattr(image_tool.media_sources, "for_chat",
+                        lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("database")))
+    outcome = await image_tool.run(context, {"prompt": "a lamp"})
+    assert outcome.event["status"] == "error" and "resolved" in outcome.event["error"]
+
+
+def test_a_default_that_has_gone_is_shown_as_gone(client, db, registered):
+    cloud = _connection(db)
+    _media(db, cloud, {"capability": "tts", "model": "say-one"},
+           {"capability": "image", "model": "draw-one"})
+    settings_store.update(
+        db, {"tts_enabled": True, "tts_connection": f"{cloud.id}/say-one"},
+        key=settings_store.AUDIO,
+    )
+    settings_store.update(db, {"connection": f"{cloud.id}/draw-one"}, key=settings_store.IMAGES)
+    assert 'data-testid="stale-default"' not in client.get("/admin/audio").text
+    cloud.enabled = False
+    db.commit()
+    # A disabled connection's models are not offered as a default...
+    assert sources.choices(db, "tts") == [] and sources.stale(db, "tts")
+    for path in ("/admin/audio", "/admin/images"):
+        page = client.get(path).text
+        assert 'data-testid="stale-default"' in page, path
+        assert "(no longer available)" in page and "selected" in page
+    # ...and saving the page as it stands keeps what it says, not the endpoint.
+    client.post("/admin/audio", data={"tts_enabled": "true",
+                                      "tts_connection": f"{cloud.id}/say-one"})
+    assert settings_store.audio(db)["tts_connection"] == f"{cloud.id}/say-one"
+    client.post("/admin/audio", data={"tts_enabled": "true", "tts_connection": ""})
+    assert settings_store.audio(db)["tts_connection"] == ""
+    # Deleting a connection that is a default says where to choose again.
+    gone = client.post(f"/admin/connections/{cloud.id}/delete", follow_redirects=False)
+    assert "message=" in gone.headers["location"] and "Cloud" in gone.headers["location"]
+    assert settings_store.images(db)["connection"] == f"{cloud.id}/draw-one"
+    assert sources.default(db, "image") is None
+
+
+async def test_a_long_reading_is_counted_as_far_as_it_was_read(db, user_id, mock_http):
+    """The native route reads 600 characters a request. Counting the whole
+    text when the first piece is accepted charged for what a later refusal
+    never read."""
+    _on(db)
+    cloud = _connection(db, "Cloud", base_url=CLOUD_URL, provider_type=providers.ALIBABA)
+    _media(db, cloud, {"capability": "tts", "model": "qwen-audio-3.0-tts-flash", "price": 10})
+    text_ = "One sentence here. " * 100
+    parts = speech.pieces(text_)
+    assert len(parts) >= 3
+    posts = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, content=b"MP3")
+        posts.append(1)
+        if len(posts) == 3:
+            return httpx.Response(500, json={"code": "InternalError", "message": "down"})
+        return httpx.Response(
+            200, json={"output": {"audio": {"url": "https://results.example.org/a.mp3"}}}
+        )
+
+    mock_http(handler)
+    used = await speech.speak_for(db, db.get(User, user_id), connection=cloud, text=text_)
+    db.expire_all()
+    row = db.scalar(select(Usage).where(Usage.model_id == "cloud/qwen-audio-3.0-tts-flash"))
+    assert row.speech_chars == len(parts[0]) and row.requests == 1
+    audio = b"".join([chunk async for chunk in used.result[1]])
+    assert audio == b"MP3" * 2
+    db.expire_all()
+    row = db.scalar(select(Usage).where(Usage.model_id == "cloud/qwen-audio-3.0-tts-flash"))
+    assert row.speech_chars == len(parts[0]) + len(parts[1]) < len(text_)
+    assert row.requests == 1 and row.cost_micro > 0
+
+
+async def test_one_stream_is_one_format(db, user_id, mock_http):
+    import io
+    import wave
+
+    out = io.BytesIO()
+    with wave.open(out, "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(24000)
+        handle.writeframes(b"\x01\x00" * 4)
+    _on(db)
+    cloud = _connection(db, "Cloud", base_url=CLOUD_URL, provider_type=providers.ALIBABA)
+    _media(db, cloud, {"capability": "tts", "model": "qwen3-tts-flash"})
+    served = iter([out.getvalue(), b"ID3 not a wav", out.getvalue()])
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, content=next(served))
+        return httpx.Response(
+            200, json={"output": {"audio": {"url": "https://results.example.org/a.wav"}}}
+        )
+
+    mock_http(handler)
+    counted = []
+    media_type, stream = await speech.speak(
+        sources.chain(db, "tts", cloud)[0], "One sentence here. " * 100,
+        on_piece=lambda n, first: counted.append(n),
+    )
+    audio = b"".join([chunk async for chunk in stream])
+    assert media_type == "audio/wav" and b"ID3" not in audio
+    assert audio.endswith(b"\x01\x00" * 4) and len(counted) == 1
+
+
+async def test_a_providers_error_never_carries_the_key(db, user_id, mock_http):
+    _defaults(db)
+    cloud = _connection(db, "Cloud", base_url=CLOUD_URL, provider_type=providers.ALIBABA)
+    _media(db, cloud, {"capability": "image", "model": "qwen-image-3.0"},
+           {"capability": "stt", "model": "qwen3-asr-flash"})
+    plain = _connection(db, "Plain")
+    _media(db, plain, {"capability": "stt", "model": "hear-one"})
+    settings_store.update(db, {"enabled": True}, key=settings_store.IMAGES)
+    echo = {"error": {"message": "Incorrect API key provided: connection-key."},
+            "code": "InvalidApiKey", "message": "bad key connection-key"}
+    mock_http(lambda _r: httpx.Response(401, json=echo))
+    for call in (
+        pictures.generate(sources.chain(db, "image", cloud)[0], "a lamp"),
+        speech.transcribe(sources.chain(db, "stt", cloud)[0], data=b"a", filename="a.wav",
+                          content_type="audio/wav"),
+        speech.transcribe(sources.chain(db, "stt", plain)[0], data=b"a", filename="a.wav",
+                          content_type="audio/wav"),
+    ):
+        with pytest.raises(LLMError) as refused:
+            await call
+        assert "connection-key" not in refused.value.message
+        assert "key" in refused.value.message.lower()
+
+
+async def test_the_native_address_the_port_and_the_ceilings(mock_http, monkeypatch):
+    from lembas.services.llm.openai_client import Endpoint
+
+    behind = Endpoint("https://gateway.example.org/qwen/compatible-mode/v1", "k", {})
+    assert dashscope.native_url(behind, dashscope.GENERATION) == (
+        "https://gateway.example.org/qwen/api/v1/" + dashscope.GENERATION
+    )
+    plain = Endpoint(CLOUD_URL, "k", {})
+    assert dashscope.native_url(plain, "tasks/1") == \
+        "https://dashscope-intl.aliyuncs.com/api/v1/tasks/1"
+    # A link on the connection's own host is fetched wherever that is -- on
+    # its own port only.
+    local = Endpoint("http://172.16.0.5:9000/v1", "", {})
+    mock_http(lambda _r: httpx.Response(200, content=b"ok"))
+    assert await dashscope.collect("http://172.16.0.5:9000/out.png", limit=10,
+                                   endpoint=local) == b"ok"
+    with pytest.raises(LLMError):
+        await dashscope.collect("http://172.16.0.5:8080/admin", limit=10, endpoint=local)
+    # An answer larger than is read, and a fetch slower than is waited for.
+    monkeypatch.setattr(dashscope, "MAX_ANSWER_BYTES", 20)
+    mock_http(lambda _r: httpx.Response(200, json={"data": "x" * 100}))
+    with pytest.raises(LLMError):
+        await dashscope.post(plain, "https://api.example.org/v1/x", {})
+    monkeypatch.setattr(dashscope, "COLLECT_SECONDS", 0.05)
+
+    async def slow(_request):
+        import asyncio
+
+        await asyncio.sleep(1)
+        return httpx.Response(200, content=b"late")
+
+    mock_http(slow)
+    with pytest.raises(LLMError):
+        await dashscope.collect("https://results.example.org/slow", limit=10)
+
+
+def test_autoplay_of_a_scheduled_runs_reply_is_not_a_plans_turn(client, db, registered, mock_http):
+    from lembas.db.models import KIND_TASK, Message
+
+    _defaults(db)
+    plan = _connection(db, "Plan", base_url=PLAN_URL, provider_type=providers.ALIBABA_PLAN)
+    _media(db, plan, {"capability": "tts", "model": "qwen-audio-3.0-tts-plus"})
+    user = db.scalar(select(User))
+    run = Chat(user_id=user.id, model_id="plan-chat", connection_id=plan.id, kind=KIND_TASK)
+    db.add(run)
+    db.commit()
+    db.add(Message(chat_id=run.id, role="user", content="Look.", machine=True))
+    reply = Message(chat_id=run.id, role="assistant", content="All is well.")
+    db.add(reply)
+    db.commit()
+    hosts = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        hosts.append(request.url.host)
+        if request.url.host == "tts.test":
+            return httpx.Response(200, content=b"A", headers={"content-type": "audio/mpeg"})
+        if request.method == "GET":
+            return httpx.Response(200, content=b"MP3")
+        return httpx.Response(
+            200, json={"output": {"audio": {"url": "https://results.example.org/a.mp3"}}}
+        )
+
+    mock_http(handler)
+    url = f"/api/audio/speech/{run.id}/{reply.id}"
+    assert client.get(url + "?auto=1").content == b"A"
+    assert hosts == ["tts.test"]
+    # Pressed by a person, it is theirs.
+    assert client.get(url).content == b"MP3"
+    assert hosts[1] == "token-plan.maas.qwencloudapi.com"
+    from tests.conftest import js_code, js_function, script
+
+    source = script("audio.js")
+    assert "speak(button, true)" in js_code(js_function(source, "playArrivals"))
+    assert '"?auto=1"' in js_code(js_function(source, "speak"))
+
+
+def test_the_old_words_and_the_old_order_stay(client, db, registered, mock_http):
+    """What an instance from before sees: its sentence for no endpoint, and
+    the daily limit said before a missing workflow."""
+    settings_store.update(db, {"stt_enabled": True}, key=settings_store.AUDIO)
+    refused = client.post("/api/audio/transcribe",
+                          files={"file": ("a.webm", b"abc", "audio/webm")})
+    assert refused.status_code == 502
+    assert refused.json()["detail"] == "No audio endpoint has been configured."
+
+    settings_store.update(
+        db, {"enabled": True, "base_url": "http://comfy.test:8188",
+             "checkpoints": ["sd.safetensors"]}, key=settings_store.IMAGES,
+    )
+    user = db.scalar(select(User))
+    _, raw = api_tokens.create(db, user, name="t", scopes=["models"])
+    headers = {"Authorization": f"Bearer {raw}"}
+    ask = {"prompt": "a lamp"}
+    # No workflow: 404 -- but an unknown checkpoint is said first of all.
+    assert client.post("/v1/images/generations", headers=headers, json=ask).status_code == 404
+    from lembas.services import usage as usage_service
+
+    original = usage_service.over_image_budget
+    usage_service.over_image_budget = lambda *_a, **_k: "This account has made its images."
+    try:
+        assert client.post("/v1/images/generations", headers=headers,
+                           json=ask).status_code == 429
+        assert client.post("/v1/images/generations", headers=headers,
+                           json={**ask, "model": "comfyui/nope"}).status_code == 404
+    finally:
+        usage_service.over_image_budget = original

@@ -17,7 +17,7 @@ every device uses them. A device that has none of its own needs none.
 
 Speech is counted and priced -- per minute transcribed and per million
 characters read, at the prices in the audio settings -- into the same usage
-as a reply (`audio.record_transcription`, `audio.record_speech`). Nothing is
+as a reply (`services/media/sources.record`, against the source that answered). Nothing is
 refused for what it costs. Pictures have their own
 module, `api/v1/images.py`.
 

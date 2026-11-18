@@ -34,11 +34,19 @@
       <label class="field__label" for="stt-connection">{{ t("Default source") }}</label>
       <select class="select" id="stt-connection" name="stt_connection">
         <option value="">{{ t("The endpoint below") }}</option>
+        {% if stale.stt %}
+        <option value="{{ stale.stt }}" selected>{{ t("%(model)s (no longer available)", model=stale.stt.split("/", 1)[1]) }}</option>
+        {% endif %}
         {% for choice in source_choices.stt %}
         <option value="{{ choice.value }}" {{ 'selected' if values.stt_connection == choice.value }}>{{ choice.label }}</option>
         {% endfor %}
       </select>
-      <p class="field__hint">{{ t("A connection's own model can be the default instead of the endpoint below. Chats on every connection without its own are then sent there, so choose a cloud one only on purpose.") }}</p>
+      {% if stale.stt %}
+      <div class="alert alert--error" role="status" data-testid="stale-default">
+        {{ icon("warning", "alert__icon") }}<span>{{ t("The default source chosen here is no longer available, so nothing is served by default. Choose another, or the endpoint.") }}</span>
+      </div>
+      {% endif %}
+      <p class="field__hint">{{ t("A connection's own model can be the default instead of the endpoint below. Chats on every connection without its own are then sent there, so choose a cloud one only on purpose.") }} {{ t("The default serves chats in every data group, whichever group its connection is in.") }}</p>
     </div>
 
     <div class="grid grid--2">
@@ -105,11 +113,19 @@
       <label class="field__label" for="tts-connection">{{ t("Default source") }}</label>
       <select class="select" id="tts-connection" name="tts_connection">
         <option value="">{{ t("The endpoint below") }}</option>
+        {% if stale.tts %}
+        <option value="{{ stale.tts }}" selected>{{ t("%(model)s (no longer available)", model=stale.tts.split("/", 1)[1]) }}</option>
+        {% endif %}
         {% for choice in source_choices.tts %}
         <option value="{{ choice.value }}" {{ 'selected' if values.tts_connection == choice.value }}>{{ choice.label }}</option>
         {% endfor %}
       </select>
-      <p class="field__hint">{{ t("A connection's own model can be the default instead of the endpoint below. Chats on every connection without its own are then sent there, so choose a cloud one only on purpose.") }}</p>
+      {% if stale.tts %}
+      <div class="alert alert--error" role="status" data-testid="stale-default">
+        {{ icon("warning", "alert__icon") }}<span>{{ t("The default source chosen here is no longer available, so nothing is served by default. Choose another, or the endpoint.") }}</span>
+      </div>
+      {% endif %}
+      <p class="field__hint">{{ t("A connection's own model can be the default instead of the endpoint below. Chats on every connection without its own are then sent there, so choose a cloud one only on purpose.") }} {{ t("The default serves chats in every data group, whichever group its connection is in.") }}</p>
     </div>
 
     <div class="grid grid--2">

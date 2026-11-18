@@ -117,6 +117,7 @@ def _page(request: Request, db: Db, **extra) -> Response:
             # The connections' own image models, for "use a connection's
             # model" as the default source.
             "source_choices": media_sources.choices(db, "image"),
+            "stale": media_sources.stale(db, "image"),
             **extra,
         },
     )
@@ -215,10 +216,16 @@ async def save_images(
             "api_max_images": _whole(api_max_images, current.get("api_max_images") or 4),
             # A connection's image model as the default source, only one that
             # is on offer; anything else is the ComfyUI, as before.
+            # The stored one left as it is stays (a choice that has gone is
+            # shown as gone until somebody chooses again).
             "connection": (
                 connection.strip()
-                if any(c["value"] == connection.strip()
-                       for c in media_sources.choices(db, "image"))
+                if connection.strip()
+                and (
+                    connection.strip() == str(current.get("connection") or "")
+                    or any(c["value"] == connection.strip()
+                           for c in media_sources.choices(db, "image"))
+                )
                 else ""
             ),
         },

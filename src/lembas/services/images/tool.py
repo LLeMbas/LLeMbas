@@ -544,13 +544,28 @@ async def run(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
 
     # Where this chat's pictures come from: its connection's own image model
     # when it has one switched on, then the instance's default
-    # (`services/media/sources.py`). A source on a connection fails over to the
-    # next one once, and the result says so.
+    # (`services/media/sources.for_chat`, the same resolution the tool list
+    # was built from). A source on a connection fails over to the next one
+    # once, and the result says so. **Only what the chain names draws**: an
+    # empty chain is "nothing is configured" -- the ComfyUI is not quietly
+    # used where an administrator chose something else as the default.
+    try:
+        chain = _sources(context)
+    except Exception as exc:
+        log.exception("could not resolve the image sources")
+        return ToolOutcome(
+            f"Where to draw could not be worked out: {exc}",
+            {**event, "status": "error", "error": "The image sources could not be resolved."},
+        )
+    if not chain:
+        return ToolOutcome(
+            "No image generator is configured on this instance.",
+            {**event, "status": "error", "error": "No image source configured."},
+        )
     note = ""
-    chain = _sources(context)
-    for source in chain:
+    for source in chain[:2]:
         if source.dialect == media_sources.COMFYUI:
-            break
+            return await _run_comfy(context, args, event, prompt, note)
         try:
             return await _run_hosted(context, source, args, event, prompt, note)
         except LLMError as exc:
@@ -564,29 +579,28 @@ async def run(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
                 f"{source.label} did not answer ({exc.message[:200]}), so the "
                 "instance's default drew it instead."
             )
-    return await _run_comfy(context, args, event, prompt, note)
+    return ToolOutcome(  # pragma: no cover - the loop returns for every source
+        "Nothing was generated.", {**event, "status": "error", "error": "No image."}
+    )
 
 
 def _sources(context: ToolContext) -> list[Any]:
-    """The image sources for this call, in order. A scheduled run asks nothing
-    of a connection its provider sells for interactive use only."""
-    from lembas.db.models import Chat, Connection
+    """The image sources for this call, in order: `sources.for_chat` for the
+    chat and the model answering, which is how `resolve_tools` decided what
+    this call was offered. A failure here is the caller's to report -- never
+    a reason to draw somewhere nobody chose."""
+    from lembas.db.models import Chat
     from lembas.db.session import session_scope
-    from lembas.services import interactive
+    from lembas.services.chat import Speaker
 
-    try:
-        with session_scope() as db:
-            chat = db.get(Chat, context.chat_id) if context.chat_id else None
-            connection = (
-                db.get(Connection, context.connection_id) if context.connection_id else None
-            )
-            return media_sources.chain(
-                db, CAP_IMAGE, connection,
-                interactive=not interactive.scheduled_work(db, chat),
-            )
-    except Exception:  # the instance's own ComfyUI is then what there is
-        log.warning("could not resolve the image sources", exc_info=True)
-        return []
+    with session_scope() as db:
+        chat = db.get(Chat, context.chat_id) if context.chat_id else None
+        speaker = (
+            Speaker(context.model_id, context.connection_id or None)
+            if context.model_id
+            else None
+        )
+        return media_sources.for_chat(db, CAP_IMAGE, chat, speaker)
 
 
 async def _run_hosted(

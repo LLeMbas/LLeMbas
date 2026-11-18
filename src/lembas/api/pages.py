@@ -108,7 +108,7 @@ def _chat_context(db: DBSession, user: User, chat: Chat | None) -> dict:
         # The composer's "Draw a picture" chip: the next message's reply is a
         # picture (`force_tool`), where this server draws for this person --
         # the same two conditions `/v1/images` checks.
-        "can_draw": _can_draw(db, user, current),
+        "can_draw": _can_draw(db, user, chat, current),
         # How long a temporary chat lives, for the badge, the Keep menu and the
         # toggle. Read from the setting every render: it is one cached group.
         "temporary_after": chat_service.lifetime_words(chat_service.temporary_lifetime(db)),
@@ -116,15 +116,19 @@ def _chat_context(db: DBSession, user: User, chat: Chat | None) -> dict:
     }
 
 
-def _can_draw(db: DBSession, user: User, model) -> bool:
-    """Whether pictures can be drawn for a chat on `model`: by its
-    connection's own image model, or by the instance's default."""
+def _can_draw(db: DBSession, user: User, chat: Chat | None, model) -> bool:
+    """Whether pictures can be drawn here: for a chat, by the sources its
+    image tool would use (`sources.for_chat`); before there is one, by the
+    chosen model's connection's own image model or the instance's default."""
     from lembas.services.media import sources as media_sources
 
-    connection = model.connection if model is not None else None
-    return bool(media_sources.chain(db, "image", connection)) and permissions.has(
-        db, user, "tools.image"
-    )
+    if chat is not None:
+        chain = media_sources.for_chat(db, "image", chat)
+    else:
+        chain = media_sources.chain(
+            db, "image", model.connection if model is not None else None
+        )
+    return bool(chain) and permissions.has(db, user, "tools.image")
 
 
 def _agent_team_offered(db: DBSession, user: User) -> bool:

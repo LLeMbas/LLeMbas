@@ -87,7 +87,7 @@ def _family_allowed(
         # listed, must not offer this at all. A model that calls it there spends
         # a round to be told the thing it was offered does not work, which is
         # the shape `resolve_tools` already refuses for `skill_get` with an
-        # empty library. `settings_store.images_ready` answers all three.
+        # empty library. `media.sources.for_chat` answers: no source, no tool.
         return bool(allowed.get("tools.image") and images)
     if gate == FAMILY_SCHEDULE:
         # `schedule.use` rather than a `tools.schedule` of its own: a reader who
@@ -306,13 +306,12 @@ def resolve_tools(
     # its model's connection's own image model, else the instance's default.
     # Nothing to draw with -- no ComfyUI, no connection's model -- and the tool
     # is not offered at all.
-    from lembas.services import interactive
     from lembas.services.media import sources as media_sources
 
-    image_chain = media_sources.chain(
-        db, "image", model.connection if model is not None else None,
-        interactive=not interactive.scheduled_work(db, chat),
-    )
+    # `for_chat` is the one resolution: the call that runs (`images/tool.py`)
+    # asks it again with the same chat and speaker, so what is offered here
+    # and what draws cannot name two different sources.
+    image_chain = media_sources.for_chat(db, "image", chat, speaker)
     images_ready = bool(image_chain)
     images_hosted = images_ready and image_chain[0].dialect != media_sources.COMFYUI
     schedules_on = bool(settings_store.schedules(db).get("enabled"))

@@ -234,7 +234,10 @@
     speaking = button;
   }
 
-  function speak(button) {
+  /* `auto`: a reply read because it has just finished, not because somebody
+     pressed it. The server is told, since a reading nobody asked for is not
+     a person's own turn everywhere (a scheduled run's reply). */
+  function speak(button, auto) {
     var element = audioPlayer();
     if (speaking === button) {
       element.pause();
@@ -243,7 +246,7 @@
     }
     element.pause();
     delete button.dataset.speakAsked;
-    element.src = button.dataset.speak;
+    element.src = button.dataset.speak + (auto ? "?auto=1" : "");
     markSpeaking(button);
     element.play().catch(function () {
       /* Autoplay policies reject a play() the reader did not ask for. That is
@@ -276,7 +279,7 @@
   function playArrivals() {
     document.querySelectorAll("[data-speak-auto]").forEach(function (button) {
       button.removeAttribute("data-speak-auto");
-      speak(button);
+      speak(button, true);
     });
   }
 

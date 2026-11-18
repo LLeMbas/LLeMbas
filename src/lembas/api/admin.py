@@ -628,6 +628,25 @@ def _record_output(model: Model, entry: dict) -> None:
 @router.post("/connections/{connection_id}/delete")
 async def delete_connection(db: Db, user: AdminUser, connection_id: str) -> Response:
     connection = _connection(db, connection_id)
+    # Its models may be the instance's default source for speech or pictures
+    # (`services/media/sources.py`). The choice is kept, not cleared -- the
+    # endpoint is never quietly used in its place -- and the administrator
+    # is told where to choose again.
+    from urllib.parse import quote
+
+    from lembas.services.media import sources as media_sources
+
+    was_default = media_sources.defaults_naming(db, connection.id)
+    name = connection.name
     db.delete(connection)
     db.commit()
-    return RedirectResponse("/admin/connections", status_code=status.HTTP_303_SEE_OTHER)
+    target = "/admin/connections"
+    if was_default:
+        target += "?message=" + quote(
+            i18n.t(
+                "%(name)s was the default source under Audio or Image generation. "
+                "Choose another there: until then nothing is served by default.",
+                name=name,
+            )
+        )
+    return RedirectResponse(target, status_code=status.HTTP_303_SEE_OTHER)

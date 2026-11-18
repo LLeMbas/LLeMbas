@@ -2865,3 +2865,10 @@ MESSAGES.update(
     }
 )
 MESSAGES["Prices are in this connection's currency."] = 'Az árak ennek a kapcsolatnak a pénznemében értendők.'
+MESSAGES['%(model)s (no longer available)'] = '%(model)s (már nem érhető el)'
+MESSAGES['The default source chosen here is no longer available, so nothing is served by default. Choose another, or the endpoint.'] = 'Az itt választott alapértelmezett forrás már nem érhető el, ezért alapértelmezésben semmi sem szolgál ki. Válasszon másikat, vagy a végpontot.'
+MESSAGES['The default serves chats in every data group, whichever group its connection is in.'] = 'Az alapértelmezés minden adatcsoport csevegéseit kiszolgálja, bármelyik csoportban van is a kapcsolata.'
+MESSAGES['%(name)s was the default source under Audio or Image generation. Choose another there: until then nothing is served by default.'] = '%(name)s volt az alapértelmezett forrás a Hang vagy a Képgenerálás oldalon. Válasszon ott másikat: addig alapértelmezésben semmi sem szolgál ki.'
+MESSAGES["The endpoint's answer is larger than this server reads."] = 'A végpont válasza nagyobb, mint amit ez a kiszolgáló beolvas.'
+MESSAGES['The image endpoint returned something that is not a picture.'] = 'A képvégpont olyasmit adott vissza, ami nem kép.'
+MESSAGES['The picture is larger than this instance stores.'] = 'A kép nagyobb, mint amit ez a példány tárol.'

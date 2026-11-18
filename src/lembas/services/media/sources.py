@@ -245,7 +245,9 @@ def choices(db: DBSession, capability: str) -> list[dict[str, str]]:
     """The connections' enabled models for a capability, for the settings'
     "use a connection's model" choice: `value` is what `DEFAULT_KEYS` stores."""
     out: list[dict[str, str]] = []
-    for connection in db.scalars(select(Connection).order_by(Connection.position)):
+    for connection in db.scalars(
+        select(Connection).where(Connection.enabled.is_(True)).order_by(Connection.position)
+    ):
         if not store.supported(connection.provider_type, connection.base_url):
             continue
         for entry in store.entries(connection, capability, enabled=True):
@@ -256,6 +258,25 @@ def choices(db: DBSession, capability: str) -> list[dict[str, str]]:
                 }
             )
     return out
+
+
+def stale(db: DBSession, capability: str) -> str:
+    """The stored default (`<connection id>/<model id>`) when it names a
+    connection's model that can no longer serve -- deleted, disabled,
+    unticked -- else "". While it is set nothing is served by default: the
+    endpoint is not quietly used in place of a choice somebody made."""
+    value = str(_settings(db, capability).get(DEFAULT_KEYS[capability]) or "")
+    return value if split_default(value)[0] and default(db, capability) is None else ""
+
+
+def defaults_naming(db: DBSession, connection_id: str) -> list[str]:
+    """The capabilities whose default source is a model of this connection."""
+    return [
+        capability
+        for capability in DEFAULT_KEYS
+        if split_default(_settings(db, capability).get(DEFAULT_KEYS[capability]))[0]
+        == connection_id
+    ]
 
 
 def connection_of(
@@ -273,23 +294,102 @@ def connection_of(
         chat = db.get(Chat, chat_id)
         if chat is None or chat.user_id != user.id:
             return None
-        return connection_of_chat(db, chat)
+        connection = connection_of_chat(db, chat)
+        if connection is None:
+            return None
+        # The chat is theirs; its model must still be one they may use. A
+        # model taken from them since is not a door to its connection's media.
+        usable = any(
+            row.connection_id == connection.id and row.model_id == chat.model_id
+            for row in chat_service.available_models(db, user)
+        )
+        return connection if usable else None
     if model:
-        row = chat_service.pick_model(chat_service.available_models(db, user), model)
-        return row.connection if row is not None else None
+        return _named(chat_service.available_models(db, user), model)
     return None
 
 
-def connection_of_chat(db: DBSession, chat: Chat, speaker: Any = None) -> Connection | None:
+def _named(rows: list[Any], value: str) -> Connection | None:
+    """The connection of the one model `value` names among `rows`: by its ref
+    (`provider/model`), or by a bare id that exactly one of them has. An id
+    two connections share names neither -- the first in some order would be
+    a guess about where somebody's speech goes."""
     from lembas.services import chat as chat_service
 
+    exact = [row for row in rows if chat_service.model_ref(row) == value]
+    found = exact or [row for row in rows if row.model_id == value]
+    return found[0].connection if len(found) == 1 else None
+
+
+def connection_of_chat(db: DBSession, chat: Chat, speaker: Any = None) -> Connection | None:
+    """The connection a chat's replies go to, **by the rule replies use**
+    (`chat.resolve_endpoint`) and nothing looser: the speaker's own connection
+    while it exists and is enabled; else, for the chat's own model, the first
+    enabled connection (in the connections' order) that offers an enabled
+    model of that id **in the chat's data group**. Anything else is None --
+    the instance's default alone. Never "some row with that model id": a chat
+    whose connection was deleted must not have its speech sent to whichever
+    provider lists the same name. Unlike `resolve_endpoint`, nothing is
+    written back to the chat."""
+    from lembas.db.models import Model
+    from lembas.services import chat as chat_service
+    from lembas.services import data_groups
+
     speaker = speaker or chat_service.speaker_for(db, chat)
+    if not speaker.model_id:
+        return None
     if speaker.connection_id:
         connection = db.get(Connection, speaker.connection_id)
-        if connection is not None:
+        if connection is not None and connection.enabled:
             return connection
-    row = chat_service.model_row(db, speaker)
-    return row.connection if row is not None else None
+    if speaker.model_id != chat.model_id:
+        return None  # another model's turn in this chat: not ours to place
+    owner = db.get(User, chat.user_id) if chat.user_id else None
+    groups = data_groups.connection_groups(db, owner)
+    wanted = data_groups.for_chat(db, chat)
+    for row in db.scalars(
+        select(Model)
+        .join(Connection)
+        .where(
+            Model.model_id == speaker.model_id,
+            Model.enabled.is_(True),
+            Connection.enabled.is_(True),
+        )
+        .order_by(Connection.position)
+    ):
+        if groups.get(row.connection_id, data_groups.DEFAULT_GROUP) == wanted:
+            return row.connection
+    return None
+
+
+def for_chat(
+    db: DBSession, capability: str, chat: Chat | None, speaker: Any = None
+) -> list[Source]:
+    """The chain for work inside a chat -- its tools -- resolved in this one
+    place for the list a model is offered and for the call that runs: the
+    speaker's connection by `connection_of_chat`, and a person's own turn
+    unless the chat is doing scheduled work (`interactive.scheduled_work`)."""
+    from lembas.services import interactive
+
+    connection = connection_of_chat(db, chat, speaker) if chat is not None else None
+    return chain(
+        db, capability, connection, interactive=not interactive.scheduled_work(db, chat)
+    )
+
+
+def scrub(source: Source | None, text: str) -> str:
+    """`text` without the source's key in it: a provider (or a proxy in front
+    of one) may echo the credential it was sent, and an error's words go to a
+    toast, a tool result and the log."""
+    key = source.endpoint.api_key if source is not None and source.endpoint is not None else ""
+    return text.replace(key, "…") if key and len(key) >= 6 else text
+
+
+def scrubbed(source: Source | None, exc: LLMError) -> LLMError:
+    clean = scrub(source, exc.message)
+    if clean == exc.message:
+        return exc
+    return LLMError(clean, status_code=getattr(exc, "status_code", None))
 
 
 async def first_that_works(
@@ -324,6 +424,7 @@ def record(
     characters: int = 0,
     images: int = 0,
     usage_id: str = "",
+    requests: int = 1,
 ) -> int:
     """Count one use against the source that served it, priced at that
     source's own price in its own currency. Returns the cost in micro-units.
@@ -337,7 +438,7 @@ def record(
         db,
         user_id,
         model_id=usage_id or source.usage_id,
-        requests=1,
+        requests=requests,
         cost_micro=cost,
         images=images,
         audio_seconds=seconds,
@@ -362,6 +463,11 @@ __all__ = [
     "default",
     "enabled",
     "first_that_works",
+    "for_chat",
     "record",
+    "scrub",
+    "scrubbed",
+    "stale",
+    "defaults_naming",
     "split_default",
 ]

@@ -17,9 +17,10 @@ Behind each, by the source's dialect (`store.dialect`):
 from __future__ import annotations
 
 import base64
+import logging
 import re
 import struct
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 from lembas.services import audio as audio_service
@@ -28,6 +29,8 @@ from lembas.services.media import dashscope, sources, store
 from lembas.services.media.sources import Source, Used
 from lembas.services.media.store import CAP_STT, CAP_TTS
 from lembas.web.i18n import t
+
+log = logging.getLogger(__name__)
 
 # What one recognition request takes inline on Alibaba's synchronous routes
 # (the provider's limit on the audio; base64 grows it by a third).
@@ -53,14 +56,17 @@ async def transcribe(
     """The text of a recording, and its length in seconds."""
     if source.endpoint is None:
         raise LLMError(t("No audio endpoint has been configured."))
-    if source.dialect == store.ALIBABA_CHAT_ASR:
-        return await _alibaba_chat_asr(source, data, content_type, language)
-    if source.dialect == store.DASHSCOPE_ASR:
-        return await _dashscope_asr(source, data, content_type, language)
-    return await audio_service.transcribe_measured(
-        source.endpoint, data=data, filename=filename, content_type=content_type,
-        model=source.model, language=language,
-    )
+    try:
+        if source.dialect == store.ALIBABA_CHAT_ASR:
+            return await _alibaba_chat_asr(source, data, content_type, language)
+        if source.dialect == store.DASHSCOPE_ASR:
+            return await _dashscope_asr(source, data, content_type, language)
+        return await audio_service.transcribe_measured(
+            source.endpoint, data=data, filename=filename, content_type=content_type,
+            model=source.model, language=language,
+        )
+    except LLMError as exc:
+        raise sources.scrubbed(source, exc) from exc
 
 
 def _mime(content_type: str) -> str:
@@ -110,13 +116,11 @@ async def _alibaba_chat_asr(
     payload = await dashscope.post(
         source.endpoint, source.endpoint.url("chat/completions"), body
     )
-    choices = payload.get("choices")
-    message = choices[0].get("message") if isinstance(choices, list) and choices else None
+    message = dashscope.dig(payload, "choices", 0, "message")
     if not isinstance(message, dict):
         raise LLMError(t("The transcription endpoint returned no text."))
-    usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
     return _text_of(message.get("content")).strip(), audio_service.measure_seconds(
-        data, usage.get("seconds")
+        data, dashscope.dig(payload, "usage", "seconds")
     )
 
 
@@ -150,44 +154,58 @@ async def _dashscope_asr(
     payload = await dashscope.post(
         source.endpoint, dashscope.native_url(source.endpoint, dashscope.GENERATION), body
     )
-    output = payload.get("output") if isinstance(payload.get("output"), dict) else {}
-    text = output.get("text")
+    text = dashscope.dig(payload, "output", "text")
     if not isinstance(text, str):
-        sentence = output.get("sentence")
-        text = sentence.get("text") if isinstance(sentence, dict) else None
+        text = dashscope.dig(payload, "output", "sentence", "text")
     if not isinstance(text, str):
         # The shape Qwen3-ASR answers in on this route.
-        choices = output.get("choices")
-        message = choices[0].get("message") if isinstance(choices, list) and choices else None
+        message = dashscope.dig(payload, "output", "choices", 0, "message")
         text = _text_of(message.get("content")) if isinstance(message, dict) else None
     if not isinstance(text, str):
         raise LLMError(t("The transcription endpoint returned no text."))
-    usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
     return text.strip(), audio_service.measure_seconds(
-        data, usage.get("duration") or usage.get("seconds")
+        data,
+        dashscope.dig(payload, "usage", "duration") or dashscope.dig(payload, "usage", "seconds"),
     )
 
 
 # --- Text to speech ---------------------------------------------------------------
 async def speak(
-    source: Source, text: str, *, voice: str = "", fmt: str = "mp3", speed: float = 1.0
+    source: Source,
+    text: str,
+    *,
+    voice: str = "",
+    fmt: str = "mp3",
+    speed: float = 1.0,
+    on_piece: Callable[[int, bool], None] | None = None,
 ) -> tuple[str, AsyncIterator[bytes]]:
     """Speech for `text`: its content type and a stream of bytes. The first
     request is made before this returns, so a source that refuses does so
     here -- where another can still be tried -- and not inside the stream.
 
     `voice` is the reader's own choice and belongs to the instance's
-    endpoint; a connection's model reads in the voice set beside it."""
+    endpoint; a connection's model reads in the voice set beside it.
+
+    `on_piece(characters, first)` is called for what a source has accepted:
+    once with the whole text where it is sent in one request, and once per
+    piece where a long text is read in several -- so that what is counted is
+    what was read, also when a later piece is refused."""
     if source.endpoint is None:
         raise LLMError(t("No audio endpoint has been configured."))
     if not text.strip():
         raise LLMError(t("There is nothing to read out."))
-    if source.dialect in (store.DASHSCOPE_TTS_CHAT, store.DASHSCOPE_TTS):
-        return await _dashscope_speak(source, text, speed)
-    own_voice = source.voice if source.origin == "connection" else voice
-    return await audio_service.speak(
-        source.endpoint, text, model=source.model, voice=own_voice, fmt=fmt, speed=speed
-    )
+    try:
+        if source.dialect in (store.DASHSCOPE_TTS_CHAT, store.DASHSCOPE_TTS):
+            return await _dashscope_speak(source, text, speed, on_piece)
+        own_voice = source.voice if source.origin == "connection" else voice
+        answer = await audio_service.speak(
+            source.endpoint, text, model=source.model, voice=own_voice, fmt=fmt, speed=speed
+        )
+    except LLMError as exc:
+        raise sources.scrubbed(source, exc) from exc
+    if on_piece is not None:
+        on_piece(len(text), True)
+    return answer
 
 
 _SENTENCE_END = re.compile(r"(?<=[.!?…。！？;:\n])\s+")
@@ -255,8 +273,8 @@ async def _dashscope_piece(source: Source, text: str, speed: float) -> bytes:
         if speed and speed != 1.0:
             spoken["rate"] = min(max(speed, 0.5), 2.0)
     payload = await dashscope.post(source.endpoint, url, {"model": source.model, "input": spoken})
-    output = payload.get("output") if isinstance(payload.get("output"), dict) else {}
-    audio = output.get("audio") if isinstance(output.get("audio"), dict) else {}
+    audio = dashscope.dig(payload, "output", "audio")
+    audio = audio if isinstance(audio, dict) else {}
     if audio.get("url"):
         return await dashscope.collect(audio["url"], limit=dashscope.MAX_AUDIO_BYTES)
     encoded = audio.get("data")
@@ -264,19 +282,23 @@ async def _dashscope_piece(source: Source, text: str, speed: float) -> bytes:
         try:
             return base64.b64decode(encoded)
         except ValueError as exc:
-            raise LLMError(t("The speech endpoint returned audio that could not be read.")) \
-                from exc
+            raise LLMError(
+                t("The speech endpoint returned audio that could not be read.")
+            ) from exc
     raise LLMError(t("The speech endpoint returned no audio."))
 
 
 async def _dashscope_speak(
-    source: Source, text: str, speed: float
+    source: Source, text: str, speed: float,
+    on_piece: Callable[[int, bool], None] | None = None,
 ) -> tuple[str, AsyncIterator[bytes]]:
     parts = pieces(text)
     if not parts:
         raise LLMError(t("There is nothing to read out."))
     first = await _dashscope_piece(source, parts[0], speed)
     wav = wav_parts(first)
+    if on_piece is not None:
+        on_piece(len(parts[0]), True)
 
     async def stream() -> AsyncIterator[bytes]:
         if wav is None:
@@ -284,14 +306,29 @@ async def _dashscope_speak(
         else:
             yield _open_ended(wav[0]) if len(parts) > 1 else wav[0]
             yield wav[1]
-        for part in parts[1:]:
+        for number, part in enumerate(parts[1:], start=2):
             try:
                 data = await _dashscope_piece(source, part, speed)
-            except LLMError:
+            except LLMError as exc:
                 # The reading stops where the provider did; what was read
-                # stays read. Nothing can be said inside a stream of audio.
+                # stays read and is what was counted. Nothing can be said
+                # inside a stream of audio, so it is said in the log.
+                log.warning(
+                    "reading aloud on %s stopped at piece %d of %d: %s",
+                    source.label, number, len(parts), sources.scrub(source, exc.message),
+                )
                 return
-            later = wav_parts(data) if wav is not None else None
+            later = wav_parts(data)
+            if (later is None) != (wav is None):
+                # One stream is one format. A WAV's samples are never
+                # followed by another container's bytes, nor the reverse.
+                log.warning(
+                    "reading aloud on %s stopped at piece %d of %d: the format changed",
+                    source.label, number, len(parts),
+                )
+                return
+            if on_piece is not None:
+                on_piece(len(part), False)
             yield later[1] if later is not None else data
 
     return ("audio/wav" if wav is not None else "audio/mpeg"), stream()
@@ -313,6 +350,8 @@ async def transcribe_for(
     the instance's default when it has none or its own fails -- counted and
     priced against whichever answered. `result` is `(text, seconds)`."""
     chain = sources.chain(db, CAP_STT, connection, interactive=interactive)
+    if not chain:
+        raise LLMError(t("No audio endpoint has been configured."))
 
     async def call(source: Source):
         return await transcribe(
@@ -341,16 +380,30 @@ async def speak_for(
     """`text` read by the chat's connection's own model, or by the default,
     as `transcribe_for`. `result` is `(media type, byte stream)`."""
     chain = sources.chain(db, CAP_TTS, connection, interactive=interactive)
+    if not chain:
+        raise LLMError(t("No audio endpoint has been configured."))
+    user_id = user.id
 
     async def call(source: Source):
-        return await speak(source, text, voice=voice, fmt=fmt, speed=speed)
+        # Counted as the source accepts it, by the character: the whole text
+        # where it goes in one request, each piece where it is read in
+        # several. The later pieces are read after this request has ended, so
+        # each count is written in a session of its own.
+        def count(characters: int, first: bool) -> None:
+            from lembas.db.session import session_scope
 
-    used = await sources.first_that_works(chain, call)
-    # The source has accepted the text, so it is read: counted by the
-    # character before the first byte of audio goes out.
-    sources.record(db, user.id, used.source, characters=len(text))
-    _commit(db)
-    return used
+            try:
+                with session_scope() as session:
+                    sources.record(
+                        session, user_id, source, characters=characters,
+                        requests=1 if first else 0,
+                    )
+            except Exception:  # bookkeeping must never break the reading
+                log.warning("could not record speech usage", exc_info=True)
+
+        return await speak(source, text, voice=voice, fmt=fmt, speed=speed, on_piece=count)
+
+    return await sources.first_that_works(chain, call)
 
 
 def _commit(db) -> None:

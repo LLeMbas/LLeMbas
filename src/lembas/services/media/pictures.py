@@ -18,7 +18,7 @@ import binascii
 from typing import Any
 
 from lembas.services.llm.openai_client import LLMError
-from lembas.services.media import dashscope, store
+from lembas.services.media import dashscope, sources, store
 from lembas.services.media.sources import Source
 from lembas.web.i18n import t
 
@@ -46,12 +46,31 @@ async def generate(
     height: int | None = None,
     seed: int | None = None,
 ) -> bytes:
-    """One picture's bytes. Raises `LLMError` in the provider's words."""
+    """One picture's bytes -- checked to *be* a picture this instance can
+    keep. Raises `LLMError` in the provider's words, without its key."""
     if source.endpoint is None:
         raise LLMError(t("Nothing is configured to do that on this instance."))
-    if source.dialect == store.DASHSCOPE_IMAGE:
-        return await _dashscope(source, prompt, negative, width, height, seed)
-    return await _openai(source, prompt, width, height)
+    try:
+        if source.dialect == store.DASHSCOPE_IMAGE:
+            payload = await _dashscope(source, prompt, negative, width, height, seed)
+        else:
+            payload = await _openai(source, prompt, width, height)
+    except LLMError as exc:
+        raise sources.scrubbed(source, exc) from exc
+    return checked(payload)
+
+
+def checked(payload: bytes) -> bytes:
+    """`payload` when it is an image by its own bytes and no larger than an
+    upload may be. Anything else is a failure of the source -- so another is
+    tried, and nothing is stored or counted as a picture."""
+    from lembas.services import files as files_service
+
+    if files_service._detect_image(payload) is None:
+        raise LLMError(t("The image endpoint returned something that is not a picture."))
+    if len(payload) > files_service.limits().max_upload_bytes:
+        raise LLMError(t("The picture is larger than this instance stores."))
+    return payload
 
 
 async def _openai(source: Source, prompt: str, width: int | None, height: int | None) -> bytes:
@@ -63,15 +82,16 @@ async def _openai(source: Source, prompt: str, width: int | None, height: int | 
     payload = await dashscope.post(
         source.endpoint, source.endpoint.url("images/generations"), body, timeout=TIMEOUT
     )
-    items = payload.get("data")
-    first = items[0] if isinstance(items, list) and items and isinstance(items[0], dict) else {}
+    first = dashscope.dig(payload, "data", 0)
+    first = first if isinstance(first, dict) else {}
     encoded = first.get("b64_json")
     if isinstance(encoded, str) and encoded:
         try:
             return base64.b64decode(encoded, validate=False)
         except (binascii.Error, ValueError) as exc:
-            raise LLMError(t("The image endpoint returned a picture that could not be read.")) \
-                from exc
+            raise LLMError(
+                t("The image endpoint returned a picture that could not be read.")
+            ) from exc
     if first.get("url"):
         return await dashscope.collect(
             first["url"], limit=dashscope.MAX_IMAGE_BYTES, endpoint=source.endpoint
@@ -99,17 +119,18 @@ async def _dashscope(
         source.endpoint, dashscope.native_url(source.endpoint, dashscope.GENERATION), body,
         timeout=TIMEOUT,
     )
-    output = payload.get("output") if isinstance(payload.get("output"), dict) else {}
-    for choice in output.get("choices") or []:
-        message = choice.get("message") if isinstance(choice, dict) else None
-        for part in (message or {}).get("content") or []:
+    choices = dashscope.dig(payload, "output", "choices")
+    for choice in choices if isinstance(choices, list) else []:
+        content = dashscope.dig(choice, "message", "content")
+        for part in content if isinstance(content, list) else []:
             if isinstance(part, dict) and part.get("image"):
                 return await dashscope.collect(part["image"], limit=dashscope.MAX_IMAGE_BYTES)
     # The older answer of the same route: `output.results[].url`.
-    for result in output.get("results") or []:
+    results = dashscope.dig(payload, "output", "results")
+    for result in results if isinstance(results, list) else []:
         if isinstance(result, dict) and result.get("url"):
             return await dashscope.collect(result["url"], limit=dashscope.MAX_IMAGE_BYTES)
     raise LLMError(t("The image endpoint returned no picture."))
 
 
-__all__ = ["SIDE_MAX", "SIDE_MIN", "TIMEOUT", "generate", "side"]
+__all__ = ["SIDE_MAX", "SIDE_MIN", "TIMEOUT", "checked", "generate", "side"]
