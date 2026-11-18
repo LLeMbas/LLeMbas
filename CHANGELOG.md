@@ -96,7 +96,11 @@ pinned to its tag at release.
   it is pressed; automatic compaction is skipped and the reply goes on). The search index is
   not built with an embedding model on such a connection. What a person starts in a chat --
   its replies, their tool calls, the subagents and teams it starts -- stays on the chat's
-  model. `/v1/models` and `/api/v2/models` say `interactive_only` for such a model.
+  model. `/v1/models` and `/api/v2/models` say `interactive_only: true` for such a model
+  (sent only when true). These are harness spec 3.9.0's rules (`interactive.md`), which the
+  LLeMbas CLI follows for what it sends itself; the two sentences a person reads are the
+  spec's, word for word, and a subagent's own automatic compaction is judged by the
+  subagent's model.
 
 ### Fixed
 

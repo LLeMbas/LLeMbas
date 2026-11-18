@@ -22,7 +22,7 @@ page *Harness-parity* in LLeMbas CLI's wiki.
 | `permission/defaults.json` | The rules every session starts from |
 | `permission/modes.json` | The four modes — manual, edit, auto, plan — as what each does with each risk class |
 | `models/schema.json` | Model metadata: context, output limit, efforts and the thinking switch, vision, tools, notes, capacity (`parallel`); `levels` — the effort levels a chat offers and what each sends |
-| `loop.json` | How one prompt runs: the step backstop, budgets, wrap-up, nudges, parallel calls, capacity; `jobs` — background work, its marks and limits; `subagents` — the model refusals, what names a model, the setting's label; `team` — a team's size, names, marks, refusals and texts; `progress` — the phases' texts; `context` — result ids, stubs, the output cap, the compaction table, the environment lines, the session notes; `scheduled` (3.5.0) — scheduled work on a linked computer: the setting, the modes, the approval wait, the sentinel, the watch command's limits and the refusals; `phone` (3.6.0) — phone actions: the capability, each action's fields, what is required and checked, the wait and the texts; `display` (3.7.0) — a call's title keys, states and facts, the blocks, the cards' actions; `scheduled.notify` (3.8.0) — notify-when and its texts; `pages` (3.8.0) — the fence word, the frame's variables, the note and the projection |
+| `loop.json` | How one prompt runs: the step backstop, budgets, wrap-up, nudges, parallel calls, capacity; `jobs` — background work, its marks and limits; `subagents` — the model refusals, what names a model, the setting's label; `team` — a team's size, names, marks, refusals and texts; `progress` — the phases' texts; `context` — result ids, stubs, the output cap, the compaction table, the environment lines, the session notes; `scheduled` (3.5.0) — scheduled work on a linked computer: the setting, the modes, the approval wait, the sentinel, the watch command's limits and the refusals; `phone` (3.6.0) — phone actions: the capability, each action's fields, what is required and checked, the wait and the texts; `display` (3.7.0) — a call's title keys, states and facts, the blocks, the cards' actions; `scheduled.notify` (3.8.0) — notify-when and its texts; `pages` (3.8.0) — the fence word, the frame's variables, the note and the projection; `interactive` (3.9.0) — interactive-only models: the field, the two sentences, what each background call does with nowhere to go |
 | `filesystem.md` | The file system a session works in: paths, node kinds, the four access levels, errors, listings, search and indexing by tokens, stacked instruction files, skills, memory |
 | `context.md` | Context hygiene: what happens to a tool result when it is inserted, and never afterwards; the prefix that stays still; reasoning sent back during its turn; no absolute paths in the prompt |
 | `team.md` | Teams: a lead and the members it adds, the size setting, the room, who receives what, reports, a manager's refusals, capacity, stopping |
@@ -32,6 +32,7 @@ page *Harness-parity* in LLeMbas CLI's wiki.
 | `reports.md` | Reports (3.8.0): a schedule's run files a report with `report_write`, or leaves a history line; notify-when (`always`, `when`, `never`) and the instruction for each; what a run leaves; the retired `[SILENT]`; a run on a linked computer |
 | `pages.md` | HTML pages in answers (3.8.0, experimental): the `html-view` fence, what the model is told, the note and the text projection for a reader that cannot show a page, when pages are offered, the session note, the frame |
 | `permission/rules.md` | Which permission rule decides (3.8.0): the layers, the candidate, the floors a later-made rule gives way to (3.9.0: a narrower rule that a later one narrows again is set aside), and what making a rule does |
+| `interactive.md` | Interactive-only models (3.9.0): the field, what counts as a person's own turn, scheduled work that never runs on one, and where a session's background calls (title, compaction) go instead |
 | `display.md` | Display (3.7.0): one display in every client — a tool call's title, its four states, the duration and the facts beside it, the kinds of block; how `stopped` and `failed` stay on a finished reply; what the approval, question and plan cards offer; numbers in the client's locale |
 | `quirks.json` | What real servers do, and how both harnesses cope |
 | `conformance/<area>.json` | Cases with their expected results, run by both test suites |
@@ -109,6 +110,18 @@ a field, a rule amended, no tool and no text for a model.
   broad `read: allow` both counted and the strictest won, so making the allow *started* asking
   about `.env.example`. Now the example file is read without asking after it as before it.
   LLeMbas: the same change in its rule lookup, if it has the same floor.
+- **Interactive-only models** (`interactive.md`, `models/schema.json` `interactive_only`,
+  `loop.json` `interactive`, `conformance/interactive.json`; three more cases in
+  `last_model.json`). A model served through a connection its provider sells for a person's own
+  turns only says `interactive_only: true`. **Scheduled work never runs on one**: it is not
+  offered for a schedule and is refused when named; a run whose model is one fails with the
+  sentence, and a device refuses such a scheduled turn itself (`data.reason:
+  "interactive_only"`), its subagents included; so does a one-shot `lembas run` with no
+  terminal at all. **Background calls go elsewhere**: a title or a compaction for a session on
+  such a model is asked of its twin (the same model under another provider), else of a default
+  that is not interactive-only, else the title and automatic compaction are skipped and a
+  compaction the person asked for is refused in words. What a person starts — their turns, the
+  subagents and teams of their session — stays on the model.
 
 ## 3.8.1
 

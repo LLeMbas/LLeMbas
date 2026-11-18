@@ -138,11 +138,12 @@ def model(row, *, default: bool = False, subagents: dict | None = None) -> dict[
         # say (it may offer them on every model, flagged or not) and the
         # chat's: an app asks `GET /chats/{id}/html-pages`.
         "html_pages": bool(getattr(row, "html_pages", False)),
-        # Added within APP_API 2 (server 2.0.0-beta.14): the model's
-        # connection is one its provider sells for interactive use only. A
-        # schedule cannot be given it (`GET /schedules/models` never lists
-        # it, and creating one with it answers 400).
-        "interactive_only": _interactive_only(row),
+        # Added within APP_API 2 (server 2.0.0-beta.14; harness spec 3.9.0,
+        # interactive.md): `interactive_only: true` on a model whose
+        # connection its provider sells for interactive use only -- **sent
+        # only when true**, as on `/v1/models`. A schedule cannot be given it
+        # (`GET /schedules/models` never lists it; creating one answers 400).
+        **({"interactive_only": True} if _interactive_only(row) else {}),
     }
 
 

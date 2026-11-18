@@ -511,6 +511,20 @@
       "summary_max": 300
     }
   },
+  "interactive": {
+    "about": "Spec 3.9.0 (interactive.md): models a provider allows for a person's own turns only. `field`: what a model's metadata says (models/schema.json; /v1/models and /api/v2 model objects, sent only when true). `texts.scheduled`: the refusal of scheduled work on one — a schedule given it, a run whose model is one, a scheduled subagent, a one-shot run with nobody at it — `{{model}}` the model as the person knows it. `texts.compact`: compaction asked for by the person with no twin and no usable default. `background`: the calls that are not the answer to a person's turn, and what each does with nowhere to go.",
+    "field": "interactive_only",
+    "reason": "interactive_only",
+    "texts": {
+      "scheduled": "{{model}} is on a connection for interactive use only: its provider's terms do not allow scheduled or background work. Choose a model on a pay-as-you-go connection.",
+      "compact": "This chat's model is on a connection for interactive use only, and compacting is background work its provider's terms do not allow. It needs the same model on a pay-as-you-go connection, or a default model that is not interactive-only."
+    },
+    "background": {
+      "title": "skip",
+      "compaction": "refuse",
+      "auto_compaction": "skip"
+    }
+  },
   "phone": {
     "about": "Spec 3.6.0 (phone.md): `phone_action`, carried out by the LLeMbas app on the person's phone and confirmed there. `capability` is what the app declares with each message it sends; `fields` what each action reads (anything else in a call is dropped before the phone sees it); `required` the fields each action needs (a list inside the list: any one of them); `check` the order the fields' values are checked in; `wait_seconds` how long a call waits for the phone's answer; `texts` what the model is told, `what` what a bad field should have been. conformance/phone.json.",
     "capability": "phone_actions",

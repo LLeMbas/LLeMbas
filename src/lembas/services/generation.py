@@ -1957,6 +1957,11 @@ async def _maybe_compact(generation: Generation) -> None:
             compaction_service.apply(chat, summary=summary, upto=upto, db=db)
             db.commit()
             log.info("chat %s compacted automatically through %s", chat.id, upto_id)
+    except LLMError as exc:
+        # The endpoint's word, or a refusal made before anything was sent (a
+        # chat on an interactive-only connection with nowhere else to ask:
+        # skipped, and the turn goes on -- `interactive.md` §3). Not a fault.
+        log.info("automatic compaction skipped for chat %s: %s", generation.chat_id, exc.message)
     except Exception:  # the reply matters more than the tidy-up
         log.exception("automatic compaction failed for chat %s", generation.chat_id)
     finally:

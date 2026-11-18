@@ -18,6 +18,7 @@
     "effort_style": { "enum": ["top", "kwargs", "both"], "description": "OpenAI Chat dialect: where the effort goes — top-level `reasoning_effort`, `chat_template_kwargs.reasoning_effort` (all llama.cpp reads), or both (the default)." },
     "vision": { "type": "boolean", "description": "Takes images. Never sent images otherwise: most servers refuse the whole request." },
     "html_pages": { "type": "boolean", "default": false, "description": "Spec 3.8.0 (pages.md): this model can write HTML pages — a complete, self-contained page in an `html-view` block of its reply. False by default; pages are offered only when this is true, the instance's switch is on and the chat's is." },
+    "interactive_only": { "type": "boolean", "default": false, "description": "Spec 3.9.0 (interactive.md): the model is served through a connection its provider allows for a person's own turns only — a subscription whose terms forbid automated, batch and scheduled background use. The server's word, from the connection's type; sent only when true. A client does not offer it for a schedule, sends it no scheduled work, and sends a session's background calls (title, compaction) to its twin or a default instead." },
     "tools": { "type": "boolean", "description": "Takes tool calls. false: it can only talk; never sent a tools array." },
     "notes": { "type": "string", "maxLength": 300, "description": "What the model is good at, in a line: other models are told about it in the roster, for handing work over." },
     "capacity": {

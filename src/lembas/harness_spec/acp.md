@@ -402,6 +402,10 @@ resolves it for every run that opens a session, when the run starts, and sends i
    when the person still has it;
 3. else as before 3.9.0: the default a schedule without a model runs on.
 
+Never an interactive-only model (`interactive.md` §2): a schedule cannot name one, the
+directory's does not count when it is one, and a run left with one fails with the sentence —
+which the device says too, should such a turn reach it (`data.reason: "interactive_only"`).
+
 So an Agentic schedule that names no model follows the directory: change the model you work with
 there, and the next run uses it. A schedule that continues one conversation keeps its session's
 model from run to run; the client changes it (`_lembas/configure`) only when the schedule names a
@@ -488,7 +492,8 @@ client's to decide from this answer (`reports.md` §4). A device without the cap
   `_lembas/session/status` and the turn id, as for any agent chat.
 - **Refused** (`-32602` from a scheduled `session/new`, `session/prompt` or `_lembas/monitor`): the
   run **fails** with the device's message, said in the run's history and in the failure
-  notification; `data.reason` (`scheduled_off`, `folder`, `plan`, `permission`) lets the client say
+  notification; `data.reason` (`scheduled_off`, `folder`, `plan`, `permission`, and from spec 3.9.0
+  `interactive_only` — the session's model is one, `interactive.md` §2) lets the client say
   what to change. Not retried.
 
 ### Monitor mode: a command watched on the device
@@ -959,7 +964,9 @@ Besides `/v1/models`, the chat completions, `/api/v1/instance` and `/mcp`:
   model is the library's: logging in (or in again) sets config.yaml's `embedding:` to the first one
   as `<connection>/<served id>` when no `embedding:` is set, and never replaces one that is;
   `embedding: <served id>` also finds it. Voice uses the instance's own speech endpoints, not these
-  entries. Any other kind is ignored.
+  entries. Any other kind is ignored. An entry may carry **`interactive_only: true`** (spec
+  3.9.0, `interactive.md`; sent only when true): a model for a person's own turns only — the
+  device sends it no scheduled work and sends a session's background calls elsewhere.
 - **`GET /api/v1/instance`** (the `models` scope) →
   `{ service, version, name, connection, account: { email, name }, scope, default_model, services }`.
   **`scope`** is what the token presented may do, space-separated, as its login granted it

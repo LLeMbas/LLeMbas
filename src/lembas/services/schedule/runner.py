@@ -768,7 +768,7 @@ async def _device_model(db, schedule, owner) -> tuple[Model | None, str, str]:
     }
     remembered = await directories.model_for(
         db, owner, where.device, where.cwd,
-        usable=lambda m: m.id in grouped and not interactive.model_only(m),
+        usable=lambda m: m.id in grouped, scheduled=True,
     )
     if remembered is not None:
         return remembered, REASON_DIRECTORY, ""

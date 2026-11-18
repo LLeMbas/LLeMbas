@@ -1,5 +1,5 @@
 {
-  "about": "Spec 3.9.0 (acp.md *The model last used in a directory*; *Scheduled work*, *The run's model*). Three kinds. `kind: start` — the device: which model a session of its own starts on. `asked`: the model asked for at the start (--model; model / lembas_model in session/new); `project`: `model` in a trusted project's configuration; `directory`: the model remembered for exactly this directory; `global`: `model` in the device's global configuration; `served`: the ids the login serves now; `default`: the instance's default. → `{model, from}`, `from` one of `asked`, `project`, `directory`, `global`, `default`. Only the directory's model is checked against `served` and skipped when it is not there; the others are taken as written (a model nobody serves is that source's own error, as before). `kind: record` — the device: whether something makes the session's model the directory's. `session`: `terminal`, `link` (a session the client opened, or a terminal's shared one), `stdio`, `run` (one-shot lembas run) or `scheduled` (a session a schedule opened for its run); `agent`: `main` or `subagent`; `what`: `turn` (a turn begins; `machine: true` when the harness started it), `change` (the person changes the session's model: /model, a setting, _lembas/configure) or `command` (a command's own model, for its prompt). → true or false. `kind: client` — the client (LLeMbas): the model a new agent chat on a device and directory, or a schedule's run there, starts on. `named`: the model the person chose for the chat, or the schedule names (absent: none); `directory`: `model` of the directory in the device's _lembas/directories answer (absent: none, an older device, or a device not asked); `has`: the models the person has now; `default`: what a chat or schedule without a model started on before 3.9.0. → `{model, from}`, `from` one of `named`, `directory`, `default`. CLI: src/session/lastmodel.ts.",
+  "about": "Spec 3.9.0 (acp.md *The model last used in a directory*; *Scheduled work*, *The run's model*). Three kinds. `kind: start` — the device: which model a session of its own starts on. `asked`: the model asked for at the start (--model; model / lembas_model in session/new); `project`: `model` in a trusted project's configuration; `directory`: the model remembered for exactly this directory; `global`: `model` in the device's global configuration; `served`: the ids the login serves now; `default`: the instance's default. → `{model, from}`, `from` one of `asked`, `project`, `directory`, `global`, `default`. Only the directory's model is checked against `served` and skipped when it is not there; the others are taken as written (a model nobody serves is that source's own error, as before). `kind: record` — the device: whether something makes the session's model the directory's. `session`: `terminal`, `link` (a session the client opened, or a terminal's shared one), `stdio`, `run` (one-shot lembas run) or `scheduled` (a session a schedule opened for its run); `agent`: `main` or `subagent`; `what`: `turn` (a turn begins; `machine: true` when the harness started it), `change` (the person changes the session's model: /model, a setting, _lembas/configure) or `command` (a command's own model, for its prompt). → true or false. `kind: client` — the client (LLeMbas): the model a new agent chat on a device and directory, or a schedule's run there, starts on. `named`: the model the person chose for the chat, or the schedule names (absent: none); `directory`: `model` of the directory in the device's _lembas/directories answer (absent: none, an older device, or a device not asked); `has`: the models the person has now; `default`: what a chat or schedule without a model started on before 3.9.0. `scheduled: true`: it is a schedule's run, for which the directory's model counts only when it is not one of `interactive_only` (interactive.md §2; a person's chat may start on such a model). → `{model, from}`, `from` one of `named`, `directory`, `default`. CLI: src/session/lastmodel.ts.",
   "cases": [
     {
       "about": "Nothing but the instance's default.",
@@ -306,6 +306,55 @@
       "expect": {
         "model": "deepseek/deepseek-flash",
         "from": "default"
+      }
+    },
+    {
+      "about": "A schedule's run: an interactive-only model remembered for the directory does not count.",
+      "kind": "client",
+      "scheduled": true,
+      "directory": "plan/qwen3-coder",
+      "has": [
+        "plan/qwen3-coder",
+        "deepseek/deepseek-flash"
+      ],
+      "interactive_only": [
+        "plan/qwen3-coder"
+      ],
+      "default": "deepseek/deepseek-flash",
+      "expect": {
+        "model": "deepseek/deepseek-flash",
+        "from": "default"
+      }
+    },
+    {
+      "about": "…while a person's new chat there starts on it: that is interactive.",
+      "kind": "client",
+      "directory": "plan/qwen3-coder",
+      "has": [
+        "plan/qwen3-coder",
+        "deepseek/deepseek-flash"
+      ],
+      "interactive_only": [
+        "plan/qwen3-coder"
+      ],
+      "default": "deepseek/deepseek-flash",
+      "expect": {
+        "model": "plan/qwen3-coder",
+        "from": "directory"
+      }
+    },
+    {
+      "about": "The device, for a scheduled session opened with no model: the same skip (`served` here is what the login serves that scheduled work may use).",
+      "kind": "start",
+      "directory": "plan/qwen3-coder",
+      "global": "deepseek/deepseek-flash",
+      "served": [
+        "deepseek/deepseek-flash"
+      ],
+      "default": "deepseek/deepseek-flash",
+      "expect": {
+        "model": "deepseek/deepseek-flash",
+        "from": "global"
       }
     }
   ]

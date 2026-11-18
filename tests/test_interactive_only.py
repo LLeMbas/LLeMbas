@@ -296,7 +296,7 @@ def test_the_api_refuses_it_in_words_and_never_lists_it(client, db, plan):
     # What the apps and the CLI read about the model itself.
     models = {m["id"]: m for m in client.get("/api/v2/models", headers=auth).json()["models"]}
     assert models["qwen-max"]["interactive_only"] is True
-    assert models["local-small"]["interactive_only"] is False
+    assert "interactive_only" not in models["local-small"], "sent only when true"
     _, key = api_tokens.create(db, user, name="CLI", scopes=["models"])
     served = client.get("/v1/models", headers={"Authorization": f"Bearer {key}"}).json()
     flags = {m["id"].split("/")[-1]: m.get("interactive_only") for m in served["data"]}
@@ -486,6 +486,40 @@ async def test_compaction_goes_to_the_twin_or_is_refused_in_words(client, db, pl
     summary = await compaction_service.summarise(chat.id, upto_id=reply.id)
     assert "Asking about lembas." in summary
     assert hosts == ["dashscope-intl.aliyuncs.com"]
+
+
+async def test_a_subagents_own_compaction_is_judged_by_the_subagents_model(
+    db, plan, mock_http, monkeypatch
+):
+    """`interactive.md` §3: a subagent is the person's, the summary of its
+    conversation is not their turn. It goes by the subagent's model -- its
+    twin, or skipped with the turn going on -- whatever the lead runs on."""
+    hosts: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        hosts.append(request.url.host)
+        return httpx.Response(200, text=_sse("## Summary\n\nKneading."))
+
+    mock_http(handler)
+    monkeypatch.setattr(compaction_service, "should_compact", lambda *a, **k: True)
+    lead = _chat(db, _other(db))
+    child = _chat(db, plan, parent_chat_id=lead.id, unattended=True)
+    _exchange(db, child)
+    pending = Message(chat_id=child.id, role=ROLE_ASSISTANT, content="", complete=False)
+    db.add(pending)
+    db.commit()
+    generation = generation_service.Generation(chat_id=child.id, message_id=pending.id)
+
+    # Nowhere to go: skipped, nothing sent, and nothing raised -- the turn goes on.
+    await generation_service._maybe_compact(generation)
+    db.expire_all()
+    assert hosts == [] and not db.get(Chat, child.id).compact_summary
+
+    _twin(db)
+    await generation_service._maybe_compact(generation)
+    db.expire_all()
+    assert hosts == ["dashscope-intl.aliyuncs.com"]
+    assert "Kneading." in db.get(Chat, child.id).compact_summary
 
 
 def test_the_index_is_not_built_on_an_interactive_only_connection(db, plan, monkeypatch):

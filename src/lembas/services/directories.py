@@ -58,14 +58,19 @@ FROM_DEFAULT = "default"
 
 # --- The client's rule (pure; conformance `last_model.json`, kind `client`) ------------------
 def start(
-    *, named: str | None, directory: str | None, has: list[str], default: str | None
+    *, named: str | None, directory: str | None, has: list[str], default: str | None,
+    scheduled: bool = False, interactive_only: tuple[str, ...] | list[str] = (),
 ) -> dict[str, Any]:
     """The model a new agent chat on a device and directory, or a schedule's
     run there, starts on: what was named, else the directory's model when the
-    person still has it (compared exactly), else what it started on before."""
+    person still has it (compared exactly), else what it started on before.
+    For a schedule's run (`scheduled`) the directory's model counts only when
+    it is not interactive-only (`interactive.md` §2); a person's chat may
+    well start on one."""
     if named:
         return {"model": named, "from": FROM_NAMED}
-    if directory and directory in has:
+    barred = scheduled and directory in interactive_only
+    if directory and directory in has and not barred:
         return {"model": directory, "from": FROM_DIRECTORY}
     return {"model": default, "from": FROM_DEFAULT}
 
@@ -214,18 +219,25 @@ async def remembered(token_id: str | None, path: str, *, timeout: float = ASK_TI
 
 async def model_for(
     db: DBSession, user: User, token_id: str | None, path: str, *,
-    usable=None, timeout: float = ASK_TIMEOUT,
+    usable=None, scheduled: bool = False, timeout: float = ASK_TIMEOUT,
 ) -> Model | None:
     """The directory's model as a row this person has now, or None (start as
-    before). `usable` narrows what counts as having it -- a schedule's run
-    may not use an interactive-only connection."""
+    before). `scheduled`: for a schedule's run, which an interactive-only
+    model does not count for. `usable` narrows what counts as having it (a
+    run stays inside its schedule's data group)."""
+    from lembas.services import interactive
+
     ref = await remembered(token_id, path, timeout=timeout)
     if not ref:
         return None
     mine = _mine(db, user)
+    only = [key for key, row in mine.items() if interactive.model_only(row)]
     if usable is not None:
         mine = {key: row for key, row in mine.items() if usable(row)}
-    chosen = start(named=None, directory=ref, has=list(mine), default=None)
+    chosen = start(
+        named=None, directory=ref, has=list(mine), default=None,
+        scheduled=scheduled, interactive_only=only,
+    )
     return mine[ref] if chosen["from"] == FROM_DIRECTORY else None
 
 

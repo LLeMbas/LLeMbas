@@ -84,6 +84,10 @@ AREAS = {
     # schedule's run there, starts on (`services/directories.py start`). The
     # `start` and `record` kinds are the device's own.
     "last_model": lambda c: _last_model(c),
+    # Spec 3.9.0 (interactive.md): the twin, where a background call goes and
+    # scheduled work on an interactive-only model -- `services/interactive.py`,
+    # the functions its rows are judged by.
+    "interactive": lambda c: _interactive(c),
     # Spec 3.6.0: a phone_action call checked, and the phone's answer as the
     # text the model is told (`services/phone.py`).
     "phone": lambda c: (
@@ -425,8 +429,35 @@ def _last_model(c):
         pytest.skip(f"last_model {c['kind']}: {_ON_THE_DEVICE}")
     return directories.start(
         named=c.get("named"), directory=c.get("directory"), has=list(c["has"]),
-        default=c.get("default"),
+        default=c.get("default"), scheduled=bool(c.get("scheduled")),
+        interactive_only=list(c.get("interactive_only") or []),
     )
+
+
+def _interactive(c):
+    from lembas.services import interactive
+
+    if c["kind"] == "twin":
+        return interactive.twin_id(c["model"], c["models"])
+    if c["kind"] == "background":
+        return interactive.background_call(c["call"], c["model"], c["models"], c["defaults"])
+    return interactive.scheduled_run(c["model"], c["models"])
+
+
+def test_the_interactive_sentences_are_the_specs_word_for_word():
+    """What a person reads here and what a device says are one sentence: the
+    server's (translated where shown) and `loop.json` `interactive.texts`."""
+    from lembas.services import interactive
+
+    rules = harness_spec.loop()["interactive"]
+    assert rules["field"] == rules["reason"] == "interactive_only"
+    assert interactive.SCHEDULED_REFUSED.replace("%(model)s", "{{model}}") == (
+        rules["texts"]["scheduled"]
+    )
+    assert rules["texts"]["compact"] == interactive.COMPACT_REFUSED
+    assert rules["background"] == {
+        "title": "skip", "compaction": "refuse", "auto_compaction": "skip"
+    }
 
 
 def _monitor(case: dict):

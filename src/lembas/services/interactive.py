@@ -53,6 +53,69 @@ COMPACT_REFUSED = N_(
     "pay-as-you-go connection, or a default model that is not interactive-only."
 )
 
+# The spec's names for the background calls and what each does with nowhere
+# to go (`loop.json` `interactive.background`).
+CALL_TITLE = "title"
+CALL_COMPACTION = "compaction"
+CALL_AUTO_COMPACTION = "auto_compaction"
+
+
+# --- The rules (pure; harness spec 3.9.0 `interactive.md`, conformance `interactive.json`) ---
+def _only_ids(models: list[dict[str, Any]]) -> set[str]:
+    return {str(m.get("id")) for m in models if m.get("interactive_only")}
+
+
+def _tail(model_id: str) -> str:
+    """What names the model whoever serves it: the id after its first `/`."""
+    return model_id.split("/", 1)[1] if "/" in model_id else model_id
+
+
+def twin_id(model: str, models: list[dict[str, Any]]) -> str | None:
+    """The same model on a connection that is not interactive-only: another
+    served id with the same part after its first `/`, the first in the list's
+    order -- or None."""
+    only = _only_ids(models)
+    for entry in models:
+        other = str(entry.get("id"))
+        if other != model and other not in only and _tail(other) == _tail(model):
+            return other
+    return None
+
+
+def background_call(
+    call: str, model: str, models: list[dict[str, Any]], defaults: list[str]
+) -> dict[str, Any]:
+    """Where a background call that would use `model` goes: `{model}` (itself,
+    its twin, or the first default that is listed and not interactive-only),
+    `{skip: True}`, or `{refused}` with the spec's sentence."""
+    from lembas.services import harness_spec
+
+    only = _only_ids(models)
+    if model not in only:
+        return {"model": model}
+    found = twin_id(model, models)
+    if found is None:
+        listed = {str(m.get("id")) for m in models}
+        found = next((d for d in defaults if d in listed and d not in only), None)
+    if found is not None:
+        return {"model": found}
+    rules = harness_spec.loop()["interactive"]
+    if rules["background"].get(call) == "refuse":
+        return {"refused": rules["texts"]["compact"]}
+    return {"skip": True}
+
+
+def scheduled_run(model: str, models: list[dict[str, Any]]) -> dict[str, Any]:
+    """Scheduled work on `model`: `{run: True}`, or `{refused}` with the
+    spec's sentence -- never quietly on its twin."""
+    from lembas.services import harness_spec
+
+    if model not in _only_ids(models):
+        return {"run": True}
+    text = harness_spec.loop()["interactive"]["texts"]["scheduled"]
+    return {"refused": harness_spec.fill(text, {"model": model})}
+
+
 # How far up a chain of subagents a chat is followed to what started it.
 _DEPTH = 8
 
@@ -143,16 +206,27 @@ def background_model(
 ) -> Model | None:
     """Where a background call for an interactive-only chat goes: the twin,
     else the instance's default model, else None."""
-    from lembas.services import settings_store
+    from lembas.services import chat as chat_service
+    from lembas.services import data_groups, settings_store
 
-    rows = _candidates(db, chat, owner)
-    found = next((m for m in rows if m.model_id == model_id), None)
-    if found is not None:
-        return found
+    # The spec's rule (`background_call`) over what this person may use in
+    # the chat's data group, each row named by its own id so two connections
+    # serving one model id are two entries with one tail.
+    rows = chat_service.available_models(db, owner, data_groups.for_chat(db, chat))
+    by_id = {f"{m.id}/{m.model_id}": m for m in rows}
+    listed = [{"id": key, "interactive_only": model_only(m)} for key, m in by_id.items()]
+    asked = next(
+        (key for key, m in by_id.items() if m.model_id == model_id and model_only(m)), None
+    )
+    if asked is None:
+        # The chat's own row is not among them (taken from the person
+        # since): still an interactive-only model looking for its twin.
+        asked = f"?/{model_id}"
+        listed.append({"id": asked, "interactive_only": True})
     default = settings_store.get(db, "default_model")
-    if default:
-        return next((m for m in rows if m.model_id == default), None)
-    return None
+    defaults = [key for key, m in by_id.items() if default and m.model_id == default]
+    went = background_call(CALL_TITLE, asked, listed, defaults)
+    return by_id.get(went.get("model", ""))
 
 
 def background(
@@ -190,6 +264,7 @@ __all__ = [
     "COMPACT_REFUSED",
     "SCHEDULED_REFUSED",
     "background",
+    "background_call",
     "background_model",
     "compact_refusal",
     "connection_only",
@@ -197,7 +272,9 @@ __all__ = [
     "model_only",
     "refuse_scheduled",
     "scheduled_refusal",
+    "scheduled_run",
     "scheduled_work",
     "twin",
+    "twin_id",
     "usable",
 ]

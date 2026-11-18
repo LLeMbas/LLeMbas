@@ -23,8 +23,7 @@
         "offered": true,
         "named_only": false
       },
-      "html_pages": false,
-      "interactive_only": false
+      "html_pages": false
     },
     {
       "id": "gpt-oss",
@@ -52,8 +51,7 @@
         "offered": true,
         "named_only": false
       },
-      "html_pages": false,
-      "interactive_only": false
+      "html_pages": false
     },
     {
       "id": "vision-small",
@@ -75,8 +73,7 @@
         "offered": true,
         "named_only": false
       },
-      "html_pages": false,
-      "interactive_only": false
+      "html_pages": false
     }
   ],
   "subagents_cap": 32,
