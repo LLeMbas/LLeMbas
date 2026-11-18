@@ -526,6 +526,15 @@ async def _submit(
         template = _workflow(source)
         if template is None:
             raise LLMError("Its workflow no longer exists.")
+        from lembas.services.images import workflow
+
+        if inputs and "image" not in workflow.placeholders_in(template):
+            # Asked to start from a picture, on a workflow that takes none:
+            # said, rather than making something the picture is not in.
+            raise LLMError(
+                f"{source.label} makes this from a description only and cannot start "
+                "from a picture."
+            )
         config = generate.config_of(source.config)
         given: dict[str, Any] = {
             "prompt": prompt, "negative": args.get("negative"), "seed": _seed(args),

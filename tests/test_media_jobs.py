@@ -642,3 +642,13 @@ def test_the_card_asks_for_itself_while_active_and_holds_the_player_when_done(
     assert "hx-trigger" not in card and "media-job-cancel" not in card
     assert f'src="/files/raw?node={node}&amp;inline=1"' in card and "<video" in card
     assert f'href="/media/open?node={node}"' in card and "download=" in card
+
+
+def test_a_picture_given_to_a_workflow_that_takes_none_is_said_not_ignored(db, world, far):
+    from lembas.services import files as files_service
+
+    files_service.store(db, user_id=world["user"].id, chat_id=world["chat"].id, payload=PNG,
+                        filename="dune.png", keep_original=True)
+    outcome = run(tools.run_video(world["context"], {"prompt": "it moves", "image": "dune.png"}))
+    assert outcome.event["status"] == "error" and "cannot start from a picture" in outcome.content
+    assert not far.prompts and db.scalar(select(MediaJob)) is None
