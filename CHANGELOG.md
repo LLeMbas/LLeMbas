@@ -5,6 +5,8 @@ at <https://llembas.eu/changelog.html>.
 
 ## Unreleased
 
+## 2.0.0-beta.14 — 2026-11-18
+
 This release carries harness spec **3.9.0** (the model last used in a directory; Chat and
 Agentic schedules; interactive-only models; permission rules set right), pinned from the
 LLeMbas CLI's `v2.0.0-beta.12`.
@@ -130,6 +132,7 @@ LLeMbas CLI's `v2.0.0-beta.12`.
 
 ### Fixed
 
+- An indexing that breaks off — the embedder failing, the task cancelled — no longer leaves the instance looking busy for ever, which kept an automatic update from ever finding it idle.
 - **A scheduled run on a computer no longer runs on the default because the computer was slow
   to say which model its folder uses.** "Nothing is remembered there" is an answer; no answer
   is not, and the run now waits for the computer on its usual steps instead. A named model

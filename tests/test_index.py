@@ -514,3 +514,17 @@ async def test_the_worker_notices_writes_and_reports_progress(db, alice):
         assert state["running"] and state["states"].get("done", 0) >= 1 and state["pending"] == 0
     finally:
         await index_service.shutdown()
+
+
+async def test_an_indexing_that_breaks_off_leaves_no_marker(db, monkeypatch):
+    """`updates_auto.busy` reads `current` as "indexing": a hash whose indexing
+    raised, or whose task was cancelled, must not leave it set for ever."""
+
+    async def breaks(_digest):
+        raise RuntimeError("the embedder went away")
+
+    monkeypatch.setattr(pipeline, "next_pending", lambda _db: ["0" * 64])
+    monkeypatch.setattr(pipeline, "index_hash", breaks)
+    with pytest.raises(RuntimeError):
+        await worker.run_once()
+    assert worker._STATE.current == ""

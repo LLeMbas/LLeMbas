@@ -203,8 +203,12 @@ async def run_once(*, everything: bool = False) -> int:
             if _changes_waiting():
                 await _map_changes()
             _STATE.current = digest
-            status = await pipeline.index_hash(digest)
-            _STATE.current = ""
+            try:
+                status = await pipeline.index_hash(digest)
+            finally:
+                # Also when it raises or the task is cancelled: a marker left
+                # behind reads as "indexing" for ever, and nothing updates.
+                _STATE.current = ""
             if status:
                 done += 1
                 _STATE.indexed += 1
