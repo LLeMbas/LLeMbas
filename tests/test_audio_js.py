@@ -176,7 +176,8 @@ def test_a_finished_reply_is_read_out_once():
     played, or a later swap of the same bubble starts it again, and the
     transcript reads itself out from the top."""
     arrivals = js_function(SOURCE, "playArrivals")
-    assert arrivals.index('removeAttribute("data-speak-auto")') < arrivals.index("speak(button, true)")
+    cleared = arrivals.index('removeAttribute("data-speak-auto")')
+    assert cleared < arrivals.index("speak(button, true)")
     assert '"htmx:afterSettle"' in CODE
 
 
