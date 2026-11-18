@@ -40,6 +40,7 @@ from lembas.api import (
     folders,
     invites,
     mcp_server,
+    mcp_signin,
     memories,
     memory_io,
     models,
@@ -276,6 +277,8 @@ def create_app() -> FastAPI:
     app.include_router(devices.router)
     app.include_router(tokens.router)
     app.include_router(mcp_server.router)
+    # Signing in to somebody else's MCP server: the cookie door, not under /mcp.
+    app.include_router(mcp_signin.router)
     # Before `memories`, whose `/api/memories/{id}` would take `import` for an id.
     app.include_router(memory_io.router)
     app.include_router(memories.router)

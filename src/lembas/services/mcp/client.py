@@ -59,15 +59,25 @@ class McpSpec:
     timeout: int = 30
     max_chars: int = 8000
     allow_private: bool = False
+    # Signed in to with OAuth: no secret is sent, and the token is asked for
+    # when a call is made (`oauth.token_for`), never kept in this snapshot.
+    oauth: bool = False
+    signin_id: str = ""
 
 
-def spec_from(row: McpServer) -> McpSpec:
+def spec_from(row: McpServer, *, signin_id: str = "") -> McpSpec:
+    from lembas.db.models import AUTH_OAUTH, AUTH_SECRET
+    from lembas.services.mcp import oauth
+
+    kind = oauth.kind_of(row)
     return McpSpec(
         slug=row.slug,
         name=row.name or row.slug,
         url=row.url or "",
         headers=dict(row.headers_json or {}),
-        secret=decrypt(row.secret_encrypted),
+        secret=decrypt(row.secret_encrypted) if kind == AUTH_SECRET else "",
+        oauth=kind == AUTH_OAUTH,
+        signin_id=signin_id,
         secret_placement=row.secret_placement,
         secret_name=row.secret_name or "Authorization",
         timeout=min(max(int(row.timeout or 0), MIN_TIMEOUT), MAX_TIMEOUT),
@@ -84,6 +94,11 @@ def _headers(spec: McpSpec) -> dict[str, str]:
         "Accept": "application/json, text/event-stream",
         **{str(k): str(v) for k, v in spec.headers.items()},
     }
+    if spec.oauth:
+        # The token is the credential, and it is put on per request, for the
+        # server's own origin only (`Session._hops`).
+        for name in [n for n in headers if n.lower() == "authorization"]:
+            del headers[name]
     if spec.secret:
         if spec.secret_placement == SECRET_BEARER:
             headers[spec.secret_name or "Authorization"] = f"Bearer {spec.secret}"
@@ -110,17 +125,41 @@ class Session:
         self._headers = _headers(spec)
         self._session_id = ""
         self._next_id = 0
+        self._token = ""
         self.protocol_version = ""
         self.server_info: dict[str, Any] = {}
 
     # --- Transport -----------------------------------------------------------
     async def _post(self, message: dict[str, Any]) -> httpx.Response:
+        """One message. With an OAuth sign-in: a refused token is renewed and
+        the message sent once more; refused again, the sign-in is over."""
+        if not self.spec.oauth:
+            return await self._hops(message)
+        from lembas.services.mcp import oauth
+
+        if not self._token:
+            self._token = await oauth.token_for(self.spec.signin_id, self.spec.name)
+        response = await self._hops(message)
+        if response.status_code != 401:
+            return response
+        refused = self._token
+        self._token = await oauth.token_for(
+            self.spec.signin_id, self.spec.name, rejected=refused
+        )
+        response = await self._hops(message)
+        if response.status_code == 401:
+            raise await oauth.reject(self.spec.signin_id, self.spec.name, self._token)
+        return response
+
+    async def _hops(self, message: dict[str, Any]) -> httpx.Response:
         current = self._url
         headers = dict(self._headers)
         if self._session_id:
             headers["Mcp-Session-Id"] = self._session_id
         if self.protocol_version:
             headers["MCP-Protocol-Version"] = self.protocol_version
+        if self._token:
+            headers["Authorization"] = f"Bearer {self._token}"
 
         origin = (urlparse(current).scheme, urlparse(current).netloc)
         for _ in range(fetch_service.MAX_REDIRECTS + 1):
@@ -148,6 +187,8 @@ class Session:
             )
             if (urlparse(current).scheme, urlparse(current).netloc) != origin:
                 headers.pop(self.spec.secret_name or "Authorization", None)
+                # A token is for the server it was issued for and nobody else.
+                headers.pop("Authorization", None)
                 origin = (urlparse(current).scheme, urlparse(current).netloc)
 
         raise McpError(f"{self.spec.name} redirected too many times.")
@@ -222,6 +263,8 @@ class Session:
         headers = {**self._headers, "Mcp-Session-Id": self._session_id}
         if self.protocol_version:
             headers["MCP-Protocol-Version"] = self.protocol_version
+        if self._token:
+            headers["Authorization"] = f"Bearer {self._token}"
         with suppress(httpx.RequestError, McpError):
             await self._client.delete(self._url, headers=headers)
 

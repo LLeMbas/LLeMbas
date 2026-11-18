@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Body, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Body, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
 
@@ -252,6 +252,35 @@ async def devices(caller: Me, db: Db) -> dict[str, Any]:
             )
         )
     return {"devices": out}
+
+
+@router.get("/mcp")
+async def mcp_servers(request: Request, caller: Me, db: Db) -> dict[str, Any]:
+    """The MCP servers whose tools this person's chats may be offered, each
+    with the state of its sign-in and, where they have to sign in, the page
+    to open in a browser."""
+    from lembas.api.devices import public_base
+    from lembas.api.mcp_signin import signin_path
+    from lembas.services import tool_access
+    from lembas.services.mcp import oauth
+    from lembas.services.mcp.registry import _offered_tools
+
+    if not permissions.has(db, caller.user, "tools.mcp"):
+        return {"servers": []}
+    base = public_base(request)
+    out = []
+    for server in tool_access.visible_mcp_servers(db, caller.user):
+        auth = oauth.view(db, server, caller.user)
+        wanted = auth["can_sign_in"] and auth["state"] in ("signed_out", "needs_signin")
+        out.append(
+            serialise.mcp_server(
+                server,
+                auth,
+                tools=len(_offered_tools(server)),
+                signin_url=base + signin_path(server) if wanted else "",
+            )
+        )
+    return {"servers": out}
 
 
 def _terminal_on(db, user, link) -> bool:

@@ -7,6 +7,29 @@ at <https://llembas.eu/changelog.html>.
 
 ### Added
 
+- **MCP servers can be signed in to with OAuth.** Admin › MCP servers › a server › *Credential*
+  now asks how the server is signed in to: nothing, a secret this instance sends (as before),
+  or **OAuth**. With OAuth nothing else has to be typed for most servers: where to sign in is
+  read from the server itself, and this instance registers with its provider by itself. For a
+  provider where applications are registered by hand there are fields for a client ID, a
+  client secret and scopes; the form shows the redirect address to register there.
+- **Each person signs in with their own account** -- Settings › Security › *Sign-ins to MCP
+  servers*, or *Sign in* on the server's row for an administrator. The browser goes to the
+  provider's page and comes back to this instance. A server's tools are offered only in the
+  chats of a person who is signed in to it. The list says how each sign-in stands: signed in
+  (as whom, when the provider says), not signed in, or **needs sign-in** when the provider
+  stopped honouring it -- then its tools are withdrawn until somebody signs in again, instead
+  of failing in the middle of a reply. *Sign out* forgets the sign-in and asks the provider
+  to withdraw it where it has a way to.
+- **One shared sign-in instead**, a switch on the server, off unless you turn it on: an
+  administrator signs in once and everyone allowed to use the server acts as that account.
+  Whatever that account may read or change there, every one of them may, through a model.
+- A sign-in is kept encrypted like a connection's key, renewed by itself before it runs out,
+  and never shown. It is sent to the server it was issued for and to nowhere else. Changing a
+  server's address or its client signs everyone out of it.
+- **For the apps: `GET /api/v2/mcp`** lists the MCP servers a person's chats may be offered,
+  each with the state of its sign-in (`ready`, `signed_in`, `signed_out`, `needs_signin`) and,
+  where the person has to sign in, a page of the instance to open in a browser.
 - **Files can be copied.** *Copy to…* in a file's or a folder's menu asks for the folder and
   puts a copy there -- a folder with everything in it. A name that is already taken is never
   overwritten: the copy is called `notes (2).md`. A copy costs no space (it names the same

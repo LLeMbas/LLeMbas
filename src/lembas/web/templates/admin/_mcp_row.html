@@ -18,6 +18,13 @@
       {% endif %}
     </div>
     <code class="model-row__id">{{ server.slug }} · {{ server.url }}</code>
+    {% if auth and auth.kind == "oauth" %}
+    <p class="text-xs" data-testid="mcp-row-auth">
+      <span class="badge">{{ t("shared sign-in") if auth.shared else t("each person signs in") }}</span>
+      {% include "partials/_mcp_auth_state.html" %}
+      {% if not auth.shared %}<span class="faint">{{ t("%(count)s signed in", count=signin_count) }}</span>{% endif %}
+    </p>
+    {% endif %}
     {% if message %}
     <p class="text-xs {{ 'danger' if message_kind == 'error' else 'faint' }}">{{ message }}</p>
     {% elif server.last_error %}
@@ -31,6 +38,16 @@
             hx-target="#mcp-{{ server.id }}" hx-swap="outerHTML">
       {{ icon("refresh", "icon--sm") }} {{ t("Test & refresh") }}
     </button>
+    {% if auth and auth.kind == "oauth" %}
+    {% if auth.state != "signed_in" %}
+    <a class="btn btn--sm btn--primary" href="/settings/mcp/{{ server.id }}/sign-in">{{ t("Sign in") }}</a>
+    {% else %}
+    <form method="post" action="/settings/mcp/{{ server.id }}/sign-out">
+      <input type="hidden" name="next" value="/admin/mcp">
+      <button class="btn btn--sm" type="submit">{{ t("Sign out") }}</button>
+    </form>
+    {% endif %}
+    {% endif %}
     <a class="btn btn--sm" href="/admin/mcp/{{ server.id }}/edit">{{ t("Edit") }}</a>
   </div>
 </div>

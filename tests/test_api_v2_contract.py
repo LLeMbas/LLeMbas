@@ -655,6 +655,37 @@ def _menus() -> dict[str, object]:
                 scheduled=False, max_mode="",
             ),
         ]},
+        # `GET /mcp`: the MCP servers a person's chats may be offered, with
+        # the state of each one's sign-in. One the instance holds a secret
+        # for, one the person is signed in to, one they have to sign in to
+        # (the page to open in a browser), one whose shared sign-in lapsed
+        # and is an administrator's to renew.
+        "mcp_servers": {"servers": [
+            serialise.mcp_server(
+                SimpleNamespace(id="mcp1", slug="tracker", name="Tracker"),
+                {"kind": "secret", "state": "ready", "shared": False, "account": "",
+                 "expires_at": None, "renews": False},
+                tools=4, signin_url="",
+            ),
+            serialise.mcp_server(
+                SimpleNamespace(id="mcp2", slug="mail", name="Mail"),
+                {"kind": "oauth", "state": "signed_in", "shared": False,
+                 "account": "frodo@example.org", "expires_at": None, "renews": True},
+                tools=7, signin_url="",
+            ),
+            serialise.mcp_server(
+                SimpleNamespace(id="mcp3", slug="notes", name="Notes"),
+                {"kind": "oauth", "state": "signed_out", "shared": False, "account": "",
+                 "expires_at": None, "renews": False},
+                tools=3, signin_url="https://lembas.example.org/settings/mcp/mcp3/sign-in",
+            ),
+            serialise.mcp_server(
+                SimpleNamespace(id="mcp4", slug="wiki", name="Wiki"),
+                {"kind": "oauth", "state": "needs_signin", "shared": True, "account": "",
+                 "expires_at": None, "renews": False},
+                tools=2, signin_url="",
+            ),
+        ]},
         "terminals": {"shells": [
             {"id": "0123456789abcdef", "device": "workstation", "directory": "/home/dev/project",
              "seconds": 754, "chat": "chat2", "watched": False},

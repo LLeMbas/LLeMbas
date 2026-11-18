@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session as DBSession
 from lembas.db.models import McpServer, User
 from lembas.services import tool_access
 from lembas.services.fetch import FetchError
-from lembas.services.mcp import client
+from lembas.services.mcp import client, oauth
 from lembas.services.mcp.protocol import McpError
 from lembas.services.tools import FAMILY_MCP, RISK_WRITE, ToolContext, ToolDef, ToolOutcome
 
@@ -122,7 +122,16 @@ def tool_defs(
     out: list[ToolDef] = []
 
     for server in tool_access.visible_mcp_servers(db, user, everything=everything):
-        spec = client.spec_from(server)
+        signin_id = ""
+        if oauth.is_oauth(server):
+            # A server signed in to with OAuth offers its tools to a person
+            # who has a sign-in for it -- their own, or the shared one --
+            # and to nobody else. (`everything` only maps names to servers.)
+            signin = oauth.signin_for(db, server, user)
+            if not everything and not oauth.usable(signin):
+                continue
+            signin_id = signin.id if signin is not None else ""
+        spec = client.spec_from(server, signin_id=signin_id)
         for entry in _offered_tools(server):
             name = str(entry.get("name") or "")
             offered = str(entry.get("offer_name") or "") or offer_name(
@@ -149,14 +158,26 @@ def tool_defs(
     return out
 
 
-async def refresh(db: DBSession, server: McpServer) -> tuple[int, str]:
+NOT_SIGNED_IN = "Nobody is signed in to it yet. Its tools are listed once somebody is."
+
+
+async def refresh(db: DBSession, server: McpServer, user: User | None = None) -> tuple[int, str]:
     """Contact a server and cache what it advertises. Returns (count, error).
 
     Shaped like `api/admin.py:_refresh_models`, including writing `last_error`
     and `last_checked_at` on both paths so the row says what happened rather
     than only whether it worked.
+
+    A server signed in to with OAuth is asked as `user` (their own sign-in,
+    or the shared one); with nobody signed in it is not asked at all.
     """
-    spec = client.spec_from(server)
+    signin_id = ""
+    if oauth.is_oauth(server):
+        signin = oauth.signin_for(db, server, user)
+        if not oauth.usable(signin):
+            return 0, NOT_SIGNED_IN
+        signin_id = signin.id
+    spec = client.spec_from(server, signin_id=signin_id)
     try:
         advertised, info, version = await client.list_tools(spec)
     except (McpError, FetchError) as exc:

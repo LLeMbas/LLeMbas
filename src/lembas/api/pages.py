@@ -1276,6 +1276,16 @@ def _team_settings(db, user) -> dict:
     }
 
 
+def _mcp_signins(db: Db, user: User) -> list[dict]:
+    from lembas.api.mcp_signin import offered_servers
+    from lembas.services.mcp import oauth
+
+    return [
+        {"server": server, "auth": oauth.view(db, server, user)}
+        for server in offered_servers(db, user)
+    ]
+
+
 @router.get("/settings")
 async def settings_page(
     request: Request,
@@ -1339,6 +1349,8 @@ async def settings_page(
             "personality_presets": [
                 (key, label) for key, (label, _) in personalization_service.PRESETS.items()
             ],
+            # MCP servers this person signs in to with OAuth, and how each stands.
+            "mcp_signins": _mcp_signins(db, user),
             # What `lembas login` is pointed at, as this page was reached.
             "instance_url": str(request.base_url).rstrip("/"),
             **_data_group_settings(db, user),

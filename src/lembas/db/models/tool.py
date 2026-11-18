@@ -19,7 +19,17 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Table, Text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Table,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from lembas.db.base import Base, Timestamps, UUIDPrimaryKey
@@ -37,6 +47,20 @@ SECRET_HEADER = "header"
 SECRET_QUERY = "query"
 
 SECRET_PLACEMENTS = (SECRET_NONE, SECRET_BEARER, SECRET_HEADER, SECRET_QUERY)
+
+# How an MCP server is signed in to. Stored. An empty value is a row from
+# before the choice existed and reads as "secret" when it has one, else "none"
+# (`services/mcp/oauth.kind_of`).
+AUTH_NONE = "none"
+AUTH_SECRET = "secret"
+AUTH_OAUTH = "oauth"
+
+AUTH_KINDS = (AUTH_NONE, AUTH_SECRET, AUTH_OAUTH)
+
+# A sign-in's state. "needs" is a sign-in whose tokens the provider no longer
+# honours: kept as a row so the page can say so rather than show nothing.
+SIGNIN_OK = "ok"
+SIGNIN_NEEDS = "needs"
 
 # How a response becomes text for the model.
 RESPONSE_TEXT = "text"  # prose; HTML reduced by fetch.html_to_text
@@ -157,6 +181,24 @@ class McpServer(UUIDPrimaryKey, Timestamps, Base):
     secret_name: Mapped[str] = mapped_column(String(120), default="Authorization")
     headers_json: Mapped[dict[str, Any]] = mapped_column(JSONDict, default=dict)
 
+    # How it is signed in to: AUTH_*. With "oauth" the secret above is not
+    # sent; everything about the provider is discovered when somebody signs in.
+    auth_kind: Mapped[str | None] = mapped_column(String(16))
+    # A client an administrator registered with the provider by hand, for one
+    # that does not register clients by itself. Empty means "register".
+    oauth_client_id: Mapped[str | None] = mapped_column(String(500))
+    oauth_client_secret_encrypted: Mapped[str | None] = mapped_column(Text)
+    # Scopes to ask for instead of the ones the server names, space-separated.
+    oauth_scopes: Mapped[str | None] = mapped_column(String(1000))
+    # One sign-in for everyone allowed to use the server, instead of each
+    # person's own. Off (NULL) is per person.
+    oauth_shared: Mapped[bool | None] = mapped_column(Boolean)
+    # The client this instance registered by itself (RFC 7591), encrypted
+    # whole because it may hold a secret: {issuer, redirect_uri, client_id,
+    # client_secret, method}. Registered again when the issuer or this
+    # instance's own address is another.
+    oauth_client_encrypted: Mapped[str | None] = mapped_column(Text)
+
     timeout: Mapped[int] = mapped_column(Integer, default=30, nullable=False)
     max_chars: Mapped[int] = mapped_column(Integer, default=8000, nullable=False)
     allow_private: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -185,3 +227,67 @@ class McpServer(UUIDPrimaryKey, Timestamps, Base):
 
     def __repr__(self) -> str:
         return f"<McpServer {self.slug}>"
+
+
+class McpSignin(UUIDPrimaryKey, Timestamps, Base):
+    """One OAuth sign-in to an MCP server: a person's own, or the shared one.
+
+    `user_id` is NULL for the shared sign-in, of which a server has at most
+    one. Tokens are Fernet-encrypted like a connection's key and are never
+    rendered; what a page shows is the state, who signed in and until when.
+    """
+
+    __tablename__ = "mcp_signins"
+    __table_args__ = (UniqueConstraint("server_id", "user_id"),)
+
+    server_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("mcp_servers.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    # Who went through the provider's page. For a shared sign-in this is the
+    # administrator; a plain id, since that account may go while this stays.
+    signed_in_by: Mapped[str] = mapped_column(String(32), default="")
+
+    state: Mapped[str] = mapped_column(String(16), default=SIGNIN_OK, nullable=False)
+    access_encrypted: Mapped[str] = mapped_column(Text, default="")
+    refresh_encrypted: Mapped[str] = mapped_column(Text, default="")
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    scope: Mapped[str] = mapped_column(String(1000), default="")
+    # What the provider said about the account, when it said anything (an
+    # OpenID id_token's email or name). Untrusted text, shown escaped.
+    account: Mapped[str] = mapped_column(String(200), default="")
+
+    # What refreshing and signing out need: {issuer, token_endpoint,
+    # revocation_endpoint, resource, client_id, method}. No secret in it.
+    meta_json: Mapped[dict[str, Any]] = mapped_column(JSONDict, default=dict)
+    last_error: Mapped[str] = mapped_column(Text, default="")
+
+    def __repr__(self) -> str:
+        return f"<McpSignin {self.server_id} {self.user_id or 'shared'}>"
+
+
+class McpOauthState(UUIDPrimaryKey, Timestamps, Base):
+    """A sign-in that has left for the provider's page and not yet come back.
+
+    Found by the hash of its `state` value, bound to the person who started it
+    and to one server, used once (the row is deleted before the code is
+    exchanged) and short-lived. The PKCE verifier stays here, encrypted.
+    """
+
+    __tablename__ = "mcp_oauth_states"
+
+    state_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    server_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("mcp_servers.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    shared: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    verifier_encrypted: Mapped[str] = mapped_column(Text, default="")
+    redirect_uri: Mapped[str] = mapped_column(String(1000), default="")
+    # As McpSignin.meta_json, settled when the sign-in started.
+    meta_json: Mapped[dict[str, Any]] = mapped_column(JSONDict, default=dict)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

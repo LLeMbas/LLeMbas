@@ -36,7 +36,7 @@
 
 <div class="model-rows">
   {% for server in servers %}
-  {% with tool_count = counts[server.id] %}
+  {% with tool_count = counts[server.id], auth = rows[server.id].auth, signin_count = rows[server.id].signin_count %}
   {% include "admin/_mcp_row.html" %}
   {% endwith %}
   {% endfor %}

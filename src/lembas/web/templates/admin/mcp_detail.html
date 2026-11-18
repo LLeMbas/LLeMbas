@@ -72,9 +72,19 @@
     </div>
   </section>
 
-  <section class="card">
+  <section class="card" x-data="{ kind: '{{ auth_kind }}' }">
     <h2 class="card__title">{{ t("Credential") }}</h2>
 
+    <div class="field">
+      <label class="field__label" for="auth_kind">{{ t("How it is signed in to") }}</label>
+      <select class="select" id="auth_kind" name="auth_kind" x-model="kind">
+        <option value="none" {{ 'selected' if auth_kind == 'none' }}>{{ t("Nothing — the server is open") }}</option>
+        <option value="secret" {{ 'selected' if auth_kind == 'secret' }}>{{ t("A secret this instance sends") }}</option>
+        <option value="oauth" {{ 'selected' if auth_kind == 'oauth' }}>{{ t("OAuth — people sign in at the server's provider") }}</option>
+      </select>
+    </div>
+
+    <div x-show="kind === 'secret'" {{ 'x-cloak' if auth_kind != 'secret' }}>
     <div class="field">
       <label class="field__label" for="secret_placement">{{ t("How it is sent") }}</label>
       <select class="select" id="secret_placement" name="secret_placement">
@@ -105,6 +115,47 @@
           {{ t("Encrypted at rest and never shown again.") }}
         {% endif %}
       </p>
+    </div>
+    </div>
+
+    <div x-show="kind === 'oauth'" {{ 'x-cloak' if auth_kind != 'oauth' }} data-testid="mcp-oauth-fields">
+    <p class="field__hint">{{ t("Where to sign in is read from the server itself. Most servers also register this instance by themselves, and the three fields below stay empty.") }}</p>
+
+    <div class="field">
+      <label class="field__label" for="oauth_client_id">{{ t("Client ID") }}</label>
+      <input class="input input--mono" id="oauth_client_id" name="oauth_client_id"
+             value="{{ server.oauth_client_id or '' }}" maxlength="500" autocomplete="off">
+      <p class="field__hint">{{ tm("Only for a provider where applications are registered by hand. The redirect address to register there is <code>%(address)s</code>.", address=redirect_uri) }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="oauth_client_secret">{{ t("Client secret") }}</label>
+      <input class="input input--mono" id="oauth_client_secret" name="oauth_client_secret"
+             type="password" autocomplete="off" placeholder="{{ t('No secret set') }}"
+             value="{{ unchanged if oauth_secret_set else '' }}">
+      <p class="field__hint">{{ t("Encrypted at rest and never shown again.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="oauth_scopes">{{ t("Scopes") }}</label>
+      <input class="input input--mono" id="oauth_scopes" name="oauth_scopes"
+             value="{{ server.oauth_scopes or '' }}" maxlength="1000" autocomplete="off">
+      <p class="field__hint">{{ t("Separated by spaces. Empty asks for what the server itself names.") }}</p>
+    </div>
+
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="oauth_shared" value="true" {{ 'checked' if server.oauth_shared }}>
+        <span>{{ t("One shared sign-in for everyone allowed to use this server") }}</span>
+      </label>
+      <p class="field__hint">{{ t("Off, each person signs in with an account of their own, and a person who has not is not offered this server's tools. On, an administrator signs in once and everyone acts as that account: whatever it may read or change there, every one of them may, through a model.") }}</p>
+    </div>
+
+    {% if not is_new %}
+    <p class="field__hint" data-testid="mcp-signin-count">
+      {{ t("Signed in now: %(count)s. Changing the address or the client signs everyone out.", count=signin_count) }}
+    </p>
+    {% endif %}
     </div>
   </section>
 

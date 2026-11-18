@@ -23,7 +23,9 @@ from sqlalchemy import func, select
 
 from lembas.api._redirect import back
 from lembas.api.deps import AdminUser, Db
+from lembas.api.devices import public_base
 from lembas.db.models import (
+    AUTH_KINDS,
     RESPONSE_JSON,
     RESPONSE_MODES,
     RESPONSE_RAW,
@@ -33,6 +35,7 @@ from lembas.db.models import (
     CustomTool,
     Group,
     McpServer,
+    McpSignin,
 )
 from lembas.services import custom_tools
 from lembas.services import prompts as prompts_service
@@ -40,6 +43,7 @@ from lembas.services import tools as tools_service
 from lembas.services.crypto import UNCHANGED_SENTINEL, decrypt, keep_or_replace, mask
 from lembas.services.fetch import FetchError, check_url
 from lembas.services.mcp import client as mcp_client
+from lembas.services.mcp import oauth as mcp_oauth
 from lembas.services.mcp import registry as mcp_registry
 from lembas.web.i18n import t
 from lembas.web.templating import render
@@ -461,6 +465,13 @@ def _populate_server(server: McpServer, form) -> None:
     server.secret_placement = placement if placement in SECRET_PLACEMENTS else SECRET_NONE
     server.secret_name = str(form.get("secret_name") or "Authorization").strip()[:120]
 
+    kind = str(form.get("auth_kind") or "")
+    if kind in AUTH_KINDS:
+        server.auth_kind = kind
+    server.oauth_client_id = str(form.get("oauth_client_id") or "").strip()[:500]
+    server.oauth_scopes = " ".join(str(form.get("oauth_scopes") or "").split())[:1000]
+    server.oauth_shared = "oauth_shared" in form
+
     server.timeout = _number(
         form.get("timeout"), default=30, low=mcp_client.MIN_TIMEOUT, high=mcp_client.MAX_TIMEOUT
     )
@@ -504,6 +515,23 @@ def _server_problem(db: Db, server: McpServer, form, *, existing_id: str = "") -
     return ""
 
 
+def _signin_count(db: Db, server: McpServer) -> int:
+    return int(
+        db.scalar(
+            select(func.count()).select_from(McpSignin).where(McpSignin.server_id == server.id)
+        )
+        or 0
+    )
+
+
+def _row_context(db: Db, user, server: McpServer) -> dict:
+    """What one row of the list says about a server's sign-in."""
+    return {
+        "auth": mcp_oauth.view(db, server, user),
+        "signin_count": _signin_count(db, server) if mcp_oauth.is_oauth(server) else 0,
+    }
+
+
 def _server_detail(
     request: Request, db: Db, server: McpServer, *, is_new: bool, error: str = "", **extra
 ):
@@ -527,6 +555,12 @@ def _server_detail(
                 if isinstance(entry, dict)
             ],
             "masked": mask(decrypt(server.secret_encrypted)) if server.secret_encrypted else "",
+            "auth_kind": mcp_oauth.kind_of(server),
+            "oauth_secret_set": bool(server.oauth_client_secret_encrypted),
+            # What an administrator registers with a provider that wants a
+            # client typed in: where it sends people back to.
+            "redirect_uri": public_base(request) + mcp_oauth.CALLBACK_PATH,
+            "signin_count": _signin_count(db, server) if server.id else 0,
             "unchanged": UNCHANGED_SENTINEL,
             "secret_placements": _secret_labels(),
             "prompt_key": key,
@@ -545,6 +579,7 @@ async def mcp_page(request: Request, db: Db, user: AdminUser, saved: str = ""):
         {
             "servers": servers,
             "counts": {server.id: len(server.tools_json or []) for server in servers},
+            "rows": {server.id: _row_context(db, user, server) for server in servers},
             "saved": saved,
         },
     )
@@ -589,9 +624,19 @@ async def create_server(request: Request, db: Db, user: AdminUser) -> Response:
         )
 
     draft.secret_encrypted = keep_or_replace(str(form.get("secret") or ""), "")
+    draft.oauth_client_secret_encrypted = keep_or_replace(
+        str(form.get("oauth_client_secret") or ""), ""
+    )
     draft.groups = _chosen_groups(db, form, public=draft.public)
     db.add(draft)
     db.commit()
+
+    if mcp_oauth.is_oauth(draft):
+        # Nothing to discover until somebody is signed in.
+        log.info("%s added MCP server %s (OAuth)", user.email, draft.slug)
+        return _mcp_back(
+            t("Added %(name)s. Sign in to it to discover its tools.", name=draft.name)
+        )
 
     # Discovered immediately, the way a new connection's models are: an
     # administrator who has just typed a URL wants to know whether it answered.
@@ -618,7 +663,7 @@ async def test_server(request: Request, db: Db, user: AdminUser, server_id: str)
     does for a connection.
     """
     server = _server(db, server_id)
-    count, error = await mcp_registry.refresh(db, server)
+    count, error = await mcp_registry.refresh(db, server, user)
     if error:
         message = f"{server.name}: {error}"
     elif count == 1:
@@ -633,6 +678,7 @@ async def test_server(request: Request, db: Db, user: AdminUser, server_id: str)
             "tool_count": len(server.tools_json or []),
             "message": message,
             "message_kind": "error" if error else "success",
+            **_row_context(db, user, server),
         },
     )
 
@@ -658,6 +704,7 @@ async def update_server(request: Request, db: Db, user: AdminUser, server_id: st
     if problem:
         draft.id = server.id
         draft.secret_encrypted = server.secret_encrypted
+        draft.oauth_client_secret_encrypted = server.oauth_client_secret_encrypted
         draft.tools_json = server.tools_json
         return _server_detail(
             request,
@@ -669,11 +716,34 @@ async def update_server(request: Request, db: Db, user: AdminUser, server_id: st
             selected_groups=set(form.getlist("group_ids")),
         )
 
+    before = (
+        server.url,
+        mcp_oauth.kind_of(server),
+        server.oauth_client_id or "",
+        server.oauth_client_secret_encrypted or "",
+    )
+    was_shared = bool(server.oauth_shared)
     _populate_server(server, form)
     server.slug = draft.slug
     server.secret_encrypted = keep_or_replace(
         str(form.get("secret") or ""), server.secret_encrypted
     )
+    server.oauth_client_secret_encrypted = keep_or_replace(
+        str(form.get("oauth_client_secret") or ""), server.oauth_client_secret_encrypted or ""
+    )
+    after = (
+        server.url,
+        mcp_oauth.kind_of(server),
+        server.oauth_client_id or "",
+        server.oauth_client_secret_encrypted or "",
+    )
+    if after != before:
+        # A sign-in was issued for one address, to one client. With either
+        # another, it is a token for something else: everyone signs in again.
+        mcp_oauth.forget(db, server, client=after[0] != before[0])
+    elif was_shared and not server.oauth_shared:
+        # Per person again: the one account everyone acted as is let go.
+        mcp_oauth.forget(db, server, shared_only=True)
     server.groups = _chosen_groups(db, form, public=server.public)
     db.commit()
 

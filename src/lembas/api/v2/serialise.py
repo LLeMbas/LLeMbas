@@ -672,6 +672,36 @@ def directories(found: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def mcp_server(
+    server: Any, auth: dict[str, Any], *, tools: int, signin_url: str
+) -> dict[str, Any]:
+    """One MCP server a person may use, and how its sign-in stands
+    (`services/mcp/oauth.view`). `auth.kind` is "none", "secret" or "oauth";
+    `auth.state` is "ready" (nothing for the person to do: no sign-in, or a
+    secret the instance sends), "signed_in", "signed_out" or "needs_signin"
+    (a sign-in the provider stopped honouring). In the last two states the
+    server's tools are not offered in the person's chats. `signin_url` is a
+    page of this instance to open in a browser, where the person is signed in
+    to the instance; null where there is nothing for them to do -- or, with a
+    `shared` sign-in, where only an administrator can. `expires_at` is null
+    for a sign-in that renews itself (`renews`). No token is ever here."""
+    return {
+        "id": server.id,
+        "slug": server.slug,
+        "name": server.name,
+        "tools": int(tools),
+        "auth": {
+            "kind": auth["kind"],
+            "state": auth["state"],
+            "shared": bool(auth["shared"]),
+            "account": auth["account"],
+            "expires_at": stamp(auth["expires_at"]),
+            "renews": bool(auth["renews"]),
+            "signin_url": signin_url or None,
+        },
+    }
+
+
 def device_command(entry: dict[str, Any]) -> dict[str, str]:
     """One `/` command a linked device offers (`device_link.clean_commands`):
     `kind` is "custom", "skill", "builtin" or "" where the device did not say."""

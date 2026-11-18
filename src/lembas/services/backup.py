@@ -603,6 +603,10 @@ SECRET_COLUMNS = (
     ("connections", "billing_key_encrypted"),
     ("custom_tools", "secret_encrypted"),
     ("mcp_servers", "secret_encrypted"),
+    ("mcp_servers", "oauth_client_secret_encrypted"),
+    ("mcp_servers", "oauth_client_encrypted"),
+    ("mcp_signins", "access_encrypted"),
+    ("mcp_signins", "refresh_encrypted"),
 )
 
 
@@ -629,6 +633,9 @@ def rekey(db_path: Path, old_key: str, new_key: str) -> int:
         tables = {r[0] for r in connection.execute("SELECT name FROM sqlite_master")}
         for table, column in SECRET_COLUMNS:
             if table not in tables:
+                continue
+            # A backup from before a column existed has the table without it.
+            if column not in {r[1] for r in connection.execute(f"PRAGMA table_info({table})")}:
                 continue
             for row_id, value in connection.execute(f"SELECT id, {column} FROM {table}").fetchall():
                 changed = move(value or "")

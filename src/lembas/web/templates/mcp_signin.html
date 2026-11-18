@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, mark %}
+{#
+  Signing in to an MCP server with OAuth. The card of the sign-in page, like
+  approving a device: this hands an account somewhere else to this instance.
+  An app opens this address in a browser; the page says where it leads before
+  anything leaves. Everything a server or a provider said is shown escaped.
+#}
+
+{% block title %}{{ t("Sign in to an MCP server") }} - {{ brand.name }}{% endblock %}
+
+{% block body %}
+<main class="auth">
+  <div class="auth__card">
+    <div class="auth__brand">
+      {{ mark(cls="brand-mark", uid="mcp-signin") }}
+      <h1 class="auth__title">{{ t("Sign in to an MCP server") }}</h1>
+      {% if server %}<p class="auth__subtitle">{{ server.name }}</p>{% endif %}
+    </div>
+
+    {% if error %}
+    <div class="alert alert--error" role="alert" data-testid="mcp-signin-error">
+      {{ icon("warning", "alert__icon") }}
+      <span>{{ error }}</span>
+    </div>
+    {% endif %}
+
+    {% if server %}
+    {% if done and auth.state == "signed_in" %}
+    <div class="alert alert--success" role="status" data-testid="mcp-signin-done">
+      {{ icon("check", "alert__icon") }}
+      <span>{{ t("Signed in. The server's tools are offered in your chats from now on. You can close this tab.") }}</span>
+    </div>
+    {% else %}
+    <dl class="mode-list device-facts">
+      <div class="mode-list__row"><dt>{{ t("Server") }}</dt><dd><strong>{{ server.name }}</strong></dd></div>
+      <div class="mode-list__row"><dt>{{ t("Address") }}</dt><dd><code>{{ host }}</code></dd></div>
+      <div class="mode-list__row"><dt>{{ t("State") }}</dt>
+        <dd>{% include "partials/_mcp_auth_state.html" %}</dd>
+      </div>
+    </dl>
+    {% if auth.shared %}
+    <div class="alert" role="note">
+      {{ icon("shield", "alert__icon") }}
+      <span>{{ t("This server has one shared sign-in. Everyone allowed to use it acts as the account you sign in with.") }}</span>
+    </div>
+    {% endif %}
+    {% if plain_http %}
+    <div class="alert" role="note">
+      {{ icon("warning", "alert__icon") }}
+      <span>{{ t("You reached this instance over plain HTTP. Most providers only send a sign-in back to an https address, and may refuse this one.") }}</span>
+    </div>
+    {% endif %}
+
+    {% if go %}
+    <p class="field__hint">{{ t("The provider's page is ready.") }}</p>
+    <div class="btn-row">
+      <a class="btn btn--primary" href="{{ go }}" rel="noreferrer" data-testid="mcp-signin-go">{{ t("Continue to the provider") }}</a>
+    </div>
+    {% elif auth.can_sign_in %}
+    <p class="field__hint">{{ t("You are sent to the server's own sign-in page and come back here. This instance keeps the sign-in encrypted and never shows it.") }}</p>
+    <form method="post" action="/settings/mcp/{{ server.id }}/sign-in" class="btn-row"
+          hx-post="/settings/mcp/{{ server.id }}/sign-in" hx-swap="none">
+      <button class="btn btn--primary" type="submit">{{ t("Sign in") }}</button>
+      <a class="btn" href="/settings?tab=security#mcp-signins">{{ t("Not now") }}</a>
+    </form>
+    {% else %}
+    <p class="field__hint">{{ t("This server has one shared sign-in, which an administrator makes.") }}</p>
+    {% endif %}
+    {% endif %}
+    {% endif %}
+
+    <p class="auth__footer"><a href="/settings?tab=security#mcp-signins">{{ t("Back to settings") }}</a></p>
+  </div>
+</main>
+{% endblock %}

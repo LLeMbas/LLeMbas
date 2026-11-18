@@ -1060,6 +1060,37 @@ lembas service install</code></pre></li>
             </div>
             {% endif %}
 
+            {% if mcp_signins %}
+            <div class="card" id="mcp-signins" data-testid="mcp-signins">
+              <h2 class="card__title">{{ t("Sign-ins to MCP servers") }}</h2>
+              <p class="card__lede">{{ t("These servers are used with an account of your own there. A server's tools are offered in your chats while you are signed in to it.") }}</p>
+              <ul class="model-list">
+                {% for entry in mcp_signins %}
+                {% with server = entry.server, auth = entry.auth %}
+                <li class="model-list__item">
+                  <div class="u-shrink">
+                    <strong>{{ server.name }}</strong>
+                    {% if auth.shared %}<span class="badge">{{ t("shared sign-in") }}</span>{% endif %}
+                    {% include "partials/_mcp_auth_state.html" %}
+                  </div>
+                  <div class="btn-row">
+                    {% if auth.can_sign_in and auth.state != "signed_in" %}
+                    <a class="btn btn--sm btn--primary" target="_top" href="/settings/mcp/{{ server.id }}/sign-in">{{ t("Sign in") }}</a>
+                    {% endif %}
+                    {% if auth.can_sign_in and auth.state != "signed_out" %}
+                    <form method="post" action="/settings/mcp/{{ server.id }}/sign-out">
+                      <input type="hidden" name="next" value="/settings?tab=security#mcp-signins">
+                      <button class="btn btn--sm" type="submit">{{ t("Sign out") }}</button>
+                    </form>
+                    {% endif %}
+                  </div>
+                </li>
+                {% endwith %}
+                {% endfor %}
+              </ul>
+            </div>
+            {% endif %}
+
             <div class="card">
               <h2 class="card__title">{{ t("Session") }}</h2>
               {# `target="_top"`: this one answers with a page that is not

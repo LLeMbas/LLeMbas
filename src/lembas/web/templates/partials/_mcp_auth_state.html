@@ -1,0 +1,13 @@
+{#- One server's sign-in, in words. `auth` is services/mcp/oauth.view: no secret
+    is in it. The account is what a provider said: a stranger's text, escaped. -#}
+{% if auth.state == "signed_in" -%}
+<span class="badge badge--leaf" data-testid="mcp-auth-state">{{ t("signed in") }}</span>
+{% if auth.account %}<span class="text-xs">{{ t("as %(account)s", account=auth.account) }}</span>{% endif %}
+{% if auth.shared and auth.by %}<span class="text-xs faint">{{ t("by %(who)s", who=auth.by) }}</span>{% endif %}
+<span class="text-xs faint">{% if auth.renews %}{{ t("renewed by itself") }}{% elif auth.expires_at %}{{ t("until %(when)s", when=stamp(auth.expires_at, "%Y-%m-%d %H:%M")) }}{% endif %}</span>
+{%- elif auth.state == "needs_signin" -%}
+<span class="badge badge--danger" data-testid="mcp-auth-state">{{ t("needs sign-in") }}</span>
+{% if auth.error %}<span class="text-xs faint">{{ auth.error }}</span>{% endif %}
+{%- else -%}
+<span class="badge" data-testid="mcp-auth-state">{{ t("not signed in") }}</span>
+{%- endif %}

@@ -1,0 +1,64 @@
+{
+  "servers": [
+    {
+      "id": "mcp1",
+      "slug": "tracker",
+      "name": "Tracker",
+      "tools": 4,
+      "auth": {
+        "kind": "secret",
+        "state": "ready",
+        "shared": false,
+        "account": "",
+        "expires_at": null,
+        "renews": false,
+        "signin_url": null
+      }
+    },
+    {
+      "id": "mcp2",
+      "slug": "mail",
+      "name": "Mail",
+      "tools": 7,
+      "auth": {
+        "kind": "oauth",
+        "state": "signed_in",
+        "shared": false,
+        "account": "frodo@example.org",
+        "expires_at": null,
+        "renews": true,
+        "signin_url": null
+      }
+    },
+    {
+      "id": "mcp3",
+      "slug": "notes",
+      "name": "Notes",
+      "tools": 3,
+      "auth": {
+        "kind": "oauth",
+        "state": "signed_out",
+        "shared": false,
+        "account": "",
+        "expires_at": null,
+        "renews": false,
+        "signin_url": "https://lembas.example.org/settings/mcp/mcp3/sign-in"
+      }
+    },
+    {
+      "id": "mcp4",
+      "slug": "wiki",
+      "name": "Wiki",
+      "tools": 2,
+      "auth": {
+        "kind": "oauth",
+        "state": "needs_signin",
+        "shared": true,
+        "account": "",
+        "expires_at": null,
+        "renews": false,
+        "signin_url": null
+      }
+    }
+  ]
+}
