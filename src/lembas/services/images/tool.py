@@ -599,6 +599,22 @@ async def run(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
                     f"The image could not be generated: {exc.message}{PAID_NO_RETRY}",
                     {**event, "status": "error", "error": exc.message},
                 )
+            following = chain[1]
+            if (
+                not media_sources.refused(exc)
+                and following.dialect != media_sources.COMFYUI
+            ):
+                # It left and nothing said whether it was taken: the provider
+                # may have drawn and charged it. The next provider is not
+                # asked for the same picture as well (a ComfyUI is this
+                # instance's own and is).
+                return ToolOutcome(
+                    f"The image could not be generated: {exc.message} The request was "
+                    "sent and no answer came back that says whether it was taken: it may "
+                    "have been drawn and charged there all the same. Nothing else was "
+                    f"tried in its place.{PAID_NO_RETRY}",
+                    {**event, "status": "error", "error": exc.message},
+                )
             note = (
                 f"{source.label} did not answer ({exc.message[:200]}), so the "
                 "instance's default drew it instead."
@@ -672,8 +688,9 @@ async def _run_hosted(
             media = _into_files(db, context, payload, made_width, made_height)
     except Exception as exc:
         log.exception("could not store a generated image")
+        # Drawn and paid for: a model that reads "could not" orders it again.
         return ToolOutcome(
-            f"The image was generated but could not be saved: {exc}",
+            f"The image was generated but could not be saved: {exc}{PAID_NO_RETRY}",
             {**event, "status": "error", "error": str(exc)},
         )
     lines = [

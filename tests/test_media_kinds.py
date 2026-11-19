@@ -680,3 +680,111 @@ def test_a_file_asked_for_by_id_is_refused_without_naming_its_path(client, db, w
     assert refused.status_code == 404, refused.text
     assert theirs["node_id"] in refused.json()["detail"]
     assert "Generated" not in refused.text and "frodo" not in refused.text.lower()
+
+
+# --- Review fixes ---------------------------------------------------------------------------
+def test_an_edits_cost_is_counted_even_when_the_copy_into_files_fails(db, world, monkeypatch):
+    from lembas.db.models import Attachment
+    from lembas.services import usage as usage_service
+    from lembas.services.media import library
+
+    _edit_on(db, world)
+    _attach(db, world)
+    real = httpx.AsyncClient
+
+    def handle(request):
+        if request.url.host == "files.example.org":
+            return httpx.Response(200, content=PNG)
+        return httpx.Response(200, json={"output": {"choices": [
+            {"message": {"content": [{"image": "https://files.example.org/p.png"}]}}]}})
+
+    monkeypatch.setattr(httpx, "AsyncClient",
+                        lambda **kw: real(transport=httpx.MockTransport(handle), **kw))
+    from lembas.services import fetch as fetch_service
+
+    monkeypatch.setattr(fetch_service, "check_url", lambda url, **_: url)
+
+    def broken(*_a, **_kw):
+        raise RuntimeError("the tree would not take it")
+
+    monkeypatch.setattr(library, "keep", broken)
+    outcome = run(tools.run_edit(world["context"], {"prompt": "make it dusk"}))
+    assert outcome.event["status"] == "ok", outcome.content
+    db.expire_all()
+    # The picture is shown (its attachment exists) and what it cost is counted.
+    assert db.get(Attachment, outcome.event["attachment_id"]) is not None
+    rows = usage_service.by_model(db, world["user"].id)
+    assert len(rows) == 1 and rows[0].cost_micro == 35_000
+
+
+def test_an_edit_whose_answer_is_lost_is_not_ordered_from_a_second_provider(
+    db, world, monkeypatch
+):
+    """Two providers: the chat's own times out after the request left. The
+    instance's default -- another provider -- is not asked for it as well."""
+    from lembas.db.models import Connection
+    from lembas.services.crypto import encrypt
+
+    _edit_on(db, world)
+    _attach(db, world)
+    other = Connection(
+        name="Other", base_url="https://api.example.org/v1", provider_type="openai",
+        enabled=True, position=5, api_key_encrypted=encrypt("sk-other"),
+        media_json={"prefer_image": False, "models": [
+            {"capability": "image_edit", "model": "gpt-image-2", "enabled": True}]},
+    )
+    db.add(other)
+    db.flush()
+    settings_store.update(db, {"image_edit_default": f"{other.id}/gpt-image-2"},
+                          key=settings_store.IMAGES)
+    db.commit()
+    chain = media_sources.for_chat(db, "image_edit", world["chat"], None)
+    if len(chain) < 2:
+        pytest.skip("this instance resolves one editing source for the chat")
+    real = httpx.AsyncClient
+    hosts: list[str] = []
+
+    def handle(request):
+        hosts.append(request.url.host)
+        if request.url.host == "api.example.org":
+            return httpx.Response(200, json={"data": [{"b64_json": ""}]})
+        raise httpx.ReadTimeout("timed out", request=request)
+
+    monkeypatch.setattr(httpx, "AsyncClient",
+                        lambda **kw: real(transport=httpx.MockTransport(handle), **kw))
+    outcome = run(tools.run_edit(world["context"], {"prompt": "make it dusk"}))
+    assert outcome.event["status"] == "error"
+    assert "api.example.org" not in hosts and len(hosts) == 1
+    assert "may have been made and charged" in outcome.content
+    assert "Do not try again" in outcome.content
+
+
+def test_a_drawn_picture_that_could_not_be_saved_forbids_a_retry(db, world, monkeypatch):
+    from lembas.services import files as files_service
+
+    world["cloud"].media_json = {"prefer_image": True, "models": [
+        {"capability": "image", "model": "qwen-image-3.0", "enabled": True}]}
+    settings_store.update(db, {"enabled": True}, key=settings_store.IMAGES)
+    db.commit()
+    real = httpx.AsyncClient
+
+    def handle(request):
+        if request.url.host == "files.example.org":
+            return httpx.Response(200, content=PNG)
+        return httpx.Response(200, json={"output": {"choices": [
+            {"message": {"content": [{"image": "https://files.example.org/p.png"}]}}]}})
+
+    monkeypatch.setattr(httpx, "AsyncClient",
+                        lambda **kw: real(transport=httpx.MockTransport(handle), **kw))
+    from lembas.services import fetch as fetch_service
+
+    monkeypatch.setattr(fetch_service, "check_url", lambda url, **_: url)
+
+    def full(*_a, **_kw):
+        raise OSError("No space left on device")
+
+    monkeypatch.setattr(files_service, "store", full)
+    outcome = run(image_tool.run(world["context"], {"prompt": "a kite"}))
+    assert outcome.event["status"] == "error"
+    assert "generated but could not be saved" in outcome.content
+    assert "Do not call image_generate again" in outcome.content

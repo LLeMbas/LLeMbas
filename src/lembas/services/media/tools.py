@@ -49,6 +49,13 @@ NO_RETRY = (
     " Do not try again, with this or any other tool, unless the person asks you to: "
     "every attempt can cost them money."
 )
+# What a failure whose outcome nobody knows says: the request left, and no
+# answer came back that says whether it was taken.
+MAYBE_CHARGED = (
+    " The request was sent and no answer came back that says whether it was taken: it "
+    "may have been made and charged there all the same, and it cannot be followed from "
+    "here. Nothing else was tried in its place. Tell the person exactly that."
+)
 NAMES = {
     store.CAP_IMAGE_EDIT: "image_edit",
     store.CAP_VIDEO: "video_generate",
@@ -381,6 +388,12 @@ async def run_edit(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
             log.info("%s on %s failed: %s", capability, source.label, exc.message)
             if source is chain[:2][-1]:
                 return _fail(event, f"The picture could not be edited: {exc.message}")
+            if _stops_here(source, chain[1], exc):
+                # A provider that may have made and charged it: the next
+                # provider is not asked for the same picture as well.
+                return _fail(
+                    event, f"The picture could not be edited: {exc.message}{MAYBE_CHARGED}"
+                )
             note = f"{source.label} did not do it ({exc.message[:200]}), so the default did."
     assert used is not None
     try:
@@ -393,6 +406,9 @@ async def run_edit(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
             )
             attachment_id, width, height = attachment.id, attachment.width, attachment.height
             media_sources.record(db, context.owner_id, used, images=1)
+            # The picture and what it cost are kept before the copy into
+            # Files is tried: that copy failing rolls back only itself.
+            db.commit()
             media = None
             try:
                 media = library.keep(
@@ -448,15 +464,11 @@ async def _start(context: ToolContext, capability: str, args: dict[str, Any]) ->
     if not chain:
         return _fail(event, f"Nothing is configured to make a {what} on this instance.")
     settings = _settings()
+    most = int(settings.get("jobs_per_person") or 1)
     with session_scope() as db:
         running = jobs.active_count(db, context.owner_id)
-    if running >= int(settings.get("jobs_per_person") or 1):
-        return _fail(
-            event,
-            f"{running} generation(s) of theirs are still being made, which is as many as "
-            "this instance runs for one person at a time. Tell them; they can wait for one "
-            "to finish or cancel it on its card.",
-        )
+    if running >= most:
+        return _fail(event, _too_many(running))
     inputs: dict[str, bytes] = {}
     wants_picture = capability == store.CAP_MODEL3D or str(args.get("image") or "").strip()
     if wants_picture:
@@ -465,40 +477,103 @@ async def _start(context: ToolContext, capability: str, args: dict[str, Any]) ->
         except NoPicture as exc:
             return _fail(event, exc.message, retry_note=False)
 
-    last_error = ""
-    for source in chain[:2]:
-        try:
-            job_id = await _submit(context, capability, source, args, prompt, inputs, settings)
-        except LLMError as exc:
-            last_error = exc.message
-            log.info("%s on %s could not be started: %s", capability, source.label, last_error)
-            continue
-        content = (
-            f"Started. The {what} is being made by {source.label} as media job {job_id}. "
-            "It takes a few minutes. The person sees its progress on a card in this "
-            "conversation and can cancel it there; when it is ready it appears on that card "
-            "and in their Files, and you are told here. Now tell them it has been started "
-            "and end your reply. Do not wait for it and do not call this again for the "
-            "same request."
-        )
+    def started(source: Source, job_id: str, content: str, state: str) -> ToolOutcome:
         return ToolOutcome(
             content,
             {
                 **event, "status": "ok", "detail": source.label, "source": source.label,
                 "text": f"{what} · job {job_id}",
-                "media_job": {"id": job_id, "kind": capability, "state": "running"},
+                "media_job": {"id": job_id, "kind": capability, "state": state},
             },
         )
+
+    last_error = ""
+    for source in chain[:2]:
+        try:
+            job_id = await _submit(context, capability, source, args, prompt, inputs, settings)
+        except jobs.TooMany as exc:
+            # Counted again where the job is written: another call of theirs
+            # got there first while this one was preparing.
+            return _fail(event, _too_many(exc.running))
+        except Unconfirmed as exc:
+            # Sent, and no answer: the run carries the id this server chose,
+            # so it is followed like any other and found if it is there.
+            # **Not** started anywhere else meanwhile.
+            return started(
+                source, exc.job_id,
+                f"The request for the {what} was sent to {source.label}, but its answer did "
+                f"not arrive ({exc.message[:200]}). It is being followed as media job "
+                f"{exc.job_id}: if {source.label} took it, the result appears on its card in "
+                "this conversation and in their Files, and you are told here; if it did "
+                "not, you are told that instead. Tell the person so and end your reply. Do "
+                "not call this again for the same request, and do not use another tool in "
+                "its place: it may already be being made.",
+                "queued",
+            )
+        except Unknown as exc:
+            return _fail(event, f"The {what} could not be started: {exc.message}")
+        except LLMError as exc:
+            last_error = exc.message
+            log.info("%s on %s could not be started: %s", capability, source.label, last_error)
+            continue
+        return started(
+            source, job_id,
+            f"Started. The {what} is being made by {source.label} as media job {job_id}. "
+            "It takes a few minutes. The person sees its progress on a card in this "
+            "conversation and can cancel it there; when it is ready it appears on that card "
+            "and in their Files, and you are told here. Now tell them it has been started "
+            "and end your reply. Do not wait for it and do not call this again for the "
+            "same request.",
+            "running",
+        )
     return _fail(event, f"The {what} could not be started: {last_error}")
+
+
+def _too_many(running: int) -> str:
+    return (
+        f"{running} generation(s) of theirs are still being made, which is as many as "
+        "this instance runs for one person at a time. Tell them; they can wait for one "
+        "to finish or cancel it on its card."
+    )
+
+
+def _stops_here(failed: Source, following: Source, exc: LLMError) -> bool:
+    """Whether a failure on one source ends the call rather than moving it to
+    the next: a provider that did not certainly refuse (`sources.refused`)
+    may have made and charged it, and the next provider would be a second
+    paid one. A ComfyUI is this instance's own machine and costs nobody a
+    second payment, on either side."""
+    if media_sources.refused(exc):
+        return False
+    return store.COMFYUI not in (failed.dialect, following.dialect)
+
+
+class Unconfirmed(LLMError):
+    """A request that was sent, got no answer, and can still be found: its
+    job is kept open and followed by the id this server chose."""
+
+    def __init__(self, job_id: str, message: str) -> None:
+        super().__init__(message)
+        self.job_id = job_id
+
+
+class Unknown(LLMError):
+    """A request that was sent, got no answer, and cannot be found again: it
+    may have been taken. Never a reason to ask another source."""
 
 
 async def _submit(
     context: ToolContext, capability: str, source: Source, args: dict[str, Any], prompt: str,
     inputs: dict[str, bytes], settings: dict[str, Any],
 ) -> str:
-    """Write the job, hand the work over, confirm it. Returns the job's id;
-    raises `LLMError` when the far side will not take it (the job is then
-    `failed`, and says why)."""
+    """Write the job, hand the work over, confirm it. Returns the job's id.
+
+    Raises `LLMError` when the far side **certainly** did not take it (the
+    job is then `failed`, and says why) or nothing was asked of it yet: only
+    then may the caller go on to another source. A request that left and got
+    no answer is `Unconfirmed` (a ComfyUI: the job stays open and is looked
+    for by its id) or `Unknown` (a provider: no task id, nothing to look
+    for), and is never a reason to start it somewhere else."""
     from lembas.db.session import session_scope
 
     minutes = int(settings.get("job_minutes") or 30)
@@ -515,11 +590,13 @@ async def _submit(
         params["seconds"] = seconds
 
     def opened(ref: str = "") -> str:
+        # The count and the row are one step (`open_job`, `most`): what was
+        # counted before a picture was uploaded is long out of date here.
         with session_scope() as db:
             return jobs.open_job(
                 db, user_id=context.owner_id, chat_id=context.chat_id,
                 message_id=context.message_id, kind=capability, source=source, params=params,
-                minutes=minutes, ref=ref,
+                minutes=minutes, ref=ref, most=int(settings.get("jobs_per_person") or 1),
             ).id
 
     if source.dialect == store.COMFYUI:
@@ -552,8 +629,14 @@ async def _submit(
         try:
             answered = await comfy.submit(config, doc, prompt_id=ref)
         except LLMError as exc:
-            jobs.refuse(job_id, exc.message)
-            raise
+            if media_sources.refused(exc):
+                jobs.refuse(job_id, exc.message)
+                raise
+            # No answer, or one that could not be read: the ComfyUI may have
+            # queued it under the id it was given. The job stays open and the
+            # worker asks `/history` and `/queue` for that id.
+            jobs.poke()
+            raise Unconfirmed(job_id, exc.message) from exc
         jobs.confirm(job_id, answered)
         return job_id
     if source.dialect == store.DASHSCOPE_VIDEO:
@@ -569,8 +652,14 @@ async def _submit(
         try:
             task_id = await video.submit(source, body)
         except LLMError as exc:
-            jobs.refuse(job_id, exc.message)
-            raise
+            if media_sources.refused(exc):
+                jobs.refuse(job_id, exc.message)
+                raise
+            # No task id came back, so there is nothing to ask about later:
+            # said as it is, and nothing is asked of anybody else.
+            said = f"{exc.message}{MAYBE_CHARGED}"
+            jobs.refuse(job_id, said)
+            raise Unknown(said) from exc
         jobs.confirm(job_id, task_id)
         return job_id
     raise LLMError("This source cannot make that.")

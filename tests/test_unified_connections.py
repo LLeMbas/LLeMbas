@@ -802,3 +802,53 @@ def test_model_objects_say_their_capability(client, db, carried):
     assert listed.status_code == 200, listed.text
     models = listed.json()["models"]
     assert models and all(entry["capability"] == "chat" for entry in models)
+
+
+# --- Review fixes: the carry ------------------------------------------------------------
+def test_one_address_that_cannot_be_carried_does_not_stop_the_others(db, monkeypatch):
+    _older_release(db)
+    real = instance._find
+
+    def find(db_, type_id, address, key):
+        if type_id == providers.SPEECH:
+            raise RuntimeError("a value in a shape nobody expected")
+        return real(db_, type_id, address, key)
+
+    monkeypatch.setattr(instance, "_find", find)
+    done = instance.carry(db)
+    db.expire_all()
+    # The ComfyUI is a connection and the default points at it...
+    assert any("ComfyUI" in line for line in done)
+    assert db.scalar(select(Connection).where(Connection.provider_type == providers.COMFYUI))
+    assert settings_store.get_group(db, settings_store.IMAGES).get("carried")
+    # ...the speech servers are not marked, so the next start carries them.
+    audio = settings_store.get_group(db, settings_store.AUDIO)
+    assert not audio.get("stt_carried") and not audio.get("tts_carried")
+    monkeypatch.undo()
+    assert any("speech server" in line for line in instance.carry(db))
+    assert settings_store.get_group(db, settings_store.AUDIO).get("tts_carried")
+
+
+def test_a_key_that_cannot_be_opened_is_carried_as_it_is_and_matches_only_itself(db):
+    """A database restored under another secret: the stored key opens to
+    nothing. It is not "the same key" as a connection with no key at all."""
+    from lembas.services import crypto
+
+    other = crypto.fernet_for("another-secret-entirely").encrypt(b"sk-old").decode("ascii")
+    assert crypto.decrypt(other) == ""
+    _older_release(db)
+    settings_store.update(db, {"tts_api_key_encrypted": other}, key=settings_store.AUDIO)
+    keyless = Connection(name="Somebody's", base_url=TTS_URL, provider_type=providers.SPEECH,
+                         enabled=True, position=9)
+    db.add(keyless)
+    db.commit()
+    instance.carry(db)
+    db.expire_all()
+    rows = list(db.scalars(select(Connection).where(Connection.base_url == TTS_URL)))
+    assert len(rows) == 2
+    made = next(r for r in rows if r.id != keyless.id)
+    assert made.api_key_encrypted == other
+    assert not instance._same_key(other, "") and instance._same_key(other, other)
+    assert not instance._same_key(
+        other, crypto.fernet_for("a-third-secret").encrypt(b"sk-x").decode("ascii")
+    )

@@ -271,11 +271,23 @@ def _position(db: DBSession) -> int:
 
 
 def _same_key(first: str, second: str) -> bool:
-    """Whether two stored keys are one key. Fernet ciphertext differs on
-    every encryption, so they are compared opened."""
+    """Whether two stored keys are one key.
+
+    The same ciphertext is the same key, and is not opened to find that out.
+    Fernet ciphertext differs on every encryption, so two different ones are
+    compared opened -- and **one that cannot be opened is the same as
+    nothing but itself**: `decrypt` answers "" for it (a database restored
+    under another secret), which would otherwise make every unreadable key
+    "the same key" as every other and as no key at all."""
     from lembas.services.crypto import decrypt
 
-    return decrypt(first or "") == decrypt(second or "")
+    first, second = first or "", second or ""
+    if first == second:
+        return True
+    if not first or not second:
+        return False
+    opened = decrypt(first)
+    return bool(opened) and opened == decrypt(second)
 
 
 def _find(db: DBSession, type_id: str, base_url: str, key_encrypted: str) -> Connection | None:
@@ -323,102 +335,131 @@ def carry(db: DBSession) -> list[str]:
     twice, so a connection renamed, edited or removed afterwards stays as
     its administrator left it.
     """
+    done: list[str] = []
+    parts = (
+        ("speech-to-text", lambda: _carry_speech(db, CAP_STT)),
+        ("text-to-speech", lambda: _carry_speech(db, CAP_TTS)),
+        ("ComfyUI", lambda: _carry_comfyui(db)),
+    )
+    # Each address on its own: one that cannot be carried (a value an older
+    # release wrote in a shape this one does not expect) is said and left for
+    # the next start, and does not take the other two with it.
+    for what, part in parts:
+        try:
+            lines = part()
+            db.commit()
+        except Exception:
+            db.rollback()
+            log.exception(
+                "media: the %s address in the settings could not be made a connection; "
+                "it stays where it was and is tried again at the next start", what,
+            )
+            continue
+        done.extend(lines)
+    for line in done:
+        log.info("media: %s", line)
+    return done
+
+
+def _carry_speech(db: DBSession, side: str) -> list[str]:
     from lembas.services import settings_store
 
     done: list[str] = []
     audio = settings_store.get_group(db, settings_store.AUDIO)
-    changes: dict[str, Any] = {}
-    for side in (CAP_STT, CAP_TTS):
-        address = str(audio.get(f"{side}_base_url") or "").strip().rstrip("/")
-        if not address:
-            continue
-        model = str(audio.get(f"{side}_model") or "").strip() or (
-            "whisper-1" if side == CAP_STT else "tts-1"
+    address = str(audio.get(f"{side}_base_url") or "").strip().rstrip("/")
+    if not address:
+        return done
+    model = str(audio.get(f"{side}_model") or "").strip() or (
+        "whisper-1" if side == CAP_STT else "tts-1"
+    )
+    mark = f"{address}|{model}"
+    if str(audio.get(f"{side}_carried") or "") == mark:
+        return done
+    # The key goes over as the ciphertext it is, never opened here.
+    key = str(audio.get(f"{side}_api_key_encrypted") or "")
+    connection = _find(db, providers.SPEECH, address, key)
+    if connection is None:
+        connection = _make(
+            db, providers.SPEECH, NAME_STT if side == CAP_STT else NAME_TTS, address, key
         )
-        mark = f"{address}|{model}"
-        if str(audio.get(f"{side}_carried") or "") == mark:
-            continue
-        key = str(audio.get(f"{side}_api_key_encrypted") or "")
-        connection = _find(db, providers.SPEECH, address, key)
-        if connection is None:
-            connection = _make(
-                db, providers.SPEECH, NAME_STT if side == CAP_STT else NAME_TTS, address, key
-            )
-            done.append(f"speech server {address} is the connection {connection.name}")
-        elif connection.name in (NAME_STT, NAME_TTS):
-            # One server doing both directions: named for both.
-            taken = set(db.scalars(select(Connection.name)))
-            if NAME_SPEECH not in taken:
-                connection.name = NAME_SPEECH
-        if store.get_entry(connection, side, model) is None:
-            options: dict[str, Any] = {}
-            if side == CAP_STT:
-                options["language"] = audio.get("stt_language")
-            else:
-                options["format"] = audio.get("tts_format")
-                options["speed"] = audio.get("tts_speed")
-            connection.media_json = store.with_entry(
-                connection,
-                store.Entry(
-                    capability=side,
-                    model=model,
-                    enabled=True,
-                    price=settings_store.money_amount(
-                        audio.get("stt_per_minute" if side == CAP_STT else "tts_per_1m_chars")
-                    ),
-                    voice=str(audio.get("tts_voice") or "") if side == CAP_TTS else "",
-                    options=store.clean_options(side, options),
+        done.append(f"speech server {address} is the connection {connection.name}")
+    elif connection.name in (NAME_STT, NAME_TTS):
+        # One server doing both directions: named for both.
+        taken = set(db.scalars(select(Connection.name)))
+        if NAME_SPEECH not in taken:
+            connection.name = NAME_SPEECH
+    if store.get_entry(connection, side, model) is None:
+        options: dict[str, Any] = {}
+        if side == CAP_STT:
+            options["language"] = audio.get("stt_language")
+        else:
+            options["format"] = audio.get("tts_format")
+            options["speed"] = audio.get("tts_speed")
+        connection.media_json = store.with_entry(
+            connection,
+            store.Entry(
+                capability=side,
+                model=model,
+                enabled=True,
+                price=settings_store.money_amount(
+                    audio.get("stt_per_minute" if side == CAP_STT else "tts_per_1m_chars")
                 ),
-            )
-            done.append(f"{side} model {model} is a model of {connection.name}")
-        changes[f"{side}_carried"] = mark
-        # The default keeps pointing where it did: at this server, unless an
-        # administrator had already chosen a connection's model instead.
-        if not str(audio.get(AUDIO_KEYS[side]) or "").strip():
-            changes[AUDIO_KEYS[side]] = f"{connection.id}/{model}"
-    if changes:
-        settings_store.update(db, changes, key=settings_store.AUDIO)
+                voice=str(audio.get("tts_voice") or "") if side == CAP_TTS else "",
+                options=store.clean_options(side, options),
+            ),
+        )
+        done.append(f"{side} model {model} is a model of {connection.name}")
+    changes: dict[str, Any] = {f"{side}_carried": mark}
+    # The default keeps pointing where it did: at this server, unless an
+    # administrator had already chosen a connection's model instead.
+    if not str(audio.get(AUDIO_KEYS[side]) or "").strip():
+        changes[AUDIO_KEYS[side]] = f"{connection.id}/{model}"
+    settings_store.update(db, changes, key=settings_store.AUDIO)
+    return done
 
+
+def _carry_comfyui(db: DBSession) -> list[str]:
+    from lembas.services import settings_store
+
+    done: list[str] = []
     images = settings_store.get_group(db, settings_store.IMAGES)
     address = str(images.get("base_url") or "").strip().rstrip("/")
-    if address and str(images.get("carried") or "") != address:
-        key = str(images.get("api_key_encrypted") or "")
-        connection = _find(db, providers.COMFYUI, address, key)
-        if connection is None:
-            connection = _make(db, providers.COMFYUI, NAME_COMFYUI, address, key)
-            connection.options_json = {
-                "timeout": images.get("timeout"),
-                "preserve_vram": bool(images.get("preserve_vram")),
-                "default_workflow_id": str(images.get("default_workflow_id") or ""),
-                "samplers": [str(v) for v in images.get("samplers") or []],
-                "schedulers": [str(v) for v in images.get("schedulers") or []],
-            }
-            checkpoints = [str(v) for v in images.get("checkpoints") or [] if str(v).strip()]
-            connection.media_json = store.normalise(
-                {"models": [
-                    {"capability": CAP_IMAGE, "model": name, "enabled": True}
-                    for name in checkpoints
-                ]}
-            )
-            # The workflows there are were written for this ComfyUI.
-            attached = db.execute(
-                update(ImageWorkflow)
-                .where(ImageWorkflow.connection_id.is_(None))
-                .values(connection_id=connection.id)
-            ).rowcount
-            done.append(
-                f"ComfyUI {address} is the connection {connection.name} "
-                f"({len(checkpoints)} checkpoint(s), {attached} workflow(s))"
-            )
-        image_changes: dict[str, Any] = {"carried": address}
-        if not default_value(images, CAP_IMAGE):
-            image_changes[COMFY_KEY] = (
-                f"{connection.id}/{str(images.get('default_checkpoint') or '').strip()}"
-            )
-        settings_store.update(db, image_changes, key=settings_store.IMAGES)
-    db.commit()
-    for line in done:
-        log.info("media: %s", line)
+    if not address or str(images.get("carried") or "") == address:
+        return done
+    key = str(images.get("api_key_encrypted") or "")
+    connection = _find(db, providers.COMFYUI, address, key)
+    if connection is None:
+        connection = _make(db, providers.COMFYUI, NAME_COMFYUI, address, key)
+        connection.options_json = {
+            "timeout": images.get("timeout"),
+            "preserve_vram": bool(images.get("preserve_vram")),
+            "default_workflow_id": str(images.get("default_workflow_id") or ""),
+            "samplers": [str(v) for v in images.get("samplers") or []],
+            "schedulers": [str(v) for v in images.get("schedulers") or []],
+        }
+        checkpoints = [str(v) for v in images.get("checkpoints") or [] if str(v).strip()]
+        connection.media_json = store.normalise(
+            {"models": [
+                {"capability": CAP_IMAGE, "model": name, "enabled": True}
+                for name in checkpoints
+            ]}
+        )
+        # The workflows there are were written for this ComfyUI.
+        attached = db.execute(
+            update(ImageWorkflow)
+            .where(ImageWorkflow.connection_id.is_(None))
+            .values(connection_id=connection.id)
+        ).rowcount
+        done.append(
+            f"ComfyUI {address} is the connection {connection.name} "
+            f"({len(checkpoints)} checkpoint(s), {attached} workflow(s))"
+        )
+    image_changes: dict[str, Any] = {"carried": address}
+    if not default_value(images, CAP_IMAGE):
+        image_changes[COMFY_KEY] = (
+            f"{connection.id}/{str(images.get('default_checkpoint') or '').strip()}"
+        )
+    settings_store.update(db, image_changes, key=settings_store.IMAGES)
     return done
 
 

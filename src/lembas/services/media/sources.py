@@ -528,7 +528,29 @@ def scrubbed(source: Source | None, exc: LLMError) -> LLMError:
     clean = scrub(source, exc.message)
     if clean == exc.message:
         return exc
-    return LLMError(clean, status_code=getattr(exc, "status_code", None))
+    cleaned = LLMError(
+        clean, status_code=getattr(exc, "status_code", None),
+        retry_after=getattr(exc, "retry_after", None),
+    )
+    # What kind of failure it was is not in its words: kept, or a timeout
+    # would read as an answer downstream (`refused`).
+    for name in ("unreachable", "not_sent", "quota_exhausted", "refused", "transport"):
+        if hasattr(exc, name):
+            setattr(cleaned, name, getattr(exc, name))
+    return cleaned
+
+
+def refused(exc: BaseException) -> bool:
+    """Whether a failed request **certainly** started nothing on the far
+    side: it answered no (a 4xx, or an explicit refusal in its answer), or no
+    connection was ever made. Everything else -- a timeout waiting for the
+    answer, a connection that broke, a 5xx, an answer that could not be read
+    -- is *unknown*: the far side may have accepted, made and charged it.
+    Only after a certain refusal may the same request go to another source."""
+    if getattr(exc, "not_sent", False) or getattr(exc, "refused", False):
+        return True
+    status = getattr(exc, "status_code", None)
+    return isinstance(status, int) and 400 <= status < 500
 
 
 async def first_that_works(

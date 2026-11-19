@@ -50,6 +50,11 @@ class LLMError(Exception):
         self.retry_after = retry_after
         # The server was not reached at all (`wrap_transport_error`).
         self.unreachable = False
+        # No connection was made, so the request was never sent: the one
+        # transport failure after which it is certain nothing was started
+        # (or charged) on the far side. A timeout while waiting for the
+        # answer is `unreachable` and NOT this.
+        self.not_sent = False
         # A subscription's quota is used up (`http_error`): not a rate limit.
         self.quota_exhausted = False
 
@@ -331,6 +336,7 @@ def wrap_transport_error(exc: httpx.RequestError, endpoint: Endpoint) -> LLMErro
         error = LLMError(f"Could not reach {endpoint.base_url}: {exc}")
     # The request never got an answer: trying again later is safe.
     error.unreachable = True
+    error.not_sent = isinstance(exc, httpx.ConnectError | httpx.ConnectTimeout)
     return error
 
 

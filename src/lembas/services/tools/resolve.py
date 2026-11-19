@@ -397,6 +397,15 @@ def resolve_tools(
     # tool a helper has in it can be offered.
     if unattended(chat):
         off = off | {FAMILY_ASK}
+    # The reply to a finished job's note (`media/jobs.py`) is this server's
+    # turn, not the person's: it says what happened and generates nothing.
+    # Withdrawn rather than discouraged, for the reason above -- the note
+    # itself says "did not finish", which a model reads as "order it again".
+    if images_ready or media_ready:
+        from lembas.services.media import jobs as media_jobs
+
+        if media_jobs.woke(db, chat):
+            off = off | {gate_of("image"), gate_of("image:media")}
     # A scheduled run never sets up schedules: an instruction saying "every
     # Monday" describes the schedule it is a run of, and a model reading it as
     # a request would make the schedule copy itself (Hermes's rule, kept).

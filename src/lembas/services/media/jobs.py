@@ -43,6 +43,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import threading
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -79,6 +80,9 @@ IDLE_SECONDS = 30.0
 UNCONFIRMED_SECONDS = 240.0
 # How long after its end an untold job is still told at a start.
 TELL_WITHIN = timedelta(hours=24)
+
+# How every note to a chat begins (`note`, `woke`).
+NOTE_START = "[Media job "
 
 WORDS = {
     store.CAP_VIDEO: "video", store.CAP_MUSIC: "track", store.CAP_MODEL3D: "3D model",
@@ -118,6 +122,18 @@ def active_count(db, user_id: str) -> int:
     )
 
 
+class TooMany(Exception):
+    """As many of a person's jobs are active as the instance runs at once."""
+
+    def __init__(self, running: int) -> None:
+        super().__init__(f"{running} active")
+        self.running = running
+
+
+# Counting a person's active jobs and writing the next one is one step.
+_OPENING = threading.Lock()
+
+
 def open_job(
     db,
     *,
@@ -129,12 +145,28 @@ def open_job(
     params: dict[str, Any],
     minutes: int,
     ref: str = "",
+    most: int = 0,
 ) -> MediaJob:
     """Write a job as `queued` and commit it: it exists before anything is
     asked of the far side. `ref` is the id this server chose for the run,
-    where the far side takes one (a ComfyUI)."""
+    where the far side takes one (a ComfyUI).
+
+    `most`: how many active jobs the person may have. Counted **here**, under
+    one lock with the write and with nothing awaited between the two, and
+    `TooMany` is raised instead of writing: a count taken earlier in the call
+    (before a picture was uploaded, say) lets two calls both pass."""
     from lembas.services import pricing
 
+    with _OPENING:
+        return _open(db, user_id, chat_id, message_id, kind, source, params, minutes, ref,
+                     most, pricing)
+
+
+def _open(db, user_id, chat_id, message_id, kind, source, params, minutes, ref, most, pricing):
+    if most > 0:
+        running = active_count(db, user_id)
+        if running >= most:
+            raise TooMany(running)
     started = now()
     job = MediaJob(
         user_id=user_id,
@@ -262,8 +294,27 @@ def _far(db, job: MediaJob) -> Far | None:
     return Far(job.id, job.kind, job.dialect, job.provider_ref, source=source, limit=limit)
 
 
+# The jobs whose far side is being told to stop right now. A person's cancel
+# and the worker's pass can both arrive at one job; the far side is told once.
+_STOPPING: set[str] = set()
+
+
 async def _stop_far(far: Far) -> str:
-    """Ask the far side to stop one job; what it did, in words. Never raises."""
+    """Ask the far side to stop one job; what it did, in words. Never raises.
+
+    **Once at a time per job.** An interrupt is not addressed on an older
+    ComfyUI (`comfy.cancel`): a second one, sent after the first already
+    stopped this run, would stop whatever started next -- somebody else's."""
+    if far.job_id in _STOPPING:
+        return ""
+    _STOPPING.add(far.job_id)
+    try:
+        return await _stop(far)
+    finally:
+        _STOPPING.discard(far.job_id)
+
+
+async def _stop(far: Far) -> str:
     try:
         if far.dialect == store.COMFYUI and far.config is not None and far.ref:
             where = await comfy.cancel(far.config, far.ref)
@@ -389,15 +440,26 @@ async def _advance(job_id: str) -> None:
         if far is None:
             told = _end(job_id, MEDIA_FAILED, "Its connection no longer exists.")
         elif cancelling:
-            # Asked to stop while this process was not there to do it.
-            said = await _stop_far(far)
-            _end(job_id, MEDIA_CANCELLED, said)
+            # Asked to stop while this process was not there to do it. When
+            # `cancel` is at it this moment, it is left to finish.
+            if job_id not in _STOPPING:
+                said = await _stop_far(far)
+                _end(job_id, MEDIA_CANCELLED, said)
         elif overdue:
-            said = await _stop_far(far)
-            told = _end(
-                job_id, MEDIA_EXPIRED,
-                f"It was not finished in the time this instance allows. {said}".strip(),
-            )
+            # Asked once more before it is given up on: after an outage that
+            # outlasted the deadline, what the far side finished (and
+            # charged) meanwhile is collected and counted, not thrown away.
+            if far.ref:
+                try:
+                    told = await _look(far, state, age)
+                except LLMError as exc:
+                    log.info("media job %s, last look: %s", job_id, exc.message)
+            if _active(job_id):
+                said = await _stop_far(far)
+                told = _end(
+                    job_id, MEDIA_EXPIRED,
+                    f"It was not finished in the time this instance allows. {said}".strip(),
+                )
         elif state == MEDIA_QUEUED and not far.ref:
             if age > UNCONFIRMED_SECONDS:
                 told = _end(
@@ -405,10 +467,8 @@ async def _advance(job_id: str) -> None:
                     "The server was interrupted before the far side confirmed the request. "
                     "It may or may not have been started there; it is not waited for.",
                 )
-        elif far.dialect == store.COMFYUI:
-            told = await _advance_comfy(far, state, age)
         else:
-            told = await _advance_video(far)
+            told = await _look(far, state, age)
     except LLMError as exc:
         # The far side could not be asked just now: the next pass asks again,
         # until the deadline says otherwise.
@@ -417,6 +477,20 @@ async def _advance(job_id: str) -> None:
         log.exception("media job %s could not be followed", job_id)
     if told:
         await _tell(job_id)
+
+
+def _active(job_id: str) -> bool:
+    with session_scope() as db:
+        job = db.get(MediaJob, job_id)
+        return job is not None and job.state in MEDIA_ACTIVE
+
+
+async def _look(far: Far, state: str, age: float) -> bool:
+    """Ask the far side about one job and act on its answer. True when the
+    job ended by it and its chat is to be told."""
+    if far.dialect == store.COMFYUI:
+        return await _advance_comfy(far, state, age)
+    return await _advance_video(far)
 
 
 async def _advance_comfy(far: Far, state: str, age: float) -> bool:
@@ -437,7 +511,9 @@ async def _advance_comfy(far: Far, state: str, age: float) -> bool:
             elif age > UNCONFIRMED_SECONDS:
                 return _end(
                     far.job_id, MEDIA_FAILED,
-                    "The ComfyUI does not know this run: the request did not reach it.",
+                    "The ComfyUI does not know this run: the request did not reach it, or "
+                    "it is a ComfyUI that names its runs itself -- then it may have been "
+                    "made there and is in its own output folder.",
                 )
         return False
     try:
@@ -461,7 +537,12 @@ async def _advance_video(far: Far) -> bool:
         try:
             # The link is the provider's and lasts a day: fetched now, capped,
             # and never handed on.
-            payload = await dashscope.collect(task.url, limit=far.limit)
+            # The connection's own host is the one exception to "never an
+            # address on this network" (`dashscope.collect`): a gateway an
+            # administrator typed answers with links to itself.
+            payload = await dashscope.collect(
+                task.url, limit=far.limit, endpoint=far.source.endpoint
+            )
         except LLMError as exc:
             return _end(far.job_id, MEDIA_FAILED, exc.message)
         return _finish(far.job_id, payload, "mp4", seconds=task.seconds)
@@ -485,7 +566,7 @@ def note(job: MediaJob) -> str:
         if result.get("width") and result.get("height"):
             facts.append(f"{result['width']}x{result['height']}")
         return (
-            f"[Media job {job.id} has finished. The {what} you started with {job.label} is "
+            f"{NOTE_START}{job.id} has finished. The {what} you started with {job.label} is "
             f"ready: {', '.join(f for f in facts if f)}. It is already shown to the person "
             "in the conversation, on the card of the call that started it, and it is saved "
             "in their Files. Tell them briefly that it is ready. Do not generate it again, "
@@ -493,7 +574,7 @@ def note(job: MediaJob) -> str:
         )
     why = job.error or "No reason was given."
     return (
-        f"[Media job {job.id} did not finish ({job.state}). The {what} you started with "
+        f"{NOTE_START}{job.id} did not finish ({job.state}). The {what} you started with "
         f"{job.label} was not made: {why} Tell the person what happened, in a sentence. "
         "Do not start it again, with this or any other tool, unless they ask you to: "
         "a generation can cost them money each time.]"
@@ -511,9 +592,53 @@ async def _tell(job_id: str) -> None:
         # result; one delivered twice would be a second reply nobody asked for.
         job.notified_at = now()
         chat_id, text = job.chat_id, note(job)
+        quiet = _quiet(db, chat_id)
         db.commit()
-    if chat_id:
+    if chat_id and not quiet:
         await wake_service.wake_chat(chat_id, text)
+
+
+def _quiet(db, chat_id: str | None) -> bool:
+    """Whether a chat is told of a job's end by its card alone, with no reply.
+
+    A wake is this server's turn, taken with nobody asking: on a connection
+    its provider sells for a person's own turns only, that is the use it is
+    not sold for (as `generation.resume_interrupted` refuses to carry a reply
+    on there). The card of the call that started the job already shows the
+    result, or why there is none, without any model."""
+    from lembas.db.models import Chat
+    from lembas.services import chat as chat_service
+    from lembas.services import interactive
+
+    chat = db.get(Chat, chat_id) if chat_id else None
+    if chat is None:
+        return False
+    try:
+        return bool(interactive.model_only(chat_service.model_for(db, chat)))
+    except Exception:  # unreadable: the careful answer
+        log.exception("could not tell whether chat %s may be woken", chat_id)
+        return True
+
+
+def woke(db, chat) -> bool:
+    """Whether the turn a chat is answering now is a job's note
+    (`note`, delivered by `wake.wake_chat`): its latest delivered user turn
+    is the application's own and begins as every note does. The reply to it
+    is offered nothing that generates (`tools.resolve_tools`): it is there
+    to say what happened, and a model that reads "did not finish" tends to
+    order it again."""
+    from lembas.db.models import ROLE_USER, Message
+
+    if chat is None or not getattr(chat, "id", None):
+        return False
+    last = db.scalars(
+        select(Message)
+        .where(Message.chat_id == chat.id, Message.role == ROLE_USER,
+               Message.queued.is_(False))
+        .order_by(Message.created_at.desc(), Message.id.desc())
+        .limit(1)
+    ).first()
+    return bool(last is not None and last.machine and (last.content or "").startswith(NOTE_START))
 
 
 # --- The worker ----------------------------------------------------------------------
@@ -611,5 +736,5 @@ async def shutdown() -> None:
 
 __all__ = [
     "active_count", "cancel", "confirm", "listing", "note", "open_job", "owned", "poke",
-    "reconcile", "refuse", "shutdown", "start", "tick", "view",
+    "reconcile", "refuse", "shutdown", "start", "tick", "view", "woke",
 ]

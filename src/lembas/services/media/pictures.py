@@ -50,7 +50,7 @@ async def generate(
     """One picture's bytes -- checked to *be* a picture this instance can
     keep. Raises `LLMError` in the provider's words, without its key."""
     if source.endpoint is None:
-        raise LLMError(t("Nothing is configured to do that on this instance."))
+        raise _unasked(t("Nothing is configured to do that on this instance."))
     # The model's own options where the request has no opinion: its first
     # size, its negative prompt.
     if not (width and height):
@@ -175,10 +175,10 @@ async def edit(
     like a generated one. `pictures`: one or two, each a picture by its own
     bytes and no larger than a provider takes."""
     if source.endpoint is None or not pictures:
-        raise LLMError(t("Nothing is configured to do that on this instance."))
+        raise _unasked(t("Nothing is configured to do that on this instance."))
     pictures = pictures[:MAX_INPUTS]
     if any(len(p) > EDIT_INPUT_BYTES for p in pictures):
-        raise LLMError(t("That picture is larger than the provider takes for editing."))
+        raise _unasked(t("That picture is larger than the provider takes for editing."))
     if not (width and height):
         preset = store.size_of((source.options.get("sizes") or [""])[0])
         width, height = preset if preset is not None else (None, None)
@@ -189,10 +189,18 @@ async def edit(
         elif source.dialect == store.OPENAI_EDIT:
             payload = await _openai_edit(source, prompt, pictures, width, height)
         else:
-            raise LLMError(t("Nothing is configured to do that on this instance."))
+            raise _unasked(t("Nothing is configured to do that on this instance."))
     except LLMError as exc:
         raise sources.scrubbed(source, exc) from exc
     return checked(payload)
+
+
+def _unasked(message: str) -> LLMError:
+    """A refusal made here, before anything was asked of the provider: it
+    certainly made and charged nothing (`sources.refused`)."""
+    error = LLMError(message)
+    error.refused = True
+    return error
 
 
 async def _dashscope_edit(
@@ -239,7 +247,7 @@ async def _openai_edit(
     for number, picture in enumerate(pictures):
         found = files_service._detect_image(picture)
         if found is None:
-            raise LLMError(t("That is not a picture this instance can send."))
+            raise _unasked(t("That is not a picture this instance can send."))
         files.append((name, (f"image{number + 1}{found[1]}", picture, found[0])))
     headers = {
         k: v for k, v in source.endpoint.headers().items() if k.lower() != "content-type"

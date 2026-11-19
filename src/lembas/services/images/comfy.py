@@ -120,6 +120,8 @@ def _transport_error(exc: httpx.RequestError, config: Config) -> ComfyError:
     error = _transport_words(exc, config)
     # Not an answer about a run: whoever follows one asks again.
     error.transport = True
+    # No connection at all: the request never left (`LLMError.not_sent`).
+    error.not_sent = isinstance(exc, httpx.ConnectError | httpx.ConnectTimeout)
     return error
 
 
@@ -177,7 +179,7 @@ async def submit(config: Config, workflow: dict[str, Any], *, prompt_id: str = "
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(config.url("prompt"), headers=config.headers(), json=body)
             if response.status_code >= 400:
-                raise ComfyError(_refusal(response))
+                raise ComfyError(_refusal(response), status_code=response.status_code)
             data = response.json()
     except ComfyError:
         raise
@@ -189,7 +191,10 @@ async def submit(config: Config, workflow: dict[str, Any], *, prompt_id: str = "
     if not isinstance(data, dict):
         raise ComfyError("ComfyUI sent something that is not JSON: not an object")
     if errors := (data.get("node_errors") or {}):
-        raise ComfyError(_describe_nodes(errors))
+        refused = ComfyError(_describe_nodes(errors))
+        # An answer that says no: nothing was queued.
+        refused.refused = True
+        raise refused
     answered = str(data.get("prompt_id") or "")
     if not answered:
         raise ComfyError("ComfyUI accepted the workflow but did not say what to call it.")
@@ -574,7 +579,15 @@ async def cancel(config: Config, prompt_id: str) -> str:
     /interrupt` `{"prompt_id": id}` -- a ComfyUI that knows the field stops
     only that run; an older one stops whatever is running, which the check
     just made says is this). Answers what was done: `pending`, `running`, or
-    "" when it was in neither place."""
+    "" when it was in neither place.
+
+    **The queue is read immediately before, in this call, and the stop is
+    sent once.** What remains, and cannot be closed from here: on a ComfyUI
+    that ignores `prompt_id` in `/interrupt`, a run that ends between the
+    read and the interrupt lets the interrupt reach the run that started
+    after it -- a window of one request on the same network. A caller must
+    not call this twice for one run (`jobs._stop_far` sees to that): the
+    second call's window is as wide as the time between the two."""
     where = await queue_state(config, prompt_id)
     if not where:
         return ""

@@ -57,12 +57,26 @@ class Far:
         self.refuse_submit = ""
         self.down = False
         self.cancel_ok = True
+        # A submit that is taken, and whose answer never arrives.
+        self.lose_answer = False
+        # A submit the far side never takes and never answers either.
+        self.drop_submit = False
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
         if self.down:
             raise httpx.ConnectError("refused", request=request)
         path = request.url.path
+        if self.drop_submit and (path == "/prompt" or path.endswith("/video-synthesis")):
+            raise httpx.ReadTimeout("timed out", request=request)
+        if self.lose_answer and path == "/prompt":
+            body = json.loads(request.content)
+            self.prompts[body["prompt_id"]] = body["prompt"]
+            self.queue["queue_pending"].append([1, body["prompt_id"], {}, {}, []])
+            raise httpx.ReadTimeout("timed out", request=request)
+        if self.lose_answer and path.endswith("/video-synthesis"):
+            self.posted.append((path, json.loads(request.content)))
+            raise httpx.ReadTimeout("timed out", request=request)
         if request.url.host == "files.example.org":
             return httpx.Response(200, content=self.files[path])
         if path == "/upload/image":
@@ -652,3 +666,265 @@ def test_a_picture_given_to_a_workflow_that_takes_none_is_said_not_ignored(db, w
     outcome = run(tools.run_video(world["context"], {"prompt": "it moves", "image": "dune.png"}))
     assert outcome.event["status"] == "error" and "cannot start from a picture" in outcome.content
     assert not far.prompts and db.scalar(select(MediaJob)) is None
+
+
+# --- Review fixes: nothing is paid twice, nothing paid for is lost ---------------------------
+def test_a_providers_submit_that_times_out_is_not_started_anywhere_else(db, world, far, woken):
+    """The provider may have taken it: the ComfyUI behind it is not asked
+    for the same video, and the model is told it may have been charged."""
+    _own_video(db, world)
+    far.lose_answer = True
+    outcome = run(tools.run_video(world["context"], {"prompt": "a kite"}))
+    assert outcome.event["status"] == "error"
+    assert "may have been made and charged" in outcome.content
+    assert "Do not try again" in outcome.content
+    assert len([p for p, _ in far.posted if p.endswith("/video-synthesis")]) == 1
+    assert far.prompts == {}  # the default, a ComfyUI, was never asked
+    jobs_ = list(db.scalars(select(MediaJob)))
+    assert len(jobs_) == 1 and jobs_[0].state == "failed" and "charged" in jobs_[0].error
+    assert jobs.active_count(db, world["user"].id) == 0 and not woken
+
+
+def test_a_provider_that_answers_no_or_was_never_reached_does_fall_back(db, world, far, woken):
+    _own_video(db, world)
+    far.refuse_submit = "duration is out of range"
+    outcome = run(tools.run_video(world["context"], {"prompt": "a kite"}))
+    # Both sources answered no (the fake refuses every submit): two were asked.
+    assert outcome.event["status"] == "error"
+    assert any(r.url.path == "/prompt" for r in far.requests)
+    far.requests.clear()
+    far.refuse_submit, far.down = "", True
+    outcome = run(tools.run_video(world["context"], {"prompt": "a kite"}))
+    # No connection was ever made to the first: the second is tried (and is down too).
+    assert [r.url.path.rsplit("/", 1)[-1] for r in far.requests] == ["video-synthesis", "prompt"]
+
+
+def test_a_comfyui_submit_whose_answer_is_lost_is_followed_by_its_id_and_never_resent(
+    db, world, far, woken
+):
+    far.lose_answer = True
+    outcome = run(tools.run_video(world["context"], {"prompt": "a kite"}))
+    job = the_job(db)
+    assert outcome.event["status"] == "ok"
+    assert outcome.event["media_job"] == {"id": job.id, "kind": "video", "state": "queued"}
+    assert "answer did not arrive" in outcome.content
+    assert "do not use another tool" in outcome.content
+    assert job.state == "queued" and job.provider_ref in far.prompts
+    far.lose_answer = False
+    # The worker finds it in the ComfyUI's queue under the id this server chose.
+    run(jobs.tick(everything=True))
+    assert the_job(db).state == "running"
+    far.finish(job.provider_ref, "images", "video_00001_.mp4", MP4)
+    run(jobs.tick(everything=True))
+    assert the_job(db).state == "done" and len(far.prompts) == 1 and len(woken) == 1
+
+
+def test_a_comfyui_submit_that_never_arrived_is_given_up_on_in_words(db, world, far, woken):
+    far.drop_submit = True
+    outcome = run(tools.run_video(world["context"], {"prompt": "a kite"}))
+    assert outcome.event["status"] == "ok" and outcome.event["media_job"]["state"] == "queued"
+    far.drop_submit = False
+    job = the_job(db)
+    run(jobs.tick(everything=True))
+    assert the_job(db).state == "queued"
+    job.started_at = jobs.now() - timedelta(seconds=jobs.UNCONFIRMED_SECONDS + 5)
+    db.commit()
+    run(jobs.tick(everything=True))
+    job = the_job(db)
+    assert job.state == "failed" and "does not know this run" in job.error
+    assert far.prompts == {} and len(woken) == 1 and "Do not start it again" in woken[0][1]
+
+
+def test_a_result_finished_during_an_outage_past_the_deadline_is_still_collected(
+    db, world, far, woken
+):
+    """The far side finished (and charged) while this server could not ask;
+    by the time it can, the deadline is over. Asked once, then collected."""
+    _own_video(db, world)
+    run(tools.run_video(world["context"], {"prompt": "a kite", "seconds": 5}))
+    job = the_job(db)
+    far.tasks["task-1"] = {"task_status": "SUCCEEDED", "task_id": "task-1",
+                           "video_url": "https://files.example.org/out/clip.mp4"}
+    far.files["/out/clip.mp4"] = MP4
+    job.deadline_at = jobs.now() - timedelta(minutes=5)
+    db.commit()
+    run(jobs.tick(everything=True))
+    job = the_job(db)
+    assert job.state == "done", (job.state, job.error)
+    assert job.cost_micro == 500_000 and job.result_json["path"]
+    assert not any(p.endswith("/cancel") for p, _ in far.posted)
+    assert len(woken) == 1 and "has finished" in woken[0][1]
+
+
+def test_a_job_past_its_deadline_that_cannot_be_asked_is_given_up_on(db, world, far, woken):
+    run(tools.run_video(world["context"], {"prompt": "a kite"}))
+    job = the_job(db)
+    job.deadline_at = jobs.now() - timedelta(seconds=1)
+    db.commit()
+    far.down = True
+    run(jobs.tick(everything=True))
+    assert the_job(db).state == "expired" and len(woken) == 1
+
+
+def test_a_video_link_on_the_connections_own_private_host_is_fetched(db, world, monkeypatch):
+    """`far` is not used: the address guard is the real one here."""
+    world["cloud"].base_url = "http://192.0.2.10:8000/compatible-mode/v1"
+    _own_video(db, world)
+    real = httpx.AsyncClient
+    asked: list[str] = []
+
+    def handle(request):
+        asked.append(str(request.url))
+        if request.url.path.endswith("/video-synthesis"):
+            return httpx.Response(200, json={"output": {"task_status": "PENDING",
+                                                        "task_id": "task-9"}})
+        if "/api/v1/tasks/" in request.url.path:
+            return httpx.Response(200, json={
+                "output": {"task_status": "SUCCEEDED", "task_id": "task-9",
+                           "video_url": "http://192.0.2.10:8000/out/clip.mp4"},
+                "usage": {"duration": 5}})
+        return httpx.Response(200, content=MP4)
+
+    transport = httpx.MockTransport(handle)
+    monkeypatch.setattr(httpx, "AsyncClient",
+                        lambda *a, **kw: real(*a, **{**kw, "transport": transport}))
+    from lembas.services import fetch as fetch_service
+
+    seen: list[tuple[str, bool]] = []
+    real_check = fetch_service.check_url
+
+    def check(url, **kwargs):
+        seen.append((url, bool(kwargs.get("allow_private"))))
+        if not kwargs.get("allow_private"):
+            return real_check(url, **kwargs)
+        return url
+
+    monkeypatch.setattr(fetch_service, "check_url", check)
+    run(tools.run_video(world["context"], {"prompt": "a kite", "seconds": 5}))
+    run(jobs.tick(everything=True))
+    job = the_job(db)
+    assert seen == [("http://192.0.2.10:8000/out/clip.mp4", True)]
+    assert job.state == "done", job.error
+
+
+def test_two_calls_at_once_cannot_both_pass_the_count(db, world, far, woken):
+    """The count is taken again where the row is written: two calls that
+    both counted none while their pictures were being uploaded open one job."""
+    from lembas.services import files as files_service
+
+    settings_store.update(db, {"jobs_per_person": 1}, key=settings_store.IMAGES)
+    files_service.store(db, user_id=world["user"].id, chat_id=world["chat"].id, payload=PNG,
+                        filename="chair.png", keep_original=True)
+
+    from lembas.services.images import comfy
+
+    real_upload = comfy.upload_image
+
+    async def slow_upload(*args, **kwargs):
+        # A real upload gives the loop to the other call; the fake transport
+        # alone never does.
+        await asyncio.sleep(0.01)
+        return await real_upload(*args, **kwargs)
+
+    comfy.upload_image, restore = slow_upload, real_upload
+
+    async def both():
+        try:
+            return await _both()
+        finally:
+            comfy.upload_image = restore
+
+    async def _both():
+        return await asyncio.gather(
+            tools.run_model(world["context"], {}), tools.run_model(world["context"], {})
+        )
+
+    first, second = run(both())
+    assert sorted(o.event["status"] for o in (first, second)) == ["error", "ok"]
+    refused = first if first.event["status"] == "error" else second
+    assert "still being made" in refused.content
+    assert len(list(db.scalars(select(MediaJob)))) == 1 and len(far.prompts) == 1
+
+
+def _plan(db, world) -> None:
+    world["cloud"].provider_type = "alibaba_plan"
+    world["cloud"].base_url = "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
+    db.commit()
+
+
+def test_a_finished_job_starts_no_reply_on_a_connection_for_a_persons_own_turns(
+    db, world, far, woken
+):
+    from lembas.services import interactive
+
+    run(tools.run_video(world["context"], {"prompt": "a kite"}))
+    job = the_job(db)
+    _plan(db, world)
+    assert interactive.connection_only(world["cloud"])
+    far.finish(job.provider_ref, "images", "video_00001_.mp4", MP4)
+    run(jobs.tick(everything=True))
+    job = the_job(db)
+    # Done, kept, marked as told -- and nobody's model was started for it.
+    assert job.state == "done" and job.notified_at is not None and not woken
+    assert jobs.view(job)["result"]["path"]
+    run(jobs.reconcile())
+    assert not woken
+
+
+def test_the_reply_to_a_jobs_note_is_offered_nothing_that_generates(db, world, far, woken):
+    from lembas.services import chat as chat_service
+    from lembas.services import tools as tools_service
+
+    def offered() -> set[str]:
+        db.expire_all()
+        chat = db.get(Chat, world["chat"].id)
+        return {d.name for d in tools_service.resolve_tools(db, chat, world["user"]).defs}
+
+    generating = {"video_generate", "music_generate", "model_generate"}
+    assert generating <= offered()
+    run(tools.run_video(world["context"], {"prompt": "a kite"}))
+    job = the_job(db)
+    far.fail(job.provider_ref, "execution_error", node_type="KSampler",
+             exception_type="RuntimeError", exception_message="it broke")
+    run(jobs.tick(everything=True))
+    assert len(woken) == 1
+    # The turn the wake writes (`wake.wake_chat`): the application's, in the user role.
+    chat_service.create_message(db, db.get(Chat, world["chat"].id), ROLE_USER, woken[0][1],
+                                machine=True)
+    names = offered()
+    assert not (generating & names) and "image_generate" not in names
+    assert "image_edit" not in names
+    # The person's own next turn has them again.
+    chat_service.create_message(db, db.get(Chat, world["chat"].id), ROLE_USER, "try once more")
+    assert generating <= offered()
+
+
+def test_a_cancel_and_the_workers_pass_tell_the_far_side_to_stop_once(db, world, far, woken):
+    """Both arrive at one job; an interrupt an older ComfyUI does not address
+    is sent once, or the second would stop the next run -- somebody else's."""
+    from lembas.services.images import comfy
+
+    run(tools.run_video(world["context"], {"prompt": "a kite"}))
+    job = the_job(db)
+    far.queue = {"queue_running": [[1, job.provider_ref, {}, {}, []]], "queue_pending": []}
+    real_state = comfy.queue_state
+
+    async def slow_state(*args, **kwargs):
+        await asyncio.sleep(0.02)
+        return await real_state(*args, **kwargs)
+
+    async def both():
+        comfy.queue_state = slow_state
+        try:
+            async def pass_():
+                await asyncio.sleep(0.005)  # after the cancel wrote its request
+                await jobs._advance(job.id)
+
+            return await asyncio.gather(jobs.cancel(job.id, world["user"].id), pass_())
+        finally:
+            comfy.queue_state = real_state
+
+    view, _ = run(both())
+    assert [p for p, _ in far.posted] == ["/interrupt"]
+    assert view["state"] == "cancelled" and "interrupted" in view["error"]
+    assert the_job(db).state == "cancelled" and not woken
