@@ -593,3 +593,96 @@ def test_a_backslash_in_a_name_is_not_a_path_in_the_zip(client, db, me):
     assert not any("\\" in name or "\t" in name for name in held)
     # Nothing lost to a clash of the two names that now look alike.
     assert sorted(v for v in held.values() if v) == [b"one", b"three", b"two"]
+
+
+# --- Where a node is now, and what is inside an archive --------------------------------------
+def test_a_node_is_found_by_its_id_wherever_it_is_now(client, db, me):
+    user, home, headers = me
+    node = _write(db, user, f"{home}/Generated/clip.md", b"# clip")
+    found = client.get("/api/v2/files/node", headers=headers, params={"id": node.id}).json()
+    assert found == {"id": node.id, "path": f"{home}/Generated/clip.md", "name": "clip.md",
+                     "parent": f"{home}/Generated", "kind": "file", "file_kind": "markdown",
+                     "trashed": False}
+    # Renamed and moved: the same id answers with where it is.
+    v = fs.view(db, user)
+    fs.mv(v, f"{home}/Generated/clip.md", f"{home}/Kept/first.md")
+    db.commit()
+    found = client.get("/api/v2/files/node", headers=headers, params={"id": node.id}).json()
+    assert (found["path"], found["name"], found["parent"]) == (
+        f"{home}/Kept/first.md", "first.md", f"{home}/Kept")
+    # In the trash: said, with where it lay.
+    fs.rm(fs.view(db, user), f"{home}/Kept/first.md")
+    db.commit()
+    found = client.get("/api/v2/files/node", headers=headers, params={"id": node.id}).json()
+    assert found["trashed"] is True and found["path"] == f"{home}/Kept/first.md"
+    folder = fs.lookup(db, user.org_id, f"{home}/Kept")
+    listed = client.get("/api/v2/files/node", headers=headers, params={"id": folder.id}).json()
+    assert listed["kind"] == "dir" and listed["file_kind"] is None
+
+
+def test_a_node_somebody_may_not_read_is_not_found_and_its_path_is_not_said(client, db, me):
+    user, home, headers = me
+    # An administrator of the instance, even: that is no right to a person's files.
+    other = User(email="sam@shire.test", name="Sam", password_hash="x", role="admin",
+                 org_id=user.org_id)
+    db.add(other)
+    db.commit()
+    _, raw = api_tokens.create(db, other, name="LLeMbas for Android", scopes=["app"])
+    theirs = {"Authorization": f"Bearer {raw}"}
+    node = _write(db, user, f"{home}/private/plan.md", b"secret")
+    for node_id in (node.id, "no-such-node", ""):
+        refused = client.get("/api/v2/files/node", headers=theirs, params={"id": node_id})
+        assert refused.status_code == 404, refused.text
+        assert "plan.md" not in refused.text and "private" not in refused.text
+    # ...and no differently once it is in the trash.
+    fs.rm(fs.view(db, user), f"{home}/private/plan.md")
+    db.commit()
+    refused = client.get("/api/v2/files/node", headers=theirs, params={"id": node.id})
+    assert refused.status_code == 404 and "plan.md" not in refused.text
+    assert client.get("/api/v2/files/node", params={"id": node.id}).status_code == 401
+
+
+def test_an_archives_content_answer_lists_what_is_inside(client, db, me, monkeypatch):
+    import tarfile
+
+    from lembas.services import archives
+
+    user, home, headers = me
+    held = io.BytesIO()
+    with zipfile.ZipFile(held, "w") as archive:
+        archive.writestr("docs/", b"")
+        archive.writestr("docs/a.txt", b"hello")
+        archive.writestr("<b>.txt", b"12")
+    _write(db, user, f"{home}/a.zip", held.getvalue())
+    body = client.get("/api/v2/files/content", headers=headers,
+                      params={"path": f"{home}/a.zip"}).json()
+    assert body["file_kind"] == "archive" and body["text"] == ""
+    assert body["archive"] == {
+        "entries": [{"name": "docs/", "size": None, "dir": True},
+                    {"name": "docs/a.txt", "size": 5, "dir": False},
+                    {"name": "<b>.txt", "size": 2, "dir": False}],
+        "total": 3, "truncated": False, "problem": None, "message": "",
+    }
+    # The same caps as the page's viewer.
+    monkeypatch.setattr(archives, "MAX_ENTRIES", 1)
+    cut = client.get("/api/v2/files/content", headers=headers,
+                     params={"path": f"{home}/a.zip"}).json()["archive"]
+    assert len(cut["entries"]) == 1 and cut["truncated"] and cut["total"] == 3
+    # What cannot be listed says why; a tar is listed too.
+    _write(db, user, f"{home}/bad.zip", b"PK\x03\x04" + bytes(40))
+    bad = client.get("/api/v2/files/content", headers=headers,
+                     params={"path": f"{home}/bad.zip"}).json()["archive"]
+    assert bad["entries"] == [] and bad["problem"] == "unreadable" and bad["message"]
+    out = io.BytesIO()
+    with tarfile.open(fileobj=out, mode="w:gz") as archive:
+        info = tarfile.TarInfo("x/y.txt")
+        info.size = 3
+        archive.addfile(info, io.BytesIO(b"abc"))
+    _write(db, user, f"{home}/a.tar.gz", out.getvalue())
+    tarred = client.get("/api/v2/files/content", headers=headers,
+                        params={"path": f"{home}/a.tar.gz"}).json()["archive"]
+    assert tarred["entries"] == [{"name": "x/y.txt", "size": 3, "dir": False}]
+    # Any other kind of file has no such key.
+    _write(db, user, f"{home}/n.md", b"# n")
+    assert "archive" not in client.get("/api/v2/files/content", headers=headers,
+                                       params={"path": f"{home}/n.md"}).json()

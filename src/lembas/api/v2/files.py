@@ -30,6 +30,7 @@ from what is there; a refusal is the explorer's, as a 400 with its reason.
 | `POST /files/copy` | `{path, to, name?}` → 201 listing of `to`, with `copied` (the new entry) |
 | `PUT /files/content` | `{path, text, base?, force?, create?}` → the content answer; 409 |
 | `GET /files/raw?path=&version=&inline=` | the bytes; `Range` answered (`api/_download.py`) |
+| `GET /files/node?id=` | where it is now: `{id, path, name, parent, kind, file_kind, trashed}` |
 | `GET /files/trash` | `{items}` |
 | `POST /files/restore` | `{id}` → `{restored, items}` |
 | `DELETE /files/trash[?id=]` | for good: one thing, or everything → `{removed, items}` |
@@ -92,7 +93,46 @@ async def file_content(caller: Me, db: Db, path: str) -> dict[str, Any]:
         opened = file_ui.open_file(fs.view(db, caller.user), where)
     except fs.FsError as refused:
         raise HTTPException(status.HTTP_404_NOT_FOUND, refused.message) from refused
-    return serialise.file_content(opened, _withheld(opened))
+    return serialise.file_content(opened, _withheld(opened), await _archive(db, opened))
+
+
+_ARCHIVE_PROBLEMS = {
+    "unsupported": "What is inside this kind of archive cannot be listed here.",
+    "busy": "Too many archives are being read at the moment. Open it again shortly.",
+    "unreadable": "This archive could not be read.",
+}
+
+
+async def _archive(db, opened: file_ui.Opened) -> dict[str, Any] | None:
+    """An archive's listing, as the web's viewer has it: the same service,
+    the same caps, nothing unpacked. None for every other kind of file."""
+    if opened.file_kind != "archive":
+        return None
+    from anyio import to_thread
+
+    from lembas.services import archives
+
+    # A tar is read through, which can take a moment: not on the loop.
+    found = await to_thread.run_sync(
+        archives.listing, db, opened.sha, opened.size, opened.mime, opened.name
+    )
+    sentence = _ARCHIVE_PROBLEMS.get(found.problem, "")
+    return serialise.archive_listing(found, t(sentence) if sentence else "")
+
+
+@router.get("/files/node")
+async def file_node(caller: Me, db: Db, id: str = "") -> dict[str, Any]:
+    """Where a file is now, by its id: `{id, path, name, parent, kind,
+    file_kind, trashed}`. For a file a screen knows by id only -- a generated
+    file's `node_id` -- so it still opens after a rename or a move. Under the
+    checks of `/files/raw?node=`: read as the person may read that path, and
+    a refusal (404) names the id, never where the file is."""
+    try:
+        node, trashed = fs.located(fs.view(db, caller.user), id.strip())
+    except fs.FsError as refused:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, refused.message) from refused
+    kind = fs.kind_of(db, node).kind if node.kind == "file" else None
+    return serialise.file_node(node, kind, trashed=trashed)
 
 
 def _withheld(opened: file_ui.Opened) -> dict[str, str] | None:

@@ -1,0 +1,35 @@
+{
+  "path": "/home/frodo/maps.zip",
+  "name": "maps.zip",
+  "size": 4096,
+  "mime": "application/zip",
+  "kind": "archive",
+  "file_kind": "archive",
+  "level": "commit",
+  "writable": true,
+  "language": "",
+  "sha": "abababababababababababababababababababababababababababababababab",
+  "text": "",
+  "withheld": {
+    "reason": "not_text",
+    "message": "This is not a text file, so it is not shown here."
+  },
+  "archive": {
+    "entries": [
+      {
+        "name": "maps/",
+        "size": null,
+        "dir": true
+      },
+      {
+        "name": "maps/shire.png",
+        "size": 2048,
+        "dir": false
+      }
+    ],
+    "total": 2,
+    "truncated": false,
+    "problem": null,
+    "message": ""
+  }
+}

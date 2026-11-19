@@ -1012,7 +1012,51 @@ def file_version(row: Any, names: dict[str, str], *, current: bool) -> dict[str,
     }
 
 
-def file_content(opened: Any, withheld: dict[str, str] | None = None) -> dict[str, Any]:
+def file_node(node: Any, file_kind: str | None, *, trashed: bool) -> dict[str, Any]:
+    """Where a node is now (`GET /files/node?id=`): what a screen needs to
+    open a file it knows only by its id -- a generated file's `node_id` --
+    after the file was renamed or moved. `parent` is the directory to list;
+    `kind` is `file`, `dir` or `mount` and `file_kind` what a file is, as in
+    a listing. `trashed`: it is in the trash, and `path` is where it lay."""
+    path = node.path
+    return {
+        "id": node.id,
+        "path": path,
+        "name": node.name,
+        "parent": path.rsplit("/", 1)[0] or "/",
+        "kind": node.kind,
+        "file_kind": file_kind or None,
+        "trashed": bool(trashed),
+    }
+
+
+def archive_listing(listing: Any, message: str = "") -> dict[str, Any]:
+    """What is inside an archive (`services/archives.py`), as the web's
+    viewer lists it: names and sizes, nothing unpacked. `size` is null for a
+    directory and where the archive does not say; `total` is how many
+    entries the archive holds, where it says. `truncated`: there are more
+    than are listed. `problem` is null, or why there is no listing --
+    `unreadable`, `unsupported` (a kind of archive that is not read here),
+    `busy` (too many are being read; ask again) -- with `message`, the
+    sentence for it. Every name is the archive's own text."""
+    return {
+        "entries": [
+            {"name": e.name, "size": None if e.size is None else int(e.size),
+             "dir": bool(e.is_dir)}
+            for e in listing.entries
+        ],
+        "total": listing.total,
+        "truncated": bool(listing.cut),
+        "problem": listing.problem or None,
+        "message": message,
+    }
+
+
+def file_content(
+    opened: Any,
+    withheld: dict[str, str] | None = None,
+    archive: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """One `file_ui.Opened`. `text` is the file as written -- an HTML file's
     source, never rendered -- or empty, with `withheld` saying why. `kind` is
     what the file is by its own bytes (`services/file_kinds.py`), the same
@@ -1034,12 +1078,16 @@ def file_content(opened: Any, withheld: dict[str, str] | None = None) -> dict[st
     }
     if withheld:
         out["withheld"] = withheld
+    if archive is not None:
+        # Only on an archive's answer (`file_kind == "archive"`).
+        out["archive"] = archive
     return out
 
 
 __all__ = [
     "WITHHELD_NOT_TEXT",
     "WITHHELD_TOO_LARGE",
+    "archive_listing",
     "asks",
     "attachment",
     "chat",
@@ -1049,6 +1097,7 @@ __all__ = [
     "file_conflict",
     "file_entry",
     "file_listing",
+    "file_node",
     "file_version",
     "interruption",
     "item",

@@ -511,6 +511,24 @@ def _files() -> dict[str, object]:
             {"reason": serialise.WITHHELD_NOT_TEXT,
              "message": "This is not a text file, so it is not shown here."},
         ),
+        # An archive's content answer carries what is inside it.
+        "file_content_archive": serialise.file_content(
+            opened(path="/home/frodo/maps.zip", name="maps.zip", size=4096,
+                   mime="application/zip", kind="binary", file_kind="archive", text="",
+                   level="commit"),
+            {"reason": serialise.WITHHELD_NOT_TEXT,
+             "message": "This is not a text file, so it is not shown here."},
+            serialise.archive_listing(SimpleNamespace(
+                entries=[SimpleNamespace(name="maps/", size=None, is_dir=True),
+                         SimpleNamespace(name="maps/shire.png", size=2048, is_dir=False)],
+                total=2, cut=False, problem="")),
+        ),
+        # `GET /files/node?id=`: where a file is now.
+        "file_node": serialise.file_node(
+            Node(id="node6", name="video-20261119-101500.mp4",
+                 path="/home/frodo/Clips/video-20261119-101500.mp4", kind="file"),
+            "video", trashed=False,
+        ),
         # `POST /files/copy`: the listing of where it went, and the copy.
         "files_copied": copied,
         # `PUT /files/content` over a file that changed: 409, nothing written.

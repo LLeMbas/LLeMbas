@@ -201,6 +201,28 @@ def path_of(db: DBSession, org_id: str, node_id: str) -> str | None:
     return node.path
 
 
+def located(v: View, node_id: str) -> tuple[Node, bool]:
+    """Where a node is **now**, for somebody who may read it: the node, and
+    whether it is in the trash. The same answer as asking for its path would
+    get -- `no_such`, naming the id and never the path, when the view cannot
+    see it. A trashed node is judged by its own shares (`_held`)."""
+    node = v.db.get(Node, node_id) if node_id else None
+    if node is None or node.org_id != v.org_id:
+        raise no_such(node_id)
+    if node.trashed_at is not None:
+        level, _ = _held(v, node)
+        if not at_least(level, LEVEL_RO):
+            raise no_such(node_id)
+        return node, True
+    try:
+        seen = stat(v, node.path)
+    except FsError as refused:
+        raise no_such(node_id) from refused
+    if seen is None or seen.id != node.id:
+        raise no_such(node_id)
+    return node, False
+
+
 def children(db: DBSession, org_id: str, parent: Node | None) -> list[Node]:
     where = Node.parent_id == parent.id if parent is not None else Node.parent_id.is_(None)
     return list(
