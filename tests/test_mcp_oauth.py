@@ -1173,3 +1173,29 @@ def test_the_instances_tool_list_is_not_set_by_whoever_signs_in_first(
     assert _sign_in(client, provider, server).status_code == 303
     db.expire_all()
     assert [t["name"] for t in db.get(McpServer, server.id).tools_json] == ["search"]
+
+
+def test_a_sign_in_from_before_the_pin_still_renews_and_is_what_the_client_is_pinned_to(
+    client, db, registered, mock_http
+):
+    """An instance upgraded with a typed client and people signed in: the
+    row has no pin yet. They are not signed out by the upgrade, and the pin
+    is the provider they signed in at -- not whatever the server names now."""
+    provider = Moved(registers=False)
+    mock_http(provider)
+    server = _server(db, oauth_client_id="typed-id",
+                     oauth_client_secret_encrypted=encrypt("typed-secret"))
+    _sign_in(client, provider, server)
+    row = db.get(McpServer, server.id)
+    row.oauth_issuer = None  # as the release before left it
+    db.commit()
+    signin = _signin(db, server, _admin(db))
+    _lapse(db, signin)
+    token = asyncio.new_event_loop().run_until_complete(oauth.token_for(signin.id, "Mail"))
+    assert token.startswith("at-")
+    renewal = [r for r in provider.seen if r.url.path == "/token"][-1]
+    assert base64.b64decode(renewal.headers["authorization"][6:]) == b"typed-id:typed-secret"
+    provider.moved = True
+    assert "names%20another" in _start(client, server).headers["HX-Redirect"]
+    db.expire_all()
+    assert db.get(McpServer, server.id).oauth_issuer == ISSUER

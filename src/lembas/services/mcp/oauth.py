@@ -696,10 +696,13 @@ async def _client(
         # one of its own, to be handed this client's secret at the exchange.
         pinned = pinned_issuer(server)
         if not pinned:
-            server.oauth_issuer = provider.issuer[:1000]
+            # A row from before there was a pin: the provider its sign-ins
+            # were made at is the one the client was used with first.
+            pinned = _used_with(db, server, typed) or provider.issuer
+            server.oauth_issuer = pinned[:1000]
             db.commit()
-            log.info("mcp %s: its client is pinned to %s", server.slug, provider.issuer)
-        elif pinned != provider.issuer:
+            log.info("mcp %s: its client is pinned to %s", server.slug, pinned)
+        if pinned != provider.issuer:
             raise McpError(
                 f"{server.name} now names another sign-in provider ({provider.issuer}) than "
                 f"the one its client ID was set up with ({pinned}). Nothing was sent to it. "
@@ -781,6 +784,18 @@ async def _client(
     return {"client_id": client_id, "method": method}
 
 
+def _used_with(db: DBSession, server: McpServer, client_id: str) -> str:
+    """The provider an existing sign-in of this server was made at with this
+    client, or ""."""
+    for signin in db.scalars(
+        select(McpSignin).where(McpSignin.server_id == server.id).order_by(McpSignin.created_at)
+    ):
+        meta = signin.meta_json or {}
+        if meta.get("client_id") == client_id and meta.get("issuer"):
+            return str(meta["issuer"])
+    return ""
+
+
 def _client_secret(server: McpServer, client_id: str, issuer: str) -> str:
     """The secret of the client a sign-in was made with -- **for the provider
     it was made at, and no other**. A client ID is a provider's own string:
@@ -789,7 +804,9 @@ def _client_secret(server: McpServer, client_id: str, issuer: str) -> str:
     if not client_id or not issuer:
         return ""
     if (server.oauth_client_id or "").strip() == client_id:
-        if pinned_issuer(server) != issuer:
+        # No pin yet: a row from before there was one, and a sign-in made
+        # then -- it renews as it did, and the next sign-in pins the client.
+        if pinned_issuer(server) not in ("", issuer):
             return ""
         return decrypt(server.oauth_client_secret_encrypted or "")
     for stored in _registered(server):
