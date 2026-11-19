@@ -157,6 +157,19 @@ at <https://llembas.eu/changelog.html>.
 - **For the apps: which connection a model is on.** A chat, a message, a schedule and a
   schedule's run carry `model_ref` (`provider/model`) beside `model`, from the connection they
   were actually given. A schedule can be created or changed with such a ref.
+- **For the apps: where a file is now, and what is inside an archive.**
+  `GET /api/v2/files/node?id=` answers a file's current path, name, directory and kind by its
+  id (and whether it is in the trash), so a generated file that was renamed or moved still
+  opens. For an archive, `GET /api/v2/files/content` carries `archive`: the same capped
+  listing the page shows (`entries` of `{name, size, dir}`, `total`, `truncated`), or why
+  there is none.
+- **`LEMBAS_PUBLIC_URL`** (optional): this instance's own address. Where it is set, an MCP
+  server's sign-in provider always sends people back to it, whatever hostname a request came
+  to.
+- **A client ID typed for an MCP server is pinned to its provider.** The first sign-in
+  records which provider the server named; the server's form shows it. If the server later
+  names another one, the sign-in is refused and the client secret is sent nowhere, until an
+  administrator presses *Re-pin* (which signs everyone out of that server).
 
 ### Changed
 
@@ -193,6 +206,42 @@ at <https://llembas.eu/changelog.html>.
 
 ### Fixed
 
+- **A generation is not ordered twice, and one that was paid for is not lost.** (Found in
+  review, before this release.)
+  - When a request to make a video, a track or a 3D model was sent and no answer came back,
+    it was treated as a refusal and started again on the next source. It is now followed
+    where it can be (a ComfyUI run is looked for by its id) and otherwise reported as
+    "may have been made and charged"; only an answered refusal moves on to another source.
+    Pictures and picture edits are no longer ordered from a second provider in that case.
+  - After an outage longer than a job's deadline, a result the far side had finished was
+    given up on unread. It is asked for once more first, and collected and counted.
+  - An edited picture's cost was not counted when the copy into Files failed.
+  - On a provider's plan sold for your own turns only, a finished job no longer starts a
+    reply by itself: its card shows the result. And the reply to any finished job is not
+    offered the generation tools.
+  - "Generated but could not be saved" now also tells the model not to order it again.
+- **Trash: a file somebody shared with you read-only stays out of your reach there.** Access
+  to a trashed file was judged by where it had been, so somebody who could write in a shared
+  folder saw every file trashed from it, including ones shared with them read-only, and could
+  remove them for good; "Empty the trash" removed other people's trashed files in any folder
+  you could write. Your trash is now what you put there or own; removing for good is for
+  the owner (or somebody with full rights on the file itself, and on everything inside it).
+- **Moving a folder no longer moves an older, trashed folder of the same name with it.**
+  Restoring that one later put it under the new place.
+- **MCP sign-in**: signing in from a second hostname of the same instance no longer signs
+  everyone else out at their next renewal; signing in again while a renewal was on its way no
+  longer loses the new sign-in; a provider's answers are read with a size and a time limit;
+  sign-ins dropped by a change or by deleting the server are withdrawn at the provider;
+  the token asked for is always for the server's own address, also where the server's
+  metadata names its whole host; the list of a server's tools is no longer whatever the
+  first person to sign in was offered. Switching a server to one shared sign-in ends each
+  person's own.
+- **A crafted archive could make the server read gigabytes** when its file page was opened:
+  a zip's directory and a tar's long-name headers are now bounded where they are read, and
+  at most two archives are read at once. Real zip64 archives are listed now.
+- Copying a file twice at the same moment could answer with a server error; one copy makes
+  at most 5000 items; two saves of one file based on the same content can no longer both
+  succeed; a backslash in a file name is not a path inside a downloaded zip.
 - **A model no longer orders a failed paid picture again by itself.** When a provider's
   image model failed, the model was told only that it failed, and on one instance it then
   asked for the same picture three more times. A failure now tells it to stop and say what
