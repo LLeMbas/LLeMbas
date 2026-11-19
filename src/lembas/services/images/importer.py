@@ -119,6 +119,10 @@ def parse(text: str | bytes) -> dict[str, Any]:
         doc = json.loads(raw.decode("utf-8-sig"))
     except (ValueError, UnicodeDecodeError) as exc:
         raise ImportError_(f"This is not JSON: {exc}") from exc
+    except RecursionError as exc:
+        # Brackets nested thousands deep: within the size cap, and still not
+        # something to answer with a server error.
+        raise ImportError_("This is not a workflow: it is nested too deeply.") from exc
     if isinstance(doc, dict) and isinstance(doc.get("nodes"), list) and "links" in doc:
         raise ImportError_(UI_FORMAT)
     if isinstance(doc, dict) and isinstance(doc.get("prompt"), dict) and "class_type" not in doc:

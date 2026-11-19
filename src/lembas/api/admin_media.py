@@ -175,6 +175,9 @@ def _number(raw: Any, name: str, *, whole: bool = True) -> Any:
         value = float(text.replace(",", "."))
     except ValueError:
         return ""
+    if value != value or value in (float("inf"), float("-inf")):
+        # "nan" and "inf" are numbers to `float`: not ones to clamp or keep.
+        return ""
     low, high = workflow_service.LIMITS.get(name, (None, None))
     if low is not None:
         value = min(max(value, low), high)
@@ -236,7 +239,7 @@ async def save_media(request: Request, db: Db, user: AdminUser, capability: str)
             {
                 "enabled": bool(form.get("enabled")),
                 "review_enabled": bool(form.get("review_enabled")),
-                "review_model_id": str(form.get("review_model_id") or "").strip(),
+                "review_model_id": str(form.get("review_model_id") or "").strip()[:300],
                 "max_tries": _whole(form.get("max_tries"), current.get("max_tries") or 4),
                 "instructions": str(form.get("instructions") or "").strip()[:4000],
                 "per_image": settings_store.money_amount(form.get("per_image")),

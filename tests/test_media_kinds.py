@@ -788,3 +788,27 @@ def test_a_drawn_picture_that_could_not_be_saved_forbids_a_retry(db, world, monk
     assert outcome.event["status"] == "error"
     assert "generated but could not be saved" in outcome.content
     assert "Do not call image_generate again" in outcome.content
+
+
+def test_a_document_nested_too_deeply_is_refused_in_a_sentence():
+    deep = "[" * 100_000 + "]" * 100_000
+    assert len(deep) < importer.MAX_BYTES
+    with pytest.raises(importer.ImportError_) as refused:
+        importer.parse(deep)
+    assert "nested" in refused.value.message or "not JSON" in refused.value.message
+    with pytest.raises(importer.ImportError_):
+        importer.parse("x" * (importer.MAX_BYTES + 1))
+    with pytest.raises(importer.ImportError_):
+        importer.parse(json.dumps({str(i): {"class_type": "A", "inputs": {}}
+                                   for i in range(importer.MAX_NODES + 1)}))
+
+
+def test_a_number_that_is_not_one_is_no_opinion_in_the_picture_settings(client, db, world):
+    saved = client.post("/admin/media/image", follow_redirects=False, data={
+        "enabled": "1", "default_steps": "nan", "default_cfg": "inf", "default_denoise": "NaN",
+        "default_width": "1e999", "max_tries": "nan", "per_image": "nan"})
+    assert saved.status_code == 303, saved.text
+    stored = settings_store.get_group(db, settings_store.IMAGES)
+    assert [stored[k] for k in ("default_steps", "default_cfg", "default_denoise",
+                                "default_width")] == ["", "", "", ""]
+    assert stored["per_image"] == 0
