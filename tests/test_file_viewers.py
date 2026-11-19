@@ -359,3 +359,102 @@ def test_a_file_is_renamed_from_its_own_page(client, home):
     again = client.post("/files/rename", data={"path": f"{home['path']}/new.csv", "name": "x.csv"},
                         follow_redirects=False)
     assert again.status_code == 303 and "/files?path=" in again.headers["location"]
+
+
+# --- Review fixes: an archive's own numbers are capped where they are used ------------------
+def _with_zip64_record(data: bytes, *, classic_count: int) -> bytes:
+    """`data` (a zip) with a zip64 end record and its locator put in front of
+    the classic end record, which is made to claim `classic_count` entries.
+    A reader that goes by the classic record sees a small archive; one that
+    honours the locator sees what the zip64 record says."""
+    import struct
+
+    at = data.rfind(b"PK\x05\x06")
+    count, size, offset = struct.unpack("<HII", data[at + 10:at + 20])
+    record = struct.pack("<4sQHHIIQQQQ", b"PK\x06\x06", 44, 45, 45, 0, 0, count, count,
+                         size, offset)
+    locator = struct.pack("<4sIQI", b"PK\x06\x07", 0, at, 1)
+    classic = bytearray(data[at:])
+    classic[8:12] = struct.pack("<HH", classic_count, classic_count)
+    return data[:at] + record + locator + bytes(classic)
+
+
+def test_a_zip_whose_two_end_records_disagree_is_capped_by_the_one_that_is_read(
+    db, home, monkeypatch
+):
+    """The classic end record says one entry; the zip64 one in front of it
+    says two hundred. The cap is applied to the number the listing is made
+    from -- whichever record that is -- and not to the other."""
+    names = {f"f{i:03}.txt": b"" for i in range(200)}
+    crafted = _with_zip64_record(_zip(names), classic_count=1)
+    monkeypatch.setattr(archives, "MAX_DIRECTORY_ENTRIES", 50)
+    found = _listing(db, home, "crafted.zip", crafted)
+    assert found.entries == [] and found.cut and found.total == 200
+    # With room for it, the zip64 record is simply read.
+    monkeypatch.setattr(archives, "MAX_DIRECTORY_ENTRIES", 100_000)
+    found = _listing(db, home, "crafted2.zip", crafted)
+    assert found.total == 200 and len(found.entries) == 200 and not found.cut
+    assert found.entries[0].name == "f000.txt" and found.entries[-1].name == "f199.txt"
+
+
+def test_a_zip_is_listed_without_the_library_that_reads_a_whole_directory(db, home, monkeypatch):
+    def never(*_a, **_kw):
+        raise AssertionError("zipfile was asked to read the archive")
+
+    data = _zip({"docs/": b"", "docs/a.txt": b"hello", "ž.txt": b"12"})
+    monkeypatch.setattr(archives.zipfile, "ZipFile", never)
+    found = _listing(db, home, "a.zip", data)
+    assert [(e.name, e.size, e.is_dir) for e in found.entries] == [
+        ("docs/", None, True), ("docs/a.txt", 5, False), ("ž.txt", 2, False)]
+
+
+def test_only_the_first_part_of_a_zips_directory_is_read(db, home, monkeypatch):
+    monkeypatch.setattr(archives, "MAX_DIRECTORY", 46 * 3 + 30)
+    found = _listing(db, home, "a.zip", _zip({f"f{i}.txt": b"" for i in range(40)}))
+    assert 1 <= len(found.entries) < 40 and found.cut and found.total == 40
+
+
+def test_a_tar_header_that_declares_a_huge_name_is_not_read_into_memory(db, home, monkeypatch):
+    """A GNU long-name header says how long the name after it is, and the
+    library reads that much at once. Eight megabytes of "name" are refused."""
+    out = io.BytesIO()
+    with tarfile.open(fileobj=out, mode="w", format=tarfile.GNU_FORMAT) as archive:
+        info = tarfile.TarInfo("././@LongLink")
+        info.type = tarfile.GNUTYPE_LONGNAME
+        info.size = 8 * 1024 * 1024
+        archive.addfile(info, io.BytesIO(b"a" * info.size))
+        after = tarfile.TarInfo("after.txt")
+        after.size = 1
+        archive.addfile(after, io.BytesIO(b"x"))
+    reads: list[int] = []
+    real = archives._Counted.readinto
+
+    def counted(self, buffer):
+        got = real(self, buffer)
+        reads.append(got)
+        return got
+
+    monkeypatch.setattr(archives._Counted, "readinto", counted)
+    found = _listing(db, home, "long.tar", out.getvalue())
+    assert found.entries == [] and found.cut
+    assert sum(reads) < 4 * 1024 * 1024  # stopped at the header, not after its 8 MB
+    # An ordinary long name still works.
+    out = io.BytesIO()
+    long_name = "d/" + "n" * 300 + ".txt"
+    with tarfile.open(fileobj=out, mode="w", format=tarfile.GNU_FORMAT) as archive:
+        info = tarfile.TarInfo(long_name)
+        info.size = 1
+        archive.addfile(info, io.BytesIO(b"x"))
+    assert [e.name for e in _listing(db, home, "ok.tar", out.getvalue()).entries] == [long_name]
+
+
+def test_only_so_many_archives_are_read_at_once(db, home, monkeypatch):
+    monkeypatch.setattr(archives, "WAIT_SECONDS", 0.05)
+    held = [archives._turns.acquire(timeout=1) for _ in range(archives.MAX_AT_ONCE)]
+    try:
+        assert all(held)
+        assert _listing(db, home, "a.zip", _zip({"a": b""})).problem == "busy"
+    finally:
+        for _ in held:
+            archives._turns.release()
+    assert not _listing(db, home, "b.zip", _zip({"a": b""})).problem

@@ -107,6 +107,8 @@
     <div class="viewer__archive" data-testid="viewer-archive">
       {% if archive.problem == "unsupported" %}
       {{ download_card(t("What is inside this kind of archive cannot be listed here.")) }}
+      {% elif archive.problem == "busy" %}
+      {{ download_card(t("Too many archives are being read at the moment. Open it again shortly.")) }}
       {% elif archive.problem %}
       {{ download_card(t("This archive could not be read.")) }}
       {% else %}
