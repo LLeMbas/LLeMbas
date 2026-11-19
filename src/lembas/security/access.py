@@ -297,6 +297,62 @@ class Resolver:
             )
 
 
+@dataclass(frozen=True)
+class Held:
+    """A person's own right to one node, read off the node itself."""
+
+    level: str
+    # By owning it or a directory above it (or running the organisation's
+    # own directories) -- not through a share.
+    owned: bool
+
+
+def held(db: DBSession, user: User, node: Node) -> Held:
+    """The base layer for **a node**, by its own row and its parents' rows.
+
+    `Resolver.base` judges a *path* from the live nodes on it. A trashed
+    node's path says nothing reliable: its own shares are not among the live
+    ones, and a new node may have taken the path since. This walks the
+    node's own chain (`parent_id`) instead: an owner anywhere on it has
+    ``commit``; otherwise the nearest node on it that is shared with this
+    person decides, the node itself first -- so a share that *restricts* one
+    thing inside a wider one still restricts it in the trash.
+    """
+    chain_: list[Node] = []
+    seen: set[str] = set()
+    current: Node | None = node
+    while current is not None and current.id not in seen and current.org_id == user.org_id:
+        seen.add(current.id)
+        chain_.append(current)
+        current = db.get(Node, current.parent_id) if current.parent_id else None
+    if not chain_:
+        return Held(LEVEL_NONE, False)
+    if any(each.owner_id == user.id for each in chain_):
+        return Held(LEVEL_COMMIT, True)
+    if user.manages_org and all(each.owner_id is None for each in chain_):
+        return Held(LEVEL_COMMIT, True)
+    group_ids = [group.id for group in user.groups]
+    grantees = [
+        (NodeShare.grantee_kind == GRANTEE_USER) & (NodeShare.grantee_id == user.id),
+        (NodeShare.grantee_kind == GRANTEE_ORG) & (NodeShare.grantee_id == user.org_id),
+    ]
+    if group_ids:
+        grantees.append(
+            (NodeShare.grantee_kind == GRANTEE_GROUP) & NodeShare.grantee_id.in_(group_ids)
+        )
+    by_node: dict[str, str] = {}
+    for node_id, level in db.execute(
+        select(NodeShare.node_id, NodeShare.level).where(
+            NodeShare.node_id.in_([each.id for each in chain_]), or_(*grantees)
+        )
+    ):
+        by_node[node_id] = highest(by_node.get(node_id, LEVEL_NONE), level)
+    for each in chain_:  # nearest first
+        if each.id in by_node:
+            return Held(by_node[each.id], False)
+    return Held(LEVEL_NONE, False)
+
+
 def rules_of(db: DBSession, data_group_id: str, mode: str) -> dict[str, str]:
     return {
         normalise(rule.path): rule.level

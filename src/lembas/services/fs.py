@@ -581,12 +581,32 @@ def _same_moment(a: datetime | None, b: datetime | None) -> bool:
     return a.replace(tzinfo=None) == b.replace(tzinfo=None)
 
 
+def _held(v: View, node: Node) -> tuple[str, bool]:
+    """What this session may do to a **trashed** node, and whether its person
+    owns it: the node's own owners and shares (`access.held`), under the
+    chat's grants and the data group's ceilings for where it lay.
+
+    Never `v.level(node.path)`: a path is judged from the live nodes on it,
+    and a trashed node's own shares are not among them -- a share that
+    restricts one file inside a shared folder would stop counting the moment
+    the file is in the trash."""
+    own = access.held(v.db, v.user, node)
+    level = access.lowest(
+        own.level, v.resolver.session(node.path), v.resolver.ceiling(node.path)
+    )
+    return level, own.owned and level != LEVEL_NONE
+
+
 def restore(v: View, node_id: str) -> Node:
     """Bring a trashed node, and what went to the trash with it, back."""
     node = v.db.get(Node, node_id)
     if node is None or node.org_id != v.org_id or node.trashed_at is None:
         raise no_such(node_id)
-    _writable(v, node.path)
+    level, _ = _held(v, node)
+    if level == LEVEL_NONE:
+        raise no_such(node_id)
+    if not at_least(level, LEVEL_STAGE):
+        raise read_only(node.path)
     if lookup(v.db, v.org_id, node.path) is not None:
         raise already_exists(node.path)
     if node.parent_id is not None:
@@ -603,7 +623,10 @@ def restore(v: View, node_id: str) -> Node:
 
 
 def trash(v: View) -> list[Node]:
-    """What this person may restore: trashed nodes at the top of what went."""
+    """This person's trash: trashed nodes at the top of what went, that they
+    **put there themselves or own** -- and may still change. Not everything
+    trashed in a directory they can write: in a shared folder that would be
+    everybody's."""
     rows = list(
         v.db.scalars(
             select(Node)
@@ -616,9 +639,31 @@ def trash(v: View) -> list[Node]:
         parent = v.db.get(Node, node.parent_id) if node.parent_id else None
         if parent is not None and _same_moment(parent.trashed_at, node.trashed_at):
             continue  # went with its parent; restored with it
-        if at_least(v.level(node.path), LEVEL_STAGE):
+        level, owned = _held(v, node)
+        # `rm` writes who trashed it on every node that goes.
+        if at_least(level, LEVEL_STAGE) and (owned or node.updated_by == v.user.id):
             out.append(node)
     return out
+
+
+def _doomed(v: View, top: Node) -> list[Node] | None:
+    """`top` and every trashed node below it, when this session may remove
+    **each of them** for good: its person owns it, or holds `commit` on it by
+    the node's own shares. None when any one is not theirs to destroy."""
+    found: list[Node] = []
+    seen: set[str] = set()
+    queue = [top]
+    while queue:
+        node = queue.pop()
+        if node.id in seen or node.trashed_at is None:
+            continue
+        seen.add(node.id)
+        level, _ = _held(v, node)
+        if not at_least(level, LEVEL_COMMIT):
+            return None
+        found.append(node)
+        queue.extend(v.db.scalars(select(Node).where(Node.parent_id == node.id)))
+    return found
 
 
 def mv(v: View, raw_from: str, raw_to: str) -> Node:
@@ -656,7 +701,7 @@ def mv(v: View, raw_from: str, raw_to: str) -> Node:
                 v.db, v.org_id, target_parent, KIND_DIR, owner_id=v.user.id, by=v.user.id
             )
     name = access.check_name(target.rsplit("/", 1)[-1])
-    rename_subtree(v.db, v.org_id, source, target)
+    rename_subtree(v.db, v.org_id, source, target, node_id=node.id)
     node.parent_id = parent.id if parent else None
     node.name = name
     node.updated_by = v.user.id
@@ -737,28 +782,37 @@ def cp(v: View, raw_from: str, raw_to_dir: str, name: str | None = None) -> Node
 
 
 def purge(v: View, node_id: str | None = None) -> int:
-    """Remove for good what is in the trash -- one thing (`node_id`, as
-    `trash` lists it) or everything this person may restore. Returns how many
-    nodes went. The contents are let go of, not deleted: a blob nothing names
-    any more is collected by the sweep (`services/blobs.py`)."""
+    """Remove for good what is in the trash -- one thing (`node_id`), or
+    everything in this person's trash (`trash`). Returns how many nodes went.
+    The contents are let go of, not deleted: a blob nothing names any more is
+    collected by the sweep (`services/blobs.py`).
+
+    **Removing for good is the owner's**: of the node, or of a directory
+    above it (a home's owner for everything in it), or somebody holding
+    `commit` on it -- judged by the trashed node's own shares, and for
+    **every node below** as `rm` does, not only the top one. One thing named
+    that is not all theirs is refused whole. Emptying passes over what its
+    person put in the trash but may not destroy: it stays, for its owner."""
     if node_id is None:
-        tops = trash(v)
+        groups = [found for top in trash(v) if (found := _doomed(v, top)) is not None]
     else:
         node = v.db.get(Node, node_id)
         if node is None or node.org_id != v.org_id or node.trashed_at is None:
             raise no_such(node_id)
-        _writable(v, node.path)
-        tops = [node]
+        level, _ = _held(v, node)
+        if level == LEVEL_NONE:
+            raise no_such(node_id)
+        found = _doomed(v, node)
+        if found is None:
+            raise denied(node.path)
+        groups = [found]
     doomed: list[Node] = []
     seen: set[str] = set()
-    queue = list(tops)
-    while queue:
-        node = queue.pop()
-        if node.id in seen or node.trashed_at is None:
-            continue
-        seen.add(node.id)
-        doomed.append(node)
-        queue.extend(v.db.scalars(select(Node).where(Node.parent_id == node.id)))
+    for group in groups:
+        for node in group:
+            if node.id not in seen:
+                seen.add(node.id)
+                doomed.append(node)
     if not doomed:
         return 0
     ids = [n.id for n in doomed]
@@ -780,19 +834,35 @@ def purge(v: View, node_id: str | None = None) -> int:
     return len(doomed)
 
 
-def rename_subtree(db: DBSession, org_id: str, old: str, new: str) -> int:
-    """Rewrite `path` for `old` and everything below it, trashed nodes too.
+def rename_subtree(
+    db: DBSession, org_id: str, old: str, new: str, *, node_id: str | None = None
+) -> int:
+    """Rewrite `path` for `old` and everything below it.
 
     One UPDATE: `path = :new || substr(path, len(:old) + 1)` where the path is
     `old` or starts with `old/` -- the prefix matched with `LIKE`, `%`, `_` and
     the escape character escaped, so a directory called `50%_off` moves only
     itself. Session expired after, since the ORM's copies are stale.
+
+    **A live node is found by its path; a trashed one only by its parents**
+    (`node_id`, the node being moved): what was trashed out of the moved
+    directory follows it, so a restore lands where the directory is now. A
+    trashed node that merely *has* the old path -- an earlier directory of
+    the same name, trashed before this one was made, and what was in it -- is
+    somebody else's history and stays where it was. A path alone cannot tell
+    the two apart; a parent can.
     """
     db.flush()
     result = db.execute(
         text(
+            "WITH RECURSIVE moved(id) AS ("
+            "  SELECT :node"
+            "  UNION"
+            "  SELECT n.id FROM nodes n JOIN moved m ON n.parent_id = m.id"
+            ") "
             "UPDATE nodes SET path = :new || substr(path, :cut) "
-            "WHERE org_id = :org AND (path = :old OR path LIKE :pattern ESCAPE '\\')"
+            "WHERE org_id = :org AND (path = :old OR path LIKE :pattern ESCAPE '\\') "
+            "AND (trashed_at IS NULL OR id IN (SELECT id FROM moved))"
         ),
         {
             "new": new,
@@ -800,6 +870,7 @@ def rename_subtree(db: DBSession, org_id: str, old: str, new: str) -> int:
             "org": org_id,
             "old": old,
             "pattern": access.like_prefix(old),
+            "node": node_id or "",
         },
     )
     db.expire_all()

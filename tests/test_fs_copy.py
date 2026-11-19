@@ -195,3 +195,126 @@ def test_a_range_of_a_blob_is_read_from_the_part_it_is_in(db, monkeypatch):
     assert list(blobs.iter_range(db, digest, 5, 4)) == []
     assert blobs.head(db, digest, 4) == data[:4]
     assert blobs.head(db, "0" * 64, 4) == b""
+
+
+# --- Review fixes: the trash is judged by the node, not by where it lay ---------------------
+def _shared_folder(db, alice, bob):
+    """Alice's folder, shared with Bob to change (`stage`); one file in it
+    shared with him to read only -- the narrower share wins for that file."""
+    from lembas.db.models import GRANTEE_USER, LEVEL_RO, LEVEL_STAGE
+
+    mine = fs.view(db, alice)
+    fs.write(mine, "/home/alice/shared/notes.md", b"ours")
+    secret = fs.write(mine, "/home/alice/shared/contract.md", b"read, do not touch")
+    folder = fs.lookup(db, DEFAULT_ORG, "/home/alice/shared")
+    fs.share(db, folder, GRANTEE_USER, bob.id, LEVEL_STAGE, by=alice)
+    fs.share(db, secret, GRANTEE_USER, bob.id, LEVEL_RO, by=alice)
+    db.commit()
+    return secret
+
+
+def test_a_read_only_share_still_holds_once_the_file_is_in_the_trash(db, alice, bob):
+    secret = _shared_folder(db, alice, bob)
+    theirs = fs.view(db, bob)
+    with pytest.raises(fs.FsError):
+        fs.rm(theirs, "/home/alice/shared/contract.md")  # read only while it is live
+    fs.rm(fs.view(db, alice), "/home/alice/shared/contract.md")
+    db.commit()
+    theirs = fs.view(db, bob)
+    # Not in his trash, not his to bring back, and above all not his to destroy.
+    assert fs.trash(theirs) == []
+    with pytest.raises(fs.FsError):
+        fs.purge(theirs, secret.id)
+    with pytest.raises(fs.FsError):
+        fs.restore(theirs, secret.id)
+    assert fs.purge(theirs) == 0
+    db.commit()
+    assert db.get(Node, secret.id) is not None
+    assert [n.id for n in fs.trash(fs.view(db, alice))] == [secret.id]
+
+
+def test_emptying_the_trash_leaves_what_other_people_put_there(db, alice, bob):
+    """Bob can write in Alice's shared folder. What Alice trashed there is
+    not in his trash, and his "empty" does not remove it."""
+    _shared_folder(db, alice, bob)
+    hers = fs.rm(fs.view(db, alice), "/home/alice/shared/notes.md")
+    theirs = fs.view(db, bob)
+    own = fs.rm(theirs, fs.write(theirs, "/home/bob/scratch.md", b"mine").path)
+    db.commit()
+    theirs = fs.view(db, bob)
+    assert [n.id for n in fs.trash(theirs)] == [own.id]
+    assert fs.purge(theirs) == 1
+    db.commit()
+    assert db.get(Node, hers.id) is not None and db.get(Node, own.id) is None
+
+
+def test_what_a_grantee_trashed_is_theirs_to_restore_and_the_owners_to_destroy(db, alice, bob):
+    _shared_folder(db, alice, bob)
+    theirs = fs.view(db, bob)
+    gone = fs.rm(theirs, "/home/alice/shared/notes.md")
+    db.commit()
+    theirs = fs.view(db, bob)
+    # He put it there: it is in his trash and he can bring it back...
+    assert [n.id for n in fs.trash(theirs)] == [gone.id]
+    # ...but with `stage` he may not remove it for good, by name or by emptying.
+    with pytest.raises(fs.FsError):
+        fs.purge(theirs, gone.id)
+    assert fs.purge(theirs) == 0
+    db.commit()
+    assert db.get(Node, gone.id) is not None
+    # The owner of the home sees it too, and may.
+    mine = fs.view(db, alice)
+    assert gone.id in {n.id for n in fs.trash(mine)}
+    assert fs.purge(mine, gone.id) == 1
+
+
+def test_one_thing_below_that_is_not_theirs_refuses_the_whole_purge(db, alice, bob):
+    """`commit` on a folder, read-only on one file inside: the folder cannot
+    be removed for good by its grantee, as `rm` would not remove it."""
+    from lembas.db.models import GRANTEE_USER, LEVEL_COMMIT, LEVEL_RO
+
+    mine = fs.view(db, alice)
+    fs.write(mine, "/home/alice/project/a.md", b"a")
+    kept = fs.write(mine, "/home/alice/project/deep/keep.md", b"keep")
+    folder = fs.lookup(db, DEFAULT_ORG, "/home/alice/project")
+    fs.share(db, folder, GRANTEE_USER, bob.id, LEVEL_COMMIT, by=alice)
+    fs.share(db, kept, GRANTEE_USER, bob.id, LEVEL_RO, by=alice)
+    gone = fs.rm(mine, "/home/alice/project")
+    db.commit()
+    theirs = fs.view(db, bob)
+    with pytest.raises(fs.FsError):
+        fs.purge(theirs, gone.id)
+    db.commit()
+    assert db.get(Node, kept.id) is not None and db.get(Node, gone.id) is not None
+    # Without the narrower share, `commit` on the node's own share is enough.
+    from lembas.db.models import NodeShare
+
+    db.execute(NodeShare.__table__.delete().where(NodeShare.node_id == kept.id))
+    db.commit()
+    assert fs.purge(fs.view(db, bob), gone.id) == 4
+
+
+def test_moving_a_folder_leaves_an_older_trashed_one_of_the_same_name_where_it_was(db, alice):
+    v = fs.view(db, alice)
+    old_file = fs.write(v, "/home/alice/docs/old.md", b"old")
+    old_dir = fs.rm(v, "/home/alice/docs")
+    db.commit()
+    # A new folder of the same name, with something trashed out of it.
+    fs.write(v, "/home/alice/docs/new.md", b"new")
+    left = fs.rm(v, fs.write(v, "/home/alice/docs/left.md", b"left").path)
+    db.commit()
+    fs.mv(v, "/home/alice/docs", "/home/alice/archive")
+    db.commit()
+    db.expire_all()
+    # The older, unrelated one kept its place, and so did what was in it...
+    assert db.get(Node, old_dir.id).path == "/home/alice/docs"
+    assert db.get(Node, old_file.id).path == "/home/alice/docs/old.md"
+    # ...what was trashed out of the moved folder followed it...
+    assert db.get(Node, left.id).path == "/home/alice/archive/left.md"
+    assert fs.read(v, "/home/alice/archive/new.md") == b"new"
+    # ...and each is restored where it belongs.
+    fs.restore(v, left.id)
+    fs.restore(v, old_dir.id)
+    db.commit()
+    assert fs.read(v, "/home/alice/archive/left.md") == b"left"
+    assert fs.read(v, "/home/alice/docs/old.md") == b"old"
