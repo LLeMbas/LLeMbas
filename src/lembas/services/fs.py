@@ -103,6 +103,18 @@ class AlreadyExists(FsError):
     """A creation that found something at its path (`write(create=True)`)."""
 
 
+class Changed(FsError):
+    """The file holds something else than the content a write was based on."""
+
+
+def changed(path: str) -> FsError:
+    return Changed(f"Changed since it was read: {path}", path)
+
+
+class TooMany(FsError):
+    """More nodes than one copy makes."""
+
+
 def already_exists(path: str) -> FsError:
     return AlreadyExists(f"Already exists: {path}", path)
 
@@ -441,7 +453,13 @@ def versions(v: View, raw: str) -> list[NodeVersion]:
 
 # --- Changing ------------------------------------------------------------------------
 def write(
-    v: View, raw: str, data: bytes | Iterable[bytes], *, mime: str = "", create: bool = False
+    v: View,
+    raw: str,
+    data: bytes | Iterable[bytes],
+    *,
+    mime: str = "",
+    create: bool = False,
+    base: str | None = None,
 ) -> Node:
     """Write a file (made, with any missing directories, if it is not there).
 
@@ -449,6 +467,12 @@ def write(
     the path is `already_exists`. Decided by the tree's own rule (one live
     node per path, a unique index), not by looking first: of two creations of
     one name at the same moment, one is refused.
+
+    `base`: the content hash this write was made from. The file is written
+    only if it still holds exactly that (`Changed` otherwise) -- compared
+    **in the statement that takes the write**, not by looking first: of two
+    saves based on one content, the second is refused however close they
+    come. None compares nothing.
 
     What the file is -- its kind and its type -- is read from its name and its
     first bytes (`services/file_kinds.py`) at every write. `mime` is what the
@@ -478,6 +502,18 @@ def write(
             if lookup(v.db, v.org_id, path) is None:
                 raise
             raise already_exists(path) from clash
+    elif base is not None:
+        # Compare and take the write in one statement. A file with no
+        # content yet holds NULL.
+        held = v.db.execute(
+            text(
+                "UPDATE nodes SET updated_by = updated_by "
+                "WHERE id = :id AND trashed_at IS NULL AND COALESCE(blob_hash, '') = :base"
+            ),
+            {"id": node.id, "base": base},
+        ).rowcount
+        if held != 1:
+            raise changed(path)
     chunks = [data] if isinstance(data, (bytes, bytearray)) else data
     head = bytearray()
 
@@ -710,6 +746,12 @@ def mv(v: View, raw_from: str, raw_to: str) -> Node:
     return node
 
 
+# How many nodes one copy makes, and how often its name is chosen again when
+# somebody takes it first.
+COPY_MAX = 5000
+COPY_NAME_TRIES = 8
+
+
 def _free_name(v: View, directory: str, name: str, *, is_dir: bool) -> str:
     """`name`, or `name (2)`, `name (3)` ... -- the first that nothing in
     `directory` is called. A file keeps its extension: `notes (2).md`."""
@@ -758,14 +800,40 @@ def cp(v: View, raw_from: str, raw_to_dir: str, name: str | None = None) -> Node
             raise denied(source)
         # What the session cannot see is not there to copy.
         nodes = [n for n in nodes if v.resolver.visible(n.path)]
+    if len(nodes) > COPY_MAX:
+        # A folder copied beside itself doubles each time: bounded per copy.
+        raise TooMany(
+            f"Too much to copy at once: {len(nodes)} items, and one copy makes at most "
+            f"{COPY_MAX}. Copy it in parts: {source}",
+            source,
+        )
     _writable(v, _join(into, wanted))
-    target = _join(into, _free_name(v, into, wanted, is_dir=node.kind != KIND_FILE))
     chat_id = v.chat.id if v.chat else None
     made: Node | None = None
+    target = ""
     for each in nodes:
-        path = target + each.path[len(source):]
-        _writable(v, path)
-        copy = _make_node(v.db, v.org_id, path, each.kind, owner_id=v.user.id, by=v.user.id)
+        if made is None:
+            # The copy's own name: free when looked for, and taken by the
+            # tree's rule when made. Somebody making the same name in
+            # between is a reason to take the next one, not an error.
+            copy = None
+            for _ in range(COPY_NAME_TRIES):
+                target = _join(into, _free_name(v, into, wanted, is_dir=node.kind != KIND_FILE))
+                _writable(v, target)
+                try:
+                    with v.db.begin_nested():
+                        copy = _make_node(
+                            v.db, v.org_id, target, each.kind, owner_id=v.user.id, by=v.user.id
+                        )
+                    break
+                except IntegrityError:
+                    v.db.expire_all()
+            if copy is None:
+                raise already_exists(target)
+        else:
+            path = target + each.path[len(source):]
+            _writable(v, path)
+            copy = _make_node(v.db, v.org_id, path, each.kind, owner_id=v.user.id, by=v.user.id)
         if each.kind == KIND_FILE:
             copy.mime = each.mime
             copy.content_kind = each.content_kind

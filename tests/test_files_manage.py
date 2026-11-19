@@ -546,3 +546,50 @@ def test_an_svg_is_put_into_a_page_as_an_img_or_as_its_source_never_as_markup(cl
     assert "<svg xmlns='" not in page and "<script>alert(1)" not in page
     picture = client.get(f"/files/view?path={quote(home + '/map.png')}").text
     assert 'class="viewer__image"' in picture and "inline=1" in picture
+
+
+# --- Review fixes ---------------------------------------------------------------------------
+def test_a_save_that_loses_the_race_after_the_look_is_still_a_conflict(
+    client, db, me, monkeypatch
+):
+    """Two saves based on one content. The look finds the base unchanged for
+    both; the write itself refuses the second."""
+    from lembas.db.session import session_scope
+
+    user, home, headers = me
+    opened = _write(db, user, f"{home}/a.md", b"one").blob_hash
+    real = fs.write
+
+    def racing(view, raw, data, **kwargs):
+        # The other save lands between this request's look and its write.
+        with session_scope() as other:
+            real(fs.view(other, other.get(User, user.id)), f"{home}/a.md", b"theirs")
+        return real(view, raw, data, **kwargs)
+
+    monkeypatch.setattr(fs, "write", racing)
+    out = client.put("/api/v2/files/content", headers=headers,
+                     json={"path": f"{home}/a.md", "text": "mine", "base": opened})
+    monkeypatch.undo()
+    assert out.status_code == 409, out.text
+    body = out.json()
+    assert body["conflict"] is True and body["sha"] and body["sha"] != opened
+    db.expire_all()
+    assert fs.read(fs.view(db, user), f"{home}/a.md") == b"theirs"
+    # `force` still writes over it, by choice.
+    forced = client.put("/api/v2/files/content", headers=headers,
+                        json={"path": f"{home}/a.md", "text": "mine", "base": opened,
+                              "force": True})
+    assert forced.status_code == 200
+
+
+def test_a_backslash_in_a_name_is_not_a_path_in_the_zip(client, db, me):
+    user, home, headers = me
+    _write(db, user, f"{home}/d/..\\..\\evil.txt", b"one")
+    _write(db, user, f"{home}/d/.._.._evil.txt", b"two")
+    _write(db, user, f"{home}/d/tab\there.txt", b"three")
+    out = client.post("/api/v2/files/zip", headers=headers, json={"paths": [f"{home}/d"]})
+    assert out.status_code == 200
+    held = _unzip(out.content)
+    assert not any("\\" in name or "\t" in name for name in held)
+    # Nothing lost to a clash of the two names that now look alike.
+    assert sorted(v for v in held.values() if v) == [b"one", b"three", b"two"]

@@ -318,3 +318,59 @@ def test_moving_a_folder_leaves_an_older_trashed_one_of_the_same_name_where_it_w
     db.commit()
     assert fs.read(v, "/home/alice/archive/left.md") == b"left"
     assert fs.read(v, "/home/alice/docs/old.md") == b"old"
+
+
+def test_a_copy_whose_name_is_taken_meanwhile_takes_the_next_one(db, alice, monkeypatch):
+    """Two copies of one file at one moment both find `a (2).md` free. The
+    second is not an error from the database: it is called `a (3).md`."""
+    v = fs.view(db, alice)
+    fs.write(v, "/home/alice/a.md", b"one")
+    fs.write(v, "/home/alice/a (2).md", b"somebody got here first")
+    db.commit()
+    real, calls = fs._free_name, []
+
+    def stale(view, directory, name, *, is_dir):
+        calls.append(name)
+        # The first look is the one made before the other copy landed.
+        return "a (2).md" if len(calls) == 1 else real(view, directory, name, is_dir=is_dir)
+
+    monkeypatch.setattr(fs, "_free_name", stale)
+    copy = fs.cp(v, "/home/alice/a.md", "/home/alice")
+    db.commit()
+    assert copy.path == "/home/alice/a (3).md" and fs.read(v, copy.path) == b"one"
+    assert fs.read(v, "/home/alice/a (2).md") == b"somebody got here first"
+
+
+def test_one_copy_makes_only_so_many_nodes(db, alice, monkeypatch):
+    monkeypatch.setattr(fs, "COPY_MAX", 3)
+    v = fs.view(db, alice)
+    for name in ("a", "b", "c"):
+        fs.write(v, f"/home/alice/big/{name}.md", b"x")
+    fs.write(v, "/home/alice/small/a.md", b"x")
+    db.commit()
+    before = len(_paths(db, "/home/alice"))
+    with pytest.raises(fs.TooMany) as refused:
+        fs.cp(v, "/home/alice/big", "/home/alice")
+    assert "at most 3" in refused.value.message
+    db.rollback()
+    assert len(_paths(db, "/home/alice")) == before
+    assert fs.cp(v, "/home/alice/small", "/home/alice").path == "/home/alice/small (2)"
+
+
+def test_a_write_based_on_content_that_is_gone_is_refused_by_the_write_itself(db, alice):
+    from lembas.db.session import session_scope
+
+    v = fs.view(db, alice)
+    opened = fs.write(v, "/home/alice/a.md", b"one").blob_hash
+    db.commit()
+    assert fs.write(v, "/home/alice/a.md", b"two", base=opened).blob_hash != opened
+    db.commit()
+    # Somebody else saves, in a session of their own, after this one looked.
+    stale = fs.stat(v, "/home/alice/a.md").blob_hash
+    with session_scope() as other:
+        fs.write(fs.view(other, other.get(User, alice.id)), "/home/alice/a.md", b"theirs")
+    with pytest.raises(fs.Changed):
+        fs.write(v, "/home/alice/a.md", b"mine", base=stale)
+    db.rollback()
+    db.expire_all()
+    assert fs.read(fs.view(db, alice), "/home/alice/a.md") == b"theirs"

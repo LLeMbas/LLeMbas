@@ -235,6 +235,21 @@ async def copy_file(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> dic
     return out
 
 
+def _conflict(v: fs.View, where: str) -> JSONResponse:
+    """409: what the file holds now."""
+    v.db.expire_all()
+    node = fs.stat(v, where)
+    newest = fs.versions(v, where)
+    return JSONResponse(
+        serialise.file_conflict(
+            t("This file changed since you opened it. Reload it, or save anyway."),
+            (node.blob_hash or "") if node is not None else "",
+            newest[0].id if newest else None,
+        ),
+        status_code=status.HTTP_409_CONFLICT,
+    )
+
+
 @router.put("/files/content")
 async def save_content(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> Any:
     """Save a text file. `base` is the `sha` the app opened; when the file
@@ -263,19 +278,18 @@ async def save_content(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> 
             node = fs.stat(v, where)
         except fs.FsError:
             node = None  # a new file: the write decides whether it may be made
-        if node is not None and base and (node.blob_hash or "") != base and not body.get("force"):
-            newest = fs.versions(v, where)
-            return JSONResponse(
-                serialise.file_conflict(
-                    t("This file changed since you opened it. Reload it, or save anyway."),
-                    node.blob_hash or "",
-                    newest[0].id if newest else None,
-                ),
-                status_code=status.HTTP_409_CONFLICT,
-            )
-        fs.write(v, where, data, create=bool(body.get("create")))
+        compare = node is not None and bool(base) and not body.get("force")
+        if compare and (node.blob_hash or "") != base:
+            return _conflict(v, where)
+        # Compared again where the write is taken (`fs.write`, `base`): the
+        # look above and the write are two moments.
+        fs.write(v, where, data, create=bool(body.get("create")),
+                 base=base if compare else None)
         db.commit()
         opened = file_ui.open_file(v, where)
+    except fs.Changed:
+        db.rollback()
+        return _conflict(v, where)
     except fs.AlreadyExists:
         db.rollback()
         return JSONResponse(

@@ -160,6 +160,14 @@ class ZipEntry:
     changed: datetime | None
 
 
+def entry_name(name: str) -> str:
+    """A name as it goes into an archive. The tree allows a backslash in a
+    name; in an archive it is a path separator to the programs that unpack
+    on Windows, and `..\\..\\x` would be written outside the folder chosen.
+    So are control characters nobody typed on purpose. Each becomes `_`."""
+    return "".join("_" if ch == "\\" or ord(ch) < 32 or ord(ch) == 127 else ch for ch in name)
+
+
 def zip_plan(v: fs.View, paths: Iterable[str]) -> list[ZipEntry]:
     """What a zip of `paths` holds: each file, and each directory with what the
     view can read below it. Raises `fs.FsError` for a path the view cannot
@@ -167,17 +175,19 @@ def zip_plan(v: fs.View, paths: Iterable[str]) -> list[ZipEntry]:
     limit = zip_limit(v.db)
     entries: list[ZipEntry] = []
     taken: set[str] = set()
+    files: set[str] = set()
     total = 0
 
-    def free(name: str) -> str:
+    def free(name: str, among: set[str] | None = None) -> str:
+        among = taken if among is None else among
         stem, dot, ext = name.rpartition(".")
-        if not dot or not stem:
+        if not dot or not stem or "/" in ext:
             stem, ext = name, ""
         candidate, n = name, 1
-        while candidate in taken:
+        while candidate in among:
             n += 1
             candidate = f"{stem} ({n})" + (f".{ext}" if ext else "")
-        taken.add(candidate)
+        among.add(candidate)
         return candidate
 
     for raw in paths:
@@ -187,19 +197,21 @@ def zip_plan(v: fs.View, paths: Iterable[str]) -> list[ZipEntry]:
             raise fs.denied(path)
         if node.kind == KIND_FILE:
             found = [node]
-            top = free(node.name)
+            top = free(entry_name(node.name))
         else:
             found = fs.below(v, path)
-            top = free(node.name)
+            top = free(entry_name(node.name))
             entries.append(ZipEntry(f"{top}/", "", 0, node.updated_at))
         for each in found:
-            inside = top + each.path[len(path):]
+            inside = top + entry_name(each.path[len(path):])
             if each.kind != KIND_FILE:
                 entries.append(ZipEntry(f"{inside}/", "", 0, each.updated_at))
                 continue
             total += int(each.size or 0)
             if total > limit:
                 raise TooLarge(node.name, limit)
+            # Two names that differ only by what was replaced are two files.
+            inside = free(inside, files)
             entries.append(ZipEntry(inside, each.blob_hash or "", int(each.size or 0),
                                     each.updated_at))
     return entries

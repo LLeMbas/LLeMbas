@@ -718,8 +718,19 @@ async def save(request: Request, db: Db, user: RequiredUser):
             if wants_json:
                 return JSONResponse({"detail": message, "conflict": True}, status_code=409)
             return back(where, message, ok=False)
-        node = fs.write(v, target, content.encode("utf-8"))
+        # Compared again where the write is taken (`fs.write`, `base`): the
+        # look above and the write are two moments.
+        node = fs.write(
+            v, target, content.encode("utf-8"),
+            base=base if node is not None and base and not form.get("force") else None,
+        )
         db.commit()
+    except fs.Changed:
+        db.rollback()
+        message = t("This file changed since you opened it. Reload it, or save anyway.")
+        if wants_json:
+            return JSONResponse({"detail": message, "conflict": True}, status_code=409)
+        return back(where, message, ok=False)
     except fs.FsError as refused:
         db.rollback()
         if wants_json:
