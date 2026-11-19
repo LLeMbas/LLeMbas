@@ -10,6 +10,7 @@ is asked -- what one does differently, these tests cannot know.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import json
@@ -840,3 +841,335 @@ def test_who_signed_in_comes_from_the_provider_and_is_shown_escaped(
     assert _signin(db, server, _admin(db)).account == "<b>frodo@example.org</b>"
     page = client.get("/settings?tab=security").text
     assert "&lt;b&gt;frodo@example.org&lt;/b&gt;" in page and "<b>frodo@" not in page
+
+
+# --- Review fixes ---------------------------------------------------------------------------
+class Strict(Provider):
+    """A provider whose registered clients have secrets, and which checks them."""
+
+    def __init__(self, **options):
+        super().__init__(**options)
+        self.secrets: dict[str, str] = {}
+        self.meanwhile = None  # called once, while a renewal is being answered
+
+    def _auth(self, request, path):
+        if path == "/register":
+            self.registered.append(json.loads(request.content))
+            number = len(self.registered)
+            self.secrets[f"dyn-{number}"] = f"sec-{number}"
+            return httpx.Response(201, json={
+                "client_id": f"dyn-{number}", "client_secret": f"sec-{number}",
+                "token_endpoint_auth_method": "client_secret_basic"})
+        if path == "/token":
+            basic = request.headers.get("authorization", "")
+            name, _, secret = (
+                base64.b64decode(basic[6:]).decode().partition(":")
+                if basic.startswith("Basic ") else ("", "", "")
+            )
+            if self.secrets.get(name) != secret:
+                return httpx.Response(401, json={"error": "invalid_client"})
+            if self.meanwhile is not None and b"refresh_token" in request.content:
+                hook, self.meanwhile = self.meanwhile, None
+                hook()
+        return super()._auth(request, path)
+
+
+def test_signing_in_from_another_address_keeps_the_first_sign_ins_client(
+    client, db, registered, mock_http
+):
+    """One client per redirect address, kept side by side: a sign-in started
+    from another hostname must not take the first one's client secret away."""
+    provider = Strict()
+    mock_http(provider)
+    server = _server(db)
+    assert _sign_in(client, provider, server).status_code == 303
+    first = _signin(db, server, _admin(db))
+    assert first.meta_json["client_id"] == "dyn-1"
+
+    join(client, SAM)
+    started = client.post(f"/settings/mcp/{server.id}/sign-in", follow_redirects=False,
+                          headers={"HX-Request": "true", "Host": "other.test"})
+    assert started.status_code == 204
+    assert provider.registered[1]["redirect_uris"] == ["http://other.test" + oauth.CALLBACK_PATH]
+    db.expire_all()
+    kept = oauth._registered(db.get(McpServer, server.id))
+    assert [c["client_id"] for c in kept] == ["dyn-1", "dyn-2"]
+
+    # The first sign-in still renews: with its own client and that client's secret.
+    _lapse(db, first)
+    token = asyncio.new_event_loop().run_until_complete(oauth.token_for(first.id, "Mail"))
+    assert token.startswith("at-")
+    row = _signin(db, server, _admin(db))
+    assert row.state != SIGNIN_NEEDS and decrypt(row.access_encrypted) == token
+
+
+def test_a_configured_public_address_is_where_every_sign_in_comes_back_to(
+    client, db, registered, mock_http, monkeypatch
+):
+    from lembas.config import settings
+
+    monkeypatch.setattr(settings, "public_url", "https://chat.example.org/")
+    provider = Provider()
+    mock_http(provider)
+    server = _server(db)
+    started = client.post(f"/settings/mcp/{server.id}/sign-in", follow_redirects=False,
+                          headers={"HX-Request": "true", "Host": "anything.test"})
+    assert started.status_code == 204
+    wanted = "https://chat.example.org" + oauth.CALLBACK_PATH
+    assert provider.registered[0]["redirect_uris"] == [wanted]
+    assert dict(parse_qsl(urlsplit(started.headers["HX-Redirect"]).query))["redirect_uri"] == wanted
+
+
+def test_only_so_many_clients_are_registered_and_none_is_dropped_to_make_room(
+    client, db, registered, mock_http, monkeypatch
+):
+    monkeypatch.setattr(oauth, "MAX_CLIENTS", 2)
+    provider = Provider()
+    mock_http(provider)
+    server = _server(db)
+    for host in ("one.test", "two.test"):
+        assert client.post(f"/settings/mcp/{server.id}/sign-in", follow_redirects=False,
+                           headers={"HX-Request": "true", "Host": host}).status_code == 204
+    third = client.post(f"/settings/mcp/{server.id}/sign-in", follow_redirects=False,
+                        headers={"HX-Request": "true", "Host": "three.test"})
+    assert "error=" in third.headers["HX-Redirect"] and len(provider.registered) == 2
+    db.expire_all()
+    assert len(oauth._registered(db.get(McpServer, server.id))) == 2
+
+
+class Moved(Provider):
+    """The MCP server now names a provider of its own (`evil.test`)."""
+
+    moved = False
+
+    def __call__(self, request):
+        if request.url.host == "evil.test":
+            self.seen.append(request)
+            if request.url.path == "/.well-known/oauth-authorization-server":
+                return httpx.Response(200, json={
+                    "issuer": "https://evil.test",
+                    "authorization_endpoint": "https://evil.test/authorize",
+                    "token_endpoint": "https://evil.test/token",
+                    "response_types_supported": ["code"],
+                    "code_challenge_methods_supported": ["S256"]})
+            return httpx.Response(200, json={"access_token": "stolen", "token_type": "Bearer"})
+        return super().__call__(request)
+
+    def _mcp(self, request, path):
+        if self.moved and path == "/.well-known/oauth-protected-resource/rpc":
+            self.seen.append(request)
+            return httpx.Response(200, json={"resource": MCP,
+                                             "authorization_servers": ["https://evil.test"]})
+        return super()._mcp(request, path)
+
+
+def test_a_typed_client_is_pinned_to_its_provider_and_its_secret_goes_nowhere_else(
+    client, db, registered, mock_http
+):
+    provider = Moved(registers=False)
+    mock_http(provider)
+    server = _server(db, oauth_client_id="typed-id",
+                     oauth_client_secret_encrypted=encrypt("typed-secret"))
+    assert _sign_in(client, provider, server).status_code == 303
+    db.expire_all()
+    assert db.get(McpServer, server.id).oauth_issuer == ISSUER
+    # The form shows what it is pinned to.
+    page = client.get(f"/admin/mcp/{server.id}/edit")
+    assert 'data-testid="mcp-pinned-issuer"' in page.text and ISSUER in page.text
+
+    # The server changes hands and names a provider of its own.
+    provider.moved = True
+    started = _start(client, server)
+    assert started.status_code == 204
+    assert "names%20another%20sign-in%20provider" in started.headers["HX-Redirect"]
+    well_known = "/.well-known/oauth-authorization-server"
+    assert not any(r.url.host == "evil.test" and r.url.path != well_known
+                   for r in provider.seen)
+    assert db.scalar(select(McpOauthState)) is None
+    # The existing sign-in is untouched, and the secret is found for its own provider only.
+    assert _signin(db, server, _admin(db)) is not None
+    row = db.get(McpServer, server.id)
+    assert oauth._client_secret(row, "typed-id", ISSUER) == "typed-secret"
+    assert oauth._client_secret(row, "typed-id", "https://evil.test") == ""
+
+    # An administrator who expects the change re-pins: everyone signs in again.
+    assert client.post(f"/admin/mcp/{server.id}/repin",
+                       follow_redirects=False).status_code == 303
+    db.expire_all()
+    assert not db.get(McpServer, server.id).oauth_issuer and db.scalar(select(McpSignin)) is None
+    go = _start(client, server).headers["HX-Redirect"]
+    assert go.startswith("https://evil.test/authorize?")
+    db.expire_all()
+    assert db.get(McpServer, server.id).oauth_issuer == "https://evil.test"
+
+
+def test_a_registered_clients_secret_is_found_by_its_provider_not_by_its_id_alone(db):
+    server = _server(db)
+    server.oauth_client_encrypted = encrypt(json.dumps({"clients": [
+        {"issuer": ISSUER, "redirect_uri": "x", "client_id": "same", "client_secret": "real"},
+        {"issuer": "https://evil.test", "redirect_uri": "x", "client_id": "same",
+         "client_secret": ""},
+    ]}))
+    db.commit()
+    assert oauth._client_secret(server, "same", ISSUER) == "real"
+    assert oauth._client_secret(server, "same", "https://evil.test") == ""
+    assert oauth._client_secret(server, "same", "") == ""
+    # A row from before there could be several clients still reads.
+    server.oauth_client_encrypted = encrypt(json.dumps(
+        {"issuer": ISSUER, "redirect_uri": "x", "client_id": "old", "client_secret": "s"}))
+    assert oauth._client_secret(server, "old", ISSUER) == "s"
+
+
+async def test_a_metadata_document_is_not_read_past_its_cap(db, mock_http):
+    pulled = {"chunks": 0}
+
+    async def endless():
+        for _ in range(4096):
+            pulled["chunks"] += 1
+            yield b" " * 4096
+
+    def handle(request):
+        return httpx.Response(200, content=endless())
+
+    mock_http(handle)
+    reach = oauth._Reach("Mail", MCP, False)
+    assert await oauth._get(reach, "https://mcp.test/.well-known/big") is None
+    # 16 MB were on offer; reading stopped at the cap (plus the chunk that crossed it).
+    assert pulled["chunks"] <= oauth.MAX_DOCUMENT_BYTES // 4096 + 2
+    with pytest.raises(McpError) as caught:
+        await oauth._post(reach, "https://auth.test/token", form={"a": "b"})
+    assert "more than this reads" in caught.value.message
+
+
+@pytest.mark.parametrize("refused", [False, True])
+async def test_a_renewal_in_flight_does_not_write_over_a_newer_sign_in(
+    client, db, registered, mock_http, refused
+):
+    """The same person signs in again while a renewal of the old sign-in is
+    on its way. The row then holds the new sign-in; what the renewal brings
+    back -- tokens of the old one, or a refusal of it -- is not put over it."""
+    from lembas.db.session import session_scope
+
+    provider = Strict()
+    mock_http(provider)
+    server = _server(db)
+    _sign_in(client, provider, server)
+    row = _signin(db, server, _admin(db))
+    _lapse(db, row)
+    signin_id = row.id
+
+    def signs_in_again():
+        provider.access.add("at-new")
+        with session_scope() as other:
+            fresh = other.get(McpSignin, signin_id)
+            fresh.access_encrypted, fresh.refresh_encrypted = encrypt("at-new"), encrypt("rt-new")
+            fresh.expires_at = datetime.now(UTC) + timedelta(hours=1)
+        provider.refresh_refused = refused
+
+    provider.meanwhile = signs_in_again
+    assert await oauth.token_for(signin_id, "Mail") == "at-new"
+    row = _signin(db, server, _admin(db))
+    assert row.state != SIGNIN_NEEDS
+    assert (decrypt(row.access_encrypted), decrypt(row.refresh_encrypted)) == ("at-new", "rt-new")
+
+
+def _collect_revocations(monkeypatch) -> list:
+    held: list = []
+    monkeypatch.setattr(oauth, "revoke_later", lambda leaving: held.extend(leaving))
+    return held
+
+
+def test_deleting_a_server_or_changing_its_address_withdraws_its_sign_ins_at_the_provider(
+    client, db, registered, mock_http, monkeypatch
+):
+    held = _collect_revocations(monkeypatch)
+    provider = Provider()
+    mock_http(provider)
+    server = _server(db)
+    _sign_in(client, provider, server)
+    form = {"name": "Mail", "slug": "mail", "url": "https://mcp.test/moved",
+            "auth_kind": "oauth", "enabled": "true", "public": "true"}
+    assert client.post(f"/admin/mcp/{server.id}", data=form,
+                       follow_redirects=False).status_code == 303
+    assert asyncio.new_event_loop().run_until_complete(oauth.revoke_all(held)) == 1
+    assert sorted(provider.revoked) == ["at-2", "rt-2"]
+
+    held.clear()
+    provider.revoked.clear()
+    other = _server(db, slug="notes", name="Notes")
+    _sign_in(client, provider, other)
+    assert client.post(f"/admin/mcp/{other.id}/delete",
+                       follow_redirects=False).status_code == 303
+    asyncio.new_event_loop().run_until_complete(oauth.revoke_all(held))
+    assert len(provider.revoked) == 2 and db.scalar(select(McpSignin)) is None
+
+
+def test_switching_the_shared_sign_in_on_lets_go_of_each_persons_own(
+    client, db, registered, mock_http, monkeypatch
+):
+    held = _collect_revocations(monkeypatch)
+    provider = Provider()
+    mock_http(provider)
+    server = _server(db)
+    _sign_in(client, provider, server)
+    assert _signin(db, server, _admin(db)) is not None
+    form = {"name": "Mail", "slug": "mail", "url": MCP, "auth_kind": "oauth",
+            "enabled": "true", "public": "true", "oauth_shared": "true"}
+    assert client.post(f"/admin/mcp/{server.id}", data=form,
+                       follow_redirects=False).status_code == 303
+    db.expire_all()
+    # Not kept unused where its person cannot see or end it: gone, and withdrawn.
+    assert db.scalar(select(McpSignin)) is None
+    asyncio.new_event_loop().run_until_complete(oauth.revoke_all(held))
+    assert sorted(provider.revoked) == ["at-2", "rt-2"]
+
+
+def test_a_person_can_always_end_their_own_sign_in_even_on_a_shared_server(
+    client, db, registered, mock_http
+):
+    """A personal sign-in left from before the server was shared."""
+    provider = Provider()
+    mock_http(provider)
+    server = _server(db)
+    join(client, SAM)
+    sam = db.scalar(select(User).where(User.email == SAM["email"]))
+    assert _sign_in(client, provider, server).status_code == 303
+    db.get(McpServer, server.id).oauth_shared = True
+    db.commit()
+    assert _signin(db, server, sam) is not None
+    answer = client.post(f"/settings/mcp/{server.id}/sign-out", follow_redirects=False)
+    assert answer.status_code == 303
+    assert _signin(db, server, sam) is None and provider.revoked
+
+
+def test_the_resource_asked_for_is_the_server_itself_whatever_wider_thing_is_named(
+    client, db, registered, mock_http
+):
+    """A document may name the whole origin. A token asked for with that
+    would be good for every other path there; what is asked for is this
+    server's own address."""
+    provider = Provider(resource_said="https://mcp.test")
+    mock_http(provider)
+    server = _server(db)
+    assert _sign_in(client, provider, server).status_code == 303
+    assert provider.asked[0]["resource"] == MCP
+    assert provider.token_forms[0]["resource"] == MCP
+    assert _signin(db, server, _admin(db)).meta_json["resource"] == MCP
+
+
+def test_the_instances_tool_list_is_not_set_by_whoever_signs_in_first(
+    client, db, registered, mock_http
+):
+    provider = Provider()
+    mock_http(provider)
+    server = _server(db, tools_json=[])
+    join(client, SAM)
+    assert _sign_in(client, provider, server).status_code == 303
+    db.expire_all()
+    # Sam is signed in; what *his* account is offered there is not everybody's list.
+    assert db.get(McpServer, server.id).tools_json == []
+    client.post("/auth/login", data={"email": registered["email"],
+                                     "password": registered["password"]})
+    assert _sign_in(client, provider, server).status_code == 303
+    db.expire_all()
+    assert [t["name"] for t in db.get(McpServer, server.id).tools_json] == ["search"]

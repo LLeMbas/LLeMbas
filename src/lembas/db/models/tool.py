@@ -198,6 +198,10 @@ class McpServer(UUIDPrimaryKey, Timestamps, Base):
     # client_secret, method}. Registered again when the issuer or this
     # instance's own address is another.
     oauth_client_encrypted: Mapped[str | None] = mapped_column(Text)
+    # The provider (issuer) a typed client was first used with. A server names
+    # its provider itself; one that later names another is refused until an
+    # administrator re-pins, or the typed client's secret would follow it.
+    oauth_issuer: Mapped[str | None] = mapped_column(String(1000))
 
     timeout: Mapped[int] = mapped_column(Integer, default=30, nullable=False)
     max_chars: Mapped[int] = mapped_column(Integer, default=8000, nullable=False)

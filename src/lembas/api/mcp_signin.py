@@ -39,6 +39,18 @@ router = APIRouter(tags=["mcp-signin"])
 RETURNS = ("/settings?tab=security#mcp-signins", "/admin/mcp")
 
 
+def callback_base(request: Request) -> str:
+    """Where a provider sends people back to: the configured public address
+    when there is one (`LEMBAS_PUBLIC_URL`), else the address this request
+    came to. Pinned where it can be, because a client registered at a
+    provider is registered for one redirect address, and a request can claim
+    any host."""
+    from lembas.config import settings
+
+    pinned = (settings.public_url or "").strip().rstrip("/")
+    return pinned or public_base(request)
+
+
 def signin_path(server: McpServer) -> str:
     return f"/settings/mcp/{server.id}/sign-in"
 
@@ -58,7 +70,7 @@ def _server(db: Db, user: User, server_id: str) -> McpServer:
 
 
 def _page(request: Request, db: Db, user: User, server: McpServer, **extra) -> Response:
-    base = public_base(request)
+    base = callback_base(request)
     host = urlsplit(base).hostname or ""
     return render(
         request,
@@ -96,7 +108,7 @@ async def signin_start(request: Request, db: Db, user: RequiredUser, server_id: 
             t("This server has one shared sign-in, which an administrator makes."),
         )
     try:
-        go = await oauth.start(db, server, user, base=public_base(request))
+        go = await oauth.start(db, server, user, base=callback_base(request))
     except (McpError, FetchError) as exc:
         if is_htmx(request):
             # Nothing is swapped on this form, so the reason is shown by the
@@ -133,9 +145,13 @@ async def signin_callback(request: Request, db: Db, user: RequiredUser) -> Respo
         summary=f"signed in to {server.name}"
         + (" (shared sign-in)" if server.oauth_shared else ""),
     )
-    if not server.tools_json or user.is_admin:
+    if user.is_admin:
         # The list of tools is the server's answer to a signed-in account,
-        # so the first sign-in is the first moment it can be read.
+        # so a sign-in is the first moment it can be read -- and the list is
+        # the whole instance's. It is read as an administrator's account (or
+        # the shared one, which an administrator makes), never as whichever
+        # person happened to sign in first: what *their* account is offered
+        # there is not what everybody is.
         await mcp_registry.refresh(db, server, user)
     # Away from the address that carried the code.
     return RedirectResponse(f"{signin_path(server)}?done=1", status.HTTP_303_SEE_OTHER)
@@ -149,16 +165,29 @@ async def signout(request: Request, db: Db, user: RequiredUser, server_id: str) 
     server = db.get(McpServer, server_id)
     if server is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, t("That server no longer exists."))
-    if server.oauth_shared and not user.is_admin:
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN,
-            t("This server has one shared sign-in, which an administrator makes."),
-        )
     # By the row, not by what the person may see now: a sign-in to a server
-    # since restricted or switched off is still theirs to end.
-    owner = McpSignin.user_id.is_(None) if server.oauth_shared else McpSignin.user_id == user.id
-    row = db.scalar(select(McpSignin).where(McpSignin.server_id == server.id, owner))
+    # since restricted or switched off is still theirs to end -- and so is
+    # their own while the server uses a shared one. The shared one is an
+    # administrator's to end.
+    mine = db.scalar(
+        select(McpSignin).where(McpSignin.server_id == server.id, McpSignin.user_id == user.id)
+    )
+    shared = (
+        db.scalar(
+            select(McpSignin).where(
+                McpSignin.server_id == server.id, McpSignin.user_id.is_(None)
+            )
+        )
+        if server.oauth_shared and user.is_admin
+        else None
+    )
+    row = shared or mine
     if row is None:
+        if server.oauth_shared and not user.is_admin:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                t("This server has one shared sign-in, which an administrator makes."),
+            )
         return back(target)
     revoked = await oauth.sign_out(db, row)
     audit.record(

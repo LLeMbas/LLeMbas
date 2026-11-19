@@ -23,7 +23,7 @@ from sqlalchemy import func, select
 
 from lembas.api._redirect import back
 from lembas.api.deps import AdminUser, Db
-from lembas.api.devices import public_base
+from lembas.api.mcp_signin import callback_base
 from lembas.db.models import (
     AUTH_KINDS,
     RESPONSE_JSON,
@@ -559,7 +559,9 @@ def _server_detail(
             "oauth_secret_set": bool(server.oauth_client_secret_encrypted),
             # What an administrator registers with a provider that wants a
             # client typed in: where it sends people back to.
-            "redirect_uri": public_base(request) + mcp_oauth.CALLBACK_PATH,
+            "redirect_uri": callback_base(request) + mcp_oauth.CALLBACK_PATH,
+            # The provider a typed client is pinned to (`oauth._client`).
+            "pinned_issuer": mcp_oauth.pinned_issuer(server) if server.id else "",
             "signin_count": _signin_count(db, server) if server.id else 0,
             "unchanged": UNCHANGED_SENTINEL,
             "secret_placements": _secret_labels(),
@@ -683,12 +685,31 @@ async def test_server(request: Request, db: Db, user: AdminUser, server_id: str)
     )
 
 
+@router.post("/admin/mcp/{server_id}/repin")
+async def repin_server(db: Db, user: AdminUser, server_id: str) -> Response:
+    """Let a server's typed client be used with the provider the server names
+    now. The sign-ins made at the earlier provider are dropped (and
+    withdrawn there): the next sign-in pins the client again."""
+    server = _server(db, server_id)
+    leaving = mcp_oauth.forget(db, server)
+    server.oauth_issuer = ""
+    db.commit()
+    mcp_oauth.revoke_later(leaving)
+    log.info("%s re-pinned the sign-in provider of MCP server %s", user.email, server.slug)
+    return _mcp_back(
+        t("%(name)s takes the provider it names at the next sign-in.", name=server.name)
+    )
+
+
 @router.post("/admin/mcp/{server_id}/delete")
 async def delete_server(db: Db, user: AdminUser, server_id: str) -> Response:
     server = _server(db, server_id)
     name = server.name
+    # Its sign-ins go with it; their providers are asked to withdraw them.
+    leaving = mcp_oauth.forget(db, server)
     db.delete(server)
     db.commit()
+    mcp_oauth.revoke_later(leaving)
     log.info("%s deleted MCP server %s", user.email, name)
     return _mcp_back(t("Deleted %(name)s.", name=name))
 
@@ -723,6 +744,11 @@ async def update_server(request: Request, db: Db, user: AdminUser, server_id: st
         server.oauth_client_secret_encrypted or "",
     )
     was_shared = bool(server.oauth_shared)
+    # Read while the client is still the one they were made with.
+    leaving_all = mcp_oauth.departing(db, server)
+    leaving_shared = mcp_oauth.departing(db, server, shared_only=True)
+    leaving_personal = mcp_oauth.departing(db, server, personal_only=True)
+    leaving: list = []
     _populate_server(server, form)
     server.slug = draft.slug
     server.secret_encrypted = keep_or_replace(
@@ -740,12 +766,25 @@ async def update_server(request: Request, db: Db, user: AdminUser, server_id: st
     if after != before:
         # A sign-in was issued for one address, to one client. With either
         # another, it is a token for something else: everyone signs in again.
+        # The typed client's pin goes with a change of client or address:
+        # the next sign-in pins it to the provider found then.
         mcp_oauth.forget(db, server, client=after[0] != before[0])
+        if after[2:] != before[2:] or after[0] != before[0]:
+            server.oauth_issuer = ""
+        leaving = leaving_all
     elif was_shared and not server.oauth_shared:
         # Per person again: the one account everyone acted as is let go.
         mcp_oauth.forget(db, server, shared_only=True)
+        leaving = leaving_shared
+    elif server.oauth_shared and not was_shared:
+        # One account for everyone from now on: each person's own sign-in is
+        # let go rather than kept unused -- a credential nobody uses and its
+        # person cannot see is one nobody ends.
+        mcp_oauth.forget(db, server, personal_only=True)
+        leaving = leaving_personal
     server.groups = _chosen_groups(db, form, public=server.public)
     db.commit()
+    mcp_oauth.revoke_later(leaving)
 
     log.info("%s updated MCP server %s", user.email, server.slug)
     return _mcp_back(t("Saved %(name)s.", name=server.name))

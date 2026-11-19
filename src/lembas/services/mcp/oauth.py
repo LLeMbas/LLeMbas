@@ -7,8 +7,9 @@ What happens, in the order it happens:
    tried; that document names the authorization server, whose own metadata
    (RFC 8414, then OpenID Connect discovery) names the endpoints. A server
    from before protected resource metadata is its own authorization server.
-2. **A client.** One an administrator typed, else one registered here by
-   itself (RFC 7591), kept on the server's row.
+2. **A client.** One an administrator typed -- pinned to the provider it was
+   first used with -- else one registered here by itself (RFC 7591), one per
+   provider and redirect address, kept on the server's row.
 3. **The person's browser** goes to the provider with a PKCE challenge
    (S256), the `resource` the token is for (RFC 8707) and a `state`; it comes
    back to this instance's own address.
@@ -170,17 +171,146 @@ def view(db: DBSession, server: McpServer, user: User | None) -> dict[str, Any]:
 
 
 def forget(
-    db: DBSession, server: McpServer, *, client: bool = False, shared_only: bool = False
-) -> None:
-    """Drop a server's sign-ins (and, with `client`, the client registered for
-    it): what they were issued for has changed. The caller commits."""
+    db: DBSession,
+    server: McpServer,
+    *,
+    client: bool = False,
+    shared_only: bool = False,
+    personal_only: bool = False,
+) -> list[Departing]:
+    """Drop a server's sign-ins (and, with `client`, the clients registered
+    for it and the issuer its typed client is pinned to): what they were
+    issued for has changed. The caller commits, and then hands what this
+    returns to `revoke_later` -- a sign-in that is only forgotten here is
+    still good at the provider until it lapses."""
+    leaving = departing(db, server, shared_only=shared_only, personal_only=personal_only)
     rows = delete(McpSignin).where(McpSignin.server_id == server.id)
     if shared_only:
         rows = rows.where(McpSignin.user_id.is_(None))
+    if personal_only:
+        rows = rows.where(McpSignin.user_id.is_not(None))
     db.execute(rows)
     db.execute(delete(McpOauthState).where(McpOauthState.server_id == server.id))
     if client:
         server.oauth_client_encrypted = ""
+        server.oauth_issuer = ""
+    return leaving
+
+
+@dataclass(frozen=True)
+class Departing:
+    """What is needed to ask a provider to withdraw one sign-in, read while
+    the rows (and the client they were made with) are still as they were."""
+
+    reach: _Reach
+    endpoint: str
+    client_id: str
+    method: str
+    secret: str
+    tokens: tuple[tuple[str, str], ...]
+
+
+def _departing(server: McpServer, signin: McpSignin) -> Departing | None:
+    meta = dict(signin.meta_json or {})
+    endpoint = str(meta.get("revocation_endpoint") or "")
+    tokens = tuple(
+        (token, hint)
+        for token, hint in (
+            (decrypt(signin.refresh_encrypted), "refresh_token"),
+            (decrypt(signin.access_encrypted), "access_token"),
+        )
+        if token
+    )
+    if not endpoint or not tokens:
+        return None
+    client_id = str(meta.get("client_id") or "")
+    return Departing(
+        reach=_Reach(server.name or server.slug, server.url or "", bool(server.allow_private)),
+        endpoint=endpoint,
+        client_id=client_id,
+        method=str(meta.get("method") or "none"),
+        secret=_client_secret(server, client_id, str(meta.get("issuer") or "")),
+        tokens=tokens,
+    )
+
+
+def departing(
+    db: DBSession, server: McpServer, *, shared_only: bool = False, personal_only: bool = False
+) -> list[Departing]:
+    """The server's sign-ins as `revoke_later` needs them. Read **before**
+    the row is changed: a client secret typed anew is not the one the old
+    sign-ins are withdrawn with."""
+    if not server.id:
+        return []
+    out = []
+    for signin in db.scalars(select(McpSignin).where(McpSignin.server_id == server.id)):
+        if (shared_only and signin.user_id is not None) or (
+            personal_only and signin.user_id is None
+        ):
+            continue
+        leaving = _departing(server, signin)
+        if leaving is not None:
+            out.append(leaving)
+    return out
+
+
+async def _revoke(leaving: Departing) -> bool:
+    """RFC 7009, once per token. Whether the provider was asked and agreed.
+    Never raises."""
+    revoked = False
+    for token, hint in leaving.tokens:
+        form = {"token": token, "token_type_hint": hint}
+        basic = None
+        if leaving.method == "client_secret_basic" and leaving.secret:
+            basic = (leaving.client_id, leaving.secret)
+        else:
+            form["client_id"] = leaving.client_id
+            if leaving.method == "client_secret_post" and leaving.secret:
+                form["client_secret"] = leaving.secret
+        try:
+            response = await _post(leaving.reach, leaving.endpoint, form=form, basic=basic)
+        except (McpError, FetchError) as exc:
+            log.info("mcp %s: could not revoke a sign-in: %s", leaving.reach.name, exc.message)
+            return False
+        except Exception:
+            log.exception("mcp %s: could not revoke a sign-in", leaving.reach.name)
+            return False
+        revoked = revoked or response.status_code == 200
+    return revoked
+
+
+# How many sign-ins one change withdraws at the provider, and for how long.
+REVOKE_MOST = 200
+REVOKE_SECONDS = 60.0
+_revoking: set[asyncio.Task] = set()
+
+
+async def revoke_all(leaving: list[Departing]) -> int:
+    """Ask the providers to withdraw these sign-ins, as far as that goes
+    within a minute. How many agreed. Never raises."""
+    done = 0
+    try:
+        async with asyncio.timeout(REVOKE_SECONDS):
+            for each in leaving[:REVOKE_MOST]:
+                done += 1 if await _revoke(each) else 0
+    except TimeoutError:
+        log.info("mcp: stopped withdrawing sign-ins after %.0fs", REVOKE_SECONDS)
+    return done
+
+
+def revoke_later(leaving: list[Departing]) -> None:
+    """`revoke_all` behind the request that dropped the sign-ins: an
+    administrator's save does not wait for a provider. Best effort -- outside
+    a running loop (a command, a test) nothing is asked."""
+    if not leaving:
+        return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    task = loop.create_task(revoke_all(leaving), name="mcp-revoke")
+    _revoking.add(task)
+    task.add_done_callback(_revoking.discard)
 
 
 # --- Addresses --------------------------------------------------------------------
@@ -206,10 +336,21 @@ def canonical(url: str) -> str:
 
 
 def covers(resource: str, url: str) -> bool:
-    """Whether a metadata document's `resource` is the server at `url`: the
-    same origin, and the server's path at or under the resource's. A document
-    naming another origin describes another server, and a token asked for
-    with it would be one for that server."""
+    """Whether a metadata document's `resource` describes the server at
+    `url`: the same origin, and the server's path at or under the
+    resource's. A document naming another origin, or a path beside the
+    server's, describes another server.
+
+    **This is a check and never the value asked for.** A document may name
+    something wider than the server -- the whole origin, for a server at
+    `/tenant-a` -- and a token asked for with *that* would be good for every
+    other path there, in the hands of the one server it is sent to. The
+    `resource` in the authorization and token requests is always the
+    server's own address (`canonical`): RFC 8707 §2 asks for the most
+    specific identifier, the MCP specification for the server's canonical
+    URI. RFC 9728 §3.3 would refuse a document whose `resource` is not the
+    identical address; one that merely covers it is tolerated, because
+    providers publish their origin, but it widens nothing."""
     if not same_origin(resource, url):
         return False
     base = urlsplit(resource).path.rstrip("/")
@@ -288,15 +429,41 @@ def _json(response: httpx.Response) -> dict[str, Any] | None:
     return parsed if isinstance(parsed, dict) else None
 
 
+class _TooLarge(Exception):
+    pass
+
+
+async def _send(client: httpx.AsyncClient, method: str, url: str, **kwargs) -> httpx.Response:
+    """One request, its answer read as it arrives and never past
+    `MAX_DOCUMENT_BYTES`: a metadata document or a token answer is a few
+    kilobytes, and an address a server named may send anything, for as long
+    as it likes. `_TooLarge` when it is more."""
+    data = bytearray()
+    async with client.stream(method, url, **kwargs) as response:
+        async for chunk in response.aiter_bytes():
+            data.extend(chunk)
+            if len(data) > MAX_DOCUMENT_BYTES:
+                raise _TooLarge
+        kept = {
+            name: value for name, value in response.headers.items()
+            if name.lower() not in ("content-encoding", "content-length", "transfer-encoding")
+        }
+        return httpx.Response(
+            response.status_code, content=bytes(data), headers=kept, request=response.request
+        )
+
+
 async def _get(reach: _Reach, url: str) -> dict[str, Any] | None:
     """A JSON document, or None where there is none. Redirects by hand, every
-    hop checked."""
+    hop checked; the whole exchange under one time limit."""
     current = reach.check(url)
     try:
-        async with httpx.AsyncClient(timeout=TIMEOUT, follow_redirects=False) as client:
+        async with asyncio.timeout(TIMEOUT * 2), httpx.AsyncClient(
+            timeout=TIMEOUT, follow_redirects=False
+        ) as client:
             for _ in range(fetch_service.MAX_REDIRECTS + 1):
-                response = await client.get(
-                    current,
+                response = await _send(
+                    client, "GET", current,
                     headers={"Accept": "application/json",
                              "User-Agent": fetch_service.USER_AGENT},
                 )
@@ -308,6 +475,10 @@ async def _get(reach: _Reach, url: str) -> dict[str, Any] | None:
                 current = reach.check(str(response.url.join(location)))
             else:
                 return None
+    except _TooLarge:
+        return None
+    except TimeoutError as exc:
+        raise McpError(f"{urlsplit(current).netloc} did not answer in time.") from exc
     except httpx.RequestError as exc:
         raise McpError(f"Could not reach {urlsplit(current).netloc}: {exc}") from exc
     if response.status_code != 200:
@@ -328,10 +499,18 @@ async def _post(
     target = reach.check(url)
     headers = {"Accept": "application/json", "User-Agent": fetch_service.USER_AGENT}
     try:
-        async with httpx.AsyncClient(timeout=TIMEOUT, follow_redirects=False) as client:
-            response = await client.post(
-                target, data=form, json=body, headers=headers, auth=basic
+        async with asyncio.timeout(TIMEOUT * 2), httpx.AsyncClient(
+            timeout=TIMEOUT, follow_redirects=False
+        ) as client:
+            response = await _send(
+                client, "POST", target, data=form, json=body, headers=headers, auth=basic
             )
+    except _TooLarge as exc:
+        raise McpError(
+            f"{urlsplit(target).netloc} answered a sign-in request with more than this reads."
+        ) from exc
+    except TimeoutError as exc:
+        raise McpError(f"{urlsplit(target).netloc} did not answer in time.") from exc
     except httpx.RequestError as exc:
         raise McpError(f"Could not reach {urlsplit(target).netloc}: {exc}") from exc
     if response.is_redirect:
@@ -403,12 +582,12 @@ async def discover(server: McpServer) -> Provider:
     offered_scopes = ""
     if document is not None:
         told = _url(document.get("resource"))
-        if told:
-            if not covers(told, reach.server_url):
-                raise McpError(
-                    f"{reach.name}'s sign-in metadata describes another server ({told})."
-                )
-            resource = told
+        # Checked, not adopted: what is asked for stays this server's own
+        # address, never the wider thing a document may name (`covers`).
+        if told and not covers(told, reach.server_url):
+            raise McpError(
+                f"{reach.name}'s sign-in metadata describes another server ({told})."
+            )
         servers = document.get("authorization_servers")
         issuer = next((u for u in map(_url, servers if isinstance(servers, list) else []) if u), "")
         scopes = document.get("scopes_supported")
@@ -479,12 +658,30 @@ def _secret_method(offered: tuple[str, ...]) -> str:
     return "client_secret_basic"
 
 
-def _registered(server: McpServer) -> dict[str, Any]:
+# How many clients this instance keeps registered for one server: one per
+# address it was reached at when somebody signed in. The address comes from
+# the request (`Host`), so the list is bounded.
+MAX_CLIENTS = 8
+
+
+def _registered(server: McpServer) -> list[dict[str, Any]]:
+    """The clients registered for a server by this instance itself, one per
+    provider and redirect address. A row from before there could be several
+    holds one, as an object."""
     try:
         stored = json.loads(decrypt(server.oauth_client_encrypted or "") or "{}")
     except ValueError:
-        return {}
-    return stored if isinstance(stored, dict) else {}
+        return []
+    if isinstance(stored, dict) and isinstance(stored.get("clients"), list):
+        return [c for c in stored["clients"] if isinstance(c, dict) and c.get("client_id")]
+    if isinstance(stored, dict) and stored.get("client_id"):
+        return [stored]
+    return []
+
+
+def pinned_issuer(server: McpServer) -> str:
+    """The provider a typed client was first used with, or ""."""
+    return (server.oauth_issuer or "").strip()
 
 
 async def _client(
@@ -493,28 +690,49 @@ async def _client(
     """The client to sign in as: {client_id, method}. Its secret stays on the row."""
     typed = (server.oauth_client_id or "").strip()
     if typed:
+        # A client somebody typed belongs to one provider: the one found the
+        # first time it was used. The server names its provider itself, at
+        # every sign-in -- and a server that has changed hands would name
+        # one of its own, to be handed this client's secret at the exchange.
+        pinned = pinned_issuer(server)
+        if not pinned:
+            server.oauth_issuer = provider.issuer[:1000]
+            db.commit()
+            log.info("mcp %s: its client is pinned to %s", server.slug, provider.issuer)
+        elif pinned != provider.issuer:
+            raise McpError(
+                f"{server.name} now names another sign-in provider ({provider.issuer}) than "
+                f"the one its client ID was set up with ({pinned}). Nothing was sent to it. "
+                "If the change is expected, an administrator re-pins the provider on the "
+                "server's form; if it is not, the server may have been tampered with."
+            )
         has_secret = bool(decrypt(server.oauth_client_secret_encrypted or ""))
         return {
             "client_id": typed,
             "method": _secret_method(provider.auth_methods) if has_secret else "none",
         }
 
-    stored = _registered(server)
-    if (
-        stored.get("client_id")
-        and stored.get("issuer") == provider.issuer
-        and stored.get("redirect_uri") == redirect_uri
-    ):
-        return {
-            "client_id": str(stored["client_id"]),
-            "method": str(stored.get("method") or "none"),
-        }
+    clients = _registered(server)
+    for stored in clients:
+        if stored.get("issuer") == provider.issuer and stored.get("redirect_uri") == redirect_uri:
+            return {
+                "client_id": str(stored["client_id"]),
+                "method": str(stored.get("method") or "none"),
+            }
 
     if not provider.registration_endpoint:
         raise McpError(
             f"{server.name}'s sign-in provider does not register applications by itself. "
             "An administrator has to register this instance there and type the client ID "
             f"into the server's form; the redirect address to register is {redirect_uri}"
+        )
+    if len(clients) >= MAX_CLIENTS:
+        # Never made room for by dropping one: the sign-ins made with it
+        # would lose their client, and with it their renewal.
+        raise McpError(
+            f"{server.name} has been signed in to from {MAX_CLIENTS} different addresses of "
+            "this instance, which is as many as it registers itself under. Sign in from "
+            "the address the others use, or ask an administrator to set LEMBAS_PUBLIC_URL."
         )
 
     reach = _Reach(server.name or server.slug, server.url or "", bool(server.allow_private))
@@ -544,28 +762,39 @@ async def _client(
         method = "client_secret_basic"
     if not secret:
         method = "none"
-    server.oauth_client_encrypted = encrypt(
-        json.dumps(
-            {
-                "issuer": provider.issuer,
-                "redirect_uri": redirect_uri,
-                "client_id": client_id,
-                "client_secret": secret,
-                "method": method,
-            }
-        )
+    # Added beside the others, never over them: a sign-in made from another
+    # address of this instance keeps the client (and the secret) it renews with.
+    db.refresh(server)
+    clients = _registered(server)
+    clients.append(
+        {
+            "issuer": provider.issuer,
+            "redirect_uri": redirect_uri,
+            "client_id": client_id,
+            "client_secret": secret,
+            "method": method,
+        }
     )
+    server.oauth_client_encrypted = encrypt(json.dumps({"clients": clients}))
     db.commit()
     log.info("registered this instance as a client of mcp %s's provider", server.slug)
     return {"client_id": client_id, "method": method}
 
 
-def _client_secret(server: McpServer, client_id: str) -> str:
+def _client_secret(server: McpServer, client_id: str, issuer: str) -> str:
+    """The secret of the client a sign-in was made with -- **for the provider
+    it was made at, and no other**. A client ID is a provider's own string:
+    two providers may hand out the same one, and a secret found by the ID
+    alone would go to whichever asked."""
+    if not client_id or not issuer:
+        return ""
     if (server.oauth_client_id or "").strip() == client_id:
+        if pinned_issuer(server) != issuer:
+            return ""
         return decrypt(server.oauth_client_secret_encrypted or "")
-    stored = _registered(server)
-    if stored.get("client_id") == client_id:
-        return str(stored.get("client_secret") or "")
+    for stored in _registered(server):
+        if stored.get("client_id") == client_id and stored.get("issuer") == issuer:
+            return str(stored.get("client_secret") or "")
     return ""
 
 
@@ -773,7 +1002,9 @@ async def finish(db: DBSession, user: User, params: dict[str, str]) -> McpServer
         answer = await _token_request(
             reach,
             meta,
-            _client_secret(server, str(meta.get("client_id") or "")),
+            _client_secret(
+                server, str(meta.get("client_id") or ""), str(meta.get("issuer") or "")
+            ),
             {
                 "grant_type": "authorization_code",
                 "code": code,
@@ -812,10 +1043,15 @@ async def finish(db: DBSession, user: User, params: dict[str, str]) -> McpServer
 _locks: dict[str, asyncio.Lock] = {}
 
 
-def _mark_needed(signin_id: str, why: str) -> None:
+def _mark_needed(signin_id: str, why: str, *, held: tuple[str, str] | None = None) -> None:
+    """End a sign-in in words. `held`: the (access, refresh) pair the caller
+    was acting on -- when the row holds another by now, somebody signed in
+    again meanwhile, and that sign-in is not this one to end."""
     with session_scope() as db:
         row = db.get(McpSignin, signin_id)
         if row is None:
+            return
+        if held is not None and _pair(row) != held:
             return
         row.state = SIGNIN_NEEDS
         row.access_encrypted = ""
@@ -823,6 +1059,10 @@ def _mark_needed(signin_id: str, why: str) -> None:
         row.expires_at = None
         row.last_error = why[:300]
     log.info("mcp sign-in %s needs signing in again: %s", signin_id, why)
+
+
+def _pair(row: McpSignin) -> tuple[str, str]:
+    return decrypt(row.access_encrypted), decrypt(row.refresh_encrypted)
 
 
 def _needed(name: str) -> SigninNeeded:
@@ -851,13 +1091,19 @@ async def token_for(signin_id: str, name: str = "", *, rejected: str = "") -> st
             if access and not due and access != rejected:
                 return access
             refresh = decrypt(row.refresh_encrypted)
+            held = (access, refresh)
             meta = dict(row.meta_json or {})
             reach = _Reach(server.name or server.slug, server.url or "",
                            bool(server.allow_private))
-            secret = _client_secret(server, str(meta.get("client_id") or ""))
+            secret = _client_secret(
+                server, str(meta.get("client_id") or ""), str(meta.get("issuer") or "")
+            )
 
         if not refresh:
-            _mark_needed(signin_id, "the sign-in ended and the provider gave no way to renew it")
+            _mark_needed(
+                signin_id, "the sign-in ended and the provider gave no way to renew it",
+                held=held,
+            )
             raise _needed(reach.name)
         try:
             answer = await _token_request(
@@ -871,15 +1117,36 @@ async def token_for(signin_id: str, name: str = "", *, rejected: str = "") -> st
                 },
             )
         except _Refused as exc:
-            _mark_needed(signin_id, f"the provider would not renew it ({exc.error})")
+            again = _signed_in_again(signin_id, held)
+            if again:
+                return again
+            _mark_needed(signin_id, f"the provider would not renew it ({exc.error})", held=held)
             raise _needed(reach.name) from exc
 
         with session_scope() as db:
             row = db.get(McpSignin, signin_id)
             if row is None:
                 raise _needed(reach.name)
+            if _pair(row) != held:
+                # The same person signed in again while this renewal was on
+                # its way: the row holds the new sign-in's tokens, and what
+                # came back here belongs to the one it replaced. Not written
+                # over it.
+                if usable(row):
+                    return decrypt(row.access_encrypted)
+                raise _needed(reach.name)
             _keep(row, answer, now=datetime.now(UTC))
         return str(answer["access_token"])
+
+
+def _signed_in_again(signin_id: str, held: tuple[str, str]) -> str:
+    """The row's access token when it is no longer the pair a renewal
+    started from (a new sign-in arrived meanwhile), else ""."""
+    with session_scope() as db:
+        row = db.get(McpSignin, signin_id)
+        if row is not None and usable(row) and _pair(row) != held:
+            return decrypt(row.access_encrypted)
+    return ""
 
 
 async def reject(signin_id: str, name: str, token: str) -> SigninNeeded:
@@ -899,41 +1166,12 @@ async def sign_out(db: DBSession, signin: McpSignin) -> bool:
     """Forget a sign-in, asking the provider to revoke it first where it has
     a place for that (RFC 7009). Returns whether it was asked and agreed."""
     server = db.get(McpServer, signin.server_id)
-    meta = dict(signin.meta_json or {})
-    tokens = [
-        (decrypt(signin.refresh_encrypted), "refresh_token"),
-        (decrypt(signin.access_encrypted), "access_token"),
-    ]
+    leaving = _departing(server, signin) if server is not None else None
     signin_id = signin.id
     db.delete(signin)
     db.commit()
     _locks.pop(signin_id, None)
-
-    endpoint = str(meta.get("revocation_endpoint") or "")
-    if server is None or not endpoint:
-        return False
-    reach = _Reach(server.name or server.slug, server.url or "", bool(server.allow_private))
-    client_id, method = str(meta.get("client_id") or ""), str(meta.get("method") or "none")
-    secret = _client_secret(server, client_id)
-    revoked = False
-    for token, hint in tokens:
-        if not token:
-            continue
-        form = {"token": token, "token_type_hint": hint}
-        basic = None
-        if method == "client_secret_basic" and secret:
-            basic = (client_id, secret)
-        else:
-            form["client_id"] = client_id
-            if method == "client_secret_post" and secret:
-                form["client_secret"] = secret
-        try:
-            response = await _post(reach, endpoint, form=form, basic=basic)
-        except (McpError, FetchError) as exc:
-            log.info("mcp %s: could not revoke a sign-in: %s", server.slug, exc.message)
-            return False
-        revoked = revoked or response.status_code == 200
-    return revoked
+    return await _revoke(leaving) if leaving is not None else False
 
 
 __all__ = [
@@ -944,6 +1182,7 @@ __all__ = [
     "challenge",
     "challenge_of",
     "covers",
+    "departing",
     "discover",
     "finish",
     "forget",
@@ -951,8 +1190,11 @@ __all__ = [
     "issuer_metadata_urls",
     "kind_of",
     "may_sign_in",
+    "pinned_issuer",
     "reject",
     "resource_metadata_urls",
+    "revoke_all",
+    "revoke_later",
     "same_origin",
     "sign_out",
     "signin_for",

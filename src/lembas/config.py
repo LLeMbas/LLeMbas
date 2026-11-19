@@ -44,6 +44,13 @@ class Settings(BaseSettings):
     # anywhere blocked every CLI, Desktop and Android sign-in. `*` trusts any
     # peer, which is only right when nothing but the proxy can reach the port.
     forwarded_allow_ips: str = "127.0.0.1"
+    # This instance's address as people reach it (`https://chat.example.org`),
+    # when it has one that does not change. Where set, the address a sign-in
+    # provider sends people back to is built from it and not from the
+    # request's own `Host`: a sign-in registered under one hostname is not
+    # usable from another, and a request can claim any. Empty: the address
+    # the request came to.
+    public_url: str = ""
     reload: bool = False
     log_level: Literal["debug", "info", "warning", "error"] = "info"
 

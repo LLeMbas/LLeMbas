@@ -136,6 +136,19 @@
       <p class="field__hint">{{ t("Encrypted at rest and never shown again.") }}</p>
     </div>
 
+    {% if pinned_issuer and not is_new %}
+    <div class="field" data-testid="mcp-pinned-issuer">
+      <span class="field__label">{{ t("Sign-in provider") }}</span>
+      <p class="field__hint">{{ tm("This client ID is pinned to <code>%(issuer)s</code>, the provider this server named when the client was first used. A sign-in is refused, and the secret sent nowhere, if the server later names another.", issuer=pinned_issuer) }}</p>
+      <div>
+        <button class="btn btn--sm" type="submit" formnovalidate
+                formaction="/admin/mcp/{{ server.id }}/repin"
+                data-testid="mcp-repin">{{ t("Re-pin at the next sign-in") }}</button>
+      </div>
+      <p class="field__hint">{{ t("Re-pinning signs everyone out of this server.") }}</p>
+    </div>
+    {% endif %}
+
     <div class="field">
       <label class="field__label" for="oauth_scopes">{{ t("Scopes") }}</label>
       <input class="input input--mono" id="oauth_scopes" name="oauth_scopes"
