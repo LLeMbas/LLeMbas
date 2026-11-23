@@ -372,6 +372,8 @@
           left for its person to send again or discard. Never sent by itself. -#}
       {% if message.origin == "unsure" %}
       <span class="msg__note" data-fate-unknown>{{ icon("warning", "icon--sm") }} {{ t("It is not known whether this reached the computer. Send it again, or discard it.") }}</span>
+      {% elif message.origin == "carried" %}
+      <span class="msg__note" data-carried>{{ icon("clock", "icon--sm") }} {{ t("The computer has this message and takes it in with its next turn.") }}</span>
       {% else %}
       <span class="msg__note">{{ icon("clock", "icon--sm") }} {{ t("Waiting to be sent") }}</span>
       {% endif %}

@@ -1987,6 +1987,9 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
     # and on the event loop it held every other stream and page for as long.
     final = await asyncio.to_thread(_final_frame, chat_id, message_id, generation)
     if final is None:
+        # The row is gone (the chat was deleted, or the reply had nothing to
+        # hold: `device_link._settle_steered`): its streaming bubble goes too.
+        yield sse.event("done", "")
         yield sse.event("close", "")
         return
     frame, wants_tasks = final
@@ -2772,8 +2775,10 @@ async def send_queued_now(
     _refuse_extra_reply(db, chat, user)
 
     message.queued = False
-    if message.origin == generation_service.ORIGIN_UNSURE:
-        # Its person says: send it. An ordinary turn from here on.
+    if message.origin in (generation_service.ORIGIN_UNSURE, generation_service.ORIGIN_CARRIED):
+        # Its person says: send it -- under the id it was handed over with, so
+        # a device that still knows the message answers what became of it
+        # instead of running it a second time.
         message.origin = ""
     if chat.device_token_id:
         # Sent now, and sorted so (as `generation._drain` does).

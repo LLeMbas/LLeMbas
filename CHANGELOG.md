@@ -37,7 +37,9 @@ at <https://llembas.eu/changelog.html>.
   restarted is never sent a second time on a guess.** Where the computer says what became
   of it, the chat follows that. Where it cannot be known, the message waits with *"It is
   not known whether this reached the computer"* on it, and you send it again or discard
-  it. After a server restart, a reply that had taken a second message in used to send that
+  it. Sending it again is safe with a CLI that carries spec 3.10.0: the computer
+  recognises the message, does not run it twice, and the chat shows it as delivered or as
+  held there for the agent's next turn. After a server restart, a reply that had taken a second message in used to send that
   message again as a turn of its own.
 - **Several short answers of the main agent in a row each get their own place in the
   chat.** When two or three subagents reported within moments, one reply could hold the

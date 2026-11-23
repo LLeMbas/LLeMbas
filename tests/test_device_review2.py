@@ -312,6 +312,9 @@ def test_a_message_of_unknown_fate_is_sent_when_its_person_says_so_and_only_then
     assert "data-fate-unknown" in page and "It is not known whether this reached" in page
     sent = client.post(f"/api/chats/{chat_id}/messages/{waiting}/send-now")
     assert sent.status_code == 200
+    # Under the id it has always had: the one a steer of it carried.
+    prompt = next(p for m, p in device.asked if m == "session/prompt")
+    assert prompt["_meta"]["lembas"]["turnId"] == waiting
 
     async def scenario():
         return await _quiet(db, chat_id, 4)
@@ -360,6 +363,131 @@ def test_a_message_the_device_carried_over_is_marked_taken_in_by_its_id_in_the_l
     later = next(r for r in rows if r.content.startswith("The linter is clean"))
     assert steps.steered_ids(later.steps_json) == {typed_id}
     assert sum(len(s.get("steer") or []) for s in later.steps_json) == 1
+    invariant(device, rows)
+
+
+# --- A steered message is given to the model once: the device says what became of it ----
+def _send_now(db, chat_id: str, message_id: str) -> str:
+    """What "Send now" does (`send_queued_now`): the message, under its own
+    id, as a turn with a reply of its own. Returns the reply's id."""
+    from lembas.services import chat as chat_service
+
+    db.expire_all()
+    row = db.get(Message, message_id)
+    row.queued, row.origin = False, ""
+    db.commit()
+    reply = chat_service.create_message(
+        db, db.get(Chat, chat_id), "assistant", "", complete_=False
+    )
+    db.commit()
+    generation_service.ensure(chat_id, reply.id)
+    return reply.id
+
+
+async def _steered_then_link_lost(db, device, chat_id, *, take_in: bool):
+    """A message handed into a harness turn; the link drops; the turn takes
+    it in, or not, and ends with nobody listening. Back up, the chat cannot
+    know which: the message is `unsure`."""
+    await device.wake(JOB_NOTE, H2)
+    await _following(device)
+    typed, _ = _type(db, chat_id, "and the linter?")
+    assert await _until(lambda: device.inbox)
+    device.drop()
+    if take_in:
+        await device.take_in()
+    await device.say("The tests pass.")
+    await device.end()
+    device.relink()
+    rows = await _quiet(db, chat_id, 3)
+    assert {r.id: r for r in rows}[typed.id].origin == device_link.ORIGIN_UNSURE
+    return typed.id
+
+
+@pytest.mark.parametrize("fate", ["taken", "carried"])
+def test_sending_a_message_the_device_still_knows_runs_nothing_and_leaves_no_empty_reply(
+    db, registered, make_chat, fate
+):
+    """Its person presses Send on a message of unknown fate. The prompt goes
+    under the message's own id; the device knows that id as a message it was
+    steered, runs nothing, and says what became of it. `taken`: the row is
+    delivered. `carried`: it waits, saying the computer has it, until the
+    turn that takes it in says so. No reply row is left for the prompt that
+    did not run, and the model is given the message once."""
+    device = HarnessDevice(db, NEW)
+    chat_id = _device_chat(db, make_chat, device)
+
+    async def scenario():
+        typed_id = await _steered_then_link_lost(db, device, chat_id, take_in=fate == "taken")
+        reply_id = _send_now(db, chat_id, typed_id)
+        await asyncio.wait_for(generation_service._TASKS[reply_id], 10)
+        between = [(r.id, r.queued, r.origin) for r in _rows(db, chat_id)]
+        if fate == "carried":
+            await device.wake(TEAM_REPORT, H3)
+            await _following(device)
+            await device.say("The linter is clean.")
+            await device.end()
+            await _quiet(db, chat_id, 5)
+        return typed_id, reply_id, between, _rows(db, chat_id)
+
+    typed_id, reply_id, between, rows = asyncio.run(scenario())
+    prompt = next(p for m, p in device.asked if m == "session/prompt")
+    assert prompt["_meta"]["lembas"]["turnId"] == typed_id
+    assert device.model_saw == ["and the linter?"]
+    assert reply_id not in {r.id for r in rows} and len(between) == 3
+    held = next(row for row in between if row[0] == typed_id)
+    if fate == "taken":
+        assert held[1:] == (False, "")
+    else:
+        assert held[1:] == (True, device_link.ORIGIN_CARRIED)
+    typed = {r.id: r for r in rows}[typed_id]
+    assert not typed.queued and typed.origin == ""
+    assert all(r.content or r.role == "user" for r in rows), "an empty reply was left behind"
+    invariant(device, rows)
+
+
+def test_a_message_waiting_in_the_running_turn_and_then_handed_back_runs_as_a_prompt(
+    db, registered, make_chat
+):
+    """`waiting`: the message is in the queue of the turn that runs. Sent
+    again it does not run; it waits here. The turn then ends without taking
+    it in and hands it back (`unsent`): the device has let go of the id, the
+    message is an ordinary waiting one again, and it is sent -- and this
+    time it runs."""
+    device = HarnessDevice(db, NEW)
+    chat_id = _device_chat(db, make_chat, device)
+
+    async def scenario():
+        # A harness turn runs on the device, with the message in its queue
+        # (steered before this instance restarted); nothing of it is heard yet.
+        device.running, device.own = H2, True
+        device.known.add(H2)
+        device.harness_ran.append(H2)
+        device.note = JOB_NOTE
+        device.history = [{"role": "user", "text": JOB_NOTE, "turnId": H2, "machine": True}]
+        waiting = _say(db, chat_id, "user", "and the linter?", queued=True,
+                       origin=device_link.ORIGIN_UNSURE)
+        device.inbox.append(("and the linter?", waiting))
+        reply_id = _send_now(db, chat_id, waiting)
+        await asyncio.wait_for(generation_service._TASKS[reply_id], 10)
+        held = [(r.id, r.queued, r.origin) for r in _rows(db, chat_id)]
+        assert held == [(waiting, True, device_link.ORIGIN_CARRIED)]  # and no reply row
+        await device.emit({"type": "task", "state": "start", "turnId": H2})
+        await device.say_prompt()
+        assert await _until(lambda: device.link.writing.get("s1") is not None)
+        await device.say("The tests pass.")
+        await device.end()  # hands the message back
+        return waiting, await _quiet(db, chat_id, 4)
+
+    waiting, rows = asyncio.run(scenario())
+    assert device.model_saw == ["and the linter?"]
+    prompts = [p["_meta"]["lembas"]["turnId"] for m, p in device.asked if m == "session/prompt"]
+    assert prompts == [waiting, waiting]  # the first did not run; the second did
+    typed = {r.id: r for r in rows}[waiting]
+    assert not typed.queued and typed.origin == ""
+    assert _shape(rows) == [
+        ("user", line(JOB_NOTE)), ("assistant", "The tests pass."),
+        ("user", "and the linter?"), ("assistant", "Answer to: and the linter?"),
+    ]
     invariant(device, rows)
 
 

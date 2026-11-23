@@ -629,6 +629,9 @@ class Link:
             # Only under the turn's own id: an end that names no turn is
             # nobody's to match later, and kept it would be handed to whichever
             # reply next followed the session without a turn id.
+            # Handed back: a message this chat showed as held by the device
+            # is an ordinary waiting one again.
+            _release_carried(self, session_id, _unsent_of(self, event))
             unheard = generation is None and held not in self.buffered
             if unheard and turn and (unsent := _unsent_of(self, event)):
                 self.unsent[(session_id, turn)] = unsent
@@ -1392,7 +1395,7 @@ def _carried_in(generation, ids: list[str]) -> list[dict]:
                 ):
                     continue
                 row.queued = False
-                if row.origin == ORIGIN_UNSURE:
+                if row.origin in (ORIGIN_UNSURE, ORIGIN_CARRIED):
                     row.origin = ""
                 marks.append({"id": row.id, "text": row.content or ""})
             db.commit()
@@ -1954,6 +1957,7 @@ async def run(
             generation.stopped = True
             return
         await _prompt(link, generation, chat_id, session_id, content, device_name)
+        _settle_steered(generation, message_id)
     except DeviceError as exc:
         generation.error = f"{device_name} refused: {exc}"
         generation.device_reason = exc.reason
@@ -2007,6 +2011,7 @@ async def _after_drop(
             if resend:
                 # The device never had it: sent again, by its id.
                 await _prompt(again, generation, chat_id, session_id, content, device_name)
+                _settle_steered(generation, message_id)
             return
         except LinkClosed as dropped:
             exc = dropped
@@ -2054,6 +2059,83 @@ def _keep_reply_turn(generation, *, joined: bool = False) -> None:
 # device forgot it, while nobody here was listening. It waits (`queued`) with
 # that said on it, is never sent by itself, and "Send now" sends it.
 ORIGIN_UNSURE = "unsure"
+
+
+# ... and of one the device says it still holds: handed to a turn that ended
+# without taking it in, it waits there for the next turn's first step (or in
+# the running turn's queue). It waits here too, saying so, and is neither
+# sent nor offered to a running turn: the turn that takes it in says
+# `steered` with its id (`_carried_in`), or hands it back (`_release_carried`).
+ORIGIN_CARRIED = "carried"
+# What a device answers a prompt whose id is a message it was steered.
+STEERED_FATES = ("taken", "carried", "waiting")
+
+
+def _settle_steered(generation, message_id: str) -> None:
+    """The prompt just sent did not run: its id is a message the device was
+    steered and still knows, and the answer says what became of it. **A
+    message uses one id whether it is steered or sent as a prompt** (the
+    row's), which is what makes "send it again" safe.
+
+    `taken`: the model has been given it -- the row is delivered. `carried`
+    or `waiting`: the device holds it for a turn that will take it in -- the
+    row waits, saying so. Either way the reply started for this prompt has
+    nothing to hold and its row is removed: the message's reply is the reply
+    of the turn that takes it in, where it is shown at the point it went in."""
+    fate = getattr(generation, "device_steered", "")
+    if not fate or not message_id:
+        return
+    from lembas.db.models import ROLE_USER, Message
+    from lembas.db.session import session_scope
+
+    with session_scope() as db:
+        row = db.get(Message, message_id)
+        if row is not None and row.role == ROLE_USER and not devices_own(row):
+            row.queued = fate != "taken"
+            row.origin = "" if fate == "taken" else ORIGIN_CARRIED
+        reply = db.get(Message, generation.message_id)
+        if reply is not None:
+            db.delete(reply)
+        db.commit()
+
+
+def _release_carried(link: Link, session_id: str, texts: list[str]) -> None:
+    """A turn handed back (`unsent`) messages this chat shows as held by the
+    device: the device has let go of them, so each is an ordinary waiting
+    message again -- and is sent, as the next turn, when nothing is being
+    written in the chat."""
+    if not texts:
+        return
+    from sqlalchemy import select
+
+    from lembas.db.models import ROLE_USER, Message
+    from lembas.db.session import session_scope
+    from lembas.services import generation as generation_service
+
+    chat_id = ""
+    try:
+        with session_scope() as db:
+            chat = _chat_for(db, link, session_id)
+            if chat is None:
+                return
+            held = db.scalars(
+                select(Message).where(
+                    Message.chat_id == chat.id,
+                    Message.role == ROLE_USER,
+                    Message.origin == ORIGIN_CARRIED,
+                )
+            ).all()
+            for row in held:
+                if any(_same(row.content or "", text) for text in texts):
+                    row.origin = ""
+                    row.queued = True
+                    chat_id = chat.id
+            db.commit()
+    except Exception:  # the turn's end is handled either way
+        log.exception("could not release carried messages of %s", session_id)
+        return
+    if chat_id:
+        generation_service.start_waiting(chat_id)
 
 
 def _settle_unheard(generation, resend: bool) -> None:
@@ -2139,6 +2221,14 @@ async def _prompt(
             unsent = _texts(said.get("unsent"))
             if unsent:
                 _hand_back(generation, unsent)
+                _release_carried(link, session_id, unsent)
+            # The prompt's id is a message the device was steered and still
+            # knows: nothing ran (spec 3.10.0, *A steered message is given to
+            # the model once*). What became of it is said instead.
+            fate = str(said.get("steered") or "")
+            if fate in STEERED_FATES and link.can(HARNESS_TURNS) and not generation.turn_started:
+                generation.device_steered = fate
+                return
             if said.get("command"):
                 # The prompt was one of the device's commands: what it
                 # did, when it did it without a turn of the model's to show.
@@ -4487,6 +4577,7 @@ __all__ = [
     "CLOSE_PROTOCOL",
     "CLOSE_REFUSED",
     "DEVICE_ORIGINS",
+    "ORIGIN_CARRIED",
     "ORIGIN_UNSURE",
     "HARNESS_TURNS",
     "LINKS",

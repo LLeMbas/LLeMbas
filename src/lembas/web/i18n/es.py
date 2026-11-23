@@ -1134,6 +1134,7 @@ MESSAGES.update(
         "%(kb)s KB": "%(kb)s KB",
         "on the device": "en el dispositivo",
         "Waiting to be sent": "Esperando para enviarse",
+        "The computer has this message and takes it in with its next turn.": "El ordenador tiene este mensaje y lo incorporará en su próximo turno.",
         "It is not known whether this reached the computer. Send it again, or discard it.": "No se sabe si esto llegó al ordenador. Envíalo de nuevo o descártalo.",
         "Estimated.": "Estimado.",
         "What the conversation now occupies: %(n)s of %(limit)s tokens (%(percent)s%%)": "Lo que ocupa ahora la conversación: %(n)s de %(limit)s tokens (%(percent)s%%)",

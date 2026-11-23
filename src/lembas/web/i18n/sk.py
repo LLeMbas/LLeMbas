@@ -1830,6 +1830,7 @@ MESSAGES.update(
         "Nothing to mention yet.": "Zatiaľ tu nie je čo spomenúť.",
         "view extracted text": "zobraziť vytiahnutý text",
         "Waiting to be sent": "Čaká na odoslanie",
+        "The computer has this message and takes it in with its next turn.": "Počítač túto správu má a prevezme ju pri svojom ďalšom ťahu.",
         "It is not known whether this reached the computer. Send it again, or discard it.": "Nie je známe, či sa táto správa dostala do počítača. Odošlite ju znova alebo ju zahoďte.",
         "Estimated.": "Odhad.",
         "What the conversation now occupies: %(n)s of %(limit)s tokens (%(percent)s%%)": "Koľko konverzácia teraz zaberá: %(n)s z %(limit)s tokenov (%(percent)s %%)",

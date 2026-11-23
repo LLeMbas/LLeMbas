@@ -89,6 +89,8 @@ ORIGIN_ATTACH = "attach"
 # A person's message whose fate on a linked device is not known
 # (`device_link.ORIGIN_UNSURE`, the same word): waiting, and never sent by itself.
 ORIGIN_UNSURE = "unsure"
+# ... and one the device says it holds for a later turn (`device_link.ORIGIN_CARRIED`).
+ORIGIN_CARRIED = "carried"
 # Message.origin of the turn that carries an ordinary reply on after a shutdown.
 ORIGIN_RESUME = "resume"
 # How old an interrupted reply may be and still be taken up again.
@@ -361,6 +363,10 @@ class Generation:
     # Set while this reply offers itself as the reply of a turn the device
     # started (`device_link._adopt_mirror`): (the typed message's id, a future).
     adopted: Any = None
+    # The prompt this reply sent did not run: its id is a message the device
+    # was steered. What the device said became of it (`taken`, `carried`,
+    # `waiting`); the reply's row is removed (`device_link._settle_steered`).
+    device_steered: str = ""
     # Cut off by a shutdown, not stopped by anybody: written on the row,
     # and taken up again when the instance is back.
     interrupted: bool = False
@@ -3032,7 +3038,8 @@ def _next_waiting(db, chat_id: str) -> Message | None:
             # Not one whose fate on a linked device is not known: that one
             # waits for its person to send it again, and is never sent (or
             # handed to a running turn) by itself.
-            Message.origin != ORIGIN_UNSURE,
+            # ... nor one the device holds for a turn of its own to take in.
+            Message.origin.not_in((ORIGIN_UNSURE, ORIGIN_CARRIED)),
         )
         .order_by(Message.created_at)
         .limit(1)
@@ -3067,15 +3074,32 @@ def _drain(generation: Generation) -> None:
         return
     if generation.stopped or generation.error:
         return
+    if _start_waiting(generation.chat_id):
+        generation.drained = True
 
+
+def start_waiting(chat_id: str) -> bool:
+    """Send the chat's next waiting prompt as a reply of its own, when no
+    reply is being written in it. For a message that became sendable with no
+    reply ending to drain it (a linked device handed it back)."""
+    if running_for(chat_id) is not None:
+        return False
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    return _start_waiting(chat_id)
+
+
+def _start_waiting(for_chat: str) -> bool:
     try:
         with session_scope() as db:
-            chat = db.get(Chat, generation.chat_id)
+            chat = db.get(Chat, for_chat)
             if chat is None:
-                return
+                return False
             waiting = _next_waiting(db, chat.id)
             if waiting is None:
-                return
+                return False
 
             waiting.queued = False
             if chat.device_token_id:
@@ -3088,13 +3112,13 @@ def _drain(generation: Generation) -> None:
             )
             chat_id, assistant_id = chat.id, assistant.id
     except Exception:  # the reply is over either way
-        log.exception("could not drain the queue for chat %s", generation.chat_id)
-        return
+        log.exception("could not drain the queue for chat %s", for_chat)
+        return False
 
     # Outside the session: this starts a task, and a task is not something to
     # hold a database session open across.
     ensure(chat_id, assistant_id)
-    generation.drained = True
+    return True
 
 
 def entry_text(entry: dict) -> str:

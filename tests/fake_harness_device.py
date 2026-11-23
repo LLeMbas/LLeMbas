@@ -78,6 +78,8 @@ class HarnessDevice(Device):
         # Set to an Event: a prompt's turn waits on it before it ends.
         self.pause: asyncio.Event | None = None
         self.cancels: list[str] = []
+        # The ids of the steered messages the model was given.
+        self.taken: set[str] = set()
         self.withdrawn: set[str] = set()
         self._wire(self.link)
 
@@ -207,6 +209,17 @@ class HarnessDevice(Device):
         if turn in self.known:
             # A known id does not run again.
             return None
+        # Nor a message it was steered and still knows (3.10.0): nothing runs,
+        # and the answer says what became of the message.
+        if self.knows:
+            fate = ""
+            if turn in self.taken:
+                fate = "taken"
+            elif any(i == turn for _, i in self.inbox):
+                fate = "waiting" if self.running else "carried"
+            if fate:
+                return {"stopReason": "end_turn",
+                        "_meta": {"lembas": {"turnId": turn, "steered": fate}}}
         if self.running:
             if self.own and not self.knows:
                 self.refused.append(method := "session/prompt")
@@ -276,12 +289,14 @@ class HarnessDevice(Device):
         and the turn's end will hand back these texts instead."""
         taken, self.inbox = self.inbox, []
         self.model_saw.extend(text for text, _ in taken)
+        self.taken.update(i for _, i in taken if i)
         self.hand_back = hand_back
 
     async def take_in(self) -> None:
         """The turn's next step: what was steered in goes to the model."""
         taken, self.inbox = self.inbox, []
         self.model_saw.extend(text for text, _ in taken)
+        self.taken.update(i for _, i in taken if i)
         await self.emit({
             "type": "steered", "texts": [t for t, _ in taken], "ids": [i for _, i in taken],
         })
