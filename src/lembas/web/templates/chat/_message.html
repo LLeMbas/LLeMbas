@@ -1,5 +1,5 @@
 {% from "_macros.html" import icon %}
-{% from "chat/_media.html" import media_card %}
+{% from "chat/_media.html" import media_card, sized_box %}
 {% set speaking_model = (models_by_id | default({})).get(message.model_id) %}
 {#
   One message bubble, in either of two states.
@@ -45,7 +45,14 @@
       alike -- a prompt block and a reply -- so a picture and "Frodo" / "Bonsai"
       beside every one said nothing and took a column off every line. The model
       that wrote a reply is in its metrics' tooltip. #}
-  <div class="msg__main">
+  {#- `msg__main--landed`: this bubble is the `done` frame's, replacing the
+      one that was being written. It is laid out for real when it arrives
+      (chat.css, at `content-visibility`), or the reply's height is lost for a
+      frame. On this element because it has no id: while htmx settles a swap,
+      an element that has the id of an old one wears the old one's attributes
+      -- the article and `.msg__steps` both do -- and a mark there is not
+      there yet at the first layout. #}
+  <div class="msg__main{{ ' msg__main--landed' if just_finished | default(false) }}">
     {% set badged = machine or (message.role == "user" and message.origin == "terminal") %}
     {% if badged %}
     <header class="msg__meta">
@@ -68,8 +75,9 @@
     <div class="attachments">
       {% for attachment in message.attachments %}
         {% if attachment.is_image %}
-        <a class="attachments__image" href="/api/files/{{ attachment.id }}/content"
+        <a class="attachments__image{{ ' sized' if attachment.width and attachment.height }}" href="/api/files/{{ attachment.id }}/content"
            target="_blank" rel="noopener">
+          {{ sized_box(attachment.width, attachment.height) }}
           <img src="/api/files/{{ attachment.id }}/content" alt="{{ attachment.filename }}"
                loading="lazy" width="{{ attachment.width }}" height="{{ attachment.height }}">
         </a>
@@ -447,8 +455,19 @@
   </div>
 
   {% if streaming %}
-  {# Receives the finished bubble and replaces this whole article with it. #}
-  <div hidden sse-swap="done" hx-target="#msg-{{ message.id }}" hx-swap="outerHTML"></div>
+  {# Receives the finished bubble and replaces this whole article with it.
+
+     `settle:0ms`, and it matters. htmx "settles" a swap: for twenty
+     milliseconds every new element that has the id of an old one wears the
+     OLD element's attributes, so that a CSS transition has something to
+     start from. Here that meant the finished bubble arrived dressed as the
+     live one -- without its own classes -- for a frame or two: the size
+     reserved for a finished reply off screen applied to it (chat.css, at
+     `content-visibility`), the reply was 8rem tall, the page lost thousands
+     of pixels and the scroller was clamped to what was left. Nothing here
+     transitions. With no delay the attributes are the bubble's own from its
+     first layout. #}
+  <div hidden sse-swap="done" hx-target="#msg-{{ message.id }}" hx-swap="outerHTML settle:0ms"></div>
 
   {# The plan: the frame carries the panel marked `hx-swap-oob`,
      which lands above the composer; this is only where it arrives. #}

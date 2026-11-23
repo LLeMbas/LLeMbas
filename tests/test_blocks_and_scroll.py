@@ -96,8 +96,15 @@ def test_only_the_transcript_moves_the_transcript():
 
 
 def test_scrolling_up_stops_following():
-    assert "if (up) stick = false;" in APP
+    assert "else if (up) stick = false;" in APP
     assert "else if (isNearBottom(thread)) stick = true;" in APP
+    # The bottom is asked first: a page that got shorter clamps somebody at
+    # its end to the new end, and that scroll event goes *up*. Read as the
+    # reader leaving, it ended following for somebody who had not moved.
+    listener = APP[APP.index("if (top === placed) return;") :][:900]
+    assert listener.index("if (atBottom(thread)) stick = true;") < listener.index(
+        "else if (up) stick = false;"
+    )
     # The flag that swallowed the next real scroll up after a block closed.
     assert "resized" not in _code(APP)
 
@@ -110,10 +117,53 @@ def test_one_scroll_owner_one_scroll_a_frame():
     assert found, "scrollThread is gone"
     body = found.group(1)
     assert "requestAnimationFrame" in body
-    assert "thread.scrollTop = thread.scrollHeight" in body
-    assert "placed = thread.scrollTop" in body
+    assert "placeThread();" in body
     # Coalesced: a second request while one is pending is not a second scroll.
     assert "if (scrollFrame) return;" in body
+    # One place puts the transcript, for the frame above and for the size
+    # observers alike, and it writes down where.
+    place = re.search(r"function placeThread\(\) \{([\s\S]*?)\n  \}", APP)
+    assert place, "placeThread is gone"
+    assert "if (!thread || !stick) return;" in place.group(1)
+    assert "thread.scrollTop = thread.scrollHeight" in place.group(1)
+    assert "placed = thread.scrollTop" in place.group(1)
+    assert _code(APP).count(".scrollTop = thread.scrollHeight") == 1
+
+
+def test_the_window_onto_the_transcript_is_followed_too():
+    """The composer growing, a phone's keyboard, the browser resized: the
+    scroller's own box is observed, and put right before the paint -- not a
+    frame later (measured in tests/test_chat_scroll_browser.py)."""
+    follow = re.search(r"function followHeight\(\) \{([\s\S]*?)\n  \}", _code(APP))
+    assert follow, "followHeight is gone"
+    body = follow.group(1)
+    assert "new ResizeObserver(placeThread)" in body
+    assert "sizes.observe(thread);" in body and "sizes.observe(scroller);" in body
+    assert "requestAnimationFrame" not in body and "scrollThread" not in body
+
+
+def test_pressing_a_closed_block_stops_following_at_the_press():
+    """`toggle` comes after the block has opened and the size observer has
+    seen the page grow; by then a page still following has gone to its new
+    end and moved the pressed line. So the press itself stops it."""
+    press = re.search(r'"click",\s*function \(event\) \{([\s\S]*?)\n    \},\n    true', APP)
+    assert press, "the press listener is gone"
+    body = press.group(1)
+    assert 'target.closest("summary")' in body
+    assert "details.open" in body and "stick = false;" in body
+    # Put back when the press opened nothing.
+    assert "setTimeout(" in body and "stick = true;" in body
+    first = APP.index('"click",\n    function (event) {\n      var target = event.target;')
+    assert first < APP.index('"toggle",')
+
+
+def test_closing_a_block_at_the_bottom_follows_again():
+    """Opened at the bottom, a block stops the page following (the person is
+    reading it). Closed again, the page is at its end again -- and nothing
+    scrolled, so no scroll event says so."""
+    toggle = APP[APP.index('"toggle",') :][:1600]
+    assert "if (thread && atBottom(thread)) stick = true;" in toggle
+    assert "reading(thread);" in toggle
 
 
 def test_every_path_into_the_transcript_asks_the_same_owner():
@@ -151,18 +201,51 @@ def test_the_scroller_neither_animates_nor_anchors():
 
 
 # --- The bubble's rows keep their height ----------------------------------------
+def test_a_reply_s_foot_is_the_same_height_live_and_finished():
+    """Two rows under the text, the same two heights while the reply is being
+    written and once it is finished, so its ending changes the page's height
+    by nothing. Measured in tests/test_chat_scroll_browser.py; this holds the
+    rules that make it so."""
+    code = _code(CHAT_CSS)
+    assert (
+        ".msg--assistant .msg__metrics:not(.msg__metrics--live) { height: var(--msg-foot-line); }"
+        in code
+    )
+    assert ".msg--assistant .msg__actions { height: var(--msg-foot-controls); }" in code
+    assert ".msg__flow > .msg__metrics--live { margin-top: 0; }" in code
+    # An empty slot for running calls is not a flex item costing a gap.
+    assert ".msg__flow > .msg__running:empty { display: none; }" in code
+    assert code.index(".msg__flow > .msg__running {") < code.index(
+        ".msg__flow > .msg__running:empty"
+    )
+
+
+def test_the_finished_bubble_arrives_as_itself():
+    """The `done` frame's bubble is laid out for real from its first layout:
+    no settle delay (for 20 ms htmx dresses a new element in the attributes
+    of the old one with its id), and no estimated height for it."""
+    message = (Path(lembas.__file__).parent / "web/templates/chat/_message.html").read_text()
+    assert 'sse-swap="done" hx-target="#msg-{{ message.id }}"' in message
+    assert 'hx-swap="outerHTML settle:0ms"' in message
+    assert "msg__main--landed' if just_finished" in message
+    assert (
+        ".msg:not([sse-connect]) .msg__main:not(.msg__main--landed) .msg__steps {"
+        in _code(CHAT_CSS)
+    )
+
+
 def test_the_live_rows_never_change_height():
     """The waiting row and the metrics row are fixed slots while the reply
     streams: content arriving in them, or leaving, moves nothing."""
     waiting = _rule(CHAT_CSS, ".msg__waiting")
-    assert "min-height: var(--row-h)" in waiting
+    assert "height: var(--msg-foot-line)" in waiting and "min-height" not in waiting
     metrics = _rule(CHAT_CSS, ".msg__metrics")
     assert "white-space: nowrap" in metrics
     assert "overflow: hidden" in metrics
     assert "text-overflow: ellipsis" in metrics
     assert "flex-wrap" not in metrics
     live = _rule(CHAT_CSS, ".msg__metrics--live")
-    assert "min-height: var(--row-h)" in live
+    assert "height: var(--msg-foot-controls)" in live and "min-height" not in live
     # The dots are "nothing has arrived yet" and do not come back each round.
     assert ".msg__main:has(.msg__steps:not(:empty)) .msg__waiting .dots" in CHAT_CSS
 

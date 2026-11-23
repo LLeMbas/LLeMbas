@@ -162,6 +162,13 @@
      content arriving or leaving never moves the transcript. One line of the
      small type. */
   --row-h: calc(var(--text-xs) * var(--leading-normal) + 2 * var(--sp-2));
+  /* The two rows under a reply's text, the same two heights while it is being
+     written (what it is doing; its counts) and once it is finished (its
+     counts; its buttons) -- so the reply ending does not change the height of
+     the page by a pixel. The second follows `--control-h-sm`, which is what a
+     button there is, on a phone too. */
+  --msg-foot-line: calc(var(--text-xs) * var(--leading-normal));
+  --msg-foot-controls: var(--control-h-sm);
 
   /* A dot that marks state: unsaved, unread. */
   --dot-size: 0.375rem;

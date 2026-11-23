@@ -189,7 +189,8 @@ def test_the_page_presses_earlier_when_the_reader_nears_it_and_keeps_their_place
 
 def test_finished_replies_off_screen_are_not_laid_out():
     code = re.sub(r"/\*.*?\*/", "", CHAT_CSS, flags=re.S)
-    rule = code[code.index(".msg:not([sse-connect]) .msg__steps") :]
+    landed = ".msg:not([sse-connect]) .msg__main:not(.msg__main--landed) .msg__steps"
+    rule = code[code.index(landed) :]
     rule = rule[: rule.index("}")]
     assert "content-visibility: auto" in rule
     assert "contain-intrinsic-size: auto" in rule

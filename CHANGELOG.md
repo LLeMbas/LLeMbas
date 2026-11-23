@@ -32,6 +32,28 @@ at <https://llembas.eu/changelog.html>.
 - An answer to a note is no longer offered *Regenerate* in a way that asked the computer
   to rewind to a turn it never had; it is refused here, as for a turn typed in the
   computer's terminal.
+- **The chat stays where you are.** The position of the conversation was measured in a
+  real browser on every painted frame, through a whole conversation, at desktop and phone
+  width, and what moved it was fixed:
+  - **When a reply ended, the page lost the whole reply's height for a moment.** For a
+    frame or two the finished reply was drawn as a small placeholder: after a long reply
+    the view jumped by thousands of pixels and back -- to your prompt, or to the top of a
+    new chat. Often the page then stopped following replies altogether, and the next one
+    was written below the screen. Both are gone.
+  - **A reply ending no longer shifts the page.** The two rows under a reply (what it is
+    doing and its counts; then its counts and its buttons) are the same height while it
+    is written and when it is finished. Everything on the screen used to slide down by
+    28 to 39 pixels at the end of every reply.
+  - **At the bottom, you stay at the bottom** when the message box grows as you type, when
+    a phone's keyboard opens, and when the window is resized. The newest lines used to go
+    under the message box and stay there.
+  - **Opening a tool's or a thought's block keeps the line you pressed under your
+    pointer**, and closing it at the end of the chat follows new replies again. It used to
+    leave the page not following, with nothing to scroll to bring it back.
+  - **A picture and a video have their size before they have loaded.** A generated or
+    attached picture was nothing until its file arrived and then up to a third of the
+    screen, which pushed everything below it down -- as you scrolled up through a chat
+    with pictures in it. A video is drawn in its own shape from the start.
 
 ## 2.0.0-beta.17 — 2026-11-19
 

@@ -249,6 +249,13 @@
     return el.scrollHeight - el.scrollTop - el.clientHeight < STICK_THRESHOLD;
   }
 
+  /* At the bottom, to the pixel layout allows. Nobody scrolling *up* ends
+     here, so a scroll that does was the page's own: its content got shorter
+     and the browser clamped the position to the new end. */
+  function atBottom(el) {
+    return el.scrollHeight - el.scrollTop - el.clientHeight <= 1;
+  }
+
   /* Whether the view is following the reply. Distance to the bottom used to be
      the whole test, and it very nearly is -- but somebody near the bottom who
      opens a tool block is *reading*, and the next frame eighty milliseconds
@@ -290,17 +297,24 @@
     if (scrollFrame) return;
     scrollFrame = requestAnimationFrame(function () {
       scrollFrame = 0;
-      var thread = document.getElementById("thread-scroll");
-      if (!thread || !stick) return;
-      /* An empty chat's welcome is read from the top: on a phone it is taller
-         than the thread, and following "the bottom" hid its artwork. */
-      if (thread.querySelector(".thread__intro") && !thread.querySelector(".msg")) {
-        thread.scrollTop = 0;
-      } else {
-        thread.scrollTop = thread.scrollHeight;
-      }
-      placed = thread.scrollTop;
+      placeThread();
     });
+  }
+
+  /* The one place the transcript is put: at the bottom, while the page is
+     following. Called from the frame above, and straight from the size
+     observers below (see `followHeight` for why those do not wait a frame). */
+  function placeThread() {
+    var thread = document.getElementById("thread-scroll");
+    if (!thread || !stick) return;
+    /* An empty chat's welcome is read from the top: on a phone it is taller
+       than the thread, and following "the bottom" hid its artwork. */
+    if (thread.querySelector(".thread__intro") && !thread.querySelector(".msg")) {
+      thread.scrollTop = 0;
+    } else {
+      thread.scrollTop = thread.scrollHeight;
+    }
+    placed = thread.scrollTop;
   }
 
   /* Any scroll *up* by the reader stops following at once; only
@@ -320,7 +334,13 @@
       var up = lastTop >= 0 && top < lastTop - 1;
       lastTop = top;
       if (top === placed) return;
-      if (up) stick = false;
+      /* The bottom first. A page that got shorter under somebody at its end
+         clamps them to the new end, and the scroll event for that goes *up*:
+         read as the reader leaving, it switched following off for somebody
+         who had not moved -- after which nothing followed, and the wheel did
+         nothing either, because there was nowhere further down to go. */
+      if (atBottom(thread)) stick = true;
+      else if (up) stick = false;
       else if (isNearBottom(thread)) stick = true;
       reading(thread);
       if (up) wantEarlier(thread);
@@ -387,10 +407,26 @@
      newest message, having scrolled to a bottom that then moved. Asked through
      `scrollThread`, so it is still one scroll a frame from one owner, and
      nothing happens while the reader is somewhere else. */
+  /* And the *window onto it* changes: the composer grows a line, a phone's
+     keyboard opens, the browser is resized. The transcript is as tall as it
+     was and its box is shorter, so the newest lines went under the composer
+     -- 144 px of them for a seven-line message on a phone, 260 px for a
+     keyboard, measured -- and stayed there. So the scroller's own box is
+     watched as well as its content.
+
+     Placed here and now, not through `scrollThread`: an observer runs after
+     the frame's layout and before its paint, so the frame that shows the new
+     size shows the bottom too. Asking for an animation frame from here is the
+     *next* frame, and one frame off the bottom is a visible twitch. It is the
+     same owner (`placeThread`) and the same position a clamp would give, so
+     the scroll event that follows lands on `placed` and is ours. */
   function followHeight() {
     var thread = document.getElementById("thread");
+    var scroller = document.getElementById("thread-scroll");
     if (!thread || !window.ResizeObserver) return;
-    new ResizeObserver(function () { scrollThread(false); }).observe(thread);
+    var sizes = new ResizeObserver(placeThread);
+    sizes.observe(thread);
+    if (scroller) sizes.observe(scroller);
   }
 
   /* A link to one message (`/chat/<id>?at=<message>`, a search hit): the page
@@ -411,6 +447,37 @@
     target.classList.add("msg--jumped");
     return true;
   }
+
+  /* The reader presses a closed block: they are about to read it, and the
+     page stops following *now*, at the press. Not at `toggle`, which is
+     dispatched later -- after the block has opened and the page has grown,
+     which the size observer sees first: still following, it put the page at
+     its new end, and the line that was pressed moved up by the height of
+     what had opened under it (31 px for a tool's line, measured, on about
+     every other press). The `toggle` listener below still decides
+     everything else; this only gets there first.
+
+     A press that opens nothing (something else handled it) is put back: by
+     the next task the block is open or it is not. */
+  document.addEventListener(
+    "click",
+    function (event) {
+      var target = event.target;
+      var summary = target && target.closest ? target.closest("summary") : null;
+      var details = summary ? summary.parentElement : null;
+      if (!details || details.tagName !== "DETAILS" || details.open) return;
+      var thread = document.getElementById("thread-scroll");
+      if (!thread || !thread.contains(details) || !stick) return;
+      stick = false;
+      reading(thread);
+      setTimeout(function () {
+        if (details.open || !atBottom(thread)) return;
+        stick = true;
+        reading(thread);
+      }, 0);
+    },
+    true
+  );
 
   /* `toggle` does not bubble, so this has to be registered in the CAPTURE phase.
      Without the third argument the listener is never called and the whole thing
@@ -434,8 +501,15 @@
         el.removeAttribute("data-restored");
         return;
       }
+      var thread = document.getElementById("thread-scroll");
       if (el.open) stick = false;
-      else scrollThread(false);
+      /* Closed, and the page is at its end again: following again. There is
+         no scroll event to say so when nothing scrolled -- opened and closed
+         at the bottom, the page was left "reading" at the bottom for good,
+         and the next reply ran on below the screen. */
+      else if (thread && atBottom(thread)) stick = true;
+      if (!el.open) scrollThread(false);
+      if (thread) reading(thread);
     },
     true
   );

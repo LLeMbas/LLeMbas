@@ -378,10 +378,21 @@
   text-overflow: ellipsis;
 }
 .msg__metrics:empty { display: none; }
-/* While the reply streams the row is there before the first chips are, at the
-   height one line of chips will take, so their arrival moves nothing. */
-.msg__metrics--live { min-height: var(--row-h); }
+/* While the reply streams the row is there before the first chips are, so
+   their arrival moves nothing.
+
+   The foot of a reply is two rows, and they are the same two heights live
+   and finished (tokens.css, `--msg-foot-*`): live, the line that says what
+   the reply is doing and then this row; finished, the metrics and then the
+   buttons. They used to be 39 px taller live than finished at 1280 px and
+   28 px at 390 px, and the page shrank by that much at the moment every reply
+   ended -- under somebody at the bottom, everything on the screen slid down
+   by it (measured: tests/test_chat_scroll_browser.py). */
+.msg__metrics--live { height: var(--msg-foot-controls); }
 .msg__metrics--live:empty { display: block; }
+.msg__flow > .msg__metrics--live { margin-top: 0; }
+.msg--assistant .msg__metrics:not(.msg__metrics--live) { height: var(--msg-foot-line); }
+.msg--assistant .msg__actions { height: var(--msg-foot-controls); }
 
 .metric { display: inline-flex; align-items: center; gap: var(--sp-1); cursor: default; }
 .metric + .metric { margin-inline-start: var(--sp-3); }
@@ -598,7 +609,7 @@
   border-radius: var(--radius-sm); background: var(--bg-sunken);
 }
 .media-card__video {
-  display: block; width: 100%; max-height: var(--h-page-max);
+  display: block; width: 100%; height: auto; max-height: var(--h-page-max);
   border-radius: var(--radius-sm); background: var(--bg-sunken);
 }
 .media-card__audio { display: block; width: 100%; max-width: var(--w-prose); }
@@ -893,8 +904,9 @@
   padding: 0;
   /* One line's height whether the dots, the status, both or neither are
      showing: the row is a fixed slot, not something that grows when the
-     status arrives and collapses when it goes. */
-  min-height: var(--row-h);
+     status arrives and collapses when it goes. The first row of the reply's
+     foot (see `.msg__metrics--live`). */
+  height: var(--msg-foot-line);
 }
 /* The dots mean "nothing has arrived yet", and only that. Once anything has
    -- text in the tail, or a step that closed -- the caret, the thinking box's
@@ -2038,6 +2050,45 @@
   max-height: var(--h-media);
   object-fit: contain;
 }
+/* The limit on the link, not on the box inside it: a limit in percent does
+   not count when the link's own width is worked out from its content, and
+   the link came out wider than the picture it holds. */
+.attachments__image.sized { max-width: min(var(--w-menu), 100%); }
+
+/* A picture whose size is known before its bytes are (`sized_box` in
+   chat/_media.html): the empty canvas takes the box -- under the same two
+   limits, keeping the picture's shape -- and the picture is laid over it. So
+   the box is there from the first layout, and the picture arriving changes
+   nothing: without this it was 0 by 0 until it loaded and then up to
+   `--h-media` tall, which moved everything below it (measured: 320 px at
+   1280, 223 px at 390). */
+.sized {
+  position: relative;
+  display: block;
+  /* As wide as the box and no wider, wherever it sits: a column that
+     stretches its items would give the picture the whole row. */
+  width: fit-content;
+  max-width: 100%;
+  justify-self: start;
+  align-self: flex-start;
+}
+.sized > .sized__box {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: var(--h-media);
+}
+/* Out of the flow: only the box above gives the size. */
+.sized > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  object-fit: contain;
+}
 .attachments__doc {
   display: flex;
   align-items: flex-start;
@@ -2445,8 +2496,11 @@
 }
 .tool-state { display: inline-flex; align-items: center; margin-inline-start: var(--sp-2); }
 /* The calls running now, under the text being written (chat/_message.html). */
-.msg__running:empty { display: none; }
 .msg__flow > .msg__running { display: flex; flex-direction: column; gap: var(--sp-2); }
+/* After the rule above, which it would otherwise lose to: an empty slot that
+   is still a flex item costs the column one gap for nothing. */
+.msg__running:empty,
+.msg__flow > .msg__running:empty { display: none; }
 /* How a reply that did not finish ended (display.md §4): one line at the end
    of the reply, where it stays. */
 .msg__end {
@@ -3011,9 +3065,19 @@ details[open] > summary > .agent__chevron { transform: rotate(90deg); }
    it has been seen, so the scrollbar settles as the reader goes. Only where
    the browser anchors the scroll, which is what keeps the view still when a
    reply above it takes its real height. Not the bubble being written: it is
-   on the screen, and it changes ten times a second. */
+   on the screen, and it changes ten times a second.
+
+   And not the bubble that has just replaced the one being written
+   (`msg__main--landed`, on the `done` frame's render alone). A new element has no
+   remembered height, so for the frame it arrived in the whole reply was its
+   8rem estimate: the page lost the reply's height at the very moment the reply
+   ended, the scroller was clamped to what was left, and the view jumped --
+   thousands of pixels after a long reply, measured (tests/
+   test_chat_scroll_browser.py). The finished bubble is laid out for real, as
+   the live one was, so the swap changes nothing. A page load gives it the
+   rule back. */
 @supports (overflow-anchor: auto) {
-  .msg:not([sse-connect]) .msg__steps {
+  .msg:not([sse-connect]) .msg__main:not(.msg__main--landed) .msg__steps {
     content-visibility: auto;
     contain-intrinsic-size: auto 8rem;
     overflow-clip-margin: var(--sp-3);

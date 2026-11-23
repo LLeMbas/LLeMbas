@@ -10,16 +10,41 @@
   drawn in the sealed frame the file page uses -- an opaque origin with no
   network, handed the bytes by js/files.js -- and a picture is an image.
 -#}
+{#-
+  The box a picture will take, before the picture is there: an empty canvas
+  of the picture's own width and height. A canvas has its size from its
+  attributes, with no file to read, so a browser sizes it at once -- under the
+  same `max-width` and `max-height` the picture has, and keeping its shape,
+  as it does for a picture that has loaded. It cannot do that for an `<img>`
+  whose file it has not read (with both sizes `auto`, that is 0 by 0 until it
+  loads), nor for an `<svg>` (whose width and height are style, and `auto`
+  takes them away). Nothing is ever drawn on it; the picture is laid over it
+  (`.sized` in chat.css). Nothing when either size is unknown.
+-#}
+{% macro sized_box(width, height) %}
+{%- if width and height -%}
+<canvas class="sized__box" width="{{ width | int }}" height="{{ height | int }}" aria-hidden="true"></canvas>
+{%- endif -%}
+{% endmacro %}
+
 {% macro media_card(m) %}
 {% set raw = "/files/raw?node=" ~ (m.node_id | urlencode) %}
 <figure class="media-card media-card--{{ m.kind }}" data-testid="media-card" data-media-kind="{{ m.kind }}">
   {% if m.kind in ("image", "image_edit") %}
-  <a class="media-card__view" href="{{ raw }}&amp;inline=1" target="_blank" rel="noopener">
+  {#- The picture's size is known before its bytes are (`sized_box` below):
+      a picture that takes its size when it has loaded moves everything under
+      it by its height, and it is loaded when it comes near the screen. -#}
+  <a class="media-card__view{{ ' sized' if m.width and m.height }}" href="{{ raw }}&amp;inline=1" target="_blank" rel="noopener">
+    {{ sized_box(m.width, m.height) }}
     <img class="media-card__image" src="{{ raw }}&amp;inline=1" alt="{{ m.name }}" loading="lazy"
          {% if m.width %}width="{{ m.width }}"{% endif %} {% if m.height %}height="{{ m.height }}"{% endif %}>
   </a>
   {% elif m.kind == "video" %}
+  {#- With its width and height the player has the video's own shape from the
+      first layout; without them it is the browser's 300 by 150 until the
+      file's first bytes say otherwise, and then it jumps. -#}
   <video class="media-card__video" controls preload="metadata" playsinline
+         {% if m.width and m.height %}width="{{ m.width | int }}" height="{{ m.height | int }}"{% endif %}
          src="{{ raw }}&amp;inline=1" data-testid="media-video"></video>
   {% elif m.kind == "music" %}
   <audio class="media-card__audio" controls preload="metadata"

@@ -80,7 +80,7 @@ def test_the_toggle_listener_is_registered_in_the_capture_phase():
 
     Asserted as the property rather than as the markup, for that reason.
     """
-    found = re.search(r'"toggle",[\s\S]{0,600}?\n\s*(true|false)\n\s*\);', APP)
+    found = re.search(r'"toggle",[\s\S]{0,1600}?\n\s*(true|false)\n\s*\);', APP)
     assert found, "the toggle listener is gone"
     assert found.group(1) == "true"
 
@@ -88,7 +88,7 @@ def test_the_toggle_listener_is_registered_in_the_capture_phase():
 def test_the_scroll_listener_is_too():
     """A scroll event does not bubble either, and this one is on the thread
     rather than on the document it is registered against."""
-    found = re.search(r'"scroll",[\s\S]{0,600}?\n\s*(true|false)\n\s*\);', APP)
+    found = re.search(r'"scroll",[\s\S]{0,1600}?\n\s*(true|false)\n\s*\);', APP)
     assert found, "the scroll listener is gone"
     assert found.group(1) == "true"
 
