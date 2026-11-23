@@ -277,6 +277,12 @@
           {% include "chat/_steps.html" %}
         {% endwith %}
       </div>
+      {#- A reply to a harness turn that was never written here (see
+          `reply_unrecorded`): one line, rather than a bubble with nothing in
+          it but its buttons. No text is made up for it. -#}
+      {% if reply_unrecorded(message) %}
+      <p class="msg__note" data-reply-unrecorded>{{ icon("warning", "icon--sm") }} {{ t("The reply to this was not recorded.") }}</p>
+      {% endif %}
       {% endif %}
 
       {#- How a reply that did not finish ended: one line at its end, where
@@ -385,7 +391,7 @@
          has no turn id here to rewind by. The files the device changed are not
          undone, and the control says so. #}
       {% set device_rewinds = chat.device_token_id and device_offers(chat, "rewind") %}
-      {% if message.role == "user" and not machine and (not chat.device_token_id or (device_rewinds and message.origin != "terminal")) %}
+      {% if message.role == "user" and not machine and (not chat.device_token_id or (device_rewinds and message.origin not in ("terminal", "harness"))) %}
       <button class="btn btn--icon btn--sm" type="button"
               hx-get="/api/chats/{{ chat.id }}/messages/{{ message.id }}/edit"
               hx-target="#msg-{{ message.id }}" hx-swap="outerHTML"

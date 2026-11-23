@@ -3,6 +3,36 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## Unreleased
+
+### Added
+
+- **An app with a chat open is told when a reply starts that it did not ask for.** A
+  schedule firing into the chat, a finished background job's note, a subagent waking its
+  lead, a turn a linked computer started by itself: the chat used to stay as it was until
+  it was opened again. `GET /api/v2/events` now sends a `reply` frame (`{chat_id,
+  message_id, live}`) whenever a reply starts in one of your chats, and at once for every
+  reply being written when the stream is opened. For the app engineers: *A reply the app
+  did not start* in the wiki's `App-API.md`, and `event_reply.json` among the contract
+  files. The web page already learned of such turns by itself.
+
+### Fixed
+
+- **In an agent chat, the main agent's answer after its subagents or background jobs
+  finished is written into the chat.** When a job or a team member finishes, the linked
+  computer tells its main agent, and the agent answers. That answer never reached the
+  chat: it showed the note ("Background job") and then an empty reply, and you had to ask
+  what had happened. The server had taken the computer's own turn for one typed in the
+  browser and sent the note back to the computer instead of following the answer.
+- **Two notes in a row each get their answer.** When a second job finished right after the
+  first, the second answer could be lost the same way (an empty reply).
+- **An empty reply left by this is said to be one**: "The reply to this was not recorded."
+  under the note, instead of a blank bubble. The answers themselves were never stored and
+  cannot be brought back; ask the agent again in that chat.
+- An answer to a note is no longer offered *Regenerate* in a way that asked the computer
+  to rewind to a turn it never had; it is refused here, as for a turn typed in the
+  computer's terminal.
+
 ## 2.0.0-beta.17 — 2026-11-19
 
 ### Added

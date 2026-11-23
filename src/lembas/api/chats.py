@@ -104,12 +104,12 @@ async def _device_rewind(chat: Chat, asked: Message | None) -> int:
     The conversation the device's model reads lives in its session, so an
     edit or a regenerate that only rewound the rows here would re-run the turn
     on top of the old one. A device that is not linked, or lists no `rewind`,
-    or a turn that has no id here (one typed in the device's terminal) is the
-    refusal this route always gave; a refusal from the device -- a session
-    still working -- is said in its words. The files the turn changed stay as
-    they are, which the control says.
+    or a turn that has no id here (one the device started: typed in its
+    terminal, or its harness's own) is the refusal this route always gave; a
+    refusal from the device -- a session still working -- is said in its
+    words. The files the turn changed stay as they are, which the control says.
     """
-    if asked is None or asked.origin == device_link.ORIGIN_TERMINAL:
+    if asked is None or device_link.devices_own(asked):
         raise HTTPException(status.HTTP_409_CONFLICT, _device_keeps_history())
     try:
         reverted = await device_link.rewind(chat.device_token_id, chat, asked.id)
@@ -2238,7 +2238,7 @@ async def edit_form(
     # id here to rewind by.
     if chat.device_token_id and (
         not device_link.offers(chat.device_token_id, "rewind")
-        or message.origin == device_link.ORIGIN_TERMINAL
+        or device_link.devices_own(message)
     ):
         raise HTTPException(status.HTTP_409_CONFLICT, _device_keeps_history())
 

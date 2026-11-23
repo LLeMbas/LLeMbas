@@ -311,7 +311,7 @@ async def test_a_machine_prompt_is_mirrored_as_the_harness_turn(db, registered):
             break
     users = [m for m in rows if m.role == "user"]
     assert len(users) == 1
-    assert users[0].machine is True and users[0].origin == ""
+    assert users[0].machine is True and users[0].origin == device_link.ORIGIN_HARNESS
     assert users[0].content == note
     # The turn ends on the device; the mirror following it settles.
     await device.link._notification(

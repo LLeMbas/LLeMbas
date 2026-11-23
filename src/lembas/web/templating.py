@@ -322,6 +322,51 @@ def _reply_end(message):
 templates.env.globals["reply_end"] = _reply_end
 
 
+def _reply_unrecorded(message) -> bool:
+    """Whether a finished reply in an agent chat holds nothing at all and
+    answers a turn nobody typed (a job's note, a team report): the device
+    answered and what it said was never written here. Such rows exist from
+    before the reply to a harness turn followed the device; nothing can fill
+    them in, so the bubble says so in one line instead of standing blank.
+
+    Asked only of an empty reply, so the one query it costs is rare."""
+    if (
+        message.role != "assistant"
+        or not message.complete
+        or (message.content or "").strip()
+        or (message.reasoning or "").strip()
+        or message.tool_calls_json
+        or message.error
+        or message.stopped
+    ):
+        return False
+    from sqlalchemy import select
+    from sqlalchemy.orm import object_session
+
+    from lembas.db.models import ROLE_USER, Chat, Message
+
+    db = object_session(message)
+    if db is None:
+        return False
+    chat = db.get(Chat, message.chat_id)
+    if chat is None or not chat.device_token_id:
+        return False
+    asked = db.scalars(
+        select(Message)
+        .where(
+            Message.chat_id == message.chat_id,
+            Message.role == ROLE_USER,
+            Message.created_at <= message.created_at,
+        )
+        .order_by(Message.created_at.desc())
+        .limit(1)
+    ).first()
+    return asked is not None and bool(asked.machine)
+
+
+templates.env.globals["reply_unrecorded"] = _reply_unrecorded
+
+
 # A report's body: the model's Markdown through the one renderer that
 # sanitises. Markup is safe to mark as such here and only here.
 def _report_body(report):

@@ -22,6 +22,7 @@ import logging
 import re
 import time
 import uuid
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -439,6 +440,35 @@ class Generation:
 _RUNNING: dict[str, Generation] = {}
 _TASKS: dict[str, asyncio.Task] = {}
 
+# Every reply as it starts, numbered: (number, chat id, message id). `ensure`
+# is the one place a reply starts, whoever asked for it -- a person's message,
+# a schedule, a finished job's note, a subagent's wake, a turn a linked device
+# started by itself -- so this is the one place that can tell a client with
+# the chat open and idle that a reply it did not ask for has begun
+# (`/api/v2/events`, the `reply` frame). In memory and bounded: it is news,
+# not a record -- a client that was away reads the chat.
+STARTS_KEPT = 512
+_STARTS: deque[tuple[int, str, str]] = deque(maxlen=STARTS_KEPT)
+_STARTED = 0
+
+
+def started() -> int:
+    """The number of the newest reply started in this process (0: none)."""
+    return _STARTED
+
+
+def started_after(number: int) -> list[tuple[int, str, str]]:
+    """The replies started after that number, oldest first."""
+    if number >= _STARTED:
+        return []
+    return [entry for entry in _STARTS if entry[0] > number]
+
+
+def running() -> list[tuple[str, str]]:
+    """Every reply being written now, as (chat id, message id)."""
+    _prune()
+    return [(g.chat_id, g.message_id) for g in _RUNNING.values() if not g.done]
+
 
 def _start_call(self: Generation, call_id: str, name: str, args: Any) -> None:
     key = call_id or f"call{len(self.running_calls)}"
@@ -583,6 +613,10 @@ def ensure(chat_id: str, message_id: str, *, force_tool: str = "") -> Generation
     generation = Generation(chat_id=chat_id, message_id=message_id, force_tool=force_tool)
     _RUNNING[message_id] = generation
     _TASKS[message_id] = asyncio.create_task(_run(generation))
+    # Said once, here, for every caller (see `_STARTS`).
+    global _STARTED
+    _STARTED += 1
+    _STARTS.append((_STARTED, chat_id, message_id))
     return generation
 
 
@@ -1885,10 +1919,12 @@ def _device_turn(db, chat: Chat, message: Message, generation: Generation) -> di
         "effort": effort,
         "prompt": (asked.content if asked is not None else "") or "",
         "device_name": (token.device_host or token.name) if token is not None else "The device",
-        # The session the chat keeps, and whether this turn was typed in the
-        # device's terminal -- then the reply only follows it.
+        # The session the chat keeps, and whether this turn is the device's
+        # own -- typed in its terminal, or started by its harness (a job's
+        # note, a team report). Then the reply only follows it: sending it
+        # would give the device its own turn a second time.
         "session_id": chat.device_session_id or "",
-        "mirror": asked is not None and asked.origin == device_link.ORIGIN_TERMINAL,
+        "mirror": device_link.devices_own(asked),
         # A reply cut off here while the device went on is followed
         # again, never sent twice; and the message it answers, by id, so a
         # message joining a turn already running is shown where it went in.

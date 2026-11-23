@@ -803,7 +803,7 @@ def _report_chat() -> Chat:
 def _schedules() -> dict[str, object]:
     """`/schedules`, a run, the compile, the preview, the scheduling models and
     the `schedules` event of `GET /events`."""
-    from lembas.api.v2.schedules import version_of
+    from lembas.api.v2.schedules import reply_frame, version_of
     from lembas.db.models import Schedule, ScheduleRun, User
     from lembas.services.schedule import rule, runs
 
@@ -990,6 +990,10 @@ def _schedules() -> dict[str, object]:
         # one arrived.
         "event_reports": {"unread": 1, "newest": serialise.report(report, "Waybread check"),
                           "latest_created": serialise.stamp(report.created_at)},
+        # A reply started in one of the person's chats, whoever started it:
+        # `live` while it is being written (follow its stream), false when it
+        # had already ended by the time this was sent (read the chat again).
+        "event_reply": json.loads(reply_frame("chat1", "msg2", True)),
         # A report that outlived its schedule: `schedule` is null, and what
         # the schedule was called when it was filed is `schedule_title`.
         "report_orphan": {"report": serialise.report(report, None, whole=True)},

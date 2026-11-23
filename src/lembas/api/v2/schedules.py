@@ -21,7 +21,8 @@ so a rule cannot hold through one door and not the other. Every route needs
 | `POST /schedules/preview` | `{rule}` → the rule cleaned, in words, and the next runs |
 | `GET /schedules/models` | the scheduling models, in order, and which are free now |
 | `PUT /schedules/models` | `{"models": [id]}`: the person's narrowing of the list |
-| `GET /events` | server-sent events: `schedules` whenever the list changes |
+| `GET /events` | server-sent events: `schedules` whenever the list changes, `reports`,
+  and `reply` whenever a reply starts in one of the person's chats |
 
 Monitor mode: `watch` among the settings -- an address (`"https://…"`), or
 `{"kind": "url", "target"}`, or `""` to stop watching. A run whose look found
@@ -38,6 +39,7 @@ from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException, Query, status
 from fastapi.responses import Response, StreamingResponse
+from sqlalchemy import select
 
 from lembas.api.deps import Db
 from lembas.api.v2 import serialise
@@ -56,6 +58,8 @@ router = APIRouter()
 
 PERMISSION = "schedule.use"
 EVENT_POLL_SECONDS = 2.0
+# How soon a reply that started is said on the person's stream.
+REPLY_POLL_SECONDS = 0.25
 KEEPALIVE_SECONDS = 15.0
 
 
@@ -344,14 +348,87 @@ def version_of(payload: list[dict[str, Any]]) -> str:
     return hashlib.sha256(encoded.encode()).hexdigest()[:16]
 
 
-async def _events(user_id: str) -> AsyncIterator[str]:
+def reply_frame(chat_id: str, message_id: str, live: bool) -> str:
+    """The `reply` event: `{"chat_id", "message_id", "live"}` -- a reply has
+    started in that chat, whoever started it. `live`: it is being written
+    now (follow `GET /chats/{chat_id}/messages/{message_id}/stream`); false:
+    it has already ended, and the chat is to be read again."""
+    return json.dumps(
+        {"chat_id": chat_id, "message_id": message_id, "live": bool(live)},
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+
+def _own_replies(db, user_id: str, replies: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """Those of the replies that are in this person's own chats, in the order
+    given. Not a subagent's or a team member's chat (`parent_chat_id`): no
+    client lists or opens those as chats, and what they do is the activity
+    panel's news (`/chats/{chat}/activity/events`)."""
+    from lembas.db.models import Chat
+
+    ids = {chat_id for chat_id, _ in replies}
+    if not ids:
+        return []
+    mine = set(
+        db.scalars(
+            select(Chat.id).where(
+                Chat.id.in_(ids), Chat.user_id == user_id, Chat.parent_chat_id.is_(None)
+            )
+        )
+    )
+    return [(chat_id, message_id) for chat_id, message_id in replies if chat_id in mine]
+
+
+async def _events(user_id: str, *, scheduled: bool = True) -> AsyncIterator[str]:
     """`schedules` with the whole list whenever it changes -- a schedule made,
     paused or deleted, a run starting, waiting or finishing. Whole, as every
-    frame here is: a client back from the background needs no bookkeeping."""
+    frame here is: a client back from the background needs no bookkeeping.
+
+    And `reply`, the one frame that is an event and not a state: a reply has
+    started in one of the person's chats. A client with that chat open and
+    idle has no other way to hear of a reply it did not ask for -- a schedule
+    firing into the chat, a finished job's note, a subagent's wake, a turn a
+    linked device started by itself. Every reply is said, the client's own
+    too (it knows those by their message id); the ones being written when the
+    stream opens are said at once. `scheduled` false (no `schedule.use`):
+    `reply` only."""
+    from lembas.services import generation as generation_service
+
     sent = ""
     reports_sent = ""
     quiet = 0.0
+    # Replies: those running now first, then each as `generation.ensure`
+    # numbers it. The cursor is taken before the running ones are read, so one
+    # starting in between is in both, and `told` keeps it from being said twice.
+    cursor = generation_service.started()
+    with session_scope() as db:
+        current = _own_replies(db, user_id, generation_service.running())
+    for chat_id, message_id in current:
+        yield sse.event("reply", reply_frame(chat_id, message_id, True))
+    told = set(current)
     while True:
+        fresh = generation_service.started_after(cursor)
+        if fresh:
+            cursor = fresh[-1][0]
+            with session_scope() as db:
+                mine = _own_replies(db, user_id, [(c, m) for _, c, m in fresh])
+            for chat_id, message_id in mine:
+                if (chat_id, message_id) in told:
+                    continue
+                running = generation_service.get(message_id)
+                quiet = 0.0
+                yield sse.event(
+                    "reply",
+                    reply_frame(chat_id, message_id, running is not None and not running.done),
+                )
+            told.clear()
+        if not scheduled:
+            if quiet >= KEEPALIVE_SECONDS:
+                quiet = 0.0
+                yield sse.KEEPALIVE
+            quiet += await _pause(cursor)
+            continue
         with session_scope() as db:
             user = db.get(User, user_id)
             if user is None:
@@ -390,8 +467,23 @@ async def _events(user_id: str) -> AsyncIterator[str]:
         elif quiet >= KEEPALIVE_SECONDS:
             quiet = 0.0
             yield sse.KEEPALIVE
-        await asyncio.sleep(EVENT_POLL_SECONDS)
-        quiet += EVENT_POLL_SECONDS
+        quiet += await _pause(cursor)
+
+
+async def _pause(cursor: int) -> float:
+    """Wait for the next look at the lists -- EVENT_POLL_SECONDS, or less when
+    a reply starts meanwhile: that is said within REPLY_POLL_SECONDS, because
+    a chat that is open should not sit still for two seconds while its reply
+    is already being written. Returns how long it waited."""
+    from lembas.services import generation as generation_service
+
+    waited = 0.0
+    while waited < EVENT_POLL_SECONDS:
+        await asyncio.sleep(REPLY_POLL_SECONDS)
+        waited += REPLY_POLL_SECONDS
+        if generation_service.started() > cursor:
+            break
+    return waited
 
 
 @router.get("/events")
@@ -400,20 +492,17 @@ async def events(caller: Me, db: Db) -> StreamingResponse:
     (`{"version", "schedules": [schedule]}`), sent first at once and then
     whenever `version` moves; and `reports` (`{"unread": n, "newest": report |
     null}` -- the newest unread one, in the list shape of `GET /reports`),
-    sent at once and whenever either changes. Without `schedule.use` the stream stays open and
-    says nothing, so a client needs one code path."""
+    sent at once and whenever either changes; and `reply` (`{"chat_id",
+    "message_id", "live"}`), whenever a reply starts in one of the person's
+    chats, whoever started it. Without `schedule.use` the stream stays open
+    and says only `reply`, so a client needs one code path."""
     from lembas.security import permissions
 
     allowed = permissions.has(db, caller.user, PERMISSION)
     user_id = caller.user.id
 
-    async def silent() -> AsyncIterator[str]:
-        while True:
-            await asyncio.sleep(KEEPALIVE_SECONDS)
-            yield sse.KEEPALIVE
-
     return StreamingResponse(
-        _events(user_id) if allowed else silent(),
+        _events(user_id, scheduled=allowed),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache, no-transform",
@@ -423,4 +512,4 @@ async def events(caller: Me, db: Db) -> StreamingResponse:
     )
 
 
-__all__ = ["router", "version_of"]
+__all__ = ["reply_frame", "router", "version_of"]

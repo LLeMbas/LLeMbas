@@ -3683,3 +3683,4 @@ MESSAGES['Re-pin at the next sign-in'] = 'Naviazať znova pri ďalšom prihláse
 MESSAGES['Re-pinning signs everyone out of this server.'] = 'Nové naviazanie odhlási z tohto servera všetkých.'
 MESSAGES['Too many archives are being read at the moment. Open it again shortly.'] = 'Práve sa číta príliš veľa archívov. Otvorte ho o chvíľu znova.'
 MESSAGES['%(name)s takes the provider it names at the next sign-in.'] = '%(name)s prevezme pri ďalšom prihlásení poskytovateľa, ktorého uvedie.'
+MESSAGES['The reply to this was not recorded.'] = 'Odpoveď na toto nebola zaznamenaná.'

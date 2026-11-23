@@ -1855,7 +1855,9 @@ async def _reattach(
             return False
         # Never seen, or finished before the last one: sent again, by its id.
         return True
-    if status.get("busy"):
+    if status.get("busy") or session_id in link.busy:
+        # Working, by its own word -- or by a `task` start this link has seen
+        # and no end since, which is the device's word too.
         link.busy.add(session_id)
         await _follow(link, generation, chat_id, session_id)
         return False
@@ -1941,6 +1943,12 @@ async def _follow(link: Link, generation, chat_id: str, session_id: str) -> None
         if session_id not in link.busy and not done.done():
             # It ended between the question and now.
             done.set_result(None)
+        if done.done():
+            # Over on the device before this reply was following it: said, as
+            # the dispatcher says it for a turn that ends while followed, so
+            # the device's next turn waits for this reply instead of being
+            # dropped as a second one in the chat (`_previous_reply_done`).
+            generation.device_turn_over = True
         stopping = asyncio.ensure_future(generation.stop_event.wait())
         try:
             while not done.done():
@@ -1966,7 +1974,11 @@ async def _follow(link: Link, generation, chat_id: str, session_id: str) -> None
             link.writing.pop(session_id, None)
         if turn and link.turn_writers.get((session_id, turn)) is generation:
             link.turn_writers.pop((session_id, turn), None)
-        link.buffered.pop(session_id, None)
+        # The buffer is not dropped here. This reply took its own at the top;
+        # one that exists now was made since, for the device's *next* turn (a
+        # second note, a turn typed in the terminal, a queued turn starting),
+        # whose reply has not begun to follow yet. Dropping it left that reply
+        # empty: it found no buffer, asked the device, and wrote nothing.
         _close_thinking(generation)
         generation.status = ""
         generation.touch()
@@ -2208,7 +2220,24 @@ async def rewind(link_or_token: Link | str | None, chat, turn_id: str) -> int | 
 
 
 # --- A session the device's terminal shares -----------------------------
+# Message.origin of a user turn the *device* started, mirrored here: typed in
+# its terminal ...
 ORIGIN_TERMINAL = "terminal"
+# ... or started by its harness -- a finished job's note, a team report --
+# which the device says with `machine` on the turn's `prompt` event. `machine`
+# on the row is not this mark: a note written *here* into an agent chat (a
+# schedule's firing, a finished generation, `wake.wake_chat`) is `machine` too,
+# and the device has never seen it, so it is sent.
+ORIGIN_HARNESS = "harness"
+DEVICE_ORIGINS = (ORIGIN_TERMINAL, ORIGIN_HARNESS)
+
+
+def devices_own(message) -> bool:
+    """Whether a user turn is the device's own, mirrored here: its reply only
+    follows the device, nothing is sent for it, and its row's id is not a turn
+    id the device knows (so it cannot be rewound to from here). The one place
+    that tells such a turn from one typed, or written, on this instance."""
+    return message is not None and (getattr(message, "origin", "") or "") in DEVICE_ORIGINS
 
 
 def _ends_task(event: dict[str, Any]) -> bool:
@@ -2224,9 +2253,10 @@ def _settle_mirror(link: Link, session_id: str) -> None:
 async def _follow_mirror(
     link: Link, generation, chat_id: str, session_id: str, device_name: str
 ) -> None:
-    """Write the reply to a turn typed in the device's terminal, from its events,
-    until the terminal's task ends. Stop here stops it there; a message typed
-    here meanwhile joins it there, as one typed in the terminal would."""
+    """Write the reply to a turn the device started -- typed in its terminal, or
+    its harness's own -- from its events, until the device's task ends. Stop
+    here stops it there; a message typed here meanwhile joins it there, as one
+    typed in the terminal would."""
     if session_id not in link.buffered:
         # Not started by the terminal's event on this link: an instance that
         # restarted part way through a turn it was following. Followed again
@@ -2655,11 +2685,16 @@ async def _mirror_turn(
             if db.get(Message, turn) is not None:
                 link.buffered.pop(session_id, None)
                 return
+    if turn or machine:
+        with session_scope() as db:
             chat = _chat_for(db, link, session_id)
             chat_id = chat.id if chat is not None else ""
-        # The web turn before it may still be finishing here: its turn has
-        # ended on the device, so this one waits for it rather than being
-        # dropped as a second reply in the chat.
+        # The turn before it may still be finishing here: it has ended on the
+        # device, so this one waits for it rather than being dropped as a
+        # second reply in the chat. A harness turn waits whether or not the
+        # device names its turns: a note comes right after the turn before it
+        # (a second note, or the turn that started the job), and dropped it
+        # would be a turn of the device's this chat never shows.
         if chat_id:
             await _previous_reply_done(chat_id)
     ids: tuple[str, str] | None = None
@@ -2676,13 +2711,15 @@ async def _mirror_turn(
             if chat is not None and generation_service.running_for(chat.id) is None:
                 # The harness's own turn is badged as such (`machine`, as a
                 # schedule's or a helper's note here is), never as typed in the
-                # terminal: nobody typed it.
+                # terminal: nobody typed it. Its origin says the device started
+                # it, which is what makes its reply follow the device instead
+                # of sending the note back to it.
                 asked = chat_service.create_message(
                     db,
                     chat,
                     ROLE_USER,
                     text,
-                    origin="" if machine else ORIGIN_TERMINAL,
+                    origin=ORIGIN_HARNESS if machine else ORIGIN_TERMINAL,
                     machine=machine,
                 )
                 if attachments:
@@ -3272,7 +3309,10 @@ def reset() -> None:
 __all__ = [
     "CLOSE_PROTOCOL",
     "CLOSE_REFUSED",
+    "DEVICE_ORIGINS",
     "LINKS",
+    "ORIGIN_HARNESS",
+    "ORIGIN_TERMINAL",
     "PROTOCOL",
     "PROTOCOLS",
     "PROTOCOL_REFUSAL",

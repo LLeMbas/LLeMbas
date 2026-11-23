@@ -50,6 +50,12 @@ Reports (beta.12, `reports.py`, harness spec 3.8.0): what a schedule's run
 filed -- list, one, read, delete, reply -- a `reports` event on `GET /events`,
 and `notify_when`, `note` and `report` on schedules and their runs.
 
+A reply nobody here asked for (after beta.17): `reply` on `GET /events` --
+`{chat_id, message_id, live}` whenever a reply starts in one of the person's
+chats, from `generation.ensure`, the one place replies start. A message's
+`origin` may also be `harness`: a turn a linked device's harness started (a
+finished job's note, a team report), mirrored here with its reply.
+
 Voice and images are not here: they are `/v1/audio/*` and
 `/v1/images/generations`, the OpenAI-compatible routes, which need the `models`
 scope. An app asks for `app models` at sign-in (the device login takes any of

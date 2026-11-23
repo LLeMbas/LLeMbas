@@ -3105,3 +3105,4 @@ MESSAGES['Re-pin at the next sign-in'] = 'Újrakötés a következő bejelentkez
 MESSAGES['Re-pinning signs everyone out of this server.'] = 'Az újrakötés mindenkit kijelentkeztet erről a kiszolgálóról.'
 MESSAGES['Too many archives are being read at the moment. Open it again shortly.'] = 'Jelenleg túl sok archívum olvasása folyik. Nyissa meg újra egy pillanat múlva.'
 MESSAGES['%(name)s takes the provider it names at the next sign-in.'] = '%(name)s a következő bejelentkezéskor az általa megnevezett szolgáltatót veszi át.'
+MESSAGES['The reply to this was not recorded.'] = 'Az erre adott válasz nem lett rögzítve.'

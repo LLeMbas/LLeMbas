@@ -3105,3 +3105,4 @@ MESSAGES['Re-pin at the next sign-in'] = 'Lier à nouveau à la prochaine connex
 MESSAGES['Re-pinning signs everyone out of this server.'] = 'Lier à nouveau déconnecte tout le monde de ce serveur.'
 MESSAGES['Too many archives are being read at the moment. Open it again shortly.'] = "Trop d'archives sont en cours de lecture. Rouvrez-la dans un instant."
 MESSAGES['%(name)s takes the provider it names at the next sign-in.'] = "%(name)s prendra le fournisseur qu'il indique à la prochaine connexion."
+MESSAGES['The reply to this was not recorded.'] = 'La réponse à ceci n’a pas été enregistrée.'

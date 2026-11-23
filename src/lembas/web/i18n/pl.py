@@ -3105,3 +3105,4 @@ MESSAGES['Re-pin at the next sign-in'] = 'Przypnij ponownie przy następnym logo
 MESSAGES['Re-pinning signs everyone out of this server.'] = 'Ponowne przypięcie wylogowuje wszystkich z tego serwera.'
 MESSAGES['Too many archives are being read at the moment. Open it again shortly.'] = 'W tej chwili odczytywanych jest zbyt wiele archiwów. Otwórz je ponownie za chwilę.'
 MESSAGES['%(name)s takes the provider it names at the next sign-in.'] = '%(name)s przyjmie dostawcę, którego wskaże przy następnym logowaniu.'
+MESSAGES['The reply to this was not recorded.'] = 'Odpowiedź na to nie została zapisana.'
