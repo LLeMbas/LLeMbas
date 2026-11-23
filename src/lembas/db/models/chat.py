@@ -497,6 +497,15 @@ class Message(UUIDPrimaryKey, Timestamps, Base):
     # reply to it is written by the device and only mirrored here -- nothing is
     # sent for it -- and the bubble says where it came from.
     origin: Mapped[str] = mapped_column(String(16), default="", nullable=False)
+    # The linked device's own id for a turn *it* started, on the user row
+    # mirroring that turn (`origin` "terminal" or "harness"): what its `task`
+    # and `prompt` events, its status and its history call the turn. The row's
+    # own id is not a turn id the device knows; this is, so the reply to such
+    # a turn is found again after a restart by asking the device about *this*
+    # turn (harness spec 3.10.0, `acp.md` *A turn the harness starts*), and a
+    # turn read from the device's history is never stored twice. NULL on every
+    # other row, and on rows mirrored before it was kept.
+    device_turn_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Cut off by a shutdown rather than stopped by anybody: taken up
     # again at the next start -- see generation.resume_interrupted.
     interrupted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

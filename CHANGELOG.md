@@ -15,9 +15,36 @@ at <https://llembas.eu/changelog.html>.
   reply being written when the stream is opened. For the app engineers: *A reply the app
   did not start* in the wiki's `App-API.md`, and `event_reply.json` among the contract
   files. The web page already learned of such turns by itself.
+- **A message you type while the main agent answers a subagent or a finished job goes into
+  that answer** -- with a linked computer whose LLeMbas CLI carries harness spec 3.10.0
+  (the next CLI beta; it lists the capability `harness_turns`). The message is shown in
+  the reply at the point the agent took it in, as one typed during any other reply is. If
+  the agent had already finished, the computer hands the message back and it is sent as
+  the next turn by itself. With an older CLI the message waits and is sent when that
+  answer is done, as before.
 
 ### Fixed
 
+- **A message typed while the main agent was answering by itself is never lost.** With a
+  CLI that accepts such a message, one that arrived just as the answer ended stayed in the
+  chat looking delivered and never reached the agent. It is now sent as the next turn,
+  exactly once.
+- **After a restart of the server, an answer the main agent was writing by itself is taken
+  up again as that answer.** The server asks the computer about that very turn: it follows
+  it while it runs and reads it from the computer's history once it has ended. A subagent's
+  report is never sent to the computer a second time as if you had typed it, also when
+  the computer itself restarted meanwhile -- the reply is then closed as it stands. With
+  two reports in a row, the first reply no longer takes the second one's text. (Needs the
+  CLI with spec 3.10.0; an older one is asked as before.)
+- **An answer the main agent gave while the server was restarting appears in the chat.**
+  A report that arrived during the restart used to leave nothing behind: neither the note
+  nor the answer. An answer still being written when the server is back is followed from
+  there and completed from the computer's history; one that had already ended is read
+  from the history the next time the server reads it for that chat. (Needs the CLI with
+  spec 3.10.0.)
+- A message typed while an older CLI's main agent answered by itself was offered to the
+  computer every half second and refused each time until the answer ended. Nothing is
+  sent to such a computer during that answer now; the message goes when it is over.
 - **In an agent chat, the main agent's answer after its subagents or background jobs
   finished is written into the chat.** When a job or a team member finishes, the linked
   computer tells its main agent, and the agent answers. That answer never reached the

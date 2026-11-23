@@ -343,6 +343,18 @@ class Generation:
     # sent again that the device had already finished answers with no events.
     turn_id: str = ""
     turn_started: bool = False
+    # Its prompt was sent with a turn id and the device has not said that
+    # turn's `task` start yet: it may be waiting behind another turn there,
+    # whose events are not this reply's.
+    awaits_start: bool = False
+    # What a turn the device's harness started handed back on its `task` end
+    # (`unsent`, capability `harness_turns`): the messages steered into it
+    # that it ended before taking in. `device_link._follow` queues them again.
+    device_unsent: list[str] = field(default_factory=list)
+    # The message this reply was started for went into a turn already running
+    # on the device and came back unsent: `device_link.run` sends it as a
+    # prompt of its own.
+    device_resend: bool = False
     # Cut off by a shutdown, not stopped by anybody: written on the row,
     # and taken up again when the instance is back.
     interrupted: bool = False
@@ -1925,6 +1937,10 @@ def _device_turn(db, chat: Chat, message: Message, generation: Generation) -> di
         # would give the device its own turn a second time.
         "session_id": chat.device_session_id or "",
         "mirror": device_link.devices_own(asked),
+        # ... which of the two, and the device's own id for that turn, where
+        # the row kept it: what the device is asked about after a restart.
+        "harness": asked is not None and asked.origin == device_link.ORIGIN_HARNESS,
+        "device_turn": (asked.device_turn_id or "") if asked is not None else "",
         # A reply cut off here while the device went on is followed
         # again, never sent twice; and the message it answers, by id, so a
         # message joining a turn already running is shown where it went in.

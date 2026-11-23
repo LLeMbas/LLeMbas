@@ -21,6 +21,7 @@ import pytest
 
 from lembas.services import chat as chat_service
 from lembas.services import (
+    device_link,
     generation,
     harness_spec,
     jobs,
@@ -76,6 +77,11 @@ AREAS = {
     # in the schedule's form), the `[SILENT]` rule its runs share with the
     # device's, and the watch command's hash (the judge cases are the device's).
     "scheduled": lambda c: _scheduled(c),
+    # Spec 3.10.0: what is done with an incomplete row after a restart or a
+    # dropped link, from what the device's status says -- and a turn the
+    # harness started is never sent (`device_link.reattach_decision`, the one
+    # place `_reattach` decides).
+    "reattach": lambda c: _reattach(c),
     "silent": lambda c: {
         "silent": notify.is_silent(c["text"]), "stripped": notify.strip_sentinel(c["text"])
     },
@@ -632,6 +638,63 @@ def test_the_vendored_spec_matches_its_lock():
         [sys.executable, str(ROOT / "scripts" / "fetch_harness.py")], capture_output=True, text=True
     )
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+def _reattach(case):
+    return {
+        "do": device_link.reattach_decision(
+            str(case["turn"]), dict(case["status"]), machine=case.get("machine") is True
+        )
+    }
+
+
+def test_the_reattach_cases_are_in_the_vendored_spec():
+    """`conformance/reattach.json` is new in spec 3.10.0. The runner for it is
+    here already (`AREAS["reattach"]`); the cases run by themselves, as
+    `test_conformance[reattach-N]`, from the moment the vendored copy has the
+    file. Until then this says so in every run, rather than nothing saying it.
+    (tests/test_device_spec310.py states the same table in this project's own
+    words meanwhile.)"""
+    path = harness_spec.conformance_dir() / "reattach.json"
+    if not path.exists():
+        pytest.skip(
+            f"reattach: the vendored spec is {harness_spec.version()} and has no "
+            "conformance/reattach.json -- it arrives with spec 3.10.0: "
+            "python scripts/fetch_harness.py --update <the CLI tag that carries 3.10.0>"
+        )
+    cases = json.loads(path.read_text(encoding="utf-8"))["cases"]
+    assert cases, "reattach.json has no cases"
+    assert {c["expect"]["do"] for c in cases} >= {"follow", "wait", "import", "resend"}
+    for case in cases:
+        given = {k: v for k, v in case.items() if k != "expect"}
+        assert _reattach(given) == case["expect"], given
+
+
+def test_the_reattach_runner_runs_a_file_that_is_there(tmp_path, monkeypatch):
+    """Both sides of the test above, on a file made up here: with the file in
+    the spec's directory the cases are run and a wrong answer fails; without
+    it, the test is skipped and says why."""
+    monkeypatch.setattr(harness_spec, "conformance_dir", lambda: tmp_path)
+    with pytest.raises(pytest.skip.Exception, match="arrives with spec 3.10.0"):
+        test_the_reattach_cases_are_in_the_vendored_spec()
+
+    def case(turn, do, *, machine=False, **status):
+        row = {"turn": turn, "status": status, "expect": {"do": do}}
+        return {**row, "machine": True} if machine else row
+
+    right = [
+        case("a", "follow", turnId="a"),
+        case("a", "wait", turnId="b", queued=["a"]),
+        case("a", "import", lastTurnId="a"),
+        case("a", "resend", lastTurnId="b"),
+        case("n", "import", machine=True, lastTurnId="b"),
+    ]
+    (tmp_path / "reattach.json").write_text(json.dumps({"cases": right}), encoding="utf-8")
+    test_the_reattach_cases_are_in_the_vendored_spec()
+    wrong = [*right, case("n", "resend", machine=True, lastTurnId="b")]
+    (tmp_path / "reattach.json").write_text(json.dumps({"cases": wrong}), encoding="utf-8")
+    with pytest.raises(AssertionError):
+        test_the_reattach_cases_are_in_the_vendored_spec()
 
 
 def test_every_area_is_run_or_named_as_pending():
