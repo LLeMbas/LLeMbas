@@ -15,6 +15,10 @@ at <https://llembas.eu/changelog.html>.
   reply being written when the stream is opened. For the app engineers: *A reply the app
   did not start* in the wiki's `App-API.md`, and `event_reply.json` among the contract
   files. The web page already learned of such turns by itself.
+- **An app is told when a reply ends, too.** The `reply` frame of `GET /api/v2/events` is
+  sent once more when a reply is over (`live: false`), however it ended, so a chat list
+  can show "writing" and clear it without asking again. For the app engineers:
+  `event_reply_end.json` among the contract files.
 - **A message you type while the main agent answers a subagent or a finished job goes into
   that answer** -- with a linked computer whose LLeMbas CLI carries harness spec 3.10.0
   (the next CLI beta; it lists the capability `harness_turns`). The message is shown in

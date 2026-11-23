@@ -482,6 +482,39 @@ def started_after(number: int) -> list[tuple[int, str, str]]:
     return [entry for entry in _STARTS if entry[0] > number]
 
 
+# ... and where every reply ends: the last lines of `_run`, whatever way it
+# ended -- finished, stopped, failed, cut off by a shutdown, its device gone.
+# The same news in the other direction, for a client that shows a chat as
+# "writing" without following the reply (a list's dot, a drawer's row): it
+# cannot otherwise tell when to stop. Numbered apart from the starts.
+_ENDS: deque[tuple[int, str, str]] = deque(maxlen=STARTS_KEPT)
+_ENDED = 0
+
+
+def ended() -> int:
+    """The number of the newest reply ended in this process (0: none)."""
+    return _ENDED
+
+
+def ended_after(number: int) -> list[tuple[int, str, str]]:
+    """The replies ended after that number, oldest first."""
+    if number >= _ENDED:
+        return []
+    return [entry for entry in _ENDS if entry[0] > number]
+
+
+def _said_over(generation: Generation) -> None:
+    """Say, once, that this reply is over. Not for a reply that was replaced
+    while it ran (a regeneration starts the same row again): that row is
+    being written still, and its new run says the end."""
+    owner = _RUNNING.get(generation.message_id)
+    if owner is not None and owner is not generation:
+        return
+    global _ENDED
+    _ENDED += 1
+    _ENDS.append((_ENDED, generation.chat_id, generation.message_id))
+
+
 def running() -> list[tuple[str, str]]:
     """Every reply being written now, as (chat id, message id)."""
     _prune()
@@ -1747,6 +1780,7 @@ async def _run(generation: Generation) -> None:
         generation.done = True
         generation.finished_at = datetime.now(UTC)
         generation.touch()
+        _said_over(generation)
         if cancelled:
             raise asyncio.CancelledError
 

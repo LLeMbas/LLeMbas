@@ -994,6 +994,8 @@ def _schedules() -> dict[str, object]:
         # `live` while it is being written (follow its stream), false when it
         # had already ended by the time this was sent (read the chat again).
         "event_reply": json.loads(reply_frame("chat1", "msg2", True)),
+        # The same frame when that reply ends, however it ends: sent once.
+        "event_reply_end": json.loads(reply_frame("chat1", "msg2", False)),
         # A report that outlived its schedule: `schedule` is null, and what
         # the schedule was called when it was filed is `schedule_title`.
         "report_orphan": {"report": serialise.report(report, None, whole=True)},

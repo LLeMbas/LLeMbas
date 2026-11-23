@@ -408,7 +408,8 @@ async def _events(
     frame here is: a client back from the background needs no bookkeeping.
 
     And `reply`, the one frame that is an event and not a state: a reply has
-    started in one of the person's chats. A client with that chat open and
+    started in one of the person's chats (`live` true), or is over (`live`
+    false -- sent when it ends, however it ends, once). A client with that chat open and
     idle has no other way to hear of a reply it did not ask for -- a schedule
     firing into the chat, a finished job's note, a subagent's wake, a turn a
     linked device started by itself. Every reply is said, the client's own
@@ -429,6 +430,11 @@ async def _events(
     for chat_id, message_id in current:
         yield sse.event("reply", reply_frame(chat_id, message_id, True))
     told = set(current)
+    # ... and each as it ends: the same frame with `live` false, once. A reply
+    # already said to be over (it had ended by the time its start was said)
+    # is not said over a second time.
+    end_cursor = generation_service.ended()
+    over: set[tuple[str, str]] = set()
     checked = 0.0
     while True:
         if checked >= RECHECK_SECONDS:
@@ -447,16 +453,29 @@ async def _events(
                     continue
                 running = generation_service.get(message_id)
                 quiet = 0.0
-                yield sse.event(
-                    "reply",
-                    reply_frame(chat_id, message_id, running is not None and not running.done),
-                )
+                live = running is not None and not running.done
+                if not live:
+                    over.add((chat_id, message_id))
+                yield sse.event("reply", reply_frame(chat_id, message_id, live))
             told.clear()
+        finished = generation_service.ended_after(end_cursor)
+        if finished:
+            end_cursor = finished[-1][0]
+            with session_scope() as db:
+                mine = _own_replies(db, user_id, [(c, m) for _, c, m in finished])
+            for chat_id, message_id in mine:
+                if (chat_id, message_id) in over:
+                    over.discard((chat_id, message_id))
+                    continue
+                quiet = 0.0
+                yield sse.event("reply", reply_frame(chat_id, message_id, False))
+            if len(over) > generation_service.STARTS_KEPT:
+                over.clear()
         if not scheduled:
             if quiet >= KEEPALIVE_SECONDS:
                 quiet = 0.0
                 yield sse.KEEPALIVE
-            waited = await _pause(cursor)
+            waited = await _pause(cursor, end_cursor)
             quiet, checked = quiet + waited, checked + waited
             continue
         with session_scope() as db:
@@ -497,11 +516,11 @@ async def _events(
         elif quiet >= KEEPALIVE_SECONDS:
             quiet = 0.0
             yield sse.KEEPALIVE
-        waited = await _pause(cursor)
+        waited = await _pause(cursor, end_cursor)
         quiet, checked = quiet + waited, checked + waited
 
 
-async def _pause(cursor: int) -> float:
+async def _pause(cursor: int, end_cursor: int = -1) -> float:
     """Wait for the next look at the lists -- EVENT_POLL_SECONDS, or less when
     a reply starts meanwhile: that is said within REPLY_POLL_SECONDS, because
     a chat that is open should not sit still for two seconds while its reply
@@ -513,6 +532,8 @@ async def _pause(cursor: int) -> float:
         await asyncio.sleep(REPLY_POLL_SECONDS)
         waited += REPLY_POLL_SECONDS
         if generation_service.started() > cursor:
+            break
+        if end_cursor >= 0 and generation_service.ended() > end_cursor:
             break
     return waited
 

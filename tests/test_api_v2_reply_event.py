@@ -261,3 +261,136 @@ async def test_an_open_stream_ends_when_its_token_is_revoked_or_its_account_swit
         user.active = False
     db.commit()
     assert await _ends(stream, 6.0) is (gone != "neither")
+
+
+# --- The same frame when a reply ends ---------------------------------------------------
+@pytest.fixture
+def ending(monkeypatch):
+    """As `held`, and the reply ends the way `_run` ends every reply: by
+    saying so (`_said_over`) after `done`."""
+    release = asyncio.Event()
+
+    async def run(generation):
+        await release.wait()
+        generation.done = True
+        generation_service._said_over(generation)
+
+    monkeypatch.setattr(generation_service, "_run", run)
+    yield release
+    release.set()
+    generation_service._RUNNING.clear()
+    generation_service._TASKS.clear()
+
+
+async def test_a_reply_that_ends_is_said_once_with_live_false(
+    client, db, registered, make_chat, ending
+):
+    """An app that shows a chat as writing without following the reply (a
+    list's dot) learns that it is over: the same frame, `live` false, once."""
+    chat_id = make_chat()
+    stream = v2._events(_user_id(db), scheduled=False)
+    reply_id = _reply_row(db, chat_id)
+    generation_service.ensure(chat_id, reply_id)
+    assert await _frames(stream, 1) == [{"chat_id": chat_id, "message_id": reply_id, "live": True}]
+    ending.set()
+    assert await _frames(stream, 1) == [
+        {"chat_id": chat_id, "message_id": reply_id, "live": False}
+    ]
+    # Once: the next frames are keepalives, not a second end.
+    try:
+        later = await asyncio.wait_for(anext(stream), 1.5)
+    except TimeoutError:
+        later = ""
+    assert not later.startswith("event: reply\n")
+    await stream.aclose()
+
+
+async def test_a_reply_over_before_its_start_was_said_is_said_over_once(
+    client, db, registered, make_chat, ending
+):
+    """Shorter than the stream's look: its one frame says `live` false -- and
+    the end, which is the same statement, is not said again."""
+    chat_id = make_chat()
+    stream = v2._events(_user_id(db))
+    assert (await anext(stream)).startswith("event: schedules\n")  # the stream is open
+    ending.set()
+    reply_id = _reply_row(db, chat_id)
+    generation_service.ensure(chat_id, reply_id)
+    await asyncio.wait_for(generation_service._TASKS[reply_id], 5)
+    assert await _frames(stream, 1) == [
+        {"chat_id": chat_id, "message_id": reply_id, "live": False}
+    ]
+    try:
+        later = await asyncio.wait_for(_frames(stream, 1, tries=3), 3.0)
+    except (TimeoutError, AssertionError):
+        later = []
+    assert later == []
+    await stream.aclose()
+
+
+async def test_the_end_is_said_to_the_chats_owner_only_and_not_for_a_stream_opened_later(
+    client, db, registered, make_chat, ending
+):
+    from lembas.db.models import User
+    from lembas.security import passwords
+
+    stranger = User(email="sam@shire.test", name="Sam", password_hash=passwords.hash_password("x"))
+    db.add(stranger)
+    db.commit()
+    chat_id = make_chat()
+    theirs = v2._events(stranger.id)
+    assert (await anext(theirs)).startswith("event: ")  # open, and listening
+    reply_id = _reply_row(db, chat_id)
+    generation_service.ensure(chat_id, reply_id)
+    ending.set()
+    await asyncio.wait_for(generation_service._TASKS[reply_id], 5)
+    late = v2._events(_user_id(db), scheduled=False)
+    for stream in (theirs, late):
+        try:
+            said = await asyncio.wait_for(_frames(stream, 1, tries=4), 3.0)
+        except (TimeoutError, AssertionError):
+            said = []
+        assert said == []
+        await stream.aclose()
+
+
+async def test_every_way_a_reply_ends_goes_through_the_one_place(client, db, registered, make_chat):
+    """The real `_run`, ending three ways -- failed (no model to ask), stopped
+    before it began, and a chat on a device that is not there: each says it is
+    over, once. And a reply replaced while it ran (a regeneration) says
+    nothing for the run that was replaced."""
+    from lembas.services import device_link, settings_store
+    from tests.test_device_harness_turn import WITH_TURNS, Device, _device_chat
+
+    before = generation_service.ended()
+    failed_chat = make_chat()
+    failed = _reply_row(db, failed_chat)
+    generation_service.ensure(failed_chat, failed)
+    await asyncio.wait_for(generation_service._TASKS[failed], 20)
+
+    stopped_chat = make_chat()
+    stopped = _reply_row(db, stopped_chat)
+    generation_service.ensure(stopped_chat, stopped)
+    generation_service.request_stop(stopped)
+    await asyncio.wait_for(generation_service._TASKS[stopped], 20)
+
+    settings_store.update(db, {"enabled": True}, key=settings_store.AGENTS)
+    device = Device(db, WITH_TURNS)
+    away_chat = _device_chat(db, make_chat, device)
+    device_link.reset()  # the device has gone
+    chat_service.create_message(db, db.get(Chat, away_chat), "user", "anyone there?")
+    db.commit()
+    away = _reply_row(db, away_chat)
+    generation_service.ensure(away_chat, away)
+    await asyncio.wait_for(generation_service._TASKS[away], 20)
+
+    ended = [message_id for _, _, message_id in generation_service.ended_after(before)]
+    assert ended == [failed, stopped, away]
+
+    replaced = generation_service.Generation(chat_id=failed_chat, message_id="row")
+    generation_service._RUNNING["row"] = generation_service.Generation(
+        chat_id=failed_chat, message_id="row"
+    )
+    generation_service._said_over(replaced)
+    assert [m for _, _, m in generation_service.ended_after(before)] == ended
+    generation_service._RUNNING.pop("row", None)
