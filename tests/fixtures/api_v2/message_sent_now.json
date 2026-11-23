@@ -1,0 +1,48 @@
+{
+  "message": {
+    "id": "msg1",
+    "role": "user",
+    "created_at": "2026-01-02T03:04:05+00:00",
+    "complete": true,
+    "stopped": false,
+    "error": null,
+    "queued": false,
+    "machine": false,
+    "origin": "",
+    "model": null,
+    "model_ref": null,
+    "attachments": [],
+    "text": "How is lembas made?",
+    "progress": null
+  },
+  "reply": {
+    "id": "msg4",
+    "role": "assistant",
+    "created_at": "2026-01-02T03:04:05+00:00",
+    "complete": false,
+    "stopped": false,
+    "error": null,
+    "queued": false,
+    "machine": false,
+    "origin": "",
+    "model": "qwen-27b",
+    "model_ref": null,
+    "attachments": [],
+    "end": null,
+    "steps": [],
+    "plan": null,
+    "metrics": {
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "total_tokens": 0,
+      "context_tokens": 0,
+      "context_limit": 0,
+      "estimated": false,
+      "elapsed_ms": 0,
+      "rounds": 1,
+      "thinking_ms": 0,
+      "percent": 0,
+      "tok_s": 0.0
+    }
+  }
+}

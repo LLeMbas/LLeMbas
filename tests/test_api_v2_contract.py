@@ -221,6 +221,21 @@ def _queued() -> Message:
     return row
 
 
+def _waiting(origin: str) -> Message:
+    """A message that waits in a chat on a linked computer, and why."""
+    row = _queued()
+    row.origin = origin
+    return row
+
+
+def _reply_started() -> Message:
+    """A reply just started for a message sent now: nothing written yet."""
+    return Message(
+        id="msg4", chat_id="chat1", role="assistant", content="", complete=False,
+        created_at=_user().created_at, model_id="qwen-27b",
+    )
+
+
 def _plan() -> dict:
     return {"title": "Bake lembas", "steps": ["Gather mallorn leaves", "Bake slowly"]}
 
@@ -1178,6 +1193,18 @@ def _built() -> dict[str, object]:
         "chats_listed": {"chats": [serialise.chat(_chat(), running=False)], "more": False},
         "message_user": serialise.message(_user()),
         "message_queued": serialise.message(_queued(), ahead=2),
+        # A message handed to a linked computer whose fate there is not known
+        # (`origin: "unsure"`): it waits, is never sent by itself, and the
+        # person sends it (`POST …/messages/{id}/send`) or discards it
+        # (`…/discard`). `carried`: the computer holds it for its next turn.
+        "message_unsure": serialise.message(_waiting("unsure")),
+        "message_carried": serialise.message(_waiting("carried")),
+        # `POST …/messages/{id}/send`: the message as it now is, and its reply.
+        "message_sent_now": {
+            "message": serialise.message(_user()), "reply": serialise.message(_reply_started()),
+        },
+        # `POST …/messages/{id}/discard`.
+        "message_discarded": {"id": "msg3", "discarded": True},
         "message_assistant": assistant,
         # Replies that did not finish (harness spec 3.7.0, display.md §4):
         # `end` is the line that stays on them. Stopped by the person; failed

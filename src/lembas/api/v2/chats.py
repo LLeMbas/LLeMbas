@@ -344,6 +344,30 @@ async def edit(
     return _turn(None, reply)
 
 
+@router.post("/chats/{chat_id}/messages/{message_id}/send")
+async def send_waiting(caller: Me, db: Db, chat_id: str, message_id: str) -> dict[str, Any]:
+    """Send a waiting message now (`queued: true` -- queued behind a reply
+    that has since ended or been stopped, or of origin `unsure` or `carried`
+    in a chat on a linked computer): the page's "Send now". Answers like
+    `POST /chats/{id}/messages`: `message` as it now is and its `reply`.
+    409 in words when the message is no longer waiting, or while a reply is
+    being written in the chat."""
+    chat = owned_chat(db, chat_id, caller.user)
+    message, reply = chats_api.send_waiting(
+        db, chat, caller.user, message_id, gone=status.HTTP_409_CONFLICT
+    )
+    return _turn(message, reply)
+
+
+@router.post("/chats/{chat_id}/messages/{message_id}/discard")
+async def discard_waiting(caller: Me, db: Db, chat_id: str, message_id: str) -> dict[str, Any]:
+    """Withdraw a waiting message: the page's "Discard". The row is gone;
+    the answer names it. 409 in words when it is no longer waiting."""
+    chat = owned_chat(db, chat_id, caller.user)
+    chats_api.discard_waiting(db, chat, message_id, gone=status.HTTP_409_CONFLICT)
+    return {"id": message_id, "discarded": True}
+
+
 def _phone(body: dict[str, Any] | None) -> bool:
     """Whether the sending app declared `client: ["phone_actions"]` (harness
     spec 3.6.0). No body, or none of it: an app that does not -- the desktop

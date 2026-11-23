@@ -1395,7 +1395,8 @@ def test_the_reply_limit_covers_every_way_of_starting_one(db):
     for core in (
         chats_api.start_new_chat,
         chats_api.rewind_to,
-        chats_api.send_queued_now,
+        # (The core of "Send now", which the page's route and the app's share.)
+        chats_api.send_waiting,
         chats_api.regenerate_reply,
         chats_api.write_turn,
     ):

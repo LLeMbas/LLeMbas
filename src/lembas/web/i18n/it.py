@@ -1134,6 +1134,7 @@ MESSAGES.update(
         "%(kb)s KB": "%(kb)s KB",
         "on the device": "sul dispositivo",
         "Waiting to be sent": "In attesa di invio",
+        "A message that is still waiting cannot be edited. Send it or discard it.": "Un messaggio ancora in attesa non può essere modificato. Invialo o scartalo.",
         "The computer has this message and takes it in with its next turn.": "Il computer ha questo messaggio e lo accoglierà al suo prossimo turno.",
         "It is not known whether this reached the computer. Send it again, or discard it.": "Non si sa se questo messaggio abbia raggiunto il computer. Invialo di nuovo o scartalo.",
         "Estimated.": "Stimato.",

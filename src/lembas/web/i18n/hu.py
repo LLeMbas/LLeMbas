@@ -1134,6 +1134,7 @@ MESSAGES.update(
         "%(kb)s KB": "%(kb)s KB",
         "on the device": "az eszközön",
         "Waiting to be sent": "Küldésre vár",
+        "A message that is still waiting cannot be edited. Send it or discard it.": "A még várakozó üzenet nem szerkeszthető. Küldje el, vagy vesse el.",
         "The computer has this message and takes it in with its next turn.": "A számítógépnél van ez az üzenet, és a következő körében veszi figyelembe.",
         "It is not known whether this reached the computer. Send it again, or discard it.": "Nem tudni, hogy ez eljutott-e a számítógéphez. Küldje el újra, vagy vesse el.",
         "Estimated.": "Becsült.",

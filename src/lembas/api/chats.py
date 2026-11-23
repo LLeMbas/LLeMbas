@@ -2365,6 +2365,15 @@ async def rewind_to(
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, t("A background job's message cannot be edited.")
         )
+    # A message that waits has not been a turn yet: there is nothing to
+    # rewind to, and on a linked computer the old words may still be held
+    # there (`unsure`, `carried`) -- edited and sent, the model could be given
+    # both. The two things to do with it are Send now and Discard.
+    if message.queued:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            t("A message that is still waiting cannot be edited. Send it or discard it."),
+        )
     content = content.strip()
     if not content and not message.attachments:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, t("A message cannot be empty."))
@@ -2724,50 +2733,41 @@ async def send_job(
     return HTMLResponse(_panel_html(chat, job, turns))
 
 
-def _waiting_message(db: DBSession, chat: Chat, message_id: str) -> Message:
+def _waiting_message(
+    db: DBSession, chat: Chat, message_id: str, *, gone: int = status.HTTP_404_NOT_FOUND
+) -> Message:
     message = db.get(Message, message_id)
-    if message is None or message.chat_id != chat.id or not message.queued:
+    if message is None or message.chat_id != chat.id:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, t("That message is not waiting to be sent.")
         )
+    if not message.queued:
+        # (`gone`: the app's door says 409 -- the message exists and its
+        # state changed; the page's has always said 404.)
+        raise HTTPException(gone, t("That message is not waiting to be sent."))
     return message
 
 
-@router.post("/{chat_id}/messages/{message_id}/discard")
-async def discard_queued(db: Db, user: RequiredUser, chat_id: str, message_id: str) -> Response:
-    """Withdraw a prompt that has not been sent.
-
-    Deleted outright rather than marked: it never reached a model, nothing in
-    the transcript refers to it, and a conversation full of tombstones for
-    things nobody said is worse than the row being gone. Attachments cascade.
-
-    An empty body rather than a 204, because htmx does not swap on a 204 and the
-    bubble has to disappear.
-    """
-    chat = _owned_chat(db, chat_id, user.id)
-    message = _waiting_message(db, chat, message_id)
-
+def discard_waiting(
+    db: DBSession, chat: Chat, message_id: str, *, gone: int = status.HTTP_404_NOT_FOUND
+) -> None:
+    """Withdraw a message that waits: the core of `discard_queued`, shared
+    with the app's JSON door. Any waiting message -- queued behind a reply,
+    of unknown fate on a linked computer (`unsure`), or held there
+    (`carried`; what the computer holds it still gives its model)."""
+    message = _waiting_message(db, chat, message_id, gone=gone)
     db.delete(message)
     db.commit()
-    return HTMLResponse("")
 
 
-@router.post("/{chat_id}/messages/{message_id}/send-now")
-async def send_queued_now(
-    request: Request, db: Db, user: RequiredUser, chat_id: str, message_id: str
-) -> Response:
-    """Deliver a waiting prompt at once.
-
-    Refused while a reply is being written rather than allowed to jump ahead of
-    it: that is what the queue *is*, and starting a second generation here is
-    the thing this whole mechanism exists to stop. Stop the reply first.
-
-    The whole thread comes back, which is the rewind and compaction idiom, and
-    is safe only because of the refusal above -- there is no live bubble to
-    destroy.
-    """
-    chat = _owned_chat(db, chat_id, user.id)
-    message = _waiting_message(db, chat, message_id)
+def send_waiting(
+    db: DBSession, chat: Chat, user: User, message_id: str,
+    *, gone: int = status.HTTP_404_NOT_FOUND,
+) -> tuple[Message, Message]:
+    """Deliver a waiting message at once, as a turn with a reply of its own:
+    `(the message, the reply)`. The core of `send_queued_now`, shared with
+    the app's JSON door. Refused while a reply is being written (409)."""
+    message = _waiting_message(db, chat, message_id, gone=gone)
     if _reply_in_flight(db, chat):
         raise HTTPException(
             status.HTTP_409_CONFLICT, t("Wait for the current reply to finish, or stop it.")
@@ -2788,6 +2788,41 @@ async def send_queued_now(
         db, chat, ROLE_ASSISTANT, "", complete_=False, model_id=chat.model_id
     )
     generation_service.ensure(chat.id, assistant.id)
+    return message, assistant
+
+
+@router.post("/{chat_id}/messages/{message_id}/discard")
+async def discard_queued(db: Db, user: RequiredUser, chat_id: str, message_id: str) -> Response:
+    """Withdraw a prompt that has not been sent.
+
+    Deleted outright rather than marked: it never reached a model, nothing in
+    the transcript refers to it, and a conversation full of tombstones for
+    things nobody said is worse than the row being gone. Attachments cascade.
+
+    An empty body rather than a 204, because htmx does not swap on a 204 and the
+    bubble has to disappear.
+    """
+    chat = _owned_chat(db, chat_id, user.id)
+    discard_waiting(db, chat, message_id)
+    return HTMLResponse("")
+
+
+@router.post("/{chat_id}/messages/{message_id}/send-now")
+async def send_queued_now(
+    request: Request, db: Db, user: RequiredUser, chat_id: str, message_id: str
+) -> Response:
+    """Deliver a waiting prompt at once.
+
+    Refused while a reply is being written rather than allowed to jump ahead of
+    it: that is what the queue *is*, and starting a second generation here is
+    the thing this whole mechanism exists to stop. Stop the reply first.
+
+    The whole thread comes back, which is the rewind and compaction idiom, and
+    is safe only because of the refusal above -- there is no live bubble to
+    destroy.
+    """
+    chat = _owned_chat(db, chat_id, user.id)
+    send_waiting(db, chat, user, message_id)
 
     return templates.TemplateResponse(
         request, "chat/_thread.html", {"request": request, **_thread_context(db, chat, user)}

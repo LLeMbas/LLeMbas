@@ -19,6 +19,11 @@ at <https://llembas.eu/changelog.html>.
   sent once more when a reply is over (`live: false`), however it ended, so a chat list
   can show "writing" and clear it without asking again. For the app engineers:
   `event_reply_end.json` among the contract files.
+- **An app can send or discard a message that waits.** `POST
+  /api/v2/chats/{id}/messages/{message}/send` and `…/discard` are the page's "Send now"
+  and "Discard" for an app -- for a message queued behind a reply, and for one a linked
+  computer may or may not have received (`origin` `unsure` or `carried`). For the app
+  engineers: *A message that waits* in the wiki's `App-API.md`, and four new contract files.
 - **A message you type while the main agent answers a subagent or a finished job goes into
   that answer** -- with a linked computer whose LLeMbas CLI carries harness spec 3.10.0
   (the next CLI beta; it lists the capability `harness_turns`). The message is shown in
