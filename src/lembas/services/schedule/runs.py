@@ -502,8 +502,52 @@ def _ref(row) -> str | None:
     return chat_service.ref_of(row)
 
 
+OUT_STATES = ("working", "waiting", "paused")
+
+
+def outstanding(agents: list[dict], jobs: list[dict]) -> dict:
+    """What a session still has out when no turn of it runs (harness spec
+    3.10.0, `conformance/outstanding.json`). `agents`: the team as its tree
+    has it -- the main agent (`lead`) and every subagent with its state;
+    `jobs`: the background jobs that are not a team's subagents, each `kind`
+    (`command`, or `subagent` for a background `task`) and `state`.
+
+    `subagents`: who still works for the session and will report -- the
+    team's subagents that work, wait or are paused, by name in tree order,
+    then the running `task` subagents by job id. `commands`: the running
+    background commands. `run_waits`: a schedule's run does not end yet -- a
+    subagent is out, or the main agent waits (a report waits for it to get a
+    slot); never for a command, which may not end. `has_work`: that, or a
+    command runs."""
+    agents = [a for a in agents if isinstance(a, dict)]
+    jobs = [j for j in jobs if isinstance(j, dict)]
+    subagents = [
+        str(a.get("name") or "")
+        for a in agents
+        if a.get("name") != "lead" and a.get("state") in OUT_STATES
+    ] + [
+        str(j.get("id") or "")
+        for j in jobs
+        if j.get("kind") == "subagent" and j.get("state") == "running"
+    ]
+    commands = [
+        str(j.get("id") or "")
+        for j in jobs
+        if j.get("kind") == "command" and j.get("state") == "running"
+    ]
+    lead_waits = any(a.get("name") == "lead" and a.get("state") == "waiting" for a in agents)
+    run_waits = bool(subagents) or lead_waits
+    return {
+        "subagents": subagents,
+        "commands": commands,
+        "run_waits": run_waits,
+        "has_work": run_waits or bool(commands),
+    }
+
+
 __all__ = [
     "INACTIVITY_SECONDS",
+    "outstanding",
     "OPTIONAL_TOOLS",
     "RETRY_STEPS",
     "SAFE_TOOLS",

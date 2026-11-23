@@ -35,6 +35,7 @@ from lembas.services import tools as tools_service
 from lembas.services.agent import policy, shell
 from lembas.services.llm import openai_client
 from lembas.services.schedule import notify
+from lembas.services.schedule import runs as schedule_runs
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -82,6 +83,17 @@ AREAS = {
     # harness started is never sent (`device_link.reattach_decision`, the one
     # place `_reattach` decides).
     "reattach": lambda c: _reattach(c),
+    # Spec 3.10.0 (`session/cancel` with a turn id): what this instance may
+    # expect of a device with `harness_turns` -- `device_link.cancel_effect`.
+    "cancel": lambda c: device_link.cancel_effect(
+        str(c.get("turn") or ""), str(c.get("running") or ""), list(c.get("queued") or [])
+    ),
+    # Spec 3.10.0, as amended (acp.md, *A session that still has work out*,
+    # *The run waits for its subagents*): what a session still has out, and
+    # whether a schedule's run waits for it -- `schedule/runs.py outstanding`,
+    # which is where this instance's own scheduled runs with a team end
+    # (`schedule/runner.py follow`).
+    "outstanding": lambda c: schedule_runs.outstanding(c.get("agents") or [], c.get("jobs") or []),
     "silent": lambda c: {
         "silent": notify.is_silent(c["text"]), "stripped": notify.strip_sentinel(c["text"])
     },
@@ -668,6 +680,73 @@ def test_the_reattach_cases_are_in_the_vendored_spec():
     for case in cases:
         given = {k: v for k, v in case.items() if k != "expect"}
         assert _reattach(given) == case["expect"], given
+
+
+def test_the_cancel_cases_are_in_the_vendored_spec():
+    """`conformance/cancel.json` (spec 3.10.0): run as
+    `test_conformance[cancel-N]` once the vendored copy has the file; until
+    then this says so in every run."""
+    path = harness_spec.conformance_dir() / "cancel.json"
+    if not path.exists():
+        pytest.skip(
+            f"cancel: the vendored spec is {harness_spec.version()} and has no "
+            "conformance/cancel.json -- it arrives with spec 3.10.0: "
+            "python scripts/fetch_harness.py --update <the CLI tag that carries 3.10.0>"
+        )
+    cases = json.loads(path.read_text(encoding="utf-8"))["cases"]
+    assert cases, "cancel.json has no cases"
+    for case in cases:
+        given = {k: v for k, v in case.items() if k not in ("expect", "about")}
+        assert AREAS["cancel"](given) == case["expect"], given
+
+
+def test_which_turn_a_cancel_touches_in_this_projects_own_words():
+    effect = device_link.cancel_effect
+    assert effect("", "h2", ["t8"]) == {"cancelled": "running", "stops": "h2"}
+    assert effect("", "", []) == {"cancelled": "none"}
+    assert effect("t7", "t7", []) == {"cancelled": "running", "stops": "t7"}
+    assert effect("t8", "h2", ["t8"]) == {"cancelled": "queued", "withdraws": "t8"}
+    assert effect("t9", "h2", ["t8"]) == {"cancelled": "none"}
+
+
+def test_the_outstanding_cases_are_in_the_vendored_spec():
+    """`conformance/outstanding.json` came with the amended spec 3.10.0. Its
+    runner is here already (`AREAS["outstanding"]`); the cases run by
+    themselves, as `test_conformance[outstanding-N]`, once the vendored copy
+    has the file. Until then this says so in every run."""
+    path = harness_spec.conformance_dir() / "outstanding.json"
+    if not path.exists():
+        pytest.skip(
+            f"outstanding: the vendored spec is {harness_spec.version()} and has no "
+            "conformance/outstanding.json -- it arrives with spec 3.10.0: "
+            "python scripts/fetch_harness.py --update <the CLI tag that carries 3.10.0>"
+        )
+    cases = json.loads(path.read_text(encoding="utf-8"))["cases"]
+    assert cases, "outstanding.json has no cases"
+    for case in cases:
+        given = {k: v for k, v in case.items() if k not in ("expect", "about")}
+        assert AREAS["outstanding"](given) == case["expect"], given
+
+
+def test_what_a_session_still_has_out_in_this_projects_own_words():
+    """The rule the file states, until the file is here: subagents that work,
+    wait or are paused are out; a waiting main agent is a report on its way;
+    a background command is work, and never what a run waits for."""
+    out = schedule_runs.outstanding
+    idle = {"name": "lead", "state": "idle"}
+    assert out([idle, {"name": "api", "state": "finished"}], []) == {
+        "subagents": [], "commands": [], "run_waits": False, "has_work": False,
+    }
+    assert out([idle, {"name": "api", "state": "working"}, {"name": "ui", "state": "paused"},
+                {"name": "db", "state": "stopped"}], [])["subagents"] == ["api", "ui"]
+    assert out([{"name": "lead", "state": "waiting"}], [])["run_waits"] is True
+    command = [{"id": "job1", "kind": "command", "state": "running"}]
+    assert out([idle], command) == {
+        "subagents": [], "commands": ["job1"], "run_waits": False, "has_work": True,
+    }
+    task = [{"id": "job2", "kind": "subagent", "state": "running"},
+            {"id": "job3", "kind": "subagent", "state": "done"}]
+    assert out([idle], task)["subagents"] == ["job2"] and out([idle], task)["run_waits"]
 
 
 def test_the_reattach_runner_runs_a_file_that_is_there(tmp_path, monkeypatch):

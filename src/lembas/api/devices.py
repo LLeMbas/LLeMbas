@@ -347,8 +347,12 @@ async def device_link_socket(websocket: WebSocket) -> None:
         # The deletes it missed: beside the reading, never in its way --
         # each one waits on the device's answer, which the reader delivers.
         sending = asyncio.create_task(device_link.send_pending_deletes(link))
+        # ... and what its harness did by itself while this instance was not
+        # listening, for the few chats it most likely happened in.
+        catching = asyncio.create_task(device_link.catch_up(link))
         await reading
         sending.cancel()
+        catching.cancel()
     except Exception:  # one device's link, not the app
         log.warning("device link for %s ended badly", name, exc_info=True)
     finally:

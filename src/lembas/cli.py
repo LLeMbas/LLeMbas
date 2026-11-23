@@ -33,10 +33,20 @@ def serve(
         log_level=settings.log_level,
         proxy_headers=True,
         forwarded_allow_ips=settings.forwarded_allow_ips,
+        # The largest WebSocket message taken (a linked device's link, a
+        # terminal panel): said here rather than left to the server's default,
+        # which it equals. A device's largest honest message is a session's
+        # whole history; anything larger closes that socket (1009), and the
+        # device dials in again.
+        ws_max_size=WS_MAX_BYTES,
         # Access logs duplicate what the application already logs and drown out
         # anything useful during development.
         access_log=settings.log_level == "debug",
     )
+
+
+# 16 MiB: what one WebSocket message may weigh before it is refused.
+WS_MAX_BYTES = 16 * 1024 * 1024
 
 
 def _passphrase(env: str) -> str:

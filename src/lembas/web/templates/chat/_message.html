@@ -367,7 +367,14 @@
        while another reply is streaming is a second concurrent generation behind
        a pencil. Discard and retype is the honest affordance. #}
     <footer class="msg__actions msg__actions--queued">
+      {#- Handed to the computer's running turn, and whether it went in was
+          never heard (the link dropped, this server restarted): said, and
+          left for its person to send again or discard. Never sent by itself. -#}
+      {% if message.origin == "unsure" %}
+      <span class="msg__note" data-fate-unknown>{{ icon("warning", "icon--sm") }} {{ t("It is not known whether this reached the computer. Send it again, or discard it.") }}</span>
+      {% else %}
       <span class="msg__note">{{ icon("clock", "icon--sm") }} {{ t("Waiting to be sent") }}</span>
+      {% endif %}
       {# Copy is here as well as on a delivered turn: a queued machine event
          holds a job's output, which is the one waiting bubble somebody actually
          wants to paste somewhere. The hidden source div is already below. #}

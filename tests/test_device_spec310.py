@@ -27,7 +27,7 @@ from lembas.db.models import Chat, Message, User
 from lembas.security import api_tokens
 from lembas.services import device_link, settings_store, steps
 from lembas.services import generation as generation_service
-from tests.fake_harness_device import NEW, OLD, HarnessDevice, line
+from tests.fake_harness_device import NEW, OLD, HarnessDevice, invariant, line
 from tests.test_device_harness_turn import (
     JOB_NOTE,
     TEAM_REPORT,
@@ -242,10 +242,12 @@ def test_a_message_typed_before_the_turns_reply_exists_joins_it_or_is_sent_once(
     db, registered, make_chat
 ):
     """Typed in the moment after the harness's `prompt` and before its reply
-    here exists: the message starts a reply of its own, which joins the turn
-    the device is in. Steered too late there, it comes back (`unsent`) and that
-    same reply sends it as a prompt -- once. The device answers the steer
-    *after* it has said the turn's end: the order that could lose it."""
+    here exists: the reply started for the message becomes the *turn's* reply
+    (the turn keeps its row and its own words), and the message is handed to
+    the turn like any typed while a reply runs. Steered too late there, it
+    comes back (`unsent`) and is answered by a reply of its own -- once. The
+    device answers the steer *after* it has said the turn's end: the order
+    that could lose it."""
     device = HarnessDevice(db, NEW)
     chat_id = _device_chat(db, make_chat, device)
     answer = device.answer
@@ -263,16 +265,20 @@ def test_a_message_typed_before_the_turns_reply_exists_joins_it_or_is_sent_once(
         typed, reply = _type(db, chat_id, "and the linter?")
         assert reply is not None
         await asyncio.wait_for(generation_service._TASKS[reply.id], 10)
-        return typed.id, reply.id, await _quiet(db, chat_id, 2)
+        return typed.id, reply.id, await _quiet(db, chat_id, 4)
 
     typed_id, reply_id, rows = asyncio.run(scenario())
     assert device.sent_methods() == ["_lembas/steer", "session/prompt"]
     assert device.model_saw == ["and the linter?"]
     prompt = next(p for m, p in device.asked if m == "session/prompt")
     assert prompt["_meta"]["lembas"]["turnId"] == typed_id
-    reply = next(r for r in rows if r.id == reply_id)
-    assert reply.content.endswith("Answer to: and the linter?")
-    assert reply.complete and not reply.error
+    assert [(r.role, r.origin, r.content) for r in rows] == [
+        ("user", device_link.ORIGIN_HARNESS, line(JOB_NOTE)), ("assistant", "", ""),
+        ("user", "", "and the linter?"), ("assistant", "", "Answer to: and the linter?"),
+    ]
+    assert rows[1].id == reply_id and rows[0].device_turn_id == H2
+    assert all(r.complete and not r.error and not r.queued for r in rows)
+    invariant(device, rows)
 
 
 def test_without_the_capability_a_message_with_no_reply_running_waits_for_the_turns_end(
@@ -292,14 +298,20 @@ def test_without_the_capability_a_message_with_no_reply_running_waits_for_the_tu
         await device.say("The tests pass.")
         await device.end()
         await asyncio.wait_for(generation_service._TASKS[reply.id], 10)
-        return during, reply.id, await _quiet(db, chat_id, 2)
+        return during, reply.id, await _quiet(db, chat_id, 4)
 
     during, reply_id, rows = asyncio.run(scenario())
     assert during == []
     assert device.refused == []
     assert device.sent_methods() == ["session/prompt"]
     assert device.model_saw == ["and the linter?"]
-    assert next(r for r in rows if r.id == reply_id).content == "Answer to: and the linter?"
+    # The reply started for the message became the harness turn's own.
+    assert [(r.role, r.content) for r in rows] == [
+        ("user", line(JOB_NOTE)), ("assistant", "The tests pass."),
+        ("user", "and the linter?"), ("assistant", "Answer to: and the linter?"),
+    ]
+    assert rows[1].id == reply_id
+    invariant(device, rows)
 
 
 def test_a_message_typed_while_a_prompt_waits_behind_a_harness_turn_joins_the_prompts_turn(
@@ -407,7 +419,9 @@ def test_a_restart_during_a_harness_turn_follows_it_by_its_id_and_sends_nothing(
 
     rows = asyncio.run(scenario())
     assert device.sent_methods() == []
-    assert [m for m, _ in device.asked] == ["_lembas/session/status"]
+    # Asked what runs; and, the turn over, read whole from the history: what
+    # it said between the restart and now was said to nobody.
+    assert [m for m, _ in device.asked] == ["_lembas/session/status", "_lembas/session/history"]
     reply = rows[1]
     assert reply.id == reply_id and reply.content == "The tests pass."
     assert reply.complete and not reply.error and not reply.interrupted
@@ -469,7 +483,7 @@ def test_the_first_of_two_harness_turns_is_read_by_its_id_while_the_second_runs(
     assert device.sent_methods() == []
     assert first[1].id == reply_id and first[1].content == "The tests pass."
     assert [(r.role, r.origin, r.device_turn_id) for r in rows[2:]] == [
-        ("user", device_link.ORIGIN_HARNESS, H3), ("assistant", "", None),
+        ("user", device_link.ORIGIN_HARNESS, H3), ("assistant", "", H3),
     ]
     assert rows[2].content == TEAM_REPORT and rows[2].machine
     assert rows[3].content == "The loader is found."
@@ -493,8 +507,7 @@ def test_a_cut_off_harness_reply_does_not_take_the_next_turns_events_for_its_own
         {"role": "assistant", "text": "The loader ", "reasoning": "", "tools": []},
     ]
     held = [{"type": "text", "text": "The loader "}]
-    device.link.buffered["s1"] = list(held)
-    device.link.mirror_turns["s1"] = H3
+    device.link.buffered[("s1", H3)] = list(held)
     generation = generation_service.Generation(chat_id=chat_id, message_id=reply_id)
     generation.content = ["The "]
 
@@ -502,7 +515,7 @@ def test_a_cut_off_harness_reply_does_not_take_the_next_turns_events_for_its_own
         device.link, generation, chat_id, "s1", "workstation", harness=True, device_turn=H2,
     ))
     assert generation.text == "The tests pass."
-    assert device.link.buffered["s1"] == held and device.link.mirror_turns["s1"] == H3
+    assert device.link.buffered == {("s1", H3): held}
     assert device.sent_methods() == []
 
 
@@ -668,9 +681,10 @@ def test_a_harness_turn_that_ran_while_this_instance_was_away_is_taken_from_the_
     assert device.model_saw == []  # the device knew the turn: it did not run again
     assert [(r.role, r.content, r.origin, r.device_turn_id) for r in rows] == [
         ("user", "run the tests", "", None),
-        ("assistant", "Started.", "", None),
+        # (The reply's row remembers the turn it writes: its message's.)
+        ("assistant", "Started.", "", typed),
         ("user", TEAM_REPORT, device_link.ORIGIN_HARNESS, H2),
-        ("assistant", "The loader is found.", "", None),
+        ("assistant", "The loader is found.", "", H2),
     ]
     assert rows[2].machine and all(r.complete for r in rows)
     assert len(_rows(db, chat_id)) == 4
@@ -720,7 +734,7 @@ def test_a_turn_this_chat_already_has_is_not_mirrored_a_second_time(db, register
     assert [(r.role, r.content) for r in rows] == [
         ("user", JOB_NOTE), ("assistant", "The tests pass."),
     ]
-    assert "s1" not in device.link.buffered
+    assert not device.link.holding("s1")
 
 
 def test_without_the_capability_the_history_is_read_as_before(db, registered, make_chat):
@@ -768,7 +782,7 @@ def test_a_harness_turn_that_began_while_the_link_was_down_is_found_and_followed
     rows = asyncio.run(scenario())
     assert device.sent_methods() == []
     assert [(r.role, r.origin, r.device_turn_id) for r in rows[2:]] == [
-        ("user", device_link.ORIGIN_HARNESS, H2), ("assistant", "", None),
+        ("user", device_link.ORIGIN_HARNESS, H2), ("assistant", "", H2),
     ]
     assert rows[2].content == TEAM_REPORT and rows[2].machine
     assert rows[3].content == "The loader is in src/load.py. Nothing else reads it."

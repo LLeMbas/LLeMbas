@@ -380,7 +380,29 @@ def _own_replies(db, user_id: str, replies: list[tuple[str, str]]) -> list[tuple
     return [(chat_id, message_id) for chat_id, message_id in replies if chat_id in mine]
 
 
-async def _events(user_id: str, *, scheduled: bool = True) -> AsyncIterator[str]:
+# How often an open events stream asks again whether its caller may still be
+# told anything: the token it was opened with revoked or expired, the account
+# switched off or deleted. A stream outlives the request that was checked, and
+# says which chats are writing and under which ids.
+RECHECK_SECONDS = 30.0
+
+
+def _still_allowed(user_id: str, token_id: str) -> bool:
+    """Whether the stream's caller would be let in if they asked now -- the
+    same two questions `api_tokens.resolve` asks of every request."""
+    from lembas.db.models import ApiToken
+    from lembas.security import api_tokens
+
+    with session_scope() as db:
+        user = db.get(User, user_id)
+        if user is None or not user.active:
+            return False
+        return not token_id or api_tokens.live(db.get(ApiToken, token_id))
+
+
+async def _events(
+    user_id: str, *, scheduled: bool = True, token_id: str = ""
+) -> AsyncIterator[str]:
     """`schedules` with the whole list whenever it changes -- a schedule made,
     paused or deleted, a run starting, waiting or finishing. Whole, as every
     frame here is: a client back from the background needs no bookkeeping.
@@ -407,7 +429,14 @@ async def _events(user_id: str, *, scheduled: bool = True) -> AsyncIterator[str]
     for chat_id, message_id in current:
         yield sse.event("reply", reply_frame(chat_id, message_id, True))
     told = set(current)
+    checked = 0.0
     while True:
+        if checked >= RECHECK_SECONDS:
+            # Signed out, revoked or switched off since the stream opened:
+            # it ends here, and the client's reconnect gets the 401.
+            checked = 0.0
+            if not _still_allowed(user_id, token_id):
+                return
         fresh = generation_service.started_after(cursor)
         if fresh:
             cursor = fresh[-1][0]
@@ -427,7 +456,8 @@ async def _events(user_id: str, *, scheduled: bool = True) -> AsyncIterator[str]
             if quiet >= KEEPALIVE_SECONDS:
                 quiet = 0.0
                 yield sse.KEEPALIVE
-            quiet += await _pause(cursor)
+            waited = await _pause(cursor)
+            quiet, checked = quiet + waited, checked + waited
             continue
         with session_scope() as db:
             user = db.get(User, user_id)
@@ -467,7 +497,8 @@ async def _events(user_id: str, *, scheduled: bool = True) -> AsyncIterator[str]
         elif quiet >= KEEPALIVE_SECONDS:
             quiet = 0.0
             yield sse.KEEPALIVE
-        quiet += await _pause(cursor)
+        waited = await _pause(cursor)
+        quiet, checked = quiet + waited, checked + waited
 
 
 async def _pause(cursor: int) -> float:
@@ -502,7 +533,7 @@ async def events(caller: Me, db: Db) -> StreamingResponse:
     user_id = caller.user.id
 
     return StreamingResponse(
-        _events(user_id, scheduled=allowed),
+        _events(user_id, scheduled=allowed, token_id=getattr(caller.token, "id", "") or ""),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache, no-transform",

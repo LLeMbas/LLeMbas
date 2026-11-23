@@ -322,6 +322,44 @@ def _reply_end(message):
 templates.env.globals["reply_end"] = _reply_end
 
 
+# The longest side a size placeholder may have, in canvas pixels. The box only
+# has to hold a picture's place at its shape; the numbers come from the file
+# (a header a model's tool, an upload or a linked device supplied), and a
+# canvas of a million pixels a side is memory the reader's browser is asked for.
+MAX_BOX_SIDE = 4096
+
+
+def _box_size(width, height) -> tuple[int, int] | None:
+    """The size of a picture's placeholder: its own, or the same shape scaled
+    down to `MAX_BOX_SIDE`; None when either number is missing or not a
+    positive whole number."""
+    try:
+        w, h = int(width), int(height)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if w <= 0 or h <= 0:
+        return None
+    longest = max(w, h)
+    if longest > MAX_BOX_SIDE:
+        w = max(1, w * MAX_BOX_SIDE // longest)
+        h = max(1, h * MAX_BOX_SIDE // longest)
+    return w, h
+
+
+templates.env.globals["box_size"] = _box_size
+
+
+# How a note the device's harness wrote begins (harness spec `loop.json`,
+# `jobs.marks` and `team.marks`; `acp.md`, the `prompt` event of such a turn).
+_HARNESS_NOTE_STARTS = (
+    "⏎ ",
+    "[A background job you started",
+    "[A subagent you started",
+    "[A message from a subagent",
+    "[Team ",
+)
+
+
 def _reply_unrecorded(message) -> bool:
     """Whether a finished reply in an agent chat holds nothing at all and
     answers a turn nobody typed (a job's note, a team report): the device
@@ -361,7 +399,18 @@ def _reply_unrecorded(message) -> bool:
         .order_by(Message.created_at.desc())
         .limit(1)
     ).first()
-    return asked is not None and bool(asked.machine)
+    if asked is None or not asked.machine:
+        return False
+    # The turn must be one the *device's harness* started. `machine` alone is
+    # also a note written on this instance (a schedule's firing, a wake into
+    # the chat), whose reply was sent for and may honestly be empty -- a
+    # silent run says nothing on purpose. Rows mirrored since the harness
+    # turn has an origin of its own say so; older ones have none, and are
+    # told by how the device's notes begin: the transcript's `⏎ `, or one of
+    # the harness's marks, which nothing here writes into a device's chat.
+    if asked.origin:
+        return asked.origin == "harness"
+    return (asked.content or "").lstrip().startswith(_HARNESS_NOTE_STARTS)
 
 
 templates.env.globals["reply_unrecorded"] = _reply_unrecorded

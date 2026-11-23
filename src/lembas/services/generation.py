@@ -86,6 +86,9 @@ RENDER_INTERVAL = 0.1
 # Message.origin of a device reply taken up again after a shutdown: it
 # follows the device's turn instead of sending its prompt a second time.
 ORIGIN_ATTACH = "attach"
+# A person's message whose fate on a linked device is not known
+# (`device_link.ORIGIN_UNSURE`, the same word): waiting, and never sent by itself.
+ORIGIN_UNSURE = "unsure"
 # Message.origin of the turn that carries an ordinary reply on after a shutdown.
 ORIGIN_RESUME = "resume"
 # How old an interrupted reply may be and still be taken up again.
@@ -351,10 +354,13 @@ class Generation:
     # (`unsent`, capability `harness_turns`): the messages steered into it
     # that it ended before taking in. `device_link._follow` queues them again.
     device_unsent: list[str] = field(default_factory=list)
-    # The message this reply was started for went into a turn already running
-    # on the device and came back unsent: `device_link.run` sends it as a
-    # prompt of its own.
-    device_resend: bool = False
+    # The turn this reply took up again ended (or was forgotten by the
+    # device) while nobody here was listening: what it handed back was not
+    # heard either (`device_link._settle_unheard`).
+    device_unheard: bool = False
+    # Set while this reply offers itself as the reply of a turn the device
+    # started (`device_link._adopt_mirror`): (the typed message's id, a future).
+    adopted: Any = None
     # Cut off by a shutdown, not stopped by anybody: written on the row,
     # and taken up again when the instance is back.
     interrupted: bool = False
@@ -1907,6 +1913,17 @@ def _device_turn(db, chat: Chat, message: Message, generation: Generation) -> di
         )
     )
     asked = next((m for m in prior if m.created_at <= message.created_at), None)
+    # The reply's row says which turn of the device it writes
+    # (`device_link._keep_reply_turn`, and a mirrored turn's reply from its
+    # first moment): that turn's own row is what it answers -- not whichever
+    # message sorts last before it, which after a message was taken into the
+    # reply is that message.
+    reply_turn = message.device_turn_id or ""
+    if reply_turn:
+        own = next(
+            (m for m in prior if m.device_turn_id == reply_turn or m.id == reply_turn), None
+        )
+        asked = own if own is not None else asked
     generation.earlier_turns = len(prior) > 1
     if message.origin == ORIGIN_ATTACH:
         # What was written before the shutdown, kept: following the device on
@@ -1946,10 +1963,53 @@ def _device_turn(db, chat: Chat, message: Message, generation: Generation) -> di
         # message joining a turn already running is shown where it went in.
         "attach": message.origin == ORIGIN_ATTACH,
         "message_id": asked.id if asked is not None else "",
+        "reply_turn": reply_turn,
+        "unconfirmed": _unconfirmed(db, prior, asked, message, reply_turn)
+        if message.origin == ORIGIN_ATTACH
+        else {},
         # The files sent with it, so a picture attached in a device chat
         # reaches the device.
         "attachments": _device_attachments(asked) if asked is not None else [],
     }
+
+
+def _unconfirmed(db, prior: list, asked, message: Message, reply_turn: str) -> dict[str, str]:
+    """The messages a cut-off device reply had handed into its turn and not
+    seen taken in, id -> text, oldest first: a person's delivered messages
+    between the turn's own row and the reply (the reply is moved after each
+    message it takes), without those its step marks name. For a reply that
+    *joined* a turn there is no such row: every message since the reply
+    before this one, the one it was started for among them."""
+    if asked is None or not reply_turn:
+        return {}
+    from lembas.services import device_link
+    from lembas.services import steps as steps_service
+
+    marked = steps_service.steered_ids(message.steps_json or [])
+    if asked.id == reply_turn or asked.device_turn_id == reply_turn:
+        after = asked.created_at
+    else:
+        after = db.scalar(
+            select(Message.created_at)
+            .where(
+                Message.chat_id == message.chat_id,
+                Message.role == ROLE_ASSISTANT,
+                Message.created_at < message.created_at,
+            )
+            .order_by(Message.created_at.desc())
+            .limit(1)
+        )
+    handed = [
+        m
+        for m in reversed(prior)
+        if m.created_at <= message.created_at
+        and (after is None or m.created_at > after)
+        and not m.queued
+        and not m.machine
+        and not device_link.devices_own(m)
+        and m.id not in marked
+    ]
+    return {m.id: m.content or "" for m in handed}
 
 
 def _device_attachments(message: Message) -> list[dict]:
@@ -2935,6 +2995,10 @@ def _next_waiting(db, chat_id: str) -> Message | None:
             Message.chat_id == chat_id,
             Message.role == ROLE_USER,
             Message.queued.is_(True),
+            # Not one whose fate on a linked device is not known: that one
+            # waits for its person to send it again, and is never sent (or
+            # handed to a running turn) by itself.
+            Message.origin != ORIGIN_UNSURE,
         )
         .order_by(Message.created_at)
         .limit(1)
@@ -2980,6 +3044,11 @@ def _drain(generation: Generation) -> None:
                 return
 
             waiting.queued = False
+            if chat.device_token_id:
+                # Sent now, and sorted so: a turn the device ran by itself
+                # while this waited has rows newer than the message, and the
+                # reply started here must find *this* message before it.
+                waiting.created_at = datetime.now(UTC)
             assistant = chat_service.create_message(
                 db, chat, ROLE_ASSISTANT, "", complete_=False, model_id=chat.model_id
             )

@@ -1134,6 +1134,7 @@ MESSAGES.update(
         "%(kb)s KB": "%(kb)s KB",
         "on the device": "na urządzeniu",
         "Waiting to be sent": "Czeka na wysłanie",
+        "It is not known whether this reached the computer. Send it again, or discard it.": "Nie wiadomo, czy ta wiadomość dotarła do komputera. Wyślij ją ponownie albo odrzuć.",
         "Estimated.": "Szacunkowo.",
         "What the conversation now occupies: %(n)s of %(limit)s tokens (%(percent)s%%)": "Ile zajmuje teraz rozmowa: %(n)s z %(limit)s tokenów (%(percent)s%%)",
         "What the conversation now occupies: %(n)s tokens; the window's size is not known": "Ile zajmuje teraz rozmowa: %(n)s tokenów; rozmiar okna jest nieznany",

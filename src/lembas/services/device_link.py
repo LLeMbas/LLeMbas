@@ -74,6 +74,54 @@ CLOSE_REFUSED = 4403
 CLOSE_PROTOCOL = 4400
 
 
+# What a link keeps about the device's sessions and turns is bounded: a
+# device is a signed-in program, and one that invents session and turn ids
+# (a bug, a leaked token) must not grow this instance's memory for the life
+# of the link. Past each bound the oldest is forgotten.
+# Sessions tracked per link (working, in step, asked once): twice the chats a
+# device may have here.
+MAX_LINK_SESSIONS = 4_000
+# Turns whose events are held for a reply not yet following, per link ...
+MAX_HELD_TURNS = 64
+# ... the events held for one of them (and the characters: a reply's own bound) ...
+MAX_HELD_EVENTS = 20_000
+# ... sessions being asked about a turn nobody heard start, at once ...
+MAX_PROBING = 16
+# ... `unsent` kept for a reply that joins a moment later: turns, messages a
+# turn, characters a message (a message typed here is far shorter).
+MAX_UNSENT_TURNS = 32
+MAX_UNSENT_TEXTS = 50
+MAX_UNSENT_CHARS = 200_000
+
+
+class _Recent(dict):
+    """A set that keeps its newest `limit` members (insertion order)."""
+
+    def __init__(self, limit: int) -> None:
+        super().__init__()
+        self.limit = limit
+
+    def add(self, key: str) -> None:
+        self[key] = None
+        while len(self) > self.limit:
+            self.pop(next(iter(self)))
+
+    def discard(self, key: str) -> None:
+        self.pop(key, None)
+
+
+def _trim(kept: dict, limit: int) -> None:
+    """Forget the oldest entries of an insertion-ordered dict past `limit`."""
+    while len(kept) > limit:
+        kept.pop(next(iter(kept)))
+
+
+class _Held(list):
+    """One turn's held events, and how many characters they carry."""
+
+    chars = 0
+
+
 @dataclass
 class Link:
     """One device's open link."""
@@ -99,9 +147,19 @@ class Link:
     # The sessions a terminal on the device shares: what it said of each
     # (cwd, title, model, mode, effort) ...
     announced: dict[str, dict] = field(default_factory=dict)
-    # ... the events of a turn typed there, held until the reply mirroring it is
-    # writing (the bubbles are made first) ...
-    buffered: dict[str, list] = field(default_factory=dict)
+    # ... the events of a turn the device started, held until the reply
+    # mirroring it is writing (the bubbles are made first): **one list per
+    # turn**, (session id, turn id) -> events, "" for a device that names no
+    # turns. Never per session: a short turn that ends and the next one
+    # starting while the first reply is still being made here would put the
+    # second turn's events into the first reply, and leave the second none ...
+    buffered: dict[tuple[str, str], list] = field(default_factory=dict)
+    # ... the turns whose rows are being made now (`_mirror_turn`), same key ...
+    mirroring: dict[tuple[str, str], bool] = field(default_factory=dict)
+    # ... and, session id -> the reply started for a message typed here in
+    # that moment, which becomes the turn's reply instead of a second one in
+    # the chat (`_adopt_mirror`) ...
+    adopters: dict[str, Any] = field(default_factory=dict)
     # ... settled when such a turn ends ...
     mirrors: dict[str, asyncio.Future] = field(default_factory=dict)
     # ... and a chat being made for one, which a turn starting meanwhile waits on.
@@ -117,7 +175,7 @@ class Link:
     # The sessions the device says are working now, from its own `task`
     # events -- the authority, where the chat's rows only guess. A message typed
     # here into one of them joins the running turn instead of being refused.
-    busy: set[str] = field(default_factory=set)
+    busy: _Recent = field(default_factory=lambda: _Recent(MAX_LINK_SESSIONS))
     # Capability `turns`: the turn each session is running now, by the
     # device's `task` start ...
     current: dict[str, str] = field(default_factory=dict)
@@ -126,8 +184,6 @@ class Link:
     turn_writers: dict[tuple[str, str], Any] = field(default_factory=dict)
     # ... the replies waiting for a turn the device has queued to start ...
     queued_turns: dict[tuple[str, str], asyncio.Event] = field(default_factory=dict)
-    # ... the terminal's turn each mirror is following ...
-    mirror_turns: dict[str, str] = field(default_factory=dict)
     # ... and the turn ids sent from here, so the device's `prompt` event for
     # one is never taken for a turn typed in its terminal.
     # Insertion-ordered, bounded by MAX_SENT_TURNS (oldest dropped first).
@@ -143,16 +199,16 @@ class Link:
     unsent: dict[tuple[str, str], list[str]] = field(default_factory=dict)
     # The sessions this link has heard a `task` event of: from then on no turn
     # of theirs starts or ends unheard, and "no turn named" means none runs ...
-    synced: set[str] = field(default_factory=set)
+    synced: _Recent = field(default_factory=lambda: _Recent(MAX_LINK_SESSIONS))
     # ... the sessions not yet in step whose device has been asked, once,
     # whether a turn its harness started before this link was up is still
     # running (`_find_missed_turn`, capability `harness_turns`), and their
     # events held meanwhile ...
-    asked: set[str] = field(default_factory=set)
+    asked: _Recent = field(default_factory=lambda: _Recent(MAX_LINK_SESSIONS))
     probing: dict[str, list] = field(default_factory=dict)
     # ... and the turns found that way, (session id, turn id): their start was
     # not seen here, so their reply is read whole from the history at the end.
-    late_turns: set[tuple[str, str]] = field(default_factory=set)
+    late_turns: _Recent = field(default_factory=lambda: _Recent(MAX_HELD_TURNS))
     # Capability `commands`: the commands each session offers, from the
     # device's `available_commands_update`, for the composer's `/` menu.
     commands: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
@@ -192,6 +248,28 @@ class Link:
         `promptCapabilities`): `image`, `embeddedContext`."""
         agent = self.initialized.get("agentCapabilities") or {}
         return bool((agent.get("promptCapabilities") or {}).get(kind))
+
+    def holding(self, session_id: str) -> bool:
+        """Whether events of a turn of this session are held for a reply."""
+        return any(key[0] == session_id for key in self.buffered)
+
+    def open_buffer(self, key: tuple[str, str], events: list | None = None) -> None:
+        self.buffered[key] = _Held(events or [])
+        _trim(self.buffered, MAX_HELD_TURNS)
+
+    def hold(self, key: tuple[str, str], event: dict[str, Any]) -> None:
+        """Keep one event for the reply that will follow this turn -- within
+        bounds: past them nothing more is kept but the turn's end, which is
+        what lets the reply finish."""
+        held = self.buffered.get(key)
+        if held is None:
+            return
+        size = len(str(event.get("text") or "")) + len(str(event.get("args") or ""))
+        chars = getattr(held, "chars", 0) + size
+        if _ends_task(event) or (len(held) < MAX_HELD_EVENTS and chars <= MAX_REPLY_CHARS):
+            held.append(event)
+            if isinstance(held, _Held):
+                held.chars = chars
 
     def writer(self, session_id: str):
         """The reply writing this session's running turn: by its turn id when
@@ -347,8 +425,8 @@ class Link:
                     generation.device_turn_over = True
                     _settle_mirror(self, session_id)
                 return
-            if session_id in self.buffered:
-                self.buffered[session_id].append(event)
+            if (session_id, "") in self.buffered:
+                self.hold((session_id, ""), event)
                 return
             # A turn typed in the device's terminal, in a session it shares --
             # or one the harness started itself (a job's note, spec 2.0.0),
@@ -458,20 +536,22 @@ class Link:
         mirror refused because a reply was running, and the turn was lost.
         """
         kind = event.get("type")
-        turn = str(event.get("turnId") or "")
+        turn = str(event.get("turnId") or "")[:64]
         if kind == "task":
             # In step from here: every later turn's start is heard.
             self.synced.add(session_id)
         if kind == "prompt" and event.get("machine"):
             self.harness_turns[session_id] = turn
+            _trim(self.harness_turns, MAX_LINK_SESSIONS)
         if kind == "task" and event.get("state") == "start":
             self.busy.add(session_id)
             if turn:
                 self.current[session_id] = turn
+                _trim(self.current, MAX_LINK_SESSIONS)
                 waiting = self.queued_turns.get((session_id, turn))
                 if waiting is not None:
                     # A reply waiting for this queued turn: held from its start.
-                    self.buffered[session_id] = []
+                    self.open_buffer((session_id, turn))
                     waiting.set()
         self._session_event(session_id, event)
         running = self.current.get(session_id, "")
@@ -492,13 +572,27 @@ class Link:
                 and session_id not in self.synced
             ):
                 generation = None
+        # What is held is one turn's: the one the device runs now. The next
+        # turn's `prompt` finds no list under its own id and opens one.
+        held = (session_id, running)
         if generation is not None:
             if kind == "task" and event.get("state") == "start":
                 generation.turn_started = True
                 generation.awaits_start = False
+            if (
+                kind == "prompt"
+                and turn
+                and generation.turn_id == turn
+                and turn not in self.sent_turns
+                and self._mirrors(session_id, event)
+            ):
+                # The turn is the device's own, and a reply here joined it in
+                # the moment between its `task` start and this event: the
+                # turn still gets its row, and that reply is its reply.
+                _note_joined(self, session_id, generation, event)
             apply_event(generation, event)
-        elif session_id in self.buffered:
-            self.buffered[session_id].append(event)
+        elif held in self.buffered:
+            self.hold(held, event)
         elif kind == "prompt" and self._mirrors(session_id, event) and turn not in self.sent_turns:
             # A turn typed in the device's terminal, or started by the harness
             # itself: its own row, whatever reply this session's last web turn
@@ -508,7 +602,8 @@ class Link:
                 attachments=event.get("attachments"), machine=bool(event.get("machine")),
             )
         elif session_id in self.probing:
-            self.probing[session_id].append(event)
+            if len(self.probing[session_id]) < MAX_HELD_EVENTS:
+                self.probing[session_id].append(event)
         elif (
             self.can(HARNESS_TURNS)
             and self.can("status")
@@ -516,6 +611,7 @@ class Link:
             and session_id not in self.asked
             and not running
             and kind not in ("prompt", "task")
+            and len(self.probing) < MAX_PROBING
         ):
             # An event of a session this link has heard no `task` event of, and
             # no reply here is following: a turn may be running that started
@@ -530,9 +626,13 @@ class Link:
             self.harness_turns.pop(session_id, None)
             # Handed back by a harness turn before the reply that joined it
             # was following: kept for that reply.
-            unheard = generation is None and session_id not in self.buffered
-            if unheard and (unsent := _unsent_of(self, event)):
+            # Only under the turn's own id: an end that names no turn is
+            # nobody's to match later, and kept it would be handed to whichever
+            # reply next followed the session without a turn id.
+            unheard = generation is None and held not in self.buffered
+            if unheard and turn and (unsent := _unsent_of(self, event)):
                 self.unsent[(session_id, turn)] = unsent
+                _trim(self.unsent, MAX_UNSENT_TURNS)
             if generation is not None:
                 generation.device_turn_over = True
                 _settle_mirror(self, session_id)
@@ -1240,8 +1340,21 @@ def _mark_steered(generation, event: dict[str, Any]) -> None:
     """The device's model took in messages sent from here: marked into the reply
     at this point. By the ids the device hands back; when it names
     none, they go in the order they were sent."""
-    ids = [str(i) for i in event.get("ids") or [] if str(i) in generation.sent_steers]
+    said = [str(i)[:64] for i in (event.get("ids") or [])[:MAX_UNSENT_TEXTS]]
+    ids = [i for i in said if i in generation.sent_steers]
     texts = [str(t) for t in event.get("texts") or [] if str(t).strip()]
+    # A message of this chat's that an *earlier* turn was handed and ended
+    # without taking in, with no link up to hand it back over: the device kept
+    # it and gives it to the model now, at this turn's first step, saying so
+    # with the message's id (spec 3.10.0). It is this chat's own row -- shown
+    # where it went in, and no longer waiting -- not words typed in the
+    # terminal, which would show it a second time.
+    carried = _carried_in(generation, [i for i in said if i not in generation.sent_steers])
+    if carried:
+        generation.mark_steer(carried)
+        texts = [t for t in texts if not any(_same(c["text"], t) for c in carried)]
+        if not ids and not texts:
+            return
     if not ids and not generation.sent_steers:
         # Typed in the device's terminal while it worked: shown as it is there.
         generation.mark_steer([{"id": "", "text": t} for t in texts])
@@ -1255,6 +1368,38 @@ def _mark_steered(generation, event: dict[str, Any]) -> None:
             if i in generation.sent_steers
         ]
     )
+
+
+def _carried_in(generation, ids: list[str]) -> list[dict]:
+    """The rows of this reply's chat that these ids name -- a person's
+    messages handed to the device before this reply -- as steer marks, each
+    marked delivered: it has reached the model, here and now."""
+    if not ids:
+        return []
+    from lembas.db.models import ROLE_USER, Message
+    from lembas.db.session import session_scope
+
+    marks: list[dict] = []
+    try:
+        with session_scope() as db:
+            for message_id in ids:
+                row = db.get(Message, message_id)
+                if (
+                    row is None
+                    or row.chat_id != generation.chat_id
+                    or row.role != ROLE_USER
+                    or devices_own(row)
+                ):
+                    continue
+                row.queued = False
+                if row.origin == ORIGIN_UNSURE:
+                    row.origin = ""
+                marks.append({"id": row.id, "text": row.content or ""})
+            db.commit()
+    except Exception:  # the reply is written either way
+        log.exception("could not mark carried messages of chat %s", generation.chat_id)
+        return []
+    return marks
 
 
 def _think(generation) -> None:
@@ -1633,6 +1778,8 @@ async def run(
     attachments: list[dict] | None = None,
     harness: bool = False,
     device_turn: str = "",
+    reply_turn: str = "",
+    unconfirmed: dict[str, str] | None = None,
 ) -> None:
     """Write one reply from the device. Sets `generation.error` on every "no".
 
@@ -1645,7 +1792,11 @@ async def run(
     (an update, a dropped link) while the device went on; it is followed again,
     never sent a second time. `message_id`: the person's message this answers --
     and, to a device that lists `turns`, the turn's id. `attachments`:
-    the files sent with it, as `prompt_blocks` reads them."""
+    the files sent with it, as `prompt_blocks` reads them. `reply_turn`: the
+    device turn the reply's own row says it was writing (`_keep_reply_turn`) --
+    its prompt's, or one it joined. `unconfirmed`: the messages handed into
+    that turn that the reply had not seen taken in when it was cut off,
+    id -> text."""
     link = link_for(token_id)
     generation.device_where = f"{device_name}:{project_dir}"
     if link is None and (mirror or attach):
@@ -1678,13 +1829,26 @@ async def run(
         _remember_turn(link, message_id)
     kept = session_id if session_id and link.can("sessions") else ""
     resend = False
-    if attach and kept:
-        resend = await _reattach(link, generation, chat_id, kept, device_name)
-        if not resend:
-            return
     current: str | None = link.sessions.get(chat_id) or kept or None
-    session_id = ""
+    session_id = kept if attach else ""
     try:
+        if attach and kept:
+            # The turn this reply was writing, by its own row's word: the
+            # message it answers is not it when the reply joined a turn
+            # already running, or took a later message in.
+            if reply_turn and link.can("turns"):
+                generation.turn_id = "" if reply_turn == JOINED_UNNAMED else reply_turn
+            joined = bool(reply_turn) and reply_turn != message_id
+            for steered, text in (unconfirmed or {}).items():
+                generation.sent_steers[steered] = text
+                generation.injected_ids.append(steered)
+            resend = await _reattach(
+                link, generation, chat_id, kept, device_name, machine=joined
+            )
+            _settle_unheard(generation, resend)
+            if not resend:
+                return
+        session_id = ""
         if current is not None:
             try:
                 await _bring_up_to_date(
@@ -1704,6 +1868,19 @@ async def run(
         session_id = current
         link.modes[chat_id] = mode
         link.configs[chat_id] = (model, effort)
+        # A turn of the device's own whose rows are still being made here (its
+        # `prompt` came a moment ago): this reply becomes that turn's reply,
+        # and the message it was started for waits in the queue -- handed to
+        # the turn like any message typed while a reply runs. A reply of its
+        # own would take the turn's events, and the turn would have no row.
+        if message_id and not resend:
+            taken = await _adopt_mirror(link, generation, session_id, message_id)
+            if taken is not None:
+                await _follow_mirror(
+                    link, generation, chat_id, session_id, device_name,
+                    harness=taken[1], device_turn=taken[0],
+                )
+                return
         # Working already -- a turn typed in its terminal, or one it
         # started by itself: what was typed here joins that turn, as a message
         # typed into the terminal mid-task would, and this reply follows it.
@@ -1718,10 +1895,26 @@ async def run(
             and link.can("steer")
             and _takes_messages(link, session_id)
         ):
+            # Handed over like a message from the queue: handed back
+            # (`unsent`), it is queued again and answered by a reply of its
+            # own, so this one holds the joined turn's words and no other's.
             generation.sent_steers[message_id] = prompt
+            generation.injected_ids.append(message_id)
             if link.can("turns"):
                 # The reply follows the turn it joins, not a turn of its own.
                 generation.turn_id = link.current.get(session_id, "")
+            _keep_reply_turn(generation, joined=True)
+            joined = True
+            # The turn's writer from this moment, not from when the steer is
+            # answered: what the turn says meanwhile -- its `prompt` among it,
+            # which is what makes its row -- is this reply's to hear.
+            before = (
+                list(generation.content), list(generation.reasoning),
+                list(generation.tool_events), list(generation.steps),
+            )
+            link.writing[session_id] = generation
+            if generation.turn_id:
+                link.turn_writers[(session_id, generation.turn_id)] = generation
             try:
                 await link.request(
                     "_lembas/steer",
@@ -1730,29 +1923,36 @@ async def run(
                 )
             except DeviceError:
                 # It finished a moment ago: an ordinary prompt after all.
+                joined = False
                 generation.sent_steers.pop(message_id, None)
+                generation.injected_ids.remove(message_id)
+                if link.turn_writers.get((session_id, generation.turn_id)) is generation:
+                    link.turn_writers.pop((session_id, generation.turn_id), None)
+                # The last words of the turn that had just ended are not the
+                # answer to this message.
+                generation.content, generation.reasoning = before[0], before[1]
+                generation.tool_events, generation.steps = before[2], before[3]
+                generation.device_turn_over = False
+                generation.turn_started = False
                 generation.turn_id = message_id if link.can("turns") else ""
             except TimeoutError:
                 # No answer in time is not a refusal: the link delivers in
                 # order, so the device almost surely has it and answered late.
-                # Sending it again as a prompt ran the same message twice.
+                # Sending it again as a prompt ran the same message twice. It
+                # is followed exactly as an answered one is -- the turn's end
+                # may still hand it back (`unsent`), and then it is sent.
+                pass
+            if joined:
                 await _follow(link, generation, chat_id, session_id)
                 return
-            else:
-                await _follow(link, generation, chat_id, session_id)
-                # (Stopped here meanwhile: Stop means stop, and nothing is sent.)
-                if not generation.device_resend or generation.cancel or generation.stopped:
-                    return
-                # The turn it joined was the harness's and ended before taking
-                # the message in: handed back (`unsent`), it goes as a prompt of
-                # its own after all, and this reply carries on with its answer.
-                generation.device_resend = False
-                generation.device_turn_over = False
-                generation.turn_started = False
-                generation.turn_id = message_id if link.can("turns") else ""
+        _keep_reply_turn(generation)
         # A device without `harness_turns` fails a prompt sent while a turn its
         # harness started runs (and loses track of that turn): sent after it.
         await _harness_turn_over(link, generation, session_id)
+        if generation.cancel:
+            # Stopped while it waited to be sent: withdrawn here, never sent.
+            generation.stopped = True
+            return
         await _prompt(link, generation, chat_id, session_id, content, device_name)
     except DeviceError as exc:
         generation.error = f"{device_name} refused: {exc}"
@@ -1760,21 +1960,9 @@ async def run(
     except LinkClosed as exc:
         link.sessions.pop(chat_id, None)
         link.writing.pop(session_id, None)
-        # A link that blinks does not end the device's turn: followed
-        # again when it is back, rather than ended with an error here.
-        again = await _wait_for_link(token_id) if session_id and not generation.cancel else None
-        if again is not None and again.can("status"):
-            try:
-                if await _reattach(again, generation, chat_id, session_id, device_name):
-                    # The device never had it: sent again, by its id.
-                    await _prompt(again, generation, chat_id, session_id, content, device_name)
-            except (DeviceError, LinkClosed) as again_exc:
-                generation.error = str(again_exc)
-            finally:
-                if again.writing.get(session_id) is generation:
-                    again.writing.pop(session_id, None)
-        else:
-            generation.error = str(exc)
+        await _after_drop(
+            token_id, generation, chat_id, session_id, device_name, content, message_id, exc
+        )
     except TimeoutError:
         generation.error = f"{device_name} did not answer in time."
     finally:
@@ -1783,6 +1971,114 @@ async def run(
         _close_thinking(generation)
         generation.status = ""
         generation.touch()
+
+
+# How many times in a row one reply waits for a dropped link to come back.
+MAX_RELINKS = 3
+
+
+async def _after_drop(
+    token_id: str,
+    generation,
+    chat_id: str,
+    session_id: str,
+    device_name: str,
+    content: list,
+    message_id: str,
+    exc: Exception,
+) -> None:
+    """A link that blinks does not end the device's turn: the reply waits for
+    the device to dial in again and takes its turn up by what the device then
+    says of it (`_reattach`) -- followed on, read whole from the history when
+    it ended meanwhile, or (a prompt the device never had) sent again by its
+    id. A turn this reply only *joined* is never sent."""
+    for _ in range(MAX_RELINKS):
+        again = await _wait_for_link(token_id) if session_id and not generation.cancel else None
+        if again is None or not again.can("status"):
+            break
+        joined = generation.turn_id != message_id or bool(
+            message_id and message_id in generation.sent_steers
+        )
+        try:
+            resend = await _reattach(
+                again, generation, chat_id, session_id, device_name, machine=joined
+            )
+            _settle_unheard(generation, resend)
+            if resend:
+                # The device never had it: sent again, by its id.
+                await _prompt(again, generation, chat_id, session_id, content, device_name)
+            return
+        except LinkClosed as dropped:
+            exc = dropped
+        except DeviceError as refused:
+            generation.error = str(refused)
+            return
+        except TimeoutError:
+            generation.error = f"{device_name} did not answer in time."
+            return
+        finally:
+            if again.writing.get(session_id) is generation:
+                again.writing.pop(session_id, None)
+    generation.error = str(exc)
+
+
+# On a reply's row (`Message.device_turn_id`): it joined a turn the device did
+# not name. Never a turn id -- only "not the message's own turn".
+JOINED_UNNAMED = "?"
+
+
+def _keep_reply_turn(generation, *, joined: bool = False) -> None:
+    """The reply's own row remembers which turn of the device it writes: its
+    prompt's (the message's id) or, `joined`, the one it joined. After a
+    restart that is the turn the device is asked about -- the message the
+    reply answers is the wrong one to ask about, and to send again, once the
+    reply joined another turn or took a later message in."""
+    turn = generation.turn_id[:64] or (JOINED_UNNAMED if joined else "")
+    if not turn:
+        return
+    from lembas.db.models import Message
+    from lembas.db.session import session_scope
+
+    try:
+        with session_scope() as db:
+            row = db.get(Message, generation.message_id)
+            if row is not None and row.device_turn_id != turn:
+                row.device_turn_id = turn
+                db.commit()
+    except Exception:  # the reply is written either way
+        log.exception("could not keep the turn of reply %s", generation.message_id)
+
+
+# Message.origin of a person's message that was handed to the device (into a
+# running turn) and whose fate there cannot be known: the turn ended, or the
+# device forgot it, while nobody here was listening. It waits (`queued`) with
+# that said on it, is never sent by itself, and "Send now" sends it.
+ORIGIN_UNSURE = "unsure"
+
+
+def _settle_unheard(generation, resend: bool) -> None:
+    """After taking a turn up again: the messages handed into it that were
+    never seen taken in. Followed to its end, the turn said which came back
+    (`unsent`) and the rest went in. Ended unheard, or unknown to the device,
+    it said nothing this instance heard -- and a message is never sent twice
+    on a guess: each is marked, for its person to send again or not."""
+    if not (resend or getattr(generation, "device_unheard", False)):
+        return
+    ids = list(generation.sent_steers)
+    generation.sent_steers.clear()
+    generation.injected_ids = [i for i in generation.injected_ids if i not in ids]
+    if not ids:
+        return
+    from lembas.db.models import ROLE_USER, Message
+    from lembas.db.session import session_scope
+
+    with session_scope() as db:
+        for message_id in ids:
+            row = db.get(Message, message_id)
+            if row is not None and row.role == ROLE_USER and not devices_own(row):
+                row.queued = True
+                row.origin = ORIGIN_UNSURE
+        db.commit()
 
 
 async def _prompt(
@@ -1823,7 +2119,7 @@ async def _prompt(
             ):
                 await _pass_on_queued(link, generation, chat_id, session_id)
             if not done and generation.cancel:
-                await link.notify("session/cancel", {"sessionId": session_id})
+                await _cancel(link, generation, session_id)
                 generation.stopped = True
                 with contextlib.suppress(Exception):
                     await asyncio.wait_for(asyncio.shield(task), DEVICE_STOP_GRACE)
@@ -1840,9 +2136,9 @@ async def _prompt(
             # cancelled, and the final reply; the run is recorded from it.
             if isinstance(said.get("scheduled"), dict):
                 generation.scheduled_outcome = dict(said["scheduled"])
-            unsent = said.get("unsent") or []
+            unsent = _texts(said.get("unsent"))
             if unsent:
-                _requeue(generation, len(unsent))
+                _hand_back(generation, unsent)
             if said.get("command"):
                 # The prompt was one of the device's commands: what it
                 # did, when it did it without a turn of the model's to show.
@@ -1917,8 +2213,17 @@ async def _wait_for_link(token_id: str, wait: float = RELINK_WAIT) -> Link | Non
 
 
 def _texts(raw: Any) -> list[str]:
-    """A list of messages as a device sent it: strings, none empty."""
-    return [str(t) for t in raw if str(t).strip()] if isinstance(raw, list) else []
+    """A list of messages as a device sent it: strings, none empty -- and no
+    more of them, and no longer, than messages typed here could be."""
+    if not isinstance(raw, list):
+        return []
+    return [str(t)[:MAX_UNSENT_CHARS] for t in raw[:MAX_UNSENT_TEXTS] if str(t).strip()]
+
+
+def _same(sent: str, back: str) -> bool:
+    """Whether a message handed back is this one handed over (the device
+    trims what it is given)."""
+    return sent.strip()[:MAX_UNSENT_CHARS] == back.strip()[:MAX_UNSENT_CHARS]
 
 
 def _unsent_of(link: Link, event: dict[str, Any]) -> list[str]:
@@ -1948,6 +2253,70 @@ async def _harness_turn_over(link: Link, generation, session_id: str) -> None:
         and not generation.cancel
     ):
         await asyncio.sleep(0.1)
+
+
+def cancel_effect(turn: str, running: str, queued: list[str]) -> dict[str, str]:
+    """What a `session/cancel` does on a device that lists `harness_turns`
+    (spec 3.10.0, `conformance/cancel.json`): `turn` is the id the cancel
+    names, "" for ACP's own. `cancelled`: `running` (that turn is stopped --
+    `stops`), `queued` (that prompt is taken out of the queue and never runs
+    -- `withdraws` -- and the running turn is not touched) or `none`."""
+    if not turn:
+        return {"cancelled": "running", "stops": running} if running else {"cancelled": "none"}
+    if turn == running:
+        return {"cancelled": "running", "stops": turn}
+    if turn in queued:
+        return {"cancelled": "queued", "withdraws": turn}
+    return {"cancelled": "none"}
+
+
+def cancel_params(link: Link, generation, session_id: str) -> dict[str, Any]:
+    """`session/cancel` for this reply: with the reply's own turn named
+    (`_meta.lembas.turnId`) for a device that lists `harness_turns`, so Stop
+    on a reply whose prompt still waits there takes that prompt back and
+    leaves the turn that runs alone. ACP's own cancel for any other device."""
+    params: dict[str, Any] = {"sessionId": session_id}
+    turn = generation.turn_id if link.can("turns") else ""
+    if turn and link.can(HARNESS_TURNS):
+        params["_meta"] = {"lembas": {"turnId": turn}}
+    return params
+
+
+COULD_NOT_WITHDRAW = (
+    "\n\n*(Stopped here. The computer already has this message waiting behind "
+    "another turn, and its LLeMbas CLI cannot take it back: it will still run "
+    "there, and its answer will not be shown.)*"
+)
+
+
+async def _cancel(link: Link, generation, session_id: str, *, ask: bool = False) -> str:
+    """Stop this reply's turn on the device -- **this reply's**, not whichever
+    turn runs. Returns what the device said it did (`running`, `queued`,
+    `none`) when `ask`ed of a device that names turns on a cancel, else "".
+
+    A device without `harness_turns` knows only "stop what runs". That is sent
+    when what runs is this reply's turn (or the device names no turns at
+    all). When another turn runs and this reply's prompt waits behind it, a
+    plain cancel would stop the other turn and leave the prompt to run: it is
+    not sent, and the reply says the message could not be taken back."""
+    params = cancel_params(link, generation, session_id)
+    if "_meta" in params:
+        if not ask:
+            await link.notify("session/cancel", params)
+            return ""
+        try:
+            said = await link.request("session/cancel", params, timeout=15)
+        except (DeviceError, TimeoutError, LinkClosed):
+            return ""
+        return str((said if isinstance(said, dict) else {}).get("cancelled") or "")
+    turn = generation.turn_id if link.can("turns") else ""
+    running = link.current.get(session_id, "")
+    if turn and running and running != turn:
+        generation.content.append(COULD_NOT_WITHDRAW)
+        generation.touch()
+        return ""
+    await link.notify("session/cancel", params)
+    return ""
 
 
 # What to do with an incomplete row of turn T after a restart or a dropped
@@ -2012,6 +2381,7 @@ async def _reattach(
     turn = generation.turn_id if link.can("turns") else ""
     if not status.get("exists", True):
         generation.error = f"The session is gone from {device_name}."
+        generation.device_unheard = True
         return False
     if link.can("plan_state") and "plan" in status:
         # The plan as the device has it, so a reply taken up again draws it
@@ -2041,14 +2411,19 @@ async def _reattach(
             if machine:
                 link.harness_turns[session_id] = turn
             await _follow(link, generation, chat_id, session_id)
+            # What the turn said while nobody here was listening -- between
+            # the cut and now -- is in the device's history and nowhere else.
+            await _whole_turn(link, generation, session_id, device_name, turn)
             return False
         if decision == WAIT:
             await _await_turn(link, generation, chat_id, session_id, turn)
             return False
         if decision == IMPORT:
             # Over on the device, and only being written here: said, so the
-            # device's next turn waits for this reply (`_previous_reply_done`).
+            # device's next turn waits for this reply (`_chat_free`).
             generation.device_turn_over = True
+            # Its end was not heard here: nor was what it handed back.
+            generation.device_unheard = True
             # A harness turn: by its id alone -- whatever the history has for
             # it, and the reply as it stands when it has nothing.
             await _import_turn(link, generation, session_id, device_name, turn, strict=machine)
@@ -2057,6 +2432,7 @@ async def _reattach(
         return True
     if machine:
         # No id to ask about: closed as it stands rather than guessed at.
+        generation.device_unheard = True
         return False
     if status.get("busy") or session_id in link.busy:
         # Working, by its own word -- or by a `task` start this link has seen
@@ -2064,22 +2440,36 @@ async def _reattach(
         link.busy.add(session_id)
         await _follow(link, generation, chat_id, session_id)
         return False
+    generation.device_unheard = True
     await _import_turn(link, generation, session_id, device_name, "")
     return False
 
 
+async def _whole_turn(link: Link, generation, session_id: str, device_name: str, turn: str) -> None:
+    """A turn followed to its end from part way through: its whole reply, by
+    its id, in place of the part heard. Left as it is when the reply was
+    stopped or failed, and when the history has nothing under the id."""
+    if turn and not (generation.cancel or generation.stopped or generation.error):
+        await _import_turn(link, generation, session_id, device_name, turn, strict=True, quiet=True)
+
+
 async def _import_turn(
-    link: Link, generation, session_id: str, device_name: str, turn: str, *, strict: bool = False
+    link: Link, generation, session_id: str, device_name: str, turn: str, *,
+    strict: bool = False, quiet: bool = False,
 ) -> None:
     """A finished turn's whole answer, from the device's history, in place of
     the part seen here: the reply after the user turn with this id when the
-    history names turns, else the last reply. `strict`: only by id."""
+    history names turns, else the last reply. `strict`: only by id. `quiet`:
+    a history that cannot be read leaves the reply as it is, without an error.
+    What is taken is bounded as a live reply is (`MAX_REPLY_CHARS`,
+    `MAX_IMPORT_TOOLS`)."""
     try:
         history = await link.request(
             "_lembas/session/history", {"sessionId": session_id}, timeout=30
         )
     except (DeviceError, TimeoutError, LinkClosed) as exc:
-        generation.error = f"Could not read how the turn ended on {device_name}: {exc}"
+        if not quiet:
+            generation.error = f"Could not read how the turn ended on {device_name}: {exc}"
         return
     turns = [t for t in (history or {}).get("turns") or [] if isinstance(t, dict)]
     last = None
@@ -2101,15 +2491,26 @@ async def _import_turn(
         last = turns[-1] if turns and turns[-1].get("role") != "user" else None
     if last is None:
         return
-    generation.content = [str(last.get("text") or "")]
-    generation.reasoning = [str(last.get("reasoning") or "")]
-    generation.tool_events = [
-        _tool_event(t, generation.device_where)
-        for t in last.get("tools") or []
-        if isinstance(t, dict)
-    ]
+    generation.content = [str(last.get("text") or "")[:MAX_REPLY_CHARS]]
+    generation.reasoning = [str(last.get("reasoning") or "")[:MAX_REPLY_CHARS]]
+    generation.tool_events = _history_tools(last, generation.device_where)
     generation.steps = []
     generation.touch()
+
+
+# What one read of a device's history may add to a chat: the harness turns
+# nobody here heard (the newest ones), the tool calls of one reply, the
+# characters of one note. A reply's text has `MAX_REPLY_CHARS`.
+MAX_MISSED_TURNS = 20
+MAX_IMPORT_TOOLS = 500
+MAX_NOTE_CHARS = 200_000
+
+
+def _history_tools(reply: dict[str, Any] | None, where: str) -> list:
+    """A history reply's tool calls as blocks, no more than a reply keeps."""
+    tools = (reply or {}).get("tools")
+    tools = tools if isinstance(tools, list) else []
+    return [_tool_event(t, where) for t in tools[:MAX_IMPORT_TOOLS] if isinstance(t, dict)]
 
 
 def _harness_turn(turn: dict[str, Any]) -> str:
@@ -2132,7 +2533,8 @@ async def _take_in_missed(link: Link, chat_id: str, session_id: str, turns: list
     if not link.can(HARNESS_TURNS) or not chat_id:
         return
     wanted = [(n, _harness_turn(t)) for n, t in enumerate(turns)]
-    wanted = [(n, turn) for n, turn in wanted if turn]
+    # The newest few: a history that lists thousands is not written into a chat.
+    wanted = [(n, turn) for n, turn in wanted if turn][-MAX_MISSED_TURNS:]
     if not wanted:
         return
     try:
@@ -2176,7 +2578,7 @@ async def _take_in_missed(link: Link, chat_id: str, session_id: str, turns: list
                     Message(
                         chat_id=chat.id,
                         role=ROLE_USER,
-                        content=str(turns[n].get("text") or ""),
+                        content=str(turns[n].get("text") or "")[:MAX_NOTE_CHARS],
                         origin=ORIGIN_HARNESS,
                         machine=True,
                         device_turn_id=turn,
@@ -2188,14 +2590,11 @@ async def _take_in_missed(link: Link, chat_id: str, session_id: str, turns: list
                     Message(
                         chat_id=chat.id,
                         role=ROLE_ASSISTANT,
-                        content=str((reply or {}).get("text") or ""),
-                        reasoning=str((reply or {}).get("reasoning") or ""),
-                        tool_calls_json=[
-                            _tool_event(t, where)
-                            for t in (reply or {}).get("tools") or []
-                            if isinstance(t, dict)
-                        ],
+                        content=str((reply or {}).get("text") or "")[:MAX_REPLY_CHARS],
+                        reasoning=str((reply or {}).get("reasoning") or "")[:MAX_REPLY_CHARS],
+                        tool_calls_json=_history_tools(reply, where),
                         model_id=chat.model_id,
+                        device_turn_id=turn,
                         created_at=when,
                     )
                 )
@@ -2206,6 +2605,90 @@ async def _take_in_missed(link: Link, chat_id: str, session_id: str, turns: list
             db.commit()
     except Exception:  # what was missed stays missed; the reply in hand is still written
         log.exception("could not take in the harness turns of %s", session_id)
+
+
+# The catch-up when a device links: how many of its chats are asked -- the
+# ones most recently changed -- and how recently one must have changed.
+CATCH_UP_CHATS = 5
+CATCH_UP_WITHIN_HOURS = 24
+
+
+async def catch_up(link: Link) -> int:
+    """What the device's harness did by itself while nobody here was
+    listening, taken into the chats it most likely happened in: when a device
+    links, the `CATCH_UP_CHATS` chats of it changed most recently (within
+    `CATCH_UP_WITHIN_HOURS`) have their history read once, and the harness
+    turns after the last turn each chat already knows are stored
+    (`_take_in_missed`). Without this such a turn was shown only when the
+    chat's history was next read for another reason. Returns how many chats
+    were asked. Only of a device that lists `harness_turns`: no other marks
+    such a turn. Bounded on purpose -- a device may have thousands of chats
+    here, and a history is not small; an older chat catches up when a reply
+    of it is next taken up."""
+    if not (link.can(HARNESS_TURNS) and link.can("status") and link.can("sessions")):
+        return 0
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import select
+
+    from lembas.db.models import Chat, Message
+    from lembas.db.session import session_scope
+    from lembas.services import generation as generation_service
+
+    since = datetime.now(UTC) - timedelta(hours=CATCH_UP_WITHIN_HOURS)
+    with session_scope() as db:
+        chats = [
+            (chat.id, chat.device_session_id)
+            for chat in db.scalars(
+                select(Chat)
+                .where(
+                    Chat.user_id == link.user_id,
+                    Chat.device_token_id == link.token_id,
+                    Chat.device_session_id.is_not(None),
+                    Chat.device_session_id != "",
+                    Chat.updated_at >= since,
+                )
+                .order_by(Chat.updated_at.desc())
+                .limit(CATCH_UP_CHATS)
+            )
+        ]
+    asked = 0
+    for chat_id, session_id in chats:
+        if link.closed:
+            break
+        if generation_service.running_for(chat_id) is not None or link.holding(session_id):
+            continue  # a reply of it is at work: that one reads what it needs
+        asked += 1
+        try:
+            history = await link.request(
+                "_lembas/session/history", {"sessionId": session_id}, timeout=30
+            )
+        except (DeviceError, TimeoutError, LinkClosed):
+            continue
+        turns = [t for t in (history or {}).get("turns") or [] if isinstance(t, dict)]
+        ids = [str(t.get("turnId") or "")[:64] for t in turns if t.get("role") == "user"]
+        with session_scope() as db:
+            known = set(
+                db.scalars(select(Message.id).where(Message.chat_id == chat_id))
+            ) | set(
+                db.scalars(
+                    select(Message.device_turn_id).where(
+                        Message.chat_id == chat_id, Message.device_turn_id.is_not(None)
+                    )
+                )
+            )
+        # Only what comes after the last turn this chat knows by its id: a
+        # history none of whose turns it knows gives no place to start from,
+        # and a guess there would store old turns a second time.
+        last = max(
+            (n for n, t in enumerate(turns)
+             if t.get("role") == "user" and str(t.get("turnId") or "")[:64] in known),
+            default=None,
+        )
+        if last is None or not ids:
+            continue
+        await _take_in_missed(link, chat_id, session_id, turns[last + 1 :])
+    return asked
 
 
 async def _await_turn(link: Link, generation, chat_id: str, session_id: str, turn: str) -> None:
@@ -2221,12 +2704,16 @@ async def _await_turn(link: Link, generation, chat_id: str, session_id: str, tur
     finally:
         link.queued_turns.pop((session_id, turn), None)
     if link.closed:
-        generation.error = "The device's link dropped."
-        return
+        raise LinkClosed("The device's link dropped.")
     if not started.is_set():
         # Stopped here before it began: the device is told, and the reply ends.
         generation.stopped = True
-        await link.notify("session/cancel", {"sessionId": session_id})
+        # Asked, not only told: a turn that had already run to its end while
+        # this waited (`none`) has a reply, and the chat shows it.
+        if await _cancel(link, generation, session_id, ask=True) == "none":
+            await _import_turn(
+                link, generation, session_id, "the device", turn, strict=True, quiet=True
+            )
         return
     await _follow(link, generation, chat_id, session_id)
 
@@ -2234,6 +2721,8 @@ async def _await_turn(link: Link, generation, chat_id: str, session_id: str, tur
 async def _follow(link: Link, generation, chat_id: str, session_id: str) -> None:
     """Write this reply from a turn the device is running, until it ends. Stop
     here stops it there; a message typed here meanwhile joins it."""
+    if link.closed:
+        raise LinkClosed("The device's link dropped.")
     done: asyncio.Future = asyncio.get_running_loop().create_future()
     link.mirrors[session_id] = done
     link.writing[session_id] = generation
@@ -2242,12 +2731,15 @@ async def _follow(link: Link, generation, chat_id: str, session_id: str) -> None
     if turn:
         link.turn_writers[(session_id, turn)] = generation
     try:
-        for event in link.buffered.pop(session_id, []):
+        # The events held for *this* turn, and no other's.
+        for event in link.buffered.pop((session_id, turn), []):
             apply_event(generation, event)
             if _ends_task(event) and not done.done():
                 done.set_result(None)
-        # Handed back by the turn's end before this reply was registered for it.
-        generation.device_unsent.extend(link.unsent.pop((session_id, turn), []))
+        # Handed back by the turn's end before this reply was registered for
+        # it: under the turn's own id, or not at all.
+        if turn:
+            generation.device_unsent.extend(link.unsent.pop((session_id, turn), []))
         if session_id not in link.busy and not done.done():
             # It ended between the question and now.
             done.set_result(None)
@@ -2255,7 +2747,7 @@ async def _follow(link: Link, generation, chat_id: str, session_id: str) -> None
             # Over on the device before this reply was following it: said, as
             # the dispatcher says it for a turn that ends while followed, so
             # the device's next turn waits for this reply instead of being
-            # dropped as a second one in the chat (`_previous_reply_done`).
+            # dropped as a second one in the chat (`_chat_free`).
             generation.device_turn_over = True
         stopping = asyncio.ensure_future(generation.stop_event.wait())
         try:
@@ -2265,7 +2757,7 @@ async def _follow(link: Link, generation, chat_id: str, session_id: str) -> None
                     break
                 if generation.cancel:
                     generation.stopped = True
-                    await link.notify("session/cancel", {"sessionId": session_id})
+                    await _cancel(link, generation, session_id)
                     with contextlib.suppress(Exception):
                         await asyncio.wait_for(asyncio.shield(done), DEVICE_STOP_GRACE)
                     break
@@ -2277,6 +2769,12 @@ async def _follow(link: Link, generation, chat_id: str, session_id: str) -> None
         finally:
             stopping.cancel()
         if done.done() and not done.cancelled() and done.exception() is not None:
+            if isinstance(done.exception(), LinkClosed):
+                # The link dropped, the turn did not end: whoever follows
+                # waits for the device to dial in again (`_after_drop`,
+                # `_follow_mirror`) instead of closing the reply here, part
+                # written, with nobody left to write the rest.
+                raise done.exception()
             generation.error = str(done.exception())
             generation.device_reason = getattr(done.exception(), "reason", "")
         if generation.device_unsent and link.can(HARNESS_TURNS):
@@ -2585,37 +3083,69 @@ async def _follow_mirror(
     `harness_turns` is asked about exactly that turn (spec 3.10.0); for any
     other, and for a row kept before the id was, the turn is found as before
     -- by what the link has seen."""
+    for _ in range(MAX_RELINKS + 1):
+        try:
+            await _mirror_once(
+                link, generation, chat_id, session_id, device_name,
+                harness=harness, device_turn=device_turn,
+            )
+            return
+        except LinkClosed as exc:
+            # The link dropped in the middle of the device's turn. The turn
+            # goes on there: the reply waits for the device to dial in again,
+            # as a reply to a turn sent from here does, and is taken up by
+            # what the device then says of the turn.
+            again = None if generation.cancel else await _wait_for_link(link.token_id)
+            if again is None or not again.can("status"):
+                generation.error = str(exc)
+                return
+            link = again
+    generation.error = "The device's link dropped."
+
+
+async def _mirror_once(
+    link: Link,
+    generation,
+    chat_id: str,
+    session_id: str,
+    device_name: str,
+    *,
+    harness: bool,
+    device_turn: str,
+) -> None:
     named = bool(harness and device_turn and link.can("turns") and link.can(HARNESS_TURNS))
-    live = session_id in link.buffered
-    if live and named:
-        # The events held are those of the turn whose `prompt` this link saw
-        # last. A row cut off by a restart may be an earlier turn's -- the
-        # first of two notes in a row, while the second runs -- and must not
-        # take the second one's events for its own.
-        live = link.mirror_turns.get(session_id, "") == device_turn
+    # The events held for this row are its own turn's, by the device's id for
+    # it -- never whichever turn the link heard a `prompt` of last. A row cut
+    # off by a restart may be an earlier turn's (the first of two notes in a
+    # row, while the second runs), and a row kept before the id was has none.
+    turn = device_turn if link.can("turns") else ""
+    live = (session_id, turn) in link.buffered and (bool(turn) or not link.can("turns"))
     if not live:
-        # Not started by the terminal's event on this link: an instance that
-        # restarted part way through a turn it was following. Followed again
-        # from the device's own word, instead of given up on.
+        # Not started by the device's event on this link: an instance that
+        # restarted part way through a turn it was following, or a link that
+        # dropped. Followed again from the device's own word, instead of
+        # given up on.
         if named and link.can("status"):
             # Asked by the turn's own id: followed while it runs, read from
             # the history once it has ended, and never sent.
             generation.turn_id = device_turn
             await _reattach(link, generation, chat_id, session_id, device_name, machine=True)
+            _settle_unheard(generation, False)
             return
         if link.can("status"):
             if link.can("turns"):
                 # The turn it follows is whichever the device runs now.
                 generation.turn_id = link.current.get(session_id, "")
             await _reattach(link, generation, chat_id, session_id, device_name)
+            _settle_unheard(generation, False)
             return
         generation.error = (
             f"This turn ran in the terminal on {device_name}; its reply was not "
             "followed to the end here."
         )
         return
-    # The terminal's turn, by its id: its events are routed here.
-    generation.turn_id = link.mirror_turns.pop(session_id, "") if link.can("turns") else ""
+    # The device's turn, by its id: its events are routed here.
+    generation.turn_id = turn
     await _follow(link, generation, chat_id, session_id)
     late = (session_id, generation.turn_id)
     if generation.turn_id and late in link.late_turns:
@@ -2954,7 +3484,7 @@ async def _announced(link: Link, session_id: str) -> None:
         except (DeviceError, LinkClosed, TimeoutError):
             return
         turns = [t for t in (history or {}).get("turns") or [] if isinstance(t, dict)]
-        if session_id in link.buffered:
+        if link.holding(session_id):
             turns = _without_last_prompt(turns)
         if not turns:
             return
@@ -3017,12 +3547,12 @@ async def _find_missed_turn(link: Link, session_id: str) -> None:
         if note is None or link.closed:
             return
         held = link.probing.pop(session_id, [])
-        if session_id in link.buffered or link.writing.get(session_id) is not None:
+        if link.holding(session_id) or link.writing.get(session_id) is not None:
             # Something else took the session up meanwhile.
             return
         found = True
-        link.buffered[session_id] = held
-        link.mirror_turns[session_id] = turn
+        turn = turn[:64]
+        link.open_buffer((session_id, turn), held)
         link.late_turns.add((session_id, turn))
         if not any(_ends_task(event) for event in held):
             link.busy.add(session_id)
@@ -3037,9 +3567,8 @@ async def _find_missed_turn(link: Link, session_id: str) -> None:
         log.exception("could not look for a missed turn of %s", session_id)
     finally:
         link.probing.pop(session_id, None)
-        if found and link.mirror_turns.get(session_id) == turn and session_id not in link.buffered:
-            # The mirror was not made (no chat any more, a reply running in it).
-            link.mirror_turns.pop(session_id, None)
+        if found and (session_id, turn) not in link.buffered:
+            # The mirror was not made (no chat any more): nothing to read late.
             link.late_turns.discard((session_id, turn))
 
 
@@ -3054,9 +3583,8 @@ def _begin_mirror(
 ) -> None:
     """A turn typed in the terminal, or started by the harness (`machine`):
     hold its events, and make its bubbles."""
-    link.buffered[session_id] = []
-    if turn:
-        link.mirror_turns[session_id] = turn
+    link.open_buffer((session_id, turn))
+    link.mirroring[(session_id, turn)] = True
     # A prompt is a turn running, whether or not its `task` start came first.
     link.busy.add(session_id)
     asyncio.get_running_loop().create_task(
@@ -3071,25 +3599,121 @@ def _begin_mirror(
     )
 
 
-# How long a terminal's turn waits for this session's previous reply to finish
-# being written here before it is shown anyway or given up on.
+def _note_joined(link: Link, session_id: str, generation, event: dict[str, Any]) -> None:
+    """The row of a turn the device started, made when a reply here is
+    already following that turn (it joined on the `task` start, before the
+    `prompt` said whose turn it is): note, the message handed in, the reply --
+    as they read when a message is taken into a mirrored turn's reply."""
+    from datetime import UTC, datetime, timedelta
+
+    from lembas.db.models import ROLE_USER, Message
+    from lembas.db.session import session_scope
+    from lembas.services import chat as chat_service
+
+    turn = str(event.get("turnId") or "")[:64]
+    machine = bool(event.get("machine"))
+    try:
+        with session_scope() as db:
+            chat = _chat_for(db, link, session_id)
+            reply = db.get(Message, generation.message_id)
+            if chat is None or reply is None or _has_turn(db, link, session_id, turn):
+                return
+            asked = chat_service.create_message(
+                db,
+                chat,
+                ROLE_USER,
+                str(event.get("text") or "")[:MAX_NOTE_CHARS],
+                origin=ORIGIN_HARNESS if machine else ORIGIN_TERMINAL,
+                machine=machine,
+            )
+            chips = attachment_chips(event.get("attachments"))
+            if chips:
+                asked.terminal_attachments_json = chips
+            asked.device_turn_id = turn
+            now = datetime.now(UTC)
+            asked.created_at = now
+            for n, message_id in enumerate(generation.injected_ids, 1):
+                handed = db.get(Message, message_id)
+                if handed is not None:
+                    handed.created_at = now + timedelta(milliseconds=n)
+            reply.created_at = now + timedelta(milliseconds=len(generation.injected_ids) + 1)
+            reply.device_turn_id = turn
+            db.commit()
+    except Exception:  # the reply is written either way
+        log.exception("could not make the row of a joined turn of %s", session_id)
+
+
+# How long a turn of the device's waits for this session's previous reply to
+# finish being written here.
 MIRROR_WAIT = 30.0
+# How long a reply started for a message typed in that moment waits to be
+# made the turn's reply (the chat for a shared session may still be adopted).
+ADOPT_WAIT = 60.0
+
+FREE, ADOPT, STORE, GONE = "free", "adopt", "store", "gone"
 
 
-async def _previous_reply_done(chat_id: str) -> bool:
-    """Whether the chat is free for a new reply: none running, or the one
-    running has ended on the device and is only being written here -- waited
-    for, up to MIRROR_WAIT."""
+async def _chat_free(link: Link, chat_id: str, key: tuple[str, str]) -> str:
+    """What to do with a turn of the device's whose rows are to be made, once
+    it can be said -- one reply at a time in a chat:
+
+    - `FREE`: no reply is running. The one that was had ended on the device
+      and was only being written here; it is waited for (`MIRROR_WAIT`).
+    - `ADOPT`: the reply running was started for a message typed in the
+      moment before these rows existed, and takes this turn as its own
+      (`_adopt_mirror`).
+    - `STORE`: a reply that is not this turn's kept running until the turn
+      ended (its own prompt waits behind this turn on the device): the turn's
+      rows are written, finished, from the events held.
+    - `GONE`: the link dropped, or what was held is over its bound.
+    """
     from lembas.services import generation as generation_service
 
     deadline = asyncio.get_running_loop().time() + MIRROR_WAIT
     while True:
         running = generation_service.running_for(chat_id)
         if running is None:
-            return True
-        if not running.device_turn_over or asyncio.get_running_loop().time() > deadline:
-            return False
-        await asyncio.sleep(0.1)
+            return FREE
+        if link.adopters.get(key[0]) is running:
+            return ADOPT
+        held = link.buffered.get(key)
+        if held is None or link.closed:
+            return GONE
+        ended = bool(held) and _ends_task(held[-1])
+        late = asyncio.get_running_loop().time() > deadline
+        if ended and (not running.device_turn_over or late):
+            return STORE
+        await asyncio.sleep(0.05)
+
+
+async def _adopt_mirror(
+    link: Link, generation, session_id: str, message_id: str
+) -> tuple[str, bool] | None:
+    """A reply started for a message typed here finds a turn of the device's
+    whose rows are still being made (`link.mirroring`): it offers itself as
+    that turn's reply and waits to be taken. Returns the turn's id and
+    whether the harness started it, or None when there is no such turn (or
+    its rows were not made): the reply then goes its own way."""
+    if not any(key[0] == session_id for key in link.mirroring):
+        return None
+    taken: asyncio.Future = asyncio.get_running_loop().create_future()
+    generation.adopted = (message_id, taken)
+    link.adopters[session_id] = generation
+    try:
+        deadline = asyncio.get_running_loop().time() + ADOPT_WAIT
+        while (
+            not taken.done()
+            and any(key[0] == session_id for key in link.mirroring)
+            and not link.closed
+            and not generation.cancel
+            and asyncio.get_running_loop().time() < deadline
+        ):
+            await asyncio.sleep(0.02)
+    finally:
+        if link.adopters.get(session_id) is generation:
+            link.adopters.pop(session_id, None)
+        generation.adopted = None
+    return taken.result() if taken.done() else None
 
 
 async def _mirror_turn(
@@ -3101,47 +3725,77 @@ async def _mirror_turn(
     attachments: list | None = None,
     machine: bool = False,
 ) -> None:
+    """Make the rows of a turn the device started, and start the reply that
+    follows it -- or, when the chat cannot take a reply now, say why not in
+    one of the ways `_chat_free` names. Every way ends with the turn's events
+    held for a reply that will take them, written into rows, or let go."""
+    key = (session_id, turn)
+    link.mirroring[key] = True
+    try:
+        await _mirror_rows(link, key, text, attachments, machine)
+    finally:
+        link.mirroring.pop(key, None)
+
+
+def _has_turn(db, link: Link, session_id: str, turn: str) -> bool:
+    """Whether this turn is one a chat here already has: a turn sent from
+    here (its id is the message's), or a turn of the device's own kept under
+    its id -- read from its history, or mirrored before."""
+    from sqlalchemy import select
+
+    from lembas.db.models import ROLE_USER, Message
+
+    if not turn:
+        return False
+    if db.get(Message, turn) is not None:
+        return True
+    chat = _chat_for(db, link, session_id)
+    return chat is not None and bool(
+        db.scalar(
+            select(Message.id).where(
+                Message.chat_id == chat.id,
+                Message.role == ROLE_USER,
+                Message.device_turn_id == turn[:64],
+            )
+        )
+    )
+
+
+async def _mirror_rows(
+    link: Link, key: tuple[str, str], text: str, attachments: list | None, machine: bool
+) -> None:
+    from datetime import UTC, datetime, timedelta
+
     from lembas.db.models import ROLE_ASSISTANT, ROLE_USER, Message
     from lembas.db.session import session_scope
     from lembas.services import chat as chat_service
     from lembas.services import generation as generation_service
 
+    session_id, turn = key
     adopting = link.adopting.get(session_id)
     if adopting is not None:
         with contextlib.suppress(TimeoutError):
             await asyncio.wait_for(adopting.wait(), 40)
-    if turn:
+    with session_scope() as db:
         # Matched by its id: a turn sent from here -- this instance
         # restarted, and the device ran it before the reply was taken up again
-        # -- is that message's, never a terminal turn of its own.
-        from sqlalchemy import select
-
-        with session_scope() as db:
-            mine = db.get(Message, turn) is not None
-            chat = _chat_for(db, link, session_id)
-            # ... and a turn of the device's own this chat already has (read
-            # from its history, or mirrored before) is not shown twice.
-            kept = chat is not None and db.scalar(
-                select(Message.id).where(
-                    Message.chat_id == chat.id, Message.device_turn_id == turn[:64]
-                )
-            )
-            if mine or kept:
-                link.buffered.pop(session_id, None)
-                return
-    if turn or machine:
-        with session_scope() as db:
-            chat = _chat_for(db, link, session_id)
-            chat_id = chat.id if chat is not None else ""
-        # The turn before it may still be finishing here: it has ended on the
-        # device, so this one waits for it rather than being dropped as a
-        # second reply in the chat. A harness turn waits whether or not the
-        # device names its turns: a note comes right after the turn before it
-        # (a second note, or the turn that started the job), and dropped it
-        # would be a turn of the device's this chat never shows.
-        if chat_id:
-            await _previous_reply_done(chat_id)
+        # -- is that message's, never a terminal turn of its own; and a turn
+        # of the device's own this chat already has is not shown twice.
+        if _has_turn(db, link, session_id, turn):
+            link.buffered.pop(key, None)
+            return
+        chat = _chat_for(db, link, session_id)
+        chat_id = chat.id if chat is not None else ""
+    # One reply at a time in a chat. The turn before this one may still be
+    # finishing here; a reply typed for in this very moment takes the turn
+    # over; any other is waited out to the turn's end.
+    how = await _chat_free(link, chat_id, key) if chat_id else FREE
+    if how == GONE:
+        link.buffered.pop(key, None)
+        return
     ids: tuple[str, str] | None = None
+    adopter = link.adopters.get(session_id) if how == ADOPT else None
+    events = link.buffered.pop(key, []) if how == STORE else []
     try:
         with session_scope() as db:
             chat = _chat_for(db, link, session_id)
@@ -3149,10 +3803,13 @@ async def _mirror_turn(
             # one; a terminal's turn in a shared session is.
             if chat is None and (session_id in link.announced or not machine):
                 chat = _adopt_chat(db, link, session_id)
-            # One reply at a time in a chat: with one running here (it cannot be
-            # this session's, or the event would have gone to it), the terminal's
-            # turn is not shown rather than shown twice.
-            if chat is not None and generation_service.running_for(chat.id) is None:
+            # (Read from the history meanwhile, by a reply taken up again.)
+            if chat is not None and _has_turn(db, link, session_id, turn):
+                chat = None
+            running = generation_service.running_for(chat.id) if chat is not None else None
+            if chat is not None and (
+                running is None or (adopter is not None and running is adopter) or how == STORE
+            ):
                 # The harness's own turn is badged as such (`machine`, as a
                 # schedule's or a helper's note here is), never as typed in the
                 # terminal: nobody typed it. Its origin says the device started
@@ -3162,7 +3819,7 @@ async def _mirror_turn(
                     db,
                     chat,
                     ROLE_USER,
-                    text,
+                    text[:MAX_NOTE_CHARS],
                     origin=ORIGIN_HARNESS if machine else ORIGIN_TERMINAL,
                     machine=machine,
                 )
@@ -3171,17 +3828,71 @@ async def _mirror_turn(
                 # The device's id for the turn: what it is asked about after a
                 # restart, and what keeps the turn from being stored twice.
                 asked.device_turn_id = turn[:64] or None
-                reply = chat_service.create_message(
-                    db, chat, ROLE_ASSISTANT, "", complete_=False, model_id=chat.model_id
-                )
-                ids = (chat.id, reply.id)
                 link.sessions[chat.id] = session_id
+                if running is not None and running is adopter:
+                    # The reply that was started for a message typed just now
+                    # is this turn's: the rows read note, reply, message --
+                    # and the message waits in the queue, to be handed to the
+                    # turn (or sent after it) like any typed while it runs.
+                    typed_id, taken = adopter.adopted
+                    now = datetime.now(UTC)
+                    asked.created_at = now
+                    reply = db.get(Message, adopter.message_id)
+                    typed = db.get(Message, typed_id)
+                    if reply is None or typed is None:
+                        db.rollback()
+                    else:
+                        reply.created_at = now + timedelta(milliseconds=1)
+                        reply.device_turn_id = turn[:64] or None
+                        typed.created_at = now + timedelta(milliseconds=2)
+                        typed.queued = True
+                        db.commit()
+                        taken.set_result((turn, machine))
+                        return
+                elif how == STORE:
+                    _store_turn(db, chat, asked, events, f"{short_name(link)}:{chat.project_dir}")
+                    return
+                else:
+                    reply = chat_service.create_message(
+                        db, chat, ROLE_ASSISTANT, "", complete_=False, model_id=chat.model_id
+                    )
+                    reply.device_turn_id = turn[:64] or None
+                    db.commit()
+                    ids = (chat.id, reply.id)
     except Exception:  # as `_announced`
         log.exception("could not mirror a terminal turn of %s", session_id)
     if ids is None:
-        link.buffered.pop(session_id, None)
+        link.buffered.pop(key, None)
         return
     generation_service.ensure(*ids)
+
+
+def _store_turn(db, chat, asked, events: list, where: str) -> None:
+    """A turn of the device's that ran from start to end while another reply
+    held the chat: its reply written, finished, from the events held -- the
+    same events a reply following it live would have been written from."""
+    from lembas.db.models import ROLE_ASSISTANT
+    from lembas.services import chat as chat_service
+    from lembas.services import generation as generation_service
+
+    shadow = generation_service.Generation(chat_id=chat.id, message_id="")
+    shadow.device_where = where
+    for event in events:
+        try:
+            apply_event(shadow, event)
+        except (AttributeError, TypeError, ValueError, KeyError, ArithmeticError):
+            log.warning("an event of a stored turn could not be read", exc_info=True)
+    _close_thinking(shadow)
+    reply = chat_service.create_message(
+        db, chat, ROLE_ASSISTANT, shadow.text, model_id=chat.model_id
+    )
+    reply.reasoning = shadow.thinking
+    reply.tool_calls_json = list(shadow.tool_events)
+    reply.steps_json = list(shadow.steps)
+    reply.error = shadow.error or ""
+    reply.device_turn_id = asked.device_turn_id
+    chat.unread = True
+    db.commit()
 
 
 def _retitle(link: Link, session_id: str, title: str) -> None:
@@ -3273,34 +3984,30 @@ async def _pass_on_queued(link: Link, generation, chat_id: str, session_id: str)
     except DeviceError:
         # Not taken (the task ended a moment ago): back in the queue, for the
         # drain to send as the next turn.
-        _requeue(generation, 1)
+        _requeue_ids(generation, [message_id])
     except TimeoutError:
         # Late is not refused: requeued, it was sent a second time.
         log.info("steer for %s answered late; taken as delivered", session_id)
 
 
 def _hand_back(generation, texts: list[str]) -> None:
-    """What a turn the harness started ended before taking in (`unsent` on its
-    `task` end, spec 3.10.0): each such message goes to the model next, once.
+    """What a turn ended before taking in (`unsent`: on a harness turn's `task`
+    end, spec 3.10.0, or in a prompt's answer): each such message goes to the
+    model next, once.
 
-    They are the newest of what this reply handed over and has not seen taken
-    in (`sent_steers`): the device takes messages in in the order it got
-    them. One taken from the chat's queue goes back into it, for the drain
-    after this reply to send as the next turn. The message this reply was
-    started for -- typed with no reply running, and joined to the turn the
-    device was in -- has no queue to go back to: `run` sends it as a prompt."""
-    waiting = list(generation.sent_steers)[-len(texts) :] if texts else []
-    queued = [i for i in waiting if i in generation.injected_ids]
-    for message_id in waiting:
-        if message_id not in queued:
-            generation.sent_steers.pop(message_id, None)
-            generation.device_resend = True
-    _requeue_ids(generation, queued)
-
-
-def _requeue(generation, count: int) -> None:
-    """Put the last `count` messages handed to the device back in the queue."""
-    _requeue_ids(generation, generation.injected_ids[-count:] if count else [])
+    Each is matched **by its text** to a message this reply handed over and
+    has not seen taken in (`sent_steers`), the newest first. Never by count:
+    a text this reply did not hand over -- another turn's, a stale one, a
+    device's invention -- puts nothing back in the queue. What is matched is
+    queued again, for the drain after this reply to send as the next turn."""
+    waiting = dict(generation.sent_steers)
+    back: list[str] = []
+    for text in reversed(texts):
+        match = next((i for i in reversed(waiting) if _same(waiting[i], text)), None)
+        if match is not None:
+            waiting.pop(match)
+            back.append(match)
+    _requeue_ids(generation, [i for i in generation.sent_steers if i in back])
 
 
 def _requeue_ids(generation, ids: list[str]) -> None:
@@ -3780,6 +4487,7 @@ __all__ = [
     "CLOSE_PROTOCOL",
     "CLOSE_REFUSED",
     "DEVICE_ORIGINS",
+    "ORIGIN_UNSURE",
     "HARNESS_TURNS",
     "LINKS",
     "ORIGIN_HARNESS",
@@ -3791,6 +4499,8 @@ __all__ = [
     "Link",
     "LinkClosed",
     "apply_event",
+    "cancel_effect",
+    "cancel_params",
     "handshake",
     "hello_protocol",
     "link_for",

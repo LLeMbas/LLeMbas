@@ -97,6 +97,47 @@ def _device_keeps_history() -> str:
     )
 
 
+def _refuse_device_rewind(chat: Chat, asked: Message | None) -> None:
+    """The refusals of a device chat's rewind that need no question asked of
+    the device -- a turn the device started (it has no id here to rewind by),
+    a device not linked or without `rewind` -- raised **before** anything is
+    stopped. Stopping first cancelled the turn the device was running and
+    then refused: the person lost the turn and got nothing for it."""
+    if not chat.device_token_id:
+        return
+    if (
+        asked is None
+        or device_link.devices_own(asked)
+        or not device_link.offers(chat.device_token_id, "rewind")
+    ):
+        raise HTTPException(status.HTTP_409_CONFLICT, _device_keeps_history())
+
+
+def _asked_by(db: DBSession, chat: Chat, reply: Message) -> Message | None:
+    """The turn a reply answers: the row of the device turn the reply's own
+    row names where it names one (`generation._device_turn` reads it the same
+    way), else the person's message before it. None for a reply that joined a
+    turn of the device's this chat has no row of."""
+    turn = reply.device_turn_id or ""
+    if turn:
+        return db.scalars(
+            select(Message).where(
+                Message.chat_id == chat.id,
+                Message.role == ROLE_USER,
+                or_(Message.id == turn, Message.device_turn_id == turn),
+            )
+        ).first()
+    return db.scalars(
+        select(Message)
+        .where(
+            Message.chat_id == chat.id,
+            Message.role == ROLE_USER,
+            Message.created_at <= reply.created_at,
+        )
+        .order_by(Message.created_at.desc())
+    ).first()
+
+
 async def _device_rewind(chat: Chat, asked: Message | None) -> int:
     """Rewind a device chat to the turn `asked` started, on the device, before
     the rows here are rewound (harness spec 1.1.0, `_lembas/session/rewind`).
@@ -2329,7 +2370,9 @@ async def rewind_to(
     # written would be two generations answering one chat -- so the running
     # one is stopped first, as Stop would, and the edit goes ahead once it has.
     # It used to refuse ("wait for it to finish, or stop it"), which is the
-    # same thing with a step for the person to do.
+    # same thing with a step for the person to do. What a device chat
+    # refuses without being asked is refused first: nothing is stopped for it.
+    _refuse_device_rewind(chat, message)
     await _stop_running(db, chat)
     # `_reply_in_flight` is about *this* chat; the quota is about the account.
     _refuse_extra_reply(db, chat, user)
@@ -2729,6 +2772,12 @@ async def send_queued_now(
     _refuse_extra_reply(db, chat, user)
 
     message.queued = False
+    if message.origin == generation_service.ORIGIN_UNSURE:
+        # Its person says: send it. An ordinary turn from here on.
+        message.origin = ""
+    if chat.device_token_id:
+        # Sent now, and sorted so (as `generation._drain` does).
+        message.created_at = datetime.now(UTC)
     db.commit()
     assistant = chat_service.create_message(
         db, chat, ROLE_ASSISTANT, "", complete_=False, model_id=chat.model_id
@@ -3392,10 +3441,14 @@ async def regenerate_reply(
     person's phone app, so the new reply is the phone assistant's
     (`_from_phone`, on the turn it answers) -- a chat written on the web and
     regenerated on the phone must not be sent a page the phone cannot draw."""
-    await _stop_running(db, chat)
     message = db.get(Message, message_id)
     if message is None or message.chat_id != chat.id or message.role != ROLE_ASSISTANT:
         raise HTTPException(status.HTTP_404_NOT_FOUND, t("That reply no longer exists."))
+    # Refused before anything is stopped (`_refuse_device_rewind`).
+    if chat.device_token_id:
+        _refuse_device_rewind(chat, _asked_by(db, chat, message))
+    await _stop_running(db, chat)
+    db.refresh(message)
 
     _refuse_extra_reply(db, chat, user)
 
@@ -3404,17 +3457,11 @@ async def regenerate_reply(
         # message before it, as `generation._device_turn` finds it -- is
         # rewound on the device first, and sent again under a new id. The
         # device refuses while the session works, and that is the answer.
-        asked = db.scalars(
-            select(Message)
-            .where(
-                Message.chat_id == chat.id,
-                Message.role == ROLE_USER,
-                Message.created_at <= message.created_at,
-            )
-            .order_by(Message.created_at.desc())
-        ).first()
+        asked = _asked_by(db, chat, message)
         await _device_rewind(chat, asked)
         _renew_turn(db, asked)
+        # The reply is written again as that new turn's.
+        message.device_turn_id = None
 
     if phone:
         asked = db.scalars(

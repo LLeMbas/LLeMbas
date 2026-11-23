@@ -219,3 +219,45 @@ def test_a_turn_the_device_started_is_said_too(db, registered, make_chat):
     )
     assert frames[0]["message_id"] == reply.id
     assert reply.content == "The tests pass. Nothing else to do."
+
+
+# --- The open stream asks again who is listening ---------------------------------------
+async def _ends(stream, within: float = 10.0) -> bool:
+    """Whether the stream ends (rather than going on saying things)."""
+    async def drain():
+        async for _ in stream:
+            pass
+
+    try:
+        await asyncio.wait_for(drain(), within)
+    except TimeoutError:
+        await stream.aclose()
+        return False
+    return True
+
+
+@pytest.mark.parametrize("gone", ["token-revoked", "account-off", "neither"])
+@pytest.mark.parametrize("scheduled", [True, False])
+async def test_an_open_stream_ends_when_its_token_is_revoked_or_its_account_switched_off(
+    client, db, registered, monkeypatch, gone, scheduled
+):
+    """The request was checked once; the stream stays open for hours and says
+    which chats are writing, by id. It asks again every RECHECK_SECONDS and
+    ends when the answer is no -- with or without `schedule.use`."""
+    from datetime import UTC, datetime
+
+    from lembas.db.models import User
+    from lembas.security import api_tokens
+
+    monkeypatch.setattr(v2, "RECHECK_SECONDS", 0.5)
+    user = db.get(User, _user_id(db))
+    token, _ = api_tokens.create(db, user, name="LLeMbas for Android", scopes=["app"])
+    stream = v2._events(user.id, scheduled=scheduled, token_id=token.id)
+    if scheduled:
+        await asyncio.wait_for(anext(stream), 10)  # the lists, at once
+    if gone == "token-revoked":
+        token.revoked_at = datetime.now(UTC)
+    elif gone == "account-off":
+        user.active = False
+    db.commit()
+    assert await _ends(stream, 6.0) is (gone != "neither")

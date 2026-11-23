@@ -22,8 +22,11 @@
   (`.sized` in chat.css). Nothing when either size is unknown.
 -#}
 {% macro sized_box(width, height) %}
-{%- if width and height -%}
-<canvas class="sized__box" width="{{ width | int }}" height="{{ height | int }}" aria-hidden="true"></canvas>
+{#- Through `box_size`: the numbers are a file's own claim about itself, and a
+    canvas is a bitmap the browser may allocate -- bounded, in proportion. -#}
+{%- set box = box_size(width, height) -%}
+{%- if box -%}
+<canvas class="sized__box" width="{{ box[0] }}" height="{{ box[1] }}" aria-hidden="true"></canvas>
 {%- endif -%}
 {% endmacro %}
 

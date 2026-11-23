@@ -1134,6 +1134,7 @@ MESSAGES.update(
         "%(kb)s KB": "%(kb)s KB",
         "on the device": "az eszközön",
         "Waiting to be sent": "Küldésre vár",
+        "It is not known whether this reached the computer. Send it again, or discard it.": "Nem tudni, hogy ez eljutott-e a számítógéphez. Küldje el újra, vagy vesse el.",
         "Estimated.": "Becsült.",
         "What the conversation now occupies: %(n)s of %(limit)s tokens (%(percent)s%%)": "Amennyit a beszélgetés most elfoglal: %(n)s / %(limit)s token (%(percent)s%%)",
         "What the conversation now occupies: %(n)s tokens; the window's size is not known": "Amennyit a beszélgetés most elfoglal: %(n)s token; az ablak mérete nem ismert",

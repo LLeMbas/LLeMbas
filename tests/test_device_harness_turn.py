@@ -468,6 +468,13 @@ def test_an_empty_reply_to_a_harness_turn_says_it_was_not_recorded(
     typed = _say(db, chat_id, "assistant", "")
     _say(db, chat_id, "user", TEAM_REPORT, origin=device_link.ORIGIN_HARNESS, machine=True)
     written = _say(db, chat_id, "assistant", "The loader is found.")
+    # A note written *here* into the chat -- a schedule's firing -- is `machine`
+    # too, and its reply was sent for: empty, it was the model's to leave so.
+    _say(db, chat_id, "user", "Check the nightly build and say only what broke.", machine=True)
+    silent = _say(db, chat_id, "assistant", "")
+    # An old harness row as the device's `prompt` event words it.
+    _say(db, chat_id, "user", "⏎ job4 (make lint) exited with 0 after 2s.", machine=True)
+    lost_line = _say(db, chat_id, "assistant", "")
 
     page = client.get(f"/chat/{chat_id}").text
 
@@ -479,6 +486,8 @@ def test_an_empty_reply_to_a_harness_turn_says_it_was_not_recorded(
     assert "The reply to this was not recorded." in bubble(lost)
     assert "data-reply-unrecorded" not in bubble(typed)
     assert "data-reply-unrecorded" not in bubble(written)
+    assert "data-reply-unrecorded" not in bubble(silent)
+    assert "data-reply-unrecorded" in bubble(lost_line)
 
     # An ordinary chat's empty reply is not a device's lost answer.
     plain = make_chat()

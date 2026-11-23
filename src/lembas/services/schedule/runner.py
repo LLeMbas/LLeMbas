@@ -857,8 +857,73 @@ def _wait_for_device(db, schedule, run, *, now: datetime) -> None:
 
 
 # --- Following the reply ------------------------------------------------------------------
+def _members_out(lead_id: str) -> tuple[bool, tuple]:
+    """Whether the run's chat still has work out -- members of its team that
+    work, wait or are paused, a report on its way to the lead, a reply being
+    written in it -- and a signature of what they are doing, which changes
+    whenever any of them writes: a member at work is the run at work."""
+    from lembas.services import generation as generation_service
+    from lembas.services import team_run
+
+    with session_scope() as db:
+        rows = team_run._member_rows(db, lead_id)
+        chats = [row.chat_id for row in rows if row.chat_id]
+        team = team_run._team_row(db, lead_id)
+        # A report on its way to the lead: the main agent waits for it.
+        inbox = team is not None and (team.data_json or {}).get("lead_inbox")
+        lead = "waiting" if inbox else "idle"
+        agents = [{"name": "lead", "state": lead}] + [
+            {"name": row.name, "state": row.state} for row in rows
+        ]
+        # Helpers a reply started with `task` (the job machinery's): still running.
+        helpers = [
+            {"id": str(n), "kind": "subagent", "state": "running"}
+            for n in range(team_run._running_helpers(db, [lead_id]))
+        ]
+    # The spec's rule for when a run waits (`runs.outstanding`) -- and a
+    # reply being written in the run's chat is the run at work.
+    out = (
+        runs.outstanding(agents, helpers)["run_waits"]
+        or generation_service.running_for(lead_id) is not None
+    )
+    doing = tuple(
+        (message_id, getattr(generation_service.get(message_id), "version", 0))
+        for chat_id, message_id in generation_service.running()
+        if chat_id in chats or chat_id == lead_id
+    )
+    return out, (team_run.version(lead_id), doing)
+
+
+def _later_reply(chat_id: str, message_id: str) -> str:
+    """The newest reply in the run's chat written after this one, or ""."""
+    with session_scope() as db:
+        current = db.get(Message, message_id)
+        if current is None:
+            return ""
+        later = db.scalars(
+            select(Message)
+            .where(
+                Message.chat_id == chat_id,
+                Message.role == "assistant",
+                Message.created_at > current.created_at,
+            )
+            .order_by(Message.created_at.desc())
+            .limit(1)
+        ).first()
+        return later.id if later is not None else ""
+
+
 async def follow(run_id: str) -> None:
-    """Wait for a run's reply, then settle the run."""
+    """Wait for a run's reply, then settle the run.
+
+    **A run is not over while its subagents work** (harness spec 3.10.0, *The
+    run waits for its subagents*). The lead's first reply may end with members
+    of its team still out; each report then wakes the lead with a reply of its
+    own. Settling on the first reply reported an interim answer. So the run
+    is followed until the chat has no work out, and what is settled is its
+    **last** reply -- written after the last report came in. What the members
+    write counts as the run writing: the inactivity limit is for a run where
+    nobody works."""
     from lembas.services import generation as generation_service
 
     with session_scope() as db:
@@ -867,28 +932,46 @@ async def follow(run_id: str) -> None:
             return
         chat_id, message_id = run.chat_id, run.message_id
 
-    seen = -1
+    seen: object = -1
     quiet_since = _monotonic()
     timed_out = False
     while True:
         generation = generation_service.get(message_id)
-        if generation is not None and generation.done:
-            break
+        over = generation is not None and generation.done
         if generation is None:
             # Not in the registry: finished long enough ago to be pruned, or a
             # reply the last restart cut off and `resume_interrupted` has not
             # taken up yet. The row says which.
             with session_scope() as db:
                 message = db.get(Message, message_id)
-                if message is None or message.complete:
-                    break
+                over = message is None or message.complete
             version = -2
         else:
             version = generation.version
-        if version != seen or (generation is not None and getattr(generation, "waiting", None)):
+        # Asked before the newer reply is looked for: a report delivered
+        # between the two is then seen as work still out, never as "nothing
+        # out and no newer reply".
+        out, doing = _members_out(chat_id) if chat_id else (False, ())
+        if over:
+            later = _later_reply(chat_id, message_id) if chat_id else ""
+            if later:
+                # A report woke the lead: the run's reply is this one now.
+                message_id = later
+                with session_scope() as db:
+                    run = db.get(ScheduleRun, run_id)
+                    if run is not None:
+                        run.message_id = later
+                        db.commit()
+                seen, quiet_since = -1, _monotonic()
+                continue
+            if not out:
+                break
+        if (version, doing) != seen or (
+            generation is not None and getattr(generation, "waiting", None)
+        ):
             # A card waiting for the person (a scheduled turn's approval, up
             # to the schedule's wait) is not a reply gone quiet.
-            seen = version
+            seen = (version, doing)
             quiet_since = _monotonic()
         elif _monotonic() - quiet_since > runs.INACTIVITY_SECONDS:
             timed_out = True

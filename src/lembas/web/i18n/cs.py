@@ -1134,6 +1134,7 @@ MESSAGES.update(
         "%(kb)s KB": "%(kb)s kB",
         "on the device": "na zařízení",
         "Waiting to be sent": "Čeká na odeslání",
+        "It is not known whether this reached the computer. Send it again, or discard it.": "Není známo, zda se tato zpráva dostala do počítače. Odešlete ji znovu, nebo ji zahoďte.",
         "Estimated.": "Odhad.",
         "What the conversation now occupies: %(n)s of %(limit)s tokens (%(percent)s%%)": "Kolik konverzace teď zabírá: %(n)s z %(limit)s tokenů (%(percent)s %%)",
         "What the conversation now occupies: %(n)s tokens; the window's size is not known": "Kolik konverzace teď zabírá: tokeny: %(n)s; velikost okna není známa",

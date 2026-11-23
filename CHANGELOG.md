@@ -25,6 +25,30 @@ at <https://llembas.eu/changelog.html>.
 
 ### Fixed
 
+- **A linked computer whose connection drops for a moment no longer ends the answer its
+  main agent was writing by itself.** The reply used to stop there with "link dropped" and
+  the part written so far, for good. It now waits for the computer to connect again and
+  carries on; if the answer finished meanwhile, the whole of it is read from the computer.
+- **A message handed to the computer just before the connection dropped or the server
+  restarted is never sent a second time on a guess.** Where the computer says what became
+  of it, the chat follows that. Where it cannot be known, the message waits with *"It is
+  not known whether this reached the computer"* on it, and you send it again or discard
+  it. After a server restart, a reply that had taken a second message in used to send that
+  message again as a turn of its own.
+- **Several short answers of the main agent in a row each get their own place in the
+  chat.** When two or three subagents reported within moments, one reply could hold the
+  text of all of them and the others none; and a message you typed in that same moment
+  could take the place of the agent's answer, whose note was then never shown.
+- **A scheduled run with a team reports its final answer, not its first.** A run in a chat
+  on the server was recorded as finished when the lead first replied, while its members
+  were still working. It now lasts until they have reported; the answer and the report are
+  from the lead's last reply, and members at work count as the run being active.
+- **Regenerating or editing during an answer the computer started by itself says it cannot
+  be done -- without stopping that answer first.**
+- **"The reply to this was not recorded" is no longer shown under a scheduled run that
+  chose to say nothing.**
+- **The app's event stream closes when its sign-in is revoked or the account is switched
+  off**, within half a minute, instead of staying open.
 - **A message typed while the main agent was answering by itself is never lost.** With a
   CLI that accepts such a message, one that arrived just as the answer ended stayed in the
   chat looking delivered and never reached the agent. It is now sent as the next turn,
