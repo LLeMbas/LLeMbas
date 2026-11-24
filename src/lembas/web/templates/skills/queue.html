@@ -1,0 +1,83 @@
+{% extends "skills/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% from "skills/_macros.html" import store_diff %}
+
+{% block title %}{{ t("Waiting for approval") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Waiting for approval") }}{% endblock %}
+{% block actions %}
+<a class="btn btn--sm" href="/skills">{{ icon("chevron-left", "icon--sm") }} {{ t("Skills") }}</a>
+<a class="btn btn--sm" href="/notes">{{ icon("pencil", "icon--sm") }} {{ t("Notes") }}</a>
+{% endblock %}
+
+{% block store_content %}
+<p class="admin-lede">{{ t("Changes agents asked for that the policy holds until a person says yes. Nothing here is applied yet.") }}</p>
+
+{% if not proposals %}
+<section class="card"><p class="muted" data-testid="queue-empty">{{ t("Nothing is waiting.") }}</p></section>
+{% endif %}
+
+{% for item in proposals %}
+{% set p = item.row %}
+<section class="card" data-testid="proposal" data-proposal="{{ p.id }}">
+  <h2 class="card__title">{{ p.name }}</h2>
+  <p class="report__meta">
+    <span class="badge">{{ t("skill") if p.target == "skill" else t("note") }}</span>
+    <span>{{ p.action }}{% if p.section %} · {{ p.section }}{% endif %}</span>
+    <time datetime="{{ p.created_at.isoformat() }}">{{ stamp(p.created_at, "%-d %b %Y, %H:%M") }}</time>
+  </p>
+  {# What the approver decides on, beside the diff: why, and who asked --
+     label and value on two shared tracks. #}
+  <dl class="store-facts" data-testid="proposal-facts">
+    <dt>{{ t("Reason") }}</dt><dd>{{ p.reason or "—" }}</dd>
+    <dt>{{ t("Account") }}</dt><dd>{{ p.account_name or "—" }}</dd>
+    <dt>{{ t("Through") }}</dt><dd>{{ p.harness or "—" }}</dd>
+    <dt>{{ t("Model") }}</dt><dd>{{ p.model or "—" }}{% if p.model and p.model_said %} <span class="faint">— {{ t("said by the caller") }}</span>{% endif %}</dd>
+    <dt>{{ t("Session") }}</dt><dd><span class="mono">{{ p.session or "—" }}</span></dd>
+    {% if p.target == "note" %}<dt>{{ t("Data group") }}</dt><dd>{{ p.data_group_id or "default" }}</dd>{% endif %}
+  </dl>
+  {% if not item.fits %}
+  <div class="alert alert--warning">{{ icon("warning", "alert__icon") }} <span>{{ t("The text changed since this was proposed, so it can no longer be applied as it is.") }}</span></div>
+  {% endif %}
+  {% if p.new_text is none %}<p class="muted">{{ t("This would remove it.") }}</p>{% endif %}
+  {{ store_diff(item.diff) }}
+  {# One form, two buttons: the word goes with either. #}
+  <form method="post" class="form-grid store-decide" data-in-place="off">
+    <div class="field">
+      <label class="field__label" for="word-{{ p.id }}">{{ t("A word back (optional)") }}</label>
+      <input class="input" id="word-{{ p.id }}" name="word" maxlength="400">
+      <p class="field__hint">{{ t("The agent that asked can read it.") }}</p>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn--primary" type="submit" formaction="/skills/queue/{{ p.id }}/approve" data-testid="proposal-approve">{{ icon("check", "icon--sm") }} {{ t("Approve") }}</button>
+      <button class="btn btn--danger" type="submit" formaction="/skills/queue/{{ p.id }}/reject" data-testid="proposal-reject">{{ icon("x", "icon--sm") }} {{ t("Reject") }}</button>
+    </div>
+  </form>
+</section>
+{% endfor %}
+
+{% if decided %}
+<section class="card">
+  <h2 class="card__title">{{ t("Decided lately") }}</h2>
+  <ul class="reports-list">
+    {% for p in decided %}
+    <li class="reports-list__item">
+      <div class="reports-list__link">
+        <span class="reports-list__head">
+          <strong class="reports-list__title">{{ p.name }}</strong>
+          {% if p.status == "approved" %}<span class="badge badge--success">{{ t("Approved") }}</span>
+          {% elif p.status == "rejected" %}<span class="badge badge--danger">{{ t("Rejected") }}</span>
+          {% else %}<span class="badge badge--warning">{{ t("Set aside") }}</span>{% endif %}
+        </span>
+        {% if p.word %}<span class="reports-list__summary">{{ p.word }}</span>{% endif %}
+        <span class="reports-list__meta">
+          <span>{{ p.action }}</span>
+          <span>{{ p.account_name }}{% if p.harness %} ({{ p.harness }}){% endif %}</span>
+          {% if p.decided_name %}<span>{{ t("decided by %(name)s", name=p.decided_name) }}</span>{% endif %}
+        </span>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

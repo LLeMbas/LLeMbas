@@ -40,8 +40,10 @@ MAIN = "main"
 BRANCH = "main"
 REMOTE_REF = "refs/remotes/origin/sync"
 
-TRAILERS = ("Account", "Account-Id", "Harness", "Model", "Session", "Origin", "Reason",
-            "Approved-By")
+TRAILERS = (
+    "Account", "Account-Id", "Harness", "Model", "Model-Said", "Session", "Origin", "Reason",
+    "Approved-By",
+)
 
 _LOCK = threading.RLock()
 _SEGMENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._ -]{0,119}$")

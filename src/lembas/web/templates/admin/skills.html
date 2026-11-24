@@ -1,0 +1,155 @@
+{% extends "admin/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% set section = "skills" %}
+{#
+  Skills and notes (api/admin_skills.py, services/skillstore/): the three
+  policy levels, who approves, and the store's optional remote. The remote's
+  token and key are never rendered: set or not set, and an empty field keeps
+  what is stored.
+#}
+{% macro level_select(name, value, with_default=false) -%}
+<select class="select" id="{{ name }}" name="{{ name }}">
+  {% if with_default %}<option value="">{{ t("As for all notes") }}</option>{% endif %}
+  <option value="manual" {{ "selected" if value == "manual" }}>{{ t("Manual: only a person edits") }}</option>
+  <option value="approve" {{ "selected" if value == "approve" }}>{{ t("Approve: an agent's change waits") }}</option>
+  <option value="auto" {{ "selected" if value == "auto" }}>{{ t("Auto: applied at once") }}</option>
+</select>
+{%- endmacro %}
+{% block title %}{{ t("Skills and notes") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Skills and notes") }}{% endblock %}
+
+{% block admin_content %}
+<p class="admin-lede">{{ t("One collection of skills and notes for every agent connected to this instance, kept as files in a git repository in the data folder. Every change is a commit that says who made it.") }}</p>
+{% if saved %}<div data-flash="success" class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>{% endif %}
+{% if error %}<div data-flash="error" class="alert alert--error">{{ icon("warning", "alert__icon") }} <span>{{ error }}</span></div>{% endif %}
+
+<section class="card">
+  <h2 class="card__title">{{ t("Who may change what") }}</h2>
+  <p class="card__lede">{{ t("The level alone decides, on every route: the MCP tools, a chat's skill tools and these pages. A skill is an instruction agents follow, so who changes one matters.") }}</p>
+  <form method="post" action="/admin/skills/policy" class="form-grid" data-in-place="off">
+    <div class="field-grid">
+      <div class="field">
+        <label class="field__label" for="skills_edit">{{ t("Changing skills") }}</label>
+        {{ level_select("skills_edit", values.skills_edit) }}
+        <p class="field__hint">{{ t("Adding, editing and removing a skill, and the main skill's prose.") }}</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="notes_add">{{ t("Adding notes") }}</label>
+        {{ level_select("notes_add", values.notes_add) }}
+        <p class="field__hint">{{ t("A new note, adding to one, and confirming one.") }}</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="notes_change">{{ t("Changing somebody else's note") }}</label>
+        {{ level_select("notes_change", values.notes_change) }}
+        <p class="field__hint">{{ t("Changing, archiving or removing what another account or another agent wrote.") }}</p>
+      </div>
+    </div>
+    <div class="field-grid">
+      <div class="field">
+        <label class="field__label" for="skills_approvers">{{ t("Who approves skills") }}</label>
+        <select class="select" id="skills_approvers" name="skills_approvers">
+          <option value="admins" {{ "selected" if values.skills_approvers == "admins" }}>{{ t("Instance administrators") }}</option>
+          <option value="managers" {{ "selected" if values.skills_approvers == "managers" }}>{{ t("Administrators, and each organisation's owners and admins") }}</option>
+        </select>
+        <p class="field__hint">{{ t("They also edit skills by hand; anybody else's edit waits.") }}</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="notes_approvers">{{ t("Who approves changes to notes") }}</label>
+        <select class="select" id="notes_approvers" name="notes_approvers">
+          <option value="involved" {{ "selected" if values.notes_approvers == "involved" }}>{{ t("The note's author, the account that asked, or an administrator") }}</option>
+          <option value="admins" {{ "selected" if values.notes_approvers == "admins" }}>{{ t("Instance administrators") }}</option>
+        </select>
+        <p class="field__hint">{{ t("Only somebody who can see the note: a data group stays closed to everybody outside it.") }}</p>
+      </div>
+    </div>
+
+    <h3 class="card__subtitle">{{ t("By kind of note") }}</h3>
+    {# One row a kind, on shared tracks: the kind, its level, whether it is shared. #}
+    <div class="store-kinds" data-testid="store-kinds">
+      {% for kind in kinds %}
+      <label class="store-kinds__name" for="kind_{{ kind }}">{{ kind }}</label>
+      {{ level_select("kind_" ~ kind, values.notes_kinds.get(kind, ""), true) }}
+      <label class="checkbox store-kinds__shared">
+        <input type="checkbox" name="shared_{{ kind }}" value="1" {{ "checked" if kind in values.shared_kinds }}>
+        <span>{{ t("Seen in every data group") }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    <div class="btn-row field--actions"><button class="btn btn--primary" type="submit" data-testid="policy-save">{{ t("Save") }}</button></div>
+  </form>
+</section>
+
+<section class="card" data-testid="store-remote">
+  <h2 class="card__title">{{ t("Remote repository") }}</h2>
+  <p class="card__lede">{{ t("Optional. Any git repository, over https or ssh; no forge is needed. LLeMbas pushes after each change and takes the remote's changes when they follow on from its own. When both sides have changed it stops and says so here; it never merges.") }}</p>
+  <div class="alert alert--warning">{{ icon("warning", "alert__icon") }} <span>{{ t("Whoever can read the remote repository reads every skill and every note in it, whatever data group a note belongs to. Data groups are kept by LLeMbas, not by git.") }}</span></div>
+
+  {% if values.remote_address %}
+  <p class="report__meta" data-testid="sync-state">
+    {% if values.sync_state == "ok" %}<span class="badge badge--success">{{ t("In sync") }}</span>
+    {% elif values.sync_state == "diverged" %}<span class="badge badge--danger">{{ t("Diverged: syncing has stopped") }}</span>
+    {% elif values.sync_state == "refused" %}<span class="badge badge--danger">{{ t("Refused what the remote sent") }}</span>
+    {% elif values.sync_state == "error" %}<span class="badge badge--warning">{{ t("Could not reach the remote") }}</span>
+    {% else %}<span class="badge">{{ t("Not synced yet") }}</span>{% endif %}
+    {% if values.sync_at %}<time datetime="{{ values.sync_at }}">{{ t("%(when)s UTC", when=values.sync_at[:16] | replace("T", " ")) }}</time>{% endif %}
+    <span class="mono">{{ head }}</span>
+  </p>
+  {% if values.sync_message %}<p class="muted text-sm" data-testid="sync-message">{{ values.sync_message }}</p>{% endif %}
+  <div class="btn-row">
+    <form method="post" action="/admin/skills/sync"><button class="btn btn--sm" type="submit" data-testid="sync-now">{{ icon("refresh", "icon--sm") }} {{ t("Sync now") }}</button></form>
+    {% if values.sync_state == "diverged" %}
+    <form method="post" action="/admin/skills/take-remote"
+          data-confirm="{{ t('Take the remote\'s side? What this instance has is first kept as a branch in the remote, then the store follows the remote.') }}">
+      <button class="btn btn--sm btn--danger" type="submit" data-testid="take-remote">{{ t("Take the remote's side") }}</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <form method="post" action="/admin/skills/remote" class="form-grid" data-in-place="off" autocomplete="off">
+    <div class="field-grid">
+      <div class="field">
+        <label class="field__label" for="remote-address">{{ t("Address") }}</label>
+        <input class="input mono" id="remote-address" name="address" value="{{ values.remote_address }}">
+        <p class="field__hint">{{ t("https://… or ssh://… (or user@host:path). Empty: no remote.") }}</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="remote-branch">{{ t("Branch") }}</label>
+        <input class="input mono" id="remote-branch" name="branch" value="{{ values.remote_branch }}">
+        <p class="field__hint"></p>
+      </div>
+    </div>
+    <div class="field-grid">
+      <div class="field">
+        <label class="field__label" for="remote-username">{{ t("User name (https)") }}</label>
+        <input class="input" id="remote-username" name="username" value="{{ values.remote_username }}" autocomplete="off">
+        <p class="field__hint">{{ t("Many hosts take any name with a token.") }}</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="remote-token">{{ t("Token (https)") }}</label>
+        <input class="input" type="password" id="remote-token" name="token" autocomplete="new-password"
+               placeholder="{{ t('Set. Leave empty to keep it.') if has_token else '' }}">
+        <p class="field__hint">{{ t("Stored encrypted and never shown again.") }}</p>
+      </div>
+    </div>
+    <div class="field">
+      <label class="field__label" for="remote-key">{{ t("Private key (ssh)") }}</label>
+      <textarea class="textarea mono" id="remote-key" name="ssh_key" rows="3" autocomplete="off" spellcheck="false"
+                placeholder="{{ t('Set. Leave empty to keep it.') if has_key else '' }}"></textarea>
+      <p class="field__hint">{{ t("A key without a passphrase, made for this purpose only. Stored encrypted and never shown again. The first connection remembers the host's key; if the host later shows another, the connection is refused until you forget the remembered keys below.") }}</p>
+    </div>
+    <div class="btn-row"><button class="btn btn--primary" type="submit" data-testid="remote-save">{{ t("Save and sync") }}</button></div>
+  </form>
+</section>
+
+<section class="card">
+  <h2 class="card__title">{{ t("Upkeep") }}</h2>
+  <p class="card__lede">{{ t("%(skills)s skills in the store; %(waiting)s changes waiting. The files are the truth: the index used for lookups can be made again from them at any time.", skills=counts.skills, waiting=counts.waiting) }}</p>
+  <div class="btn-row">
+    <a class="btn btn--sm" href="/skills">{{ icon("sparkle", "icon--sm") }} {{ t("Skills") }}</a>
+    <a class="btn btn--sm" href="/skills/queue">{{ icon("check", "icon--sm") }} {{ t("Waiting") }}</a>
+    <form method="post" action="/admin/skills/reindex"><button class="btn btn--sm" type="submit">{{ t("Rebuild the index") }}</button></form>
+    <form method="post" action="/admin/skills/forget-hosts"><button class="btn btn--sm" type="submit">{{ t("Forget remembered host keys") }}</button></form>
+  </div>
+</section>
+{% endblock %}

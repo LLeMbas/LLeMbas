@@ -1,0 +1,56 @@
+{
+  "note": {
+    "name": "oven-ran-cold",
+    "title": "The oven ran cold",
+    "kind": "incident",
+    "summary": "The fire went out overnight.",
+    "subjects": [
+      "oven",
+      "kitchen"
+    ],
+    "status": "active",
+    "data_group_id": "default",
+    "data_group": "Default",
+    "shared": false,
+    "created": "2026-01-02T03:04:05Z",
+    "updated": "2026-01-03T03:04:05Z",
+    "confirmed": "2026-01-03T03:04:05Z",
+    "confirmed_by": "Frodo",
+    "author": {
+      "name": "Frodo",
+      "harness": "workstation-agent",
+      "model": "local/qwen",
+      "model_said": false
+    },
+    "size": 31,
+    "body": "The fire went out.\n\n## Cause\n\nWet wood.",
+    "sections": [
+      {
+        "id": "intro",
+        "level": 0,
+        "title": "",
+        "size": 18
+      },
+      {
+        "id": "cause",
+        "level": 2,
+        "title": "Cause",
+        "size": 19
+      }
+    ],
+    "history": [
+      {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "at": "2026-01-02T03:04:05+00:00",
+        "subject": "Add the skill",
+        "by": "Remote Person",
+        "harness": "",
+        "model": "",
+        "model_said": false,
+        "origin": "remote",
+        "reason": "",
+        "approved_by": ""
+      }
+    ]
+  }
+}

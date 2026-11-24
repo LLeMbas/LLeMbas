@@ -110,6 +110,10 @@
           {{ icon("shield", "icon--sm") }}
           <span class="nav-item__label">{{ t("Audit log") }}</span>
         </a>
+        <a class="nav-item {{ 'is-active' if section == 'skills' }}" href="/admin/skills">
+          {{ icon("sparkle", "icon--sm") }}
+          <span class="nav-item__label">{{ t("Skills and notes") }}</span>
+        </a>
         <a class="nav-item {{ 'is-active' if section == 'backups' }}" href="/admin/backups">
           {{ icon("archive", "icon--sm") }}
           <span class="nav-item__label">{{ t("Backups") }}</span>

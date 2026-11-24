@@ -1,0 +1,118 @@
+{% extends "skills/_layout.html" %}
+{% from "_macros.html" import icon %}
+
+{% block title %}{{ t("Notes") }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ t("Notes") }}{% endblock %}
+{% block actions %}
+<a class="btn btn--sm" href="/skills/queue">
+  {{ icon("check", "icon--sm") }} {{ t("Waiting") }}
+  <span class="badge badge--leaf" {{ "" if waiting else "hidden" }}>{{ waiting }}</span>
+</a>
+{% endblock %}
+
+{% block store_content %}
+<p class="admin-lede">{{ t("What agents and people found out and wrote down: plans, findings, incidents. A note belongs to the data group it was written under and is seen there, unless it is shared.") }}</p>
+
+<form class="reports-filter" method="get" action="/notes">
+  <label class="reports-filter__field store-filter__grow">
+    <span class="reports-filter__label">{{ t("Subject") }}</span>
+    <input class="input input--sm" type="search" name="subject" value="{{ subject }}">
+  </label>
+  <label class="reports-filter__field">
+    <span class="reports-filter__label">{{ t("Kind") }}</span>
+    <select class="select select--sm" name="kind" onchange="this.form.submit()">
+      <option value="">{{ t("All kinds") }}</option>
+      {% for name in kinds %}<option value="{{ name }}" {{ "selected" if name == picked_kind }}>{{ name }}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="reports-filter__field">
+    <span class="reports-filter__label">{{ t("Status") }}</span>
+    <select class="select select--sm" name="state" onchange="this.form.submit()">
+      <option value="active" {{ "selected" if state == "active" }}>{{ t("Current") }}</option>
+      <option value="archived" {{ "selected" if state == "archived" }}>{{ t("Archived") }}</option>
+      <option value="all" {{ "selected" if state == "all" }}>{{ t("All") }}</option>
+    </select>
+  </label>
+  {% if groups %}
+  <label class="reports-filter__field">
+    <span class="reports-filter__label">{{ t("Data group") }}</span>
+    <select class="select select--sm" name="group" onchange="this.form.submit()">
+      <option value="">{{ t("All") }}</option>
+      {% for g in groups %}<option value="{{ g.id }}" {{ "selected" if g.id == picked_group }}>{{ g.name }}</option>{% endfor %}
+    </select>
+  </label>
+  {% endif %}
+  <button class="btn btn--sm" type="submit">{{ t("Show") }}</button>
+</form>
+
+{% if not notes %}
+<section class="card"><p class="muted">{{ t("No notes match.") if subject or picked_kind or picked_group or state != "active" else t("No notes yet.") }}</p></section>
+{% else %}
+<ul class="reports-list" data-testid="notes-list">
+  {% for note in notes %}
+  <li class="reports-list__item" data-note="{{ note.ident }}">
+    <a class="reports-list__link" href="/notes/n/{{ note.ident }}">
+      <span class="reports-list__head">
+        <strong class="reports-list__title">{{ note.title }}</strong>
+        <span class="badge">{{ note.kind }}</span>
+        {% if note.status == "archived" %}<span class="badge badge--warning">{{ t("Archived") }}</span>{% endif %}
+        {% if note.shared %}<span class="badge badge--leaf">{{ t("Shared") }}</span>{% endif %}
+      </span>
+      {% if note.summary %}<span class="reports-list__summary">{{ note.summary }}</span>{% endif %}
+      <span class="reports-list__meta">
+        {% if note.subjects_json %}<span>{{ note.subjects_json | join(", ") }}</span>{% endif %}
+        <span>{{ note.author }}{% if note.harness %} ({{ note.harness }}){% endif %}</span>
+        {% if note.confirmed %}<span>{{ t("confirmed %(date)s", date=note.confirmed[:10]) }}</span>{% endif %}
+        {% if groups %}<span>{{ group_names.get(note.data_group_id, note.data_group_id) }}</span>{% endif %}
+      </span>
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+<section class="card">
+  <h2 class="card__title">{{ t("New note") }}</h2>
+  <form method="post" action="/notes/new" class="form-grid" data-in-place="off">
+    <div class="field-grid">
+      <div class="field">
+        <label class="field__label" for="note-title">{{ t("Title") }}</label>
+        <input class="input" id="note-title" name="title" required maxlength="200">
+        <p class="field__hint"></p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="note-subjects">{{ t("Subjects") }}</label>
+        <input class="input" id="note-subjects" name="subjects" required>
+        <p class="field__hint">{{ t("The words it is looked up by, with commas between.") }}</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="note-kind">{{ t("Kind") }}</label>
+        <select class="select" id="note-kind" name="kind">
+          {% for name in kinds %}<option value="{{ name }}">{{ name }}</option>{% endfor %}
+        </select>
+        <p class="field__hint"></p>
+      </div>
+      {% if groups %}
+      <div class="field">
+        <label class="field__label" for="note-group">{{ t("Data group") }}</label>
+        <select class="select" id="note-group" name="data_group_id">
+          {% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+        </select>
+        <p class="field__hint"></p>
+      </div>
+      {% endif %}
+    </div>
+    <div class="field">
+      <label class="field__label" for="note-summary">{{ t("Summary") }}</label>
+      <input class="input" id="note-summary" name="summary" maxlength="600">
+      <p class="field__hint">{{ t("One line: what a lookup shows.") }}</p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="note-body">{{ t("Text") }}</label>
+      <textarea class="textarea store-editor" id="note-body" name="body" rows="10" required></textarea>
+      <p class="field__hint">{{ t("Markdown. Never a password, a key or a token.") }}</p>
+    </div>
+    <div class="btn-row"><button class="btn btn--primary" type="submit" data-testid="note-create">{{ icon("plus", "icon--sm") }} {{ t("Add the note") }}</button></div>
+  </form>
+</section>
+{% endblock %}

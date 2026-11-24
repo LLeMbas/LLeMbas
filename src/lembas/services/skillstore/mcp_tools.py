@@ -164,15 +164,17 @@ def caller(
 
     meta = meta or {}
     harness = str(meta.get("harness") or "") or client_of(session_id) or token_name
-    said_model = str(meta.get("model") or "") or model
-    if chat is not None and not said_model:
-        said_model = chat.model_id or ""
+    # The model the server knows is the scoped chat's own; anything else -- the
+    # client's metadata, a tool's argument -- is the caller's claim, kept as one.
+    known = (chat.model_id or "") if chat is not None else ""
+    said_model = known or str(meta.get("model") or "") or model
     group = data_groups.for_chat(db, chat) if chat is not None else data_groups.DEFAULT_GROUP
     return policy.agent(
         db,
         user,
         harness=harness,
         model=said_model,
+        model_said=not known,
         session=str(meta.get("scope") or "") or session_id.partition(".")[0],
         data_group=group,
     )
@@ -194,7 +196,8 @@ def _policy_text(db: DBSession, who: Who) -> str:
         f"Your notes are written under the data group \"{who.data_group}\" and you read the "
         "notes of that group and the shared ones.",
         f"You are recorded as: {who.account_name}, through {who.harness}"
-        + (f", model {who.model}" if who.model else "") + ".",
+        + (f", model {who.model}" + (" (as you said)" if who.model_said else "")
+           if who.model else "") + ".",
         f"(The levels: {said['levels']}.)",
     ]
     latest = service.own_proposals(db, who, 5)
@@ -233,7 +236,7 @@ async def call(db: DBSession, who: Who, name: str, args: dict[str, Any]) -> tupl
         return None if args.get(key) is None else str(args[key])
 
     if s("model") and not who.model:
-        who = replace(who, model=" ".join(s("model").split())[:200])
+        who = replace(who, model=" ".join(s("model").split())[:200], model_said=True)
     try:
         catalog.ensure(db)
         service.sync_if_due(db)

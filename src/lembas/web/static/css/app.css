@@ -3030,3 +3030,57 @@ a.card, .card--action { transition: transform var(--dur-2) var(--ease-out),
 .html-page__frame--large { height: min(85vh, 60rem); }
 .pages-setting { margin-top: var(--sp-3); }
 
+
+/* --- Skills and Notes (the central store) --------------------------------------
+   The lists reuse the Reports list: one stacked row a thing, so nothing sits
+   side by side that could fail to line up. What is new here is sized by
+   construction too. */
+/* Label and value on two shared tracks: every label is one column wide,
+   whatever its words are in whichever language, and a value wraps in its own. */
+.store-facts {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  gap: var(--sp-1) var(--sp-4);
+  margin: 0 0 var(--sp-4);
+  font-size: var(--text-sm);
+}
+.store-facts dt { color: var(--ink-muted); min-width: 0; overflow-wrap: anywhere; }
+.store-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+/* A kind of note is one row of three: its name, its level, whether it is
+   shared. One grid for all the rows, so the selects share a column. Where the
+   card is narrower than the three need, each part takes the whole row. */
+.store-kinds {
+  display: grid;
+  grid-template-columns: minmax(0, var(--w-field-sm)) minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-2) var(--sp-4);
+  min-width: 0;
+}
+.store-kinds > .select { width: 100%; min-width: 0; }
+.store-kinds__name { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.store-kinds__shared { min-width: 0; }
+@media (max-width: 44rem) {
+  .store-kinds { grid-template-columns: minmax(0, 1fr); }
+  .store-kinds__name { margin-top: var(--sp-2); }
+}
+/* The editor is the card's width; a long line scrolls inside it. */
+.store-editor { width: 100%; min-width: 0; font-family: var(--font-mono); font-size: var(--text-sm); }
+/* Anything wide gets its own scroller, never the page. */
+.store-listing {
+  margin: 0;
+  padding: var(--sp-3);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  overflow: auto;
+}
+.store-diff { max-width: 100%; margin-bottom: var(--sp-4); }
+.store-filter__grow { flex: 1 1 var(--w-field); }
+.store-filter__grow .input { flex: 1 1 auto; min-width: 0; width: 100%; }
+.store-decide { margin-top: var(--sp-2); }
+.store-actions { margin-bottom: var(--sp-4); }
+.store-actions:empty { display: none; }

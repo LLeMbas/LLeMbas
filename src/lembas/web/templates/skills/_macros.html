@@ -1,0 +1,49 @@
+{#
+  Macros of the Skills and Notes pages: a diff, who made a change, a history.
+  Text here is somebody else's writing: escaped by Jinja, never `|safe`.
+#}
+{% macro store_diff(diff) -%}
+<pre class="diff store-diff"><code>
+  {%- for line in diff.split("\n") -%}
+    {%- if line.startswith('@@') or line.startswith('--- ') or line.startswith('+++ ') -%}
+      {%- set cls = 'meta' -%}
+    {%- elif line.startswith('+') -%}
+      {%- set cls = 'add' -%}
+    {%- elif line.startswith('-') -%}
+      {%- set cls = 'del' -%}
+    {%- else -%}
+      {%- set cls = 'ctx' -%}
+    {%- endif -%}
+    <span class="diff__line diff__line--{{ cls }}">{{ line }}</span>
+  {%- endfor -%}
+</code></pre>
+{%- endmacro %}
+
+{# Who made a change, as its commit says it: the account, through what, and
+   where it came from. One line that wraps; nothing beside it to line up with. #}
+{% macro change_by(entry) -%}
+<span>{{ entry.by }}</span>
+{%- if entry.harness %} <span class="faint">({{ entry.harness }}{% if entry.model %}, {{ entry.model }}{% if entry.model_said %} — {{ t("said by the caller") }}{% endif %}{% endif %})</span>{% endif %}
+{%- if entry.origin == "remote" %} <span class="badge">{{ t("from the remote") }}</span>{% endif %}
+{%- if entry.origin == "import" %} <span class="badge">{{ t("brought in") }}</span>{% endif %}
+{%- if entry.approved_by %} <span class="faint">{{ t("approved by %(name)s", name=entry.approved_by) }}</span>{% endif %}
+{%- endmacro %}
+
+{% macro history_list(history, base, tail="") -%}
+<ul class="reports-list" data-testid="store-history">
+  {% for entry in history %}
+  <li class="reports-list__item">
+    <a class="reports-list__link" href="{{ base }}{{ entry.sha[:12] }}{{ tail }}">
+      <span class="reports-list__head"><strong class="reports-list__title">{{ entry.subject }}</strong></span>
+      {% if entry.reason %}<span class="reports-list__summary">{{ entry.reason }}</span>{% endif %}
+      <span class="reports-list__meta">
+        <span>{{ change_by(entry) }}</span>
+        <time datetime="{{ entry.at }}">{{ entry.at[:16] | replace("T", " ") }}</time>
+        <span class="mono">{{ entry.sha[:8] }}</span>
+      </span>
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{%- endmacro %}
+

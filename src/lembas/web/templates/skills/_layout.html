@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{#
+  The shell of Skills and Notes: the central store's pages
+  (api/skills_pages.py). A skill's and a note's text is somebody else's
+  writing -- an agent's, or a remote repository's: escaped by Jinja, and a body
+  through services/markdown.py (`markdown_body`). Never `|safe`.
+#}
+
+{% block head %}
+<link rel="stylesheet" href="{{ asset('css/chat.css') }}">
+<link rel="stylesheet" href="{{ asset('css/admin.css') }}">
+{% endblock %}
+
+{% block body_attrs %} data-authenticated="true"{% endblock %}
+
+{% block body %}
+<div class="shell">
+  {% include "partials/sidebar.html" %}
+
+  <main class="main">
+    <header class="topbar">
+      {% include "partials/_sidebar_toggle.html" %}
+      <h1 class="topbar__title">{% block heading %}{{ t("Skills") }}{% endblock %}</h1>
+    </header>
+
+    <div class="admin-scroll">
+      <div class="admin-page">
+        {#- The page's own actions are a row in the page, not in the top bar:
+            a row that wraps, so three buttons and a long title never have to
+            share 390 px. -#}
+        <div class="btn-row store-actions">{% block actions %}{% endblock %}</div>
+        {% if saved %}<div data-flash="success" class="alert alert--success">{{ icon("check", "icon--sm") }} <span>{{ saved }}</span></div>{% endif %}
+        {% if error %}<div data-flash="error" class="alert alert--error">{{ icon("warning", "alert__icon") }} <span>{{ error }}</span></div>{% endif %}
+        {% block store_content %}{% endblock %}
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

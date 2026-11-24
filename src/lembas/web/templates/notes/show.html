@@ -1,0 +1,103 @@
+{% extends "skills/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% from "skills/_macros.html" import history_list %}
+
+{% block title %}{{ note.title }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ note.title }}{% endblock %}
+{% block actions %}
+<a class="btn btn--sm" href="/notes">{{ icon("chevron-left", "icon--sm") }} {{ t("Notes") }}</a>
+{% if not editing %}<a class="btn btn--sm" href="/notes/n/{{ note.ident }}?edit=1" data-testid="note-edit">{{ icon("pencil", "icon--sm") }} {{ t("Edit") }}</a>{% endif %}
+<form method="post" action="/notes/do/confirm/{{ note.ident }}">
+  <button class="btn btn--sm btn--primary" type="submit" data-testid="note-confirm"
+          title="{{ t('Say you checked this note and it is still true.') }}">{{ icon("check", "icon--sm") }} {{ t("Confirm") }}</button>
+</form>
+{% endblock %}
+
+{% block store_content %}
+<section class="card" data-testid="note-page" data-note="{{ note.ident }}">
+  {% if note.summary %}<p class="report__summary">{{ note.summary }}</p>{% endif %}
+  {# The header's fields: label and value on two shared tracks. #}
+  <dl class="store-facts" data-testid="note-facts">
+    <dt>{{ t("Kind") }}</dt><dd>{{ note.kind }}{% if note.status == "archived" %} <span class="badge badge--warning">{{ t("Archived") }}</span>{% endif %}</dd>
+    <dt>{{ t("Subjects") }}</dt><dd>{{ note.subjects_json | join(", ") or "—" }}</dd>
+    <dt>{{ t("Written by") }}</dt><dd>{{ note.author or "—" }}{% if note.harness %} <span class="faint">({{ note.harness }}{% if note.model %}, {{ note.model }}{% if note.model_said %} — {{ t("said by the caller") }}{% endif %}{% endif %})</span>{% endif %}</dd>
+    <dt>{{ t("Created") }}</dt><dd>{{ note.created[:10] or "—" }}</dd>
+    <dt>{{ t("Updated") }}</dt><dd>{{ note.updated[:10] or "—" }}</dd>
+    <dt>{{ t("Last confirmed") }}</dt><dd>{{ note.confirmed[:10] or t("never") }}{% if note.confirmed_by %} <span class="faint">({{ note.confirmed_by }})</span>{% endif %}</dd>
+    <dt>{{ t("Data group") }}</dt><dd>{{ group_name }}{% if note.shared or shared_kind %} <span class="badge badge--leaf">{{ t("Shared") }}</span>{% endif %}</dd>
+  </dl>
+
+  {% if editing %}
+  <form method="post" action="/notes/do/save/{{ note.ident }}" class="form-grid" data-in-place="off">
+    <div class="field-grid">
+      <div class="field">
+        <label class="field__label" for="note-subjects">{{ t("Subjects") }}</label>
+        <input class="input" id="note-subjects" name="subjects" value="{{ note.subjects_json | join(', ') }}">
+        <p class="field__hint">{{ t("The words it is looked up by, with commas between.") }}</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="note-kind">{{ t("Kind") }}</label>
+        <select class="select" id="note-kind" name="kind">
+          {% for name in kinds %}<option value="{{ name }}" {{ "selected" if name == note.kind }}>{{ name }}</option>{% endfor %}
+        </select>
+        <p class="field__hint"></p>
+      </div>
+    </div>
+    <div class="field">
+      <label class="field__label" for="note-summary">{{ t("Summary") }}</label>
+      <input class="input" id="note-summary" name="summary" maxlength="600" value="{{ note.summary }}">
+      <p class="field__hint">{{ t("One line: what a lookup shows.") }}</p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="note-body">{{ t("Text") }}</label>
+      <textarea class="textarea store-editor" id="note-body" name="body" rows="22" required>{{ note.body }}</textarea>
+      <p class="field__hint">{{ t("Markdown. Never a password, a key or a token.") }}</p>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn--primary" type="submit" data-testid="note-save">{{ icon("check", "icon--sm") }} {{ t("Save") }}</button>
+      <a class="btn" href="/notes/n/{{ note.ident }}">{{ t("Cancel") }}</a>
+    </div>
+  </form>
+  {% else %}
+  <div class="msg__body report__body" data-testid="note-body">{{ markdown_body(note.body) }}</div>
+  {% endif %}
+</section>
+
+{% if not editing %}
+<section class="card">
+  <h2 class="card__title">{{ t("Add to this note") }}</h2>
+  <form method="post" action="/notes/do/append/{{ note.ident }}" class="form-grid" data-in-place="off">
+    <div class="field">
+      <label class="field__label" for="note-append">{{ t("Text") }}</label>
+      <textarea class="textarea store-editor" id="note-append" name="text" rows="4" required></textarea>
+      <p class="field__hint">{{ t("Goes at the end, dated and signed. Nothing already there changes.") }}</p>
+    </div>
+    <div class="btn-row"><button class="btn" type="submit" data-testid="note-append-save">{{ icon("plus", "icon--sm") }} {{ t("Add") }}</button></div>
+  </form>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2 class="card__title">{{ t("History") }} <span class="badge">{{ history|length }}</span></h2>
+  {{ history_list(history, "/notes/change/", "/" ~ note.ident) }}
+</section>
+
+<section class="card">
+  <h2 class="card__title">{{ t("Keeping") }}</h2>
+  <div class="btn-row">
+    <form method="post" action="/notes/do/{{ 'restore' if note.status == 'archived' else 'archive' }}/{{ note.ident }}">
+      <button class="btn btn--sm" type="submit" data-testid="note-archive">{{ icon("archive", "icon--sm") }} {{ t("Bring back") if note.status == "archived" else t("Archive") }}</button>
+    </form>
+    {% if may_share %}
+    <form method="post" action="/notes/do/{{ 'unshare' if note.shared else 'share' }}/{{ note.ident }}">
+      <button class="btn btn--sm" type="submit" data-testid="note-share"
+              title="{{ t('A shared note is seen in every data group, by every provider.') }}">{{ icon("users", "icon--sm") }} {{ t("Stop sharing") if note.shared else t("Share with every data group") }}</button>
+    </form>
+    {% endif %}
+    <form method="post" action="/notes/do/delete/{{ note.ident }}"
+          data-confirm="{{ t('Remove this note? It stays in the history.') }}">
+      <button class="btn btn--sm btn--danger" type="submit" data-testid="note-delete">{{ icon("trash", "icon--sm") }} {{ t("Remove the note") }}</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

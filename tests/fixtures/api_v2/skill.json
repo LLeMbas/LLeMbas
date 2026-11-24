@@ -1,0 +1,61 @@
+{
+  "skill": {
+    "name": "bake-lembas",
+    "description": "Use when baking waybread for a journey.",
+    "category": "kitchen",
+    "subcategory": "",
+    "pinned": true,
+    "main": false,
+    "size": 60,
+    "reads": 7,
+    "changed": {
+      "at": "2026-01-02T03:04:05+00:00",
+      "by": "Frodo",
+      "harness": "workstation-agent",
+      "model": "local/qwen",
+      "model_said": true,
+      "origin": "mcp"
+    },
+    "body": "# Baking\n\nMix and bake.\n\n## Wrap\n\nIn leaves.",
+    "sections": [
+      {
+        "id": "baking",
+        "level": 1,
+        "title": "Baking",
+        "size": 42
+      },
+      {
+        "id": "wrap",
+        "level": 2,
+        "title": "Wrap",
+        "size": 18
+      }
+    ],
+    "history": [
+      {
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "at": "2026-01-03T03:04:05+00:00",
+        "subject": "skill bake-lembas: edit",
+        "by": "Frodo",
+        "harness": "workstation-agent",
+        "model": "local/qwen",
+        "model_said": true,
+        "origin": "mcp",
+        "reason": "The leaves matter.",
+        "approved_by": "Sam"
+      },
+      {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "at": "2026-01-02T03:04:05+00:00",
+        "subject": "Add the skill",
+        "by": "Remote Person",
+        "harness": "",
+        "model": "",
+        "model_said": false,
+        "origin": "remote",
+        "reason": "",
+        "approved_by": ""
+      }
+    ]
+  }
+}

@@ -1,0 +1,102 @@
+{% extends "skills/_layout.html" %}
+{% from "_macros.html" import icon %}
+
+{% block title %}{{ t("Skills") }} - {{ brand.name }}{% endblock %}
+{% block actions %}
+<a class="btn btn--sm" href="/skills/queue" data-testid="skills-queue-link">
+  {{ icon("check", "icon--sm") }} {{ t("Waiting") }}
+  <span class="badge badge--leaf" {{ "" if waiting else "hidden" }}>{{ waiting }}</span>
+</a>
+<a class="btn btn--sm" href="/skills/s/main">{{ icon("star", "icon--sm") }} {{ t("Main skill") }}</a>
+{% if store_admin %}<a class="btn btn--sm" href="/admin/skills">{{ icon("gear", "icon--sm") }} {{ t("Settings") }}</a>{% endif %}
+{% endblock %}
+
+{% block store_content %}
+<p class="admin-lede">{{ t("How things are done here, written down once for every agent connected to this instance. Agents read them over the instance's MCP endpoint, and change them as the policy allows.") }}</p>
+
+{# The filter is a plain form (GET): its state is the address. #}
+<form class="reports-filter" method="get" action="/skills">
+  <label class="reports-filter__field store-filter__grow">
+    <span class="reports-filter__label">{{ t("Search") }}</span>
+    <input class="input input--sm" type="search" name="q" value="{{ q }}">
+  </label>
+  <label class="reports-filter__field">
+    <span class="reports-filter__label">{{ t("Category") }}</span>
+    <select class="select select--sm" name="category" onchange="this.form.submit()">
+      <option value="">{{ t("All categories") }}</option>
+      {% for name, count in categories %}
+      <option value="{{ name }}" {{ "selected" if name == picked }}>{{ name }} ({{ count }})</option>
+      {% endfor %}
+    </select>
+  </label>
+  <button class="btn btn--sm" type="submit">{{ t("Show") }}</button>
+</form>
+
+{% if not groups %}
+<section class="card">
+  <p class="muted">
+    {% if q or picked %}{{ t("No skills match.") }}
+    {% else %}{{ t("No skills yet. Write the first one below, or let an agent add one.") }}{% endif %}
+  </p>
+</section>
+{% endif %}
+
+{% for category, rows in groups %}
+<section class="card" data-testid="skill-category">
+  {% if category %}<h2 class="card__title">{{ category }} <span class="badge">{{ rows|length }}</span></h2>{% endif %}
+  <ul class="reports-list">
+    {% for skill in rows %}
+    <li class="reports-list__item" data-skill="{{ skill.name }}">
+      <a class="reports-list__link" href="/skills/s/{{ skill.name }}">
+        <span class="reports-list__head">
+          <strong class="reports-list__title">{{ skill.name }}</strong>
+          {% if skill.pinned %}<span class="badge badge--leaf">{{ t("Pinned") }}</span>{% endif %}
+        </span>
+        <span class="reports-list__summary">{{ skill.description }}</span>
+        <span class="reports-list__meta">
+          {% if skill.subcategory %}<span>{{ skill.subcategory }}</span>{% endif %}
+          <span>{{ t("%(count)s reads in 30 days", count=reads.get(skill.name, 0)) }}</span>
+          {% if skill.changed_by %}<span>{{ skill.changed_by }}</span>{% endif %}
+        </span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endfor %}
+
+<section class="card">
+  <h2 class="card__title">{{ t("New skill") }}</h2>
+  <form method="post" action="/skills/new" class="form-grid" data-in-place="off">
+    <div class="field-grid">
+      <div class="field">
+        <label class="field__label" for="skill-name">{{ t("Name") }}</label>
+        <input class="input" id="skill-name" name="name" required maxlength="64" autocomplete="off">
+        <p class="field__hint">{{ t("Lowercase letters, digits and dashes.") }}</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="skill-category">{{ t("Category") }}</label>
+        <input class="input" id="skill-category" name="category" maxlength="64" autocomplete="off">
+        <p class="field__hint"></p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="skill-subcategory">{{ t("Group in the category") }}</label>
+        <input class="input" id="skill-subcategory" name="subcategory" maxlength="64" autocomplete="off">
+        <p class="field__hint"></p>
+      </div>
+    </div>
+    <div class="field">
+      <label class="field__label" for="skill-description">{{ t("When to use it") }}</label>
+      <input class="input" id="skill-description" name="description" required maxlength="400">
+      <p class="field__hint">{{ t("One line. It is what an agent reads to decide whether to open the skill.") }}</p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="skill-body">{{ t("Instructions") }}</label>
+      <textarea class="textarea store-editor" id="skill-body" name="body" rows="10" required></textarea>
+      <p class="field__hint">{{ t("Markdown. Headings make the sections an agent reads one at a time.") }}</p>
+    </div>
+    <div class="btn-row"><button class="btn btn--primary" type="submit" data-testid="skill-create">{{ icon("plus", "icon--sm") }} {{ t("Add the skill") }}</button></div>
+  </form>
+  {% if not store_admin %}<p class="text-xs faint">{{ t("A skill is shared by everyone here, so what you write waits for an administrator's approval.") }}</p>{% endif %}
+</section>
+{% endblock %}

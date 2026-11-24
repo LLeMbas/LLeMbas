@@ -101,6 +101,7 @@ def _include() -> None:
         python,
         reports,
         schedules,
+        store,
         stream,
         terminal,
     )
@@ -108,6 +109,7 @@ def _include() -> None:
     router.include_router(chats.router)
     router.include_router(folders.router)
     router.include_router(library.router)
+    router.include_router(store.router)
     router.include_router(schedules.router)
     router.include_router(files.router)
     router.include_router(stream.router)

@@ -88,6 +88,25 @@
       </a>
     </div>
     {% endif %}
+    {#- Skills and Notes, the instance's central store, on the same two equal
+        tracks. The count beside Skills is the changes waiting for this
+        person's approval. -#}
+    {% if can.get("library.use") %}
+    <div class="sidebar__sections">
+      <a class="nav-item{{ ' is-active' if section | default('') == 'skills' }}" href="/skills"
+         data-testid="nav-skills">
+        {{ icon("sparkle", "icon--sm") }}
+        <span class="nav-item__label">{{ t("Skills") }}</span>
+        <span class="badge badge--leaf nav-item__count"
+              {{ "" if store_waiting | default(0) else "hidden" }}>{{ store_waiting | default(0) }}</span>
+      </a>
+      <a class="nav-item{{ ' is-active' if section | default('') == 'notes' }}" href="/notes"
+         data-testid="nav-notes">
+        {{ icon("pencil", "icon--sm") }}
+        <span class="nav-item__label">{{ t("Notes") }}</span>
+      </a>
+    </div>
+    {% endif %}
     <a class="nav-item" href="/settings">
       {{ icon("user", "icon--sm") }}
       <span class="nav-item__label">{{ user.name }}</span>

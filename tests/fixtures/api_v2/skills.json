@@ -1,0 +1,29 @@
+{
+  "skills": [
+    {
+      "name": "bake-lembas",
+      "description": "Use when baking waybread for a journey.",
+      "category": "kitchen",
+      "subcategory": "",
+      "pinned": true,
+      "main": false,
+      "size": 60,
+      "reads": 7,
+      "changed": {
+        "at": "2026-01-02T03:04:05+00:00",
+        "by": "Frodo",
+        "harness": "workstation-agent",
+        "model": "local/qwen",
+        "model_said": true,
+        "origin": "mcp"
+      }
+    }
+  ],
+  "categories": [
+    {
+      "name": "kitchen",
+      "count": 1
+    }
+  ],
+  "waiting": 2
+}

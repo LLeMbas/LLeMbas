@@ -33,7 +33,6 @@ from lembas.db.models import (
     PROPOSAL_PENDING,
     PROPOSAL_REJECTED,
     PROPOSAL_STALE,
-    ROLE_ADMIN,
     StoreNote,
     StoreProposal,
     StoreSkill,
@@ -195,7 +194,10 @@ def _announce(db: DBSession, proposal: StoreProposal) -> None:
         from lembas.services import push
 
         if proposal.target == TARGET_SKILL:
-            ids = list(db.scalars(select(User.id).where(User.role == ROLE_ADMIN)))
+            ids = [
+                user.id for user in db.scalars(select(User))
+                if policy.may_decide_skill(db, user)
+            ]
         else:
             ids = [proposal.account_id] if proposal.account_id else []
             note = db.scalar(select(StoreNote).where(StoreNote.ident == proposal.name))
@@ -256,6 +258,7 @@ def _submit(
             account_name=who.account_name[:120],
             harness=who.harness,
             model=who.model,
+            model_said=who.model_said,
             session=who.session,
             origin=who.origin,
             section_text=section_text,
@@ -405,7 +408,7 @@ def skill_remove(db: DBSession, who: Who, *, name: str, reason: str = "") -> Out
 def skill_pin(db: DBSession, who: Who, *, name: str, pinned: bool) -> Outcome:
     """Pin a skill as a main one: a person's choice, by hand."""
     row = _need_skill(db, name)
-    if not (who.person and who.is_admin):
+    if not (who.person and who.approver):
         raise Refused("Pinning is done by an administrator, by hand.")
     current = repo.read(repo.skill_rel(row.name)) or ""
     after = doc.set_fields(current, {"pinned": True if pinned else None})
@@ -448,7 +451,8 @@ def note_header(row: StoreNote) -> str:
     """A note's header as an agent reads it: what it is, how fresh, by whom."""
     by = row.author or "unknown"
     if row.harness:
-        by += f" ({row.harness}" + (f", {row.model}" if row.model else "") + ")"
+        said = ", said by the caller" if row.model_said else ""
+        by += f" ({row.harness}" + (f", {row.model}{said}" if row.model else "") + ")"
     confirmed = (
         f"confirmed {row.confirmed[:10]}" + (f" by {row.confirmed_by}" if row.confirmed_by else "")
         if row.confirmed else "never confirmed"
@@ -528,6 +532,7 @@ def note_add(
         "author_id": who.account_id,
         "harness": who.harness,
         "model": who.model or None,
+        "model_said": True if who.model_said else None,
         "confirmed": stamp,
         "confirmed_by": who.account_name,
     }
@@ -679,18 +684,18 @@ def note_share(db: DBSession, who: Who, *, ident: str, shared: bool) -> Outcome:
 
 # --- The queue ---------------------------------------------------------------------
 def may_decide(db: DBSession, user: User, proposal: StoreProposal) -> bool:
+    """Whether this person decides this waiting change (`policy.may_decide_*`
+    say who approves; this only gathers what they ask about)."""
     if proposal.target == TARGET_SKILL:
-        return policy.may_decide_skill(user)
+        return policy.may_decide_skill(db, user)
     who = policy.person(db, user)
-    if (proposal.data_group_id or DEFAULT_GROUP) not in who.groups:
-        return False
     note = db.scalar(select(StoreNote).where(StoreNote.ident == proposal.name))
-    if note is not None and not catalog.visible(db, who, note):
-        return False
-    return bool(
-        user.is_admin
-        or proposal.account_id == user.id
-        or (note is not None and note.author_id == user.id)
+    sees = (proposal.data_group_id or DEFAULT_GROUP) in who.groups and (
+        note is None or catalog.visible(db, who, note)
+    )
+    return policy.may_decide_note(
+        db, user, sees=sees, author_id=note.author_id if note is not None else "",
+        proposer_id=proposal.account_id,
     )
 
 
@@ -774,7 +779,8 @@ def approve(db: DBSession, user: User, proposal_id: str, word: str = "") -> Outc
         "Account": proposal.account_name,
         "Account-Id": proposal.account_id,
         "Harness": proposal.harness,
-        "Model": proposal.model,
+        "Model": "" if proposal.model_said else proposal.model,
+        "Model-Said": proposal.model if proposal.model_said else "",
         "Session": proposal.session,
         "Origin": proposal.origin,
         "Reason": proposal.reason,
@@ -891,7 +897,8 @@ def history_text(target: str, name: str, limit: int = 15) -> str:
     for commit in history(target, name, limit):
         t = commit.trailers
         who = t.get("Account") or commit.author
-        via = ", ".join(x for x in (t.get("Harness", ""), t.get("Model", "")) if x)
+        said = f"{t['Model-Said']}, said by the caller" if t.get("Model-Said") else ""
+        via = ", ".join(x for x in (t.get("Harness", ""), t.get("Model", ""), said) if x)
         line = f"{commit.at[:16].replace('T', ' ')}  {commit.sha[:8]}  {commit.subject}  — {who}"
         if via:
             line += f" ({via})"

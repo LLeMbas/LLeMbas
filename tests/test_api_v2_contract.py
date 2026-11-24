@@ -837,6 +837,55 @@ def _parity() -> dict[str, object]:
     }
 
 
+def _store() -> dict[str, object]:
+    """Skills and notes, read-only (`store.py`): the lists and the pages."""
+    from lembas.api.v2 import store
+    from lembas.services.skillstore import repo
+
+    changed = {
+        "changed_at": WHEN, "changed_by": "Frodo", "changed_harness": "workstation-agent",
+        "changed_model": "local/qwen", "changed_model_said": True, "changed_origin": "mcp",
+    }
+    sections = [{"id": "baking", "level": 1, "title": "Baking", "size": 42},
+                {"id": "wrap", "level": 2, "title": "Wrap", "size": 18}]
+    skill = SimpleNamespace(
+        name="bake-lembas", description="Use when baking waybread for a journey.",
+        category="kitchen", subcategory="", pinned=True, size=60,
+        body="# Baking\n\nMix and bake.\n\n## Wrap\n\nIn leaves.", sections_json=sections,
+        **changed,
+    )
+    note = SimpleNamespace(
+        ident="oven-ran-cold", title="The oven ran cold", kind="incident",
+        summary="The fire went out overnight.", subjects_json=["oven", "kitchen"],
+        status="active", data_group_id="default", shared=False,
+        created="2026-01-02T03:04:05Z", updated="2026-01-03T03:04:05Z",
+        confirmed="2026-01-03T03:04:05Z", confirmed_by="Frodo", author="Frodo",
+        harness="workstation-agent", model="local/qwen", model_said=False, size=31,
+        body="The fire went out.\n\n## Cause\n\nWet wood.",
+        sections_json=[{"id": "intro", "level": 0, "title": "", "size": 18},
+                       {"id": "cause", "level": 2, "title": "Cause", "size": 19}],
+    )
+    history = [
+        repo.Commit("b" * 40, "2026-01-03T03:04:05+00:00", "Frodo", "skill bake-lembas: edit", {
+            "Account": "Frodo", "Harness": "workstation-agent", "Model-Said": "local/qwen",
+            "Origin": "mcp", "Reason": "The leaves matter.", "Approved-By": "Sam",
+        }),
+        repo.Commit("a" * 40, "2026-01-02T03:04:05+00:00", "Remote Person", "Add the skill", {}),
+    ]
+    listed = store.skill(skill, 7)
+    noted = store.note(note, "Default")
+    return {
+        "skills": {
+            "skills": [listed],
+            "categories": [{"name": "kitchen", "count": 1}],
+            "waiting": 2,
+        },
+        "skill": {"skill": store.page(listed, skill, history)},
+        "notes": {"notes": [noted], "kinds": [{"name": "incident", "count": 1}]},
+        "note": {"note": store.page(noted, note, history[1:])},
+    }
+
+
 def _page() -> dict[str, object]:
     from lembas.security import sealed
     from lembas.services import html_pages
@@ -1332,6 +1381,7 @@ def _built() -> dict[str, object]:
         **_apps(),
         **_files(),
         **_parity(),
+        **_store(),
         **_menus(),
         **_activity(),
         **_schedules(),

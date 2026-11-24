@@ -601,6 +601,16 @@ def _device_sections(
     return live + offline + missing
 
 
+def _store_waiting(db, user) -> int:
+    try:
+        from lembas.services.skillstore import service as store_service
+
+        return store_service.pending_count(db, user)
+    except Exception:  # the store being unwell never takes the sidebar with it
+        log.debug("sidebar: the skills queue could not be counted", exc_info=True)
+        return 0
+
+
 def sidebar_context(db: DBSession, user: User) -> dict:
     """Folder tree plus the chats that belong to no folder.
 
@@ -731,6 +741,8 @@ def sidebar_context(db: DBSession, user: User) -> dict:
     return {
         # How many reports are unread: the count beside Reports in the sidebar.
         "unread_reports": reports_service.unread_count(db, user.id),
+        # How many changes to skills and notes wait for this person's word.
+        "store_waiting": _store_waiting(db, user),
         "folders": folders,
         "unfiled_chats": unfiled,
         "pinned_chats": pinned_chats,

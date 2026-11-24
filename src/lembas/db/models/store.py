@@ -34,6 +34,7 @@ class _Indexed:
     changed_account_id: Mapped[str] = mapped_column(String(32), default="", nullable=False)
     changed_harness: Mapped[str] = mapped_column(String(80), default="", nullable=False)
     changed_model: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+    changed_model_said: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     changed_origin: Mapped[str] = mapped_column(String(16), default="", nullable=False)
     # The text's vector by the instance's embedder, when it has one.
     embedding: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
@@ -68,6 +69,8 @@ class StoreNote(UUIDPrimaryKey, Timestamps, _Indexed, Base):
     author_id: Mapped[str] = mapped_column(String(32), default="", nullable=False)
     harness: Mapped[str] = mapped_column(String(80), default="", nullable=False)
     model: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+    # The model's name is the caller's own claim, not the server's knowledge.
+    model_said: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     confirmed: Mapped[str] = mapped_column(String(40), default="", nullable=False)
     confirmed_by: Mapped[str] = mapped_column(String(120), default="", nullable=False)
 
@@ -110,6 +113,7 @@ class StoreProposal(UUIDPrimaryKey, Base):
     account_name: Mapped[str] = mapped_column(String(120), default="", nullable=False)
     harness: Mapped[str] = mapped_column(String(80), default="", nullable=False)
     model: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+    model_said: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     session: Mapped[str] = mapped_column(String(120), default="", nullable=False)
     origin: Mapped[str] = mapped_column(String(16), default="", nullable=False)
     created_at: Mapped[datetime] = mapped_column(

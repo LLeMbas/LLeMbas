@@ -68,7 +68,9 @@ def _stamp_change(row, rel: str) -> None:
     row.changed_by = (last.trailers.get("Account") or last.author)[:120]
     row.changed_account_id = last.trailers.get("Account-Id", "")[:32]
     row.changed_harness = last.trailers.get("Harness", "")[:80]
-    row.changed_model = last.trailers.get("Model", "")[:200]
+    said = last.trailers.get("Model-Said", "")
+    row.changed_model = (last.trailers.get("Model", "") or said)[:200]
+    row.changed_model_said = bool(said and not last.trailers.get("Model"))
     row.changed_origin = last.origin[:16]
 
 
@@ -128,6 +130,7 @@ def _index_note(db: DBSession, rel: str, text: str) -> None:
     row.author_id = _str(meta.get("author_id"), 32)
     row.harness = _str(meta.get("harness"), 80)
     row.model = _str(meta.get("model"), 200)
+    row.model_said = _truthy(meta.get("model_said", ""))
     row.confirmed = _str(meta.get("confirmed"), 40)
     row.confirmed_by = _str(meta.get("confirmed_by"), 120)
     row.size = len(row.body)

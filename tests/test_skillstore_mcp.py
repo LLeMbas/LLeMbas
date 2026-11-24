@@ -125,7 +125,8 @@ def test_an_agent_finds_reads_and_changes_a_skill(client, db, registered):
     history, _ = device.call("skill_history", name="deploy")
     assert "skill deploy: edit" in history and "(workstation-agent)" in history
     assert "reason: the load mattered last time" in history and "[mcp]" in history
-    assert "(workstation-agent, model-a)" in history  # the add said its model
+    # The add named its model in the tool's argument: its own claim, kept as one.
+    assert "(workstation-agent, model-a, said by the caller)" in history
     page, _ = device.call("skills_category", category="servers")
     assert page.startswith("# servers (1 skills)") and "- deploy:" in page
     text, failed = device.call("skill_read", name="nothing")
@@ -247,6 +248,12 @@ def test_a_call_reads_and_writes_the_data_group_of_the_session_it_names(
     assert "inside [note]" in looked
     said, _ = device.call("skills_policy", scope)
     assert 'data group "private-provider"' in said
+    # The model of a scoped session is the server's own knowledge, not a claim.
+    chat.model_id = "local/known-model"
+    db.commit()
+    device.call("note_append", scope, name="inside", text="More.", model="something-else")
+    log = repo.gitrun.run(["log", "-1", "--format=%B"], cwd=repo.root())[1]
+    assert "Model: local/known-model" in log and "Model-Said" not in log
     # A session that is not this device's is refused, whoever's it is.
     other = Device(client, db, name="laptop-agent")
     answer = other.rpc("tools/call", {

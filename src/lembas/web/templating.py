@@ -440,6 +440,19 @@ def _report_body(report):
 
 
 templates.env.globals["report_body"] = _report_body
+
+
+# A skill's or a note's body (the central store): somebody else's Markdown,
+# through the same renderer, and never a page of its own.
+def _markdown_body(text):
+    from markupsafe import Markup
+
+    from lembas.services.markdown import render_markdown
+
+    return Markup(render_markdown(text or ""))
+
+
+templates.env.globals["markdown_body"] = _markdown_body
 # The user messages a reply shows inline, where its model took them in.
 templates.env.globals["inline_steers"] = lambda messages: {
     sid for m in messages or [] for sid in steps_service.steered_ids(getattr(m, "steps_json", None))

@@ -29,6 +29,7 @@ from lembas.api import (
     admin_prompts,
     admin_schedules,
     admin_search,
+    admin_skills,
     admin_suggestions,
     admin_tools,
     admin_updates,
@@ -53,6 +54,7 @@ from lembas.api import (
     pyodide,
     schedules,
     search,
+    skills_pages,
     terminal,
     tokens,
     tree,
@@ -280,6 +282,8 @@ def create_app() -> FastAPI:
     app.include_router(admin_users.router)
     app.include_router(admin_updates.router)
     app.include_router(admin_backups.router)
+    app.include_router(admin_skills.router)
+    app.include_router(skills_pages.router)
     app.include_router(admin_import.router)
     app.include_router(admin_models.router)
     app.include_router(admin_media.router)

@@ -1,0 +1,17 @@
+{% extends "skills/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% from "skills/_macros.html" import store_diff %}
+
+{% block title %}{{ title }} - {{ brand.name }}{% endblock %}
+{% block heading %}{{ title }}{% endblock %}
+{% block actions %}
+<a class="btn btn--sm" href="{{ back }}">{{ icon("chevron-left", "icon--sm") }} {{ t("Back") }}</a>
+{% endblock %}
+
+{% block store_content %}
+<section class="card">
+  <h2 class="card__title">{{ t("Change %(sha)s", sha=sha) }}</h2>
+  {% if diff %}{{ store_diff(diff) }}
+  {% else %}<p class="muted">{{ t("Nothing to show for this change.") }}</p>{% endif %}
+</section>
+{% endblock %}

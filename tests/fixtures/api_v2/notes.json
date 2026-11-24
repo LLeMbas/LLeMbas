@@ -1,0 +1,35 @@
+{
+  "notes": [
+    {
+      "name": "oven-ran-cold",
+      "title": "The oven ran cold",
+      "kind": "incident",
+      "summary": "The fire went out overnight.",
+      "subjects": [
+        "oven",
+        "kitchen"
+      ],
+      "status": "active",
+      "data_group_id": "default",
+      "data_group": "Default",
+      "shared": false,
+      "created": "2026-01-02T03:04:05Z",
+      "updated": "2026-01-03T03:04:05Z",
+      "confirmed": "2026-01-03T03:04:05Z",
+      "confirmed_by": "Frodo",
+      "author": {
+        "name": "Frodo",
+        "harness": "workstation-agent",
+        "model": "local/qwen",
+        "model_said": false
+      },
+      "size": 31
+    }
+  ],
+  "kinds": [
+    {
+      "name": "incident",
+      "count": 1
+    }
+  ]
+}

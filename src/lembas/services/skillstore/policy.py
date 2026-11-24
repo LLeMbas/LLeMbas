@@ -45,6 +45,9 @@ ORIGIN_CHAT = "chat"
 ORIGIN_REMOTE = "remote"
 ORIGIN_IMPORT = "import"
 
+SKILL_APPROVERS = ("admins", "managers")
+NOTE_APPROVERS = ("involved", "admins")
+
 APPLY = "apply"
 QUEUE = "queue"
 REFUSE = "refuse"
@@ -60,6 +63,13 @@ def defaults() -> dict[str, Any]:
         "notes_change": APPROVE,
         # kind -> level, for changing somebody else's note of that kind.
         "notes_kinds": {},
+        # Who decides a waiting change (`may_decide_skill`, `may_decide_note`):
+        # skills -- "admins" (instance administrators) or "managers" (they and
+        # the organisations' owners and admins); notes -- "involved" (the note's
+        # author, the proposing account, an administrator; each only if they
+        # can see the note) or "admins".
+        "skills_approvers": "admins",
+        "notes_approvers": "involved",
         # Kinds every data group sees.
         "shared_kinds": [],
         "remote_address": "",
@@ -87,6 +97,10 @@ def settings(db: DBSession) -> dict[str, Any]:
     for key in ("skills_edit", "notes_add", "notes_change"):
         if values.get(key) not in LEVELS:
             values[key] = defaults()[key]
+    if values.get("skills_approvers") not in SKILL_APPROVERS:
+        values["skills_approvers"] = "admins"
+    if values.get("notes_approvers") not in NOTE_APPROVERS:
+        values["notes_approvers"] = "involved"
     kinds = values.get("notes_kinds")
     values["notes_kinds"] = (
         {str(k): v for k, v in kinds.items() if v in LEVELS} if isinstance(kinds, dict) else {}
@@ -111,10 +125,16 @@ class Who:
     account_id: str = ""
     account_name: str = ""
     is_admin: bool = False
+    # A person who decides waiting changes to skills (`may_decide_skill`).
+    approver: bool = False
     # A person acting by hand in the web UI; False for every agent and program.
     person: bool = False
     harness: str = ""
     model: str = ""
+    # Whether the model's name is only the caller's own claim (a tool's
+    # argument, the client's metadata) and not what the server knows from the
+    # session the call was made for.
+    model_said: bool = False
     session: str = ""
     origin: str = ORIGIN_MCP
     # The data group this caller works under (what a new note is stamped with)...
@@ -129,7 +149,8 @@ class Who:
             "Account": self.account_name,
             "Account-Id": self.account_id,
             "Harness": self.harness,
-            "Model": self.model,
+            "Model": "" if self.model_said else self.model,
+            "Model-Said": self.model if self.model_said else "",
             "Session": self.session,
             "Origin": self.origin,
             "Reason": reason,
@@ -145,6 +166,7 @@ def person(db: DBSession, user: User) -> Who:
         account_id=user.id,
         account_name=user.name,
         is_admin=user.is_admin,
+        approver=may_decide_skill(db, user),
         person=True,
         harness="web",
         origin=ORIGIN_WEB,
@@ -159,6 +181,7 @@ def agent(
     *,
     harness: str,
     model: str = "",
+    model_said: bool = False,
     session: str = "",
     data_group: str = DEFAULT_GROUP,
     origin: str = ORIGIN_MCP,
@@ -175,6 +198,7 @@ def agent(
         person=False,
         harness=" ".join((harness or "").split())[:80] or "unknown",
         model=" ".join((model or "").split())[:200],
+        model_said=bool(model_said and model),
         session=" ".join((session or "").split())[:120],
         origin=origin,
         data_group=group,
@@ -197,7 +221,7 @@ def decide_skill(db: DBSession, who: Who) -> str:
     if who.person:
         # By hand: an administrator's edit is the policy's "a person edits".
         # Anybody else's hand is held like an agent's unless everything applies.
-        return APPLY if who.is_admin or level == AUTO else QUEUE
+        return APPLY if who.approver or level == AUTO else QUEUE
     if not who.may_write:
         return REFUSE
     return _by_level(level)
@@ -227,8 +251,26 @@ def decide_note(
     return _by_level(values["notes_kinds"].get(kind, values["notes_change"]))
 
 
-def may_decide_skill(user: User) -> bool:
-    return bool(user.is_admin)
+def may_decide_skill(db: DBSession, user: User) -> bool:
+    """Whether this person decides waiting changes to skills (and applies
+    their own by hand): the one place that says who approves skills."""
+    if user.is_admin:
+        return True
+    return settings(db)["skills_approvers"] == "managers" and bool(user.manages_org)
+
+
+def may_decide_note(
+    db: DBSession, user: User, *, sees: bool, author_id: str, proposer_id: str
+) -> bool:
+    """Whether this person decides a waiting change to a note: the one place
+    that says who approves notes. Nobody decides on a note they cannot see."""
+    if not sees:
+        return False
+    if user.is_admin:
+        return True
+    if settings(db)["notes_approvers"] == "admins":
+        return False
+    return user.id in (author_id, proposer_id)
 
 
 def describe(db: DBSession, who: Who) -> dict[str, str]:
@@ -258,6 +300,9 @@ __all__ = [
     "KEY",
     "KINDS",
     "LEVELS",
+    "NOTE_APPROVERS",
+    "SKILL_APPROVERS",
+    "may_decide_note",
     "MANUAL",
     "ORIGIN_CHAT",
     "ORIGIN_IMPORT",
