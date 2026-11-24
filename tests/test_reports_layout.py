@@ -203,7 +203,15 @@ def test_the_sidebars_two_entries_share_a_row_and_fit(client, seeded, tmp_path, 
     )
     if not got["named"]:
         pytest.skip("the sidebar is a closed drawer at this width")
-    assert len(got["named"]) == 2
-    first, second = got["named"]
-    assert first["right"] <= second["left"] + 1 and first["h"] == second["h"]
+    # Two rows of two since the skills and notes store: Reports and Scheduled,
+    # then Skills and Notes. Each pair shares a row, and the two rows share
+    # their tracks: the same columns whatever the words are.
+    assert len(got["named"]) == 4
+    reports, scheduled, skills, notes = got["named"]
+    for first, second in ((reports, scheduled), (skills, notes)):
+        assert first["right"] <= second["left"] + 1 and first["h"] == second["h"]
+        assert first["top"] == second["top"]
+    assert (reports["left"], reports["right"]) == (skills["left"], skills["right"])
+    assert (scheduled["left"], scheduled["right"]) == (notes["left"], notes["right"])
+    assert reports["bottom"] <= skills["top"] + 1
     assert all(not b["cut"] for b in got["named"])

@@ -3,6 +3,70 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## Unreleased
+
+### Added
+
+- **One collection of skills and a store of notes for every agent connected to the
+  instance, served over the server's MCP endpoint.** Skills (how things are done here)
+  and notes (what was found out: plans, findings, incidents) are kept by LLeMbas as
+  files in a git repository in the data folder -- `skills/<name>/SKILL.md`, the format
+  other harnesses read, and `notes/<name>.md` with a header of subjects, kind, summary,
+  dates, author and "last confirmed". It works with no setup, and every change is a
+  commit that says who made it: the account, the harness (the MCP client's own name),
+  the model, the session and the reason. A model only the caller named is kept as its
+  claim and shown as "said by the caller".
+- **Found cheaply, read in parts.** What a client is told as it connects is a few lines:
+  how skills and notes work here, the categories with their counts, a handful of main
+  skills, and when to look further. The **main skill** is one call away: your own
+  conventions, and a list of pointers LLeMbas generates -- one list up to 10 skills; by
+  category up to 10 in each; a pointer to the category and up to 3 main skills above
+  that; groups inside the category and up to 5 above 25; never more than 50 pointers,
+  the largest category giving way first. Main skills are the pinned ones, then the most
+  read lately. A skill and a note are read by their outline, then one section; a search
+  by words (and by meaning, where the instance has an embedding model) is underneath.
+- **Seventeen tools on `/mcp`, beside `memory`:** `skills_main`, `skills_category`,
+  `skills_search`, `skill_outline`, `skill_read`, `skill_add`, `skill_edit`,
+  `skill_history`, `skills_policy`, and for notes `notes_lookup`, `note_outline`,
+  `note_read`, `note_add`, `note_append`, `note_change`, `note_confirm`, `note_archive`.
+  A token that reaches the memory reaches them, for an account that may use skills.
+- **You decide how agents may change them: manual, approve, or auto.** *Manual*: only a
+  person edits, by hand. *Approve*: an agent's change waits in LLeMbas's own queue, shown
+  as a diff beside the reason and who asked, until a person approves or rejects it with a
+  word the agent can read. *Auto*: applied at once. The level alone decides, on every
+  route. Adding a note, adding to one and confirming one are free by default; changing
+  or removing what somebody else wrote follows the same three levels, settable per kind
+  of note. Who approves is a setting.
+- **Notes stay in the data group they were written under.** Skills are shared and
+  general; a note is seen in its data group, or everywhere when it or its kind is
+  shared. A call made for a session reads and writes that session's data group; any
+  other call the default one.
+- **Any git repository as an optional remote**, over https with a token or ssh with a
+  key, both stored encrypted and never shown again; no forge is needed. LLeMbas pushes
+  after each change and takes the remote's changes when they follow on from its own.
+  When both sides have changed it stops and says so -- it never merges -- and offers one
+  way out that loses nothing. A remote that already holds skills is adopted. What
+  arrives from the remote is taken as your own edit and shown in the history as from
+  the remote. git runs with no hooks, no prompt, time limits and a size limit, and what
+  a remote sends is checked before it becomes files.
+- **Skills and Notes in the web UI**: the skills by category, a skill's page with its
+  history and an editor, pinning, the main skill's prose beside the list agents are
+  given, the queue; notes by subject, kind and status, and a note's page; and
+  Administration → Skills and notes for the levels and the remote.
+- **For the apps: `GET /api/v2/skills`, `/skills/{name}`, `/notes` and `/notes/{name}`**,
+  read-only (fixtures `skills.json`, `skill.json`, `notes.json`, `note.json`).
+
+### Changed
+
+- **The instance's shared skills are one collection.** What the first organisation kept
+  as files in `/skills/` is brought into the new store, each skill once, and a chat's
+  `skills_list`, `skill_view` and `skill_manage` read and change shared skills there --
+  so a model's change to a shared skill now follows the policy above instead of the
+  folder's write access. A person's own `~/skills/` and a project's `skills/` are as
+  they were.
+- **A backup holds the skills and notes store**, and a restore puts it back.
+- `/mcp` answers `initialize` with an `Mcp-Session-Id`.
+
 ## 2.0.0-beta.19 — 2026-11-24
 
 ### Added

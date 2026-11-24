@@ -217,6 +217,12 @@ GROUPED_TABLES = (
 )
 
 
+# The skills and notes store's index and queue name a data group too, but they
+# are not data filed into one by this schema: a note's group is its file's
+# header, and the index is rebuilt from the files (services/skillstore/).
+STORE_TABLES = ("store_notes", "store_proposals")
+
+
 def _rollback_to_before_data_groups(engine) -> None:
     with engine.begin() as connection:
         connection.execute(text(f"DROP TABLE IF EXISTS {NEW_TABLE}"))
@@ -234,7 +240,7 @@ def test_the_recorded_shape_is_still_real():
         for table in Base.metadata.sorted_tables
         if "data_group_id" in table.columns and not table.columns["data_group_id"].foreign_keys
     }
-    assert grouped == set(GROUPED_TABLES)
+    assert grouped == set(GROUPED_TABLES) | set(STORE_TABLES)
 
 
 def test_a_database_from_before_data_groups_upgrades(db, reader):
