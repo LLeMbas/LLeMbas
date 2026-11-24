@@ -249,6 +249,49 @@
               {% endif %}
             </div>
 
+            {% if models %}
+            {# The two models an editor uses as this person (services/editor.py):
+               two fields stacked, each its label, its control and its hint. #}
+            <div class="card" id="editor-models">
+              <h2 class="card__title">{{ t("Models in an editor") }}</h2>
+              <p class="card__lede">{{ t("What LLeMbas uses in an editor signed in as you: Neovim, VS Code and the workspace of LLeMbas Desktop. Two separate choices, which may be the same model.") }}</p>
+              <form method="post" action="/api/preferences/editor-models" class="form-grid">
+                <div class="field">
+                  <label class="field__label" for="editor-autocomplete">{{ t("Autocomplete model") }}</label>
+                  <select class="select" id="editor-autocomplete" name="autocomplete_model">
+                    <option value="">
+                      {%- if editor_models.autocomplete_default -%}
+                        {{ t("Use the instance default (%(model)s)", model=editor_models.autocomplete_default) }}
+                      {%- else -%}
+                        {{ t("Use the instance default (none is set)") }}
+                      {%- endif -%}
+                    </option>
+                    {% for ref, label in editor_models.autocomplete %}
+                    <option value="{{ ref }}" {{ 'selected' if ref == editor_models.autocomplete_chosen }}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                  <p class="field__hint">
+                    {{- t("Writes the text an editor offers while you type. A small, fast model suits it best.") }}
+                    {% if editor_models.restricted %}{{ t("An administrator chose which models can be used for it.") }}{% endif -%}
+                  </p>
+                </div>
+                <div class="field">
+                  <label class="field__label" for="editor-main">{{ t("Main model") }}</label>
+                  <select class="select" id="editor-main" name="main_model">
+                    <option value="">{{ t("No choice: start as a new session does") }}</option>
+                    {% for ref, label in editor_models.main %}
+                    <option value="{{ ref }}" {{ 'selected' if ref == editor_models.main_chosen }}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                  <p class="field__hint">{{ t("Answers a question about your code, rewrites a selection and starts a chat in an editor.") }}</p>
+                </div>
+                <div class="btn-row">
+                  <button class="btn btn--primary" type="submit">{{ t("Save") }}</button>
+                </div>
+              </form>
+            </div>
+            {% endif %}
+
             {% if team_allowed %}
             <div class="card">
               <h2 class="card__title">{{ t("Subagents") }}</h2>

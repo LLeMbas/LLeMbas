@@ -513,6 +513,47 @@
     </div>
   </section>
 
+  {% if model.kind != "embedding" %}
+  {# What an editor asks while a person types (services/editor.py). The
+     default's button belongs to a form of its own below this one: a form
+     inside a form is not HTML. #}
+  <section class="card" data-testid="model-autocomplete">
+    <h2 class="card__title">
+      {{ t("Autocomplete") }}
+      {% if autocomplete_default %}
+      <span class="badge badge--leaf">{{ icon("star", "icon--sm") }} {{ t("autocomplete default") }}</span>
+      {% endif %}
+    </h2>
+    <p class="card__lede">{{ t("What an editor asks for while a person types: the text to insert at the cursor. A small, fast model suits it best.") }}</p>
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="autocomplete" value="true" {{ 'checked' if model.autocomplete }}>
+        <span>{{ t("Allowed for autocomplete") }}</span>
+      </label>
+      <p class="field__hint">{{ t("While no model is ticked, people may choose any of their chat models for autocomplete. Once one is ticked, only the ticked models can be chosen.") }}</p>
+    </div>
+    <div class="field">
+      <span class="field__label">{{ t("The instance's autocomplete model") }}</span>
+      <div class="btn-row">
+        {% if autocomplete_default %}
+        <button class="btn btn--sm" type="submit" form="autocomplete-default" name="clear" value="1">{{ t("Stop using this model as the default") }}</button>
+        {% else %}
+        <button class="btn btn--sm" type="submit" form="autocomplete-default">{{ icon("star", "icon--sm") }} {{ t("Make this the autocomplete default") }}</button>
+        {% endif %}
+      </div>
+      <p class="field__hint">
+        {%- if autocomplete_default -%}
+          {{ t("This model is what a person completes with until they choose their own in their settings.") }}
+        {%- elif autocomplete_default_ref -%}
+          {{ t("The default is %(model)s: what a person completes with until they choose their own in their settings.", model=autocomplete_default_ref) }}
+        {%- else -%}
+          {{ t("No default is set: autocomplete waits for each person's own choice in their settings.") }}
+        {%- endif -%}
+      </p>
+    </div>
+  </section>
+  {% endif %}
+
   <section class="card">
     <h2 class="card__title">{{ t("Pages and plans") }}</h2>
 
@@ -542,6 +583,8 @@
     <a class="btn btn--ghost" href="/admin/models">{{ t("Back to all models") }}</a>
   </div>
 </form>
+{# The Autocomplete card's button, above: `form="autocomplete-default"`. #}
+<form id="autocomplete-default" method="post" action="/admin/models/{{ model.id }}/autocomplete-default" hidden></form>
 {% endif %}
 
 {% endblock %}

@@ -65,6 +65,7 @@ from lembas.api import reports as reports_pages
 from lembas.api.deps import RedirectToLogin, is_htmx, login_redirect
 from lembas.api.v1 import admin as api_admin
 from lembas.api.v1 import images as api_images
+from lembas.api.v1 import lembas as api_lembas
 from lembas.api.v1 import me as api_me
 from lembas.api.v1 import openai as api_openai
 from lembas.api.v1 import services as api_services
@@ -304,6 +305,8 @@ def create_app() -> FastAPI:
     # Before `/v1`'s own router, whose paths it does not share: `/v1/usage` and
     # `/v1/me/*`.
     app.include_router(api_me.router)
+    # An editor's: `/v1/lembas/complete` and `/v1/lembas/editor`.
+    app.include_router(api_lembas.router)
     app.include_router(api_openai.router)
     app.include_router(api_services.router)
     # Pictures, and the file a picture is fetched from.

@@ -315,6 +315,34 @@ async def set_default_model(
     )
 
 
+@router.post("/editor-models")
+async def set_editor_models(
+    db: Db,
+    user: RequiredUser,
+    autocomplete_model: str = Form(""),
+    main_model: str = Form(""),
+) -> Response:
+    """The two models an editor uses as this person (`services/editor.py`):
+    autocomplete, and main. An empty value clears one -- autocomplete then
+    follows the instance's default. Checked against what the person may use,
+    and nothing is written when either is refused."""
+    from lembas.services import editor
+
+    try:
+        editor.save(
+            db, user,
+            autocomplete_model=autocomplete_model.strip() or None,
+            main_model=main_model.strip() or None,
+        )
+    except editor.Refused as exc:
+        return RedirectResponse(
+            f"/settings?tab=models&error={quote(editor.refusal_text(exc))}", status_code=303
+        )
+    return RedirectResponse(
+        f"/settings?tab=models&saved={quote(i18n.t('Editor models updated.'))}", status_code=303
+    )
+
+
 @router.post("/agents")
 async def set_team_default(
     db: Db, user: RequiredUser, agents_min: str = Form(""), agents_max: str = Form("")

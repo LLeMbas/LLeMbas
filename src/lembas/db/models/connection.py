@@ -323,6 +323,11 @@ class Model(UUIDPrimaryKey, Timestamps, Base):
     # Whether this model can write a working HTML page into an answer (harness
     # spec 3.8.0 `html_pages`, pages.md §4). False: it is simply not asked to.
     html_pages: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Whether an administrator marked the model as allowed for autocomplete
+    # (`services/editor.py`). While no model is marked, every chat model is
+    # allowed; once one is, only the marked ones. So False has to mean "as
+    # before", which is what `sync_schema` backfills.
+    autocomplete: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Public models are usable by anyone; otherwise access comes from `groups`.
     public: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

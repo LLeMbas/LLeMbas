@@ -1,0 +1,13 @@
+{
+  "autocomplete": {
+    "model": "local/qwen",
+    "source": "person",
+    "allowed": [
+      "local/qwen",
+      "local/vision-small"
+    ]
+  },
+  "main": {
+    "model": "local/gpt-oss"
+  }
+}

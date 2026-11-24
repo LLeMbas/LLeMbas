@@ -28,6 +28,7 @@ from lembas.api.v2.misc import SHOWN_PERMISSIONS
 from lembas.api.v2.stream import done_payload, frame, status_payload, title_payload
 from lembas.db.models import Chat, Message, Model
 from lembas.services import device_link, interaction
+from lembas.services import editor as editor_service
 from lembas.services import generation as generation_service
 from lembas.services import metrics as metrics_service
 from lembas.services import progress as progress_service
@@ -1367,6 +1368,14 @@ def _apps() -> dict[str, object]:
     pins = {"android": {"stable": "1.0.0", "beta": "1.1.0-beta.2"},
             "desktop": {"stable": "1.0.1", "beta": "1.0.0-beta.9"}}
     return {
+        # An editor's two models (`GET`/`PUT /editor`): the person's own
+        # autocomplete model among the ones an administrator allows, and one
+        # with nothing chosen and nothing marked.
+        "editor": editor_service.shape(
+            "local/qwen", editor_service.SOURCE_PERSON, ["local/qwen", "local/vision-small"],
+            "local/gpt-oss",
+        ),
+        "editor_unset": editor_service.shape(None, None, None, None),
         "apps": app_releases.recommended(server_version="2.1.0-beta.3", pinned=pins),
         "apps_stable": app_releases.recommended(
             server_version="2.0.0", pinned={"android": {"stable": None, "beta": "1.1.0-beta.2"},

@@ -69,6 +69,10 @@ def _general_defaults() -> dict[str, Any]:
         # one switch is enough) or "chosen" (only models ticked "Can write
         # HTML pages"). `html_pages.models_scope`.
         "html_pages_models": "all",
+        # The instance's default autocomplete model, as its ref
+        # (`<provider>/<model id>`); empty is none, and autocomplete then
+        # waits for each person's own choice. See services/editor.py.
+        "autocomplete_model": "",
         # Custom instructions and a personality, chosen by each person for
         # themselves. Off until an administrator offers it.
         "personalization_enabled": False,

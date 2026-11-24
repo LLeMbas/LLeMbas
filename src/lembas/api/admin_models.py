@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session as DBSession
 from lembas.api.deps import AdminUser, Db, RequiredUser
 from lembas.db.models import MODEL_CHAT, MODEL_EMBEDDING, MODEL_KINDS, Connection, Group, Model
 from lembas.services import chat as chat_service
+from lembas.services import editor as editor_service
 from lembas.services import pricing as pricing_service
 from lembas.services import settings_store, uploads
 from lembas.services.llm import capabilities as capabilities_service
@@ -357,6 +358,13 @@ async def model_detail(
             # search away from every model already configured for it.
             "tool_default": bool((model.capabilities_json or {}).get("tools")),
             "default_model": settings_store.get(db, "default_model") or "",
+            # The instance's autocomplete model (`services/editor.py`):
+            # whether it is this one, and which it is otherwise.
+            "autocomplete_default": bool(
+                editor_service.instance_default(db)
+                and editor_service.instance_default(db) == chat_service.model_ref(model)
+            ),
+            "autocomplete_default_ref": editor_service.instance_default(db),
             "instance_prompt": settings_store.get(db, "system_prompt") or "",
             "position_of": index + 1,
             "total": len(ordered),
@@ -417,6 +425,7 @@ async def update_model(
     parallel: str | None = Form(None),
     thinking_switch: bool = Form(False),
     html_pages: bool = Form(False),
+    autocomplete: bool = Form(False),
     position: str = Form(""),
     context_length: str = Form(""),
     default_effort: str = Form(""),
@@ -525,6 +534,8 @@ async def update_model(
         model.thinking_switch = thinking_switch
     if on("capabilities"):
         model.html_pages = html_pages
+        if (model.kind or MODEL_CHAT) != MODEL_EMBEDDING:
+            model.autocomplete = autocomplete
 
     # Merged rather than rebuilt, unlike the capabilities below: params_json
     # holds whatever sampling defaults an administrator has set and this form
@@ -700,6 +711,28 @@ async def set_default_model(
         back or f"/admin/models/{model.id}?saved={quote(i18n.t('Now the default model.'))}",
         status_code=303,
     )
+
+
+@router.post("/admin/models/{model_id}/autocomplete-default")
+async def set_autocomplete_default(
+    db: Db, user: AdminUser, model_id: str, clear: str = Form("")
+) -> Response:
+    """Make a model the instance's autocomplete model, or (`clear`) have none.
+    Where models are marked as allowed for autocomplete, the new default is
+    marked with them (`editor.set_instance_default`)."""
+    model = _model(db, model_id)
+    back = f"/admin/models/{model.id}/capabilities"
+    if clear:
+        editor_service.set_instance_default(db, None)
+        log.info("autocomplete default cleared by %s", user.email)
+        said = i18n.t("The instance has no autocomplete model now.")
+    elif (model.kind or MODEL_CHAT) == MODEL_EMBEDDING:
+        said = i18n.t("An embedding model cannot write text.")
+    else:
+        editor_service.set_instance_default(db, model)
+        log.info("autocomplete default set to %s by %s", model.model_id, user.email)
+        said = i18n.t("Now the instance's autocomplete model.")
+    return RedirectResponse(f"{back}?saved={quote(said)}", status_code=303)
 
 
 @router.post("/admin/models/{model_id}/image")

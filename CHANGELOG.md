@@ -3,6 +3,38 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## Unreleased
+
+### Added
+
+- **Autocomplete for an editor: `POST /v1/lembas/complete`.** The text before the cursor
+  and the text after it go in (`prefix`, `suffix`, and optionally `path`, `language`,
+  `model`, `max_tokens`, `stream`); the text to insert comes out, whole or streamed. The
+  model's own server is asked the way it can answer: llama.cpp (also behind llama-swap)
+  through `/infill`, Ollama through a completion with a `suffix`, DeepSeek through its
+  fill-in completion, and everything else -- Anthropic included -- with a strict chat
+  prompt, thinking switched off where the model has the switch and its lowest effort
+  asked for otherwise. A server whose model cannot fill in says so once and is asked as
+  a chat from then on. Only the inserted text comes back: no code fence, no thinking,
+  no repetition of the line being completed or of what follows the cursor. A client
+  that closes the connection cancels the request at the model's server, also before
+  the first word. At most 64 KiB on each side of the cursor (more is a 413 that says
+  so), 128 tokens unless asked and 512 at most, four completions at once for one
+  account. Counted and priced like any reply, never priced on a subscription's
+  connection, and never stored: no chat, no message.
+- **Two models for an editor, kept in your account.** *Autocomplete* and *main* (the
+  model that answers a question about your code, rewrites a selection and starts a
+  chat in an editor) are two separate settings under Settings › Models, and may be the
+  same model. They follow you to every editor and app signed in as you: `GET` and `PUT
+  /v1/lembas/editor`, and the same on `/api/v2/editor` for the apps (contract files
+  `editor.json` and `editor_unset.json`).
+- **For administrators: the instance's autocomplete model, and which models may be
+  used for it.** On a model's page, under Capabilities: *Allowed for autocomplete*
+  (while no model is ticked, people may choose any of their chat models; once one is,
+  only the ticked ones) and *Make this the autocomplete default* -- what a person
+  completes with until they choose their own. With no default set, autocomplete waits
+  for each person's choice.
+
 ## 2.0.0-beta.18 — 2026-11-24
 
 ### Added

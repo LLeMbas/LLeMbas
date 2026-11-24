@@ -56,6 +56,11 @@ chats, from `generation.ensure`, the one place replies start. A message's
 `origin` may also be `harness`: a turn a linked device's harness started (a
 finished job's note, a team report), mirrored here with its reply.
 
+An editor's two models (after beta.18, `misc.py`): `GET` and `PUT /editor`,
+the person's autocomplete and main model (`services/editor.py`) -- the same
+settings `/v1/lembas/editor` serves a client that holds only `models`. The
+completion itself is `POST /v1/lembas/complete`.
+
 Voice and images are not here: they are `/v1/audio/*` and
 `/v1/images/generations`, the OpenAI-compatible routes, which need the `models`
 scope. An app asks for `app models` at sign-in (the device login takes any of

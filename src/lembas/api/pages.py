@@ -1297,6 +1297,7 @@ async def settings_page(
     embed: str = "",
 ):
     from lembas.api.audio import available_voices
+    from lembas.services import editor as editor_service
     from lembas.services import memories as memories_service
     from lembas.services import personalization as personalization_service
     from lembas.services import reset as reset_service
@@ -1369,6 +1370,8 @@ async def settings_page(
             # The team's size for new chats (harness spec 3.2.0, team.md §2):
             # shown where this person may have a team at all.
             **_team_settings(db, user),
+            # The two models an editor uses as this person (services/editor.py).
+            "editor_models": editor_service.choices(db, user),
             "server_timezone": str(clock.server_zone()),
             # Through `i18n.stamp`, not `strftime`: `%A` and `%B` are C-locale
             # English whatever the page is in, and this one is read by a person.

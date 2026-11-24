@@ -196,6 +196,39 @@ def _device_runs(db, user, token_id: str) -> bool | None:
     return device_link.offers(token_id, "agents") and device_link.offers(token_id, "tree")
 
 
+# --- An editor's two models ------------------------------------------------------
+@router.get("/editor")
+async def editor_settings(caller: Me, db: Db) -> dict[str, Any]:
+    """The person's two models in an editor (`services/editor.py`):
+    `{autocomplete: {model, source, allowed}, main: {model}}`. A model is its
+    `ref` (`provider/id`, as on `GET /models`) or null. `source` is `person`
+    (their own choice), `instance` (the administrator's default) or null with
+    no model. `allowed` lists the refs an administrator allows for
+    autocomplete, or is null when any of the person's chat models may be
+    used. The same answer as `GET /v1/lembas/editor`."""
+    from lembas.services import editor
+
+    return editor.view(db, caller.user)
+
+
+@router.put("/editor")
+async def set_editor_settings(
+    caller: Me, db: Db, body: dict[str, Any] = Body(...)
+) -> dict[str, Any]:
+    """Set the person's choices: `autocomplete_model` and `main_model`, each a
+    ref or null (null: back to the instance's). A field left out keeps what
+    is stored. Refused whole -- nothing written -- for a model that is not
+    theirs (404) or not allowed for autocomplete (403)."""
+    from lembas.services import editor
+
+    changes = {key: body[key] for key in ("autocomplete_model", "main_model") if key in body}
+    try:
+        editor.save(db, caller.user, **changes)
+    except editor.Refused as exc:
+        raise HTTPException(exc.status_code, editor.refusal_text(exc)) from exc
+    return editor.view(db, caller.user)
+
+
 @router.get("/models/images/{filename}")
 async def model_image(caller: Me, db: Db, filename: str) -> Response:
     """A model's picture, for the app: the token's door to what the page reads
