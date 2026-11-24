@@ -1,0 +1,4 @@
+{
+  "detail": "This computer has no trash for /mnt/usb/old.bin: deleting it cannot be undone.",
+  "reason": "no_trash"
+}

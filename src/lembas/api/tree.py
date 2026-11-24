@@ -73,11 +73,16 @@ def _python(db) -> bool:
 def _frame(db, user, v: fs.View, path: str) -> dict:
     """What every explorer page draws around its content: the tree from where
     this person's files start, and whether Python runs here."""
+    from lembas.services import device_files
+
     top = fs.start(v)
     return {
         "tree": _tree(v, path, top),
         "top": top,
         "python": _python(db),
+        # The person's linked computers that show their files: one more
+        # place each (`api/device_files.py`).
+        "places": device_files.places(db, user),
     }
 
 

@@ -1,0 +1,14 @@
+{
+  "root": "/home/dev/project",
+  "truncated": false,
+  "files": [
+    {
+      "path": "src/oven.py",
+      "kind": "file"
+    },
+    {
+      "path": "src",
+      "kind": "dir"
+    }
+  ]
+}

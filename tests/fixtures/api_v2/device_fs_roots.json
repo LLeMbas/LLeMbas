@@ -1,0 +1,23 @@
+{
+  "device": "",
+  "path": "",
+  "parent": "",
+  "writable": false,
+  "entries": [
+    {
+      "name": "project",
+      "path": "/home/dev/project",
+      "kind": "dir",
+      "size": 0,
+      "mtime": 1767323045000,
+      "updated_at": "2026-01-02T03:04:05+00:00",
+      "file_kind": null,
+      "link": null,
+      "outside": false,
+      "protected": false,
+      "runs_code": false,
+      "writable": false
+    }
+  ],
+  "truncated": false
+}

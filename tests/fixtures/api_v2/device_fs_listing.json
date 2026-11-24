@@ -1,0 +1,93 @@
+{
+  "device": "",
+  "path": "/home/dev/project",
+  "parent": "",
+  "writable": false,
+  "entries": [
+    {
+      "name": "src",
+      "path": "/home/dev/project/src",
+      "kind": "dir",
+      "size": 0,
+      "mtime": 1767323045000,
+      "updated_at": "2026-01-02T03:04:05+00:00",
+      "file_kind": null,
+      "link": null,
+      "outside": false,
+      "protected": false,
+      "runs_code": false,
+      "writable": false
+    },
+    {
+      "name": "shared",
+      "path": "/home/dev/project/shared",
+      "kind": "dir",
+      "size": 0,
+      "mtime": 1767323045000,
+      "updated_at": "2026-01-02T03:04:05+00:00",
+      "file_kind": null,
+      "link": "/srv/shared",
+      "outside": true,
+      "protected": false,
+      "runs_code": false,
+      "writable": false
+    },
+    {
+      "name": ".env",
+      "path": "/home/dev/project/.env",
+      "kind": "file",
+      "size": 0,
+      "mtime": 1767323045000,
+      "updated_at": "2026-01-02T03:04:05+00:00",
+      "file_kind": "text",
+      "link": null,
+      "outside": false,
+      "protected": true,
+      "runs_code": false,
+      "writable": false
+    },
+    {
+      "name": "oven.py",
+      "path": "/home/dev/project/oven.py",
+      "kind": "file",
+      "size": 412,
+      "mtime": 1767323045000,
+      "updated_at": "2026-01-02T03:04:05+00:00",
+      "file_kind": "code",
+      "link": null,
+      "outside": false,
+      "protected": false,
+      "runs_code": false,
+      "writable": false
+    },
+    {
+      "name": "loaf.png",
+      "path": "/home/dev/project/loaf.png",
+      "kind": "file",
+      "size": 48211,
+      "mtime": 1767323045000,
+      "updated_at": "2026-01-02T03:04:05+00:00",
+      "file_kind": "binary",
+      "link": null,
+      "outside": false,
+      "protected": false,
+      "runs_code": false,
+      "writable": false
+    },
+    {
+      "name": ".git",
+      "path": "/home/dev/project/.git",
+      "kind": "dir",
+      "size": 0,
+      "mtime": 1767323045000,
+      "updated_at": "2026-01-02T03:04:05+00:00",
+      "file_kind": null,
+      "link": null,
+      "outside": false,
+      "protected": false,
+      "runs_code": true,
+      "writable": false
+    }
+  ],
+  "truncated": false
+}

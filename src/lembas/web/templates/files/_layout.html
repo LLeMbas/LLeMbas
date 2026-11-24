@@ -43,16 +43,27 @@
     <div class="fx" data-in-place-root data-testid="explorer">
       {{ flashes() }}
       <div class="fx__bar">
-        {% include "files/_crumbs.html" %}
+        {% block files_crumbs %}{% include "files/_crumbs.html" %}{% endblock %}
         <div class="fx__tools">{% block tools %}{% endblock %}</div>
       </div>
       <div class="fx__panes">
         <aside class="fx__tree" aria-label="{{ t('Folders') }}">
-          <a class="ftree__link ftree__root{{ ' is-current' if path == top }}"
+          <a class="ftree__link ftree__root{{ ' is-current' if path == top and not place|default('') }}"
              href="/files{{ '?path=' ~ top|urlencode if top != '/' }}" data-drop-dir="{{ top }}">
             {{ icon("folder-open", "icon--sm") }}<span class="ftree__name">{{ t("All files") if top == "/" else t("Home") }}</span>
           </a>
-          {% if tree %}{% with branches = tree %}{% include "files/_tree.html" %}{% endwith %}{% endif %}
+          {% if tree and not place|default('') %}{% with branches = tree %}{% include "files/_tree.html" %}{% endwith %}{% endif %}
+          {#- The person's linked computers that show their files
+              (services/device_files.py): one more place each. On a phone,
+              where this tree is not drawn, they are rows at the top of the
+              list (files/index.html). -#}
+          {% for computer in places|default([]) %}
+          <a class="ftree__link ftree__place{{ ' is-current' if place|default('') == computer.id }}"
+             href="/files/device/{{ computer.id|urlencode }}" data-testid="files-place"
+             {%- if place|default('') == computer.id %} aria-current="page"{% endif %}>
+            {{ icon("terminal", "icon--sm") }}<span class="ftree__name">{{ computer.name }}</span>
+          </a>
+          {% endfor %}
           <a class="ftree__link ftree__trash" href="/files/trash">
             {{ icon("trash", "icon--sm") }}<span class="ftree__name">{{ t("Trash") }}</span>
           </a>

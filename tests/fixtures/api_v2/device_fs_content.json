@@ -1,0 +1,13 @@
+{
+  "path": "/home/dev/project/oven.py",
+  "name": "oven.py",
+  "size": 412,
+  "mtime": 1767323045000,
+  "mime": "text/x-python",
+  "kind": "code",
+  "file_kind": "code",
+  "writable": true,
+  "language": "python",
+  "sha": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "text": "def bake():\n    return 'lembas'\n"
+}

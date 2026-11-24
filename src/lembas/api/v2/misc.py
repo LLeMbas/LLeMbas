@@ -282,6 +282,9 @@ async def devices(caller: Me, db: Db) -> dict[str, Any]:
                 scheduled=link.can("scheduled") and scheduled_device.accepts(link),
                 max_mode=link.max_mode or "",
                 directory_model=link.can("directory_model"),
+                files=link.can("fs"),
+                files_run_code=(link.hello.get("limits") or {}).get("files_that_run_code")
+                is True,
             )
         )
     return {"devices": out}

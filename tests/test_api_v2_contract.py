@@ -681,7 +681,7 @@ def _menus() -> dict[str, object]:
                 SimpleNamespace(id="token1", name="LLeMbas CLI on workstation",
                                 device_host="workstation", device_platform="linux"),
                 terminal=True, terminal_off=("", ""), scheduled=True, max_mode="edit",
-                directory_model=True,
+                directory_model=True, files=True,
             ),
             serialise.device(
                 SimpleNamespace(id="token2", name="LLeMbas CLI on laptop",
@@ -693,6 +693,7 @@ def _menus() -> dict[str, object]:
                 scheduled=False, max_mode="",
             ),
         ]},
+        **_device_fs(),
         # `GET /mcp`: the MCP servers a person's chats may be offered, with
         # the state of each one's sign-in. One the instance holds a secret
         # for, one the person is signed in to, one they have to sign in to
@@ -1386,6 +1387,91 @@ def _media() -> dict[str, object]:
         "media_job_done": done,
         "media_job_failed": failed,
         "media_jobs": {"jobs": [running, done, failed]},
+    }
+
+
+def _device_fs() -> dict[str, object]:
+    """A linked computer's files (`/devices/{id}/fs…`, harness spec 3.11.0),
+    as `services/device_files.py` cuts a device's answers to shape: its
+    roots, a directory (a link that leaves the roots, an entry the device
+    will not open), one entry with its hash, a text file for an editor and
+    one withheld, a save, the two refusals an app acts on, a delete, and a
+    search by name and by content."""
+    from lembas.services import device_files
+
+    stamp = 1767323045000
+    digest = "sha256:" + "a" * 64
+    entries = [
+        {"name": "src", "path": "/home/dev/project/src", "kind": "dir", "size": 0,
+         "mtime": stamp},
+        {"name": "shared", "path": "/home/dev/project/shared", "kind": "dir", "size": 0,
+         "mtime": stamp, "link": "/srv/shared", "outside": True},
+        {"name": ".env", "path": "/home/dev/project/.env", "kind": "file", "size": 0,
+         "mtime": stamp, "protected": True},
+        {"name": "oven.py", "path": "/home/dev/project/oven.py", "kind": "file", "size": 412,
+         "mtime": stamp},
+        {"name": "loaf.png", "path": "/home/dev/project/loaf.png", "kind": "file",
+         "size": 48211, "mtime": stamp},
+    ]
+    changed = device_files.Refused(
+        "changed", "/home/dev/project/oven.py changed on the computer since you opened it.",
+        {"reason": "changed", "hash": "sha256:" + "b" * 64, "mtime": stamp + 5000},
+    )
+    no_trash = device_files.Refused(
+        "no_trash", "This computer has no trash for /mnt/usb/old.bin: deleting it cannot "
+        "be undone.", {"reason": "no_trash"},
+    )
+    return {
+        "device_fs_roots": device_files.listing("", {"path": "", "entries": [
+            {"name": "project", "path": "/home/dev/project", "kind": "dir", "size": 0,
+             "mtime": stamp},
+        ]}),
+        "device_fs_listing": device_files.listing("", {
+            "path": "/home/dev/project", "parent": "", "entries": [
+                *entries,
+                {"name": ".git", "path": "/home/dev/project/.git", "kind": "dir", "size": 0,
+                 "mtime": stamp},
+            ], "truncated": False,
+        }),
+        "device_fs_stat": device_files.entry({**entries[3], "hash": digest}),
+        "device_fs_content": {
+            "path": "/home/dev/project/oven.py", "name": "oven.py", "size": 412,
+            "mtime": stamp, "mime": "text/x-python", "kind": "code", "file_kind": "code",
+            "writable": True, "language": "python", "sha": digest,
+            "text": "def bake():\n    return 'lembas'\n",
+        },
+        "device_fs_content_withheld": {
+            "path": "/home/dev/project/loaf.png", "name": "loaf.png", "size": 48211,
+            "mtime": stamp, "mime": "image/png", "kind": "image", "file_kind": "image",
+            "writable": True, "language": "", "sha": "", "text": "",
+            "withheld": {"reason": "not_text",
+                         "message": "This is not a text file, so it is not shown here."},
+        },
+        "device_fs_written": device_files.written({
+            "path": "/home/dev/project/oven.py", "size": 430, "mtime": stamp + 9000,
+            "hash": "sha256:" + "c" * 64,
+        }),
+        # `POST …/fs/move`, `/copy` and `/delete` with `paths`: the tree's
+        # batch answer, each failure with the device's sentence and reason.
+        "device_fs_batch": {
+            "op": "delete", "to": None, "atomic": False, "done": 1, "failed": 1,
+            "results": [
+                {"path": "/home/dev/project/old.md", "ok": True, "trash": True},
+                {"path": "/mnt/usb/old.bin", "ok": False, "error": no_trash.message,
+                 "reason": "no_trash"},
+            ],
+        },
+        "device_fs_conflict": changed.body(),
+        "device_fs_no_trash": no_trash.body(),
+        "device_fs_deleted": {"deleted": True, "trash": True},
+        "device_fs_search": device_files.found({
+            "root": "/home/dev/project",
+            "files": [{"path": "src/oven.py", "kind": "file"}, {"path": "src", "kind": "dir"}],
+        }, content=False),
+        "device_fs_search_content": device_files.found({
+            "root": "/home/dev/project", "truncated": True,
+            "matches": [{"path": "src/oven.py", "line": 2, "text": "    return 'lembas'"}],
+        }, content=True),
     }
 
 

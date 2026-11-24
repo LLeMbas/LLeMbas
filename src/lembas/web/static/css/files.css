@@ -132,6 +132,7 @@
 .ftree__link.is-current { color: var(--ink); background: var(--surface-active); font-weight: 600; }
 .ftree__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ftree__root { flex: none; }
+.ftree__place { flex: none; }
 .ftree__trash { flex: none; margin-top: auto; }
 
 /* --- The list ------------------------------------------------------------------ */
@@ -823,3 +824,9 @@ img.brand-logo { object-fit: contain; }
 }
 .invite-form > .field { display: grid; grid-template-rows: subgrid; grid-row: span 3; min-width: 0; margin: 0; }
 .invite-form__go { grid-column: 1 / -1; }
+
+/* Linked computers at the top of the first page of Files (files/index.html):
+   rows of the list's own grid, set off from the files under them. And the
+   line under a computer's listing that was cut short (files/device.html). */
+.file-rows--places { margin-bottom: var(--sp-3); }
+.fx-list__note { margin: var(--sp-2) var(--sp-4); }

@@ -624,9 +624,15 @@ def report(row: Any, schedule_title: str | None, *, whole: bool = False) -> dict
 
 def device(
     token: Any, *, terminal: bool, terminal_off: tuple[str, str], scheduled: bool, max_mode: str,
-    directory_model: bool = False,
+    directory_model: bool = False, files: bool = False, files_run_code: bool = False,
 ) -> dict[str, Any]:
     """One linked device of `GET /devices`.
+
+    `files` (spec 3.11.0): whether it shows its files to the person's file
+    manager (`/devices/{id}/fs`); `files_writable` is false where the device
+    is read-only to it (its highest mode is plan); `files_that_run_code`
+    whether it lets git's internals, a project's agent configuration and the
+    shells' start-up files be changed from here.
 
     `terminal`: whether it opens a terminal for this person (its
     `remote.terminal`, the permission, the instance's switch) -- offered on it
@@ -648,6 +654,11 @@ def device(
         "scheduled": bool(scheduled),
         "max_mode": max_mode,
         "directory_model": bool(directory_model),
+        "files": bool(files),
+        "files_writable": bool(files) and max_mode != "plan",
+        # Whether it lets its files that run code be changed from here
+        # (its `remote.files_that_run_code`, off unless it says so).
+        "files_that_run_code": bool(files) and bool(files_run_code),
     }
 
 

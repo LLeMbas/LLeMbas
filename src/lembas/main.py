@@ -57,6 +57,7 @@ from lembas.api import (
     tokens,
     tree,
 )
+from lembas.api import device_files as device_files_pages
 from lembas.api import html_pages as html_pages_api
 from lembas.api import (
     media_jobs as media_jobs_api,
@@ -286,6 +287,9 @@ def create_app() -> FastAPI:
     app.include_router(admin_agents.router)
     app.include_router(admin_data_groups.router)
     app.include_router(ordering.router)
+    # A linked computer as one more place of the Files page. Before the
+    # tree's routes: none of its paths is one of theirs, and it reads better.
+    app.include_router(device_files_pages.router)
     app.include_router(tree.router)
     app.include_router(access_ui.router)
     app.include_router(palette.router)

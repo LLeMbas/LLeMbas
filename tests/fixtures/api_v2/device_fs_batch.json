@@ -1,0 +1,20 @@
+{
+  "op": "delete",
+  "to": null,
+  "atomic": false,
+  "done": 1,
+  "failed": 1,
+  "results": [
+    {
+      "path": "/home/dev/project/old.md",
+      "ok": true,
+      "trash": true
+    },
+    {
+      "path": "/mnt/usb/old.bin",
+      "ok": false,
+      "error": "This computer has no trash for /mnt/usb/old.bin: deleting it cannot be undone.",
+      "reason": "no_trash"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "path": "/home/dev/project/loaf.png",
+  "name": "loaf.png",
+  "size": 48211,
+  "mtime": 1767323045000,
+  "mime": "image/png",
+  "kind": "image",
+  "file_kind": "image",
+  "writable": true,
+  "language": "",
+  "sha": "",
+  "text": "",
+  "withheld": {
+    "reason": "not_text",
+    "message": "This is not a text file, so it is not shown here."
+  }
+}

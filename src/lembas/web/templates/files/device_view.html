@@ -1,0 +1,96 @@
+{% extends "files/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% from "files/_macros.html" import size %}
+{% set explorer = true %}
+{% set link_last = false %}
+{#
+  A file on a linked computer, `GET /files/device/{id}/view?path=`.
+
+  A text file the computer lets this person change opens in the editor
+  (js/editor.js over a textarea; without JavaScript the textarea and Save post
+  the form). Save sends the hash that was opened: a file that changed on the
+  computer meanwhile is not written over unseen. A picture, sound or video is
+  shown by the browser from the bytes -- the raw route answers them under
+  their own type only when their first bytes say that is what they are --
+  and anything else is a card with Download. Nothing a computer sends is
+  ever a page of this application.
+#}
+{% block title %}{{ opened.name if opened else path }} - {{ computer.name }} - {{ brand.name }}{% endblock %}
+
+{% block files_head %}
+{% if editing %}{% include "files/_editor_head.html" %}{% endif %}
+{% endblock %}
+
+{% block files_crumbs %}{% include "files/_device_crumbs.html" %}{% endblock %}
+
+{% block files_content %}
+{% if problem %}
+<div class="empty" data-testid="device-problem">
+  {{ icon("file-text", "empty__mark") }}
+  <h2 class="empty__title">{{ t("Not here") }}</h2>
+  <p class="empty__text">{{ problem }}</p>
+  <p class="empty__text"><a href="/files/device/{{ computer.id|urlencode }}">{{ t("Back to this computer") }}</a></p>
+</div>
+{% else %}
+{% set raw_url = "/files/device/" ~ (computer.id|urlencode) ~ "/raw?path=" ~ (opened.path|urlencode) %}
+<div class="fx-file{{ ' is-editing' if editing }}" data-testid="device-file">
+  <div class="fx-file__bar">
+    <span class="fx-file__name">
+      {{ icon("file-code" if opened.file_kind in ("code", "html") else "file-text", "icon--sm") }}
+      <strong class="truncate">{{ opened.name }}</strong>
+      <span class="fx-file__meta">{{ size(opened.size) }} · {{ computer.name }}{% if not writable %} · {{ t("read-only") }}{% endif %}{% if opened.writable is false and computer.writable and not opened.withheld %} · {{ t("this computer does not let files that run code be changed from here") }}{% endif %}</span>
+    </span>
+    <span class="fx-file__state editor__state" data-editor-state aria-live="polite"></span>
+    <span class="fx-file__tools">
+      <a class="btn btn--icon btn--sm" href="{{ raw_url }}" download data-testid="device-download"
+         aria-label="{{ t('Download') }}" title="{{ t('Download') }}">{{ icon("download", "icon--sm") }}</a>
+      {% if editing %}
+      <button class="btn btn--primary btn--sm" type="submit" form="file-editor" data-testid="editor-save"
+              aria-keyshortcuts="Control+S">{{ t("Save") }}</button>
+      {% endif %}
+    </span>
+  </div>
+
+  <div class="fx-file__body">
+    {% if editing %}
+    <form class="editor" id="file-editor" method="post"
+          action="/files/device/{{ computer.id|urlencode }}/save" data-in-place="off"
+          data-editor data-testid="file-editor">
+      <input type="hidden" name="path" value="{{ opened.path }}">
+      <input type="hidden" name="base" value="{{ opened.sha }}">
+      <textarea class="textarea editor__text" name="content" spellcheck="false"
+                data-language="{{ opened.language or opened.file_kind }}"
+                aria-label="{{ t('Contents of %(name)s', name=opened.name) }}">{{ opened.text }}</textarea>
+    </form>
+    {% else %}
+    <div class="fx-file__view viewer" data-testid="file-viewer">
+      <div class="viewer__body">
+      {% if not opened.withheld %}
+        <pre class="viewer__code"><code>{{ opened.text }}</code></pre>
+      {% elif opened.file_kind == "image" %}
+        <img class="viewer__image" src="{{ raw_url }}&amp;inline=1" alt="{{ opened.name }}" data-testid="viewer-image">
+      {% elif opened.file_kind == "audio" %}
+        <div class="viewer__media">
+          <audio class="viewer__audio" controls preload="metadata" src="{{ raw_url }}&amp;inline=1" data-testid="viewer-audio"></audio>
+        </div>
+      {% elif opened.file_kind == "video" %}
+        <div class="viewer__media">
+          <video class="viewer__video" controls preload="metadata" playsinline src="{{ raw_url }}&amp;inline=1" data-testid="viewer-video"></video>
+        </div>
+      {% else %}
+        <div class="empty viewer__card" data-testid="viewer-card">
+          {{ icon("file-text", "empty__mark") }}
+          <p class="empty__text">{{ t("This file is too large to show here.") if opened.withheld and opened.withheld.reason == "too_large" else t("There is no viewer for this kind of file.") }}</p>
+          <dl class="viewer__facts">
+            <div><dt>{{ t("Size") }}</dt><dd>{{ size(opened.size) }}</dd></div>
+          </dl>
+          <p class="empty__text"><a class="btn" href="{{ raw_url }}" download>{{ icon("download", "icon--sm") }} {{ t("Download") }}</a></p>
+        </div>
+      {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

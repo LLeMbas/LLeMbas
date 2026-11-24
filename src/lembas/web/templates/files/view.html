@@ -21,31 +21,7 @@
 
 {% block files_head %}
 {% if editing %}
-<script type="importmap">
-{
-  "imports": {
-    "@codemirror/state": "{{ asset('vendor/cm-state.mjs') }}",
-    "@codemirror/view": "{{ asset('vendor/cm-view.mjs') }}",
-    "@codemirror/language": "{{ asset('vendor/cm-language.mjs') }}",
-    "@codemirror/commands": "{{ asset('vendor/cm-commands.mjs') }}",
-    "@codemirror/search": "{{ asset('vendor/cm-search.mjs') }}",
-    "@codemirror/autocomplete": "{{ asset('vendor/cm-autocomplete.mjs') }}",
-    "@codemirror/lint": "{{ asset('vendor/cm-lint.mjs') }}",
-    "@lezer/common": "{{ asset('vendor/lezer-common.mjs') }}",
-    "@lezer/highlight": "{{ asset('vendor/lezer-highlight.mjs') }}",
-    "@lezer/lr": "{{ asset('vendor/lezer-lr.mjs') }}",
-    "codemirror": "{{ asset('vendor/cm-codemirror.mjs') }}",
-    "@codemirror/lang-markdown": "{{ asset('vendor/cm-lang-markdown.mjs') }}",
-    "@codemirror/lang-python": "{{ asset('vendor/cm-lang-python.mjs') }}",
-    "@codemirror/lang-javascript": "{{ asset('vendor/cm-lang-javascript.mjs') }}",
-    "@codemirror/lang-html": "{{ asset('vendor/cm-lang-html.mjs') }}",
-    "@codemirror/lang-css": "{{ asset('vendor/cm-lang-css.mjs') }}",
-    "@codemirror/lang-json": "{{ asset('vendor/cm-lang-json.mjs') }}",
-    "/node/process.mjs": "{{ asset('js/node-process.mjs') }}"
-  }
-}
-</script>
-<script type="module" src="{{ asset('js/editor.js') }}"></script>
+{% include "files/_editor_head.html" %}
 {% endif %}
 <script src="{{ asset('js/file-page.js') }}" defer></script>
 {% endblock %}

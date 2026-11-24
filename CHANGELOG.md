@@ -38,6 +38,21 @@ at <https://llembas.eu/changelog.html>.
   read from its bytes, never from its name or from what the computer called it. For
   the app engineers: *Files an agent showed* in the wiki's `App-API.md`, and
   `tool_media_shown.json` among the contract files.
+- **The files of a linked computer, in Files and for the apps.** A computer linked with
+  LLeMbas CLI carrying harness spec 3.11.0 shows the folders it shares as one more place:
+  in the web UI's Files page (the tree, and a row at the top of the first page) you can
+  browse them, open a file, edit a text file, upload and download. The apps get the whole
+  set under `/api/v2/devices/{id}/fs`: list, one entry, a text file with its hash, save,
+  the raw bytes, upload, make a folder, rename, move, copy, delete and search. The
+  computer decides everything -- which folders, what is protected, whether it is
+  read-only, whether git's internals and other files that run code may be changed from
+  here -- and its own sentence is passed on when it refuses. A save names the content it
+  was made from: a file that changed on the computer meanwhile is not written over
+  unseen. Deleting goes to the computer's trash, and where it has none you are asked
+  first. Only your own linked computers, whoever you are on the instance. For the app
+  engineers: *A linked computer's files* in the wiki's `App-API.md`, the `device_fs_*`
+  contract files, and `files`, `files_writable` and `files_that_run_code` on each of
+  `GET /api/v2/devices`.
 - **Two models for an editor, kept in your account.** *Autocomplete* and *main* (the
   model that answers a question about your code, rewrites a selection and starts a
   chat in an editor) are two separate settings under Settings › Models, and may be the

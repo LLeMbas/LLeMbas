@@ -10,7 +10,10 @@
       "terminal_hint": "",
       "scheduled": true,
       "max_mode": "edit",
-      "directory_model": true
+      "directory_model": true,
+      "files": true,
+      "files_writable": true,
+      "files_that_run_code": false
     },
     {
       "id": "token2",
@@ -22,7 +25,10 @@
       "terminal_hint": "laptop does not open terminals. Switch it on there: in LLeMbas Desktop's settings, or with the LLeMbas CLI's remote.terminal setting.",
       "scheduled": false,
       "max_mode": "",
-      "directory_model": false
+      "directory_model": false,
+      "files": false,
+      "files_writable": false,
+      "files_that_run_code": false
     }
   ]
 }

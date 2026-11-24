@@ -61,6 +61,13 @@ the person's autocomplete and main model (`services/editor.py`) -- the same
 settings `/v1/lembas/editor` serves a client that holds only `models`. The
 completion itself is `POST /v1/lembas/complete`.
 
+A linked computer's files (after beta.18, `device_files.py`, harness spec
+3.11.0): `/devices/{id}/fs…` -- list, stat, read, save with a base check,
+raw bytes, upload, mkdir, move, copy, delete and search, relayed to the
+device and bounded by it; `files` and `files_writable` on each of
+`GET /devices`. A tool call's `media` may be a file an agent *showed*
+(`shown: true`), with the file's kind.
+
 Voice and images are not here: they are `/v1/audio/*` and
 `/v1/images/generations`, the OpenAI-compatible routes, which need the `models`
 scope. An app asks for `app models` at sign-in (the device login takes any of
@@ -79,6 +86,7 @@ router = APIRouter(prefix="/api/v2", tags=["app"])
 def _include() -> None:
     from lembas.api.v2 import (
         chats,
+        device_files,
         files,
         folders,
         library,
@@ -105,6 +113,8 @@ def _include() -> None:
     # are longer than `misc`'s `/devices`, and `/attachments/from` is a POST
     # where `/attachments/{id}` is a GET and a DELETE.
     router.include_router(menus.router)
+    # A linked computer's files: `/devices/{id}/fs…` (spec 3.11.0).
+    router.include_router(device_files.router)
     router.include_router(python.router)
     router.include_router(reports.router)
     router.include_router(pages.router)

@@ -324,7 +324,7 @@ def test_the_import_map_names_only_vendored_files():
     import lembas
 
     root = Path(lembas.__file__).parent / "web"
-    page = (root / "templates/files/view.html").read_text(encoding="utf-8")
+    page = (root / "templates/files/_editor_head.html").read_text(encoding="utf-8")
     assert "http" not in page.split('type="importmap"')[1].split("</script>")[0]
     for name in ("cm-state.mjs", "cm-view.mjs", "cm-codemirror.mjs", "lezer-lr.mjs"):
         assert (root / "static/vendor" / name).exists()
@@ -340,7 +340,7 @@ def test_every_import_in_the_editor_modules_is_mapped():
     import lembas
 
     root = Path(lembas.__file__).parent / "web"
-    page = (root / "templates/files/view.html").read_text(encoding="utf-8")
+    page = (root / "templates/files/_editor_head.html").read_text(encoding="utf-8")
     mapped = set(re.findall(r'"([^"]+)":\s*"\{\{', page))
     wanted = set()
     for module in (root / "static/vendor").glob("*.mjs"):

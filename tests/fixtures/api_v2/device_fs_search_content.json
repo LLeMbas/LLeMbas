@@ -1,0 +1,11 @@
+{
+  "root": "/home/dev/project",
+  "truncated": true,
+  "matches": [
+    {
+      "path": "src/oven.py",
+      "line": 2,
+      "text": "    return 'lembas'"
+    }
+  ]
+}

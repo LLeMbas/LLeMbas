@@ -96,6 +96,28 @@
 {% else %}
 <div class="fx-list" data-drop-files="{{ path }}" data-testid="files-list"
      aria-label="{{ t('Contents') }}">
+  {% if places and path == top %}
+  {#- Linked computers that show their files: rows of the same grid, so they
+      line up with the files under them, and a place a thumb can reach where
+      the tree is not drawn. Every cell is there, empty or not. -#}
+  <div class="file-rows file-rows--places" role="table" aria-label="{{ t('Linked computers') }}"
+       data-testid="files-places">
+    {% for computer in places %}
+    <div class="file-row" role="row">
+      <span role="cell" class="file-row__name">
+        <a class="file-row__open" href="/files/device/{{ computer.id|urlencode }}">
+          <span class="file-row__icon">{{ icon("terminal", "icon--sm") }}</span>
+          <span class="file-row__label">{{ computer.name }}</span>
+        </a>
+      </span>
+      <span role="cell" class="file-row__type">{{ t("linked computer") }}</span>
+      <span role="cell" class="file-row__size"></span>
+      <span role="cell" class="file-row__when"></span>
+      <span role="cell" class="file-row__actions"></span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
   {% if not rows %}
   <div class="empty">
     {{ icon("folder-open", "empty__mark") }}

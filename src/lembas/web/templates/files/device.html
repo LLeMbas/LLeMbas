@@ -1,0 +1,94 @@
+{% extends "files/_layout.html" %}
+{% from "_macros.html" import icon %}
+{% from "files/_macros.html" import size %}
+{% set explorer = true %}
+{#
+  A linked computer as one more place of the Files page,
+  `GET /files/device/{id}?path=`: its roots, or one directory. This server
+  cannot see the computer's disk; it asks the computer
+  (services/device_files.py), which answers inside what it shares and nothing
+  else. Less than the server's own explorer on purpose: browse, open, upload,
+  download. The list is the explorer's grid (files/index.html), every cell
+  there whether or not it holds anything.
+#}
+{% block title %}{{ computer.name }} - {{ t("Files") }} - {{ brand.name }}{% endblock %}
+
+{% block files_crumbs %}{% include "files/_device_crumbs.html" %}{% endblock %}
+
+{% block tools %}
+{% if not problem and path and writable %}
+<form class="files-upload" method="post" action="/files/device/{{ computer.id|urlencode }}/upload"
+      enctype="multipart/form-data" data-upload-form data-in-place="off">
+  <input type="hidden" name="path" value="{{ path }}">
+  <label class="btn btn--sm btn--primary files-upload__pick">
+    {{ icon("arrow-up", "icon--sm") }}<span class="fx__label">{{ t("Upload") }}</span>
+    <input class="visually-hidden" type="file" name="files" multiple data-testid="device-upload">
+  </label>
+  <button class="btn files-upload__send" type="submit">{{ t("Send") }}</button>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block files_content %}
+{% if problem %}
+<div class="empty" data-testid="device-problem">
+  {{ icon("terminal", "empty__mark") }}
+  <h2 class="empty__title">{{ t("Not here") }}</h2>
+  <p class="empty__text">{{ problem }}</p>
+  <p class="empty__text"><a href="/files">{{ t("Back to your files") }}</a></p>
+</div>
+{% else %}
+<div class="fx-list" data-testid="device-list" aria-label="{{ t('Contents') }}">
+  {% if not rows %}
+  <div class="empty">
+    {{ icon("folder-open", "empty__mark") }}
+    <p class="empty__text">{{ t("Nothing here.") if path else t("This computer shares no folder. Its LLeMbas CLI decides which it shares.") }}</p>
+  </div>
+  {% else %}
+  <div class="file-rows" role="table" aria-label="{{ t('Contents') }}">
+    <div class="file-row file-row--head" role="row">
+      <span role="columnheader" class="file-row__name">{{ t("Name") }}</span>
+      <span role="columnheader" class="file-row__type">{{ t("Type") }}</span>
+      <span role="columnheader" class="file-row__size">{{ t("Size") }}</span>
+      <span role="columnheader" class="file-row__when">{{ t("Changed") }}</span>
+      <span role="columnheader"><span class="visually-hidden">{{ t("Actions") }}</span></span>
+    </div>
+    {% for row in rows %}
+    {% set here = "/files/device/" ~ (computer.id|urlencode) %}
+    {% set href = (here ~ "?path=" if row.kind == "dir" else here ~ "/view?path=") ~ row.path|urlencode %}
+    {% set closed = row.protected or row.outside or row.kind == "other" %}
+    <div class="file-row" role="row" data-testid="device-row">
+      <span role="cell" class="file-row__name">
+        {% if closed %}
+        <span class="file-row__open">
+          <span class="file-row__icon">{{ icon("file-text", "icon--sm") }}</span>
+          <span class="file-row__label">{{ row.name }}</span>
+        </span>
+        {% else %}
+        <a class="file-row__open" href="{{ href }}">
+          <span class="file-row__icon">{{ icon("folder" if row.kind == "dir" else ("image" if row.file_kind == "image" else ("file-code" if row.file_kind in ("code", "html") else "file-text")), "icon--sm") }}</span>
+          <span class="file-row__label">{{ row.name }}</span>
+        </a>
+        {% endif %}
+        {% if row.protected %}<span class="badge">{{ t("protected") }}</span>{% endif %}
+        {% if row.outside %}<span class="badge">{{ t("outside the shared folders") }}</span>{% endif %}
+        {% if row.runs_code and not row.writable and not closed %}<span class="badge" title="{{ t('This computer does not let files that run code be changed from here.') }}">{{ t("read-only") }}</span>{% endif %}
+      </span>
+      <span role="cell" class="file-row__type">{{ t("folder") if row.kind == "dir" else row.file_kind }}</span>
+      <span role="cell" class="file-row__size">{{ size(row.size) if row.kind == "file" and not row.protected }}</span>
+      <span role="cell" class="file-row__when">{{ stamp(row.when, "%d %B %Y") if row.when }}</span>
+      <span role="cell" class="file-row__actions">
+        {% if row.kind == "file" and not closed %}
+        <a class="btn btn--icon btn--sm" href="{{ here }}/raw?path={{ row.path|urlencode }}" download
+           data-testid="device-download"
+           aria-label="{{ t('Download %(name)s', name=row.name) }}" title="{{ t('Download') }}">{{ icon("download", "icon--sm") }}</a>
+        {% endif %}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+  {% if truncated %}<p class="faint text-xs fx-list__note">{{ t("Only the first entries of this folder are listed.") }}</p>{% endif %}
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

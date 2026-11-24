@@ -368,6 +368,13 @@ class Link:
                     data = error.get("data") if isinstance(error, dict) else None
                     if isinstance(data, dict):
                         refused.reason = str(data.get("reason") or "")[:40]
+                        # The rest of what it said beside the reason (a
+                        # changed file's `hash` and `mtime`), for the caller
+                        # that knows the method.
+                        refused.data = {
+                            str(k)[:40]: v for k, v in list(data.items())[:16]
+                            if isinstance(v, str | int | float | bool | type(None))
+                        }
                     future.set_exception(refused)
                 else:
                     future.set_result(message.get("result"))
@@ -1077,6 +1084,8 @@ class DeviceError(Exception):
     where it gave one."""
 
     reason = ""
+    # Replaced per refusal, never changed in place.
+    data: dict[str, Any] = {}
 
 
 LINKS: dict[str, Link] = {}

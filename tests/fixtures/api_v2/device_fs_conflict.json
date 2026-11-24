@@ -1,0 +1,7 @@
+{
+  "detail": "/home/dev/project/oven.py changed on the computer since you opened it.",
+  "reason": "changed",
+  "conflict": true,
+  "sha": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "mtime": 1767323050000
+}

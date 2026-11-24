@@ -3139,3 +3139,40 @@ MESSAGES['Editor models updated.'] = "Modèles de l'éditeur mis à jour."
 MESSAGES['That is an embedding model: it cannot write text.'] = "C'est un modèle d'embedding : il ne peut pas écrire de texte."
 MESSAGES['That model is not allowed for autocomplete here.'] = "Ce modèle n'est pas autorisé ici pour l'autocomplétion."
 MESSAGES['A model is named by its id, or null for none.'] = 'Un modèle se désigne par son id, ou null pour aucun.'
+
+# --- A linked computer's files ---
+MESSAGES['Nothing here.'] = 'Rien ici.'
+MESSAGES['This computer shares no folder. Its LLeMbas CLI decides which it shares.'] = "Cet ordinateur ne partage aucun dossier. C'est son LLeMbas CLI qui décide lesquels il partage."
+MESSAGES['protected'] = 'protégé'
+MESSAGES['outside the shared folders'] = 'hors des dossiers partagés'
+MESSAGES['Download %(name)s'] = 'Télécharger %(name)s'
+MESSAGES['Only the first entries of this folder are listed.'] = 'Seules les premières entrées de ce dossier sont listées.'
+MESSAGES['Back to this computer'] = 'Retour à cet ordinateur'
+MESSAGES['Linked computers'] = 'Ordinateurs liés'
+MESSAGES['linked computer'] = 'ordinateur lié'
+MESSAGES['A linked computer'] = 'Un ordinateur lié'
+MESSAGES['No file was named.'] = "Aucun fichier n'a été indiqué."
+MESSAGES['That text is over 1 MB: too large to save from an editor here.'] = 'Ce texte dépasse 1 Mo : trop volumineux pour être enregistré ici depuis un éditeur.'
+MESSAGES['This save does not say what it is based on.'] = 'Cet enregistrement ne dit pas sur quoi il se fonde.'
+MESSAGES['This file changed on the computer since you opened it. Reload it, or save anyway.'] = "Ce fichier a changé sur l'ordinateur depuis que vous l'avez ouvert. Rechargez-le, ou enregistrez quand même."
+MESSAGES['No folder was named.'] = "Aucun dossier n'a été indiqué."
+MESSAGES['%(n)s file(s) uploaded.'] = '%(n)s fichier(s) envoyé(s).'
+MESSAGES['`%(name)s` is required: a path on the computer.'] = "`%(name)s` est requis : un chemin sur l'ordinateur."
+MESSAGES['`base` is a hash, or null for a new file.'] = '`base` est un hachage, ou null pour un nouveau fichier.'
+MESSAGES["`text` is required: the file's text."] = '`text` est requis : le texte du fichier.'
+MESSAGES['An uploaded file has no name.'] = "Un fichier envoyé n'a pas de nom."
+MESSAGES['%(name)s is larger than this instance takes in one upload (%(mb)s MB).'] = '%(name)s dépasse ce que cette instance accepte en un envoi (%(mb)s Mo).'
+MESSAGES['That computer is not one of yours, or is not linked to this account.'] = "Cet ordinateur n'est pas le vôtre, ou n'est pas lié à ce compte."
+MESSAGES['This computer is not linked right now.'] = "Cet ordinateur n'est pas lié en ce moment."
+MESSAGES["This computer's LLeMbas CLI is too old to show its files here. Update it there."] = 'Le LLeMbas CLI de cet ordinateur est trop ancien pour montrer ses fichiers ici. Mettez-le à jour là-bas.'
+MESSAGES['The computer did not answer.'] = "L'ordinateur n'a pas répondu."
+MESSAGES['The computer answered with something this server cannot read.'] = "L'ordinateur a répondu par quelque chose que ce serveur ne peut pas lire."
+MESSAGES['That file is larger than can be sent through this server.'] = 'Ce fichier dépasse ce qui peut être envoyé par ce serveur.'
+MESSAGES['The file changed on the computer while it was read.'] = "Le fichier a changé sur l'ordinateur pendant sa lecture."
+
+# --- A linked computer's files: names, batches, files that run code ---
+MESSAGES['A name is one name: no slash in it.'] = 'Un nom est un seul nom : sans barre oblique.'
+MESSAGES['`paths` is required: a list of paths.'] = '`paths` est requis : une liste de chemins.'
+MESSAGES['Too many paths in one request.'] = 'Trop de chemins dans une seule requête.'
+MESSAGES['this computer does not let files that run code be changed from here'] = "cet ordinateur ne permet pas de modifier d'ici les fichiers qui exécutent du code"
+MESSAGES['This computer does not let files that run code be changed from here.'] = "Cet ordinateur ne permet pas de modifier d'ici les fichiers qui exécutent du code."

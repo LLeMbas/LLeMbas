@@ -1,0 +1,20 @@
+{#- Where you are on a linked computer: back to the server's files, the
+    computer, then the path under the root that was opened. Its own scroller,
+    as files/_crumbs.html. -#}
+<nav class="file-crumbs" aria-label="{{ t('Where you are') }}" data-testid="file-crumbs">
+  <a class="file-crumbs__link" href="/files">{{ t("All files") }}</a>
+  <span class="file-crumbs__sep" aria-hidden="true">/</span>
+  {% if not crumbs %}
+  <span class="file-crumbs__here" aria-current="page">{{ computer.name }}</span>
+  {% else %}
+  <a class="file-crumbs__link" href="/files/device/{{ computer.id|urlencode }}">{{ computer.name }}</a>
+  {% endif %}
+  {% for name, at in crumbs %}
+    <span class="file-crumbs__sep" aria-hidden="true">/</span>
+    {% if loop.last and not link_last|default(false) %}
+    <span class="file-crumbs__here" aria-current="page">{{ name }}</span>
+    {% else %}
+    <a class="file-crumbs__link" href="/files/device/{{ computer.id|urlencode }}?path={{ at|urlencode }}">{{ name }}</a>
+    {% endif %}
+  {% endfor %}
+</nav>
