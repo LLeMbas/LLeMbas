@@ -673,16 +673,31 @@ async def _run_show(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
         node = fs.stat(s.view, path)
         if node is None or node.kind != KIND_FILE:
             raise fs.is_a_directory(path)
+        # A file that is not text -- a picture, a recording, a PDF, a 3D
+        # model -- is drawn in the conversation by its kind, as a generated
+        # file is (`services/media/shown.py`): the card names this file by its
+        # id, and nothing is copied or sent to a model. What it is, is read
+        # from its bytes, never from its name alone.
+        from lembas.services.media import shown as shown_media
+
+        head = next(iter(fs.read_stream(s.view, path)), b"")[:8192]
+        if _binary(head) or not shown_media.is_text(node.name, head):
+            if (node.size or 0) > shown_media.limits()["max_bytes"]:
+                raise ToolRefusal(shown_media.too_large(path, int(node.size or 0)))
+            versions = fs.versions(s.view, path)
+            media = shown_media.result(
+                node, head, version_id=versions[0].id if versions else ""
+            )
+            return ToolOutcome(
+                f"Shown to the user: {path}.",
+                {"name": "show", "status": "ok", "path": path, "query": path, "media": media},
+            )
         if (node.size or 0) > SHOW_MAX_BYTES:
             raise ToolRefusal(
                 f"{path} is {round((node.size or 0) / 1024)} KB; at most 1 MB can be shown. "
                 "Give the user the path instead."
             )
         data = fs.read(s.view, path)
-        if _binary(data):
-            raise ToolRefusal(
-                f"{path} is not a text file; it cannot be shown. Give the user the path instead."
-            )
         versions = fs.versions(s.view, path)
         kind, language = show_kind(path)
         payload = {

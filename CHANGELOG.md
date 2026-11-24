@@ -25,6 +25,19 @@ at <https://llembas.eu/changelog.html>.
   uses up the rate a device's chat and library calls need; asked too fast, the answer
   is a 429 that says so in words and when to ask again. Counted and priced like any reply, never priced on a subscription's
   connection, and never stored: no chat, no message.
+- **An agent can show you a file that is not text, and the chat draws it by its kind.**
+  The `show` tool used to take text files only. A picture, a recording, a video, a PDF
+  or a 3D model is now shown in the conversation itself -- a player or a sealed viewer
+  with *Open in Files* and *Download* under it -- and any other file as its name with
+  the same two buttons. Whether the chat's model can read that kind of file does not
+  matter: showing is not reading, and nothing shown this way is sent to a model. In a
+  chat on the server the card is the file in your tree itself; from a linked computer
+  (LLeMbas CLI with harness spec 3.11.0) the file is fetched over the link and kept in
+  your `Generated/` folder, so it outlives the chat. At most 64 MB a file; a larger one
+  is refused in words and the agent gives you the path instead. What a file is, is
+  read from its bytes, never from its name or from what the computer called it. For
+  the app engineers: *Files an agent showed* in the wiki's `App-API.md`, and
+  `tool_media_shown.json` among the contract files.
 - **Two models for an editor, kept in your account.** *Autocomplete* and *main* (the
   model that answers a question about your code, rewrites a selection and starts a
   chat in an editor) are two separate settings under Settings › Models, and may be the

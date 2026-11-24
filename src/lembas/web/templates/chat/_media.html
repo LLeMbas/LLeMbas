@@ -49,7 +49,7 @@
   <video class="media-card__video" controls preload="metadata" playsinline
          {% if m.width and m.height %}width="{{ m.width | int }}" height="{{ m.height | int }}"{% endif %}
          src="{{ raw }}&amp;inline=1" data-testid="media-video"></video>
-  {% elif m.kind == "music" %}
+  {% elif m.kind in ("music", "audio") %}
   <audio class="media-card__audio" controls preload="metadata"
          src="{{ raw }}&amp;inline=1" data-testid="media-audio"></audio>
   {% elif m.kind == "model3d" %}
@@ -58,6 +58,18 @@
           referrerpolicy="no-referrer" data-sealed-view="model3d" data-raw="{{ raw }}"
           data-format="{{ ext if ext in ('glb', 'gltf', 'stl', 'obj') else 'glb' }}"
           data-testid="media-model" loading="lazy"
+          title="{{ t('%(name)s, drawn sealed off from this application', name=m.name) }}"></iframe>
+  {% elif m.kind == "pdf" and (m.size or 0) <= sealed_max() %}
+  {#- A PDF an agent showed (services/media/shown.py): drawn by the vendored
+      reader in the same sealed frame the file page uses, handed the bytes
+      and the reader's own code by js/files.js. Larger than the frame takes,
+      and any kind with no player (an archive, a file of no known kind), is
+      the bar alone: its name, and where to open or download it. -#}
+  <iframe class="media-card__model" src="/files/viewer/pdf" sandbox="allow-scripts"
+          referrerpolicy="no-referrer" data-sealed-view="pdf" data-raw="{{ raw }}"
+          data-lib-main="{{ asset('vendor/pdf.min.mjs') }}"
+          data-lib-worker="{{ asset('vendor/pdf.worker.min.mjs') }}"
+          data-testid="media-pdf" loading="lazy"
           title="{{ t('%(name)s, drawn sealed off from this application', name=m.name) }}"></iframe>
   {% endif %}
   <figcaption class="media-card__bar">

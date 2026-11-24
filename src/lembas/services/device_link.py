@@ -31,11 +31,13 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import binascii
 import contextlib
 import itertools
 import json
 import logging
 import math
+import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
@@ -873,6 +875,9 @@ class Link:
                 "shown": False, "reason": "Nobody has this session open in LLeMbas right now.",
             })
             return
+        if params.get("handle") and not isinstance(params.get("text"), str):
+            await self._show_media(message_id, params, generation)
+            return
         try:
             with session_scope() as db:
                 row = shown.keep(
@@ -893,6 +898,95 @@ class Link:
             await self._answer(message_id, {"shown": False, "reason": str(exc)})
             return
         generation.device_shows[str(params.get("toolCallId") or "")] = card
+        generation.touch()
+        await self._answer(message_id, {"shown": True})
+
+    async def _show_media(self, message_id: Any, params: dict[str, Any], generation) -> None:
+        """`_lembas/show` for a file that is not text (spec 3.11.0, capability
+        `media`): fetch it by its handle while the request is open, keep it in
+        the person's files, and put its card on the call.
+
+        The device's `kind`, `mimeType` and `size` are hints and a promise:
+        what the file is, is read from the bytes that arrive
+        (`services/media/shown.py`), and more bytes than the limit, or other
+        bytes than the `hash` named, are not kept."""
+        from lembas.db.models import Chat, User
+        from lembas.db.session import session_scope
+        from lembas.services import fs
+        from lembas.services.media import shown as shown_media
+
+        limits = shown_media.limits()
+        path = str(params.get("path") or "").strip()[:1000]
+        name = path.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1] or "file"
+        handle = str(params.get("handle") or "")
+        said = params.get("size")
+        said = said if isinstance(said, int) and not isinstance(said, bool) and said >= 0 else None
+
+        async def refuse(reason: str) -> None:
+            await self._answer(message_id, {"shown": False, "reason": reason})
+
+        if not path:
+            await refuse("The request names no file.")
+            return
+        if said is not None and said > limits["max_bytes"]:
+            await refuse(shown_media.too_large(name, said))
+            return
+        deadline = time.monotonic() + limits["wait_seconds"]
+        data = bytearray()
+        try:
+            while True:
+                left = deadline - time.monotonic()
+                if left <= 0:
+                    raise TimeoutError
+                part = await self.request(
+                    "_lembas/show/read",
+                    {"handle": handle, "offset": len(data), "length": limits["chunk_bytes"]},
+                    timeout=min(left, 60),
+                )
+                part = part if isinstance(part, dict) else {}
+                if part.get("offset") not in (None, len(data)):
+                    await refuse(f"{name} was not received whole, so it is not shown.")
+                    return
+                try:
+                    piece = base64.b64decode(str(part.get("data") or ""), validate=True)
+                except (ValueError, binascii.Error):
+                    await refuse(f"{name} was not received whole, so it is not shown.")
+                    return
+                data += piece
+                if len(data) > limits["max_bytes"]:
+                    await refuse(shown_media.too_large(name, len(data)))
+                    return
+                if part.get("eof") or not piece:
+                    break
+        except TimeoutError:
+            await refuse(f"{name} took too long to fetch from the computer, so it is not shown.")
+            return
+        except (LinkClosed, DeviceError) as exc:
+            await refuse(f"{name} could not be fetched from the computer: {exc}")
+            return
+        payload = bytes(data)
+        wanted = str(params.get("hash") or "")
+        if (said is not None and said != len(payload)) or (
+            wanted and wanted != shown_media.digest(payload)
+        ):
+            await refuse(f"{name} changed while it was fetched, so it is not shown. Show it again.")
+            return
+        try:
+            with session_scope() as db:
+                chat = db.get(Chat, generation.chat_id)
+                user = db.get(User, chat.user_id) if chat is not None else None
+                if user is None or self.user_id != user.id:
+                    await refuse("Nobody has this session open in LLeMbas right now.")
+                    return
+                card = shown_media.keep(
+                    db, user, name=name, payload=payload,
+                    chat_id=chat.id, message_id=generation.message_id,
+                )
+                db.commit()
+        except (fs.FsError, shown_media.Refused) as exc:
+            await refuse(f"{name} could not be kept in the user's files: {exc}")
+            return
+        generation.device_media[str(params.get("toolCallId") or "")] = card
         generation.touch()
         await self._answer(message_id, {"shown": True})
 
@@ -1099,7 +1193,9 @@ async def handshake(link: Link) -> None:
                 # `_lembas/plan`; a bare `_meta.lembas` does not promise that.
                 # `show`: this client draws a file the device sends with
                 # `_lembas/show`, so the device offers its `show` tool.
-                "_meta": {"lembas": {"protocol": PROTOCOL, "show": True}},
+                # `media` (spec 3.11.0): a file that is not text is fetched
+                # with `_lembas/show/read` and drawn in the conversation.
+                "_meta": {"lembas": {"protocol": PROTOCOL, "show": True, "media": True}},
             },
         },
         timeout=HELLO_WAIT,
@@ -1732,6 +1828,9 @@ def apply_event(generation, event: dict[str, Any]) -> None:
         show = generation.device_shows.pop(call_id, None)
         if show is not None and not failed:
             finished["show"] = show
+        media = generation.device_media.pop(call_id, None)
+        if media is not None and not failed:
+            finished["media"] = media
         generation.tool_events.append(finished)
     elif kind == "usage":
         usage = event.get("usage") or {}

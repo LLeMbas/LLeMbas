@@ -25,6 +25,8 @@ from lembas.services import blobs
 
 MAX_BYTES = 1024 * 1024
 KINDS = ("markdown", "code", "text", "html")
+# kind -> (the kind it is drawn as, its language)
+LATER_TEXT_KINDS = {"table": ("text", ""), "svg": ("code", "xml"), "notebook": ("code", "json")}
 
 
 class Refused(ValueError):
@@ -49,6 +51,12 @@ def keep(
     if not path:
         raise Refused("The request names no file.")
     kind = str(params.get("kind") or "text")
+    language = str(params.get("language") or "")
+    if kind in LATER_TEXT_KINDS:
+        # Spec 3.11.0 names a table, an SVG and a notebook as kinds of their
+        # own to a client that said `media`. The viewer of a device's file
+        # draws the four older kinds: these are shown as the text they are.
+        kind, language = LATER_TEXT_KINDS[kind]
     if kind not in KINDS:
         kind = "text"
     line = params.get("line")
@@ -62,7 +70,7 @@ def keep(
         path=path,
         name=path.rstrip("/").rsplit("/", 1)[-1][:300],
         kind=kind,
-        language=str(params.get("language") or "")[:40] if kind == "code" else "",
+        language=language[:40] if kind == "code" else "",
         line=line,
         blob_hash=digest,
         size=len(data),

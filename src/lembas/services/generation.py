@@ -287,6 +287,10 @@ class Generation:
     # ... and the file each one showed (`_lembas/show`), id -> `event["show"]`,
     # put on the call's block when it ends.
     device_shows: dict[str, dict] = field(default_factory=dict)
+    # ... and the file that is not text each one showed (`_lembas/show` with
+    # a handle, spec 3.11.0), id -> `event["media"]`: kept in the person's
+    # files and drawn in the conversation by its kind.
+    device_media: dict[str, dict] = field(default_factory=dict)
     # The model that answered instead, when the chat's own failed and one of
     # its fallbacks took over (`services/fallback.py`): `model_id`,
     # `connection_id`, `label`, and the one that did not (`failed`, `reason`).

@@ -73,6 +73,17 @@ def media_job_for(message, job_id):
 templates.env.globals["media_job_for"] = media_job_for
 
 
+def _sealed_max() -> int:
+    """The most a file may be to be drawn in a sealed frame (a PDF, a 3D
+    model): the file page's own limit, for a card in a conversation too."""
+    from lembas.api import tree
+
+    return tree.SEALED_MAX
+
+
+templates.env.globals["sealed_max"] = _sealed_max
+
+
 def permissions_for_people(granted):
     """Settings → Account's "What you can do": see `permissions.FOR_PEOPLE`."""
     from lembas.security import permissions

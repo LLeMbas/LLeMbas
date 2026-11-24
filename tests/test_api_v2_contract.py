@@ -1338,6 +1338,36 @@ def _media() -> dict[str, object]:
     failed = job("mjob3", "failed", ended_at=ended, notified_at=ended,
                  error="ComfyUI ran out of video memory in KSampler.")
     return {
+        # Files an agent showed that are not text (`show`, the chat's own or a
+        # linked computer's): the same `media`, with `shown` and the file
+        # kind -- a picture by its id in the tree, a PDF fetched from a
+        # device into `Generated/`, and a kind with no player.
+        "tool_media_shown": {"calls": [
+            serialise.tool_call({
+                "id": "call8", "name": "show", "status": "ok",
+                "path": "/home/frodo/oven/chart.png", "query": "/home/frodo/oven/chart.png",
+                "media": {"kind": "image", "path": "/home/frodo/oven/chart.png",
+                          "node_id": "node8", "version_id": "ver8", "name": "chart.png",
+                          "mime": "image/png", "size": 48211, "shown": True,
+                          "width": 1280, "height": 720},
+            }),
+            serialise.tool_call({
+                "id": "call9", "name": "show", "status": "ok", "path": "out/report.pdf",
+                "media": {"kind": "pdf",
+                          "path": "/home/frodo/Generated/report-20260102-030405.pdf",
+                          "node_id": "node9", "version_id": "ver9",
+                          "name": "report-20260102-030405.pdf", "mime": "application/pdf",
+                          "size": 90000, "shown": True},
+            }),
+            serialise.tool_call({
+                "id": "call10", "name": "show", "status": "ok", "path": "out/bundle.zip",
+                "media": {"kind": "archive",
+                          "path": "/home/frodo/Generated/bundle-20260102-030405.zip",
+                          "node_id": "node10", "version_id": "ver10",
+                          "name": "bundle-20260102-030405.zip", "mime": "application/zip",
+                          "size": 1200000, "shown": True},
+            }),
+        ]},
         "tool_media": {"calls": [
             serialise.tool_call({
                 "id": "call4", "name": "image_generate", "kind": "image", "status": "ok",
