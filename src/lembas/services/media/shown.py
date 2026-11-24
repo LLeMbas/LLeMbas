@@ -144,16 +144,20 @@ def keep(
     user: User,
     *,
     name: str,
-    payload: bytes,
+    payload: bytes | list[bytes],
     chat_id: str | None = None,
     message_id: str | None = None,
     when: datetime | None = None,
 ) -> dict[str, Any]:
     """Write a device's file into the person's `Generated/` and answer its
     typed result. With the person's own access, as `library.keep` writes: the
-    place is this server's choice, not a path a model named. The caller
-    commits. Raises `fs.FsError` when the tree refuses."""
-    found = kind_of(name, payload)
+    place is this server's choice, not a path a model named. `payload` may be
+    the parts as they arrived: they are written one after another and never
+    joined into a second copy. The caller commits. Raises `fs.FsError` when
+    the tree refuses."""
+    parts = [payload] if isinstance(payload, bytes | bytearray) else list(payload)
+    head = b"".join(parts[:1])[:8192]
+    found = kind_of(name, head)
     home = fs.ensure_home(db, user).path
     view = fs.view(db, user, message_id=message_id or None, stamp_chat_id=chat_id or None)
     called = file_name(name, found, when or datetime.now(UTC))
@@ -163,14 +167,14 @@ def keep(
         numbered = stem if number == 1 else f"{stem}-{number}"
         path = f"{home.rstrip('/')}/{library.DIRECTORY}/{numbered}.{ext}"
         try:
-            node = fs.write(view, path, payload, create=True)
+            node = fs.write(view, path, iter(parts), create=True)
             break
         except fs.AlreadyExists:
             continue
     if node is None:  # pragma: no cover - two hundred files in one second
         raise Refused("The file could not be given a name.")
     newest = fs.versions(view, node.path)
-    return result(node, payload[:4096], version_id=newest[0].id if newest else "")
+    return result(node, head, version_id=newest[0].id if newest else "")
 
 
 def digest(payload: bytes) -> str:

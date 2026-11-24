@@ -224,3 +224,22 @@ def test_a_file_that_runs_code_opens_read_only(client, rig):
     rig["link"].hello["limits"]["files_that_run_code"] = True
     page = client.get(rig["base"] + "/view", params={"path": f"{ROOT}/.git/config"}).text
     assert 'data-testid="file-editor"' in page
+
+
+def test_a_chat_is_drawn_for_a_person_with_no_model_on_this_server(client, db, registered,
+                                                                    make_chat):
+    """Somebody whose only chats run on a linked computer has no chat model
+    here, and still has their conversation: the "No models available" card is
+    a fresh install's, never in place of a chat that exists."""
+    from lembas.db.models import Chat, Model
+    from lembas.services import chat as chat_service
+
+    assert db.scalar(select(Model)) is None
+    chat_id = make_chat()
+    chat_service.create_message(db, db.get(Chat, chat_id), "user", "Where is the waybread?")
+    chat_service.create_message(db, db.get(Chat, chat_id), "assistant", "In the leaf.")
+    page = client.get(f"/chat/{chat_id}").text
+    assert "Where is the waybread?" in page and "In the leaf." in page
+    assert "No models available" not in page
+    # A fresh install's first page still says what to do.
+    assert "No models available" in client.get("/", follow_redirects=True).text

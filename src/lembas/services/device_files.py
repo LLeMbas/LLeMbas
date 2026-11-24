@@ -159,15 +159,31 @@ def places(db: DBSession, user: User) -> list[dict[str, str]]:
     return sorted(out, key=lambda place: place["name"].lower())
 
 
+def _owned(db: DBSession | None, user: User | str, token_id: str) -> str:
+    """The device's token id, once more checked to be this person's -- on the
+    caller's session, or (`db` None, `user` their id) on a short one of its
+    own. A download that takes minutes asks this for every part and must not
+    keep a database connection for all of it."""
+    if db is not None and not isinstance(user, str):
+        return device(db, user, token_id).id
+    from lembas.db.session import session_scope
+
+    with session_scope() as short:
+        person = short.get(User, user if isinstance(user, str) else user.id)
+        if person is None:
+            raise Refused(NOT_YOURS)
+        return device(short, person, token_id).id
+
+
 async def call(
-    db: DBSession, user: User, token_id: str, method: str, params: dict[str, Any],
+    db: DBSession | None, user: User | str, token_id: str, method: str, params: dict[str, Any],
     *, timeout: float = CALL_TIMEOUT,
 ) -> dict[str, Any]:
     """One `_lembas/fs/<method>` on the person's device, or `Refused`."""
     from lembas.services import device_link
 
-    token = device(db, user, token_id)
-    link = device_link.link_for(token.id)
+    owned = _owned(db, user, token_id)
+    link = device_link.link_for(owned)
     if link is None:
         raise Refused(NOT_LINKED)
     if not link.can(CAPABILITY):
@@ -351,7 +367,7 @@ def _decoded(got: dict[str, Any]) -> bytes:
 
 
 async def read_parts(
-    db: DBSession, user: User, token_id: str, path: str, first: dict[str, Any]
+    db: DBSession | None, user: User | str, token_id: str, path: str, first: dict[str, Any]
 ) -> AsyncIterator[bytes]:
     """The file's bytes after its first part, read by offset until the device
     says `eof`. A file that changes size or time on the way ends the

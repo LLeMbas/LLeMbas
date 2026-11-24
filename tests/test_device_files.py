@@ -216,14 +216,23 @@ def test_another_persons_computer_is_not_there(client, db, rig):
     sam = db.scalar(select(User).where(User.email == "sam@shire.test"))
     _, raw = api_tokens.create(db, sam, name="LLeMbas Desktop", scopes=["app"])
     auth = {"Authorization": f"Bearer {raw}"}
+    oven = f"{ROOT}/oven.py"
     for method, url, kwargs in (
         ("get", rig["base"], {}),
-        ("get", rig["base"] + "/content", {"params": {"path": f"{ROOT}/oven.py"}}),
-        ("get", rig["base"] + "/raw", {"params": {"path": f"{ROOT}/oven.py"}}),
-        ("put", rig["base"] + "/content",
-         {"json": {"path": f"{ROOT}/oven.py", "text": "x", "overwrite": True}}),
-        ("delete", rig["base"], {"params": {"path": f"{ROOT}/oven.py"}}),
+        ("get", rig["base"] + "/stat", {"params": {"path": oven}}),
+        ("get", rig["base"] + "/content", {"params": {"path": oven}}),
+        ("get", rig["base"] + "/raw", {"params": {"path": oven}}),
+        ("get", rig["base"] + "/search", {"params": {"path": ROOT, "q": "oven"}}),
+        ("put", rig["base"] + "/content", {"json": {"path": oven, "text": "x", "force": True}}),
+        ("post", rig["base"] + "/upload",
+         {"params": {"path": ROOT}, "files": [("files", ("a.txt", b"x"))]}),
         ("post", rig["base"] + "/mkdir", {"json": {"path": f"{ROOT}/x"}}),
+        ("post", rig["base"] + "/rename", {"json": {"path": oven, "name": "y.py"}}),
+        ("post", rig["base"] + "/move", {"json": {"from": oven, "to": f"{ROOT}/y.py"}}),
+        ("post", rig["base"] + "/move", {"json": {"paths": [oven], "to": f"{ROOT}/src"}}),
+        ("post", rig["base"] + "/copy", {"json": {"from": oven, "to": f"{ROOT}/y.py"}}),
+        ("post", rig["base"] + "/delete", {"json": {"paths": [oven]}}),
+        ("delete", rig["base"], {"params": {"path": oven}}),
     ):
         answer = getattr(client, method)(url, headers=auth, **kwargs)
         assert answer.status_code == 404, (method, url)
@@ -740,3 +749,35 @@ def test_this_client_announces_no_buffers_of_its_own(db, registered):
     asyncio.run(run())
     said = seen["initialize"]["clientCapabilities"].get("fs") or {}
     assert not said.get("readTextFile") and not said.get("writeTextFile")
+
+
+def test_a_download_asks_whose_device_it_is_for_every_part_on_a_short_session(db, rig):
+    """The request's own session is not kept for a download that takes
+    minutes; and a device that stops being this person's ends it."""
+    import asyncio
+
+    from lembas.db.models import ApiToken
+
+    computer = rig["computer"]
+    computer.files[f"{ROOT}/dump.bin"] = b"a" * 5000
+    computer.chunk = 2000
+    user_id, token_id = rig["user"].id, rig["link"].token_id
+
+    async def run():
+        first = await device_files.read_first(db, rig["user"], token_id, f"{ROOT}/dump.bin")
+        db.close()  # as the route does before it streams
+        got = []
+        with pytest.raises(device_files.Refused) as caught:
+            async for piece in device_files.read_parts(
+                None, user_id, token_id, f"{ROOT}/dump.bin", first
+            ):
+                got.append(piece)
+                if len(got) == 2:
+                    token = db.get(ApiToken, token_id)
+                    token.revoked_at = token.created_at
+                    db.commit()
+                    db.close()
+        return got, caught.value
+
+    got, refused = asyncio.run(run())
+    assert got == [b"a" * 2000, b"a" * 2000] and refused.reason == "not_found"

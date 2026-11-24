@@ -15,7 +15,7 @@ at <https://llembas.eu/changelog.html>.
   fill-in completion, and everything else -- Anthropic included -- with a strict chat
   prompt, thinking switched off where the model has the switch and its lowest effort
   asked for otherwise. A server whose model cannot fill in says so once and is asked as
-  a chat from then on. Only the inserted text comes back: no code fence, no thinking,
+  a chat for the next hour. Only the inserted text comes back: no code fence, no thinking,
   no repetition of the line being completed or of what follows the cursor. A client
   that closes the connection cancels the request at the model's server, also before
   the first word. At most 64 KiB on each side of the cursor (more is a 413 that says
@@ -78,6 +78,13 @@ at <https://llembas.eu/changelog.html>.
   only the ticked ones) and *Make this the autocomplete default* -- what a person
   completes with until they choose their own. With no default set, autocomplete waits
   for each person's choice.
+
+### Fixed
+
+- **A chat is shown also to somebody who has no model on this server.** A person whose
+  chats all run on a linked computer, and who may use no chat model here, got the "No
+  models available" card in place of their conversation. That card is a fresh
+  install's; an existing chat is always drawn.
 
 ## 2.0.0-beta.18 — 2026-11-24
 

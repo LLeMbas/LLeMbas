@@ -12,8 +12,11 @@ way the model's server can answer it:
 
 A server of the first three kinds answers a model that has no fill-in tokens
 or template with a plain refusal (llama.cpp's is a 501). That is remembered
-for the model until the process restarts, and the request is asked again as a
-chat: nothing was written, so nothing is asked for twice.
+for the model for an hour, and the request is asked again as a chat: nothing
+was written, so nothing is asked for twice. Only an answer that means "no
+such call here" counts: a 404, 405 or 501, or a 400 or 422 that says in
+words that it is not supported. A 400 about this one request -- too long for
+the loaded context -- is that request's error and demotes nobody.
 
 **The chat way is a fallback, and it is strict.** Thinking is switched off
 where the model has the switch, else its lowest effort is asked for; the
@@ -35,6 +38,8 @@ from __future__ import annotations
 
 import json
 import logging
+import re
+import time
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
@@ -74,10 +79,32 @@ WINDOW_FLOOR = 2_000
 # for, so that its thinking does not eat the completion.
 THINKING_ROOM = 1024
 
-# What a server answers when the model cannot fill in: asked again as a chat.
-_NOT_SUPPORTED = (400, 404, 405, 422, 501)
-# (base URL, model id) pairs that refused a fill-in request.
-_NO_FIM: set[tuple[str, str]] = set()
+# What a server answers when it has no such call, or the model cannot fill
+# in: asked again as a chat. A 400 or a 422 means that only when it says so
+# (`_SAYS_UNSUPPORTED`) -- otherwise it is about *this* request (too long for
+# the loaded context, a field refused) and says nothing about the model.
+_NO_SUCH_CALL = (404, 405, 501)
+_MAYBE = (400, 422)
+_SAYS_UNSUPPORTED = re.compile(
+    r"not supported|unsupported|does not support|doesn't support|no fim|"
+    r"infill is not|not implemented",
+    re.IGNORECASE,
+)
+# (base URL, model id) -> when it refused a fill-in request (monotonic). A
+# refusal is forgotten after `FORGET_AFTER`: a model server restarted with a
+# model that can fill in is asked that way again.
+_NO_FIM: dict[tuple[str, str], float] = {}
+FORGET_AFTER = 3600.0
+
+
+def _demoted(key: tuple[str, str]) -> bool:
+    since = _NO_FIM.get(key)
+    if since is None:
+        return False
+    if time.monotonic() - since >= FORGET_AFTER:
+        _NO_FIM.pop(key, None)
+        return False
+    return True
 
 SYSTEM = (
     "You complete text at the cursor of a file that is open in an editor. You are "
@@ -96,6 +123,11 @@ class _Unsupported(Exception):
     def __init__(self, status_code: int, detail: str = "") -> None:
         super().__init__(f"HTTP {status_code}")
         self.detail = detail
+
+
+class _WithoutStreamOptions(Exception):
+    """The server refused `stream_options`: asked once more without it.
+    Raised before any text, and says nothing about the model."""
 
 
 @dataclass(frozen=True)
@@ -129,7 +161,7 @@ def reset() -> None:
 
 def way_for(endpoint: Endpoint, server: str, model_id: str = "") -> str:
     """How a completion is asked of this connection."""
-    if (endpoint.base_url, model_id) in _NO_FIM or endpoint.is_anthropic:
+    if _demoted((endpoint.base_url, model_id)) or endpoint.is_anthropic:
         return WAY_CHAT
     provider = providers.get(endpoint.provider_type)
     if provider.id == providers.DEEPSEEK:
@@ -303,7 +335,7 @@ async def stream(ask: Ask) -> AsyncIterator[tuple[str, Any]]:
                 yield event
             return
         except _Unsupported as exc:
-            _NO_FIM.add((ask.endpoint.base_url, ask.model_id))
+            _NO_FIM[(ask.endpoint.base_url, ask.model_id)] = time.monotonic()
             log.info(
                 "%s cannot fill in with %s (%s); asking as a chat from now on",
                 ask.endpoint.base_url, ask.model_id, exc,
@@ -379,12 +411,8 @@ async def _native(
         async for event in _native_once(way, ask, url, body):
             yield event
         return
-    except _Unsupported as exc:
-        # A server that does not know `stream_options` is asked once more
-        # without it: that is not the model being unable to fill in.
-        if "stream_options" not in body or "stream_options" not in exc.detail:
-            raise
-    body = {key: value for key, value in body.items() if key != "stream_options"}
+    except _WithoutStreamOptions:
+        body = {key: value for key, value in body.items() if key != "stream_options"}
     async for event in _native_once(way, ask, url, body):
         yield event
 
@@ -401,8 +429,14 @@ async def _native_once(
         ):
             if response.status_code >= 400:
                 await response.aread()
-                if response.status_code in _NOT_SUPPORTED:
-                    raise _Unsupported(response.status_code, response.text[:2000])
+                said = response.text[:2000]
+                if response.status_code in _NO_SUCH_CALL:
+                    raise _Unsupported(response.status_code, said)
+                if response.status_code in _MAYBE:
+                    if "stream_options" in body and "stream_options" in said:
+                        raise _WithoutStreamOptions
+                    if _SAYS_UNSUPPORTED.search(said):
+                        raise _Unsupported(response.status_code, said)
                 response.raise_for_status()
             async for event, data in sse.iter_sse(response.aiter_lines()):
                 if event == sse.COMMENT:

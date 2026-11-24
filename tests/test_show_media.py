@@ -368,3 +368,54 @@ def test_a_name_with_markup_in_it_is_text_on_the_card(client, db, world):  # noq
     chat_id = _reply_with(db, world, _media("binary", '<img src=x onerror="alert(1)">.bin'))
     page = client.get(f"/chat/{chat_id}").text
     assert "<img src=x" not in page and "&lt;img src=x" in page
+
+
+# --- After the review ------------------------------------------------------------------------
+def test_shown_files_are_fetched_one_at_a_time_and_kept_off_the_event_loop(
+    db, registered, make_chat, monkeypatch
+):
+    """Each holds a whole file in memory: a device that shows several at once
+    is served one after another, and the write never stalls the loop."""
+    import threading
+    from types import SimpleNamespace
+
+    link, _ = _linked(db)
+    chat_id = _device_chat(db, make_chat, link)
+    reply_id = _say(db, chat_id, "assistant", "", complete_=False)
+    generation = SimpleNamespace(chat_id=chat_id, message_id=reply_id, device_media={},
+                                 touch=lambda: None)
+    link.writer = lambda session_id: generation
+    active, most, answers, threads = set(), [], [], []
+
+    async def request(method, params=None, *, timeout=60):
+        active.add(params["handle"])
+        most.append(len(active))
+        await asyncio.sleep(0.01)
+        return {"data": base64.b64encode(PNG).decode(), "offset": 0, "eof": True}
+
+    async def answer(message_id, result=None, **_):
+        active.discard(f"h_{message_id}")
+        answers.append(result)
+
+    real_keep = shown_media.keep
+
+    def keep(*args, **kwargs):
+        threads.append(threading.current_thread() is threading.main_thread())
+        assert isinstance(kwargs["payload"], list)  # the parts, never joined
+        return real_keep(*args, **kwargs)
+
+    link.request, link._answer = request, answer
+    monkeypatch.setattr(shown_media, "keep", keep)
+
+    async def run():
+        await asyncio.gather(*[
+            link._show(n, {
+                "sessionId": "s1", "toolCallId": f"c{n}", "path": f"out/{n}.png",
+                "size": len(PNG), "handle": f"h_{n}"})
+            for n in range(4)
+        ])
+
+    asyncio.run(run())
+    assert answers == [{"shown": True}] * 4 and len(generation.device_media) == 4
+    assert max(most) == 1, most
+    assert threads == [False] * 4

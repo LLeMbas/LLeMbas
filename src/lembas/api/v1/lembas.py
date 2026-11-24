@@ -163,13 +163,23 @@ def _ask(model: Model, body: dict[str, Any], max_tokens: int) -> fim.Ask:
     )
 
 
+def _count(value: Any) -> int:
+    """A token count as a server said it, or 0 for anything that is not one."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return 0
+    return max(0, int(value)) if value == value and abs(value) != float("inf") else 0
+
+
 def _usage(ask: fim.Ask, said: dict[str, Any] | None, text: str) -> dict[str, Any]:
     """What the completion used: the server's own count, or an estimate from
     the lengths where it gave none (`estimated`) -- a completion is counted
     either way."""
     if said:
-        prompt = int(said.get("prompt_tokens") or 0)
-        written = int(said.get("completion_tokens") or 0)
+        # A count is a number or it is nothing: what a server wrote there must
+        # not turn a completion that was written into a failure.
+        prompt, written = _count(said.get("prompt_tokens")), _count(
+            said.get("completion_tokens")
+        )
         return {**said, "prompt_tokens": prompt, "completion_tokens": written,
                 "total_tokens": prompt + written}
     before, after = fim.window(ask.prefix, ask.suffix, ask.context)
@@ -238,6 +248,9 @@ async def complete(request: Request, db: Db, caller: CompleteCaller):
     ask = _ask(model, fields, max_tokens)
     ref = chat_service.model_ref(model)
     user_id, model_row_id, token_id = user.id, model.id, caller.token.id
+    # Everything the database is asked is asked by now: its connection goes
+    # back before the model's server is awaited, which may take a while.
+    db.close()
     _IN_FLIGHT[user_id] = in_flight(user_id) + 1
 
     # What was written and what the server said it used, whichever way the
@@ -261,15 +274,13 @@ async def complete(request: Request, db: Db, caller: CompleteCaller):
         if state["failed"] and not state["text"]:
             return  # the model's server refused: there was no completion
         usage = state["usage"]
-        if usage is None and state["text"]:
-            usage = _usage(ask, None, state["text"])
+        if usage or state["text"]:
+            # The server's count with its numbers made numbers, or an
+            # estimate where it gave none.
+            usage = _usage(ask, usage, state["text"])
         # With no text and no count -- cancelled before the first word -- the
         # request is counted and its tokens are not guessed.
         openai_api._record(user_id, usage, 1, model_row_id, token_id)
-
-    async def settle() -> None:
-        _release(user_id)
-        await asyncio.to_thread(count)
 
     def final() -> dict[str, Any]:
         return {
@@ -280,7 +291,25 @@ async def complete(request: Request, db: Db, caller: CompleteCaller):
         }
 
     pieces = _watched(request, run())
-    cleanup = openai_api._once(pieces.aclose, settle)
+    settled = False
+
+    async def cleanup() -> None:
+        """Once, however the request ends. The slot is given back **first**:
+        closing the stream can itself fail (a cancellation inside the close),
+        and a slot that is not given back is a completion this account never
+        gets again until a restart."""
+        nonlocal settled
+        if settled:
+            return
+        settled = True
+        _release(user_id)
+        try:
+            await pieces.aclose()
+        except Exception:  # the stream is gone either way
+            log.info("closing a completion's stream failed", exc_info=True)
+        finally:
+            await asyncio.to_thread(count)
+
     try:
         if not body.get("stream"):
             async for _piece in pieces:

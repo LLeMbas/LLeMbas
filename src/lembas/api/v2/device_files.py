@@ -158,7 +158,12 @@ async def send_raw(
 
     first = await device_files.read_first(db, user, token_id, path)
     name = path.rstrip("/").rsplit("/", 1)[-1][: device_files.MAX_NAME] or "file"
-    parts = device_files.read_parts(db, user, token_id, path, first)
+    # The rest is read while it is sent, which may take minutes: the
+    # request's own session gives its connection back now, and each part
+    # checks whose device it is on a short one.
+    user_id = user.id
+    db.close()
+    parts = device_files.read_parts(None, user_id, token_id, path, first)
     head = await anext(parts)
     kind = file_kinds.detect(name, head[: file_kinds.HEAD_BYTES])
     headers = {

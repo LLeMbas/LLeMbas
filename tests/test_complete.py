@@ -606,6 +606,24 @@ def test_nothing_of_a_completion_is_ever_a_chat(client, db, registered, mock_htt
     assert db.scalar(select(Chat)) is None and db.scalar(select(Message)) is None
 
 
+def test_a_completion_holds_a_slot_while_it_is_written_and_gives_it_back(
+    client, db, registered, monkeypatch
+):
+    _model(db, _connection(db))
+    me, held = _me(db).id, []
+
+    async def upstream(ask):
+        held.append(complete_api.in_flight(me))
+        yield fim.DELTA, "a + b"
+        yield fim.END, {"finish": "stop", "usage": None, "way": "chat"}
+
+    monkeypatch.setattr(fim, "stream", upstream)
+    auth = _auth(db)
+    assert _ask(client, auth, model="coder").status_code == 200
+    assert _ask(client, auth, model="coder", stream=True).status_code == 200
+    assert held == [1, 1] and complete_api._IN_FLIGHT == {}
+
+
 def test_more_than_a_few_at_once_is_refused(client, db, registered, mock_http):
     _model(db, _connection(db))
     _upstream(mock_http, _chat_stream("a + b"))
@@ -717,3 +735,165 @@ def test_the_instance_default_is_a_ref_in_the_general_settings(db, registered):
     assert settings_store.get(db, "autocomplete_model") == "local/coder"
     editor.set_instance_default(db, None)
     assert settings_store.get(db, "autocomplete_model") == ""
+
+
+# --- After the review ------------------------------------------------------------------------
+class _BadClose:
+    """A stream whose closing fails, as a cancellation inside the close does."""
+
+    def __init__(self, pieces):
+        self._pieces = iter(pieces)
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            return next(self._pieces)
+        except StopIteration:
+            raise StopAsyncIteration from None
+
+    async def aclose(self):
+        raise RuntimeError("asynchronous generator is already running")
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_the_slot_is_given_back_even_when_closing_the_stream_fails(
+    client, db, registered, monkeypatch, stream
+):
+    """Four slots that are never given back are a 429 on every suggestion
+    until a restart."""
+    _model(db, _connection(db))
+    monkeypatch.setattr(complete_api, "_watched", lambda request, run: _BadClose(["a + b"]))
+    auth = _auth(db)
+    for _ in range(complete_api.MAX_AT_ONCE + 2):
+        answer = _ask(client, auth, model="coder", stream=stream)
+        assert answer.status_code == 200, answer.text
+    assert complete_api._IN_FLIGHT == {}
+
+
+def test_a_400_about_this_request_demotes_nobody(client, db, registered, mock_http):
+    """Too long for the loaded context is this request's error. The model
+    still fills in for the next person."""
+    _model(db, _connection(db, server="llama.cpp"))
+    asked: list[str] = []
+    small = {"error": {"code": 400, "message": "the request exceeds the available context size",
+                       "type": "exceed_context_size_error"}}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        asked.append(request.url.path)
+        if len(asked) == 1:
+            return httpx.Response(400, json=small)
+        return httpx.Response(200, text=_sse({"content": "a + b", "stop": True}, done=False))
+
+    mock_http(handler)
+    auth = _auth(db)
+    refused = _ask(client, auth, model="coder")
+    assert refused.status_code == 400 and refused.json()["error"]["type"] == "upstream_error"
+    assert "context size" in refused.json()["error"]["message"]
+    assert _ask(client, auth, model="coder").json()["text"] == "a + b"
+    # Never asked as a chat: both went to the server's own fill-in.
+    assert asked == ["/infill", "/infill"]
+
+
+@pytest.mark.parametrize(
+    ("status", "body"),
+    [
+        (404, {"error": "not found"}),
+        (405, {"error": "method not allowed"}),
+        (501, {"error": {"message": "Infill is not supported by this model"}}),
+        (400, {"error": {"message": "model does not support insert"}}),
+        (422, {"detail": "suffix is not supported for this model"}),
+    ],
+)
+def test_no_such_call_in_any_of_its_spellings_is_asked_as_a_chat(
+    client, db, registered, mock_http, status, body
+):
+    _model(db, _connection(db, server="ollama"))
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/chat/completions"):
+            return httpx.Response(200, text=_chat_stream("a + b"))
+        return httpx.Response(status, json=body)
+
+    mock_http(handler)
+    assert _ask(client, _auth(db), model="coder").json()["text"] == "a + b"
+
+
+def test_a_demotion_is_forgotten_after_a_while(client, db, registered, mock_http, monkeypatch):
+    """A model server restarted with a model that fills in is asked that way
+    again, without this server being restarted."""
+    _model(db, _connection(db, server="llama.cpp"))
+    asked: list[str] = []
+    can = {"infill": False}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        asked.append(request.url.path)
+        if request.url.path == "/infill":
+            if not can["infill"]:
+                return httpx.Response(501, json={"error": {"message": "not supported"}})
+            return httpx.Response(200, text=_sse({"content": "a + b", "stop": True}, done=False))
+        return httpx.Response(200, text=_chat_stream("a + b"))
+
+    mock_http(handler)
+    auth = _auth(db)
+    now = {"t": 1000.0}
+    monkeypatch.setattr(fim.time, "monotonic", lambda: now["t"])
+    _ask(client, auth, model="coder")
+    can["infill"] = True
+    now["t"] += fim.FORGET_AFTER - 1
+    _ask(client, auth, model="coder")
+    now["t"] += 2
+    assert _ask(client, auth, model="coder").json()["text"] == "a + b"
+    assert asked == ["/infill", "/v1/chat/completions", "/v1/chat/completions", "/infill"]
+
+
+@pytest.mark.parametrize(
+    "usage",
+    [{"prompt_tokens": "many", "completion_tokens": None}, {"prompt_tokens": [1], "x": {}},
+     {"prompt_tokens": float("nan"), "completion_tokens": -4}, {"completion_tokens": True}],
+)
+def test_usage_that_is_not_numbers_does_not_fail_a_finished_completion(
+    client, db, registered, monkeypatch, usage
+):
+    _model(db, _connection(db))
+
+    async def upstream(ask):
+        yield fim.DELTA, "a + b"
+        yield fim.END, {"finish": "stop", "usage": usage, "way": "chat"}
+
+    monkeypatch.setattr(fim, "stream", upstream)
+    for stream in (False, True):
+        answer = _ask(client, _auth(db), model="coder", stream=stream)
+        assert answer.status_code == 200 and "a + b" in answer.text
+    whole = _ask(client, _auth(db), model="coder").json()
+    assert whole["usage"] == {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    assert complete_api._IN_FLIGHT == {}
+
+
+def test_a_request_whose_client_is_gone_stops_at_the_models_server(
+    client, db, registered, monkeypatch
+):
+    """Through the route: the connection is looked at while the model's
+    server is awaited, the stream to it is closed, and the slot given back."""
+    from starlette.requests import Request
+
+    _model(db, _connection(db))
+    monkeypatch.setattr(complete_api, "WATCH_EVERY", 0.01)
+    closed = []
+
+    async def upstream(ask):
+        try:
+            await asyncio.sleep(30)  # the model's server, before its first word
+            yield fim.DELTA, "never"
+        finally:
+            closed.append(True)
+
+    async def gone(self) -> bool:
+        return True
+
+    monkeypatch.setattr(fim, "stream", upstream)
+    monkeypatch.setattr(Request, "is_disconnected", gone)
+    for stream in (False, True):
+        assert _ask(client, _auth(db), model="coder", stream=stream).status_code == 499
+    assert closed == [True, True] and complete_api._IN_FLIGHT == {}

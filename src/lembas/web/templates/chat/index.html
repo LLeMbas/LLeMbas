@@ -236,8 +236,10 @@
       </div>
     </header>
 
-    {% if not models %}
-      {# Every fresh install lands here, so it points at the fix. #}
+    {% if not models and not chat %}
+      {# Every fresh install lands here, so it points at the fix. Never in
+         place of a chat that exists: a person whose only chats run on a
+         linked computer has no model here and still has their conversation. #}
       <div class="empty">
         {{ icon("server", "empty__mark") }}
         <h2 class="empty__title">{{ t("No models available") }}</h2>
