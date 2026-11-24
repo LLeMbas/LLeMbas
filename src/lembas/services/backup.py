@@ -11,7 +11,9 @@ the `zstandard` module is not installed), mode 600, in the backup directory
   (`Connection.backup`), never a file copy: the databases are in WAL mode, and
   copying the file alone while a write sits in its `-wal` copies a database
   that is missing it. Each copy passes `PRAGMA integrity_check` before it goes in;
-- `uploads/` -- as it is on disk.
+- `uploads/` -- as it is on disk;
+- `skills-store/` -- the skills and notes store, a git repository
+  (`services/skillstore/`), as it is on disk and taken while nothing writes it.
 
 **The secret key** goes in only under a passphrase: encrypted with scrypt →
 Fernet, exactly as an export's keys are (`services/export_format.py`). Without
@@ -145,6 +147,21 @@ def _uploads() -> list[tuple[str, Path]]:
     return out
 
 
+STORE_DIR = "skills-store"
+
+
+def _store_files() -> list[tuple[str, Path]]:
+    """Every regular file of the skills and notes store, history included."""
+    root = settings.data_dir / STORE_DIR
+    out: list[tuple[str, Path]] = []
+    if not root.is_dir():
+        return out
+    for path in sorted(root.rglob("*")):
+        if path.is_file() and not path.is_symlink():
+            out.append((f"{STORE_DIR}/" + path.relative_to(root).as_posix(), path))
+    return out
+
+
 @contextlib.contextmanager
 def _writer(path: Path) -> Iterator[tarfile.TarFile]:
     with path.open("wb") as raw:
@@ -237,33 +254,45 @@ def take(label: str = "", *, keep: int | None = None, passphrase: str | None = N
         if settings.blobs_path.exists():
             databases.append((settings.blobs_path.name, work / settings.blobs_path.name))
             _copy(settings.blobs_path, databases[1][1])
-        files = [*databases, *_uploads()]
-        manifest = {
-            "format": FORMAT,
-            "format_version": FORMAT_VERSION,
-            "app_version": __version__,
-            "created_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "label": clean,
-            "files": [{"path": name, "size": path.stat().st_size, "sha256": _sha256(path)}
-                      for name, path in files],
-            "secret_key": None if settings.secret_key_is_ephemeral else _key_block(passphrase),
-        }
-        body = json.dumps(manifest, indent=2).encode("utf-8")
-        with _writer(partial) as tar:
-            info = tarfile.TarInfo(MANIFEST)
-            info.size, info.mtime, info.mode = len(body), int(datetime.now(UTC).timestamp()), 0o600
-            tar.addfile(info, io.BytesIO(body))
-            for name, path in files:
-                _add(tar, name, path)
-        partial.chmod(0o600)
-        partial.rename(target)
+        from lembas.services.skillstore import repo as skills_repo
+
+        with skills_repo.locked() if skills_repo.exists() else contextlib.nullcontext():
+            return_target = _archive(
+                [*databases, *_uploads(), *_store_files()], clean, passphrase, partial, target
+            )
     except Exception:
         partial.unlink(missing_ok=True)
         raise
     finally:
         shutil.rmtree(work, ignore_errors=True)
     prune(keep)
-    log.info("backed the instance up to %s", target)
+    log.info("backed the instance up to %s", return_target)
+    return return_target
+
+
+def _archive(
+    files: list[tuple[str, Path]], clean: str, passphrase: str, partial: Path, target: Path
+) -> Path:
+    """Write the manifest and the files as one archive, and name it."""
+    manifest = {
+        "format": FORMAT,
+        "format_version": FORMAT_VERSION,
+        "app_version": __version__,
+        "created_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "label": clean,
+        "files": [{"path": name, "size": path.stat().st_size, "sha256": _sha256(path)}
+                  for name, path in files],
+        "secret_key": None if settings.secret_key_is_ephemeral else _key_block(passphrase),
+    }
+    body = json.dumps(manifest, indent=2).encode("utf-8")
+    with _writer(partial) as tar:
+        info = tarfile.TarInfo(MANIFEST)
+        info.size, info.mtime, info.mode = len(body), int(datetime.now(UTC).timestamp()), 0o600
+        tar.addfile(info, io.BytesIO(body))
+        for name, path in files:
+            _add(tar, name, path)
+    partial.chmod(0o600)
+    partial.rename(target)
     return target
 
 
@@ -412,7 +441,7 @@ def _extract(path: Path, root: Path, document: dict[str, Any]) -> None:
         name = str(entry.get("path") or "") if isinstance(entry, dict) else ""
         if (not name or name.startswith("/") or ".." in name.split("/")
                 or not (name in (settings.db_path.name, settings.blobs_path.name)
-                        or name.startswith("uploads/"))):
+                        or name.startswith(("uploads/", STORE_DIR + "/")))):
             raise Refused(N_("The backup's manifest is damaged."))
         expected[name] = entry
     if settings.db_path.name not in expected:
@@ -576,7 +605,9 @@ def apply_pending(data_dir: Path | None = None) -> Path | None:
                 current.rename(aside / current.name)
     if (data / "uploads").exists():
         (data / "uploads").rename(aside / "uploads")
-    for name in (db_name, blobs_name, "uploads"):
+    if (folder / STORE_DIR).exists() and (data / STORE_DIR).exists():
+        (data / STORE_DIR).rename(aside / STORE_DIR)
+    for name in (db_name, blobs_name, "uploads", STORE_DIR):
         if (folder / name).exists():
             (folder / name).rename(data / name)
     (data / "uploads").mkdir(exist_ok=True)

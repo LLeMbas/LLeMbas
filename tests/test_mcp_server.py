@@ -38,7 +38,10 @@ def test_initialize_and_list(client, db, registered):
     init = _rpc(client, headers, "initialize", {"protocolVersion": "2025-06-18"}).json()
     assert init["result"]["serverInfo"]["name"] == "lembas"
     names = {t["name"] for t in _rpc(client, headers, "tools/list").json()["result"]["tools"]}
-    assert names == {"memory"}
+    # The memory tool, and the skills and notes store's (tests/test_skillstore_mcp.py).
+    from lembas.services.skillstore import mcp_tools
+
+    assert names == {"memory"} | set(mcp_tools.NAMES)
 
 
 def test_a_notification_is_accepted_without_an_answer(client, db, registered):
@@ -120,7 +123,10 @@ def test_an_unknown_method(client, db, registered):
 def test_the_older_library_scope_counts_as_memory(client, db, registered):
     headers = _token(db, scopes=("library",))
     names = {t["name"] for t in _rpc(client, headers, "tools/list").json()["result"]["tools"]}
-    assert names == {"memory"}
+    # The memory tool, and the skills and notes store's (tests/test_skillstore_mcp.py).
+    from lembas.services.skillstore import mcp_tools
+
+    assert names == {"memory"} | set(mcp_tools.NAMES)
     # ... and is not offered for a new token any more.
     assert "library" not in api_tokens.grantable(db, db.scalar(select(User)))
     assert "memory" in api_tokens.grantable(db, db.scalar(select(User)))

@@ -5,6 +5,12 @@ finds them, `services/skill_format.py` checks them). Every read and write goes
 through the chat's view of the tree, so a skill the chat cannot read does not
 exist for it, one it can only read cannot be changed, and every change is a
 file version -- which is what `revert` puts back.
+
+One of the instance's **shared** skills (the central store's,
+`services/skillstore/`) is read from the store, and a change to it is asked of
+the store: it applies, waits for approval or is refused by the instance's
+policy, recorded as this account's chat with its model -- the same door as
+every other route's.
 """
 
 from __future__ import annotations
@@ -16,6 +22,7 @@ from lembas.db.models import Chat, User
 from lembas.db.session import session_scope
 from lembas.services import blobs, fs, skill_files
 from lembas.services import skill_format as fmt
+from lembas.services.skillstore import repo as _store
 from lembas.services.tools.core import (
     FAMILY_SKILLS,
     RISK_WRITE,
@@ -46,7 +53,10 @@ async def _run_skills_list(context: ToolContext, args: dict[str, Any]) -> ToolOu
         event = {
             "name": "skills_list",
             "status": "ok",
-            "results": [{"title": skill.name, "path": skill.path} for skill in shown],
+            "results": [
+                {"title": skill.name, "path": skill.path} if skill.path else {"title": skill.name}
+                for skill in shown
+            ],
         }
         if not shown:
             return ToolOutcome("No skills yet.", event)
@@ -66,6 +76,21 @@ async def _run_skill_view(context: ToolContext, args: dict[str, Any]) -> ToolOut
             return ToolOutcome(
                 f'There is no skill "{name}". Skills: {listed or "(none)"}',
                 {"name": "skill_view", "status": "error", "error": "Not found."},
+            )
+        if skill.store:
+            from lembas.services.skillstore import catalog
+
+            row = catalog.skill(db, skill.name)
+            catalog.count_read(db, skill.name)
+            return ToolOutcome(
+                f"# Skill: {skill.name}\n{skill.description}\n"
+                f"A shared skill of this instance.\n\n{row.body if row else ''}",
+                {
+                    "name": "skill_view",
+                    "query": skill.name,
+                    "status": "ok",
+                    "results": [{"title": skill.name}],
+                },
             )
         text = fs.read(v, skill.path).decode("utf-8", errors="replace")
         parsed = fmt.parse(text)
@@ -131,6 +156,8 @@ async def _run_skill_manage(context: ToolContext, args: dict[str, Any]) -> ToolO
 
     done: list[str] = []
     results: list[dict[str, str]] = []
+    # Changes to the instance's shared skills: (action, name, the file after).
+    shared: list[tuple[str, str, str | None]] = []
     try:
         with session_scope() as db:
             v = _view(db, context)
@@ -149,8 +176,11 @@ async def _run_skill_manage(context: ToolContext, args: dict[str, Any]) -> ToolO
                 except ValueError as exc:
                     raise _Refused(f"{at}{exc}") from exc
                 existing = skill_files.find(v, name)
+                in_store = existing is not None and existing.store
                 if name in state:
                     current = state[name]
+                elif in_store:
+                    current = _store.read(_store.skill_rel(existing.name))
                 elif existing is not None:
                     current = fs.read(v, existing.path).decode("utf-8", errors="replace")
                 else:
@@ -183,8 +213,21 @@ async def _run_skill_manage(context: ToolContext, args: dict[str, Any]) -> ToolO
                     elif current is None:
                         raise _Refused(f'{at}there is no skill "{name}" here.')
                     elif action == "delete":
-                        fs.rm(v, posixpath.dirname(path))
+                        if in_store:
+                            shared.append(("remove", existing.name, None))
+                        else:
+                            fs.rm(v, posixpath.dirname(path))
                         state[name] = None
+                    elif action == "revert" and in_store:
+                        rel = _store.skill_rel(existing.name)
+                        commits = _store.history(rel, limit=2)
+                        earlier = (
+                            _store.at_commit(commits[1].sha, rel) if len(commits) > 1 else None
+                        )
+                        if earlier is None:
+                            raise _Refused(f'{at}"{name}" has no earlier version kept.')
+                        shared.append(("edit", existing.name, earlier))
+                        state[name] = earlier
                     elif action == "revert":
                         before = _previous(v, path)
                         if before is None:
@@ -230,13 +273,18 @@ async def _run_skill_manage(context: ToolContext, args: dict[str, Any]) -> ToolO
                             fmt.validate(after, name)
                         except ValueError as exc:
                             raise _Refused(f"{at}the patch would break SKILL.md: {exc}") from exc
-                        fs.write(v, path, after.encode("utf-8"), mime="text/markdown")
+                        if in_store:
+                            shared.append(("edit", existing.name, after))
+                        else:
+                            fs.write(v, path, after.encode("utf-8"), mime="text/markdown")
                         state[name] = after
                 except ValueError as exc:
                     raise _Refused(f"{at}{exc}") from exc
                 v.refresh()
                 done.append(f"{action} {name}")
-                if action != "delete":
+                if in_store:
+                    results.append({"title": name})
+                elif action != "delete":
                     results.append({"title": name, "path": path})
     except _Refused as exc:
         # Raised inside the transaction: nothing of this call is kept.
@@ -244,6 +292,39 @@ async def _run_skill_manage(context: ToolContext, args: dict[str, Any]) -> ToolO
     except fs.FsError as exc:
         return refused(exc.message)
     summary = ", ".join(done)
+    said: list[str] = []
+    if shared:
+        # Asked of the store after the files' own transaction: its policy
+        # decides whether each applies now, waits, or is refused.
+        from lembas.services.skillstore import policy as store_policy
+        from lembas.services.skillstore import service as store_service
+
+        with session_scope() as db:
+            user = db.get(User, context.owner_id)
+            who = store_policy.agent(
+                db, user, harness="chat", model=context.model_id, session=context.chat_id,
+                data_group=context.data_group, origin=store_policy.ORIGIN_CHAT,
+            )
+            for action, name, after in shared:
+                try:
+                    if action == "remove":
+                        outcome = store_service.skill_remove(
+                            db, who, name=name, reason="skill_manage in a chat"
+                        )
+                    else:
+                        outcome = store_service.skill_save(
+                            db, who, name=name, text=after or "",
+                            reason="skill_manage in a chat",
+                        )
+                except (store_service.Refused, _store.StoreError) as exc:
+                    return refused(f"{name}: {exc}")
+                if outcome.status != store_service.APPLIED:
+                    said.append(f"{name} is a shared skill of this instance: {outcome.message}")
+    if said:
+        return ToolOutcome(
+            "\n".join(said),
+            {"name": "skill_manage", "query": summary[:80], "status": "ok", "results": results},
+        )
     tail = (
         " The version it replaced is kept: revert again to undo this."
         if ops[0].get("action") == "revert"

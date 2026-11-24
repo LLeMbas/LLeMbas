@@ -124,13 +124,56 @@ def test_the_chain_the_home_and_the_organisation_in_that_order(db):
     elsewhere = _chat(db, user)
     assert {s.name: s.description
             for s in skill_files.all_skills(fs.view(db, user, elsewhere))}["clash"] == "Mine."
-    # The org's are readable but not the member's to change.
+    # The organisation's are the instance's shared skills now (the central
+    # store): readable, and a change waits for approval by its policy.
     out = _call(user, elsewhere, "skill_manage", operations=[{
         "action": "patch", "name": "shared", "old_string": "Body.", "new_string": "Mine now.",
     }])
-    assert out.content == (
-        "Read-only: /skills/shared/SKILL.md can be read in this session but not changed."
+    assert out.content.startswith("shared is a shared skill of this instance: Not applied yet")
+    viewed = _call(user, elsewhere, "skill_view", name="shared")
+    assert "A shared skill of this instance." in viewed.content and "Body." in viewed.content
+
+
+def test_the_organisations_skills_are_brought_into_the_store_once(db):
+    """One collection: what `/skills/` held is the store's, each skill once,
+    and a change in a chat goes through the store's policy with its provenance."""
+    from lembas.services.skillstore import policy, repo, service
+
+    user = _member(db)
+    skill = "---\nname: {n}\ndescription: {d}\n---\n\nBody.\n"
+    _org_file(db, "/skills/shared/SKILL.md", skill.format(n="shared", d="From the org."))
+    chat = _chat(db, user)
+    listed = _call(user, chat, "skills_list")
+    assert "shared — From the org." in listed.content
+    assert repo.read("skills/shared/SKILL.md") == skill.format(n="shared", d="From the org.")
+    first = repo.history("skills/shared/SKILL.md")[0]
+    assert first.origin == "import" and first.subject == "skill shared: import"
+    assert "main" not in [s.name for s in skill_files.all_skills(fs.view(db, user, chat))]
+    # Under auto the chat's patch applies, as this account's chat.
+    policy.save(db, {"skills_edit": policy.AUTO})
+    out = _call(user, chat, "skill_manage", operations=[{
+        "action": "patch", "name": "shared", "old_string": "Body.", "new_string": "New body.",
+    }])
+    assert out.content.startswith("Done: patch shared.")
+    last = repo.history("skills/shared/SKILL.md")[0]
+    assert (last.trailers["Origin"], last.trailers["Harness"], last.trailers["Session"]) == (
+        "chat", "chat", chat.id,
     )
+    reverted = _call(user, chat, "skill_manage",
+                     operations=[{"action": "revert", "name": "shared"}])
+    assert reverted.event["status"] == "ok" and "Body." in repo.read("skills/shared/SKILL.md")
+    # Under manual a chat's model is refused, and nothing changes.
+    policy.save(db, {"skills_edit": policy.MANUAL})
+    out = _call(user, chat, "skill_manage", operations=[{"action": "delete", "name": "shared"}])
+    assert out.event["status"] == "error" and "only a person edits" in out.content
+    assert repo.read("skills/shared/SKILL.md") is not None
+    # Removed from the store by a person, it does not come back from the old folder.
+    admin = User(email="root@example.org", name="Root", password_hash="x", role="admin")
+    db.add(admin)
+    db.commit()
+    service.skill_remove(db, policy.person(db, admin), name="shared")
+    assert service.import_tree(db) == []
+    assert "shared" not in _call(user, chat, "skills_list").content
 
 
 def test_a_skill_the_chat_cannot_read_does_not_exist_for_it(db):

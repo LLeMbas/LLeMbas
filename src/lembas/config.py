@@ -74,6 +74,12 @@ class Settings(BaseSettings):
     # a fetch has to name a branch, and tags come down with it.
     update_branch: str = "main"
 
+    # The skills and notes store's remote is https or ssh only
+    # (services/skillstore/gitrun.py). This lets a local path count as an
+    # address as well: for a test's bare repository in a temporary folder, and
+    # nothing a deployment should set.
+    skills_local_remote: bool = False
+
     @model_validator(mode="after")
     def _generate_secret_if_absent(self) -> Settings:
         # A generated key lets `lembas-server serve` work with no configuration at all,

@@ -23,6 +23,13 @@ Streamable HTTP in its plainest form: one JSON-RPC message per POST, answered
 with one JSON response (no server-to-client stream, so `GET` is 405). Methods:
 `initialize`, `notifications/initialized`, `ping`, `tools/list`, `tools/call`,
 `resources/list`, `resources/read`.
+
+**The instance's skills and notes are served here too** (the central store,
+`services/skillstore/`): seventeen tools beside `memory`, listed for an account
+that may use skills, and an `instructions` text that points an agent at them
+in a few lines (`skillstore.service.instructions`). `initialize` answers with
+an `Mcp-Session-Id` that remembers the client's own name, which is what a
+change's provenance says the harness was.
 """
 
 from __future__ import annotations
@@ -37,6 +44,7 @@ from fastapi.responses import JSONResponse, Response
 from lembas import __version__
 from lembas.api.deps import Db
 from lembas.security.api_tokens import SCOPE_LIBRARY, SCOPE_MEMORY, Caller, require_token
+from lembas.services.skillstore import mcp_tools as store_tools
 
 log = logging.getLogger(__name__)
 
@@ -133,6 +141,61 @@ def _scoped_chat(db, caller: Caller, params: dict[str, Any]):
     return chat, None
 
 
+def _instructions(db, caller: Caller) -> str:
+    """What a client is told as it connects: the memory, and -- for an account
+    that may use skills -- the compact pointer to the skills and notes."""
+    text = (
+        "The memory of the person signed in: the memory tool, and "
+        f"{MEMORY_URI} for its entries."
+    )
+    if not store_tools.offered(db, caller.user):
+        return text
+    try:
+        from lembas.services.skillstore import catalog, service
+
+        catalog.ensure(db)
+        service.sync_if_due(db)
+        who = store_tools.caller(
+            db, caller.user, token_name=caller.token.client or caller.token.name
+        )
+        return service.instructions(db, who) + "\n" + text
+    except Exception:  # the store being unwell never keeps a device from its memory
+        log.warning("mcp: the skills store could not be read", exc_info=True)
+        return text
+
+
+async def _store_call(request, db, caller: Caller, message_id, name, arguments, params):
+    """One of the skills and notes tools, as this account and this session."""
+    from lembas.services import audit
+
+    offered = {tool["name"]: tool for tool in store_tools.offered(db, caller.user)}
+    if name not in offered or not isinstance(arguments, dict):
+        return _reply(message_id, error=(-32602, f"There is no tool {name!r} for this account."))
+    chat, refused = _scoped_chat(db, caller, params)
+    if refused:
+        return _reply(message_id, error=refused)
+    meta = params.get("_meta") if isinstance(params.get("_meta"), dict) else {}
+    lembas_meta = meta.get("lembas") if isinstance(meta.get("lembas"), dict) else {}
+    who = store_tools.caller(
+        db,
+        caller.user,
+        token_name=caller.token.client or caller.token.name,
+        session_id=request.headers.get("mcp-session-id", ""),
+        meta=lembas_meta,
+        chat=chat,
+    )
+    text, failed = await store_tools.call(db, who, name, arguments)
+    if offered[name]["write"]:
+        audit.record(
+            "library.write",
+            user=caller.user,
+            token=caller.token,
+            request=request,
+            summary=f"{name} from {caller.token.name}",
+        )
+    return _reply(message_id, {"content": [{"type": "text", "text": text}], "isError": failed})
+
+
 @router.get("/mcp")
 async def no_stream() -> Response:
     return Response(status_code=405, headers={"Allow": "POST"})
@@ -154,7 +217,9 @@ async def mcp(request: Request, db: Db) -> Response:
     if message_id is None:  # a notification: nothing to answer
         return Response(status_code=202)
     if method == "initialize":
-        return _reply(
+        client = params.get("clientInfo") if isinstance(params, dict) else None
+        client_name = str((client or {}).get("name") or "") if isinstance(client, dict) else ""
+        answer = _reply(
             message_id,
             {
                 "protocolVersion": PROTOCOL_VERSION,
@@ -163,12 +228,13 @@ async def mcp(request: Request, db: Db) -> Response:
                     "resources": {"listChanged": False, "subscribe": False},
                 },
                 "serverInfo": {"name": "lembas", "version": __version__},
-                "instructions": (
-                    "The memory of the person signed in: the memory tool, and "
-                    f"{MEMORY_URI} for its entries."
-                ),
+                "instructions": _instructions(db, caller),
             },
         )
+        answer.headers["Mcp-Session-Id"] = store_tools.new_session(
+            client_name or caller.token.name
+        )
+        return answer
     if method == "ping":
         return _reply(message_id, {})
     if method == "tools/list":
@@ -185,6 +251,7 @@ async def mcp(request: Request, db: Db) -> Response:
                     }
                     for tool in tools.values()
                 ]
+                + store_tools.listed(db, caller.user)
             },
         )
     if method == "resources/list":
@@ -217,6 +284,8 @@ async def mcp(request: Request, db: Db) -> Response:
 
         name = str(params.get("name") or "")
         arguments = params.get("arguments") or {}
+        if name in store_tools.NAMES:
+            return await _store_call(request, db, caller, message_id, name, arguments, params)
         tools = library_tools(db, caller.user)
         # A former name (`memory_add`, `notes_create`, ...) is the call it
         # means, as in the chat loop: a device that listed the tools before an

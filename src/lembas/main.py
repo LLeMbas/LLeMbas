@@ -126,6 +126,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             from lembas.services import fs
 
             fs.ensure_layout(db)
+            # The skills and notes store, and the skills an older version kept
+            # as files in `/skills/` (services/skillstore/).
+            from lembas.services.skillstore import catalog as store_catalog
+            from lembas.services.skillstore import service as store_service
+
+            store_catalog.ensure(db)
+            store_service.import_tree(db)
     except Exception:  # housekeeping must never block startup
         log.exception("orphaned upload sweep failed")
 

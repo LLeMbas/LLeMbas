@@ -1,0 +1,281 @@
+"""Who may change what in the store: the settings, the caller, the decision.
+
+**The main policy alone decides, with no special cases** (three levels):
+
+- `manual` -- only a person edits, by hand in the web UI;
+- `approve` -- an agent's change waits in the queue until a person approves;
+- `auto` -- an agent's change applies at once.
+
+Skills have one level (`skills_edit`, default *approve*). Notes have two:
+adding a note, adding to one and confirming one (`notes_add`, default *auto*:
+free), and changing or removing what **somebody else** wrote (`notes_change`,
+default *approve*, settable per kind in `notes_kinds`). A note is one's own
+when the same account wrote it through the same harness; for a person in the
+web UI, when their account did.
+
+**Every door calls `decide`** -- the MCP tools, a chat's `skill_manage`, the
+web forms, the queue's approval -- so no route applies a change the policy
+would have held.
+
+Who decides a waiting change: for skills (shared by everyone) an instance
+administrator; for a note, a person who can see it and wrote it, proposed the
+change's own note, or administers the instance.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field, replace
+from typing import Any
+
+from sqlalchemy.orm import Session as DBSession
+
+from lembas.db.models import DEFAULT_GROUP, User
+from lembas.services import settings_store
+
+KEY = "skills"
+
+MANUAL = "manual"
+APPROVE = "approve"
+AUTO = "auto"
+LEVELS = (MANUAL, APPROVE, AUTO)
+
+ORIGIN_WEB = "web"
+ORIGIN_MCP = "mcp"
+ORIGIN_CHAT = "chat"
+ORIGIN_REMOTE = "remote"
+ORIGIN_IMPORT = "import"
+
+APPLY = "apply"
+QUEUE = "queue"
+REFUSE = "refuse"
+
+# What a note may be called; anything else a note says is read as "note".
+KINDS = ("note", "plan", "finding", "incident", "crash", "decision", "reference")
+
+
+def defaults() -> dict[str, Any]:
+    return {
+        "skills_edit": APPROVE,
+        "notes_add": AUTO,
+        "notes_change": APPROVE,
+        # kind -> level, for changing somebody else's note of that kind.
+        "notes_kinds": {},
+        # Kinds every data group sees.
+        "shared_kinds": [],
+        "remote_address": "",
+        "remote_branch": "main",
+        "remote_username": "",
+        # Fernet-encrypted (services/crypto.py); never rendered.
+        "remote_token_encrypted": "",
+        "remote_ssh_key_encrypted": "",
+        # Whether a sync with this remote has succeeded once: until then a remote
+        # that shares no history is adopted rather than called diverged.
+        "remote_adopted": False,
+        "sync_state": "off",
+        "sync_message": "",
+        "sync_at": "",
+        "sync_minutes": 15,
+        # The organisation's old `/skills/<name>/` files already brought in, by
+        # name: each once, so a skill removed here later does not come back.
+        "tree_imported": [],
+    }
+
+
+def settings(db: DBSession) -> dict[str, Any]:
+    values = defaults()
+    values.update(settings_store.get_group(db, KEY))
+    for key in ("skills_edit", "notes_add", "notes_change"):
+        if values.get(key) not in LEVELS:
+            values[key] = defaults()[key]
+    kinds = values.get("notes_kinds")
+    values["notes_kinds"] = (
+        {str(k): v for k, v in kinds.items() if v in LEVELS} if isinstance(kinds, dict) else {}
+    )
+    shared = values.get("shared_kinds")
+    values["shared_kinds"] = [str(k) for k in shared] if isinstance(shared, list) else []
+    try:
+        values["sync_minutes"] = min(max(int(values.get("sync_minutes") or 15), 1), 1440)
+    except (TypeError, ValueError):
+        values["sync_minutes"] = 15
+    return values
+
+
+def save(db: DBSession, changes: dict[str, Any]) -> None:
+    settings_store.update(db, changes, key=KEY)
+
+
+@dataclass(frozen=True)
+class Who:
+    """Who is asking, as every change records it."""
+
+    account_id: str = ""
+    account_name: str = ""
+    is_admin: bool = False
+    # A person acting by hand in the web UI; False for every agent and program.
+    person: bool = False
+    harness: str = ""
+    model: str = ""
+    session: str = ""
+    origin: str = ORIGIN_MCP
+    # The data group this caller works under (what a new note is stamped with)...
+    data_group: str = DEFAULT_GROUP
+    # ... and the groups whose notes it may read.
+    groups: frozenset[str] = field(default_factory=lambda: frozenset({DEFAULT_GROUP}))
+    # Whether the account may have a model write here at all (`tools.skills.write`).
+    may_write: bool = True
+
+    def trailers(self, reason: str = "") -> dict[str, str]:
+        return {
+            "Account": self.account_name,
+            "Account-Id": self.account_id,
+            "Harness": self.harness,
+            "Model": self.model,
+            "Session": self.session,
+            "Origin": self.origin,
+            "Reason": reason,
+        }
+
+
+def person(db: DBSession, user: User) -> Who:
+    """A person at the web UI: every group they may use, by hand."""
+    from lembas.services import data_groups
+
+    groups = frozenset(group.id for group in data_groups.usable(db, user))
+    return Who(
+        account_id=user.id,
+        account_name=user.name,
+        is_admin=user.is_admin,
+        person=True,
+        harness="web",
+        origin=ORIGIN_WEB,
+        data_group=DEFAULT_GROUP,
+        groups=groups or frozenset({DEFAULT_GROUP}),
+    )
+
+
+def agent(
+    db: DBSession,
+    user: User,
+    *,
+    harness: str,
+    model: str = "",
+    session: str = "",
+    data_group: str = DEFAULT_GROUP,
+    origin: str = ORIGIN_MCP,
+) -> Who:
+    """An agent of this account, working under one data group and no other."""
+    from lembas.security import permissions
+
+    allowed = permissions.resolve(db, user)
+    group = data_group or DEFAULT_GROUP
+    return Who(
+        account_id=user.id,
+        account_name=user.name,
+        is_admin=False,
+        person=False,
+        harness=" ".join((harness or "").split())[:80] or "unknown",
+        model=" ".join((model or "").split())[:200],
+        session=" ".join((session or "").split())[:120],
+        origin=origin,
+        data_group=group,
+        groups=frozenset({group}),
+        may_write=bool(allowed.get("tools.skills.write", True)),
+    )
+
+
+def in_group(who: Who, group: str) -> Who:
+    return replace(who, data_group=group or DEFAULT_GROUP)
+
+
+def _by_level(level: str) -> str:
+    return {MANUAL: REFUSE, APPROVE: QUEUE, AUTO: APPLY}[level]
+
+
+def decide_skill(db: DBSession, who: Who) -> str:
+    """What happens to a change to a skill asked for by `who`."""
+    level = settings(db)["skills_edit"]
+    if who.person:
+        # By hand: an administrator's edit is the policy's "a person edits".
+        # Anybody else's hand is held like an agent's unless everything applies.
+        return APPLY if who.is_admin or level == AUTO else QUEUE
+    if not who.may_write:
+        return REFUSE
+    return _by_level(level)
+
+
+def own_note(who: Who, author_id: str, harness: str) -> bool:
+    if not author_id or author_id != who.account_id:
+        return False
+    return True if who.person else harness == who.harness
+
+
+def decide_note(
+    db: DBSession, who: Who, action: str, *, kind: str = "", author_id: str = "",
+    harness: str = "",
+) -> str:
+    """What happens to a change to a note. `action`: add, append, confirm
+    (the free ones), or change, archive, remove (somebody's writing)."""
+    values = settings(db)
+    if who.person:
+        return APPLY
+    if not who.may_write:
+        return REFUSE
+    if action in ("add", "append", "confirm"):
+        return _by_level(values["notes_add"])
+    if own_note(who, author_id, harness):
+        return APPLY
+    return _by_level(values["notes_kinds"].get(kind, values["notes_change"]))
+
+
+def may_decide_skill(user: User) -> bool:
+    return bool(user.is_admin)
+
+
+def describe(db: DBSession, who: Who) -> dict[str, str]:
+    """What this caller may do, in the words `skills_policy` answers with."""
+    values = settings(db)
+    words = {
+        APPLY: "applies at once",
+        QUEUE: "waits for a person's approval",
+        REFUSE: "is not taken: only a person edits here, by hand",
+    }
+    return {
+        "skills": words[decide_skill(db, who)],
+        "notes_add": words[decide_note(db, who, "add")],
+        "notes_change": words[decide_note(db, who, "change", author_id="-")],
+        "levels": (
+            f"skills {values['skills_edit']}; adding notes {values['notes_add']}; "
+            f"changing others' notes {values['notes_change']}"
+            + "".join(f"; {kind} notes {level}" for kind, level in values["notes_kinds"].items())
+        ),
+    }
+
+
+__all__ = [
+    "APPLY",
+    "APPROVE",
+    "AUTO",
+    "KEY",
+    "KINDS",
+    "LEVELS",
+    "MANUAL",
+    "ORIGIN_CHAT",
+    "ORIGIN_IMPORT",
+    "ORIGIN_MCP",
+    "ORIGIN_REMOTE",
+    "ORIGIN_WEB",
+    "QUEUE",
+    "REFUSE",
+    "Who",
+    "agent",
+    "decide_note",
+    "decide_skill",
+    "defaults",
+    "describe",
+    "in_group",
+    "may_decide_skill",
+    "own_note",
+    "person",
+    "save",
+    "settings",
+]

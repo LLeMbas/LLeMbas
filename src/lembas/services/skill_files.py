@@ -8,6 +8,13 @@ repository's mount, or a plain directory in its place). The most specific
 place wins a name, as in the CLI, where a project's skill shadows a global one:
 the root's own `skills/` is the organisation's and so comes last.
 
+**The instance's shared skills are the central store's**
+(`services/skillstore/`), and they come last of all: what the first
+organisation kept in `/skills/` was brought into the store, each skill once,
+and that folder is no longer read there -- one collection, not two. A store
+skill has no path in the tree (`SkillFile.store`), and a change to one goes
+through the store's policy (manual, approve, auto) like every other door's.
+
 Only what the chat's session can read is a skill there: every lookup goes
 through its `fs.View`, so a skill in a directory the chat was not granted does
 not exist for it, and one in a read-only place can be read but not changed.
@@ -19,11 +26,12 @@ New skills go to the person's own skills directory. `skills_list`,
 
 from __future__ import annotations
 
+import logging
 import posixpath
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from lembas.db.models import KIND_DIR, KIND_FILE, KIND_MOUNT, LEVEL_STAGE
+from lembas.db.models import DEFAULT_ORG, KIND_DIR, KIND_FILE, KIND_MOUNT, LEVEL_STAGE
 from lembas.security import access
 from lembas.services import fs
 from lembas.services.skill_format import (
@@ -33,6 +41,8 @@ from lembas.services.skill_format import (
     lookup_key,
     parse,
 )
+
+log = logging.getLogger(__name__)
 
 SKILLS_DIR = "skills"
 # How much of a SKILL.md the index reads: the frontmatter is at the top.
@@ -46,6 +56,8 @@ class SkillFile:
     dir: str
     path: str
     writable: bool
+    # One of the instance's shared skills, kept in the central store.
+    store: bool = False
 
 
 def roots(v: fs.View) -> list[str]:
@@ -62,7 +74,10 @@ def roots(v: fs.View) -> list[str]:
     home = fs.home_of(v.db, v.user)
     if home is not None:
         out.append(posixpath.join(home.path, SKILLS_DIR))
-    out.append(fs.SKILLS)
+    if v.org_id != DEFAULT_ORG:
+        # Another organisation's own `/skills/` stays its own: only the first
+        # organisation's was brought into the instance's store.
+        out.append(fs.SKILLS)
     seen: set[str] = set()
     return [p for p in out if not (p in seen or seen.add(p))]
 
@@ -116,6 +131,31 @@ def _skills_in(v: fs.View, root: str) -> Iterable[SkillFile]:
         )
 
 
+def _store_skills(v: fs.View) -> Iterable[SkillFile]:
+    """The instance's shared skills (not the main skill, which is the MCP
+    endpoint's pointer and speaks of its tools)."""
+    from lembas.services.skillstore import catalog, service
+
+    try:
+        service.import_tree(v.db)
+        rows = catalog.skills(v.db)
+    except Exception:  # a store that is unwell takes no chat's own skills with it
+        log.warning("skills: the central store could not be read", exc_info=True)
+        return
+    for row in rows:
+        name = loadable_name(row.name)
+        if name is None:
+            continue
+        yield SkillFile(
+            name=name,
+            description=" ".join(row.description.split()),
+            dir="",
+            path="",
+            writable=True,
+            store=True,
+        )
+
+
 def all_skills(v: fs.View, *, exclude: Iterable[str] = ()) -> list[SkillFile]:
     """Every skill this chat can read, a name's first claim winning, by name."""
     hidden = {lookup_key(name) for name in exclude}
@@ -125,6 +165,10 @@ def all_skills(v: fs.View, *, exclude: Iterable[str] = ()) -> list[SkillFile]:
             key = lookup_key(skill.name)
             if key not in found and key not in hidden:
                 found[key] = skill
+    for skill in _store_skills(v):
+        key = lookup_key(skill.name)
+        if key not in found and key not in hidden:
+            found[key] = skill
     return sorted(found.values(), key=lambda s: s.name)
 
 

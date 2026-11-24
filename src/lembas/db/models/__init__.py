@@ -174,6 +174,16 @@ from lembas.db.models.schedule import (
 )
 from lembas.db.models.setting import Setting
 from lembas.db.models.shown import ShownFile
+from lembas.db.models.store import (
+    PROPOSAL_APPROVED,
+    PROPOSAL_PENDING,
+    PROPOSAL_REJECTED,
+    PROPOSAL_STALE,
+    StoreNote,
+    StoreProposal,
+    StoreRead,
+    StoreSkill,
+)
 from lembas.db.models.suggestion import Suggestion
 from lembas.db.models.tool import (
     AUTH_KINDS,
@@ -389,6 +399,14 @@ __all__ = [
     "guess_kind",
     "Session",
     "Setting",
+    "PROPOSAL_APPROVED",
+    "PROPOSAL_PENDING",
+    "PROPOSAL_REJECTED",
+    "PROPOSAL_STALE",
+    "StoreNote",
+    "StoreProposal",
+    "StoreRead",
+    "StoreSkill",
     "ShownFile",
     "Suggestion",
     "User",
