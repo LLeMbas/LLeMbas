@@ -98,6 +98,12 @@ AREAS = {
         "silent": notify.is_silent(c["text"]), "stripped": notify.strip_sentinel(c["text"])
     },
     "monitor": lambda c: _monitor(c),
+    # Spec 3.11.0. Each runs the part this server answers and skips, by its
+    # reason, the part that is the device's alone (`_editor`, `_show`,
+    # `_device_files`).
+    "editor": lambda c: _editor(c),
+    "show": lambda c: _show(c),
+    "device_files": lambda c: _device_files(c),
     # Spec 3.9.0: the model a new agent chat on a device and directory, or a
     # schedule's run there, starts on (`services/directories.py start`). The
     # `start` and `record` kinds are the device's own.
@@ -486,6 +492,166 @@ def _monitor(case: dict):
     if case["kind"] != "hash":
         pytest.skip("the watch command is judged on the device, by its permission rules")
     return device.monitor_hash(case["output"].encode("utf-8"), case["exit"])
+
+
+# --- Spec 3.11.0: an editor as the client, files shown, device files -----------------------
+# What of `editor.json` is the device's alone, by `kind`, and why.
+_EDITOR_ON_THE_DEVICE = {
+    "trim": "`_lembas/complete` is the CLI's method: it cuts a long prefix or suffix before "
+    "it asks this server, whose own answer to one past the cap is a 413 in words "
+    "(tests/test_complete.py)",
+    "message": "`_lembas/edit` is the CLI's method: the rewrite's message is made on the "
+    "device, and this server only serves the model request it turns into",
+    "output": "`_lembas/edit` is the CLI's method: what a rewrite answers is made on the device",
+    "model": "`_lembas/edit` is the CLI's method: the device chooses the rewrite's model from "
+    "what this server tells it (`/v1/lembas/editor`, tests/test_editor_settings.py)",
+    "diff": "what an approval's content is made of is the device's choice; this server reads "
+    "the diff items it is sent (`interaction.diffs_of`, tests/test_editor_context.py)",
+    "buffer": "unsaved text is an editor's on the same machine (`serve --stdio`): the link's "
+    "client holds no buffer and says no ACP `fs`",
+}
+
+
+def _editor(c: dict) -> dict:
+    """`editor.json`: the block a message's editor context becomes, which a
+    chat on this server says to its model itself."""
+    from lembas.services import editor_context
+
+    if c["kind"] != "context":
+        pytest.skip(f"editor/{c['kind']}: {_EDITOR_ON_THE_DEVICE[c['kind']]}")
+    return {"block": editor_context.block(c["editor"], c["root"], c.get("limits"))}
+
+
+def _show(c: dict) -> dict:
+    """`show.json` as this server's own `show` tool decides for a file of the
+    tree: a text file's kind and language by its name, and the two limits."""
+    from lembas.services.media import shown as shown_media
+    from lembas.services.tools import files as file_tools
+
+    if not c["text"]:
+        if not c["media"]:
+            pytest.skip(
+                "show: a client without `media` is the device's to refuse; this server "
+                "always shows a file that is not text"
+            )
+        if c["size"] > shown_media.limits()["max_bytes"]:
+            return {"refused": "too_large"}
+        pytest.skip(
+            "show: the kind and type a device reads off a name are its hint; this server "
+            "reads both from the bytes (tests/test_show_media.py)"
+        )
+    if c["size"] > file_tools.SHOW_MAX_BYTES:
+        return {"refused": "too_large"}
+    kind, language = file_tools.show_kind(c["name"])
+    name = c["name"].rsplit(".", 1)[-1].lower()
+    if c["media"] and name in ("csv", "tsv", "svg", "ipynb", "png"):
+        pytest.skip(
+            "show: `table`, `svg` and `notebook` (and a name that promises a picture) are "
+            "what a device tells a client; this server's own card keeps the four text kinds "
+            "and its viewer picks the view from the file's bytes (tests/test_file_viewers*)"
+        )
+    return {"kind": kind, "via": "text", **({"language": language} if language else {})}
+
+
+def _device_files(c: dict) -> dict:
+    """`device_files.json`: the device judges every path. What this server
+    computes beforehand, as advice to a client, is whether a path is one of
+    the files that run code -- as far as the path alone says."""
+    from lembas.services import device_files
+
+    if c["kind"] == "base":
+        pytest.skip(
+            "device_files/base: the device compares the base where it writes; this server "
+            "passes `base` and `overwrite` on as sent (test_a_base_is_passed_on_as_sent)"
+        )
+    if c["kind"] == "again":
+        pytest.skip("device_files/again: judged again on the device, after its own waits")
+    if "home" not in c:
+        pytest.skip(
+            "device_files/path: roots, links, the CLI's own files, protected paths and the "
+            "read-only mode are the device's to judge; this server passes its refusal on "
+            "(tests/test_device_files.py)"
+        )
+    home = c["home"].rstrip("/")
+    if c.get("links") or c["path"].startswith(f"{home}/."):
+        pytest.skip(
+            "device_files/path: where a link really leads, and the start-up files under the "
+            "device user's home, are known on the device only; its refusal is passed on"
+        )
+    if c["op"] != "read" and not c.get("files_that_run_code") and device_files.runs_code(
+        c["path"]
+    ):
+        return {"refused": "runs_code"}
+    return {"ok": True, "real": c["path"]}
+
+
+def test_a_base_is_passed_on_as_sent():
+    """`device_files.json`, `kind: base`: the device decides, so what a client
+    said of its base must reach it unchanged -- absent stays absent, null
+    stays null, a hash stays that hash, and `overwrite` is said when it was."""
+    from lembas.api.v2.device_files import how
+
+    cases = [
+        c for c in json.loads(
+            (harness_spec.conformance_dir() / "device_files.json").read_text(encoding="utf-8")
+        )["cases"] if c["kind"] == "base"
+    ]
+    assert len(cases) >= 9
+    for case in cases:
+        body = {key: case[key] for key in ("base", "overwrite") if key in case}
+        sent = how(body)
+        if case.get("overwrite"):
+            # Said outright: the device writes whatever is there.
+            assert sent == {"overwrite": True}, case
+        elif "base" in case:
+            assert sent == {"base": case["base"]}, case
+        else:
+            assert sent == {}, case
+
+
+def test_the_numbers_of_spec_3_11_are_the_vendored_specs():
+    """The limits are read from the vendored spec; each module's own number
+    is only what it falls back to, and is held to the spec here."""
+    from lembas.api.v1 import lembas as complete_api
+    from lembas.services import device_files, editor_context, interaction
+    from lembas.services.media import shown as shown_media
+    from lembas.services.tools import files as file_tools
+
+    loop = harness_spec.loop()
+    files, editor = loop["files"], loop["editor"]
+    assert shown_media.limits() == {
+        "max_bytes": files["show"]["media_max_bytes"],
+        "chunk_bytes": files["chunk_max_bytes"],
+        "wait_seconds": files["show"]["media_wait_seconds"],
+    }
+    assert (
+        files["show"]["media_max_bytes"], files["chunk_max_bytes"],
+        files["show"]["media_wait_seconds"],
+    ) == (shown_media.MAX_BYTES, shown_media.CHUNK_BYTES, shown_media.WAIT_SECONDS)
+    assert files["show"]["text_max_bytes"] == file_tools.SHOW_MAX_BYTES
+    assert device_files._chunk() == files["chunk_max_bytes"]
+    assert files["upload_max_bytes"] >= device_files.WRITE_MAX_BYTES
+    assert files["list_max"] == device_files.MAX_ENTRIES
+    rules = files["runs_code"]
+    assert device_files._runs_code_rules() == rules
+    assert {key: rules[key] for key in device_files.RUNS_CODE} == device_files.RUNS_CODE
+    assert editor_context.limits() == editor["context"]
+    assert editor["context"] == editor_context.LIMITS
+    assert editor["complete"]["max_bytes"] == complete_api.MAX_SIDE_BYTES
+    assert editor["complete"]["max_tokens_default"] == complete_api.DEFAULT_TOKENS
+    assert editor["complete"]["max_tokens_cap"] == complete_api.MAX_TOKENS
+    assert editor["diff"]["max_bytes"] == interaction.MAX_DIFF_CHARS
+
+
+def test_the_show_tool_says_what_the_spec_says_and_still_registers():
+    """The tool's description is the vendored spec's, which from 3.11.0 says a
+    file that is not text is shown in the conversation."""
+    from lembas.services.tools import files as file_tools
+
+    spec = harness_spec.tools()["show"]
+    assert "whether or not you can read that kind of file" in spec["description"]
+    assert spec["requires"] == ["display"] and file_tools.show_unavailable() == spec["unavailable"]
+    assert "show" in SHARED_ADOPTED
 
 
 def _display(c: dict) -> dict:
