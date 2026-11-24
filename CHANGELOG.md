@@ -14,8 +14,10 @@ at <https://llembas.eu/changelog.html>.
   other harnesses read, and `notes/<name>.md` with a header of subjects, kind, summary,
   dates, author and "last confirmed". It works with no setup, and every change is a
   commit that says who made it: the account, the harness (the MCP client's own name),
-  the model, the session and the reason. A model only the caller named is kept as its
-  claim and shown as "said by the caller".
+  the token it came with, the model, the session and the reason. What a client says
+  about itself -- its harness name, a model only it named -- is kept as its claim and
+  shown as "said by the caller"; nothing is decided on it. A file's header fields are
+  written by the server alone: text handed in as a body is only ever a body.
 - **Found cheaply, read in parts.** What a client is told as it connects is a few lines:
   how skills and notes work here, the categories with their counts, a handful of main
   skills, and when to look further. The **main skill** is one call away: your own
@@ -23,7 +25,8 @@ at <https://llembas.eu/changelog.html>.
   category up to 10 in each; a pointer to the category and up to 3 main skills above
   that; groups inside the category and up to 5 above 25; never more than 50 pointers,
   the largest category giving way first. Main skills are the pinned ones, then the most
-  read lately. A skill and a note are read by their outline, then one section; a search
+  read lately (a read counts once per account and day); what every client is told as it
+  connects names only the ones an administrator pinned. A skill and a note are read by their outline, then one section; a search
   by words (and by meaning, where the instance has an embedding model) is underneath.
 - **Seventeen tools on `/mcp`, beside `memory`:** `skills_main`, `skills_category`,
   `skills_search`, `skill_outline`, `skill_read`, `skill_add`, `skill_edit`,
@@ -33,22 +36,26 @@ at <https://llembas.eu/changelog.html>.
 - **You decide how agents may change them: manual, approve, or auto.** *Manual*: only a
   person edits, by hand. *Approve*: an agent's change waits in LLeMbas's own queue, shown
   as a diff beside the reason and who asked, until a person approves or rejects it with a
-  word the agent can read. *Auto*: applied at once. The level alone decides, on every
+  word the agent can read. An approval is of the text the page showed: if the file has
+  moved on since, the change is looked at again first. *Auto*: applied at once. The level alone decides, on every
   route. Adding a note, adding to one and confirming one are free by default; changing
-  or removing what somebody else wrote follows the same three levels, settable per kind
-  of note. Who approves is a setting.
+  or removing what somebody else wrote -- another account, or another token of the same
+  account -- follows the same three levels, settable per kind of note. Who approves is a setting.
 - **Notes stay in the data group they were written under.** Skills are shared and
   general; a note is seen in its data group, or everywhere when it or its kind is
   shared. A call made for a session reads and writes that session's data group; any
-  other call the default one.
+  other call the default one. A note is filed under its data group's own folder, so a
+  note of another group does not show even through the name a new one gets.
 - **Any git repository as an optional remote**, over https with a token or ssh with a
   key, both stored encrypted and never shown again; no forge is needed. LLeMbas pushes
   after each change and takes the remote's changes when they follow on from its own.
   When both sides have changed it stops and says so -- it never merges -- and offers one
   way out that loses nothing. A remote that already holds skills is adopted. What
   arrives from the remote is taken as your own edit and shown in the history as from
-  the remote. git runs with no hooks, no prompt, time limits and a size limit, and what
-  a remote sends is checked before it becomes files.
+  the remote. git runs with no hooks, no prompt, time limits and a size limit, and a
+  configuration LLeMbas rewrites to a known minimum, so nothing in a repository or a
+  restored backup can run a command; what a remote sends is checked before it becomes
+  files (no links, no names that differ only by case, a bound on the whole).
 - **Skills and Notes in the web UI**: the skills by category, a skill's page with its
   history and an editor, pinning, the main skill's prose beside the list agents are
   given, the queue; notes by subject, kind and status, and a note's page; and
@@ -59,7 +66,8 @@ at <https://llembas.eu/changelog.html>.
 ### Changed
 
 - **The instance's shared skills are one collection.** What the first organisation kept
-  as files in `/skills/` is brought into the new store, each skill once, and a chat's
+  as files in `/skills/` is brought into the new store once, at the first start -- after
+  that a file written there is an ordinary file, and says so -- and a chat's
   `skills_list`, `skill_view` and `skill_manage` read and change shared skills there --
   so a model's change to a shared skill now follows the policy above instead of the
   folder's write access. A person's own `~/skills/` and a project's `skills/` are as

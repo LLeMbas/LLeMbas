@@ -192,11 +192,19 @@ def index_block(v: fs.View, *, exclude: Iterable[str] = ()) -> str:
     return "\n".join(f"- {skill.name}: {skill.description}" for skill in skills)
 
 
-def stray_note(path: str) -> str:
+def stray_note(path: str, org_id: str = "") -> str:
     """The note a write of a SKILL.md where no skill is loaded from adds
-    (`context.md` 5): an ordinary file, until it is under a skills directory."""
+    (`context.md` 5): an ordinary file, until it is under a skills directory.
+    In the first organisation that includes `/skills/` itself: the instance's
+    shared skills are the central store's, and a file there is not one."""
     if posixpath.basename(path) != FILE_NAME:
         return ""
+    if org_id == DEFAULT_ORG and posixpath.dirname(posixpath.dirname(path)) == fs.SKILLS:
+        return (
+            "\nNote: a SKILL.md in /skills/ is an ordinary file — this instance's shared "
+            "skills are not kept there and this does not add or change one. To change a "
+            "shared skill, use skill_manage (patch)."
+        )
     if posixpath.basename(posixpath.dirname(posixpath.dirname(path))) == SKILLS_DIR:
         return ""
     return (

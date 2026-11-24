@@ -124,7 +124,9 @@ def instructions(db: DBSession, who: Who | None = None) -> str:
         )
     else:
         lines.append(f"{len(found)} skills. skills_search(query) finds by words.")
-    top = pointers.mains(found)[:6]
+    # Only what an administrator pinned is named to every client as it
+    # connects: how often a skill is read never puts it into these lines.
+    top = [item for item in pointers.mains(found) if item.pinned][:6]
     if top:
         lines.append("Main skills:")
         lines += [f"- {item.name}: {pointers.when(item.when)}" for item in top]
@@ -156,19 +158,21 @@ def skill_outline(db: DBSession, name: str) -> str:
     return outline_text(row, f"# Skill: {row.name}\n{row.description}")
 
 
-def skill_read(db: DBSession, name: str, section: str = "") -> str:
+def skill_read(db: DBSession, name: str, section: str = "", *, reader: str = "") -> str:
+    """One section of a skill, or all. `reader`: the account reading, which a
+    read is counted for (once a day)."""
     row = _need_skill(db, name)
     if row.name == repo.MAIN and not section:
-        catalog.count_read(db, row.name)
+        catalog.count_read(db, row.name, reader)
         return main_text(db)
     if not section or section == "all":
-        catalog.count_read(db, row.name)
+        catalog.count_read(db, row.name, reader)
         return f"# Skill: {row.name}\n{row.description}\n\n{row.body}"
     found = doc.find_section(row.body, section)
     if found is None:
         ids = ", ".join(str(s["id"]) for s in row.sections_json)
         raise Refused(f'"{row.name}" has no section "{section}". Sections: {ids}')
-    catalog.count_read(db, row.name)
+    catalog.count_read(db, row.name, reader)
     return doc.section_text(row.body, found)
 
 
@@ -211,6 +215,13 @@ def _announce(db: DBSession, proposal: StoreProposal) -> None:
         log.debug("skills store: could not announce a waiting change", exc_info=True)
 
 
+def _section_hash(text: str | None, section: str) -> str:
+    """What a section says now, as a hash ('' : there is none)."""
+    body = doc.body_of(text or "")
+    found = doc.find_section(body, section)
+    return catalog.text_hash(doc.section_text(body, found)) if found is not None else ""
+
+
 def _submit(
     db: DBSession,
     who: Who,
@@ -223,6 +234,7 @@ def _submit(
     decision: str,
     section: str = "",
     section_text: str | None = None,
+    fields: dict[str, object] | None = None,
 ) -> Outcome:
     """Apply, queue or refuse one change. The only way a caller's change is
     committed."""
@@ -262,6 +274,8 @@ def _submit(
             session=who.session,
             origin=who.origin,
             section_text=section_text,
+            fields_json=dict(fields) if fields else None,
+            section_hash=_section_hash(current, section) if section_text is not None else "",
         )
         db.add(proposal)
         db.commit()
@@ -295,6 +309,11 @@ def _skill_fields(category: str | None, subcategory: str | None) -> dict[str, ob
 
 
 def _check_skill(name: str, text: str) -> None:
+    twice = doc.duplicates(doc.split(text)[0])
+    if twice:
+        raise Refused(
+            f"The header names {', '.join(twice)} more than once; a field is said once."
+        )
     try:
         fmt.validate(text, name)
     except ValueError as exc:
@@ -320,7 +339,7 @@ def skill_add(
         raise Refused(f'A skill "{name}" already exists. Change it with skill_edit.')
     if not " ".join((description or "").split()):
         raise Refused("A description is needed: one line saying when to use the skill.")
-    text = fmt.compose(name, description, body or "")
+    text = fmt.compose(name, description, doc.plain_body(body or ""))
     extra = {k: v for k, v in _skill_fields(category, subcategory).items() if v}
     if extra:
         text = doc.set_fields(text, extra)
@@ -378,7 +397,7 @@ def skill_edit(
     return _submit(
         db, who, target=TARGET_SKILL, name=row.name, action="edit", new_text=after,
         reason=_reason(reason, who), decision=policy.decide_skill(db, who),
-        section=section, section_text=section_text,
+        section=section, section_text=section_text, fields=changes,
     )
 
 
@@ -389,6 +408,16 @@ def skill_save(db: DBSession, who: Who, *, name: str, text: str, reason: str = "
         current = repo.read(repo.skill_rel(repo.MAIN)) or repo.MAIN_SKILL
         text = doc.with_body(current, doc.body_of(text) if doc.split(text)[0] else text)
     _check_skill(row.name, text)
+    # What has a door of its own does not come in through the whole file:
+    # `pinned` is an administrator's, by hand (`skill_pin`), for everybody; the
+    # category and the group are named in their own arguments, and through
+    # this door only by a person's form.
+    held = doc.fields(doc.split(repo.read(repo.skill_rel(row.name)) or "")[0])
+    keep: dict[str, object] = {"pinned": True if catalog.truthy(held.get("pinned", "")) else None}
+    if not who.person:
+        keep["category"] = held.get("category")
+        keep["subcategory"] = held.get("subcategory")
+    text = doc.set_fields(text, keep)
     return _submit(
         db, who, target=TARGET_SKILL, name=row.name, action="edit", new_text=text,
         reason=_reason(reason, who), decision=policy.decide_skill(db, who),
@@ -452,7 +481,9 @@ def note_header(row: StoreNote) -> str:
     by = row.author or "unknown"
     if row.harness:
         said = ", said by the caller" if row.model_said else ""
-        by += f" ({row.harness}" + (f", {row.model}{said}" if row.model else "") + ")"
+        # An agent's harness is the name its client gave itself.
+        named = "" if row.author_key in ("", "web", "chat") else " by its own name"
+        by += f" ({row.harness}{named}" + (f", {row.model}{said}" if row.model else "") + ")"
     confirmed = (
         f"confirmed {row.confirmed[:10]}" + (f" by {row.confirmed_by}" if row.confirmed_by else "")
         if row.confirmed else "never confirmed"
@@ -476,12 +507,19 @@ def note_read(db: DBSession, who: Who, ident: str, section: str = "") -> str:
     return doc.section_text(row.body, found)
 
 
-def _free_ident(db: DBSession, wanted: str) -> str:
+def _free_ident(db: DBSession, who: Who, wanted: str) -> str:
+    """A name for a new note. A note is filed under its data group's own
+    folder (the default group's at the top), so the only names a new one can
+    meet are its own group's -- which its writer may see. A note of another
+    group never shows through the name a new note gets."""
     base = doc.slug(wanted)[:80] or "note"
+    group = who.data_group or DEFAULT_GROUP
+    if group != DEFAULT_GROUP:
+        base = f"{doc.slug(group)[:40] or 'group'}/{base}"
     ident, n = base, 1
     while (
         db.scalar(select(StoreNote.id).where(StoreNote.ident == ident)) is not None
-        or repo.read(repo.note_rel(ident)) is not None
+        or (repo.root() / repo.note_rel(ident)).exists()
         or db.scalar(
             select(StoreProposal.id).where(
                 StoreProposal.target == TARGET_NOTE,
@@ -508,7 +546,8 @@ def note_add(
     shared: bool = False,
 ) -> Outcome:
     title = " ".join((title or "").split())[:200]
-    body = (body or "").strip("\n")
+    # Only a body: a header a caller put at its top is not this note's header.
+    body = doc.plain_body(body)
     found = _subjects(subjects)
     if not title or not body.strip():
         raise Refused("A note needs a title and a body.")
@@ -530,14 +569,16 @@ def note_add(
         "updated": stamp,
         "author": who.account_name,
         "author_id": who.account_id,
+        "author_key": who.key,
         "harness": who.harness,
         "model": who.model or None,
         "model_said": True if who.model_said else None,
         "confirmed": stamp,
         "confirmed_by": who.account_name,
     }
-    text = doc.set_fields(body + "\n", header)
-    ident = _free_ident(db, title)
+    # Every field is the server's, from who the caller is known to be.
+    text = doc.compose(header, body)
+    ident = _free_ident(db, who, title)
     return _submit(
         db, who, target=TARGET_NOTE, name=ident, action="add", new_text=text,
         reason=" ".join((reason or "").split())[:MAX_REASON] or "new note",
@@ -555,7 +596,7 @@ def _note_text(row: StoreNote) -> str:
 def note_append(db: DBSession, who: Who, *, ident: str, text: str, reason: str = "") -> Outcome:
     """Add to a note: a dated, signed addition at its end. Nobody's words change."""
     row = _need_note(db, who, ident)
-    addition = (text or "").strip("\n")
+    addition = doc.plain_body(text)
     if not addition.strip():
         raise Refused("There is nothing to add.")
     if row.size + len(addition) > MAX_NOTE_CHARS:
@@ -593,7 +634,7 @@ def note_change(
     if text is not None:
         body = doc.body_of(current)
         if section in ("", "all"):
-            body = text.strip("\n")
+            body = doc.plain_body(text)
         else:
             found = doc.find_section(body, section)
             if found is None:
@@ -621,9 +662,10 @@ def note_change(
         db, who, target=TARGET_NOTE, name=row.ident, action="change", new_text=after,
         reason=_reason(reason, who),
         decision=policy.decide_note(
-            db, who, "change", kind=row.kind, author_id=row.author_id, harness=row.harness
+            db, who, "change", kind=row.kind, author_id=row.author_id, author_key=row.author_key
         ),
         section=section, section_text=section_text,
+        fields={k: v for k, v in fields.items() if k != "updated"},
     )
 
 
@@ -653,7 +695,7 @@ def note_archive(
         db, who, target=TARGET_NOTE, name=row.ident, action="restore" if restore else "archive",
         new_text=after, reason=_reason(reason, who),
         decision=policy.decide_note(
-            db, who, "archive", kind=row.kind, author_id=row.author_id, harness=row.harness
+            db, who, "archive", kind=row.kind, author_id=row.author_id, author_key=row.author_key
         ),
     )
 
@@ -664,7 +706,7 @@ def note_remove(db: DBSession, who: Who, *, ident: str, reason: str = "") -> Out
         db, who, target=TARGET_NOTE, name=row.ident, action="remove", new_text=None,
         reason=_reason(reason, who),
         decision=policy.decide_note(
-            db, who, "remove", kind=row.kind, author_id=row.author_id, harness=row.harness
+            db, who, "remove", kind=row.kind, author_id=row.author_id, author_key=row.author_key
         ),
     )
 
@@ -723,22 +765,41 @@ def decided(db: DBSession, user: User, limit: int = 20) -> list[StoreProposal]:
 
 
 def _resolved_text(proposal: StoreProposal) -> tuple[str | None, bool]:
-    """(the text an approval would write, whether it can be applied). A file
-    that changed since: a section's change is made again on the file as it is
-    now; anything else has gone stale."""
+    """(the text an approval would write, whether it can be applied).
+
+    A file that changed since the change was asked for: a section's change is
+    made again only where that section still says what it said then -- found
+    by its text, not by where it stands or what it is called -- and the header
+    fields the change set are set again with it. Anything else has gone stale;
+    nothing is forced onto a text nobody looked at."""
     current = repo.read(_rel(proposal.target, proposal.name))
     base = catalog.text_hash(current) if current is not None else ""
     if base == proposal.base_hash:
         return proposal.new_text, True
     if proposal.action == "add" or current is None or proposal.new_text is None:
         return proposal.new_text, False
-    if proposal.section_text and proposal.section not in ("", "new", "append", "all"):
-        body = doc.body_of(current)
-        found = doc.find_section(body, proposal.section)
-        if found is not None:
-            body = doc.replace_section(body, found, proposal.section_text)
-            return doc.with_body(current, body), True
-    return proposal.new_text, False
+    if proposal.section_text is None or not proposal.section_hash:
+        return proposal.new_text, False
+    body = doc.body_of(current)
+    same = [
+        s for s in doc.sections(body)
+        if catalog.text_hash(doc.section_text(body, s)) == proposal.section_hash
+    ]
+    if len(same) != 1:
+        return proposal.new_text, False
+    after = doc.with_body(current, doc.replace_section(body, same[0], proposal.section_text))
+    if proposal.fields_json:
+        after = doc.set_fields(after, dict(proposal.fields_json))
+    if proposal.target == TARGET_NOTE:
+        after = doc.set_fields(after, {"updated": catalog.now_stamp()})
+    return after, True
+
+
+def shown_hash(proposal: StoreProposal) -> str:
+    """What an approval is bound to: the text it would write, as the page that
+    offers the approval shows it."""
+    text, fits = _resolved_text(proposal)
+    return catalog.text_hash(("" if text is None else text) + ("|fits" if fits else "|stale"))
 
 
 def diff(old: str | None, new: str | None, name: str = "") -> str:
@@ -756,12 +817,21 @@ def proposal_diff(proposal: StoreProposal) -> tuple[str, bool]:
     return diff(current, text, proposal.name), fits
 
 
-def approve(db: DBSession, user: User, proposal_id: str, word: str = "") -> Outcome:
+def approve(
+    db: DBSession, user: User, proposal_id: str, word: str = "", *, shown: str | None = None
+) -> Outcome:
+    """Approve a waiting change. `shown`: the `shown_hash` of what the approver
+    was looking at -- the page sends it, and a change that would now write
+    another text is not applied on yesterday's look."""
     proposal = db.get(StoreProposal, proposal_id)
     if proposal is None or proposal.status != PROPOSAL_PENDING:
         raise Refused("That change is no longer waiting.")
     if not may_decide(db, user, proposal):
         raise Refused("That change is not yours to decide.")
+    if shown is not None and shown != shown_hash(proposal):
+        raise Refused(
+            "The text changed since this page was opened. Look at the change again, then decide."
+        )
     text, fits = _resolved_text(proposal)
     now = datetime.now(UTC)
     proposal.decided_by, proposal.decided_name, proposal.decided_at = user.id, user.name, now
@@ -830,16 +900,20 @@ def own_proposals(db: DBSession, who: Who, limit: int = 10) -> list[StoreProposa
 # --- The older store ------------------------------------------------------------------
 def import_tree(db: DBSession) -> list[str]:
     """Bring in the skills an instance kept as files in the first
-    organisation's `/skills/` before this store existed: each once, by name,
-    as a commit that says where it came from. The files stay where they are;
-    they are no longer what a chat reads (`services/skill_files.py`), so there
-    is one collection. A name the store already has is left to the store."""
+    organisation's `/skills/` before this store existed -- **once ever**: the
+    first run marks itself done before it reads anything, and no later run
+    looks at the tree again. The files stay where they are; they are no longer
+    what a chat reads (`services/skill_files.py`), so there is one collection,
+    and writing a file there afterwards changes no shared skill. A name the
+    store already has is left to the store."""
     from lembas.db.models import DEFAULT_ORG, KIND_FILE, Node
     from lembas.services import blobs
 
-    values = policy.settings(db)
-    done = values.get("tree_imported")
-    done = [str(n) for n in done] if isinstance(done, list) else []
+    if policy.settings(db).get("tree_import_done"):
+        return []
+    # Said before anything is read: whatever happens below, this never runs
+    # again, and the file tree's `/skills/` is no door into the store.
+    policy.save(db, {"tree_import_done": True})
     rows = db.scalars(
         select(Node).where(
             Node.org_id == DEFAULT_ORG,
@@ -849,13 +923,11 @@ def import_tree(db: DBSession) -> list[str]:
         ).order_by(Node.path)
     )
     brought: list[str] = []
-    seen = list(done)
     for node in rows:
         parts = node.path.split("/")
-        if len(parts) != 4 or parts[2] in seen:
+        if len(parts) != 4:
             continue
         name = parts[2]
-        seen.append(name)
         try:
             repo.check_rel(repo.skill_rel(name))
         except repo.StoreError:
@@ -864,6 +936,9 @@ def import_tree(db: DBSession) -> list[str]:
         if repo.read(repo.skill_rel(name)) is not None or not node.blob_hash:
             continue
         text = blobs.read_bytes(db, node.blob_hash).decode("utf-8", errors="replace")
+        header = doc.split(text)[0]
+        if header is None or doc.duplicates(header) or fmt.loadable_name(name) is None:
+            continue  # not a skill a chat would have listed
         by = db.get(User, node.updated_by or node.owner_id or "") if (
             node.updated_by or node.owner_id
         ) else None
@@ -879,8 +954,6 @@ def import_tree(db: DBSession) -> list[str]:
             },
         )
         brought.append(name)
-    if seen != done:
-        policy.save(db, {"tree_imported": seen})
     if brought:
         catalog.reindex(db, [repo.skill_rel(name) for name in brought])
         after_change(db)
@@ -898,7 +971,11 @@ def history_text(target: str, name: str, limit: int = 15) -> str:
         t = commit.trailers
         who = t.get("Account") or commit.author
         said = f"{t['Model-Said']}, said by the caller" if t.get("Model-Said") else ""
-        via = ", ".join(x for x in (t.get("Harness", ""), t.get("Model", ""), said) if x)
+        harness = t.get("Harness", "")
+        if harness and commit.origin == policy.ORIGIN_MCP:
+            harness += " as the client calls itself"
+        token = f"token {t['Token']}" if t.get("Token") else ""
+        via = ", ".join(x for x in (token, harness, t.get("Model", ""), said) if x)
         line = f"{commit.at[:16].replace('T', ' ')}  {commit.sha[:8]}  {commit.subject}  — {who}"
         if via:
             line += f" ({via})"
@@ -1131,6 +1208,7 @@ __all__ = [
     "skill_read",
     "skill_remove",
     "skill_save",
+    "shown_hash",
     "sync_if_due",
     "sync_now",
     "take_remote",

@@ -30,7 +30,7 @@
   <dl class="store-facts" data-testid="proposal-facts">
     <dt>{{ t("Reason") }}</dt><dd>{{ p.reason or "—" }}</dd>
     <dt>{{ t("Account") }}</dt><dd>{{ p.account_name or "—" }}</dd>
-    <dt>{{ t("Through") }}</dt><dd>{{ p.harness or "—" }}</dd>
+    <dt>{{ t("Through") }}</dt><dd>{{ p.harness or "—" }}{% if p.harness and p.origin == "mcp" %} <span class="faint">— {{ t("said by the caller") }}</span>{% endif %}</dd>
     <dt>{{ t("Model") }}</dt><dd>{{ p.model or "—" }}{% if p.model and p.model_said %} <span class="faint">— {{ t("said by the caller") }}</span>{% endif %}</dd>
     <dt>{{ t("Session") }}</dt><dd><span class="mono">{{ p.session or "—" }}</span></dd>
     {% if p.target == "note" %}<dt>{{ t("Data group") }}</dt><dd>{{ p.data_group_id or "default" }}</dd>{% endif %}
@@ -42,6 +42,7 @@
   {{ store_diff(item.diff) }}
   {# One form, two buttons: the word goes with either. #}
   <form method="post" class="form-grid store-decide" data-in-place="off">
+    <input type="hidden" name="shown" value="{{ item.shown }}">
     <div class="field">
       <label class="field__label" for="word-{{ p.id }}">{{ t("A word back (optional)") }}</label>
       <input class="input" id="word-{{ p.id }}" name="word" maxlength="400">

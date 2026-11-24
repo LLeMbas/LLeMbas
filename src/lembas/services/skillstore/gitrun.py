@@ -48,6 +48,10 @@ NET_TIMEOUT = 90.0
 MAX_FETCH_BYTES = 64 * 1024 * 1024
 MAX_FILE_BYTES = 1024 * 1024
 MAX_FILES = 20_000
+# Everything a remote's tree would put on disk, and any one file outside
+# `skills/` and `notes/` (a README, a picture).
+MAX_TREE_BYTES = 128 * 1024 * 1024
+MAX_OTHER_FILE_BYTES = 16 * 1024 * 1024
 
 _SCP = re.compile(
     r"^(?:[A-Za-z0-9_][A-Za-z0-9._-]*@)?[A-Za-z0-9][A-Za-z0-9.-]*:(?!//)[A-Za-z0-9~/][A-Za-z0-9._~/-]*$"
@@ -130,6 +134,7 @@ def _base_env() -> dict[str, str]:
         "PAGER": "cat",
         "GIT_EDITOR": ":",
         "GIT_OPTIONAL_LOCKS": "0",
+        "GIT_ATTR_NOSYSTEM": "1",
         "GIT_ALLOW_PROTOCOL": "https:ssh" + (":file" if local_allowed() else ""),
     }
     return env
@@ -156,6 +161,14 @@ _FIXED = (
     "-c", "advice.detachedHead=false",
     "-c", "http.followRedirects=false",
     "-c", "uploadpack.allowFilter=false",
+    # No attribute may run a command: no attributes file of the account's, no
+    # external diff and no text conversion (`--no-ext-diff --no-textconv` where
+    # a diff is made). (Filter, diff and merge *drivers* are
+    # commands named in a configuration; the store's own is rewritten to a
+    # known minimum before every command -- `repo.harden` -- and no other is read.)
+    "-c", "core.attributesFile=" + os.devnull,
+    "-c", "core.editor=:",
+    "-c", "merge.renormalize=false",
 )
 
 
@@ -320,6 +333,8 @@ __all__ = [
     "MAX_FETCH_BYTES",
     "MAX_FILES",
     "MAX_FILE_BYTES",
+    "MAX_OTHER_FILE_BYTES",
+    "MAX_TREE_BYTES",
     "BadAddress",
     "Credentials",
     "Remote",

@@ -16,7 +16,7 @@ from sqlalchemy import Boolean, DateTime, Index, Integer, LargeBinary, String, T
 from sqlalchemy.orm import Mapped, mapped_column
 
 from lembas.db.base import Base, Timestamps, UUIDPrimaryKey, utcnow
-from lembas.db.types import JSONList
+from lembas.db.types import JSONDict, JSONList
 
 
 class _Indexed:
@@ -37,6 +37,9 @@ class _Indexed:
     changed_model_said: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     changed_origin: Mapped[str] = mapped_column(String(16), default="", nullable=False)
     # The text's vector by the instance's embedder, when it has one.
+    # Fields the file's header names twice (a file made elsewhere): read by the
+    # first, and said on its page.
+    header_twice: Mapped[str] = mapped_column(String(300), default="", nullable=False)
     embedding: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     embedding_key: Mapped[str] = mapped_column(String(400), default="", nullable=False)
 
@@ -67,12 +70,26 @@ class StoreNote(UUIDPrimaryKey, Timestamps, _Indexed, Base):
     updated: Mapped[str] = mapped_column(String(40), default="", nullable=False)
     author: Mapped[str] = mapped_column(String(120), default="", nullable=False)
     author_id: Mapped[str] = mapped_column(String(32), default="", nullable=False)
+    # Which of the account's tokens wrote it (a digest of the token's id, or
+    # "web"): what "its own note" is decided by. The harness is only a label.
+    author_key: Mapped[str] = mapped_column(String(32), default="", nullable=False)
     harness: Mapped[str] = mapped_column(String(80), default="", nullable=False)
     model: Mapped[str] = mapped_column(String(200), default="", nullable=False)
     # The model's name is the caller's own claim, not the server's knowledge.
     model_said: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     confirmed: Mapped[str] = mapped_column(String(40), default="", nullable=False)
     confirmed_by: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+
+
+class StoreReader(Base):
+    """That an account read a skill on a day: a read counts once per account
+    and day, so nobody reads a skill of theirs into everybody's main skills."""
+
+    __tablename__ = "store_readers"
+
+    name: Mapped[str] = mapped_column(String(64), primary_key=True)
+    day: Mapped[str] = mapped_column(String(10), primary_key=True)
+    account_id: Mapped[str] = mapped_column(String(32), primary_key=True)
 
 
 class StoreRead(Base):
@@ -105,6 +122,12 @@ class StoreProposal(UUIDPrimaryKey, Base):
     # A section's new text on its own, so an approval can make the change
     # again on a file that moved on meanwhile.
     section_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The header fields the change sets (None: removes), kept so they are set
+    # again with the section; and the section's text as it was when the change
+    # was asked for, by its hash: the section is found by what it said, not by
+    # where it stood.
+    fields_json: Mapped[dict | None] = mapped_column(JSONDict, nullable=True)
+    section_hash: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     # The file's hash when the change was asked for ('' : it was not there).
     base_hash: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     reason: Mapped[str] = mapped_column(Text, default="", nullable=False)

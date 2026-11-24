@@ -21,8 +21,10 @@ history, and what this instance had that the remote lacks is committed on top.
 from __future__ import annotations
 
 import fcntl
+import logging
 import os
 import re
+import shutil
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -31,6 +33,8 @@ from pathlib import Path
 
 from lembas.config import get_settings
 from lembas.services.skillstore import gitrun
+
+log = logging.getLogger(__name__)
 
 DIR_NAME = "skills-store"
 SKILLS = "skills"
@@ -41,8 +45,8 @@ BRANCH = "main"
 REMOTE_REF = "refs/remotes/origin/sync"
 
 TRAILERS = (
-    "Account", "Account-Id", "Harness", "Model", "Model-Said", "Session", "Origin", "Reason",
-    "Approved-By",
+    "Account", "Account-Id", "Token", "Harness", "Model", "Model-Said", "Session", "Origin",
+    "Reason", "Approved-By",
 )
 
 _LOCK = threading.RLock()
@@ -117,7 +121,47 @@ def locked() -> Iterator[None]:
             handle.close()
 
 
+# The store's own git configuration, whole. Written again whenever it says
+# anything else: a repository that came back from a backup, or was touched by
+# hand, cannot name a filter, a diff or merge driver, an alias or a helper.
+CONFIG = (
+    "[core]\n"
+    "\trepositoryformatversion = 0\n"
+    "\tfilemode = true\n"
+    "\tbare = false\n"
+    "\tlogallrefupdates = true\n"
+)
+
+
+def harden() -> None:
+    """Put the repository's configuration back to the known minimum, and
+    remove what could run: its hooks and its own attributes file. Before
+    every git command, at every start and after a restore."""
+    git_dir = root() / ".git"
+    if not git_dir.is_dir():
+        return
+    config = git_dir / "config"
+    try:
+        same = config.is_file() and not config.is_symlink() and config.read_text() == CONFIG
+    except (OSError, UnicodeDecodeError):
+        same = False
+    if not same:
+        if config.is_symlink() or config.is_dir():
+            raise StoreError("The store's git configuration is not a file.")
+        config.write_text(CONFIG, encoding="utf-8")
+        log.warning("skills store: its git configuration was put back to the known minimum")
+    hooks = git_dir / "hooks"
+    if hooks.is_symlink():
+        hooks.unlink()
+    elif hooks.is_dir():
+        shutil.rmtree(hooks, ignore_errors=True)
+    attributes = git_dir / "info" / "attributes"
+    if attributes.is_symlink() or attributes.exists():
+        attributes.unlink()
+
+
 def _git(args: list[str], **kwargs) -> tuple[int, str]:
+    harden()
     return gitrun.run(args, cwd=root(), **kwargs)
 
 
@@ -335,14 +379,16 @@ def at_commit(sha: str, rel: str) -> str | None:
     """A file as a commit left it (None: not there then)."""
     if not re.fullmatch(r"[0-9a-f]{7,64}", sha or ""):
         return None
-    code, out = _git(["show", f"{sha}:{check_rel(rel)}"])
+    code, out = _git(["show", "--no-textconv", f"{sha}:{check_rel(rel)}"])
     return out + "\n" if code == 0 else None
 
 
 def changed_paths(old: str, new: str) -> list[str]:
     if not old:
         return files()
-    code, out = _git(["diff", "--name-only", "--no-renames", old, new])
+    code, out = _git(
+        ["diff", "--no-ext-diff", "--no-textconv", "--name-only", "--no-renames", old, new]
+    )
     return [line for line in out.split("\n") if line] if code == 0 else files()
 
 
@@ -366,6 +412,17 @@ class Synced:
     adopted: bool = False
 
 
+def _said(detail: str, sentence: str) -> str:
+    """A fixed sentence for the page; what git said goes to the server's log
+    only (it can name hosts and paths an address was pointed at)."""
+    if detail == "The remote sends more than this store takes." or detail.startswith(
+        ("git took longer", "git is not installed")
+    ):
+        return detail
+    log.warning("skills store: %s -- git said: %s", sentence, detail[:1000])
+    return sentence
+
+
 def check_tree(rev: str) -> None:
     """Whether what a remote sent may become the store's files, or
     `StoreError` naming what may not: a link, a repository inside the
@@ -376,6 +433,8 @@ def check_tree(rev: str) -> None:
     entries = [entry for entry in out.split("\0") if entry]
     if len(entries) > gitrun.MAX_FILES:
         raise StoreError("The remote holds more files than this store takes.")
+    total = 0
+    folded: dict[str, str] = {}
     for entry in entries:
         meta, _tab, path = entry.partition("\t")
         mode, kind, _sha, size = (meta.split() + ["", "", "", ""])[:4]
@@ -392,8 +451,21 @@ def check_tree(rev: str) -> None:
             or any(ord(c) < 32 for c in path)
         ):
             raise StoreError(f"The remote holds a path that is not taken ({shown!r}).")
-        if parts[0] in (SKILLS, NOTES) and size.isdigit() and int(size) > gitrun.MAX_FILE_BYTES:
+        # Two names that differ only by case are one file on some disks: which
+        # of them a reader gets would depend on where the store runs.
+        for depth in range(1, len(parts) + 1):
+            name = "/".join(parts[:depth])
+            if folded.setdefault(name.casefold(), name) != name:
+                raise StoreError(
+                    f"The remote holds two names that differ only by case ({shown}); not taken."
+                )
+        length = int(size) if size.isdigit() else 0
+        inside = parts[0] in (SKILLS, NOTES)
+        if length > (gitrun.MAX_FILE_BYTES if inside else gitrun.MAX_OTHER_FILE_BYTES):
             raise StoreError(f"A file in the remote is larger than this store takes ({shown}).")
+        total += length
+        if total > gitrun.MAX_TREE_BYTES:
+            raise StoreError("The remote's files are more than this store takes.")
 
 
 def _is_ancestor(old: str, new: str) -> bool:
@@ -422,11 +494,13 @@ def sync(
     except gitrun.BadAddress as exc:
         return Synced(SYNC_ERROR, str(exc))
     with locked(), remote:
+        harden()
         code, out = remote.run(
             ["ls-remote", "--heads", "--", remote.address, f"refs/heads/{branch}"], cwd=root()
         )
         if code != 0:
-            return Synced(SYNC_ERROR, out or "The remote did not answer.")
+            return Synced(SYNC_ERROR, _said(out, "The remote could not be reached or did not let "
+                                                 "this instance in."))
         local = head()
         if not out.strip():
             # Nothing there yet: the store's history becomes the remote's.
@@ -443,7 +517,7 @@ def sync(
             if code == 125:
                 # What did arrive is not kept under a name, so nothing reads it.
                 _git(["update-ref", "-d", REMOTE_REF])
-            return Synced(SYNC_ERROR, out or "The remote could not be fetched.")
+            return Synced(SYNC_ERROR, _said(out, "The remote could not be fetched."))
         theirs = _must(["rev-parse", "--verify", REMOTE_REF]).strip()
         if theirs == local:
             return Synced(SYNC_OK)
@@ -497,7 +571,7 @@ def _push(remote: gitrun.Remote, branch: str) -> Synced:
     if code != 0:
         if "non-fast-forward" in out or "fetch first" in out or "rejected" in out:
             return Synced(SYNC_DIVERGED, "The remote changed while this store was pushing.")
-        return Synced(SYNC_ERROR, out or "The push was refused.")
+        return Synced(SYNC_ERROR, _said(out, "The remote refused the push."))
     _git(["update-ref", REMOTE_REF, "HEAD"])
     return Synced(SYNC_OK, pushed=True)
 
@@ -529,7 +603,9 @@ def take_remote(
             cwd=root(),
         )
         if code != 0:
-            return Synced(SYNC_ERROR, out or "This store's side could not be kept in the remote.")
+            return Synced(
+                SYNC_ERROR, _said(out, "This store's side could not be kept in the remote.")
+            )
         _must(["reset", "--quiet", "--hard", theirs])
         _must(["clean", "--quiet", "-fd", "--", SKILLS, NOTES])
         return Synced(SYNC_OK, f"This store's side is kept as the branch {kept}.",
@@ -558,6 +634,7 @@ __all__ = [
     "ensure",
     "exists",
     "files",
+    "harden",
     "head",
     "history",
     "locked",

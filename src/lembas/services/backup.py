@@ -611,6 +611,16 @@ def apply_pending(data_dir: Path | None = None) -> Path | None:
         if (folder / name).exists():
             (folder / name).rename(data / name)
     (data / "uploads").mkdir(exist_ok=True)
+    if (data / STORE_DIR / ".git").is_dir():
+        # A backup is an archive somebody hands over: the store's repository
+        # comes back with a known git configuration and no hooks, whatever the
+        # archive held (services/skillstore/repo.py).
+        from lembas.services.skillstore import repo as skills_repo
+
+        try:
+            skills_repo.harden()
+        except Exception:
+            log.exception("the restored skills store could not be made safe")
     if (folder / REKEY).exists():
         try:
             from lembas.services import crypto

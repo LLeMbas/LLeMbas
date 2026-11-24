@@ -156,7 +156,7 @@ def _instructions(db, caller: Caller) -> str:
         catalog.ensure(db)
         service.sync_if_due(db)
         who = store_tools.caller(
-            db, caller.user, token_name=caller.token.client or caller.token.name
+            db, caller.user, token_id=caller.token.id, token_name=caller.token.name
         )
         return service.instructions(db, who) + "\n" + text
     except Exception:  # the store being unwell never keeps a device from its memory
@@ -179,7 +179,8 @@ async def _store_call(request, db, caller: Caller, message_id, name, arguments, 
     who = store_tools.caller(
         db,
         caller.user,
-        token_name=caller.token.client or caller.token.name,
+        token_id=caller.token.id,
+        token_name=caller.token.name,
         session_id=request.headers.get("mcp-session-id", ""),
         meta=lembas_meta,
         chat=chat,
@@ -232,7 +233,7 @@ async def mcp(request: Request, db: Db) -> Response:
             },
         )
         answer.headers["Mcp-Session-Id"] = store_tools.new_session(
-            client_name or caller.token.name
+            client_name or caller.token.client or caller.token.name
         )
         return answer
     if method == "ping":

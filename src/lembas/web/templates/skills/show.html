@@ -21,6 +21,7 @@
 {% block store_content %}
 <section class="card" data-testid="skill-page" data-skill="{{ skill.name }}">
   <p class="report__summary">{{ skill.description }}</p>
+  {% if twice %}<div class="alert alert--warning" data-testid="header-twice">{{ icon("warning", "alert__icon") }} <span>{{ t("This file's header names a field more than once (%(fields)s). The first is the one that is read.", fields=twice) }}</span></div>{% endif %}
   <p class="report__meta">
     {% if not is_main %}<span>{{ skill.category or "general" }}{% if skill.subcategory %} / {{ skill.subcategory }}{% endif %}</span>{% endif %}
     {% if skill.pinned %}<span class="badge badge--leaf">{{ t("Pinned") }}</span>{% endif %}

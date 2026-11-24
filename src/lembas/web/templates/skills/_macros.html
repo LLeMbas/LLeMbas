@@ -23,7 +23,7 @@
    where it came from. One line that wraps; nothing beside it to line up with. #}
 {% macro change_by(entry) -%}
 <span>{{ entry.by }}</span>
-{%- if entry.harness %} <span class="faint">({{ entry.harness }}{% if entry.model %}, {{ entry.model }}{% if entry.model_said %} — {{ t("said by the caller") }}{% endif %}{% endif %})</span>{% endif %}
+{%- if entry.harness %} <span class="faint">({% if entry.token %}{{ entry.token }}: {% endif %}{{ entry.harness }}{% if entry.model %}, {{ entry.model }}{% endif %}{% if entry.harness_said or entry.model_said %} — {{ t("said by the caller") }}{% endif %})</span>{% endif %}
 {%- if entry.origin == "remote" %} <span class="badge">{{ t("from the remote") }}</span>{% endif %}
 {%- if entry.origin == "import" %} <span class="badge">{{ t("brought in") }}</span>{% endif %}
 {%- if entry.approved_by %} <span class="faint">{{ t("approved by %(name)s", name=entry.approved_by) }}</span>{% endif %}

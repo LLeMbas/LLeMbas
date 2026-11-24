@@ -16,11 +16,12 @@
 {% block store_content %}
 <section class="card" data-testid="note-page" data-note="{{ note.ident }}">
   {% if note.summary %}<p class="report__summary">{{ note.summary }}</p>{% endif %}
+  {% if twice %}<div class="alert alert--warning" data-testid="header-twice">{{ icon("warning", "alert__icon") }} <span>{{ t("This file's header names a field more than once (%(fields)s). The first is the one that is read.", fields=twice) }}</span></div>{% endif %}
   {# The header's fields: label and value on two shared tracks. #}
   <dl class="store-facts" data-testid="note-facts">
     <dt>{{ t("Kind") }}</dt><dd>{{ note.kind }}{% if note.status == "archived" %} <span class="badge badge--warning">{{ t("Archived") }}</span>{% endif %}</dd>
     <dt>{{ t("Subjects") }}</dt><dd>{{ note.subjects_json | join(", ") or "—" }}</dd>
-    <dt>{{ t("Written by") }}</dt><dd>{{ note.author or "—" }}{% if note.harness %} <span class="faint">({{ note.harness }}{% if note.model %}, {{ note.model }}{% if note.model_said %} — {{ t("said by the caller") }}{% endif %}{% endif %})</span>{% endif %}</dd>
+    <dt>{{ t("Written by") }}</dt><dd>{{ note.author or "—" }}{% if note.harness %} <span class="faint">({{ note.harness }}{% if note.model %}, {{ note.model }}{% endif %}{% if note.model_said or note.author_key not in ("", "web", "chat") %} — {{ t("said by the caller") }}{% endif %})</span>{% endif %}</dd>
     <dt>{{ t("Created") }}</dt><dd>{{ note.created[:10] or "—" }}</dd>
     <dt>{{ t("Updated") }}</dt><dd>{{ note.updated[:10] or "—" }}</dd>
     <dt>{{ t("Last confirmed") }}</dt><dd>{{ note.confirmed[:10] or t("never") }}{% if note.confirmed_by %} <span class="faint">({{ note.confirmed_by }})</span>{% endif %}</dd>

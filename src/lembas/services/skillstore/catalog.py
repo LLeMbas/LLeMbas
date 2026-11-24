@@ -23,7 +23,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session as DBSession
 
-from lembas.db.models import DEFAULT_GROUP, StoreNote, StoreRead, StoreSkill
+from lembas.db.models import DEFAULT_GROUP, StoreNote, StoreRead, StoreReader, StoreSkill
 from lembas.services.skillstore import doc, pointers, policy, repo
 
 log = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ def _str(value, limit: int = 300) -> str:
     return " ".join(str(value or "").split())[:limit]
 
 
-def _truthy(value) -> bool:
+def truthy(value) -> bool:
     return str(value).strip().lower() in ("true", "yes", "1")
 
 
@@ -84,12 +84,13 @@ def _index_skill(db: DBSession, rel: str, text: str) -> None:
         db.add(row)
     digest = text_hash(text)
     row.title = _str(meta.get("name") or name)
+    row.header_twice = ", ".join(doc.duplicates(header))[:300]
     row.description = _str(meta.get("description"), 2000)
     row.category = doc.slug(_str(meta.get("category"), 64)) if meta.get("category") else ""
     row.subcategory = (
         doc.slug(_str(meta.get("subcategory"), 64)) if meta.get("subcategory") else ""
     )
-    row.pinned = _truthy(meta.get("pinned", ""))
+    row.pinned = truthy(meta.get("pinned", ""))
     row.body = body.strip("\n")
     row.size = len(row.body)
     row.sections_json = doc.outline(row.body)
@@ -123,14 +124,16 @@ def _index_note(db: DBSession, rel: str, text: str) -> None:
     archived = _str(meta.get("status")).lower() == "archived"
     row.status = STATUS_ARCHIVED if archived else STATUS_ACTIVE
     row.data_group_id = _str(meta.get("group"), 32) or DEFAULT_GROUP
-    row.shared = _truthy(meta.get("shared", ""))
+    row.shared = truthy(meta.get("shared", ""))
     row.created = _str(meta.get("created"), 40)
     row.updated = _str(meta.get("updated"), 40)
     row.author = _str(meta.get("author"), 120)
     row.author_id = _str(meta.get("author_id"), 32)
+    row.author_key = _str(meta.get("author_key"), 32)
+    row.header_twice = ", ".join(doc.duplicates(header))[:300]
     row.harness = _str(meta.get("harness"), 80)
     row.model = _str(meta.get("model"), 200)
-    row.model_said = _truthy(meta.get("model_said", ""))
+    row.model_said = truthy(meta.get("model_said", ""))
     row.confirmed = _str(meta.get("confirmed"), 40)
     row.confirmed_by = _str(meta.get("confirmed_by"), 120)
     row.size = len(row.body)
@@ -194,13 +197,23 @@ def skill(db: DBSession, name: str) -> StoreSkill | None:
     return row
 
 
-def count_read(db: DBSession, name: str) -> None:
+def count_read(db: DBSession, name: str, account_id: str = "") -> None:
+    """Count a read: once per account and day, so reading a skill again and
+    again -- an agent's own, say -- does not make it one of everybody's main
+    skills. A read nobody is known for is not counted."""
+    if not account_id:
+        return
     day = datetime.now(UTC).strftime("%Y-%m-%d")
+    if db.get(StoreReader, (name, day, account_id)) is not None:
+        return
+    db.add(StoreReader(name=name, day=day, account_id=account_id))
     row = db.get(StoreRead, (name, day))
     if row is None:
         db.add(StoreRead(name=name, day=day, count=1))
     else:
         row.count += 1
+    old = (datetime.now(UTC) - timedelta(days=READ_DAYS * 3)).strftime("%Y-%m-%d")
+    db.execute(delete(StoreReader).where(StoreReader.day < old))
     db.execute(
         delete(StoreRead).where(
             StoreRead.day < (datetime.now(UTC) - timedelta(days=READ_DAYS * 3)).strftime("%Y-%m-%d")
@@ -448,5 +461,6 @@ __all__ = [
     "skill",
     "skills",
     "text_hash",
+    "truthy",
     "visible",
 ]

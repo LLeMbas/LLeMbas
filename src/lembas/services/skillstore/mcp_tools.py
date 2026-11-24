@@ -151,6 +151,7 @@ def caller(
     db: DBSession,
     user: User,
     *,
+    token_id: str = "",
     token_name: str = "",
     session_id: str = "",
     meta: dict[str, Any] | None = None,
@@ -159,7 +160,11 @@ def caller(
 ) -> Who:
     """Who an MCP call is made by. The data group is the session's when the
     call names one of this device's sessions (`_meta.lembas.scope`), and the
-    default group otherwise -- never a guess at another."""
+    default group otherwise -- never a guess at another.
+
+    What the server knows is the account and the token; those decide. The
+    harness (the client's own name, or what its metadata says) is a label the
+    caller chose, recorded and shown as that."""
     from lembas.services import data_groups
 
     meta = meta or {}
@@ -172,6 +177,8 @@ def caller(
     return policy.agent(
         db,
         user,
+        token_id=token_id,
+        token_name=token_name,
         harness=harness,
         model=said_model,
         model_said=not known,
@@ -195,7 +202,8 @@ def _policy_text(db: DBSession, who: Who) -> str:
         f"A change to a note somebody else wrote {said['notes_change']}; to your own, at once.",
         f"Your notes are written under the data group \"{who.data_group}\" and you read the "
         "notes of that group and the shared ones.",
-        f"You are recorded as: {who.account_name}, through {who.harness}"
+        f"You are recorded as: {who.account_name}, token {who.token_name or '-'}, calling "
+        f"yourself {who.harness}"
         + (f", model {who.model}" + (" (as you said)" if who.model_said else "")
            if who.model else "") + ".",
         f"(The levels: {said['levels']}.)",
@@ -241,7 +249,7 @@ async def call(db: DBSession, who: Who, name: str, args: dict[str, Any]) -> tupl
         catalog.ensure(db)
         service.sync_if_due(db)
         if name == "skills_main":
-            catalog.count_read(db, repo.MAIN)
+            catalog.count_read(db, repo.MAIN, who.account_id)
             return service.main_text(db), False
         if name == "skills_category":
             return service.category_text(db, s("category"), s("group")), False
@@ -261,7 +269,9 @@ async def call(db: DBSession, who: Who, name: str, args: dict[str, Any]) -> tupl
         if name == "skill_outline":
             return service.skill_outline(db, s("name")), False
         if name == "skill_read":
-            return service.skill_read(db, s("name"), s("section")), False
+            return service.skill_read(
+                db, s("name"), s("section"), reader=who.account_id
+            ), False
         if name == "skill_history":
             row = catalog.skill(db, s("name"))
             if row is None:

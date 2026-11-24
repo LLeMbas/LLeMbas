@@ -67,7 +67,10 @@ def _history(target: str, name: str) -> list[dict]:
             "at": commit.at,
             "subject": commit.subject,
             "by": commit.trailers.get("Account") or commit.author,
+            "token": commit.trailers.get("Token", ""),
             "harness": commit.trailers.get("Harness", ""),
+            # An MCP client names itself: its harness is its own word.
+            "harness_said": commit.origin == policy.ORIGIN_MCP,
             "model": commit.trailers.get("Model", "") or commit.trailers.get("Model-Said", ""),
             "model_said": bool(commit.trailers.get("Model-Said")),
             "session": commit.trailers.get("Session", ""),
@@ -124,7 +127,11 @@ async def queue_page(request: Request, db: Db, user: RequiredUser, saved: str = 
     waiting = []
     for proposal in service.pending(db, user):
         diff, fits = service.proposal_diff(proposal)
-        waiting.append({"row": proposal, "diff": diff, "fits": fits})
+        waiting.append({
+            "row": proposal, "diff": diff, "fits": fits,
+            # What an approval of this card is bound to (`service.approve`).
+            "shown": service.shown_hash(proposal),
+        })
     return render(
         request,
         "skills/queue.html",
@@ -146,10 +153,13 @@ def _proposal(db, user, proposal_id: str) -> StoreProposal:
 
 
 @router.post("/skills/queue/{proposal_id}/approve")
-async def approve(db: Db, user: RequiredUser, proposal_id: str, word: str = Form("")) -> Response:
+async def approve(
+    db: Db, user: RequiredUser, proposal_id: str, word: str = Form(""), shown: str = Form("")
+) -> Response:
     _proposal(db, user, proposal_id)
     try:
-        service.approve(db, user, proposal_id, word)
+        # Bound to what the page showed: no hash, or another, is not a yes.
+        service.approve(db, user, proposal_id, word, shown=shown)
     except (service.Refused, repo.StoreError) as exc:
         return _back("/skills/queue", error=str(exc))
     return _back("/skills/queue", saved=t("Approved and applied."))
@@ -208,6 +218,7 @@ async def skill_page(request: Request, db: Db, user: RequiredUser, name: str, sa
             text=repo.read(repo.skill_rel(row.name)) or "",
             history=_history(service.TARGET_SKILL, row.name),
             reads=catalog.reads(db).get(row.name, 0),
+            twice=row.header_twice,
             level=policy.settings(db)["skills_edit"],
             editing=bool(edit),
             saved=saved,
@@ -363,6 +374,7 @@ async def note_page(request: Request, db: Db, user: RequiredUser, ident: str, sa
         _context(
             db, user, "notes",
             note=row,
+            twice=row.header_twice,
             history=_history(service.TARGET_NOTE, row.ident),
             group_name=data_groups.name_of(db, row.data_group_id),
             may_share=user.is_admin or row.author_id == user.id,

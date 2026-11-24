@@ -58,15 +58,51 @@ def _value(raw: str):
 
 
 def fields(header: list[str] | None) -> dict[str, object]:
-    """The header's top-level single-line fields (a list for `[a, b]`)."""
+    """The header's top-level single-line fields (a list for `[a, b]`).
+    **A field named twice is read once, and it is the first**: one fixed rule,
+    so a line added further down can never change what a field says."""
     out: dict[str, object] = {}
     for line in header or []:
         if line[:1] in (" ", "\t", "#", "-"):
             continue
         found = _KEY.match(line)
-        if found:
+        if found and found.group(1) not in out:
             out[found.group(1)] = _value(found.group(2))
     return out
+
+
+def duplicates(header: list[str] | None) -> list[str]:
+    """The fields a header names more than once (a file made elsewhere)."""
+    seen: set[str] = set()
+    twice: list[str] = []
+    for line in header or []:
+        if line[:1] in (" ", "\t", "#", "-"):
+            continue
+        found = _KEY.match(line)
+        if not found:
+            continue
+        key = found.group(1)
+        if key in seen and key not in twice:
+            twice.append(key)
+        seen.add(key)
+    return twice
+
+
+def plain_body(text: str) -> str:
+    """Text that is a body and nothing else: the `---` lines it begins with
+    are dropped, so nothing in it can stand where a header stands. What was
+    between them stays, as the ordinary text it now is -- nothing a caller
+    wrote is lost, and nothing a caller wrote says what a file's fields are."""
+    lines = (text or "").replace("\r\n", "\n").lstrip("\ufeff").split("\n")
+    while lines and lines[0].strip() in ("", "---"):
+        lines.pop(0)
+    return "\n".join(lines).strip("\n")
+
+
+def compose(header: dict[str, object], body: str) -> str:
+    """A file from fields the server names and a body that is only a body."""
+    lines = [f"{key}: {scalar(value)}" for key, value in header.items() if value is not None]
+    return "---\n" + "\n".join(lines) + "\n---\n\n" + plain_body(body) + "\n"
 
 
 def scalar(value) -> str:
@@ -97,10 +133,13 @@ def set_fields(text: str, changes: dict[str, object]) -> str:
     while i < len(lines):
         line = lines[i]
         found = _KEY.match(line) if line[:1] not in (" ", "\t", "#", "-") else None
-        if found and found.group(1) in pending:
-            value = pending.pop(found.group(1))
-            if value is not None:
-                out.append(f"{found.group(1)}: {scalar(value)}")
+        if found and found.group(1) in changes:
+            # Every occurrence goes: the first becomes the value, a later one
+            # is removed, so a field that is set is said exactly once.
+            if found.group(1) in pending:
+                value = pending.pop(found.group(1))
+                if value is not None:
+                    out.append(f"{found.group(1)}: {scalar(value)}")
             i += 1
             # What belonged to the replaced field (a nested block) goes with it.
             while i < len(lines) and lines[i][:1] in (" ", "\t"):
@@ -223,6 +262,9 @@ __all__ = [
     "Section",
     "append",
     "body_of",
+    "compose",
+    "duplicates",
+    "plain_body",
     "fields",
     "find_section",
     "outline",

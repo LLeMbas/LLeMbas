@@ -18,6 +18,15 @@ BODY = "# Deploy\n\nSteps.\n\n## Before\n\nCheck the disk."
 MEMBER = {"name": "Sam", "email": "sam@shire.test", "password": "second-breakfast-time"}
 
 
+def _shown(client, proposal_id: str) -> str:
+    """The hash the queue page carries for a proposal's approval."""
+    import re
+
+    page = client.get("/skills/queue").text
+    card = page[page.index(f'data-proposal="{proposal_id}"'):]
+    return re.search(r'name="shown" value="([0-9a-f]{64})"', card).group(1)
+
+
 def _new_skill(client, name="deploy", **more):
     data = {"name": name, "description": "Use when deploying.", "category": "servers",
             "body": BODY, **more}
@@ -112,7 +121,12 @@ def test_a_members_hand_is_held_and_an_administrator_decides(client, db, registe
     db.expire_all()
     assert db.get(StoreProposal, proposal.id).status == "rejected"
     other = db.scalar(select(StoreProposal).where(StoreProposal.name == "mine"))
-    client.post(f"/skills/queue/{other.id}/approve", data={"word": "yes"})
+    # An approval is bound to what the page showed: without that, it is not one.
+    r = client.post(f"/skills/queue/{other.id}/approve", data={"word": "yes"},
+                    follow_redirects=True)
+    assert "Look at the change again" in r.text and repo.read("skills/mine/SKILL.md") is None
+    client.post(f"/skills/queue/{other.id}/approve",
+                data={"word": "yes", "shown": _shown(client, other.id)})
     assert repo.read("skills/mine/SKILL.md") is not None
     assert repo.history("skills/mine/SKILL.md")[0].trailers["Approved-By"] == "Frodo"
 
@@ -192,23 +206,23 @@ def test_a_note_of_a_group_a_person_may_not_use_is_a_404_on_every_route(client, 
     db.commit()
     service.note_add(db, policy.agent(db, member, harness="laptop-agent", data_group="sams-own"),
                      title="Private", body="Mine.", subjects=["secret-thing"])
-    assert client.get("/notes/n/private").status_code == 200  # the member's own
+    assert client.get("/notes/n/sams-own/private").status_code == 200  # the member's own
     _, raw = api_tokens.create(db, admin, name="app", scopes=["app"])
     token = {"Authorization": f"Bearer {raw}"}
     assert client.get("/api/v2/notes", headers=token).json()["notes"] == []
-    assert client.get("/api/v2/notes/private", headers=token).status_code == 404
+    assert client.get("/api/v2/notes/sams-own/private", headers=token).status_code == 404
     client.post("/auth/logout")
     client.post("/auth/login", data={"email": registered["email"],
                                      "password": registered["password"]})
     # An administrator gets nothing for being one.
-    assert 'data-note="private"' not in client.get("/notes").text
-    assert client.get("/notes/n/private").status_code == 404
-    sha = repo.history("notes/private.md")[0].sha[:12]
-    assert client.get(f"/notes/change/{sha}/private").status_code == 404
+    assert 'data-note="sams-own/private"' not in client.get("/notes").text
+    assert client.get("/notes/n/sams-own/private").status_code == 404
+    sha = repo.history("notes/sams-own/private.md")[0].sha[:12]
+    assert client.get(f"/notes/change/{sha}/sams-own/private").status_code == 404
     for action in ("append", "confirm", "archive", "share", "delete", "save"):
-        assert client.post(f"/notes/do/{action}/private", data={"text": "x", "body": "x"}
+        assert client.post(f"/notes/do/{action}/sams-own/private", data={"text": "x", "body": "x"}
                            ).status_code == 404, action
-    assert repo.read("notes/private.md") is not None
+    assert repo.read("notes/sams-own/private.md") is not None
 
 
 def test_the_settings_page_never_renders_a_secret(client, db, registered):

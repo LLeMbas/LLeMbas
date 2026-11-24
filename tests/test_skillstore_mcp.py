@@ -123,10 +123,12 @@ def test_an_agent_finds_reads_and_changes_a_skill(client, db, registered):
     )
     assert not failed
     history, _ = device.call("skill_history", name="deploy")
-    assert "skill deploy: edit" in history and "(workstation-agent)" in history
+    assert "skill deploy: edit" in history
+    # Who: the account and the token are the server's; the harness is the client's word.
+    assert "Frodo (token dev, workstation-agent as the client calls itself)" in history
     assert "reason: the load mattered last time" in history and "[mcp]" in history
     # The add named its model in the tool's argument: its own claim, kept as one.
-    assert "(workstation-agent, model-a, said by the caller)" in history
+    assert "workstation-agent as the client calls itself, model-a, said by the caller)" in history
     page, _ = device.call("skills_category", category="servers")
     assert page.startswith("# servers (1 skills)") and "- deploy:" in page
     text, failed = device.call("skill_read", name="nothing")
@@ -142,7 +144,8 @@ def test_under_approve_a_change_waits_and_the_agent_is_told(client, db, register
     assert repo.read("skills/deploy/SKILL.md") is None
     said, _ = device.call("skills_policy")
     assert "A change you make to a skill waits for a person's approval." in said
-    assert "skill deploy: add — pending" in said and "through workstation-agent" in said
+    assert "skill deploy: add — pending" in said
+    assert "token dev, calling yourself workstation-agent" in said
     admin = db.scalar(select(User))
     proposal = db.scalar(select(StoreProposal))
     assert (proposal.harness, proposal.account_id) == ("workstation-agent", admin.id)
@@ -175,7 +178,7 @@ def test_notes_are_looked_up_read_and_written(client, db, registered):
     assert not failed and "disk-filled-up-in-march" in text
     looked, _ = device.call("notes_lookup", subject="disk")
     assert "disk-filled-up-in-march [incident] — Logs filled the disk" in looked
-    assert "confirmed" in looked and "by Frodo (workstation-agent)" in looked
+    assert "confirmed" in looked and "by Frodo (workstation-agent by its own name)" in looked
     assert "A debug flag." not in looked  # headers only
     outline, _ = device.call("note_outline", name="disk-filled-up-in-march")
     assert "- cause (" in outline and "- fix (" in outline
@@ -233,25 +236,26 @@ def test_a_call_reads_and_writes_the_data_group_of_the_session_it_names(
     scope = {"scope": "sess-1"}
     text, failed = device.call("note_add", scope, title="Inside", body="b", subjects=["thing"])
     assert not failed
-    assert "group: private-provider" in repo.read("notes/inside.md")
+    assert "group: private-provider" in repo.read("notes/private-provider/inside.md")
     assert "Session: sess-1" in repo.gitrun.run(
         ["log", "-1", "--format=%B"], cwd=repo.root()
     )[1]
     # Without the scope the caller is in the default group: the note is not there.
     looked, _ = device.call("notes_lookup", subject="thing")
     assert looked.startswith("No notes")
-    text, failed = device.call("note_read", name="inside")
+    text, failed = device.call("note_read", name="private-provider/inside")
     assert failed and "no note" in text
     found, _ = device.call("skills_search", query="inside")
     assert found == "Nothing found."
     looked, _ = device.call("notes_lookup", scope, subject="thing")
-    assert "inside [note]" in looked
+    assert "private-provider/inside [note]" in looked
     said, _ = device.call("skills_policy", scope)
     assert 'data group "private-provider"' in said
     # The model of a scoped session is the server's own knowledge, not a claim.
     chat.model_id = "local/known-model"
     db.commit()
-    device.call("note_append", scope, name="inside", text="More.", model="something-else")
+    device.call("note_append", scope, name="private-provider/inside", text="More.",
+                model="something-else")
     log = repo.gitrun.run(["log", "-1", "--format=%B"], cwd=repo.root())[1]
     assert "Model: local/known-model" in log and "Model-Said" not in log
     # A session that is not this device's is refused, whoever's it is.

@@ -22,6 +22,9 @@ def _user(db, email="ann@example.org", name="Ann", role="user") -> User:
 
 
 def _agent(db, user, harness="workstation-agent", group="default", **kwargs):
+    # A token of its own for each harness, unless the test says which.
+    kwargs.setdefault("token_id", f"token-of-{harness}")
+    kwargs.setdefault("token_name", "dev")
     return policy.agent(db, user, harness=harness, model="model-a", session="s-1",
                         data_group=group, **kwargs)
 
@@ -187,10 +190,17 @@ def test_a_skill_is_read_by_outline_and_section_and_reads_are_counted(db):
     _add(db, policy.person(db, admin))
     outline = service.skill_outline(db, "weekly-report")
     assert "- report (" in outline and "  - collect (" in outline and "chars" in outline
-    assert service.skill_read(db, "weekly-report", "send") == "## Send\n\nSend it."
-    assert service.skill_read(db, "Weekly Report").startswith("# Skill: weekly-report")
+    read = {"reader": admin.id}
+    assert service.skill_read(db, "weekly-report", "send", **read) == "## Send\n\nSend it."
+    assert service.skill_read(db, "Weekly Report", **read).startswith("# Skill: weekly-report")
     with pytest.raises(service.Refused, match="Sections: report, collect, send"):
         service.skill_read(db, "weekly-report", "nowhere")
+    # A read counts once per account and day, however often it is made; a
+    # read nobody is known for is not counted.
+    assert catalog.reads(db) == {"weekly-report": 1}
+    service.skill_read(db, "weekly-report")
+    other = _user(db)
+    service.skill_read(db, "weekly-report", reader=other.id)
     assert catalog.reads(db) == {"weekly-report": 2}
 
 
@@ -239,8 +249,9 @@ def test_a_note_is_stamped_with_its_writer_and_its_data_group(db):
     user = _user(db)
     _groups(db, user)
     out = _note(db, _agent(db, user, group="private-provider"))
-    assert out.status == service.APPLIED and out.name == "backup-plan"
-    meta = doc.fields(doc.split(repo.read("notes/backup-plan.md"))[0])
+    # Filed under its data group's own folder (the default group's at the top).
+    assert out.status == service.APPLIED and out.name == "private-provider/backup-plan"
+    meta = doc.fields(doc.split(repo.read("notes/private-provider/backup-plan.md"))[0])
     assert meta["group"] == "private-provider" and meta["shared"] == "false"
     assert (meta["author"], meta["author_id"], meta["harness"], meta["model"]) == (
         "Ann", user.id, "workstation-agent", "model-a",
@@ -248,7 +259,9 @@ def test_a_note_is_stamped_with_its_writer_and_its_data_group(db):
     assert meta["subjects"] == ["backup", "servers"] and meta["kind"] == "plan"
     assert meta["created"] == meta["confirmed"] and meta["status"] == "active"
     # A second note of the same title gets a name of its own.
-    assert _note(db, _agent(db, user, group="private-provider")).name == "backup-plan-2"
+    again = _note(db, _agent(db, user, group="private-provider"))
+    assert again.name == "private-provider/backup-plan-2"
+    assert meta["author_key"] == policy.token_key("token-of-workstation-agent")
 
 
 def test_a_note_is_visible_in_its_data_group_and_nowhere_else(db):
@@ -257,24 +270,29 @@ def test_a_note_is_visible_in_its_data_group_and_nowhere_else(db):
     inside = _agent(db, user, group="private-provider")
     outside = _agent(db, user, group="default")
     _note(db, inside)
-    assert [n.ident for n in catalog.notes(db, inside)] == ["backup-plan"]
-    assert catalog.notes(db, outside) == [] and catalog.note(db, outside, "backup-plan") is None
+    NAME = "private-provider/backup-plan"
+    assert [n.ident for n in catalog.notes(db, inside)] == [NAME]
+    # A note of the same title written outside gets the name it would have had
+    # anyway: the hidden one does not show through it.
+    assert _note(db, outside).name == "backup-plan"
+    service.note_remove(db, policy.person(db, user), ident="backup-plan")
+    assert catalog.notes(db, outside) == [] and catalog.note(db, outside, NAME) is None
     for call in (service.note_read, service.note_outline):
         with pytest.raises(service.Refused, match="no note"):
-            call(db, outside, "backup-plan")
+            call(db, outside, NAME)
     with pytest.raises(service.Refused, match="no note"):
-        service.note_append(db, outside, ident="backup-plan", text="x")
+        service.note_append(db, outside, ident=NAME, text="x")
     with pytest.raises(service.Refused, match="no note"):
-        service.note_change(db, outside, ident="backup-plan", summary="x", reason="r")
+        service.note_change(db, outside, ident=NAME, summary="x", reason="r")
     with pytest.raises(service.Refused, match="no note"):
-        service.note_confirm(db, outside, ident="notes/backup-plan.md")
+        service.note_confirm(db, outside, ident=f"notes/{NAME}.md")
 
     async def found(who):
         return [hit["name"] for hit in await catalog.search(db, who, "backup")]
 
     import asyncio
 
-    assert asyncio.run(found(inside)) == ["backup-plan"]
+    assert asyncio.run(found(inside)) == [NAME]
     assert asyncio.run(found(outside)) == []
     assert "plan (1)" in service.instructions(db, inside)
     assert "Notes here" not in service.instructions(db, outside)
@@ -287,9 +305,15 @@ def test_a_person_sees_the_groups_they_may_use_and_an_administrator_no_more(db):
     _groups(db, user)
     _note(db, _agent(db, user, group="anns-own"), title="Mine")
     _note(db, _agent(db, user, group="private-provider"), title="Instance")
-    assert {n.ident for n in catalog.notes(db, policy.person(db, user))} == {"mine", "instance"}
-    assert {n.ident for n in catalog.notes(db, policy.person(db, other))} == {"instance"}
-    assert {n.ident for n in catalog.notes(db, policy.person(db, admin))} == {"instance"}
+    assert {n.ident for n in catalog.notes(db, policy.person(db, user))} == {
+        "anns-own/mine", "private-provider/instance",
+    }
+    assert {n.ident for n in catalog.notes(db, policy.person(db, other))} == {
+        "private-provider/instance",
+    }
+    assert {n.ident for n in catalog.notes(db, policy.person(db, admin))} == {
+        "private-provider/instance",
+    }
 
 
 def test_a_note_or_a_kind_is_shared_by_policy_and_only_by_a_persons_hand(db):
@@ -299,15 +323,16 @@ def test_a_note_or_a_kind_is_shared_by_policy_and_only_by_a_persons_hand(db):
     outside = _agent(db, user, group="default")
     # An agent cannot share what it writes, whatever it asks for.
     _note(db, inside, shared=True)
-    assert catalog.note(db, outside, "backup-plan") is None
+    assert catalog.note(db, outside, "private-provider/backup-plan") is None
     with pytest.raises(service.Refused, match="by hand"):
-        service.note_share(db, inside, ident="backup-plan", shared=True)
-    service.note_share(db, policy.person(db, user), ident="backup-plan", shared=True)
-    assert catalog.note(db, outside, "backup-plan") is not None
+        service.note_share(db, inside, ident="private-provider/backup-plan", shared=True)
+    service.note_share(db, policy.person(db, user), ident="private-provider/backup-plan",
+                       shared=True)
+    assert catalog.note(db, outside, "private-provider/backup-plan") is not None
     _note(db, inside, title="Outage", kind="incident")
-    assert catalog.note(db, outside, "outage") is None
+    assert catalog.note(db, outside, "private-provider/outage") is None
     policy.save(db, {"shared_kinds": ["incident"]})
-    assert catalog.note(db, outside, "outage") is not None
+    assert catalog.note(db, outside, "private-provider/outage") is not None
 
 
 def test_lookup_is_by_subject_kind_and_status(db):
@@ -323,7 +348,7 @@ def test_lookup_is_by_subject_kind_and_status(db):
     assert [n.ident for n in catalog.notes(db, who, status="archived")] == ["backup-plan"]
     header = service.note_header(catalog.note(db, who, "backup-plan"))
     assert "[plan, archived]" in header and "confirmed" in header
-    assert "by Ann (workstation" in header
+    assert "by Ann (workstation-agent by its own name" in header
 
 
 # --- Notes: the levels ------------------------------------------------------------
@@ -342,16 +367,22 @@ def test_adding_and_adding_to_are_free_and_changing_anothers_waits(db):
     removed = service.note_remove(db, bobs, ident="backup-plan", reason="old")
     assert {changed.status, archived.status, removed.status} == {service.QUEUED}
     assert "## Detail\n\nx" in repo.read("notes/backup-plan.md")
-    # The author's own agent changes its own note at once; another harness of
-    # the same account is somebody else.
+    # The author's own agent changes its own note at once; another token of
+    # the same account is somebody else -- whatever it calls itself.
     own = service.note_change(db, _agent(db, ann), ident="backup-plan", section="detail",
                               text="z", reason="fixed")
     assert own.status == service.APPLIED
-    other_harness = service.note_change(
-        db, _agent(db, ann, harness="laptop-agent"), ident="backup-plan", section="detail",
-        text="q", reason="r",
+    other_token = service.note_change(
+        db, _agent(db, ann, harness="workstation-agent", token_id="another-token"),
+        ident="backup-plan", section="detail", text="q", reason="r",
     )
-    assert other_harness.status == service.QUEUED
+    assert other_token.status == service.QUEUED
+    # ... and the same token is the author under any name it gives itself.
+    renamed = service.note_change(
+        db, _agent(db, ann, harness="renamed", token_id="token-of-workstation-agent"),
+        ident="backup-plan", section="detail", text="q2", reason="r",
+    )
+    assert renamed.status == service.APPLIED
 
 
 def test_the_note_levels_are_settable_and_per_kind(db):

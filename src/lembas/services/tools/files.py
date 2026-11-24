@@ -258,11 +258,11 @@ def _guard_existing(s: Session, node: Node, path: str) -> None:
         )
 
 
-def _stray_skill_note(path: str) -> str:
+def _stray_skill_note(path: str, org_id: str = "") -> str:
     """A note when a SKILL.md is written where no skill is loaded from."""
     from lembas.services import skill_files
 
-    return skill_files.stray_note(path)
+    return skill_files.stray_note(path, org_id)
 
 
 async def _run_write(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
@@ -286,7 +286,7 @@ async def _run_write(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
         encoded = content.encode("utf-8")
         fs.write(s.view, path, encoded)
         sha = context_service.sha256(encoded)
-        note = _stray_skill_note(path)
+        note = _stray_skill_note(path, s.view.org_id)
         diff = context_service.patch(path, before, content)
         added, removed = _counts(diff)
         if existed:
@@ -344,7 +344,7 @@ async def _run_edit(context: ToolContext, args: dict[str, Any]) -> ToolOutcome:
         fs.write(s.view, path, encoded)
         diff = context_service.patch(path, before, after)
         added, removed = _counts(diff)
-        note = _stray_skill_note(path)
+        note = _stray_skill_note(path, s.view.org_id)
         return ToolOutcome(
             f"Edited {path} (+{added} −{removed})." + note,
             {"name": "edit", "status": "ok", "path": path, "diff": diff},

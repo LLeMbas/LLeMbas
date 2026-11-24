@@ -10,8 +10,11 @@ Skills have one level (`skills_edit`, default *approve*). Notes have two:
 adding a note, adding to one and confirming one (`notes_add`, default *auto*:
 free), and changing or removing what **somebody else** wrote (`notes_change`,
 default *approve*, settable per kind in `notes_kinds`). A note is one's own
-when the same account wrote it through the same harness; for a person in the
-web UI, when their account did.
+when the same account wrote it with the same token; for a person in the web
+UI, when their account did. **No decision here reads anything a caller says
+about itself**: the account and the token are the server's knowledge, the
+data group comes from a session the token owns, and the harness, the model
+and the session are labels.
 
 **Every door calls `decide`** -- the MCP tools, a chat's `skill_manage`, the
 web forms, the queue's approval -- so no route applies a change the policy
@@ -129,6 +132,12 @@ class Who:
     approver: bool = False
     # A person acting by hand in the web UI; False for every agent and program.
     person: bool = False
+    # What the caller is known by to the server: a digest of the token it came
+    # with ("web" for a person's hand, "chat" for a chat here). **This, with
+    # the account, is what "its own note" is decided on** -- never the harness
+    # below, which an MCP client names itself.
+    key: str = ""
+    token_name: str = ""
     harness: str = ""
     model: str = ""
     # Whether the model's name is only the caller's own claim (a tool's
@@ -148,6 +157,7 @@ class Who:
         return {
             "Account": self.account_name,
             "Account-Id": self.account_id,
+            "Token": self.token_name,
             "Harness": self.harness,
             "Model": "" if self.model_said else self.model,
             "Model-Said": self.model if self.model_said else "",
@@ -168,6 +178,7 @@ def person(db: DBSession, user: User) -> Who:
         is_admin=user.is_admin,
         approver=may_decide_skill(db, user),
         person=True,
+        key="web",
         harness="web",
         origin=ORIGIN_WEB,
         data_group=DEFAULT_GROUP,
@@ -180,6 +191,8 @@ def agent(
     user: User,
     *,
     harness: str,
+    token_id: str = "",
+    token_name: str = "",
     model: str = "",
     model_said: bool = False,
     session: str = "",
@@ -196,6 +209,8 @@ def agent(
         account_name=user.name,
         is_admin=False,
         person=False,
+        key=token_key(token_id) if token_id else ("chat" if origin == ORIGIN_CHAT else ""),
+        token_name=" ".join((token_name or "").split())[:80],
         harness=" ".join((harness or "").split())[:80] or "unknown",
         model=" ".join((model or "").split())[:200],
         model_said=bool(model_said and model),
@@ -227,15 +242,27 @@ def decide_skill(db: DBSession, who: Who) -> str:
     return _by_level(level)
 
 
-def own_note(who: Who, author_id: str, harness: str) -> bool:
+def token_key(token_id: str) -> str:
+    """What a token is known by in a note's header: a digest of its id (the
+    id itself stays in the database)."""
+    import hashlib
+
+    return hashlib.sha256(f"lembas-store:{token_id}".encode()).hexdigest()[:24]
+
+
+def own_note(who: Who, author_id: str, author_key: str) -> bool:
+    """Whether a note is this caller's own: the same account, and for an
+    agent the same token. Nothing the caller says about itself is asked."""
     if not author_id or author_id != who.account_id:
         return False
-    return True if who.person else harness == who.harness
+    if who.person:
+        return True
+    return bool(who.key) and who.key == author_key
 
 
 def decide_note(
     db: DBSession, who: Who, action: str, *, kind: str = "", author_id: str = "",
-    harness: str = "",
+    author_key: str = "",
 ) -> str:
     """What happens to a change to a note. `action`: add, append, confirm
     (the free ones), or change, archive, remove (somebody's writing)."""
@@ -246,7 +273,7 @@ def decide_note(
         return REFUSE
     if action in ("add", "append", "confirm"):
         return _by_level(values["notes_add"])
-    if own_note(who, author_id, harness):
+    if own_note(who, author_id, author_key):
         return APPLY
     return _by_level(values["notes_kinds"].get(kind, values["notes_change"]))
 
@@ -322,5 +349,6 @@ __all__ = [
     "own_note",
     "person",
     "save",
+    "token_key",
     "settings",
 ]

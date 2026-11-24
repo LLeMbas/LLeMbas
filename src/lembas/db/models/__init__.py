@@ -182,6 +182,7 @@ from lembas.db.models.store import (
     StoreNote,
     StoreProposal,
     StoreRead,
+    StoreReader,
     StoreSkill,
 )
 from lembas.db.models.suggestion import Suggestion
@@ -406,6 +407,7 @@ __all__ = [
     "StoreNote",
     "StoreProposal",
     "StoreRead",
+    "StoreReader",
     "StoreSkill",
     "ShownFile",
     "Suggestion",

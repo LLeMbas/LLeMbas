@@ -81,7 +81,7 @@ async def _run_skill_view(context: ToolContext, args: dict[str, Any]) -> ToolOut
             from lembas.services.skillstore import catalog
 
             row = catalog.skill(db, skill.name)
-            catalog.count_read(db, skill.name)
+            catalog.count_read(db, skill.name, context.owner_id)
             return ToolOutcome(
                 f"# Skill: {skill.name}\n{skill.description}\n"
                 f"A shared skill of this instance.\n\n{row.body if row else ''}",
