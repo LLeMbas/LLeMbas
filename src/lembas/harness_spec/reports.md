@@ -40,6 +40,13 @@ not in the list at all.
 
 A subagent of a run is never offered it: the run's own agent files the report.
 
+**The run is the schedule's turn, whole** (spec 3.10.0). On a linked computer that turn stays
+open while the run's subagents work and takes their reports in (`acp.md`, *The run waits for its
+subagents*), so the tool is offered until the run answers — after the last report. A turn the
+session starts by itself *after* that answer — a background command the run left ended — is the
+schedule's work (`interactive.md` §2) but not its run: the tool answers `unavailable` there,
+because no answer is left to carry a report.
+
 ## 3. Notify when
 
 A schedule says when its owner wants to hear from it (`scheduled.notify.values`):

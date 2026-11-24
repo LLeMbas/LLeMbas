@@ -1,0 +1,124 @@
+{
+  "about": "Spec 3.10.0 (acp.md, `_lembas/session/status` and *A turn the harness starts*): the client's rule for an incomplete row after a restart or a dropped link. `turn`: the row's turn id T; `machine`: the row is a turn the harness started (its `prompt` event said `machine`); `status`: what `_lembas/session/status` answered — `busy`, `turnId` (the turn running now), `queued`, `lastTurnId`. The result `do`: `follow` — T runs: take its events until its `task` end; `wait` — T is queued: follow it when it starts; `import` — read the reply after the user turn with T from `_lembas/session/history` (for a harness turn the device does not know any more: whatever is there, and nothing when nothing is); `resend` — send the prompt again with T. A harness turn is never resent: its text is a note, not a person's words. LLeMbas: services/device_link.py; CLI: acp/turns.ts reattach (the client's rule, kept there for these cases).",
+  "cases": [
+    {
+      "about": "The person's turn still runs: followed.",
+      "turn": "t7",
+      "status": {
+        "busy": true,
+        "turnId": "t7",
+        "queued": [],
+        "lastTurnId": "t6"
+      },
+      "expect": {
+        "do": "follow"
+      }
+    },
+    {
+      "about": "A harness turn still runs — status names it as it names any turn: followed.",
+      "turn": "h2",
+      "machine": true,
+      "status": {
+        "busy": true,
+        "turnId": "h2",
+        "queued": [],
+        "lastTurnId": "t7"
+      },
+      "expect": {
+        "do": "follow"
+      }
+    },
+    {
+      "about": "The person's prompt waits behind a harness turn: waited for, then followed.",
+      "turn": "t8",
+      "status": {
+        "busy": true,
+        "turnId": "h2",
+        "queued": [
+          "t8"
+        ],
+        "lastTurnId": "t7"
+      },
+      "expect": {
+        "do": "wait"
+      }
+    },
+    {
+      "about": "The person's turn was the last to finish: imported from the history.",
+      "turn": "t7",
+      "status": {
+        "busy": false,
+        "queued": [],
+        "lastTurnId": "t7"
+      },
+      "expect": {
+        "do": "import"
+      }
+    },
+    {
+      "about": "A harness turn was the last to finish: imported by its id.",
+      "turn": "h2",
+      "machine": true,
+      "status": {
+        "busy": false,
+        "queued": [],
+        "lastTurnId": "h2"
+      },
+      "expect": {
+        "do": "import"
+      }
+    },
+    {
+      "about": "The device does not know the person's turn: the prompt is sent again, and the device runs it once.",
+      "turn": "t9",
+      "status": {
+        "busy": false,
+        "queued": [],
+        "lastTurnId": "t7"
+      },
+      "expect": {
+        "do": "resend"
+      }
+    },
+    {
+      "about": "The same while a harness turn runs: sent again, and it waits its turn there.",
+      "turn": "t9",
+      "status": {
+        "busy": true,
+        "turnId": "h3",
+        "queued": [],
+        "lastTurnId": "t7"
+      },
+      "expect": {
+        "do": "resend"
+      }
+    },
+    {
+      "about": "A harness turn the device no longer knows (it restarted in the middle of it): never sent — what the history has for it is all there is.",
+      "turn": "h2",
+      "machine": true,
+      "status": {
+        "busy": false,
+        "queued": [],
+        "lastTurnId": "t7"
+      },
+      "expect": {
+        "do": "import"
+      }
+    },
+    {
+      "about": "The first of two harness turns in a row, while the second runs and a person's turn finished in between: imported, not sent, and not taken for the one that runs.",
+      "turn": "h2",
+      "machine": true,
+      "status": {
+        "busy": true,
+        "turnId": "h3",
+        "queued": [],
+        "lastTurnId": "t8"
+      },
+      "expect": {
+        "do": "import"
+      }
+    }
+  ]
+}

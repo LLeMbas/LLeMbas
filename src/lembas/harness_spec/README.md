@@ -36,7 +36,7 @@ page *Harness-parity* in LLeMbas CLI's wiki.
 | `display.md` | Display (3.7.0): one display in every client — a tool call's title, its four states, the duration and the facts beside it, the kinds of block; how `stopped` and `failed` stay on a finished reply; what the approval, question and plan cards offer; numbers in the client's locale |
 | `quirks.json` | What real servers do, and how both harnesses cope |
 | `conformance/<area>.json` | Cases with their expected results, run by both test suites |
-| `acp.md` | The link between them: ACP plus every `_lembas/*` method, field and capability; scheduled work on a linked computer (3.5.0) and the two types of schedule, Chat and Agentic (3.9.0); the model last used in a directory (3.9.0) |
+| `acp.md` | The link between them: ACP plus every `_lembas/*` method, field and capability; scheduled work on a linked computer (3.5.0) and the two types of schedule, Chat and Agentic (3.9.0); the model last used in a directory (3.9.0); a turn the harness starts by itself, over the link (3.10.0) |
 
 ## Vocabulary
 
@@ -78,6 +78,76 @@ page *Harness-parity* in LLeMbas CLI's wiki.
   (`context.md` §10). All three are offered in every mode; `plan_submit` (`requires: plan`) is the
   approval in plan mode and answers its `unavailable` text outside it. Their permission key is
   `plan` (`permission/defaults.json`), which a rule written for the former `todo` key still reaches.
+
+## 3.10.0
+
+Written with the CLI's implementation, after a turn the harness started was found to be half a turn
+over the link. A new capability and two fields; one prompt text made plainer; no tool.
+
+- **A turn the harness starts is a turn like any other over the link** (`acp.md`, section of that
+  name; capability `harness_turns`; `conformance/reattach.json`, 9 cases). A note that wakes an idle
+  session — a finished job's, a subagent's or a team's report — already had an id of its own on
+  its `task` and `prompt` events. What is new is everything a client asks *about* it:
+  `_lembas/session/status` says `busy` and names it (`turnId`, then `lastTurnId`, kept across a
+  restart); `_lembas/steer` is accepted while it runs, and a message it ended before taking in
+  comes back as **`unsent` on its `task` end event** (it has no prompt's answer to carry it);
+  `session/cancel` stops it; a `session/prompt` that arrives meanwhile **waits its turn** and is
+  listed in `queued`; compacting and rewinding are refused while it runs; the link is not closed
+  under it. **`_lembas/session/history` marks its user turn `machine`**, with its `turnId` and the
+  whole note as `text`. Written down as well: the order of such a turn's events, that turns never
+  overlap, and what two notes in a row are (one turn with both, or two turns one after the other).
+- **The client's side**: the row of such a turn is never sent to the device as a prompt — not on
+  seeing it, and not on reattaching when the device no longer knows its id; then what the history
+  has for that id is imported. `conformance/reattach.json` is that decision, for a person's turn
+  and for the harness's.
+- **Clarified, not changed**: on a `machine` turn's `prompt` event, `text` is the line a transcript
+  shows (`⏎ ` and the note's first line), not the whole note.
+- **`blocks/team_lead.md`**, one bullet more: the main agent does not wait for a report or ask for
+  one; a report starts its next turn by itself, and when the reports it needs are in it answers the
+  person in that turn, unasked, and never tells the person to ask again. A session keeps the system
+  prompt it was started with (`context.md` §10), so only sessions started after the change read it.
+
+Amended before any release carried it, after a review of the CLI's implementation found work that
+could be lost around such turns. No capability, field or method is added by these; a client that
+follows 3.10.0 as first written follows this.
+
+- **A schedule's run waits for its subagents** (`acp.md`, *Scheduled work* → *The run waits for its
+  subagents*; `reports.md` §2). A scheduled turn on a device does not end while a subagent it
+  started is still out: the turn stays open (`waiting_for_subagents`), each report reaches the main
+  agent in the same turn, and the answer's `text` and `report` come from the last reply. Before,
+  the run answered with the reply that ended the main agent's first turn ("the subagents are on
+  it") and the real answer came in a turn `report_write` was not offered in. A run is one turn;
+  background commands are not waited for; Stop on a scheduled turn stops the run's subagents too,
+  and so does any other end of the turn with subagents still out.
+- **A session that still has work out** (`acp.md`, section of that name; `conformance/outstanding.json`,
+  8 cases): with no turn running, a subagent that works or waits, a report about to wake the main
+  agent, or a background command makes a session *not idle* for the device — the link is not
+  closed for a change of limits, a service does not start again for an update, and a terminal
+  opening the session is refused in words. `status.busy` still means "a turn runs".
+- **Stop, said whole** (`session/cancel`; *A turn the harness starts*): it stops the turn and no
+  subagent (the scheduled turn apart); a turn stopped while it waited for a model slot is in the
+  history like any stopped turn, its note with it; notes a stopped turn had not delivered are kept
+  with the session, across a restart.
+- **A steer nobody could be handed** (*A turn the harness starts*, Steer): kept with the session,
+  across a restart, and taken in at the next turn's first step in every mode — said with `steered`
+  and its id — and never also handed back as `unsent`. And the `task` end that carries `unsent`
+  comes before the `inbox` event that says the queue is empty.
+- **A wake that may not start a turn** (a schedule's session on an interactive-only model): the
+  session is idle again and the note is kept for the person's next message.
+- **A steered message is given to the model once** (`_lembas/steer`; part of `harness_turns`). A
+  prompt's turn that ends with no link up carries its too-late steers to the next turn, as a
+  harness turn does — an `unsent` in an answer nobody reads was a message lost. And a
+  `session/prompt` whose `turnId` is the `messageId` of a steered message the device still knows
+  (taken in, carried, or waiting in the running turn) does not run: it is answered with
+  `_meta.lembas.steered` saying which. A client that lost the link can send again safely.
+- **`session/cancel` may name its turn** (`_meta.lembas.turnId`; part of `harness_turns`, which no
+  release has carried yet; `conformance/cancel.json`, 7 cases). A prompt can now wait behind a
+  turn its client did not start, and a cancel that names no turn stops whatever runs: a client
+  stopping a reply whose prompt still waited stopped the harness's turn instead, and its own
+  prompt ran later with nobody following. With the id: the turn is stopped if it runs; taken out
+  of the queue if it waits — its `session/prompt` answered `cancelled`, the running turn left
+  alone; nothing if it is neither. Sent as a request, the cancel is answered
+  `{ cancelled: "running" | "queued" | "none" }`. Without the id, as before.
 
 ## 3.9.0
 

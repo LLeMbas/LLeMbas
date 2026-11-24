@@ -1,0 +1,224 @@
+{
+  "about": "Spec 3.10.0 (acp.md, *A session that still has work out* and *The run waits for its subagents*): what a session still has out when no turn of it runs. `agents`: the team as its tree has it — the main agent (`lead`: `working`, `waiting` or `idle`) and every live subagent with its state (subagents.md §9); an ended subagent is not in it. `jobs`: the session's background jobs that are not a team's subagents (a team's subagent counts once, by its state), each `kind` (`command` or `subagent`, a background `task`) and `state` as in JobInfo. The result: `subagents` — who still works for the session and will report: the team's subagents that are `working`, `waiting` or `paused`, by name in tree order, then the running background `task` subagents by job id; `commands` — the running background commands by job id; `run_waits` — a schedule's run does not end yet: a subagent is out, or the main agent is `waiting` (a report waits for it to get a slot) — never for a command, which may not end; `has_work` — the session is not idle for the device (the link is not closed for a change of limits, a service does not start again for an update, a terminal opening the session is refused): `run_waits`, or a command runs. LLeMbas: where its own scheduled runs with a team end; CLI: src/session/outstanding.ts.",
+  "cases": [
+    {
+      "about": "Nothing out: a team whose subagents have all reported, and no jobs.",
+      "agents": [
+        {
+          "name": "lead",
+          "state": "idle"
+        },
+        {
+          "name": "api",
+          "state": "finished"
+        }
+      ],
+      "jobs": [],
+      "expect": {
+        "subagents": [],
+        "commands": [],
+        "run_waits": false,
+        "has_work": false
+      }
+    },
+    {
+      "about": "A subagent works after the main agent's reply ended.",
+      "agents": [
+        {
+          "name": "lead",
+          "state": "idle"
+        },
+        {
+          "name": "api",
+          "state": "working"
+        }
+      ],
+      "jobs": [],
+      "expect": {
+        "subagents": [
+          "api"
+        ],
+        "commands": [],
+        "run_waits": true,
+        "has_work": true
+      }
+    },
+    {
+      "about": "One waits for a slot, one is in its last turn after its context filled, one has finished: the first two are out, in tree order.",
+      "agents": [
+        {
+          "name": "lead",
+          "state": "idle"
+        },
+        {
+          "name": "web",
+          "state": "finished"
+        },
+        {
+          "name": "api",
+          "state": "paused"
+        },
+        {
+          "name": "docs",
+          "state": "waiting"
+        }
+      ],
+      "jobs": [],
+      "expect": {
+        "subagents": [
+          "api",
+          "docs"
+        ],
+        "commands": [],
+        "run_waits": true,
+        "has_work": true
+      }
+    },
+    {
+      "about": "Every subagent has finished, and the last report waits for the main agent to get a slot: the run is not over.",
+      "agents": [
+        {
+          "name": "lead",
+          "state": "waiting"
+        },
+        {
+          "name": "api",
+          "state": "finished"
+        }
+      ],
+      "jobs": [],
+      "expect": {
+        "subagents": [],
+        "commands": [],
+        "run_waits": true,
+        "has_work": true
+      }
+    },
+    {
+      "about": "A background task subagent still runs: out, named by its job.",
+      "agents": [
+        {
+          "name": "lead",
+          "state": "idle"
+        }
+      ],
+      "jobs": [
+        {
+          "id": "job2",
+          "kind": "subagent",
+          "state": "running"
+        },
+        {
+          "id": "job1",
+          "kind": "subagent",
+          "state": "done"
+        }
+      ],
+      "expect": {
+        "subagents": [
+          "job2"
+        ],
+        "commands": [],
+        "run_waits": true,
+        "has_work": true
+      }
+    },
+    {
+      "about": "A background command runs: the session has work out, but a run does not wait for it — it may never end.",
+      "agents": [
+        {
+          "name": "lead",
+          "state": "idle"
+        }
+      ],
+      "jobs": [
+        {
+          "id": "job1",
+          "kind": "command",
+          "state": "running"
+        }
+      ],
+      "expect": {
+        "subagents": [],
+        "commands": [
+          "job1"
+        ],
+        "run_waits": false,
+        "has_work": true
+      }
+    },
+    {
+      "about": "Finished, stopped and lost jobs are not out.",
+      "agents": [
+        {
+          "name": "lead",
+          "state": "idle"
+        }
+      ],
+      "jobs": [
+        {
+          "id": "job1",
+          "kind": "command",
+          "state": "done"
+        },
+        {
+          "id": "job2",
+          "kind": "command",
+          "state": "stopped"
+        },
+        {
+          "id": "job3",
+          "kind": "subagent",
+          "state": "lost"
+        },
+        {
+          "id": "job4",
+          "kind": "command",
+          "state": "error"
+        }
+      ],
+      "expect": {
+        "subagents": [],
+        "commands": [],
+        "run_waits": false,
+        "has_work": false
+      }
+    },
+    {
+      "about": "Both kinds: subagents first by name, then the task subagent by job; the command beside them.",
+      "agents": [
+        {
+          "name": "lead",
+          "state": "working"
+        },
+        {
+          "name": "api",
+          "state": "working"
+        }
+      ],
+      "jobs": [
+        {
+          "id": "job3",
+          "kind": "command",
+          "state": "running"
+        },
+        {
+          "id": "job4",
+          "kind": "subagent",
+          "state": "running"
+        }
+      ],
+      "expect": {
+        "subagents": [
+          "api",
+          "job4"
+        ],
+        "commands": [
+          "job3"
+        ],
+        "run_waits": true,
+        "has_work": true
+      }
+    }
+  ]
+}

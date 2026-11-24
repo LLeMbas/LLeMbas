@@ -1,0 +1,77 @@
+{
+  "about": "Spec 3.10.0 (acp.md, `session/cancel`): which turn a cancel touches. `turn`: the `_meta.lembas.turnId` the cancel carries, absent for ACP's own cancel; `running`: the id of the turn that runs in the session now, absent when none does; `queued`: the ids of the prompts waiting their turn. The result `cancelled` is what the device answers a cancel sent as a request: `running` — the running turn is stopped; `queued` — that prompt is taken out of the queue and answered `cancelled`, and the running turn is not touched; `none` — nothing is done. `stops`: the id of the turn stopped, `withdraws`: the id taken out of the queue (each absent when none). LLeMbas: what it may expect of a device with `harness_turns`; CLI: acp/turns.ts `cancelOf`.",
+  "cases": [
+    {
+      "about": "No id, a turn runs: ACP's cancel — the running turn, whoever started it.",
+      "running": "h2",
+      "queued": [
+        "t8"
+      ],
+      "expect": {
+        "cancelled": "running",
+        "stops": "h2"
+      }
+    },
+    {
+      "about": "No id, nothing runs: nothing to stop.",
+      "queued": [],
+      "expect": {
+        "cancelled": "none"
+      }
+    },
+    {
+      "about": "The turn named is the one that runs: stopped.",
+      "turn": "t7",
+      "running": "t7",
+      "queued": [],
+      "expect": {
+        "cancelled": "running",
+        "stops": "t7"
+      }
+    },
+    {
+      "about": "The turn named waits behind a harness turn: taken out of the queue; the harness turn is not touched.",
+      "turn": "t8",
+      "running": "h2",
+      "queued": [
+        "t8"
+      ],
+      "expect": {
+        "cancelled": "queued",
+        "withdraws": "t8"
+      }
+    },
+    {
+      "about": "Two prompts wait; the second is named: only it goes.",
+      "turn": "t9",
+      "running": "h2",
+      "queued": [
+        "t8",
+        "t9"
+      ],
+      "expect": {
+        "cancelled": "queued",
+        "withdraws": "t9"
+      }
+    },
+    {
+      "about": "The turn named finished already, while another runs: nothing is done — the running turn is somebody else's.",
+      "turn": "t6",
+      "running": "h2",
+      "queued": [
+        "t8"
+      ],
+      "expect": {
+        "cancelled": "none"
+      }
+    },
+    {
+      "about": "An id the session never heard of, nothing running: nothing is done.",
+      "turn": "x1",
+      "queued": [],
+      "expect": {
+        "cancelled": "none"
+      }
+    }
+  ]
+}
