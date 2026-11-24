@@ -1,0 +1,210 @@
+{
+  "about": "Spec 3.11.0 (acp.md, `_lembas/show`): what the `show` tool sends for a file — `name` its path, `media` whether the client said `media: true`, `text` whether its bytes are text (no NUL byte), `size` its bytes. Answers `kind` (with `language` for code), and `via`: `text` — the content travels in the request — or `handle` — the client fetches it with `_lembas/show/read`, and is told `mimeType`; or `{refused}`: `not_text` (a client without `media` cannot be handed it) or `too_large` (over `loop.json` `files.show`'s `text_max_bytes` or `media_max_bytes`). `kind` is the device's reading of the name and a hint only: the client decides from the bytes. CLI: src/tool/show.ts.",
+  "cases": [
+    {
+      "about": "Markdown, as before.",
+      "name": "notes/plan.md",
+      "media": false,
+      "text": true,
+      "size": 1200,
+      "expect": {
+        "kind": "markdown",
+        "via": "text"
+      }
+    },
+    {
+      "about": "Code, with its language.",
+      "name": "src/app.ts",
+      "media": true,
+      "text": true,
+      "size": 1200,
+      "expect": {
+        "kind": "code",
+        "language": "typescript",
+        "via": "text"
+      }
+    },
+    {
+      "about": "A picture, to a client that shows media: handed over by a handle.",
+      "name": "out/chart.png",
+      "media": true,
+      "text": false,
+      "size": 48211,
+      "expect": {
+        "kind": "image",
+        "mimeType": "image/png",
+        "via": "handle"
+      }
+    },
+    {
+      "about": "A picture, to a client that does not: refused before anything is sent.",
+      "name": "out/chart.png",
+      "media": false,
+      "text": false,
+      "size": 48211,
+      "expect": {
+        "refused": "not_text"
+      }
+    },
+    {
+      "about": "A table is named as one to a client that shows media…",
+      "name": "data/loaves.csv",
+      "media": true,
+      "text": true,
+      "size": 900,
+      "expect": {
+        "kind": "table",
+        "via": "text"
+      }
+    },
+    {
+      "about": "…and is text to one that does not.",
+      "name": "data/loaves.csv",
+      "media": false,
+      "text": true,
+      "size": 900,
+      "expect": {
+        "kind": "text",
+        "via": "text"
+      }
+    },
+    {
+      "about": "An SVG is its own kind — a document that can carry script, never a picture to serve inline.",
+      "name": "art/leaf.svg",
+      "media": true,
+      "text": true,
+      "size": 900,
+      "expect": {
+        "kind": "svg",
+        "via": "text"
+      }
+    },
+    {
+      "about": "…and code to a client before 3.11.0.",
+      "name": "art/leaf.svg",
+      "media": false,
+      "text": true,
+      "size": 900,
+      "expect": {
+        "kind": "code",
+        "language": "xml",
+        "via": "text"
+      }
+    },
+    {
+      "about": "A notebook.",
+      "name": "lab/run.ipynb",
+      "media": true,
+      "text": true,
+      "size": 900,
+      "expect": {
+        "kind": "notebook",
+        "via": "text"
+      }
+    },
+    {
+      "about": "Sound.",
+      "name": "voice/memo.mp3",
+      "media": true,
+      "text": false,
+      "size": 900000,
+      "expect": {
+        "kind": "audio",
+        "mimeType": "audio/mpeg",
+        "via": "handle"
+      }
+    },
+    {
+      "about": "Video.",
+      "name": "demo.mp4",
+      "media": true,
+      "text": false,
+      "size": 9000000,
+      "expect": {
+        "kind": "video",
+        "mimeType": "video/mp4",
+        "via": "handle"
+      }
+    },
+    {
+      "about": "A PDF.",
+      "name": "report.pdf",
+      "media": true,
+      "text": false,
+      "size": 90000,
+      "expect": {
+        "kind": "pdf",
+        "mimeType": "application/pdf",
+        "via": "handle"
+      }
+    },
+    {
+      "about": "A 3D model.",
+      "name": "ring.glb",
+      "media": true,
+      "text": false,
+      "size": 90000,
+      "expect": {
+        "kind": "model3d",
+        "mimeType": "model/gltf-binary",
+        "via": "handle"
+      }
+    },
+    {
+      "about": "Anything else that is not text.",
+      "name": "core.bin",
+      "media": true,
+      "text": false,
+      "size": 900,
+      "expect": {
+        "kind": "binary",
+        "mimeType": "application/octet-stream",
+        "via": "handle"
+      }
+    },
+    {
+      "about": "The name is only a hint: text called a picture goes as the bytes it is called, and the client finds out.",
+      "name": "fake.png",
+      "media": true,
+      "text": true,
+      "size": 900,
+      "expect": {
+        "kind": "image",
+        "mimeType": "image/png",
+        "via": "handle"
+      }
+    },
+    {
+      "about": "Bytes that are not text under a text name go as what they are.",
+      "name": "broken.md",
+      "media": true,
+      "text": false,
+      "size": 900,
+      "expect": {
+        "kind": "binary",
+        "mimeType": "application/octet-stream",
+        "via": "handle"
+      }
+    },
+    {
+      "about": "A text file over the text limit.",
+      "name": "big.log",
+      "media": true,
+      "text": true,
+      "size": 2000000,
+      "expect": {
+        "refused": "too_large"
+      }
+    },
+    {
+      "about": "A file over the media limit.",
+      "name": "film.mkv",
+      "media": true,
+      "text": false,
+      "size": 90000000,
+      "expect": {
+        "refused": "too_large"
+      }
+    }
+  ]
+}

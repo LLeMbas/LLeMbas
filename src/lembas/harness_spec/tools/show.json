@@ -14,7 +14,7 @@
     "cli": [],
     "llembas": []
   },
-  "description": "Open a file in the user's viewer, beside the conversation, without them having to look for it: Markdown rendered, code highlighted, plain text as it is, and HTML as a page in a sandboxed frame that cannot reach this app, the user's data or anything the instance does not allow. Use it when the user should see the file itself — a page or a chart you made, a document you wrote — not for files you only read.\n\n- `path` may be absolute or relative to the working directory. The file must exist and be readable in this session: write it first.\n- `line` scrolls a text file to that line.",
+  "description": "Show the user a file, without them having to look for it. A text file opens in their viewer beside the conversation: Markdown rendered, code highlighted, plain text as it is, and HTML as a page in a sandboxed frame that cannot reach this app, the user's data or anything the instance does not allow. A picture, a sound, a video, a PDF or a 3D model is shown in the conversation itself, where the user's app can show one — whether or not you can read that kind of file yourself. Use it when the user should see the file itself — a page or a chart you made, a screenshot you took, a document you wrote — not for files you only read.\n\n- `path` may be absolute or relative to the working directory. The file must exist and be readable in this session: write it first.\n- `line` scrolls a text file to that line.",
   "parameters": {
     "type": "object",
     "properties": {

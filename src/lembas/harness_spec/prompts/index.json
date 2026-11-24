@@ -265,6 +265,10 @@
       "llembas": [],
       "llembas_text": "identical",
       "why": "spec 3.8.0 (pages.md): takes the place of blocks/prototypes.md, the 1.x text the CLI alone had kept. LLeMbas reads it from the vendored spec (harness_spec.prompt), not from a fragment; the CLI never sends it (pages.md §4: an agent chat is never offered pages)."
+    },
+    "tasks/rewrite.md": {
+      "scope": "shared",
+      "llembas": []
     }
   }
 }

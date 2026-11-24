@@ -5,7 +5,8 @@ Protocol, plus the `_lembas/*` methods and `_meta.lembas` fields below. LLeMbas 
 **agent**; LLeMbas is the **client**. The device dials out (`wss://<instance>/api/devices/link`,
 the device token in the `Authorization` header) and one WebSocket message is one JSON-RPC 2.0
 message; `lembas serve --stdio` speaks the same protocol on stdin/stdout, one message a line, to an
-editor (which gets plain ACP: none of the `_lembas` notifications, no question or plan cards).
+editor (which gets plain ACP: none of the `_lembas` notifications, no question or plan cards —
+unless it says more of itself: *An editor as the client*, spec 3.11.0).
 
 This file is part of the harness spec: LLeMbas vendors it with the rest, and a
 change to the protocol is a change here first, then in both projects.
@@ -71,12 +72,17 @@ change to the protocol is a change here first, then in both projects.
 | `directory_model` | spec 3.9.0 (*The model last used in a directory*, below): `model` on a `Dir` of `_lembas/directories`' answer; `list: false` in its params |
 | `harness_turns` | spec 3.10.0 (*A turn the harness starts*, below): such a turn is a turn in `_lembas/session/status` (`busy`, `turnId`, then `lastTurnId`), takes `_lembas/steer`, hands back `unsent` on its `task` end, makes a prompt wait, and is in `_lembas/session/history` as a user turn with `machine`; and — since prompts now wait behind turns the client did not start — `_meta.lembas.turnId` on `session/cancel` names the turn to stop or to take out of the queue, and `session/cancel` sent as a request is answered |
 | `reports` | spec 3.8.0 (`reports.md` §6): `scheduled.notify` in `_meta.lembas` of `session/new` and `session/prompt` read; `report_write` offered to the model of a schedule's run that notifies; the report the run wrote carried in the prompt's answer (`scheduled.report`); the status `silent` no longer given to a turn whose request said `notify` |
+| `editor` | spec 3.11.0 (*An editor as the client*, below): `_lembas/complete` and `_lembas/complete/cancel`; `_lembas/edit`, `_lembas/edit/delta` and `_lembas/edit/cancel`; `_lembas/models`; `_lembas/editor/settings`; `editor` in `_meta.lembas` of `session/prompt` read; and, for a client that said `editor: true`, ACP `diff` content on `session/request_permission` and on a finished edit's `tool_call_update` |
+| `media` | spec 3.11.0 (`_lembas/show`, below): for a client that said `media: true`, the `show` tool also hands over a file that is not text — a picture, sound, video, a PDF, a 3D model — which the client fetches with `_lembas/show/read`; and a table, an SVG or a notebook is named as one |
+| `fs` | spec 3.11.0 (*Device files*, below): `_lembas/fs/list`, `stat`, `read`, `write`, `mkdir`, `move`, `copy`, `delete`, `search` — the person's own hands on the files inside `remote.roots`. Listed on the link only, never on `serve --stdio` |
 
 ## Standard ACP, as used here
 
 ### `initialize` — client → agent
 
-Params: `{ protocolVersion: 1, clientCapabilities: { _meta?: { lembas?: { protocol: 3, show?: true } | true } } }`.
+Params: `{ protocolVersion: 1, clientCapabilities: { fs?: { readTextFile?: boolean, writeTextFile?: boolean }, _meta?: { lembas?: { protocol: 3, show?: true, media?: true, editor?: true } | true } } }`.
+`fs` is ACP's own (spec 3.11.0: *Unsaved text*, below); `media` and `editor` are what the client says of
+itself for `_lembas/show` and for *An editor as the client*.
 
 Result:
 
@@ -93,14 +99,14 @@ Result:
   "_meta": { "lembas": {
     "protocol": 3,
     "harness_spec": "3.0.0",
-    "limits": { "roots": ["~/work"], "max_mode": "edit", "scheduled": false },
+    "limits": { "roots": ["~/work"], "max_mode": "edit", "scheduled": false, "files_that_run_code": false },
     "connection": "example",
     "capabilities": ["directories", "configure", "…"]
   } }
 }
 ```
 
-`limits` is `null` on `serve --stdio`. `limits.scheduled` (spec 3.5.0, capability `scheduled`): whether
+`limits` is `null` on `serve --stdio`. `limits.files_that_run_code` (spec 3.11.0, capability `fs`): whether device files may change files that run code (`remote.files_that_run_code`, *Files that run code*). `limits.scheduled` (spec 3.5.0, capability `scheduled`): whether
 this device accepts scheduled work now (`remote.scheduled`, *Scheduled work on a linked computer*). `connection` is the device's name for the instance — the
 login's connection — or `null`; the `model` event and `announce` say directly whether a model is
 the instance's (`instance`).
@@ -154,7 +160,8 @@ texts, as for its own sessions, and these are the pieces the instance holds):
 
 ### `session/prompt` — client → agent
 
-Params: `{ sessionId, prompt: ContentBlock[], _meta?: { lembas?: { turnId?: string, ...Context } } }`.
+Params: `{ sessionId, prompt: ContentBlock[], _meta?: { lembas?: { turnId?: string, editor?: EditorContext, ...Context } } }`
+(`editor`, capability `editor`: *Editor context in a prompt*, below).
 
 Blocks (capability `attachments` for the last two kinds):
 
@@ -296,6 +303,7 @@ named like any TUI command is not a command (the built-in wins in the TUI).
 ### `session/request_permission` — agent → client
 
 An approval card. Params: ACP's `{ sessionId, toolCall: { toolCallId, title, kind, status: "pending", rawInput, content? }, options }`
+(`content`: the change as a unified diff in one text item — or, for a client that said `editor: true`, as ACP `diff` items: *Edits as diffs*, below)
 with options `once` (allow_once), `session` (allow_always, absent where "always" is never offered)
 and `deny` (reject_once), and `_meta.lembas: { tool, reason, purpose?, always?, patient?, job? }`. `tool`
 (spec 3.7.0): the tool's name — `toolCall.title` here is **the whole command, or the tool's name where
@@ -762,14 +770,382 @@ that work (`conformance/outstanding.json`, `has_work`):
 
 Deleting the session (`_lembas/session/delete`) still stops everything, as it says.
 
+## An editor as the client (spec 3.11.0)
+
+An editor — a Neovim plugin, a VS Code extension, a desktop workspace — runs `lembas serve --stdio`
+and is an ACP client like any other. What it gets beyond plain ACP is below, named by the
+capability `editor`. It says what it is in `initialize`:
+`clientCapabilities._meta.lembas = { editor: true, protocol?: 3, show?: true, media?: true }`. As
+for any client that says `_meta.lembas`, every engine event then also comes as `_lembas/event`;
+with `protocol: 3` it is also asked `_lembas/question` and `_lembas/plan`. Nothing here needs the
+link: the same methods answer over it, under the device's limits where a directory is named.
+
+**Nothing in this section changes what the agent may do.** A chat in an editor is an ordinary
+session — the same tools, modes, permissions and hardline. `_lembas/complete` and `_lembas/edit`
+run no tool at all and read nothing from the disk: they see only what the client sends. What a
+model writes back is text for the client to insert or to show as a diff — **untrusted, never run
+as code** by the client or the device.
+
+Numbers: `loop.json` `editor`. Conformance: `conformance/editor.json`.
+
+### `_lembas/complete` — client → agent → result (capability `editor`)
+
+Autocomplete: the text that belongs between `prefix` and `suffix`. Params
+`{ id?: string, prefix: string, suffix?: string, path?: string, language?: string, model?: string, max_tokens?: number, cwd?: string }`
+— `prefix` the text before the cursor, `suffix` the text after it; `path` and `language` what the
+file is (said to the model's server, never opened); `model` a served id, for the editor's quick
+switch (absent: the person's autocomplete model, else the instance's — the server decides);
+`max_tokens` at most `editor.complete.max_tokens_cap`; `cwd` is accepted and not used.
+
+The device passes it to the server's `POST /v1/lembas/complete` (*The HTTP API*) and answers
+`{ text, model, finish: "stop" | "length" }` — `text` only what is to be inserted.
+
+- **Cheap, by construction.** No session, no project, no configuration is read for a request: the
+  device holds its login and sends one HTTP request. A keystroke costs one message each way.
+- **Trimmed, never refused for size.** A `prefix` longer than `editor.complete.max_bytes` (UTF-8)
+  keeps its **end**, a `suffix` its **start**, each cut at a character boundary (`kind: trim`).
+  A client should still send a window, not the file.
+- **A newer request cancels the older.** One completion is under way per client connection: a
+  `_lembas/complete` that arrives while another runs stops that one — its HTTP request is closed,
+  which the server passes on to the model — and the older request is answered at once with
+  `{ text: "", cancelled: true }`. A result, not an error: nothing went wrong.
+- **`_lembas/complete/cancel`** — client → agent, a notification `{ id }`: stops the request that
+  carried that `id`, answered the same way. `id` is **the client's own string for the request, in
+  its params** — not the JSON-RPC id, which a relay between the two rewrites. Without an `id` a
+  request is cancelled by the next one only.
+- **Refusals** are `-32602` with the server's own sentence where it gave one, and `data.reason`:
+  `not_logged_in`; `no_model` (nobody has chosen an autocomplete model — the sentence says where);
+  `not_allowed` (the model is not one allowed for autocomplete); `unknown_model` (not a model of
+  this account); `busy` (too many completions at once, or the token's rate: the next keystroke
+  tries again); `invalid`; `unsupported` (a server before spec 3.11.0). A server that fails
+  otherwise is `-32603`.
+
+### `_lembas/edit` — client → agent → result (capability `editor`)
+
+Rewrite a selection: the selected text and an instruction in, the replacement out. Params
+
+```json
+{ "id": "e1", "path": "src/waybread.ts", "language": "typescript",
+  "text": "the selected text", "before": "lines above it", "after": "lines below it",
+  "instruction": "make this async", "sessionId": "ses_…", "cwd": "/home/user/project", "model": "open/flash" }
+```
+
+`text` and `instruction` are needed; everything else may be absent. Result `{ text, model }`.
+
+- **One model request with no tools.** The system text is `prompts/tasks/rewrite.md`; the one user
+  message is made from the params (`kind: message`): the file's line, then `<before>`,
+  `<selection>`, `<after>` and `<instruction>` blocks, absent parts left out. `before` keeps its
+  last `editor.rewrite.context_max_lines` lines and `editor.rewrite.context_max_bytes`, `after` its
+  first; a `text` over `editor.rewrite.selection_max_bytes` or an `instruction` over
+  `editor.rewrite.instruction_max_chars` is refused (`-32602`, `data.reason: "too_large"`).
+  Nothing is read from the disk and nothing is written: the client shows the result as a diff,
+  and the person accepts or rejects it there.
+- **The model** (`kind: model`): `model` when given (a served id); else the model of the session
+  `sessionId` names, at that session's effort; else the person's main model as the server keeps
+  it (`GET /v1/lembas/editor`, `main.model`) when the login still serves it; else the model a new
+  session in `cwd` would start on (*How a session of the device's own starts*). It is not a turn
+  of the session: nothing is stored in it, it may run while the session works, and it never
+  becomes the directory's model. On the link `cwd`, when given, is judged as `session/new`'s.
+- **Only the replacement comes back** (`kind: output`). What the model streams is cleaned as it
+  comes: when its first line that is not blank is a code fence (` ``` ` and an optional word),
+  that line is dropped with any blank ones before it, and so is a closing fence that is the last
+  line; and the text ends with a line break exactly
+  when `text` did — line breaks at the end are taken off, and one put back if the selection had
+  one. A reply with no text at all is `-32603` with a sentence.
+- **`_lembas/edit/delta`** — agent → client, a notification `{ id, delta }` while it is written,
+  for a request that carried an `id`: the cleaned text, in pieces. The pieces joined are the
+  result's `text`.
+- **`_lembas/edit/cancel`** — client → agent, a notification `{ id }`: stops it, whenever it
+  comes — also while the model is still being chosen; the request is answered
+  `{ text: "", cancelled: true }`. At most `editor.rewrite.concurrent_max` rewrites run at once for
+  a client (`-32602`, `data.reason: "busy"` beyond). Every rewrite — with an `id` or without —
+  stops when its client goes. An `id` is at most 100 characters; a longer one is cut, the same
+  way wherever it is read.
+
+### Editor context in a prompt (capability `editor`)
+
+`session/prompt` `_meta.lembas.editor` says what the person is looking at, so the client does not
+write a sentence about it into the prompt:
+
+```json
+"editor": { "path": "src/waybread.ts", "cursor": { "line": 12 },
+            "selection": { "path": "src/waybread.ts", "start": 10, "end": 14, "text": "…" },
+            "diagnostics": [ { "path": "src/waybread.ts", "line": 12, "severity": "error",
+                               "message": "Cannot find name 'crumbs'.", "source": "ts" } ],
+            "open": [ "src/waybread.ts", "src/oven.ts" ] }
+```
+
+Every field is optional. `path` is the file in front (absolute, or relative to the session's
+working directory); `cursor.line`, `selection.start` and `selection.end` are 1-based lines, the
+range inclusive; `selection.path` defaults to `path`; `selection.text` is the selected text as the
+editor has it (saved or not); `severity` is `error`, `warning`, `info` or `hint`.
+
+The device says it to the model as **one block, in the user message of that turn, after the
+person's text** — an attachment of the message, not part of what was typed, so the transcript and
+`_lembas/session/history` show the prompt without it (`kind: context`):
+
+```
+<editor>
+Open file: src/waybread.ts (cursor at line 12)
+Selection: src/waybread.ts lines 10-14
+<selection>
+…
+</selection>
+Diagnostics:
+- src/waybread.ts:12 error: Cannot find name 'crumbs'. (ts)
+Other open files: src/oven.ts
+</editor>
+```
+
+A line whose field is absent is left out; with nothing to say there is no block. Paths inside the
+session's project are said relative to it, and every path is one line of plain text (control
+characters, line breaks and angle brackets are taken out, so a file's name cannot close the block). Limits (`editor.context`): a selection's text over
+`selection_max_chars` is replaced by a line saying how long it is; at most `diagnostics_max`
+diagnostics, each message one line of at most `diagnostic_max_chars`; at most `open_max` open
+files; what is left out is counted (`(1 more)`). A closing tag of the block or of the selection
+inside the selected text or a diagnostic is written with a space after its `<` (`< /editor>`), so
+neither can end the block early; nothing else of them is changed. **Nothing is read because of the block** — a path in it is a name; the model reads the
+file with `read`, under the session's permissions, like any other. The block is the client's
+word about the editor: data to the model, like an attachment. Only a part added to the message
+is ever read as the block: a message the person typed that begins with `<editor>` is shown as
+typed.
+
+### Unsaved text: ACP `fs/read_text_file` and `fs/write_text_file`
+
+A client that offers ACP's `clientCapabilities.fs.readTextFile` holds text the disk does not have
+yet. **On `serve --stdio` only**: the link's client is a server and holds no buffer of this
+machine's files, so what it says of `fs` is not read at all. In a session an editor opened
+(`conformance/editor.json`, `kind: buffer`):
+
+- **Reading.** Wherever a file tool takes a file's text — `read`, and the text `edit`,
+  `multiedit`, `write` and `apply_patch` start from — the device asks the client first:
+  `fs/read_text_file { sessionId, path }` (absolute) → `{ content }`, the buffer when the file is
+  open there, the disk otherwise (ACP's meaning). An error, no answer in
+  `editor.buffers.timeout_seconds`, or an answer without `content`: the disk — **unless the
+  session has read that file through the client before** (below).
+- **Writing**, with `fs.writeTextFile`: the new text goes to the client —
+  `fs/write_text_file { sessionId, path, content }` — which makes it the file's content, in its
+  buffer and on disk, before it answers. A client that **refuses** (answers with an error) leaves
+  the write to the device, which writes the disk. A client that **does not answer in time** may
+  still apply it: the device does not write the disk as well — the call fails, saying the write
+  is unconfirmed, and the model reads the file again. A file a patch deletes or moves is deleted
+  or moved on disk by the device.
+- **A client that reads but does not write** (`readTextFile` without `writeTextFile`): the
+  device writes the disk. For a file the session read through the client it first asks for the
+  file's text once more: when that is what the disk holds, nothing is unsaved and the disk is
+  written; when the editor holds text that is not saved, the call is refused with a plain
+  sentence (*… has changes in the editor that are not saved … save it in the editor first*) —
+  the disk's new content and the buffer would part ways.
+- **Text the session read from the editor is never replaced from the disk.** Once the `read`
+  tool was given a file's text by the client, a tool that changes the file needs the client's
+  text again: if the client does not give it, or refuses the write, or cannot write and holds unsaved text
+  for it, the call is refused in words
+  (*… is open in the editor … Read it again before changing it*) and nothing is written. Without
+  this, a slow client at edit time would have the edit worked out from the disk's text and
+  written over what the person had not saved.
+- **"Read it first" follows the text.** The device remembers the text **the `read` tool** was
+  given through the client, and what a write that succeeded left there — never what a preview,
+  a refused call or a failed patch looked at. An overwrite of a file whose text there has changed
+  since is refused with the usual sentence (*changed since you last read it*). For such a file
+  the text decides, not the file's change time on disk, which moves whenever the editor saves.
+- **Nothing about permissions moves.** The call is judged exactly as before — its path with
+  symlinks followed, protected paths, the mode, the rules, the hardline — and only a call that may
+  run reaches the client. The client is asked for no path the tool would not have opened itself.
+- Only text: a file whose first bytes on disk are not text is never asked for. Subagents of the
+  session read and write the same way.
+
+A client without `fs` changes nothing: the device reads and writes its disk.
+
+### Edits as diffs
+
+For a client that said `editor: true`:
+
+- **Before an edit that is asked** — `session/request_permission` for `write`, `edit`,
+  `multiedit` or `apply_patch` (in manual mode every one is; in the other modes those the rules
+  ask about) — `toolCall.content` is one ACP diff item per file the call changes:
+  `{ "type": "diff", "path": <absolute>, "oldText": <string | null>, "newText": <string> }` —
+  `oldText` the text now (the client's buffer where it gave one), `null` for a file the call
+  creates; a file it deletes has `newText: ""` and `_meta: { lembas: { deleted: true } }`. Nothing
+  is written before the answer; `once` (or `session`) is accept, `deny` reject. A call that would
+  fail carries no diff, as its card carries none today.
+- **After every edit that ran**, in every mode: the `tool_call_update` with status `completed`
+  carries the same items after its text item — what a changed-files list is made from.
+- Texts of more than `editor.diff.max_bytes` together are not sent as items: the card then
+  carries the unified diff as text, as for any other client, and the update its text alone
+  (`kind: diff`).
+
+Any other client gets what it got before 3.11.0: the unified diff as one text item on the card,
+and the tool's output on the update. Edit and auto mode write as they always did; the diff
+arrives after the fact.
+
+### `_lembas/models` — client → agent → result (capability `editor`)
+
+Params `{}`. Result
+
+```json
+{ "models": [ { "id": "open/flash", "name": "Flash", "for": ["main", "autocomplete"], "default": true } ],
+  "autocomplete": { "model": "open/flash", "source": "person", "allowed": null },
+  "main": { "model": null } }
+```
+
+The login's chat models (`GET /v1/models`, read now), each with what it may be picked for:
+`main` — generate, edit and chat — for every one; `autocomplete` for those the server allows
+(`autocomplete.allowed`; `null`: all of them). `interactive_only: true` where the model is one.
+`autocomplete` and `main` are the person's two settings as `_lembas/editor/settings` gives them
+— `null` each from a server before spec 3.11.0, where every model is `for: ["main"]`.
+
+### `_lembas/editor/settings` — client → agent → result (capability `editor`)
+
+The person's two model settings, kept in their account so they follow them into every editor
+(`/v1/lembas/editor`). Params `{}` reads; `{ set: { autocomplete_model?: string | null, main_model?: string | null } }`
+writes first (`null`: back to the instance's) and then reads. Result
+`{ autocomplete: { model, source: "person" | "instance" | null, allowed: string[] | null }, main: { model } }`,
+the server's answer as it is. The server's refusal is `-32602` with its sentence (`data.reason`:
+`unknown_model`, `not_allowed`, `invalid`); a server before spec 3.11.0 is `unsupported`. The editor's own quick switch is the `model`
+of `_lembas/complete` and is saved nowhere.
+
+## Device files (spec 3.11.0)
+
+Capability `fs`, on the link only. A client's file manager and editor work on a linked
+computer's files with `_lembas/fs/*`: **the person's own hands, not a model's** — no tool, no
+session, no approval card. What bounds them is the device (`conformance/device_files.json`):
+
+- **Inside `remote.roots`, with remote work on.** Off, shared-only (`/remote` from a terminal),
+  or no roots: every method is refused (`data.reason: "off"`). Trust is not asked — reading or
+  writing a file runs nothing in its directory.
+- **Paths are judged as the file system will see them.** Symlinks are followed first, in the
+  longest part of the path that exists, and the *result* must be inside a root: a link inside a
+  root that points out of it is outside (`outside`). Where a method works on a name rather than
+  on what it points to — `delete` and `move` of a link, and a listing — it is the name's own
+  directory that is followed and judged, and the link is never followed.
+- **Never the CLI's own files** — its configuration, data and state directories, wherever the
+  roots are (`own`) — **and never a protected path** (`permission/hardline.json`
+  `protected_paths`, judged on the spelling given and on the real one: `protected`). Not read,
+  not listed into, not written, not the source or target of a move or a copy — and a folder that holds
+  them is not deleted, moved or copied whole either. A listing names such an entry with
+  `protected: true` and no more.
+- **A device whose `remote.max_mode` is `plan` is read-only** to these methods too: `write`,
+  `mkdir`, `move`, `copy` and `delete` are refused (`read_only`).
+- **Files that run code are read, and changed only where the device says so**
+  (`remote.files_that_run_code`, off by default: `runs_code`; *Files that run code*, below).
+- The hardline is about commands and runs none here; nothing in these methods runs a program
+  the person's files name.
+
+**One change at a time, and judged again after every wait.** A device answers several requests
+at once, and a path that was allowed a moment ago is not allowed for ever: between the look and
+the act another request could move a link into it. So:
+
+- `write`, `mkdir`, `move`, `copy` and `delete` run **one after another** on a device, for every
+  link of it — never two at once.
+- A method that waits for anything between judging a path and acting on it — a file hashed for
+  the `base` check, the next part of an upload — **judges the path again** and goes on only when
+  it is still allowed **and still the same place** (`kind: again`); otherwise it stops with the
+  second refusal, or `changed` (*… is not where it was a moment ago …*), having written nothing.
+  The file is put in place only after the part file is proved to lie in the target's own real
+  directory.
+- What is read is read through the file that was judged, held open — a hash, the parts of
+  `_lembas/show/read` — whatever becomes of its name meanwhile.
+
+### Files that run code
+
+A device that shares a folder shares, with it, files that are *run*: git's hooks and
+configuration, a project's agent configuration, a shell's start-up files. A model's edit of
+those asks first, in every mode but auto; these methods have no card to ask with. So the device
+has a setting of its own for them:
+
+- **`remote.files_that_run_code`** in the device's global config, **off by default**. Set with
+  `lembas remote files-that-run-code on|off` (`lembas remote list --json` says
+  `files_that_run_code`). Global only: a project's config cannot turn it on.
+- **Off**: `write`, `mkdir`, `move`, `copy` (as a target) and `delete` on such a path are refused
+  with `data.reason: "runs_code"` and a sentence that names the setting. **Reading, listing and
+  searching are always allowed.** **On**: such a path is a file like any other (every other rule
+  still holds).
+- The device says it where it says its limits: **`limits.files_that_run_code`** in
+  `_lembas/hello` and in `initialize` — so a client can show such a file as read-only, and say
+  why, before anybody tries. A change of it is a change of the limits: the device dials again.
+  A device before 3.11.0 sends none, and has no `fs`.
+
+Which paths they are is data, in one place — `loop.json` `files.runs_code`:
+
+| Key | What it names |
+|---|---|
+| `segments` (`.git`) | any path with a directory of that name in it: git's own directory and all in it. A repository as a whole is a folder like any other |
+| `project_dir` (`.agent`) and `project` (`config.yaml`, `agents`, `commands`, `skills`) | those names under a project's agent directory — its rules, its MCP servers, its commands, agents and skills — and the directory itself, which moved or copied into place would bring them all. Its other files (plans, notes) are documents |
+| `home` | those paths under the home directory of the device's user: the shells' start-up files, the session's and git's own configuration, autostart entries. Also a folder that holds one |
+
+Judged on the path given and on where it really is, like everything else. The list cannot be
+complete — any program's configuration may run something — and does not claim to be: it is the
+files a device runs without anybody deciding to.
+
+Every refusal is `-32602` with a sentence and `data: { reason }` — `off`, `outside`,
+`protected`, `own`, `runs_code`, `read_only`, `missing`, `exists`, `changed`, `not_a_file`,
+`not_a_directory`, `no_trash`, `too_large`, `invalid`. Numbers: `loop.json` `files`. Paths are
+absolute (`~` allowed); times are milliseconds since the epoch; sizes bytes.
+
+`Entry = { name, path, kind: "file" | "dir" | "other", size, mtime, link?: string, outside?: true, protected?: true }`
+— `kind` what it is with a link followed; `link` its target as written, when it is a symlink;
+`outside` a link whose target is not inside the roots: it cannot be opened, and nothing of what
+it points to is said — its `kind` is `other`, its `size` 0, its time the link's own; `protected`
+as above. A part file of an upload under way is never listed or found.
+
+| Method | Params | Result |
+|---|---|---|
+| `_lembas/fs/list` | `{ path?, hidden?: boolean }` | without `path`: `{ path: "", entries }`, the roots. With one: `{ path, parent, entries: Entry[], truncated? }` — directories first, then by name; names starting with a dot only with `hidden: true`; at most `files.list_max` (`truncated: true` beyond). `parent` is `""` at a root |
+| `_lembas/fs/stat` | `{ path, hash?: boolean }` | `Entry`, with `hash` (`sha256:` and the hex digest of the content) for a file when asked |
+| `_lembas/fs/read` | `{ path, offset?, length? }` | `{ path, size, mtime, offset, data: <base64>, eof, hash? }` — at most `files.chunk_max_bytes` an answer (the default `length`); `hash` when the answer is the whole file. A client reads a large file by `offset` until `eof`, and checks `size` and `mtime` stayed the same |
+| `_lembas/fs/write` | `{ path, data: <base64>, base?: string \| null, overwrite?: boolean, more?: boolean }`, then `{ upload, data, more? }` | the last or only part: `{ path, size, mtime, hash }`; a part with `more: true`: `{ upload, received }` |
+| `_lembas/fs/mkdir` | `{ path }` | `{ path }` — parents made; a directory already there is done |
+| `_lembas/fs/move` | `{ from, to, overwrite?: boolean }` | `{ path }` — `exists` when `to` is there and `overwrite` is not said; a directory is never overwritten |
+| `_lembas/fs/copy` | `{ from, to, overwrite?: boolean }` | `{ path }` — a directory with all in it; a link is copied as a link, not followed |
+| `_lembas/fs/delete` | `{ path, permanent?: boolean }` | `{ deleted: true, trash: boolean }` |
+| `_lembas/fs/search` | `{ path, query, content?: boolean, regex?: boolean, limit? }` | names: `{ root, files: [{ path, kind }] }` as `_lembas/files/search`, under `path`. With `content: true`: `{ root, matches: [{ path, line, text }], truncated? }` — `query` as written unless `regex`, a line at most 400 characters; gitignored and protected files left out; at most `files.search_max` (`limit` below that) |
+
+**Writing.** The whole content is written beside the file and moved over it, so a reader never
+sees half of it; the file keeps its mode; a link is written through to its target (judged as
+above). **`base` is what the client last saw** (`kind: base`):
+
+| `base` | The file now | |
+|---|---|---|
+| `"sha256:…"` | has exactly that content | written |
+| `"sha256:…"` | has other content, or is gone | refused: `changed`, in words (*… changed on the computer since you opened it*), with `data: { reason, hash, mtime }` — the content's hash now, `null` when gone |
+| `null` | does not exist | created |
+| `null` | exists | refused: `exists` |
+| absent | — | refused (`invalid`) unless `overwrite: true`, which writes whatever is there |
+
+A large file goes in parts: the first carries `path`, `base` and `more: true`, and is answered
+`{ upload, received }`; each next one `{ upload, data, more? }`; the part without `more` checks
+`base` **again** and puts the file in place. Parts are at most `files.chunk_max_bytes` decoded;
+at most `files.uploads_max` uploads are open on a link, and one carries at most
+`files.upload_max_bytes` in all (`too_large` beyond, and it is dropped); one left unfinished is
+dropped with the link, and after `files.upload_idle_seconds` without a part. A part file a
+process left behind when it died is removed by the next one as it starts. A part file is removed
+by its name only while that name still lies in the target's own directory; where the folder was
+moved from under it, it is emptied and left.
+
+**Large work does not stop the device.** Copying or deleting a whole tree, hashing a large file
+and listing a folder's names for a search are done in pieces or off the main thread: the device
+goes on answering meanwhile. A listing looks one by one only at the entries it answers, and the
+names of at most `files.indexes_max` folders are kept for searching.
+
+**Deleting** goes to the system's trash where the device has one that can take the file — the
+freedesktop trash of the user's data directory on Linux, `~/.Trash` on macOS, on the same file
+system as the file — and the answer says `trash: true`. Where there is none (another file
+system, Windows), the delete is **refused** (`no_trash`, the sentence says it cannot be undone)
+until the client sends it again with `permanent: true` after asking the person. A root itself is
+never deleted or moved.
+
 ## `_lembas/*` methods
 
 Direction is who sends it. "→ result" marks a request; the others are notifications.
 
+The editor's methods (`_lembas/complete`, `_lembas/edit`, `_lembas/models`,
+`_lembas/editor/settings`) and the device file methods (`_lembas/fs/*`) are in their own sections,
+above.
+
 ### `_lembas/hello` — agent → client
 
 Sent once when the link opens, before `initialize`:
-`{ protocol, version, harness_spec, device: { host, platform }, limits: { roots, max_mode, require_trust, scheduled } }`
+`{ protocol, version, harness_spec, device: { host, platform }, limits: { roots, max_mode, require_trust, scheduled, files_that_run_code } }`
 (`scheduled` since spec 3.5.0: whether the device accepts scheduled work; a change of it is a
 change of the limits, below).
 
@@ -1005,7 +1381,7 @@ in that summary — and answers `{ reverted: <turns> }`. **Files are not
 touched**: what the turns changed on disk stays, and the client says so beside the control. The
 client then sends the new prompt as a new turn.
 
-### `_lembas/show` — agent → client → result (capability `show`)
+### `_lembas/show` — agent → client → result (capability `show`; `media`)
 
 The `show` tool (spec 3.0.0), in a session the client opened, where the client said `show: true`:
 the device sends the file, since the client cannot reach the device's disk. Params
@@ -1016,6 +1392,39 @@ text), `text` the content, at most 1 MB (a larger file is refused before sending
 told). The client shows it in its viewer beside the chat — the web UI, or Desktop's — and HTML only
 in a sandboxed frame that reaches neither the app nor the instance. Result `{ shown: true }` or
 `{ shown: false, reason }`, which the tool answers the model with.
+
+**A file that is not text** (spec 3.11.0, capability `media`; `conformance/show.json`). To a
+client that also said `media: true`, the same tool hands over any file the session may show — a
+screenshot the agent took, a chart, a recording, a PDF, a 3D model — **whether or not the
+session's model can read that kind of file: reading and showing are different things.** The
+bytes do not travel in the request; the client fetches them while it is open:
+
+```json
+{ "sessionId": "ses_…", "toolCallId": "call_…", "path": "out/chart.png", "kind": "image",
+  "mimeType": "image/png", "size": 48211, "hash": "sha256:…", "handle": "h_…" }
+```
+
+- `kind`: `image` (png, jpeg, gif, webp, avif), `pdf`, `audio`, `video`, `model3d` (glb, gltf,
+  obj, stl), `archive`, or `binary` for anything else — **the device's reading of the name, and
+  no more than a hint**: the client decides what it draws from the bytes it receives, by its own
+  detection, and never runs or serves inline anything because the device called it a picture. To
+  such a client a text file's `kind` may also be `table` (csv, tsv), `svg` or `notebook`
+  (ipynb), sent with `text` as the other text kinds are; a client without `media` gets those as
+  `text` or `code`, as before.
+- **`_lembas/show/read`** — client → agent → result: `{ handle, offset?, length? }` →
+  `{ data: <base64>, offset, eof }`, at most `files.chunk_max_bytes` decoded an answer. The
+  handle names **that one file as it was when the tool ran** — held open from then, so a name
+  moved over it changes nothing; a different size or change time ends it — and nothing else on
+  the device; it is good until the `_lembas/show` request is
+  answered, and `-32602` afterwards. So the client reads to `eof`, keeps the file where its
+  generated media go (LLeMbas: the person's files, so it outlives the chat), shows it in the
+  conversation by kind, and then answers `{ shown: true }`.
+- Limits, said in words to the model when one is passed: `show.media_max_bytes` a file; the
+  client has `show.media_wait_seconds` to fetch and answer.
+- On `serve --stdio` the request also carries `uri` (`file://` and the absolute path): the
+  client is on the same machine and may open the file itself instead of fetching it.
+- A client without `media`: a file that is not text is refused before anything is sent, as
+  before, and the model is told to give the path instead.
 
 ### `_lembas/session/compact` — client → agent → result
 
@@ -1216,6 +1625,32 @@ Besides `/v1/models`, the chat completions, `/api/v1/instance` and `/mcp`:
   a session of the device's own lands in the data group of the session's model. A token with the
   older `library` scope counts as `memory`. Local memory files are not synced up; logged out, there
   is no memory.
+
+- **Autocomplete** (spec 3.11.0, capability `editor`): **`POST /v1/lembas/complete`** (the
+  device's token, scope `models`) with
+  `{ prefix, suffix?, path?, language?, model?, max_tokens?, stream? }` →
+  `{ text, model, finish: "stop" | "length", usage }` — `text` only what is inserted: no fence,
+  nothing of the prefix or the suffix repeated. `prefix` and `suffix` are at most
+  `editor.complete.max_bytes` each (413 with a sentence beyond; the device trims before it
+  sends); `max_tokens` defaults to `editor.complete.max_tokens_default` and is capped at
+  `max_tokens_cap`. The model: `model` when given and allowed, else the person's autocomplete
+  model, else the instance's default; **409** with a sentence saying where to choose one when
+  there is none, **403** with a sentence for a model not allowed for autocomplete. The device
+  sends `stream: false` and closes the request to cancel it; the server stops the model's
+  request when the client goes. Counted and priced like any reply; never stored as a chat.
+  Errors are in OpenAI's shape, `{ "error": { message, type, code } }`, and `message` is the
+  sentence the device passes on unchanged: 400 malformed or nothing to complete, 403, 404 a model
+  that is not this account's, 409, 413, 429 more than the server takes at once or the token's
+  rate, and the upstream's status or 502 (`type: "upstream_error"`) when the model's server fails.
+- **The editor's model settings** (spec 3.11.0): **`GET /v1/lembas/editor`** →
+  `{ autocomplete: { model: string | null, source: "person" | "instance" | null, allowed: string[] | null }, main: { model: string | null } }`
+  and **`PUT /v1/lembas/editor`** with `{ autocomplete_model?: string | null, main_model?: string | null }`
+  (only the fields sent change; `null`: back to the instance's), answering the same object.
+  `allowed`: the served ids an administrator marked for autocomplete, `null` when none is marked
+  — then all are. `PUT` refuses a model that is not the account's (404), one not allowed for
+  autocomplete (403) and an embedding model (400), each with its sentence. A 404 with no
+  sentence is a server before spec 3.11.0. `/v1/models` carries no autocomplete flag: what a
+  model may be picked for is read from `allowed`.
 
 - **Schedules** (spec 3.5.0): the schedule routes of `/api/v2` — `GET`/`POST /api/v2/schedules`,
   `GET`/`PATCH`/`DELETE /api/v2/schedules/{id}`, `POST …/{id}/pause`, `/resume`, `/run`,

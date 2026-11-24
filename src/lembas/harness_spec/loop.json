@@ -1008,5 +1008,84 @@
         "webp"
       ]
     }
+  },
+  "editor": {
+    "about": "Spec 3.11.0 (acp.md, *An editor as the client*): autocomplete — the most of `prefix` and of `suffix` sent on (UTF-8 bytes; the prefix keeps its end, the suffix its start) and the tokens asked for; a rewrite — the most of the selection and the instruction (refused beyond) and of the context around it (trimmed), and how many run at once for one client; the editor block of a prompt; when edits travel as ACP diff items; how long a client's buffer is waited for. conformance/editor.json.",
+    "complete": {
+      "max_bytes": 65536,
+      "max_tokens_default": 128,
+      "max_tokens_cap": 512
+    },
+    "rewrite": {
+      "selection_max_bytes": 262144,
+      "context_max_lines": 200,
+      "context_max_bytes": 16384,
+      "instruction_max_chars": 8000,
+      "concurrent_max": 4
+    },
+    "context": {
+      "selection_max_chars": 20000,
+      "diagnostics_max": 20,
+      "diagnostic_max_chars": 300,
+      "open_max": 30
+    },
+    "diff": {
+      "max_bytes": 2097152
+    },
+    "buffers": {
+      "timeout_seconds": 10
+    }
+  },
+  "files": {
+    "about": "Spec 3.11.0 (acp.md, *Device files* and `_lembas/show`): the most one answer or one part carries, decoded; entries a listing names; uploads open on a link, the most one may carry in all, and how long one waits for its next part; the folders whose names a device keeps listed for a search; content matches a search answers. `show`: the most a text file and a file that is not text may be to be shown, and how long the client has to fetch one. conformance/device_files.json, show.json. `runs_code` (acp.md, *Files that run code*): what `_lembas/fs/*` reads, and writes, moves, copies onto, makes or deletes only on a device whose `remote.files_that_run_code` is on (off by default) — `segments`: a path with a directory of that name anywhere in it; `project`: those names under a project's `.agent` directory, and that directory itself; `home`: those paths under the home directory of the device's user. A path that is one of them, is under one, or (for `project` and `home`) holds one, is refused with the reason `runs_code` while the setting is off.",
+    "chunk_max_bytes": 1048576,
+    "list_max": 2000,
+    "uploads_max": 4,
+    "upload_idle_seconds": 300,
+    "search_max": 200,
+    "show": {
+      "text_max_bytes": 1048576,
+      "media_max_bytes": 67108864,
+      "media_wait_seconds": 300
+    },
+    "upload_max_bytes": 2147483648,
+    "indexes_max": 4,
+    "runs_code": {
+      "segments": [
+        ".git"
+      ],
+      "project_dir": ".agent",
+      "project": [
+        "config.yaml",
+        "agents",
+        "commands",
+        "skills"
+      ],
+      "home": [
+        ".bashrc",
+        ".bash_profile",
+        ".bash_login",
+        ".bash_logout",
+        ".profile",
+        ".zshrc",
+        ".zshenv",
+        ".zprofile",
+        ".zlogin",
+        ".zlogout",
+        ".config/fish",
+        ".xprofile",
+        ".xinitrc",
+        ".xsessionrc",
+        ".pam_environment",
+        ".config/autostart",
+        ".config/systemd",
+        ".config/environment.d",
+        ".gitconfig",
+        ".config/git",
+        ".local/share/applications",
+        ".npmrc",
+        ".pythonrc"
+      ]
+    }
   }
 }

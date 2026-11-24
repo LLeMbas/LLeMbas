@@ -1,0 +1,1171 @@
+{
+  "about": "Spec 3.11.0 (acp.md, *Device files*). `kind: path` — whether a `_lembas/fs/*` method may touch `path`, and where it really is: `op` is `read` (list, stat, read, search, a copy's source), `write` (write, mkdir, a move's or a copy's target) or `remove` (delete, a move's source: the name itself, a link not followed); `roots` the device's `remote.roots`, `links` the symlinks on the way (path → target), `own` the CLI's own directories, `protected` the protected paths, `enabled` and `shared_only` the link's state, `max_mode` the device's; `deep`: the method works on everything under the path (a copy's source; `remove` always does), so a folder holding the CLI's own files is refused as they are. Answers `{ok: true, real}` or `{refused: reason}`, the first that applies of `off`, `invalid`, `outside`, `own`, `protected`, `runs_code`, `read_only`. `home`: the home directory of the device's user, for `runs_code` (`loop.json` `files.runs_code`; absent: not judged); `files_that_run_code`: the device's `remote.files_that_run_code` (absent: off). `kind: base` — whether `_lembas/fs/write` writes: `base` as sent (absent, null or a hash), `overwrite`, and `current`, the file's hash now (null: no file). `kind: again` — a method that waited for anything judges its path once more before it acts: `first` where the path was judged to be, `again` the second judgement; it goes on (`act`) only when that is allowed and the same place, else the second refusal, or `changed`. LLeMbas: what it may expect of a device with `fs`; CLI: src/acp/files.ts.",
+  "cases": [
+    {
+      "about": "A file inside a root.",
+      "kind": "path",
+      "op": "read",
+      "path": "/home/user/work/a/b.txt",
+      "roots": [
+        "/home/user/work"
+      ],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "edit",
+      "links": {},
+      "expect": {
+        "ok": true,
+        "real": "/home/user/work/a/b.txt"
+      }
+    },
+    {
+      "about": "The root itself may be listed.",
+      "kind": "path",
+      "op": "read",
+      "path": "/home/user/work",
+      "roots": [
+        "/home/user/work"
+      ],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "edit",
+      "links": {},
+      "expect": {
+        "ok": true,
+        "real": "/home/user/work"
+      }
+    },
+    {
+      "about": "Outside every root.",
+      "kind": "path",
+      "op": "read",
+      "path": "/home/user/notes/a.txt",
+      "roots": [
+        "/home/user/work"
+      ],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "edit",
+      "links": {},
+      "expect": {
+        "refused": "outside"
+      }
+    },
+    {
+      "about": "A name that only starts like a root is outside it.",
+      "kind": "path",
+      "op": "read",
+      "path": "/home/user/workshop/a.txt",
+      "roots": [
+        "/home/user/work"
+      ],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "edit",
+      "links": {},
+      "expect": {
+        "refused": "outside"
+      }
+    },
+    {
+      "about": "Dots are resolved before anything is judged.",
+      "kind": "path",
+      "op": "read",
+      "path": "/home/user/work/../notes/a.txt",
+      "roots": [
+        "/home/user/work"
+      ],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "edit",
+      "links": {},
+      "expect": {
+        "refused": "outside"
+      }
+    },
+    {
+      "about": "A link inside a root that points out of it is outside.",
+      "kind": "path",
+      "op": "read",
+      "path": "/home/user/work/out/passwd",
+      "roots": [
+        "/home/user/work"
+      ],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "edit",
+      "links": {
+        "/home/user/work/out": "/etc"
+      },
+      "expect": {
+        "refused": "outside"
+      }
+    },
+    {
+      "about": "A link that points into a root is where it points.",
+      "kind": "path",
+      "op": "write",
+      "path": "/home/user/work/in/a.txt",
+      "roots": [
+        "/home/user/work"
+      ],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "edit",
+      "links": {
+        "/home/user/work/in": "/home/user/work/shared"
+      },
+      "expect": {
+        "ok": true,
+        "real": "/home/user/work/shared/a.txt"
+      }
+    },
+    {
+      "about": "Deleting or moving a link is about the link: it is not followed, and its target is not touched.",
+      "kind": "path",
+      "op": "remove",
+      "path": "/home/user/work/out",
+      "roots": [
+        "/home/user/work"
+      ],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "edit",
+      "links": {
+        "/home/user/work/out": "/etc"
+      },
+      "expect": {
+        "ok": true,
+        "real": "/home/user/work/out"
+      }
+    },
+    {
+      "about": "…but the directory the name is in is followed.",
+      "kind": "path",
+      "op": "remove",
+      "path": "/home/user/work/out/passwd",
+      "roots": [
+        "/home/user/work"
+      ],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "edit",
+      "links": {
+        "/home/user/work/out": "/etc"
+      },
+      "expect": {
+        "refused": "outside"
+      }
+    },
+    {
+      "about": "A root is never deleted or moved.",
+      "kind": "path",
+      "op": "remove",
+      "path": "/home/user/work",
+      "roots": [
+        "/home/user/work"
+      ],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "edit",
+      "links": {},
+      "expect": {
+        "refused": "invalid"
+      }
+    },
+    {
+      "about": "A relative path is not a path here.",
+      "kind": "path",
+      "op": "read",
+      "path": "work/a.txt",
+      "roots": [
+        "/home/user/work"
+      ],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "edit",
+      "links": {},
+      "expect": {
+        "refused": "invalid"
+      }
+    },
+    {
+      "about": "The CLI's own files, even inside a root.",
+      "kind": "path",
+      "op": "read",
+      "path": "/home/user/.config/lembas/config.yaml",
+      "roots": [
+        "/home/user"
+      ],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "edit",
+      "links": {},
+      "expect": {
+        "refused": "own"
+      }
+    },
+    {
+      "about": "…its state as well.",
+      "kind": "path",
+      "op": "write",
+      "path": "/home/user/.local/state/lembas/turns/x.json",
+      "roots": [
+        "/home/user"
+      ],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "edit",
+      "links": {},
+      "expect": {
+        "refused": "own"
+      }
+    },
+    {
+      "about": "A protected path, even inside a root.",
+      "kind": "path",
+      "op": "read",
+      "path": "/home/user/.ssh/id_ed25519",
+      "roots": [
+        "/home/user"
+      ],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "edit",
+      "links": {},
+      "expect": {
+        "refused": "protected"
+      }
+    },
+    {
+      "about": "A protected path reached through a link, judged where it really is.",
+      "kind": "path",
+      "op": "read",
+      "path": "/home/user/keys/id_ed25519",
+      "roots": [
+        "/home/user"
+      ],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "edit",
+      "links": {
+        "/home/user/keys": "/home/user/.ssh"
+      },
+      "expect": {
+        "refused": "protected"
+      }
+    },
+    {
+      "about": "A device that allows plan mode only is read-only.",
+      "kind": "path",
+      "op": "write",
+      "path": "/home/user/work/a.txt",
+      "roots": [
+        "/home/user/work"
+      ],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "plan",
+      "links": {},
+      "expect": {
+        "refused": "read_only"
+      }
+    },
+    {
+      "about": "…and can still be read.",
+      "kind": "path",
+      "op": "read",
+      "path": "/home/user/work/a.txt",
+      "roots": [
+        "/home/user/work"
+      ],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "plan",
+      "links": {},
+      "expect": {
+        "ok": true,
+        "real": "/home/user/work/a.txt"
+      }
+    },
+    {
+      "about": "…and nothing is deleted there.",
+      "kind": "path",
+      "op": "remove",
+      "path": "/home/user/work/a.txt",
+      "roots": [
+        "/home/user/work"
+      ],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "plan",
+      "links": {},
+      "expect": {
+        "refused": "read_only"
+      }
+    },
+    {
+      "about": "Remote work off: nothing.",
+      "kind": "path",
+      "op": "read",
+      "path": "/home/user/work/a.txt",
+      "roots": [
+        "/home/user/work"
+      ],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": false,
+      "max_mode": "edit",
+      "links": {},
+      "expect": {
+        "refused": "off"
+      }
+    },
+    {
+      "about": "No roots: nothing.",
+      "kind": "path",
+      "op": "read",
+      "path": "/home/user/work/a.txt",
+      "roots": [],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "edit",
+      "links": {},
+      "expect": {
+        "refused": "off"
+      }
+    },
+    {
+      "about": "A link held by a terminal for its shared sessions only: nothing.",
+      "kind": "path",
+      "op": "read",
+      "path": "/home/user/work/a.txt",
+      "roots": [
+        "/home/user/work"
+      ],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "edit",
+      "links": {},
+      "shared_only": true,
+      "expect": {
+        "refused": "off"
+      }
+    },
+    {
+      "about": "Outside is said before read-only: where a path is comes first.",
+      "kind": "path",
+      "op": "write",
+      "path": "/etc/hosts",
+      "roots": [
+        "/home/user/work"
+      ],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "plan",
+      "links": {},
+      "expect": {
+        "refused": "outside"
+      }
+    },
+    {
+      "about": "A folder that holds the CLI's own files is not deleted or moved: what is inside goes with it.",
+      "kind": "path",
+      "op": "remove",
+      "path": "/home/user/.config",
+      "roots": [
+        "/home/user"
+      ],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "edit",
+      "links": {},
+      "expect": {
+        "refused": "own"
+      }
+    },
+    {
+      "about": "…nor copied whole (`deep`: the method works on everything under the path).",
+      "kind": "path",
+      "op": "read",
+      "deep": true,
+      "path": "/home/user/.config",
+      "roots": [
+        "/home/user"
+      ],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "edit",
+      "links": {},
+      "expect": {
+        "refused": "own"
+      }
+    },
+    {
+      "about": "…but it may be listed: the entry is named, marked protected, and not opened.",
+      "kind": "path",
+      "op": "read",
+      "path": "/home/user/.config",
+      "roots": [
+        "/home/user"
+      ],
+      "own": [
+        "/home/user/.config/lembas",
+        "/home/user/.local/share/lembas",
+        "/home/user/.local/state/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "edit",
+      "links": {},
+      "expect": {
+        "ok": true,
+        "real": "/home/user/.config"
+      }
+    },
+    {
+      "about": "A folder that holds a protected path is not deleted, moved or copied whole.",
+      "kind": "path",
+      "op": "remove",
+      "path": "/home/user",
+      "roots": [
+        "/home"
+      ],
+      "own": [],
+      "protected": [
+        "/home/user/.ssh",
+        "/home/user/.gnupg"
+      ],
+      "enabled": true,
+      "max_mode": "edit",
+      "links": {},
+      "expect": {
+        "refused": "protected"
+      }
+    },
+    {
+      "about": "Files that run code: a git hook is not written from here, in any mode.",
+      "kind": "path",
+      "op": "write",
+      "path": "/home/user/work/app/.git/hooks/pre-commit",
+      "roots": [
+        "/home/user"
+      ],
+      "home": "/home/user",
+      "own": [
+        "/home/user/.config/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh"
+      ],
+      "enabled": true,
+      "max_mode": "auto",
+      "links": {},
+      "expect": {
+        "refused": "runs_code"
+      }
+    },
+    {
+      "about": "…nor git's configuration, nor anything else in git's own directory.",
+      "kind": "path",
+      "op": "write",
+      "path": "/home/user/work/app/.git/config",
+      "roots": [
+        "/home/user"
+      ],
+      "home": "/home/user",
+      "own": [
+        "/home/user/.config/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh"
+      ],
+      "enabled": true,
+      "max_mode": "auto",
+      "links": {},
+      "expect": {
+        "refused": "runs_code"
+      }
+    },
+    {
+      "about": "…nor deleted, nor moved away.",
+      "kind": "path",
+      "op": "remove",
+      "path": "/home/user/work/app/.git/hooks",
+      "roots": [
+        "/home/user"
+      ],
+      "home": "/home/user",
+      "own": [
+        "/home/user/.config/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh"
+      ],
+      "enabled": true,
+      "max_mode": "auto",
+      "links": {},
+      "expect": {
+        "refused": "runs_code"
+      }
+    },
+    {
+      "about": "…nor is a folder moved or copied into place as one.",
+      "kind": "path",
+      "op": "write",
+      "path": "/home/user/work/app/.git",
+      "roots": [
+        "/home/user"
+      ],
+      "home": "/home/user",
+      "own": [
+        "/home/user/.config/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh"
+      ],
+      "enabled": true,
+      "max_mode": "auto",
+      "links": {},
+      "expect": {
+        "refused": "runs_code"
+      }
+    },
+    {
+      "about": "It can be read: looking is not changing.",
+      "kind": "path",
+      "op": "read",
+      "path": "/home/user/work/app/.git/config",
+      "roots": [
+        "/home/user"
+      ],
+      "home": "/home/user",
+      "own": [
+        "/home/user/.config/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh"
+      ],
+      "enabled": true,
+      "max_mode": "auto",
+      "links": {},
+      "expect": {
+        "ok": true,
+        "real": "/home/user/work/app/.git/config"
+      }
+    },
+    {
+      "about": "A repository as a whole is a folder like any other: moved, copied, deleted.",
+      "kind": "path",
+      "op": "remove",
+      "path": "/home/user/work/app",
+      "roots": [
+        "/home/user"
+      ],
+      "home": "/home/user",
+      "own": [
+        "/home/user/.config/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh"
+      ],
+      "enabled": true,
+      "max_mode": "auto",
+      "links": {},
+      "expect": {
+        "ok": true,
+        "real": "/home/user/work/app"
+      }
+    },
+    {
+      "about": "A project's agent configuration (its MCP servers and rules are in it).",
+      "kind": "path",
+      "op": "write",
+      "path": "/home/user/work/app/.agent/config.yaml",
+      "roots": [
+        "/home/user"
+      ],
+      "home": "/home/user",
+      "own": [
+        "/home/user/.config/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh"
+      ],
+      "enabled": true,
+      "max_mode": "auto",
+      "links": {},
+      "expect": {
+        "refused": "runs_code"
+      }
+    },
+    {
+      "about": "…its commands, agents and skills.",
+      "kind": "path",
+      "op": "write",
+      "path": "/home/user/work/app/.agent/commands/deploy.md",
+      "roots": [
+        "/home/user"
+      ],
+      "home": "/home/user",
+      "own": [
+        "/home/user/.config/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh"
+      ],
+      "enabled": true,
+      "max_mode": "auto",
+      "links": {},
+      "expect": {
+        "refused": "runs_code"
+      }
+    },
+    {
+      "about": "…and the directory itself, which moved into place would bring them all.",
+      "kind": "path",
+      "op": "write",
+      "path": "/home/user/work/app/.agent",
+      "roots": [
+        "/home/user"
+      ],
+      "home": "/home/user",
+      "own": [
+        "/home/user/.config/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh"
+      ],
+      "enabled": true,
+      "max_mode": "auto",
+      "links": {},
+      "expect": {
+        "refused": "runs_code"
+      }
+    },
+    {
+      "about": "What else a project keeps there is a document.",
+      "kind": "path",
+      "op": "write",
+      "path": "/home/user/work/app/.agent/plans/next.md",
+      "roots": [
+        "/home/user"
+      ],
+      "home": "/home/user",
+      "own": [
+        "/home/user/.config/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh"
+      ],
+      "enabled": true,
+      "max_mode": "auto",
+      "links": {},
+      "expect": {
+        "ok": true,
+        "real": "/home/user/work/app/.agent/plans/next.md"
+      }
+    },
+    {
+      "about": "A start-up file of the device's user.",
+      "kind": "path",
+      "op": "write",
+      "path": "/home/user/.bashrc",
+      "roots": [
+        "/home/user"
+      ],
+      "home": "/home/user",
+      "own": [
+        "/home/user/.config/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh"
+      ],
+      "enabled": true,
+      "max_mode": "auto",
+      "links": {},
+      "expect": {
+        "refused": "runs_code"
+      }
+    },
+    {
+      "about": "…a folder of them.",
+      "kind": "path",
+      "op": "write",
+      "path": "/home/user/.config/fish/config.fish",
+      "roots": [
+        "/home/user"
+      ],
+      "home": "/home/user",
+      "own": [
+        "/home/user/.config/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh"
+      ],
+      "enabled": true,
+      "max_mode": "auto",
+      "links": {},
+      "expect": {
+        "refused": "runs_code"
+      }
+    },
+    {
+      "about": "…and a folder that holds one is not replaced, moved or deleted whole.",
+      "kind": "path",
+      "op": "remove",
+      "path": "/home/user/.config",
+      "roots": [
+        "/home/user"
+      ],
+      "home": "/home/user",
+      "own": [],
+      "protected": [
+        "/home/user/.ssh"
+      ],
+      "enabled": true,
+      "max_mode": "auto",
+      "links": {},
+      "expect": {
+        "refused": "runs_code"
+      }
+    },
+    {
+      "about": "The same name elsewhere is a file like any other: only the home's start-up files run.",
+      "kind": "path",
+      "op": "write",
+      "path": "/home/user/work/app/.bashrc",
+      "roots": [
+        "/home/user"
+      ],
+      "home": "/home/user",
+      "own": [
+        "/home/user/.config/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh"
+      ],
+      "enabled": true,
+      "max_mode": "auto",
+      "links": {},
+      "expect": {
+        "ok": true,
+        "real": "/home/user/work/app/.bashrc"
+      }
+    },
+    {
+      "about": "Reached through a link, it is judged where it really is.",
+      "kind": "path",
+      "op": "write",
+      "path": "/home/user/work/rc",
+      "roots": [
+        "/home/user"
+      ],
+      "home": "/home/user",
+      "own": [
+        "/home/user/.config/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh"
+      ],
+      "enabled": true,
+      "max_mode": "auto",
+      "links": {
+        "/home/user/work/rc": "/home/user/.zshrc"
+      },
+      "expect": {
+        "refused": "runs_code"
+      }
+    },
+    {
+      "about": "Said before read-only: what it is comes before what the device allows.",
+      "kind": "path",
+      "op": "write",
+      "path": "/home/user/work/app/.git/config",
+      "roots": [
+        "/home/user"
+      ],
+      "home": "/home/user",
+      "own": [
+        "/home/user/.config/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh"
+      ],
+      "enabled": true,
+      "max_mode": "plan",
+      "links": {},
+      "expect": {
+        "refused": "runs_code"
+      }
+    },
+    {
+      "about": "The device's setting on (`files_that_run_code`): such a file is a file like any other.",
+      "kind": "path",
+      "op": "write",
+      "path": "/home/user/work/app/.git/hooks/pre-commit",
+      "files_that_run_code": true,
+      "roots": [
+        "/home/user"
+      ],
+      "home": "/home/user",
+      "own": [
+        "/home/user/.config/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh"
+      ],
+      "enabled": true,
+      "max_mode": "auto",
+      "links": {},
+      "expect": {
+        "ok": true,
+        "real": "/home/user/work/app/.git/hooks/pre-commit"
+      }
+    },
+    {
+      "about": "…and every other rule still holds: a protected path stays protected.",
+      "kind": "path",
+      "op": "write",
+      "path": "/home/user/.ssh/config",
+      "files_that_run_code": true,
+      "roots": [
+        "/home/user"
+      ],
+      "home": "/home/user",
+      "own": [
+        "/home/user/.config/lembas"
+      ],
+      "protected": [
+        "/home/user/.ssh"
+      ],
+      "enabled": true,
+      "max_mode": "auto",
+      "links": {},
+      "expect": {
+        "refused": "protected"
+      }
+    },
+    {
+      "about": "The file is as the client last saw it.",
+      "kind": "base",
+      "base": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "current": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expect": {
+        "write": true
+      }
+    },
+    {
+      "about": "It changed since.",
+      "kind": "base",
+      "base": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "current": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "expect": {
+        "refused": "changed"
+      }
+    },
+    {
+      "about": "It is gone.",
+      "kind": "base",
+      "base": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "current": null,
+      "expect": {
+        "refused": "changed"
+      }
+    },
+    {
+      "about": "A new file where there is none.",
+      "kind": "base",
+      "base": null,
+      "current": null,
+      "expect": {
+        "write": true
+      }
+    },
+    {
+      "about": "A new file where one exists.",
+      "kind": "base",
+      "base": null,
+      "current": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "expect": {
+        "refused": "exists"
+      }
+    },
+    {
+      "about": "No base said: refused, not guessed.",
+      "kind": "base",
+      "current": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "expect": {
+        "refused": "invalid"
+      }
+    },
+    {
+      "about": "…unless the client says to overwrite.",
+      "kind": "base",
+      "overwrite": true,
+      "current": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "expect": {
+        "write": true
+      }
+    },
+    {
+      "about": "A base that is not a hash is no base.",
+      "kind": "base",
+      "base": "yesterday",
+      "current": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "expect": {
+        "refused": "invalid"
+      }
+    },
+    {
+      "about": "A base still holds when overwrite is said too: the stricter one counts.",
+      "kind": "base",
+      "base": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "overwrite": true,
+      "current": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "expect": {
+        "refused": "changed"
+      }
+    },
+    {
+      "about": "After something was waited for (a file hashed, a part received) the path is judged again: still allowed and still the same place — the method goes on.",
+      "kind": "again",
+      "first": "/home/user/work/a/keys.txt",
+      "again": {
+        "ok": true,
+        "real": "/home/user/work/a/keys.txt"
+      },
+      "expect": {
+        "act": true
+      }
+    },
+    {
+      "about": "A link was moved into the path meanwhile and it now leads out of the roots: refused as outside, nothing written.",
+      "kind": "again",
+      "first": "/home/user/work/a/keys.txt",
+      "again": {
+        "refused": "outside"
+      },
+      "expect": {
+        "refused": "outside"
+      }
+    },
+    {
+      "about": "…or into a protected path.",
+      "kind": "again",
+      "first": "/home/user/work/a/keys.txt",
+      "again": {
+        "refused": "protected"
+      },
+      "expect": {
+        "refused": "protected"
+      }
+    },
+    {
+      "about": "It still leads somewhere allowed, but not where it was judged to be: refused as changed.",
+      "kind": "again",
+      "first": "/home/user/work/a/keys.txt",
+      "again": {
+        "ok": true,
+        "real": "/home/user/work/b/keys.txt"
+      },
+      "expect": {
+        "refused": "changed"
+      }
+    }
+  ]
+}

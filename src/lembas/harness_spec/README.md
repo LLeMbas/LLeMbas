@@ -22,7 +22,7 @@ page *Harness-parity* in LLeMbas CLI's wiki.
 | `permission/defaults.json` | The rules every session starts from |
 | `permission/modes.json` | The four modes — manual, edit, auto, plan — as what each does with each risk class |
 | `models/schema.json` | Model metadata: context, output limit, efforts and the thinking switch, vision, tools, notes, capacity (`parallel`); `levels` — the effort levels a chat offers and what each sends |
-| `loop.json` | How one prompt runs: the step backstop, budgets, wrap-up, nudges, parallel calls, capacity; `jobs` — background work, its marks and limits; `subagents` — the model refusals, what names a model, the setting's label; `team` — a team's size, names, marks, refusals and texts; `progress` — the phases' texts; `context` — result ids, stubs, the output cap, the compaction table, the environment lines, the session notes; `scheduled` (3.5.0) — scheduled work on a linked computer: the setting, the modes, the approval wait, the sentinel, the watch command's limits and the refusals; `phone` (3.6.0) — phone actions: the capability, each action's fields, what is required and checked, the wait and the texts; `display` (3.7.0) — a call's title keys, states and facts, the blocks, the cards' actions; `scheduled.notify` (3.8.0) — notify-when and its texts; `pages` (3.8.0) — the fence word, the frame's variables, the note and the projection; `interactive` (3.9.0) — interactive-only models: the field, the two sentences, what each background call does with nowhere to go |
+| `loop.json` | How one prompt runs: the step backstop, budgets, wrap-up, nudges, parallel calls, capacity; `jobs` — background work, its marks and limits; `subagents` — the model refusals, what names a model, the setting's label; `team` — a team's size, names, marks, refusals and texts; `progress` — the phases' texts; `context` — result ids, stubs, the output cap, the compaction table, the environment lines, the session notes; `scheduled` (3.5.0) — scheduled work on a linked computer: the setting, the modes, the approval wait, the sentinel, the watch command's limits and the refusals; `phone` (3.6.0) — phone actions: the capability, each action's fields, what is required and checked, the wait and the texts; `display` (3.7.0) — a call's title keys, states and facts, the blocks, the cards' actions; `scheduled.notify` (3.8.0) — notify-when and its texts; `pages` (3.8.0) — the fence word, the frame's variables, the note and the projection; `interactive` (3.9.0) — interactive-only models: the field, the two sentences, what each background call does with nowhere to go; `editor` (3.11.0) — autocomplete, rewrite, the editor block, diff items and buffers: their limits; `files` (3.11.0) — device files and `show`: chunk, listing, upload and size limits |
 | `filesystem.md` | The file system a session works in: paths, node kinds, the four access levels, errors, listings, search and indexing by tokens, stacked instruction files, skills, memory |
 | `context.md` | Context hygiene: what happens to a tool result when it is inserted, and never afterwards; the prefix that stays still; reasoning sent back during its turn; no absolute paths in the prompt |
 | `team.md` | Teams: a lead and the members it adds, the size setting, the room, who receives what, reports, a manager's refusals, capacity, stopping |
@@ -36,7 +36,7 @@ page *Harness-parity* in LLeMbas CLI's wiki.
 | `display.md` | Display (3.7.0): one display in every client — a tool call's title, its four states, the duration and the facts beside it, the kinds of block; how `stopped` and `failed` stay on a finished reply; what the approval, question and plan cards offer; numbers in the client's locale |
 | `quirks.json` | What real servers do, and how both harnesses cope |
 | `conformance/<area>.json` | Cases with their expected results, run by both test suites |
-| `acp.md` | The link between them: ACP plus every `_lembas/*` method, field and capability; scheduled work on a linked computer (3.5.0) and the two types of schedule, Chat and Agentic (3.9.0); the model last used in a directory (3.9.0); a turn the harness starts by itself, over the link (3.10.0) |
+| `acp.md` | The link between them: ACP plus every `_lembas/*` method, field and capability; scheduled work on a linked computer (3.5.0) and the two types of schedule, Chat and Agentic (3.9.0); the model last used in a directory (3.9.0); a turn the harness starts by itself, over the link (3.10.0); an editor as the client, device files, and files that are not text shown in the chat (3.11.0) |
 
 ## Vocabulary
 
@@ -78,6 +78,53 @@ page *Harness-parity* in LLeMbas CLI's wiki.
   (`context.md` §10). All three are offered in every mode; `plan_submit` (`requires: plan`) is the
   approval in plan mode and answers its `unavailable` text outside it. Their permission key is
   `plan` (`permission/defaults.json`), which a rule written for the former `todo` key still reaches.
+
+## 3.11.0
+
+Written first, for the editor round: an editor (a Neovim plugin, a VS Code extension, a desktop
+workspace) as the client of `lembas serve --stdio`, the files of a linked computer in a client's
+file manager, and files that are not text shown in a chat. Three capabilities, one prompt text,
+one tool's description; no new tool, and nothing about permissions or the hardline changes.
+
+- **An editor as the client** (`acp.md`, section of that name; capability `editor`;
+  `conformance/editor.json`, 51 cases; `loop.json` `editor`). A client says
+  `clientCapabilities._meta.lembas.editor: true`.
+  - **`_lembas/complete`** — autocomplete: `prefix` and `suffix` in, the insertion out, through
+    the server's new `POST /v1/lembas/complete`. No session and nothing read per request; a newer
+    request cancels the older one, which is answered `{ text: "", cancelled: true }`;
+    `_lembas/complete/cancel` by the client's own `id`.
+  - **`_lembas/edit`** — rewrite a selection: one model request with no tools
+    (`prompts/tasks/rewrite.md`), streamed as `_lembas/edit/delta`, only the replacement text
+    back; `_lembas/edit/cancel`. Nothing is written: the client shows a diff.
+  - **Editor context in a prompt** — `_meta.lembas.editor` on `session/prompt` (the file in
+    front, the cursor, the selection, diagnostics, open files) becomes one `<editor>` block in
+    the user message.
+  - **Unsaved text** — where the client offers ACP's `fs/read_text_file` and
+    `fs/write_text_file` (on `serve --stdio`), the file tools read the client's buffers and write
+    through them; text read from the editor is never replaced from the disk.
+  - **Edits as diffs** — to such a client an approval card for an edit carries ACP `diff` items
+    (old and new text per file), and every finished edit's update carries them too.
+  - **`_lembas/models`** and **`_lembas/editor/settings`** — the models for a picker, and the
+    person's two model settings (autocomplete; main) kept in their account
+    (`GET`/`PUT /v1/lembas/editor`).
+- **Device files** (`acp.md`, section of that name; capability `fs`, on the link only;
+  `conformance/device_files.json`, 57 cases; `loop.json` `files`): `_lembas/fs/list`, `stat`,
+  `read`, `write`, `mkdir`, `move`, `copy`, `delete`, `search` — the person's own hands on the
+  files inside `remote.roots`. Symlinks followed before a path is judged; never the CLI's own
+  files or a protected path; read-only where the device allows plan mode only; a write checked
+  against the hash the client last saw (`base`), large files in parts; a delete goes to the
+  system's trash or is refused until the client says `permanent`. Changes run one at a time and
+  a path is judged again after every wait, so a link moved in meanwhile is refused. **Files that
+  run code** — git's own directory, a project's agent configuration, the user's start-up files
+  (`files.runs_code`) — are read, and changed from here only where the device's
+  `remote.files_that_run_code` is on (off by default; said in `limits.files_that_run_code`).
+- **Files that are not text, shown in the chat** (`_lembas/show`; capability `media`;
+  `conformance/show.json`, 18 cases; `tools/show.json`'s description). To a client that said
+  `media: true` the `show` tool hands over a picture, a sound, a video, a PDF or a 3D model —
+  whatever the session's model can read itself — by a handle the client fetches with
+  `_lembas/show/read` while the request is open; a table, an SVG and a notebook are named as
+  such. The `kind` sent is a hint from the name; the client decides from the bytes.
+- **The HTTP API** gains `POST /v1/lembas/complete` and `GET`/`PUT /v1/lembas/editor`.
 
 ## 3.10.0
 
