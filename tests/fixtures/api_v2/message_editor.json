@@ -1,0 +1,24 @@
+{
+  "path": "/home/dev/project/src/oven.py",
+  "cursor": {
+    "line": 2
+  },
+  "selection": {
+    "start": 2,
+    "end": 2,
+    "path": "/home/dev/project/src/oven.py",
+    "text": "    return loaf.heat(220)"
+  },
+  "diagnostics": [
+    {
+      "message": "220 is cool for waybread.",
+      "path": "/home/dev/project/src/oven.py",
+      "line": 2,
+      "severity": "warning",
+      "source": "baker"
+    }
+  ],
+  "open": [
+    "/home/dev/project/README.md"
+  ]
+}

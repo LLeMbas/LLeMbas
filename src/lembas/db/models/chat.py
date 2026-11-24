@@ -497,6 +497,12 @@ class Message(UUIDPrimaryKey, Timestamps, Base):
     # reply to it is written by the device and only mirrored here -- nothing is
     # sent for it -- and the bubble says where it came from.
     origin: Mapped[str] = mapped_column(String(16), default="", nullable=False)
+    # What the person was looking at in an editor when they sent this message
+    # (harness spec 3.11.0, `services/editor_context.py`): the file in front,
+    # the cursor, the selection, diagnostics, open files -- as the client said
+    # it, cut to shape. NULL for every message sent without one. Said to the
+    # model after the person's words; never part of the text shown.
+    editor_json: Mapped[dict[str, Any] | None] = mapped_column(JSONDict, nullable=True)
     # The linked device's own id for a turn *it* started, on the user row
     # mirroring that turn (`origin` "terminal" or "harness"): what its `task`
     # and `prompt` events, its status and its history call the turn. The row's

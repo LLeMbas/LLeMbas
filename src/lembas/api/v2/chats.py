@@ -45,6 +45,24 @@ def _text(body: dict[str, Any], key: str = "text") -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
+def _editor(body: dict[str, Any]) -> dict[str, Any] | None:
+    """`editor` on a message (harness spec 3.11.0, `_meta.lembas.editor`'s
+    shape): what the person is looking at in an editor -- `{path?, cursor?:
+    {line}, selection?: {path?, start, end, text?}, diagnostics?: [{path?,
+    line?, severity?, message, source?}], open?: [paths]}`, lines 1-based.
+    Kept with the message and said to the model after the person's words
+    (`services/editor_context.py`); it is not part of the text."""
+    from lembas.services import editor_context
+
+    try:
+        return editor_context.clean(body.get("editor"))
+    except ValueError as exc:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            t("`editor` is an object: what is open in the editor."),
+        ) from exc
+
+
 def _ids(body: dict[str, Any], key: str = "attachments") -> list[str]:
     value = body.get(key)
     return [str(v) for v in value if isinstance(v, str) and v] if isinstance(value, list) else []
@@ -157,6 +175,7 @@ async def create_chat(caller: Me, db: Db, body: dict[str, Any] = Body(...)) -> d
         reasoning_effort=str(body.get("effort") or ""),
         # As on a later turn: `image_generate` makes the first reply a picture.
         force_tool=str(body.get("force_tool") or ""),
+        editor=_editor(body),
         # Spec 3.6.0: `client: ["phone_actions"]` -- sent from the phone app.
         phone=phone_service.declares(body.get("client")),
         **_agents_fields(body),
@@ -316,7 +335,7 @@ async def send(caller: Me, db: Db, chat_id: str, body: dict[str, Any] = Body(...
     forced = forced if forced in chats_api.FORCEABLE_TOOLS else ""
     user_message, reply = chats_api.write_turn(
         db, chat, caller.user, text, file_ids=files, force_tool=forced,
-        phone=phone_service.declares(body.get("client")),
+        phone=phone_service.declares(body.get("client")), editor=_editor(body),
     )
     return _turn(user_message, reply)
 

@@ -70,7 +70,13 @@ def _hello(ws, roots=("/srv/work",)):
     init = ws.receive_json()
     assert init["method"] == "initialize"
     # Says it is LLeMbas, and which protocol it speaks.
-    assert init["params"]["clientCapabilities"]["_meta"]["lembas"] == {"protocol": 3, "show": True}
+    # ... that it draws a shown file, one that is not text too (`media`), and
+    # takes an edit's diff as items and a message's editor context (`editor`).
+    assert init["params"]["clientCapabilities"]["_meta"]["lembas"] == {
+        "protocol": 3, "show": True, "media": True, "editor": True}
+    # No ACP `fs` of its own: this client holds no buffer of the device's files.
+    assert init["params"]["clientCapabilities"]["fs"] == {
+        "readTextFile": False, "writeTextFile": False}
     ws.send_text(
         json.dumps(
             {

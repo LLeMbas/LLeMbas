@@ -3754,3 +3754,6 @@ MESSAGES['`paths` is required: a list of paths.'] = '`paths` je povinné: zoznam
 MESSAGES['Too many paths in one request.'] = 'Príliš veľa ciest v jednej požiadavke.'
 MESSAGES['this computer does not let files that run code be changed from here'] = 'tento počítač odtiaľto nedovoľuje meniť súbory, ktoré spúšťajú kód'
 MESSAGES['This computer does not let files that run code be changed from here.'] = 'Tento počítač odtiaľto nedovoľuje meniť súbory, ktoré spúšťajú kód.'
+
+# --- The editor's context with a message ---
+MESSAGES['`editor` is an object: what is open in the editor.'] = '`editor` je objekt: čo je otvorené v editore.'

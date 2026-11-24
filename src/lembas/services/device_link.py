@@ -722,6 +722,7 @@ class Link:
             # "Always allow" only where the device offers it.
             always="session" in options,
             job=job,
+            diffs=interaction.diffs_of(call.get("content")),
         )
         timeout = PATIENT_WAIT if patient else ASK_WAIT
         # A scheduled turn's approval (spec 3.5.0): the device waits the
@@ -1204,7 +1205,12 @@ async def handshake(link: Link) -> None:
                 # `_lembas/show`, so the device offers its `show` tool.
                 # `media` (spec 3.11.0): a file that is not text is fetched
                 # with `_lembas/show/read` and drawn in the conversation.
-                "_meta": {"lembas": {"protocol": PROTOCOL, "show": True, "media": True}},
+                # `editor` (spec 3.11.0): an edit asked about arrives with
+                # its diff as items (`path`, `oldText`, `newText`) for the
+                # card an app draws, and a prompt may carry what the person
+                # is looking at in their editor.
+                "_meta": {"lembas": {"protocol": PROTOCOL, "show": True, "media": True,
+                                     "editor": True}},
             },
         },
         timeout=HELLO_WAIT,
@@ -2064,7 +2070,9 @@ async def run(
             # Stopped while it waited to be sent: withdrawn here, never sent.
             generation.stopped = True
             return
-        await _prompt(link, generation, chat_id, session_id, content, device_name)
+        await _prompt(
+            link, generation, chat_id, session_id, content, device_name, message_id=message_id
+        )
         _settle_steered(generation, message_id)
     except DeviceError as exc:
         generation.error = f"{device_name} refused: {exc}"
@@ -2271,8 +2279,22 @@ def _settle_unheard(generation, resend: bool) -> None:
         db.commit()
 
 
+def _editor_of(message_id: str) -> dict | None:
+    """What the person was looking at in their editor when they sent this
+    message (`Message.editor_json`), to go with its prompt."""
+    from lembas.db.models import Message
+    from lembas.db.session import session_scope
+
+    if not message_id:
+        return None
+    with session_scope() as db:
+        row = db.get(Message, message_id)
+        return dict(row.editor_json) if row is not None and row.editor_json else None
+
+
 async def _prompt(
-    link: Link, generation, chat_id: str, session_id: str, content: list, device_name: str
+    link: Link, generation, chat_id: str, session_id: str, content: list, device_name: str,
+    message_id: str = "",
 ) -> None:
     """Send the prompt and write the reply from its events until the device
     answers it. Stop here stops it there; a message typed meanwhile joins it."""
@@ -2288,6 +2310,10 @@ async def _prompt(
     # next one.
     meta: dict[str, Any] = {"turnId": turn} if turn else {}
     meta.update(session_context(link, chat_id))
+    # The editor's context of this message (spec 3.11.0, capability
+    # `editor`): the device says it to its model, after the person's words.
+    if link.can("editor") and (editor := _editor_of(message_id)):
+        meta["editor"] = editor
     if meta:
         params["_meta"] = {"lembas": meta}
     stopping = asyncio.ensure_future(generation.stop_event.wait())

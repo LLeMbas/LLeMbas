@@ -68,6 +68,10 @@ device and bounded by it; `files` and `files_writable` on each of
 `GET /devices`. A tool call's `media` may be a file an agent *showed*
 (`shown: true`), with the file's kind.
 
+The editor's context (after beta.18, spec 3.11.0): `editor` on `POST /chats`
+and `POST /chats/{id}/messages` (`services/editor_context.py`), and `diffs`
+on an approval card's item for an edit a linked computer asks about.
+
 Voice and images are not here: they are `/v1/audio/*` and
 `/v1/images/generations`, the OpenAI-compatible routes, which need the `models`
 scope. An app asks for `app models` at sign-in (the device login takes any of

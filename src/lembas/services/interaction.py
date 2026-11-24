@@ -185,6 +185,46 @@ class Item:
     # The action a phone card carries (`phone.check`'s): what the app does
     # once the person confirms. Model output, shown escaped.
     phone: dict[str, Any] | None = None
+    # An edit asked about, as its diff (harness spec 3.11.0, *Edits as
+    # diffs*): one `{path, old_text, new_text}` per file, `old_text` None for
+    # a file that is made. What a device's `request_permission` carried as
+    # ACP `diff` items; empty for every other card. A model's text, shown as
+    # text: a client draws the diff, it never renders either side.
+    diffs: tuple[dict[str, Any], ...] = ()
+
+
+# The most a card's diffs carry together, in characters (the spec sends a
+# unified diff as text beyond 2 MB, `editor.diff.max_bytes`), and files.
+MAX_DIFF_CHARS = 2 * 1024 * 1024
+MAX_DIFF_FILES = 50
+
+
+def diffs_of(content: Any) -> tuple[dict[str, Any], ...]:
+    """The ACP `diff` items of a tool call's `content`, cut to shape: `{path,
+    old_text, new_text}`, with `deleted` where the device says the file goes.
+    Anything else in the list is left out; past the limits, nothing more is
+    taken."""
+    out: list[dict[str, Any]] = []
+    budget = MAX_DIFF_CHARS
+    for item in content if isinstance(content, list) else []:
+        if not isinstance(item, dict) or item.get("type") != "diff":
+            continue
+        path, new = item.get("path"), item.get("newText")
+        old = item.get("oldText")
+        if not isinstance(path, str) or not path or not isinstance(new, str):
+            continue
+        if old is not None and not isinstance(old, str):
+            continue
+        budget -= len(new) + len(old or "")
+        if budget < 0 or len(out) >= MAX_DIFF_FILES:
+            break
+        entry: dict[str, Any] = {"path": path[:4096], "old_text": old, "new_text": new}
+        meta = item.get("_meta")
+        meta = meta.get("lembas") if isinstance(meta, dict) else None
+        if isinstance(meta, dict) and meta.get("deleted") is True:
+            entry["deleted"] = True
+        out.append(entry)
+    return tuple(out)
 
 
 @dataclass

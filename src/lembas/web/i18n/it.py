@@ -3176,3 +3176,6 @@ MESSAGES['`paths` is required: a list of paths.'] = '`paths` è obbligatorio: un
 MESSAGES['Too many paths in one request.'] = 'Troppi percorsi in una sola richiesta.'
 MESSAGES['this computer does not let files that run code be changed from here'] = 'questo computer non consente di modificare da qui i file che eseguono codice'
 MESSAGES['This computer does not let files that run code be changed from here.'] = 'Questo computer non consente di modificare da qui i file che eseguono codice.'
+
+# --- The editor's context with a message ---
+MESSAGES['`editor` is an object: what is open in the editor.'] = "`editor` è un oggetto: ciò che è aperto nell'editor."

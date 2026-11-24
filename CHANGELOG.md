@@ -53,6 +53,19 @@ at <https://llembas.eu/changelog.html>.
   engineers: *A linked computer's files* in the wiki's `App-API.md`, the `device_fs_*`
   contract files, and `files`, `files_writable` and `files_that_run_code` on each of
   `GET /api/v2/devices`.
+- **A message can say what you are looking at in an editor.** An app with an editor
+  (LLeMbas Desktop's workspace) sends, beside the message, the file in front, the cursor,
+  the selection, the diagnostics and the other open files. A chat on a linked computer
+  hands it to the computer with the prompt; a chat on the server says it to the model in
+  one short block after your words. It is never part of the text of your message, nothing
+  is read because of it, and a file's name or a selection cannot close the block early.
+  For the app engineers: `editor` on `POST /api/v2/chats` and `POST
+  /api/v2/chats/{id}/messages`, `message_editor.json`.
+- **An edit a linked computer asks about arrives with its diff.** In the mode that asks
+  before every edit, the approval card an app is sent carries the change as text, one
+  entry per file (the text before, the text after), for the app's own diff view. For the
+  app engineers: `diffs` on a card's item, `event_ask_edit.json`. The web page's card is
+  as before.
 - **Two models for an editor, kept in your account.** *Autocomplete* and *main* (the
   model that answers a question about your code, rewrites a selection and starts a
   chat in an editor) are two separate settings under Settings › Models, and may be the

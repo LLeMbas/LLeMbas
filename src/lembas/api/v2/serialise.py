@@ -908,6 +908,10 @@ def item(entry: interaction.Item) -> dict[str, Any]:
             ),
             # A phone card's action (spec 3.6.0, `phone.md` §2): only on one.
             **({"phone": entry.phone} if entry.phone is not None else {}),
+            # An edit's diff (spec 3.11.0): only on a card that has one.
+            # `[{path, old_text, new_text, deleted?}]`, `old_text` null for a
+            # new file. Text for the app's own diff view, never markup.
+            **({"diffs": list(entry.diffs)} if getattr(entry, "diffs", ()) else {}),
         }
     )
 

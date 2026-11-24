@@ -301,6 +301,45 @@ def _cards() -> list[interaction.Interruption]:
     ]
 
 
+def _edit_card() -> dict:
+    item = interaction.Item(
+        index=0, key="0", kind=interaction.KIND_APPROVAL, tool_name="edit",
+        title="Edit a file", detail='{"path": "src/oven.py"}',
+        reason="Manual mode asks before every edit.", purpose="Bake hotter",
+        allow_free_text=False, always=True,
+        diffs=interaction.diffs_of([
+            {"type": "content", "content": {"type": "text", "text": "src/oven.py"}},
+            {"type": "diff", "path": "src/oven.py",
+             "oldText": "def bake(loaf):\n    return loaf.heat(220)\n",
+             "newText": "def bake(loaf):\n    # <img src=x onerror=alert(1)>\n"
+                        "    return loaf.heat(240)\n"},
+            {"type": "diff", "path": "src/timer.py", "oldText": None,
+             "newText": "MINUTES = 40\n"},
+            {"type": "diff", "path": "src/old.py", "oldText": "x = 1\n", "newText": "",
+             "_meta": {"lembas": {"deleted": True}}},
+        ]),
+    )
+    card = interaction.Interruption(id="card9", items=(item,), dismissable=False)
+    out = serialise.interruption(card)
+    out["expires_in"] = 1800
+    return out
+
+
+def _editor_context() -> dict:
+    from lembas.services import editor_context
+
+    return editor_context.clean({
+        "path": "/home/dev/project/src/oven.py",
+        "cursor": {"line": 2},
+        "selection": {"path": "/home/dev/project/src/oven.py", "start": 2, "end": 2,
+                      "text": "    return loaf.heat(220)"},
+        "diagnostics": [{"path": "/home/dev/project/src/oven.py", "line": 2,
+                         "severity": "warning", "message": "220 is cool for waybread.",
+                         "source": "baker"}],
+        "open": ["/home/dev/project/README.md"],
+    })
+
+
 def _phone_cards() -> list[dict]:
     from lembas.services import phone
 
@@ -1262,6 +1301,13 @@ def _built() -> dict[str, object]:
         },
         "event_ask": {"cards": serialise.asks(generation.waiting)},
         "event_ask_empty": {"cards": []},
+        # An edit asked about on a linked computer (spec 3.11.0): the item
+        # carries `diffs`, for the app's own diff view -- a changed file, a
+        # new one (`old_text` null) and one that goes (`deleted`).
+        "event_ask_edit": {"cards": [_edit_card()]},
+        # `editor` on `POST /chats` and `POST /chats/{id}/messages`: what the
+        # person is looking at in an editor, as it is kept.
+        "message_editor": _editor_context(),
         # Spec 3.6.0: a phone action on its card (`kind: "phone_action"`, the
         # item's `phone` the action, checked). The app answers through the
         # interactions route with `{"result": {"status", "message"}}`.

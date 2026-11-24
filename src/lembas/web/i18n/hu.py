@@ -3176,3 +3176,6 @@ MESSAGES['`paths` is required: a list of paths.'] = 'A `paths` kötelező: útvo
 MESSAGES['Too many paths in one request.'] = 'Túl sok útvonal egy kérésben.'
 MESSAGES['this computer does not let files that run code be changed from here'] = 'ez a számítógép innen nem engedi módosítani a kódot futtató fájlokat'
 MESSAGES['This computer does not let files that run code be changed from here.'] = 'Ez a számítógép innen nem engedi módosítani a kódot futtató fájlokat.'
+
+# --- The editor's context with a message ---
+MESSAGES['`editor` is an object: what is open in the editor.'] = 'Az `editor` egy objektum: ami a szerkesztőben nyitva van.'

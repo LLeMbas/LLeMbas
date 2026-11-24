@@ -478,6 +478,7 @@ def start_new_chat(
     file_ids: list[str] | None = None,
     force_tool: str = "",
     phone: bool = False,
+    editor: dict | None = None,
     **settings,
 ) -> tuple[Chat, Message, Message]:
     """Make a chat from its first message and start the reply: `(chat, the
@@ -505,6 +506,11 @@ def start_new_chat(
     user_message = chat_service.create_message(db, chat, ROLE_USER, content)
     if file_ids:
         files_service.claim(db, ids=file_ids, user_id=user.id, message_id=user_message.id)
+    if editor:
+        # What the person was looking at in their editor (spec 3.11.0),
+        # written before the reply starts: the reply's request reads it.
+        user_message.editor_json = editor
+        db.commit()
     if phone:
         _from_phone(db, chat, user_message)
     assistant = chat_service.create_message(
@@ -1400,6 +1406,7 @@ def write_turn(
     file_ids: list[str] | None = None,
     force_tool: str = "",
     phone: bool = False,
+    editor: dict | None = None,
 ) -> tuple[Message, Message | None]:
     """Write a turn and start the reply: `(the person's row, the reply's row)`,
     the second None when the turn was queued behind a reply already running.
@@ -1444,6 +1451,11 @@ def write_turn(
     if file_ids:
         files_service.claim(db, ids=file_ids, user_id=user.id, message_id=user_message.id)
         db.refresh(user_message)
+    if editor:
+        # What the person was looking at in their editor (spec 3.11.0),
+        # written before the reply starts: the reply's request reads it.
+        user_message.editor_json = editor
+        db.commit()
     if phone:
         _from_phone(db, chat, user_message)
 

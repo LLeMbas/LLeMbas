@@ -419,6 +419,16 @@ def build_messages(
     current = turn_start(m.role for m in sent) if through is None else len(sent)
     for index, message in enumerate(sent):
         entry = message_payload(message, vision=vision)
+        if message.role == ROLE_USER and message.editor_json:
+            # What the person was looking at in their editor: one block after
+            # their words (harness spec 3.11.0, `services/editor_context.py`).
+            # From the stored object every time, so the turn reads the same
+            # in every later request.
+            from lembas.services import editor_context
+
+            said = editor_context.block(message.editor_json, chat.start_dir or "")
+            if said:
+                entry = with_note(entry, said)
         if notes and (note := notes.get(message.id)) and message.role == ROLE_USER:
             entry = with_note(entry, note)
         if index > current and message.role == ROLE_ASSISTANT and message.reasoning:
