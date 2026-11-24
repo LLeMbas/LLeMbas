@@ -20,7 +20,10 @@ at <https://llembas.eu/changelog.html>.
   that closes the connection cancels the request at the model's server, also before
   the first word. At most 64 KiB on each side of the cursor (more is a 413 that says
   so), 128 tokens unless asked and 512 at most, four completions at once for one
-  account. Counted and priced like any reply, never priced on a subscription's
+  account. Completions are counted in a rate of their own (600 a minute for one token
+  unless the instance says otherwise, `api_completions_per_minute`), so typing never
+  uses up the rate a device's chat and library calls need; asked too fast, the answer
+  is a 429 that says so in words and when to ask again. Counted and priced like any reply, never priced on a subscription's
   connection, and never stored: no chat, no message.
 - **Two models for an editor, kept in your account.** *Autocomplete* and *main* (the
   model that answers a question about your code, rewrites a selection and starts a

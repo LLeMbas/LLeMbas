@@ -122,6 +122,10 @@ def _general_defaults() -> dict[str, Any]:
         # Requests a minute one API token may make (security/api_tokens.py). A
         # guard against a loop gone wrong, not a quota; 0 turns it off.
         "api_requests_per_minute": 120,
+        # Completions a minute one token may ask for (`POST /v1/lembas/complete`),
+        # counted by themselves: an editor asks after every pause in typing,
+        # and that must not use up the rate above. 0 turns it off.
+        "api_completions_per_minute": 600,
         # Days the audit log keeps an event (services/audit.py); 0 keeps them for
         # ever.
         "audit_retention_days": 365,

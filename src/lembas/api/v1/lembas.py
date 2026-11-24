@@ -13,6 +13,12 @@ The model is the request's `model` where that is allowed for autocomplete,
 else the person's autocomplete model, else the instance's default
 (`services/editor.py`). None is a 409 that says where to choose one.
 
+Completions have a rate of their own, per token (`api_completions_per_minute`,
+600 unless an administrator says otherwise; `api_tokens.BUCKET_COMPLETE`): an
+editor asks after every pause in typing, and that never touches the rate the
+same token's other calls are counted in. Both 429s -- that rate, and more than
+`MAX_AT_ONCE` under way -- say in words that suggestions are coming too fast.
+
 A client that goes away cancels the upstream request (`_watched`): the
 connection is looked at while the model's server is awaited, streamed or not.
 
@@ -36,7 +42,7 @@ from lembas.api.v1 import openai as openai_api
 from lembas.api.v1._common import error_response
 from lembas.db.models import TOKEN_DEVICE, Model
 from lembas.security import api_tokens
-from lembas.security.api_tokens import Caller, ModelsCaller
+from lembas.security.api_tokens import Caller, CompleteCaller, ModelsCaller
 from lembas.services import chat as chat_service
 from lembas.services import editor, tokens
 from lembas.services.llm import fim
@@ -182,7 +188,7 @@ def _public(usage: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.post("/complete")
-async def complete(request: Request, db: Db, caller: ModelsCaller):
+async def complete(request: Request, db: Db, caller: CompleteCaller):
     body = await _read_body(request)
     if isinstance(body, Response):
         return body
@@ -223,8 +229,9 @@ async def complete(request: Request, db: Db, caller: ModelsCaller):
     if in_flight(user.id) >= MAX_AT_ONCE:
         return error_response(
             429,
-            f"This account already has {MAX_AT_ONCE} completions being written. "
-            "Cancel one, or wait for one to finish.",
+            f"Suggestions are being asked for faster than they are written: {MAX_AT_ONCE} "
+            "completions are under way for this account. Nothing is wrong: cancel the "
+            "one before, or wait a moment.",
             "rate_limit_error",
         )
 

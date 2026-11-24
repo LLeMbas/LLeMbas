@@ -215,22 +215,43 @@ def resolve(db: DBSession, raw: str) -> tuple[ApiToken, User] | None:
 _WINDOWS: dict[str, deque[float]] = {}
 
 
-def _per_minute(db: DBSession) -> int:
+# A bucket of its own for autocomplete (`POST /v1/lembas/complete`): an editor
+# asks after every pause in typing, and that must not eat the budget the same
+# token's chat and library calls need -- a 429 there breaks a running turn.
+BUCKET_COMPLETE = "complete"
+_BUCKETS = {
+    "": ("api_requests_per_minute", 120),
+    BUCKET_COMPLETE: ("api_completions_per_minute", 600),
+}
+_TOO_FAST = {
+    "": "Too many requests with this token. Slow down.",
+    BUCKET_COMPLETE: (
+        "Suggestions are being asked for faster than this instance allows. Nothing is "
+        "wrong: wait a moment and ask again."
+    ),
+}
+
+
+def _per_minute(db: DBSession, bucket: str = "") -> int:
     from lembas.services import settings_store
 
+    name, fallback = _BUCKETS.get(bucket, _BUCKETS[""])
     try:
-        return max(0, int(settings_store.get(db, "api_requests_per_minute")))
+        return max(0, int(settings_store.get(db, name)))
     except (TypeError, ValueError):
-        return 120
+        return fallback
 
 
-def over_rate(db: DBSession, token: ApiToken, *, now: float | None = None) -> int:
-    """Seconds to wait when this token is over its rate, else 0. Counts the call."""
-    limit = _per_minute(db)
+def over_rate(
+    db: DBSession, token: ApiToken, *, now: float | None = None, bucket: str = ""
+) -> int:
+    """Seconds to wait when this token is over its rate, else 0. Counts the
+    call. Each bucket is counted by itself."""
+    limit = _per_minute(db, bucket)
     if not limit:
         return 0
     moment = now if now is not None else time.monotonic()
-    window = _WINDOWS.setdefault(token.id, deque())
+    window = _WINDOWS.setdefault(f"{token.id}:{bucket}" if bucket else token.id, deque())
     while window and window[0] <= moment - 60:
         window.popleft()
     if len(window) >= limit:
@@ -266,9 +287,11 @@ def _unauthorized(message: str) -> HTTPException:
     )
 
 
-def require_token(scope: str, *also: str):
+def require_token(scope: str, *also: str, bucket: str = ""):
     """Dependency factory: the caller, holding a live token with `scope` --
-    or with one of `also`, the older names that count as it.
+    or with one of `also`, the older names that count as it. `bucket` names
+    the rate the call is counted in (`_BUCKETS`): the token's general one, or
+    one of its own.
 
         @router.get("/models")
         async def models(caller: Annotated[Caller, Depends(require_token("models"))]): …
@@ -293,11 +316,11 @@ def require_token(scope: str, *also: str):
                 status.HTTP_403_FORBIDDEN,
                 f"The account behind this token may no longer use the {scope} scope.",
             )
-        wait = over_rate(db, token)
+        wait = over_rate(db, token, bucket=bucket)
         if wait:
             raise HTTPException(
                 status.HTTP_429_TOO_MANY_REQUESTS,
-                "Too many requests with this token. Slow down.",
+                _TOO_FAST.get(bucket, _TOO_FAST[""]),
                 headers={"Retry-After": str(wait)},
             )
         # Last use, at most once a minute, so a busy program is not a write per
@@ -345,6 +368,9 @@ def require_live_token():
 
 LiveCaller = Annotated[Caller, Depends(require_live_token())]
 ModelsCaller = Annotated[Caller, Depends(require_token(SCOPE_MODELS))]
+CompleteCaller = Annotated[
+    Caller, Depends(require_token(SCOPE_MODELS, bucket=BUCKET_COMPLETE))
+]
 AppCaller = Annotated[Caller, Depends(require_token(SCOPE_APP))]
 AdminReadCaller = Annotated[Caller, Depends(require_token(SCOPE_ADMIN_READ))]
 AuditCaller = Annotated[Caller, Depends(require_token(SCOPE_ADMIN_AUDIT))]
@@ -369,6 +395,8 @@ __all__ = [
     "LiveCaller",
     "AuditCaller",
     "Caller",
+    "BUCKET_COMPLETE",
+    "CompleteCaller",
     "ModelsCaller",
     "create",
     "grantable",

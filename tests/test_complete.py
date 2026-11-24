@@ -612,11 +612,47 @@ def test_more_than_a_few_at_once_is_refused(client, db, registered, mock_http):
     auth = _auth(db)
     complete_api._IN_FLIGHT[_me(db).id] = complete_api.MAX_AT_ONCE
     refused = _ask(client, auth, model="coder")
-    assert refused.status_code == 429 and "completions" in refused.json()["error"]["message"]
+    assert refused.status_code == 429
+    assert "Suggestions" in refused.json()["error"]["message"]
     complete_api._IN_FLIGHT.clear()
     assert _ask(client, auth, model="coder").status_code == 200
     # Released when it ended.
     assert complete_api._IN_FLIGHT == {}
+
+
+def test_completions_have_a_rate_of_their_own(client, db, registered, mock_http):
+    """An editor asks after every pause in typing: that must never use up the
+    rate the same token's chat and library calls are counted in."""
+    _model(db, _connection(db))
+    _upstream(mock_http, _chat_stream("a + b"))
+    settings_store.update(db, {"api_requests_per_minute": 2, "api_completions_per_minute": 3})
+    auth = _auth(db)
+    for _ in range(3):
+        assert _ask(client, auth, model="coder").status_code == 200
+    # The token's other calls were not counted: both of its two are still there.
+    assert client.get("/v1/models", headers=auth).status_code == 200
+    assert client.get("/v1/models", headers=auth).status_code == 200
+    assert client.get("/v1/models", headers=auth).status_code == 429
+    # And the fourth completion is told, in words, that it is only too fast.
+    slow = _ask(client, auth, model="coder")
+    assert slow.status_code == 429 and int(slow.headers["retry-after"]) >= 1
+    assert "Suggestions" in slow.json()["detail"] and "Nothing is wrong" in slow.json()["detail"]
+    # Spent the other way round, completions still have theirs.
+    api_tokens.reset_rates()
+    for _ in range(2):
+        client.get("/v1/models", headers=auth)
+    assert client.get("/v1/models", headers=auth).status_code == 429
+    assert _ask(client, auth, model="coder").status_code == 200
+
+
+def test_the_completion_rate_is_600_a_minute_unless_set_and_0_is_off(db, registered):
+    assert settings_store.get(db, "api_completions_per_minute") == 600
+    token, _ = api_tokens.create(db, _me(db), name="editor", scopes=["models"])
+    settings_store.update(db, {"api_completions_per_minute": 0})
+    assert all(
+        api_tokens.over_rate(db, token, bucket=api_tokens.BUCKET_COMPLETE) == 0
+        for _ in range(700)
+    )
 
 
 # --- A client that goes away ---------------------------------------------------------------
