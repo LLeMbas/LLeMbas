@@ -527,7 +527,7 @@ class Link:
         kind = event.get("type")
         if kind == "title" and session_id in self.announced:
             _retitle(self, session_id, str(event.get("title") or ""))
-        if kind == "mode" and session_id in self.announced:
+        if kind == "mode":
             _remode(self, session_id, str(event.get("mode") or ""))
         if kind == "model" and self.can("model"):
             _remodel(
@@ -3156,6 +3156,43 @@ def said_before(chat_id: str, message_id: str) -> list[str]:
         texts = [str(r.content or "")[:SAID_CHARS] for r in rows if (r.content or "").strip()]
     # The last is the prompt this session is opened for: it goes as the prompt.
     return texts[:-1][-SAID_MAX:]
+
+
+async def set_mode(
+    token_id: str | None,
+    chat_id: str,
+    session_id: str | None,
+    mode: str,
+) -> bool:
+    """The person changed an agent chat's approval mode: push `session/set_mode`
+    right away so a turn already running uses the new mode on its next tool call
+    rather than waiting for the next prompt. The device may still clamp it
+    against `remote.max_mode` and report the effective mode back (`_remode`)."""
+    link = link_for(token_id)
+    if link is None or not mode:
+        return False
+    target = session_id or link.sessions.get(chat_id)
+    if not target:
+        return False
+    previous = link.modes.get(chat_id)
+    # Record before awaiting so a clamped `mode` event from the device during
+    # the call (`_remode`) wins and is not overwritten on return.
+    link.modes[chat_id] = mode
+    try:
+        await link.request(
+            "session/set_mode",
+            {"sessionId": target, "modeId": mode},
+            timeout=15,
+        )
+    except Exception:  # the next prompt carries it (`_bring_up_to_date`)
+        if link.modes.get(chat_id) == mode:
+            if previous is None:
+                link.modes.pop(chat_id, None)
+            else:
+                link.modes[chat_id] = previous
+        log.info("could not tell the device the new approval mode", exc_info=True)
+        return False
+    return True
 
 
 async def configure_agents(token_id: str | None, session_id: str | None, low: int,

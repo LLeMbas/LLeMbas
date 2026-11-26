@@ -381,6 +381,67 @@ def test_a_mode_changed_in_the_composer_reaches_the_device(client, db, registere
         )
 
 
+def test_a_mode_changed_mid_run_reaches_the_device_immediately(client, db, registered):
+    """Switching approval mode while a turn is still running pushes
+    `session/set_mode` right away instead of waiting for the next prompt, and
+    a clamped `mode` event from the device updates the chat's stored mode."""
+    token_id, raw = _device(db)
+    with client.websocket_connect(
+        "/api/devices/link", headers={"Authorization": f"Bearer {raw}"}
+    ) as ws:
+        _hello(ws)
+        _wait_linked(token_id)
+        client.post(
+            "/api/chats/start",
+            data={
+                "content": "work on this",
+                "kind": "agent",
+                "ssh_profile_id": f"device:{token_id}",
+                "agent_mode": "edit",
+            },
+        )
+        chat = db.scalar(select(Chat))
+        new = ws.receive_json()
+        ws.send_text(
+            json.dumps({"jsonrpc": "2.0", "id": new["id"], "result": {"sessionId": "s-live"}})
+        )
+        prompt = ws.receive_json()
+        assert prompt["method"] == "session/prompt"
+
+        # Turn is still actively running (prompt has NOT returned yet).
+        res = client.patch(f"/api/chats/{chat.id}", data={"agent_mode": "auto"})
+        assert res.status_code in (200, 204)
+
+        set_mode = ws.receive_json()
+        assert set_mode["method"] == "session/set_mode"
+        assert set_mode["params"] == {"sessionId": "s-live", "modeId": "auto"}
+        ws.send_text(json.dumps({"jsonrpc": "2.0", "id": set_mode["id"], "result": {}}))
+
+        # If the device clamps a subsequent request (e.g. remote.max_mode = edit),
+        # reporting `type: "mode"` back keeps the chat's stored mode in sync.
+        res2 = client.patch(f"/api/chats/{chat.id}", data={"agent_mode": "manual"})
+        assert res2.status_code in (200, 204)
+        set_mode2 = ws.receive_json()
+        assert set_mode2["method"] == "session/set_mode"
+        ws.send_text(
+            json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "_lembas/event",
+                    "params": {"sessionId": "s-live", "event": {"type": "mode", "mode": "edit"}},
+                }
+            )
+        )
+        ws.send_text(json.dumps({"jsonrpc": "2.0", "id": set_mode2["id"], "result": {}}))
+
+        ws.send_text(
+            json.dumps({"jsonrpc": "2.0", "id": prompt["id"], "result": {"stopReason": "end_turn"}})
+        )
+        _reply(db, chat.id)
+        db.expire_all()
+        assert db.get(Chat, chat.id).agent_mode == "edit"
+
+
 def test_a_device_that_went_away_is_said_plainly(client, db, registered):
     token_id, raw = _device(db)
     with client.websocket_connect(

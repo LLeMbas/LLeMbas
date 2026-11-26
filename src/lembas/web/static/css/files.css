@@ -811,7 +811,10 @@
   .palette__detail { display: none; }
 }
 
-/* An uploaded logo stands where the pixel leaf stands, in the leaf's box. */
+/* An uploaded logo stands where the pixel leaf stands, in the leaf's box.
+   Standalone previews (e.g. /admin/general) get a bounded default box;
+   surface-specific rules (.sidebar__brand, .auth__brand, .empty__mark) override it. */
+.brand-mark { width: 2.5rem; height: 2.5rem; flex: none; max-width: 100%; }
 img.brand-logo { object-fit: contain; }
 
 /* --- Invites (admin/invites.html) --------------------------------------------- */

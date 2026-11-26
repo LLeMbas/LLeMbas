@@ -464,6 +464,7 @@
       }
       var key = event.key.toLowerCase();
       if (key === "c") {
+        event.preventDefault();
         var selection = term.getSelection();
         if (selection) copySelection(selection);
         return false;
@@ -471,6 +472,9 @@
       if (key === "v") {
         /* Handled here where the clipboard can be read; otherwise the key is
            left to the browser, whose own paste xterm receives. */
+        if (navigator.clipboard && navigator.clipboard.readText && window.isSecureContext) {
+          event.preventDefault();
+        }
         return !pasteClipboard();
       }
       return true;

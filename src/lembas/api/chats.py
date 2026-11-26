@@ -3253,11 +3253,14 @@ def apply_chat_update(db: DBSession, user: User, chat: Chat, form) -> tuple[bool
     # gets asked about, not what the conversation is. A chat has Plan or
     # normal (empty); an agent chat has the four. Anything else is ignored
     # rather than refused, as a bad model id below is.
+    push_mode = ""
     if "agent_mode" in form:
         wanted = str(form["agent_mode"]).strip()
         if chat.kind == KIND_AGENT:
             if wanted in agent_policy.MODES:
                 chat.agent_mode = wanted
+                if not chat.temporary:
+                    push_mode = wanted
         elif wanted in ("", agent_policy.MODE_PLAN) and not chat.parent_chat_id:
             chat.agent_mode = wanted
 
@@ -3391,6 +3394,19 @@ def apply_chat_update(db: DBSession, user: User, chat: Chat, form) -> tuple[bool
                 chat.params_json = {**(chat.params_json or {}), "reasoning_effort": seeded}
 
     db.commit()
+    if push_mode:
+        # Push immediately so a turn already running on the device switches
+        # approval mode before its next tool call instead of waiting for the
+        # next prompt (`_bring_up_to_date`).
+        with contextlib.suppress(RuntimeError):
+            asyncio.get_running_loop().create_task(
+                device_link.set_mode(
+                    chat.device_token_id,
+                    chat.id,
+                    chat.device_session_id,
+                    push_mode,
+                )
+            )
     return renamed, archived_changed
 
 
