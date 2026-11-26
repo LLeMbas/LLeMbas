@@ -3,6 +3,27 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## 2.0.0-beta.21 — 2026-11-26
+
+### Fixed
+
+- **Switching an agent chat's approval mode mid-run takes effect immediately.**
+  Changing `agent_mode` (for example from *Edit* to *Auto* while an agent turn
+  is actively running) now pushes `session/set_mode` to the linked device right
+  away so every subsequent tool call uses the new mode instead of waiting until
+  the turn stops and a new prompt is sent. Device-clamped `mode` events
+  (`remote.max_mode`) are also synced back to the chat for all sessions.
+- **Logo preview on Administration → General stays inside its frame.** Added a
+  bounded default size on `.brand-mark` so large uploaded logos render cleanly
+  in the preview row without overflowing the card.
+- **Ctrl+Shift+V no longer pastes twice in the web terminal.** Prevented the
+  browser's native paste action when the clipboard API handles `Ctrl+Shift+V`.
+
+### Changed
+
+- Recommended beta app versions in `app_releases.json` moved to Desktop and
+  Android `1.0.0-beta.16`.
+
 ## 2.0.0-beta.20 — 2026-11-24
 
 ### Added
