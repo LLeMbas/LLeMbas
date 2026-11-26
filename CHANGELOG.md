@@ -3,6 +3,26 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## 2.0.0-beta.22 — 2026-11-26
+
+### Fixed
+
+- **Mid-run approval mode changes no longer revert while a turn opens or runs.**
+  `device_link.py` now reads live `chat.agent_mode` before and after opening or
+  syncing the device session instead of overwriting with the turn-start snapshot,
+  and live `mode` events propagate over WebUI SSE, `/api/v2` SSE, and the
+  `HX-Trigger: lembas:mode` header so Desktop and WebUI stay in sync.
+
+### Added
+
+- **Context chunks for autocomplete FIM (`/v1/lembas/complete`).** Accepts
+  bounded related project context chunks in stable order for KV-cache prefill
+  reuse across `/infill` (`input_extra`), completions, and chat FIM backends.
+
+### Changed
+
+- Recommended beta Desktop version in `app_releases.json` moved to `1.0.0-beta.17`.
+
 ## 2.0.0-beta.21 — 2026-11-26
 
 ### Fixed
