@@ -255,6 +255,7 @@
          reserves the row's height before the first chips arrive. #}
       <div class="msg__metrics msg__metrics--live" id="metrics-{{ message.id }}"
            sse-swap="metrics" hx-swap="innerHTML"></div>
+      <span hidden sse-swap="mode" hx-swap="innerHTML" data-mode-sync></span>
       </div>
     {% else %}
       {# Finished, and rendered from the same partial the live view uses so the

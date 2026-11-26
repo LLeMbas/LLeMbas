@@ -2341,6 +2341,34 @@ document.addEventListener("lembas:notify", function (event) {
 })();
 
 /*
+  Keep the chatbar's approval mode select in sync when another client (Desktop)
+  or the linked device (e.g. remote.max_mode clamping or plan approval) changes
+  the mode live during or between turns.
+*/
+(function () {
+  "use strict";
+
+  function syncMode(wanted) {
+    if (!wanted) return;
+    var select = document.querySelector('.chatbar select[name="agent_mode"]');
+    if (!select || document.activeElement === select || select.value === wanted) return;
+    if (select.querySelector('option[value="' + wanted + '"]')) {
+      select.value = wanted;
+    }
+  }
+
+  document.addEventListener("lembas:mode", function (event) {
+    var detail = event.detail || {};
+    if (detail.mode) syncMode(String(detail.mode));
+  });
+
+  document.body && document.body.addEventListener("htmx:sseMessage", function (event) {
+    var detail = event.detail || {};
+    if (detail.type === "mode" && detail.data) syncMode(String(detail.data).trim());
+  });
+})();
+
+/*
   The chat's toolbar, folded (`.chatbar`, chat/index.html): Chat settings
   opens the row of controls under the header and closes it again. Put away
   by a click outside it, by Escape, and by opening a side panel from it --

@@ -1105,7 +1105,7 @@ async def device_model_badge(
             chat_service.available_models(db, user), chat.model_id, chat.connection_id
         )
         label = current.label if current is not None else ""
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         request,
         "chat/_device_model.html",
         {
@@ -1117,6 +1117,11 @@ async def device_model_badge(
             "terminal_off": availability(db, user, chat.device_token_id or ""),
         },
     )
+    if chat.kind == KIND_AGENT and not chat.temporary:
+        response.headers["HX-Trigger"] = json.dumps(
+            {"lembas:mode": {"chat_id": chat.id, "mode": chat.agent_mode or ""}}
+        )
+    return response
 
 
 @router.get("/{chat_id}/earlier")
@@ -1944,6 +1949,10 @@ async def _follow(chat_id: str, message_id: str) -> AsyncIterator[str]:
                     _jobs_strip_html(chat_id, [*generation.jobs.values(), *team_rows]),
                 ):
                     yield sse.event("jobs", sent["jobs"])
+                if generation.chat_mode is not None and changed(
+                    "mode", escape_text(generation.chat_mode)
+                ):
+                    yield sse.event("mode", sent["mode"])
                 last_frame = time.monotonic()
 
             # The metrics keep to a clock rather than to the version. The
@@ -3395,6 +3404,12 @@ def apply_chat_update(db: DBSession, user: User, chat: Chat, form) -> tuple[bool
 
     db.commit()
     if push_mode:
+        # Notify any live SSE followers (WebUI and Desktop) so another open
+        # window reflects the change immediately while the turn is running.
+        gen = generation_service.running_for(chat.id)
+        if gen is not None:
+            gen.chat_mode = push_mode
+            gen.touch()
         # Push immediately so a turn already running on the device switches
         # approval mode before its next tool call instead of waiting for the
         # next prompt (`_bring_up_to_date`).

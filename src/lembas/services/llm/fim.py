@@ -131,6 +131,14 @@ class _WithoutStreamOptions(Exception):
 
 
 @dataclass(frozen=True)
+class ContextChunk:
+    """One related file excerpt sent beside the cursor for repository-aware FIM."""
+
+    path: str
+    text: str
+
+
+@dataclass(frozen=True)
 class Ask:
     """One completion, with everything the upstream request needs."""
 
@@ -143,6 +151,8 @@ class Ask:
     max_tokens: int
     path: str = ""
     language: str = ""
+    # Related files/snippets in a stable session order for KV-cache prefill reuse.
+    context: tuple[ContextChunk, ...] = ()
     # The model's sampling defaults, an administrator's (`Model.params_json`).
     params: dict[str, Any] | None = None
     # What switches the model's thinking off, or asks for its lowest effort,
@@ -151,7 +161,7 @@ class Ask:
     # Whether the model thinks and cannot be told not to.
     thinks: bool = False
     # The model's context window in tokens, 0 when unknown.
-    context: int = 0
+    context_length: int = 0
 
 
 def reset() -> None:
@@ -198,18 +208,31 @@ def window(prefix: str, suffix: str, context: int = 0) -> tuple[str, str]:
 
 
 def messages_for(ask: Ask, prefix: str, suffix: str) -> list[dict[str, str]]:
-    """The strict chat prompt."""
+    """The strict chat prompt. Related context chunks come first in a stable
+    order so prefix KV caching survives across keystrokes."""
+    parts: list[str] = []
+    if ask.context:
+        chunks = [
+            f"<file path=\"{chunk.path}\">\n{chunk.text}\n</file>"
+            for chunk in ask.context
+            if chunk.text
+        ]
+        if chunks:
+            body = "\n\n".join(chunks)
+            parts.append(f"Related project context:\n<context>\n{body}\n</context>")
     where = []
     if ask.path:
         where.append(f"File: {ask.path}")
     if ask.language:
         where.append(f"Language: {ask.language}")
-    head = ("\n".join(where) + "\n\n") if where else ""
-    user = (
-        f"{head}Text before the cursor:\n<before>\n{prefix}</before>\n\n"
+    if where:
+        parts.append("\n".join(where))
+    parts.append(
+        f"Text before the cursor:\n<before>\n{prefix}</before>\n\n"
         f"Text after the cursor:\n<after>\n{suffix}</after>\n\n"
         "Answer with only the text to insert at the cursor."
     )
+    user = "\n\n".join(parts)
     return [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}]
 
 
@@ -327,7 +350,7 @@ async def stream(ask: Ask) -> AsyncIterator[tuple[str, Any]]:
     """Ask, and yield `(DELTA, text)` as the text comes and one closing
     `(END, {"finish", "usage", "way"})`. `usage` is the server's own object in
     OpenAI's shape, or None where it said nothing. Raises `LLMError`."""
-    prefix, suffix = window(ask.prefix, ask.suffix, ask.context)
+    prefix, suffix = window(ask.prefix, ask.suffix, ask.context_length)
     way = way_for(ask.endpoint, ask.server, ask.model_id)
     if way != WAY_CHAT:
         try:
@@ -379,7 +402,7 @@ async def _chat(ask: Ask, prefix: str, suffix: str) -> AsyncIterator[tuple[str, 
 def _request_for(way: str, ask: Ask, prefix: str, suffix: str) -> tuple[str, dict[str, Any]]:
     """The address and body of a server's own fill-in request."""
     if way == WAY_INFILL:
-        return ask.endpoint.root_url("infill"), {
+        infill_body: dict[str, Any] = {
             # llama-swap and llama.cpp's router choose the model by this.
             "model": ask.model_id,
             "input_prefix": prefix,
@@ -388,9 +411,23 @@ def _request_for(way: str, ask: Ask, prefix: str, suffix: str) -> tuple[str, dic
             "cache_prompt": True,
             "stream": True,
         }
+        if ask.context:
+            infill_body["input_extra"] = [
+                {"filename": chunk.path, "text": chunk.text}
+                for chunk in ask.context
+                if chunk.text
+            ]
+        return ask.endpoint.root_url("infill"), infill_body
+    prompt = prefix
+    if ask.context:
+        header = "\n\n".join(
+            f"# File: {chunk.path}\n{chunk.text}" for chunk in ask.context if chunk.text
+        )
+        if header:
+            prompt = f"{header}\n\n# File: {ask.path or 'current'}\n{prefix}"
     body: dict[str, Any] = {
         "model": ask.model_id,
-        "prompt": prefix,
+        "prompt": prompt,
         "max_tokens": ask.max_tokens,
         "stream": True,
         "stream_options": {"include_usage": True},
@@ -529,6 +566,7 @@ __all__ = [
     "WAY_DEEPSEEK",
     "WAY_INFILL",
     "Ask",
+    "ContextChunk",
     "Inserted",
     "clean",
     "messages_for",

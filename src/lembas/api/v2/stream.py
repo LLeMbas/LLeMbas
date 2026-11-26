@@ -143,6 +143,10 @@ async def follow_json(chat_id: str, message_id: str) -> AsyncIterator[str]:
                     out := changed("tree", {"tree": generation.team_tree})
                 ):
                     yield out
+                if generation.chat_mode is not None and (
+                    out := changed("mode", {"mode": generation.chat_mode})
+                ):
+                    yield out
                 last_frame = time.monotonic()
 
             # A chat's own tree (spec 3.4.0, subagents.md §12): its agents'

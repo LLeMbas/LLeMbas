@@ -1995,9 +1995,10 @@ async def run(
                 return
         session_id = ""
         if current is not None:
+            live_mode = _live_mode(chat_id, mode)
             try:
                 await _bring_up_to_date(
-                    link, generation, chat_id, current, mode, model, effort, device_name
+                    link, generation, chat_id, current, live_mode, model, effort, device_name
                 )
             except DeviceError as exc:
                 # Gone on the device (a build that keeps no sessions across a
@@ -2007,11 +2008,18 @@ async def run(
                 link.sessions.pop(chat_id, None)
                 current = None
         if current is None:
+            live_mode = _live_mode(chat_id, mode)
             current = await _open(
-                link, generation, chat_id, project_dir, mode, model, effort, device_name
+                link, generation, chat_id, project_dir, live_mode, model, effort, device_name
             )
         session_id = current
-        link.modes[chat_id] = mode
+        # Re-read the chat's current mode after `_open`/`_bring_up_to_date`: a
+        # mode switch made while the session was opening (before `session_id`
+        # existed) would otherwise be missed or overwritten by the start-of-turn
+        # snapshot.
+        latest_mode = _live_mode(chat_id, "")
+        if latest_mode and link.modes.get(chat_id) != latest_mode:
+            await set_mode(token_id, chat_id, session_id, latest_mode)
         link.configs[chat_id] = (model, effort)
         # A turn of the device's own whose rows are still being made here (its
         # `prompt` came a moment ago): this reply becomes that turn's reply,
@@ -3079,6 +3087,20 @@ async def _open(
     session_id = str(opened.get("sessionId") or "")
     link.sessions[chat_id] = session_id
     _keep_session_id(chat_id, session_id)
+    effective = str(
+        ((opened.get("modes") or {}).get("currentModeId") if isinstance(opened, dict) else "")
+        or (
+            ((opened.get("_meta") or {}).get("lembas") or {}).get("mode")
+            if isinstance(opened, dict)
+            else ""
+        )
+        or mode
+        or ""
+    )
+    if effective:
+        link.modes[chat_id] = effective
+        if effective != mode:
+            _remode(link, session_id, effective)
     # The chat's model, full stop (spec 3.0.0): a 2.0 device runs a session it
     # was opened with on that model or refuses `session/new` with -32602 and
     # the reason -- which `run` shows as the reply's error. There is no
@@ -3089,6 +3111,20 @@ async def _open(
             "turns before this one.)*\n\n"
         )
     return session_id
+
+
+def _live_mode(chat_id: str, fallback: str = "") -> str:
+    """The chat's approval mode as stored right now, so a switch made after a
+    prompt was queued or while `session/new` was in flight is never overwritten
+    by the start-of-turn snapshot."""
+    from lembas.db.models import Chat
+    from lembas.db.session import session_scope
+
+    with session_scope() as db:
+        chat = db.get(Chat, chat_id)
+        if chat is None:
+            return fallback
+        return "plan" if chat.temporary else (chat.agent_mode or fallback)
 
 
 async def _bring_up_to_date(
@@ -3104,9 +3140,19 @@ async def _bring_up_to_date(
     """The mode, model and effort the composer shows, sent before the prompt
     when they changed since the last one (the device may still lower the mode)."""
     if mode and link.modes.get(chat_id) != mode:
-        await link.request(
-            "session/set_mode", {"sessionId": session_id, "modeId": mode}, timeout=30
-        )
+        previous = link.modes.get(chat_id)
+        link.modes[chat_id] = mode
+        try:
+            await link.request(
+                "session/set_mode", {"sessionId": session_id, "modeId": mode}, timeout=30
+            )
+        except Exception:
+            if link.modes.get(chat_id) == mode:
+                if previous is None:
+                    link.modes.pop(chat_id, None)
+                else:
+                    link.modes[chat_id] = previous
+            raise
     if (model or effort) and link.configs.get(chat_id) != (model, effort):
         try:
             await link.request(
@@ -4202,6 +4248,7 @@ def _retitle(link: Link, session_id: str, title: str) -> None:
 def _remode(link: Link, session_id: str, mode: str) -> None:
     """The terminal changed the session's mode: the composer shows it."""
     from lembas.db.session import session_scope
+    from lembas.services import generation as generation_service
     from lembas.services.agent import policy as agent_policy
 
     if mode not in agent_policy.MODES:
@@ -4212,9 +4259,14 @@ def _remode(link: Link, session_id: str, mode: str) -> None:
             link.modes[chat.id] = mode
             # A temporary chat is held at Plan (generation._device_turn), which
             # the device reports back; the chat's own mode stays what was chosen.
-            if chat.agent_mode != mode and not chat.temporary:
-                chat.agent_mode = mode
-                db.commit()
+            if not chat.temporary:
+                if chat.agent_mode != mode:
+                    chat.agent_mode = mode
+                    db.commit()
+                gen = generation_service.running_for(chat.id)
+                if gen is not None and gen.chat_mode != mode:
+                    gen.chat_mode = mode
+                    gen.touch()
 
 
 def _remodel(link: Link, session_id: str, ref: str, effort: str, instance: Any = None) -> None:

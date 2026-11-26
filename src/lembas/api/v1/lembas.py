@@ -55,9 +55,12 @@ router = APIRouter(prefix="/v1/lembas", tags=["editor"])
 # The most of a file one request carries on each side of the cursor, in bytes
 # of UTF-8. An editor sends the text around the cursor, not the repository.
 MAX_SIDE_BYTES = 64 * 1024
-# The whole body: both sides, every character escaped the long way, and the
-# rest of the fields.
-MAX_BODY_BYTES = 2 * 6 * MAX_SIDE_BYTES + 16 * 1024
+# Related session/project context chunks carried alongside the cursor window.
+MAX_CONTEXT_CHUNKS = 8
+MAX_CONTEXT_BYTES = 32 * 1024
+# The whole body: both sides, context chunks, every character escaped the long
+# way, and the rest of the fields.
+MAX_BODY_BYTES = 2 * 6 * MAX_SIDE_BYTES + 6 * MAX_CONTEXT_BYTES + 16 * 1024
 DEFAULT_TOKENS = 128
 MAX_TOKENS = 512
 # Completions one account may have in flight. An editor cancels the one
@@ -144,7 +147,41 @@ def _quiet(model: Model) -> tuple[dict[str, Any], bool]:
     return {}, bool((model.capabilities_json or {}).get("reasoning"))
 
 
-def _ask(model: Model, body: dict[str, Any], max_tokens: int) -> fim.Ask:
+def _context_chunks(raw: Any) -> tuple[fim.ContextChunk, ...] | Response:
+    """Validate optional repository/session context chunks (`[{path, text}]`)."""
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        return error_response(400, "`context` must be a list of {path, text} objects.")
+    chunks: list[fim.ContextChunk] = []
+    total_bytes = 0
+    for item in raw[:MAX_CONTEXT_CHUNKS]:
+        if not isinstance(item, dict):
+            return error_response(400, "Each item in `context` must be an object.")
+        path = item.get("path")
+        text = item.get("text")
+        if not isinstance(path, str) or not isinstance(text, str):
+            return error_response(400, "Each item in `context` must have string `path` and `text`.")
+        clean_path = path.replace("\r", "").replace("\n", "").strip()[:500]
+        if not text:
+            continue
+        size = len(text.encode("utf-8"))
+        if total_bytes + size > MAX_CONTEXT_BYTES:
+            return error_response(
+                413,
+                "`context` is too large: at most 32 KiB of related context per completion.",
+            )
+        total_bytes += size
+        chunks.append(fim.ContextChunk(path=clean_path or "context", text=text))
+    return tuple(chunks)
+
+
+def _ask(
+    model: Model,
+    body: dict[str, Any],
+    max_tokens: int,
+    context: tuple[fim.ContextChunk, ...] = (),
+) -> fim.Ask:
     connection = model.connection
     quiet, thinks = _quiet(model)
     return fim.Ask(
@@ -156,10 +193,11 @@ def _ask(model: Model, body: dict[str, Any], max_tokens: int) -> fim.Ask:
         max_tokens=max_tokens,
         path=body["path"][:1000],
         language=body["language"][:100],
+        context=context,
         params=dict(model.params_json or {}),
         quiet=quiet,
         thinks=thinks,
-        context=int(model.context_length or 0),
+        context_length=int(model.context_length or 0),
     )
 
 
@@ -182,8 +220,9 @@ def _usage(ask: fim.Ask, said: dict[str, Any] | None, text: str) -> dict[str, An
         )
         return {**said, "prompt_tokens": prompt, "completion_tokens": written,
                 "total_tokens": prompt + written}
-    before, after = fim.window(ask.prefix, ask.suffix, ask.context)
-    prompt = tokens.estimate(before) + tokens.estimate(after)
+    before, after = fim.window(ask.prefix, ask.suffix, ask.context_length)
+    extra = sum(tokens.estimate(c.text) for c in ask.context)
+    prompt = tokens.estimate(before) + tokens.estimate(after) + extra
     written = tokens.estimate(text)
     return {"prompt_tokens": prompt, "completion_tokens": written,
             "total_tokens": prompt + written, "estimated": True}
@@ -226,6 +265,10 @@ async def complete(request: Request, db: Db, caller: CompleteCaller):
     else:
         max_tokens = min(asked, MAX_TOKENS)
 
+    chunks = _context_chunks(body.get("context"))
+    if isinstance(chunks, Response):
+        return chunks
+
     user = caller.user
     try:
         model = editor.for_completion(db, user, fields["model"].strip())
@@ -245,7 +288,7 @@ async def complete(request: Request, db: Db, caller: CompleteCaller):
             "rate_limit_error",
         )
 
-    ask = _ask(model, fields, max_tokens)
+    ask = _ask(model, fields, max_tokens, context=chunks)
     ref = chat_service.model_ref(model)
     user_id, model_row_id, token_id = user.id, model.id, caller.token.id
     # Everything the database is asked is asked by now: its connection goes

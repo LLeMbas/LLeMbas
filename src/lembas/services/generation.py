@@ -258,6 +258,9 @@ class Generation:
     # in the call's result, so no session note reports the mode change later
     # (`prefix.known`, harness spec 3.1.0).
     left_plan_mode: bool = False
+    # Current approval mode of the chat when changed mid-run (by another client
+    # or clamped by the device), so live SSE followers update their mode control.
+    chat_mode: str | None = None
     # A scheduled run on a linked computer (harness spec 3.5.0): the device
     # was not linked when the turn was sent, so the run waits for it; and the
     # outcome the device gave in `session/prompt`'s answer, when it gave one.

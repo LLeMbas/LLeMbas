@@ -442,6 +442,61 @@ def test_a_mode_changed_mid_run_reaches_the_device_immediately(client, db, regis
         assert db.get(Chat, chat.id).agent_mode == "edit"
 
 
+def test_a_mode_switched_while_session_opens_is_not_dropped_or_reverted(client, db, registered):
+    """Switching approval mode right after sending a prompt (while `session/new`
+    is still in flight and `device_session_id` does not exist yet) must still
+    push the new mode before `session/prompt` and never revert to the old mode."""
+    token_id, raw = _device(db)
+    with client.websocket_connect(
+        "/api/devices/link", headers={"Authorization": f"Bearer {raw}"}
+    ) as ws:
+        _hello(ws)
+        _wait_linked(token_id)
+        client.post(
+            "/api/chats/start",
+            data={
+                "content": "start work",
+                "kind": "agent",
+                "ssh_profile_id": f"device:{token_id}",
+                "agent_mode": "edit",
+            },
+        )
+        chat = db.scalar(select(Chat))
+        new = ws.receive_json()
+        assert new["method"] == "session/new"
+        assert new["params"]["_meta"]["mode"] == "edit"
+
+        # User switches to Auto BEFORE `session/new` has answered.
+        res = client.patch(f"/api/chats/{chat.id}", data={"agent_mode": "auto"})
+        assert res.status_code in (200, 204)
+
+        # Now `session/new` answers with the session opened in `edit`.
+        ws.send_text(
+            json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": new["id"],
+                    "result": {"sessionId": "s-opening", "modes": {"currentModeId": "edit"}},
+                }
+            )
+        )
+
+        # Server must immediately push `session/set_mode("auto")` before `session/prompt`.
+        set_mode = ws.receive_json()
+        assert set_mode["method"] == "session/set_mode"
+        assert set_mode["params"] == {"sessionId": "s-opening", "modeId": "auto"}
+        ws.send_text(json.dumps({"jsonrpc": "2.0", "id": set_mode["id"], "result": {}}))
+
+        prompt = ws.receive_json()
+        assert prompt["method"] == "session/prompt"
+        ws.send_text(
+            json.dumps({"jsonrpc": "2.0", "id": prompt["id"], "result": {"stopReason": "end_turn"}})
+        )
+        _reply(db, chat.id)
+        db.expire_all()
+        assert db.get(Chat, chat.id).agent_mode == "auto"
+
+
 def test_a_device_that_went_away_is_said_plainly(client, db, registered):
     token_id, raw = _device(db)
     with client.websocket_connect(

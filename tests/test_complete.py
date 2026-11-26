@@ -897,3 +897,50 @@ def test_a_request_whose_client_is_gone_stops_at_the_models_server(
     for stream in (False, True):
         assert _ask(client, _auth(db), model="coder", stream=stream).status_code == 499
     assert closed == [True, True] and complete_api._IN_FLIGHT == {}
+
+
+def test_context_chunks_go_to_infill_completions_and_chat_in_stable_order(
+    client, db, registered, mock_http
+):
+    """Repository/session context chunks are forwarded to llama.cpp `/infill`
+    as `input_extra`, to OpenAI `/v1/completions` before the prefix, and to
+    chat fallback inside `<context>` before `<before>`."""
+    ctx = [
+        {"path": "src/types.ts", "text": "export interface User { id: string }"},
+        {"path": "src/util.ts", "text": "export function formatUser(u: User): string"},
+    ]
+    # 1. llama.cpp /infill
+    conn_llama = _connection(db, name="llama", server="llama.cpp")
+    _model(db, conn_llama, "fim-model")
+    seen_llama: list = []
+    _upstream(mock_http, _sse({"content": "a + b", "stop": True}), seen_llama)
+    res = _ask(client, _auth(db), model="llama/fim-model", context=ctx)
+    assert res.status_code == 200 and res.json()["text"] == "a + b"
+    assert seen_llama[0][1]["input_extra"] == [
+        {"filename": "src/types.ts", "text": "export interface User { id: string }"},
+        {"filename": "src/util.ts", "text": "export function formatUser(u: User): string"},
+    ]
+
+    # 2. chat fallback
+    conn_chat = _connection(db, name="chat", base_url="http://chat.test/v1")
+    _model(db, conn_chat, "chat-model")
+    seen_chat: list = []
+    _upstream(mock_http, _chat_stream("a + b"), seen_chat)
+    res2 = _ask(client, _auth(db), model="chat/chat-model", context=ctx)
+    assert res2.status_code == 200 and res2.json()["text"] == "a + b"
+    user_msg = seen_chat[0][1]["messages"][1]["content"]
+    assert "<context>" in user_msg
+    i_types = user_msg.index("src/types.ts")
+    i_util = user_msg.index("src/util.ts")
+    assert i_types < i_util < user_msg.index("<before>")
+
+    # 3. invalid context is refused cleanly
+    bad = _ask(client, _auth(db), model="chat/chat-model", context="not-a-list")
+    assert bad.status_code == 400
+    huge = _ask(
+        client,
+        _auth(db),
+        model="chat/chat-model",
+        context=[{"path": "big.ts", "text": "x" * (32 * 1024 + 1)}],
+    )
+    assert huge.status_code == 413
