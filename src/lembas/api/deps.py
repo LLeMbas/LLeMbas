@@ -25,7 +25,13 @@ def get_db() -> Iterator[DBSession]:
         session.close()
 
 
-Db = Annotated[DBSession, Depends(get_db)]
+# Function scope: closed when the endpoint has returned, before its response is
+# sent. With the default ("request") scope FastAPI closes it only once the
+# response is over -- for an event stream, when the stream ends -- and a session
+# that has run a query keeps its pooled connection until then, so a few open
+# streams emptied the pool for everyone (tests/test_db_pool_streams.py). A stream
+# body opens its own `session_scope()` for what it reads.
+Db = Annotated[DBSession, Depends(get_db, scope="function")]
 
 
 async def get_current_user(conn: HTTPConnection, db: Db) -> User | None:

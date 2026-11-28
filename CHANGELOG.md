@@ -3,6 +3,24 @@
 What changed in each release of the LLeMbas server. The release notes are also
 at <https://llembas.eu/changelog.html>.
 
+## 2.0.0-beta.23 — 2026-11-28
+
+### Fixed
+
+- **The server no longer stops answering when several streams are open.**
+  Every open event stream (the apps' `/api/v2` events, schedule events, a
+  reply being followed) and every streamed `/v1` completion held one of the
+  database pool's fifteen connections for as long as it was open, because the
+  request's session was closed only once the response had ended. A few apps,
+  browser tabs and a fan-out of subagents emptied the pool; every other request
+  then waited thirty seconds and failed until the server was restarted. The
+  request's session now closes as soon as the endpoint has returned, before
+  anything streams.
+
+### Changed
+
+- FastAPI 0.121 or newer is required (function-scoped dependencies).
+
 ## 2.0.0-beta.22 — 2026-11-26
 
 ### Fixed
